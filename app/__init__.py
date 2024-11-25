@@ -1,5 +1,6 @@
 import os
 import traceback
+from typing import Optional
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
@@ -8,17 +9,35 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from .celery import make_celery, celery
 
-db = SQLAlchemy()
-bcrypt = Bcrypt()
-login_manager = LoginManager()
+__version__ = '1.0.0'
+
+# Type-hinted globals
+db: SQLAlchemy = SQLAlchemy()
+bcrypt: Bcrypt = Bcrypt()
+login_manager: LoginManager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Please log in to access this page.'
-migrate = Migrate()
+migrate: Migrate = Migrate()
 
-def create_app():
+def create_app(env: Optional[str] = None) -> Flask:
     app = Flask(__name__)
-    app.config.from_object('config.Config')
-    app.logger.info("Starting application...")
+    
+    # Environment-specific configuration
+    config_object = f"config.{env.capitalize()}Config" if env else "config.Config"
+    
+    try:
+        app.config.from_object(config_object)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load config: {str(e)}")
+    
+    # Configure logging
+    import logging
+    logging.basicConfig(
+        level=app.config.get('LOG_LEVEL', logging.INFO),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    app.logger.info(f"Starting application version {__version__}...")
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     db.init_app(app)
