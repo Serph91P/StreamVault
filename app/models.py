@@ -32,5 +32,18 @@ class TwitchEvent(db.Model):
     event_data = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
+    async def process_event(self):
+        event_data = json.loads(self.event_data)
+        streamer = Streamer.query.filter_by(twitch_id=event_data.get('broadcaster_id')).first()
+        
+        if streamer:
+            if self.event_type == 'stream.online':
+                celery.send_task('start_recording_task', args=[streamer.twitch_id])
+            elif self.event_type == 'stream.offline':
+                streamer.is_live = False
+                streamer.last_updated = datetime.utcnow()
+                db.session.commit()
+                await manager.broadcast_streamer_update(streamer)
+
     def __repr__(self):
         return f'<TwitchEvent {self.event_type}>'
