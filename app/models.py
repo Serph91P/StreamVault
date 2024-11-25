@@ -1,5 +1,6 @@
 from datetime import datetime
-from . import db, login_manager
+import json
+from . import db, login_manager, celery
 from flask_login import UserMixin
 
 @login_manager.user_loader
@@ -32,7 +33,7 @@ class TwitchEvent(db.Model):
     event_data = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-    async def process_event(self):
+    def process_event(self):
         event_data = json.loads(self.event_data)
         streamer = Streamer.query.filter_by(twitch_id=event_data.get('broadcaster_id')).first()
         
@@ -43,7 +44,7 @@ class TwitchEvent(db.Model):
                 streamer.is_live = False
                 streamer.last_updated = datetime.utcnow()
                 db.session.commit()
-                await manager.broadcast_streamer_update(streamer)
+                celery.send_task('send_websocket_update', args=[streamer.id])
 
     def __repr__(self):
         return f'<TwitchEvent {self.event_type}>'
