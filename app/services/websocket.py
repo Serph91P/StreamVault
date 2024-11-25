@@ -1,7 +1,7 @@
 from typing import Dict, List
 from fastapi import WebSocket
-from app.models import Streamer, TwitchEvent
-from datetime import datetime
+from app.models import Streamer
+import json
 
 class StreamerConnectionManager:
     def __init__(self):
@@ -35,10 +35,14 @@ class StreamerConnectionManager:
 
     async def broadcast_to_streamer(self, streamer_username: str, message: dict):
         if streamer_username in self.active_connections:
+            disconnected = []
             for connection in self.active_connections[streamer_username]:
                 try:
                     await connection.send_json(message)
                 except:
-                    await self.disconnect(connection, streamer_username)
+                    disconnected.append(connection)
+            
+            for connection in disconnected:
+                self.disconnect(connection, streamer_username)
 
 manager = StreamerConnectionManager()
