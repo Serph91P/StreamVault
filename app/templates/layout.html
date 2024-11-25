@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Twitch Recorder{% endblock %}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="{{ url_for('static', filename='js/websocket.js') }}"></script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -37,7 +38,33 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+        
+        <!-- Add stream status container for authenticated users -->
+        {% if current_user.is_authenticated %}
+            <div id="stream-status-container">
+                {% for streamer in current_user.streamers %}
+                    <div class="stream-info" data-streamer="{{ streamer.username }}">
+                        <h3>{{ streamer.username }}</h3>
+                        <p>Status: <span class="status-badge">{{ 'Live' if streamer.is_live else 'Offline' }}</span></p>
+                        <p>Title: <span class="stream-title">{{ streamer.stream_title }}</span></p>
+                        <p>Game: <span class="game-name">{{ streamer.game_name }}</span></p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Initialize WebSocket connections for each streamer -->
+    {% if current_user.is_authenticated %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for streamer in current_user.streamers %}
+                new StreamerWebSocket('{{ streamer.username }}');
+            {% endfor %}
+        });
+    </script>
+    {% endif %}
 </body>
 </html>
