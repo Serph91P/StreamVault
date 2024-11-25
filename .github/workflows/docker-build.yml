@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: cth-ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
@@ -27,4 +27,3 @@ jobs:
           BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
         tags: |
           frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
-
