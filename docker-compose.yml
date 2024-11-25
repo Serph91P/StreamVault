@@ -1,98 +1,30 @@
 services:
-  nginx:
-    image: nginx:latest
-    ports:
-      - "80:80"
+  app:
+    build: .
+    container_name: streamvault
     volumes:
-      - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template
+      - .:/app
+    ports:
+      - "7000:7000"
     environment:
-      - BASE_URL=
-    entrypoint: /bin/sh -c "envsubst '\$BASE_URL' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+      - TWITCH_APP_ID=${TWITCH_APP_ID}
+      - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
+      - BASE_URL=${BASE_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    restart: unless-stopped
     depends_on:
-      - web
+      - db
 
-  web:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    volumes:
-      - .:/usr/src/app
-      - recordings:/recordings
-    ports:
-      - "5000"
-      - "8080"
+  db:
+    image: postgres:13-alpine
+    container_name: streamvault_db
     environment:
-      - BASE_URL=
-      # - FLASK_APP=app.py
-      - FLASK_APP=app/__init__.py
-      - FLASK_ENV=development
-      - RECORDINGS_DIR=/recordings/
-      - TWITCH_CLIENT_ID=
-      - TWITCH_CLIENT_SECRET=
-      - TWITCH_WEBHOOK_SECRET=
-      - CELERY_BROKER_URL=amqp://user:password@rabbitmq:5672/
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - EVENTSUB_WEBHOOK_PORT=8080
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  worker:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    command: celery -A app.celery_worker.celery worker --loglevel=info
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - .:/usr/src/app
-      - ./instance:/usr/src/app/instance
-      - recordings:/recordings
-    environment:
-      - BASE_URL=
-      - RECORDINGS_DIR=/recordings/
-      - TWITCH_CLIENT_ID=
-      - TWITCH_CLIENT_SECRET=
-      - TWITCH_WEBHOOK_SECRET=
-      - CELERY_BROKER_URL=amqp://user:password@rabbitmq:5672/
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=True
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      web:
-        condition: service_healthy
-
-  rabbitmq:
-    image: rabbitmq:3-alpine
-    environment:
-      - RABBITMQ_DEFAULT_USER=user
-      - RABBITMQ_DEFAULT_PASS=password
-      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit log_levels "[{connection,error}]"
-      - RABBITMQ_ENABLED_PLUGINS_FILE=/etc/rabbitmq/enabled_plugins
-    ports:
-      - "5672:5672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-      - ./enabled_plugins:/etc/rabbitmq/enabled_plugins
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  redis:
-    image: redis:latest
-    ports:
-      - "6379:6379"
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
-  rabbitmq_data:
-  recordings:
+  db_data:
