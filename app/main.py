@@ -1,11 +1,11 @@
 import os
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook as EventSub
-from twitchAPI.types import AuthScope
+from twitchAPI.object.eventsub import ChannelFollowEvent
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
@@ -44,11 +44,11 @@ twitch = Twitch(APP_ID, APP_SECRET)
 twitch.authenticate_app([])
 
 # Initialize EventSub
-event_sub = EventSub(WEBHOOK_URL, 7000, twitch)
+event_sub = EventSub(WEBHOOK_URL, APP_SECRET, twitch)
 
 # Start EventSub listener in a separate thread
 def start_eventsub():
-    event_sub.listen()
+    event_sub.start()
 
 thread = threading.Thread(target=start_eventsub, daemon=True)
 thread.start()
