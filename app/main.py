@@ -4,7 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, B
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
-from twitchAPI.eventsub import EventSub
+from twitchAPI.eventsub.webhook import EventSubWebhook as EventSub
 from twitchAPI.types import AuthScope
 from pydantic import BaseModel
 from typing import List
