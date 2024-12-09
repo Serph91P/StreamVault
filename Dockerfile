@@ -1,14 +1,13 @@
-# Use an official Python runtime as a parent image
 FROM python:3.13-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file first (for caching)
-COPY requirements.txt ./
-
-# Install the required packages
+# Install Node.js and npm
 RUN apt-get update && apt-get install -y \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y \
+    nodejs \
     gcc \
     python3-dev \
     libpq-dev \
@@ -17,11 +16,23 @@ RUN apt-get update && apt-get install -y \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the rest of the application code
+# Copy Python requirements first
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Setup frontend
+COPY app/frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm install
+
+# Copy and build frontend
+COPY app/frontend ./
+RUN npm run build
+
+# Back to main directory and copy rest of app
+WORKDIR /app
 COPY . .
 
-# Expose the port FastAPI is running on
 EXPOSE 7000
 
-# Command to run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
