@@ -2,6 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Copy Python requirements first
+COPY requirements.txt ./
+
 # Install Node.js and npm
 RUN apt-get update && apt-get install -y \
     curl \
@@ -15,10 +18,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy Python requirements first
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Setup frontend
 COPY app/frontend/package*.json ./frontend/
