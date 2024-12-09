@@ -1,5 +1,9 @@
 import os
 import asyncio
+import logging
+from app.config.logging_config import setup_logging
+from app.middleware.auth import AuthMiddleware
+from app.middleware.error_handler import error_handler
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -14,13 +18,17 @@ import app.models as models
 from app.database import SessionLocal, engine
 from starlette.websockets import WebSocketState
 
-# Create the database tables
+# Initialize logging
+logger = setup_logging()
+
+# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-# Mount static files (if any)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Add error handling middleware
+app.add_exception_handler(Exception, error_handler)
 
 # Dependency to get DB session
 def get_db():
@@ -29,6 +37,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -36,9 +45,11 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        logger.info(f"WebSocket connected: {websocket.client}")
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
+        logger.info(f"WebSocket disconnected: {websocket.client}")
 
     async def send_notification(self, message: str):
         for connection in self.active_connections:
@@ -47,38 +58,57 @@ class ConnectionManager:
                     await connection.send_text(message)
                 except WebSocketDisconnect:
                     self.disconnect(connection)
+                    logger.error(f"Failed to send message to {connection.client}")
 
 # Initialize the manager
 manager = ConnectionManager()
 
-# Twitch API credentials from environment variables
+# Twitch API credentials
 APP_ID = os.getenv('TWITCH_APP_ID')
 APP_SECRET = os.getenv('TWITCH_APP_SECRET')
-BASE_URL = os.getenv('BASE_URL')  # Use BASE_URL for webhook URL
+BASE_URL = os.getenv('BASE_URL')
 WEBHOOK_URL = f"{BASE_URL}/eventsub"
 
-if not APP_ID or not APP_SECRET or not WEBHOOK_URL:
-    raise Exception("Environment variables TWITCH_APP_ID, TWITCH_APP_SECRET, and WEBHOOK_URL must be set")
+if not all([APP_ID, APP_SECRET, BASE_URL]):
+    raise ValueError("Missing required environment variables")
 
 # Initialize Twitch API
-twitch = Twitch(APP_ID, APP_SECRET)
-twitch.authenticate_app([])
+twitch = None
+
+async def initialize_twitch():
+    global twitch
+    try:
+        twitch = Twitch(APP_ID, APP_SECRET)
+        await twitch.authenticate_app([])
+        logger.info("Twitch API initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Twitch API: {e}")
+        raise
 
 # Initialize EventSub
-event_sub = EventSub(
-    WEBHOOK_URL,
-    APP_SECRET,
-    twitch
-)
+event_sub = None
 
-# Start EventSub listener in a separate thread
-def start_eventsub():
-    event_sub.start()
+async def initialize_eventsub():
+    global event_sub
+    try:
+        event_sub = EventSub(WEBHOOK_URL, APP_SECRET, twitch)
+        await event_sub.start()
+        logger.info("EventSub initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize EventSub: {e}")
+        raise
 
-thread = threading.Thread(target=start_eventsub, daemon=True)
-thread.start()
+@app.on_event("startup")
+async def startup_event():
+    try:
+        await initialize_twitch()
+        await initialize_eventsub()
+        logger.info("Application startup complete")
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        raise
 
-# Pydantic models
+# Pydantic models with updated config
 class StreamerBase(BaseModel):
     username: str
 
@@ -89,11 +119,12 @@ class Streamer(StreamerBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# Route to serve the homepage
+# Routes remain the same as in your original main.py, but with added logging
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
+    logger.info("Serving homepage")
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -121,19 +152,21 @@ async def read_root():
     """
     return HTMLResponse(content=html_content)
 
-# Endpoint to add a streamer
 @app.post("/add_streamer")
 async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
-    # Check if streamer is already in the database
-    existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
-    if existing_streamer:
-        return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
+    try:
+        existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
+        if existing_streamer:
+            logger.warning(f"Attempted to add existing streamer: {username}")
+            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
 
-    # Add the subscription task to background tasks
-    background_tasks.add_task(subscribe_to_streamer, username, db)
-    return HTMLResponse(content=f"Subscription to {username} is being processed. You will receive a notification shortly.")
+        background_tasks.add_task(subscribe_to_streamer, username, db)
+        logger.info(f"Added subscription task for streamer: {username}")
+        return HTMLResponse(content=f"Subscription to {username} is being processed.")
+    except Exception as e:
+        logger.error(f"Error adding streamer {username}: {e}")
+        raise
 
-# Function to subscribe to a streamer asynchronously
 async def subscribe_to_streamer(username: str, db: Session):
     try:
         user_info = await twitch.get_users(logins=[username])
@@ -159,42 +192,44 @@ async def subscribe_to_streamer(username: str, db: Session):
     except Exception as e:
         await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
 
-# EventSub notification handler
 @app.post("/eventsub")
 async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
-    headers = request.headers
-    body = await request.json()
+    try:
+        headers = request.headers
+        body = await request.json()
+        
+        if headers.get('Twitch-Eventsub-Message-Type') == 'webhook_callback_verification':
+            logger.info("Handling EventSub verification")
+            return Response(content=body['challenge'], media_type='text/plain')
 
-    # Handle EventSub verification
-    if headers.get('Twitch-Eventsub-Message-Type') == 'webhook_callback_verification':
-        return Response(content=body['challenge'], media_type='text/plain')
+        if headers.get('Twitch-Eventsub-Message-Type') == 'notification':
+            logger.info("Processing EventSub notification")
+            event = body['event']
+            streamer_id = event['broadcaster_user_id']
+            streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+            if not streamer:
+                return JSONResponse(status_code=404, content={"message": "Streamer not found in the database."})
 
-    # Handle incoming notifications
-    if headers.get('Twitch-Eventsub-Message-Type') == 'notification':
-        event = body['event']
-        streamer_id = event['broadcaster_user_id']
-        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
-        if not streamer:
-            return JSONResponse(status_code=404, content={"message": "Streamer not found in the database."})
+            event_type = body['subscription']['type']
+            message = ""
+            if event_type == 'stream.online':
+                message = f"{streamer.username} is now **online**."
+            elif event_type == 'stream.offline':
+                message = f"{streamer.username} is now **offline**."
 
-        event_type = body['subscription']['type']
-        message = ""
-        if event_type == 'stream.online':
-            message = f"{streamer.username} is now **online**."
-        elif event_type == 'stream.offline':
-            message = f"{streamer.username} is now **offline**."
+            # Save event to the database
+            new_stream = models.Stream(streamer_id=streamer_id, event_type=event_type)
+            db.add(new_stream)
+            db.commit()
 
-        # Save event to the database
-        new_stream = models.Stream(streamer_id=streamer_id, event_type=event_type)
-        db.add(new_stream)
-        db.commit()
+            # Send notification via WebSocket
+            await manager.send_notification(message)
 
-        # Send notification via WebSocket
-        await manager.send_notification(message)
+        return JSONResponse(status_code=200, content={"message": "Event processed successfully."})
+    except Exception as e:
+        logger.error(f"Error processing EventSub callback: {e}")
+        raise
 
-    return JSONResponse(status_code=200, content={"message": "Event received successfully."})
-
-# WebSocket endpoint for real-time notifications
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -204,8 +239,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# Shutdown EventSub when the app stops
 @app.on_event("shutdown")
 async def shutdown_event():
-    await event_sub.stop()
-
+    try:
+        if event_sub:
+            await event_sub.stop()
+        logger.info("Application shutdown complete")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
