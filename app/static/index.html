@@ -50,7 +50,7 @@
 </head>
 <body>
     <h1>StreamVault</h1>
-    <form id="streamerForm">
+    <form id="streamerForm" method="post">
         <input type="text" name="username" placeholder="Streamer Username" required>
         <button type="submit">Add Streamer</button>
     </form>
@@ -63,7 +63,8 @@
     <div id="notifications"></div>
 
     <script>
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
         
         ws.onmessage = function(event) {
             const notifications = document.getElementById('notifications');
