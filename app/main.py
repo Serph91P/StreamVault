@@ -29,6 +29,27 @@ def get_db():
         yield db
     finally:
         db.close()
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_notification(self, message: str):
+        for connection in self.active_connections:
+            if connection.client_state != WebSocketState.DISCONNECTED:
+                try:
+                    await connection.send_text(message)
+                except WebSocketDisconnect:
+                    self.disconnect(connection)
+
+# Initialize the manager
+manager = ConnectionManager()
 
 # Twitch API credentials from environment variables
 APP_ID = os.getenv('TWITCH_APP_ID')
