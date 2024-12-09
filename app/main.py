@@ -97,8 +97,7 @@ async def initialize_eventsub():
         # Unsubscribe from any existing subscriptions
         await event_sub.unsubscribe_all()
         
-        # Start EventSub in a non-blocking way
-        asyncio.create_task(event_sub.start())
+        event_sub.start()
         
         logger.info("EventSub initialized successfully")
     except Exception as e:
