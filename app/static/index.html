@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitch Stream Monitor</title>
+    <script>
+        // WebSocket connection for real-time updates
+        const ws = new WebSocket('ws://' + window.location.host + '/ws');
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            updateStatus(data);
+        };
+
+        function updateStatus(data) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML += `<p>${new Date().toISOString()}: ${JSON.stringify(data)}</p>`;
+        }
+    </script>
+</head>
+<body>
+    <h1>Twitch Stream Monitor</h1>
+    <div id="status">
+        <!-- Status updates will be inserted here -->
+    </div>
+</body>
+</html>
