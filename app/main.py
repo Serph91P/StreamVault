@@ -5,7 +5,7 @@ import logging
 
 # Third-party imports
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
@@ -136,51 +136,27 @@ async def shutdown_event():
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     logger.info("Serving homepage")
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Twitch Streamer Monitor</title>
-    </head>
-    <body>
-        <h1>Twitch Streamer Monitor</h1>
-        <form action="/add_streamer" method="post">
-            <input type="text" name="username" placeholder="Streamer Username" required>
-            <button type="submit">Add Streamer</button>
-        </form>
-        <ul id="notifications"></ul>
-        <script>
-            var ws = new WebSocket("ws://" + location.host + "/ws");
-            ws.onmessage = function(event) {
-                var notifications = document.getElementById('notifications');
-                var newItem = document.createElement('li');
-                newItem.textContent = event.data;
-                notifications.appendChild(newItem);
-            };
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+    return FileResponse("app/static/index.html")
 
 @app.post("/add_streamer")
-async def add_streamer(
-    username: str = Form(...), 
-    background_tasks: BackgroundTasks = BackgroundTasks(), 
-    db: Session = Depends(get_db)
-):
+async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
         if existing_streamer:
             logger.warning(f"Attempted to add existing streamer: {username}")
-            return JSONResponse(
-                status_code=400, 
-                content={"message": f"Streamer {username} is already subscribed."}
-            )
+            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
 
         background_tasks.add_task(subscribe_to_streamer, username, db)
         logger.info(f"Added subscription task for streamer: {username}")
-        return HTMLResponse(content=f"Subscription to {username} is being processed.")
+        
+        # Return immediately with a success message
+        return JSONResponse(
+            status_code=202, 
+            content={
+                "message": f"Processing subscription for {username}",
+                "status": "processing"
+            }
+        )
     except Exception as e:
         logger.error(f"Error adding streamer {username}: {e}")
         raise

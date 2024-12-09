@@ -1,26 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Twitch Stream Monitor</title>
-    <script>
-        // WebSocket connection for real-time updates
-        const ws = new WebSocket('ws://' + window.location.host + '/ws');
-        
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            updateStatus(data);
-        };
-
-        function updateStatus(data) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerHTML += `<p>${new Date().toISOString()}: ${JSON.stringify(data)}</p>`;
+    <title>StreamVault</title>
+    <style>
+        .notification {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f0f0f0;
         }
-    </script>
+    </style>
 </head>
 <body>
-    <h1>Twitch Stream Monitor</h1>
-    <div id="status">
-        <!-- Status updates will be inserted here -->
-    </div>
+    <h1>StreamVault</h1>
+    <form id="streamerForm">
+        <input type="text" name="username" placeholder="Streamer Username" required>
+        <button type="submit">Add Streamer</button>
+    </form>
+    <div id="notifications"></div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        
+        ws.onmessage = function(event) {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = event.data;
+            notifications.insertBefore(notification, notifications.firstChild);
+        };
+
+        document.getElementById('streamerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/add_streamer', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                const notifications = document.getElementById('notifications');
+                const notification = document.createElement('div');
+                notification.className = 'notification';
+                notification.textContent = data.message;
+                notifications.insertBefore(notification, notifications.firstChild);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
 </body>
 </html>
