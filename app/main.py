@@ -66,9 +66,9 @@ twitch.authenticate_app([])
 
 # Initialize EventSub
 event_sub = EventSub(
-    callback_url=WEBHOOK_URL, 
-    api_secret_key=APP_SECRET, 
-    api_client_id=APP_ID
+    WEBHOOK_URL,
+    APP_SECRET,
+    twitch
 )
 
 # Start EventSub listener in a separate thread
