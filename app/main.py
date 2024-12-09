@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, B
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
-from twitchAPI.eventsub.webhook import EventSubWebhook as EventSub
+from twitchAPI.eventsub.webhook import EventSubWebhook
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
@@ -85,14 +85,21 @@ async def initialize_twitch():
         raise
 
 async def initialize_eventsub():
-    global event_sub
+    global event_sub, twitch
     try:
-        event_sub = EventSub(
+        # Create EventSub instance
+        event_sub = EventSubWebhook(
             WEBHOOK_URL,
             7000,
             twitch
         )
-        await event_sub.start()
+        
+        # Unsubscribe from any existing subscriptions
+        await event_sub.unsubscribe_all()
+        
+        # Start EventSub in a non-blocking way
+        asyncio.create_task(event_sub.start())
+        
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
@@ -113,13 +120,9 @@ class Streamer(StreamerBase):
 # Application Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
-    try:
-        await initialize_twitch()
-        await initialize_eventsub()
-        logger.info("Application startup complete")
-    except Exception as e:
-        logger.error(f"Startup failed: {e}")
-        raise
+    await initialize_twitch()
+    await initialize_eventsub()
+    logger.info("Application startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
