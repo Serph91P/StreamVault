@@ -1,36 +1,34 @@
+# Standard library imports
 import os
 import asyncio
 import logging
-from app.config.logging_config import setup_logging
-from app.middleware.auth import AuthMiddleware
-from app.middleware.error_handler import error_handler
+
+# Third-party imports
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook as EventSub
-from twitchAPI.object.eventsub import ChannelFollowEvent
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
-import threading
-import app.models as models
-from app.database import SessionLocal, engine
 from starlette.websockets import WebSocketState
 
-# Initialize logging
+# Local imports
+from app.config.logging_config import setup_logging
+from app.middleware.auth import AuthMiddleware
+from app.middleware.error_handler import error_handler
+import app.models as models
+from app.database import SessionLocal, engine
+
+# Initialize application components
 logger = setup_logging()
-
-# Create database tables
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-# Add error handling middleware
 app.add_exception_handler(Exception, error_handler)
 
-# Dependency to get DB session
+# Database session dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -38,6 +36,7 @@ def get_db():
     finally:
         db.close()
 
+# WebSocket Connection Manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -60,10 +59,9 @@ class ConnectionManager:
                     self.disconnect(connection)
                     logger.error(f"Failed to send message to {connection.client}")
 
-# Initialize the manager
 manager = ConnectionManager()
 
-# Twitch API credentials
+# Twitch API Configuration
 APP_ID = os.getenv('TWITCH_APP_ID')
 APP_SECRET = os.getenv('TWITCH_APP_SECRET')
 BASE_URL = os.getenv('BASE_URL')
@@ -72,8 +70,9 @@ WEBHOOK_URL = f"{BASE_URL}/eventsub"
 if not all([APP_ID, APP_SECRET, BASE_URL]):
     raise ValueError("Missing required environment variables")
 
-# Initialize Twitch API
+# Twitch API and EventSub initialization
 twitch = None
+event_sub = None
 
 async def initialize_twitch():
     global twitch
@@ -84,9 +83,6 @@ async def initialize_twitch():
     except Exception as e:
         logger.error(f"Failed to initialize Twitch API: {e}")
         raise
-
-# Initialize EventSub
-event_sub = None
 
 async def initialize_eventsub():
     global event_sub
@@ -102,7 +98,20 @@ async def initialize_eventsub():
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
         raise
-    
+
+# Pydantic Models
+class StreamerBase(BaseModel):
+    username: str
+
+class StreamerCreate(StreamerBase):
+    pass
+
+class Streamer(StreamerBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+# Application Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
     try:
@@ -113,20 +122,16 @@ async def startup_event():
         logger.error(f"Startup failed: {e}")
         raise
 
-# Pydantic models with updated config
-class StreamerBase(BaseModel):
-    username: str
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        if event_sub:
+            await event_sub.stop()
+        logger.info("Application shutdown complete")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
-class StreamerCreate(StreamerBase):
-    pass
-
-class Streamer(StreamerBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
-# Routes remain the same as in your original main.py, but with added logging
+# API Routes
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     logger.info("Serving homepage")
@@ -158,12 +163,19 @@ async def read_root():
     return HTMLResponse(content=html_content)
 
 @app.post("/add_streamer")
-async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
+async def add_streamer(
+    username: str = Form(...), 
+    background_tasks: BackgroundTasks = BackgroundTasks(), 
+    db: Session = Depends(get_db)
+):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
         if existing_streamer:
             logger.warning(f"Attempted to add existing streamer: {username}")
-            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
+            return JSONResponse(
+                status_code=400, 
+                content={"message": f"Streamer {username} is already subscribed."}
+            )
 
         background_tasks.add_task(subscribe_to_streamer, username, db)
         logger.info(f"Added subscription task for streamer: {username}")
@@ -183,17 +195,13 @@ async def subscribe_to_streamer(username: str, db: Session):
         user_id = user_data['id']
         display_name = user_data['display_name']
 
-        # Add streamer to database
         new_streamer = models.Streamer(id=user_id, username=display_name)
         db.add(new_streamer)
         db.commit()
 
-        # Updated subscription calls with correct parameters
         await event_sub.listen_stream_online(user_id)
         await event_sub.listen_stream_offline(user_id)
-
         await manager.send_notification(f"Successfully subscribed to {display_name}.")
-
     except Exception as e:
         await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
 
@@ -212,22 +220,20 @@ async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
             event = body['event']
             streamer_id = event['broadcaster_user_id']
             streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+            
             if not streamer:
-                return JSONResponse(status_code=404, content={"message": "Streamer not found in the database."})
+                return JSONResponse(
+                    status_code=404, 
+                    content={"message": "Streamer not found in the database."}
+                )
 
             event_type = body['subscription']['type']
-            message = ""
-            if event_type == 'stream.online':
-                message = f"{streamer.username} is now **online**."
-            elif event_type == 'stream.offline':
-                message = f"{streamer.username} is now **offline**."
+            message = f"{streamer.username} is now **{'online' if event_type == 'stream.online' else 'offline'}**."
 
-            # Save event to the database
             new_stream = models.Stream(streamer_id=streamer_id, event_type=event_type)
             db.add(new_stream)
             db.commit()
 
-            # Send notification via WebSocket
             await manager.send_notification(message)
 
         return JSONResponse(status_code=200, content={"message": "Event processed successfully."})
@@ -243,12 +249,3 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    try:
-        if event_sub:
-            await event_sub.stop()
-        logger.info("Application shutdown complete")
-    except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
