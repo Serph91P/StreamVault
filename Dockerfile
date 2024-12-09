@@ -23,5 +23,12 @@ COPY . .
 # Expose the port FastAPI is running on
 EXPOSE 7000
 
+# Add before the CMD line:
+    RUN ls -la /app
+    RUN tree /app
+    
+# Change CMD temporarily to keep container running
+CMD ["tail", "-f", "/dev/null"]
+
 # Command to run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
