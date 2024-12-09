@@ -3,11 +3,48 @@
 <head>
     <title>StreamVault</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
         .notification {
             margin: 10px 0;
             padding: 10px;
             border-radius: 4px;
             background-color: #f0f0f0;
+        }
+        .streamer-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .streamer-card.live {
+            border-left: 4px solid #00ff00;
+        }
+        .streamer-card.offline {
+            border-left: 4px solid #ff0000;
+        }
+        #streamerForm {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            padding: 8px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #6441a5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #7d5bbe;
         }
     </style>
 </head>
@@ -17,6 +54,12 @@
         <input type="text" name="username" placeholder="Streamer Username" required>
         <button type="submit">Add Streamer</button>
     </form>
+
+    <div id="streamerOverview">
+        <h2>Active Streamers</h2>
+        <div id="streamerList"></div>
+    </div>
+
     <div id="notifications"></div>
 
     <script>
@@ -29,6 +72,19 @@
             notification.textContent = event.data;
             notifications.insertBefore(notification, notifications.firstChild);
         };
+
+        async function updateStreamerList() {
+            const response = await fetch('/streamers');
+            const streamers = await response.json();
+            const streamerList = document.getElementById('streamerList');
+            streamerList.innerHTML = streamers.map(streamer => `
+                <div class="streamer-card ${streamer.is_live ? 'live' : 'offline'}">
+                    <h3>${streamer.username}</h3>
+                    <p>Status: ${streamer.is_live ? '🟢 Live' : '🔴 Offline'}</p>
+                    <p>Last update: ${streamer.last_event ? new Date(streamer.last_event).toLocaleString() : 'Never'}</p>
+                </div>
+            `).join('');
+        }
 
         document.getElementById('streamerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -46,10 +102,15 @@
                 notification.className = 'notification';
                 notification.textContent = data.message;
                 notifications.insertBefore(notification, notifications.firstChild);
+                
+                updateStreamerList();
             } catch (error) {
                 console.error('Error:', error);
             }
         });
+
+        updateStreamerList();
+        setInterval(updateStreamerList, 60000);
     </script>
 </body>
 </html>

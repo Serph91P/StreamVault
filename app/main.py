@@ -218,6 +218,28 @@ async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
         logger.error(f"Error processing EventSub callback: {e}")
         raise
 
+@app.get("/streamers")
+async def get_streamers(db: Session = Depends(get_db)):
+    streamers = db.query(models.Streamer).all()
+    streamer_statuses = []
+    
+    for streamer in streamers:
+        # Get latest stream event for this streamer
+        latest_event = db.query(models.Stream)\
+            .filter(models.Stream.streamer_id == streamer.id)\
+            .order_by(models.Stream.timestamp.desc())\
+            .first()
+            
+        is_live = latest_event.event_type == 'stream.online' if latest_event else False
+        
+        streamer_statuses.append({
+            "username": streamer.username,
+            "is_live": is_live,
+            "last_event": latest_event.timestamp if latest_event else None
+        })
+    
+    return streamer_statuses
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
