@@ -90,7 +90,7 @@ async def initialize_eventsub():
         # Create EventSub instance
         event_sub = EventSubWebhook(
             WEBHOOK_URL,
-            7000,
+            # 7000,
             twitch
         )
         
