@@ -10,4 +10,4 @@ psycopg-binary==3.2.3
 psycopg-pool==3.2.4
 python-multipart==0.0.19
 python-jose[cryptography]==3.3.0
-python-logging-config==0.4.8
+# python-logging-config==0.4.8
