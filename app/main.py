@@ -88,9 +88,9 @@ async def initialize_eventsub():
     global event_sub
     try:
         event_sub = EventSub(
-            url=WEBHOOK_URL,
-            secret=APP_SECRET,
-            api=twitch
+            WEBHOOK_URL,
+            7000,
+            twitch
         )
         asyncio.create_task(event_sub.start())
         logger.info("EventSub initialized successfully")
