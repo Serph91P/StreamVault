@@ -25,7 +25,7 @@ from app.database import SessionLocal, engine
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
 app.add_exception_handler(Exception, error_handler)
 
 # Database session dependency
