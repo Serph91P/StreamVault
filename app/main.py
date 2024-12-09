@@ -92,7 +92,7 @@ async def initialize_eventsub():
             7000,
             twitch
         )
-        asyncio.create_task(event_sub.start())
+        await event_sub.start()
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
