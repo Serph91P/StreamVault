@@ -90,8 +90,7 @@ async def initialize_eventsub():
         event_sub = EventSub(
             WEBHOOK_URL,
             APP_SECRET,
-            twitch,
-            port=7000
+            twitch
         )
         asyncio.create_task(event_sub.start())
         logger.info("EventSub initialized successfully")
