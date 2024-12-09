@@ -20,7 +20,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # Mount static files (if any)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Dependency to get DB session
 def get_db():
@@ -65,7 +65,11 @@ twitch = Twitch(APP_ID, APP_SECRET)
 twitch.authenticate_app([])
 
 # Initialize EventSub
-event_sub = EventSub(WEBHOOK_URL, APP_SECRET, twitch)
+event_sub = EventSub(
+    callback_url=WEBHOOK_URL, 
+    api_secret_key=APP_SECRET, 
+    api_client_id=APP_ID
+)
 
 # Start EventSub listener in a separate thread
 def start_eventsub():
@@ -132,7 +136,6 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
 # Function to subscribe to a streamer asynchronously
 async def subscribe_to_streamer(username: str, db: Session):
     try:
-        # Get user information from Twitch API
         user_info = await twitch.get_users(logins=[username])
         if not user_info['data']:
             await manager.send_notification(f"Streamer {username} does not exist.")
@@ -142,14 +145,14 @@ async def subscribe_to_streamer(username: str, db: Session):
         user_id = user_data['id']
         display_name = user_data['display_name']
 
-        # Add streamer to the database
+        # Add streamer to database
         new_streamer = models.Streamer(id=user_id, username=display_name)
         db.add(new_streamer)
         db.commit()
 
-        # Subscribe to stream.online and stream.offline events
-        await event_sub.subscribe_channel_stream_online(broadcaster_user_id=user_id, callback_url=f"{WEBHOOK_URL}/eventsub")
-        await event_sub.subscribe_channel_stream_offline(broadcaster_user_id=user_id, callback_url=f"{WEBHOOK_URL}/eventsub")
+        # Updated subscription calls with correct parameters
+        await event_sub.listen_stream_online(user_id)
+        await event_sub.listen_stream_offline(user_id)
 
         await manager.send_notification(f"Successfully subscribed to {display_name}.")
 
