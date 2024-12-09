@@ -91,13 +91,18 @@ event_sub = None
 async def initialize_eventsub():
     global event_sub
     try:
-        event_sub = EventSub(WEBHOOK_URL, APP_SECRET, twitch)
-        await event_sub.start()
+        event_sub = EventSub(
+            WEBHOOK_URL,
+            APP_SECRET,
+            twitch,
+            port=7000
+        )
+        asyncio.create_task(event_sub.start())
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
         raise
-
+    
 @app.on_event("startup")
 async def startup_event():
     try:
