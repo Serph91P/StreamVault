@@ -186,29 +186,30 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
 async def subscribe_to_streamer(username: str, db: Session):
     try:
         logger.info(f"Starting subscription process for {username}")
-        user_info = await twitch.get_users(logins=[username])
-        user_data = list(user_info)[0] if user_info else None
+        users = await twitch.get_users(logins=[username])
         
-        if not user_data:
+        if not users['data']:
             logger.warning(f"Streamer {username} not found")
             await manager.send_notification(f"Streamer {username} does not exist.")
             return
 
+        user_data = users['data'][0]
         user_id = user_data['id']
         display_name = user_data['display_name']
         
         logger.info(f"Found streamer {display_name} with ID {user_id}")
 
+        # Add to database
         new_streamer = models.Streamer(id=user_id, username=display_name)
         db.add(new_streamer)
         db.commit()
-        logger.info(f"Added streamer {display_name} to database")
-
+        
+        # Subscribe to stream events
         await event_sub.listen_stream_online(user_id)
         await event_sub.listen_stream_offline(user_id)
-        logger.info(f"Subscribed to events for {display_name}")
         
         await manager.send_notification(f"Successfully subscribed to {display_name}.")
+        logger.info(f"Successfully subscribed to events for {display_name}")
     except Exception as e:
         logger.error(f"Failed to subscribe to {username}: {str(e)}")
         await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
