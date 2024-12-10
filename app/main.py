@@ -73,6 +73,21 @@ if not all([APP_ID, APP_SECRET, BASE_URL]):
 twitch = None
 event_sub = None
 
+        # Define callback functions
+        async def on_stream_online(data):
+            logger.info(f"Stream online: {display_name}")
+            new_stream = models.Stream(streamer_id=user_id, event_type='stream.online')
+            db.add(new_stream)
+            db.commit()
+            await manager.send_notification(f"{display_name} is now **online**!")
+
+        async def on_stream_offline(data):
+            logger.info(f"Stream offline: {display_name}")
+            new_stream = models.Stream(streamer_id=user_id, event_type='stream.offline')
+            db.add(new_stream)
+            db.commit()
+            await manager.send_notification(f"{display_name} is now **offline**!")
+
 async def initialize_twitch():
     global twitch
     try:
@@ -86,19 +101,23 @@ async def initialize_twitch():
 async def initialize_eventsub():
     global event_sub, twitch
     try:
+        # Basic setup with minimal required parameters
         event_sub = EventSubWebhook(
-            WEBHOOK_URL,
-            8080,
-            twitch
+            WEBHOOK_URL,  # Your callback URL
+            8080,        # Port for local webhook server
+            twitch       # Your authenticated Twitch instance
         )
+        
+        # Clear existing subscriptions
         await event_sub.unsubscribe_all()
+        
+        # Start the webhook server
         event_sub.start()
+        
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
-        raise
-
-# Pydantic Models
+        raise# Pydantic Models
 class StreamerBase(BaseModel):
     username: str
 
@@ -186,8 +205,9 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
 async def subscribe_to_streamer(username: str, db: Session):
     try:
         logger.info(f"Starting subscription process for {username}")
-        users = await twitch.get_users(logins=[username])
         
+        # Get user info
+        users = await twitch.get_users(logins=[username])
         if not users['data']:
             logger.warning(f"Streamer {username} not found")
             await manager.send_notification(f"Streamer {username} does not exist.")
@@ -203,13 +223,14 @@ async def subscribe_to_streamer(username: str, db: Session):
         new_streamer = models.Streamer(id=user_id, username=display_name)
         db.add(new_streamer)
         db.commit()
-        
-        # Subscribe to stream events
-        await event_sub.listen_stream_online(user_id)
-        await event_sub.listen_stream_offline(user_id)
+        logger.info(f"Added streamer {display_name} to database")
+
+        # Subscribe to events
+        await event_sub.listen_stream_online(user_id, on_stream_online)
+        await event_sub.listen_stream_offline(user_id, on_stream_offline)
+        logger.info(f"Subscribed to events for {display_name}")
         
         await manager.send_notification(f"Successfully subscribed to {display_name}.")
-        logger.info(f"Successfully subscribed to events for {display_name}")
     except Exception as e:
         logger.error(f"Failed to subscribe to {username}: {str(e)}")
         await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
