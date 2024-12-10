@@ -201,6 +201,10 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
         logger.error(f"Error adding streamer: {e}")
         raise
 
+@app.get("/eventsub/callback")
+async def eventsub_verify():
+    return Response(content="pyTwitchAPI eventsub", media_type="text/plain")
+
 async def subscribe_to_streamer(username: str, db: Session):
     try:
         logger.info(f"Starting subscription process for {username}")
@@ -234,7 +238,7 @@ async def subscribe_to_streamer(username: str, db: Session):
         logger.error(f"Failed to subscribe to {username}: {str(e)}")
         await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
 
-@app.post("/eventsub")
+@app.post("/eventsub/callback")
 async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
     try:
         headers = request.headers
