@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
+from twitchAPI.helper import first
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
@@ -204,16 +205,20 @@ async def subscribe_to_streamer(username: str, db: Session):
     try:
         logger.info(f"Starting subscription process for {username}")
         
-        # Get user info
-        users = await twitch.get_users(logins=[username])
-        if not users['data']:
+        # Get user info using helper function
+        users_generator = await twitch.get_users(logins=[username])
+        users = []
+        async for user in users_generator:
+            users.append(user)
+        
+        if not users:
             logger.warning(f"Streamer {username} not found")
             await manager.send_notification(f"Streamer {username} does not exist.")
             return
 
-        user_data = users['data'][0]
-        user_id = user_data['id']
-        display_name = user_data['display_name']
+        user_data = users[0]
+        user_id = user_data.id  # Note: Using dot notation instead of dictionary access
+        display_name = user_data.display_name
         
         logger.info(f"Found streamer {display_name} with ID {user_id}")
 
@@ -275,3 +280,5 @@ app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="fron
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
+
+
