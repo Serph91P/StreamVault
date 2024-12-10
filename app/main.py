@@ -2,6 +2,7 @@
 import os
 import asyncio
 import logging
+from datetime import datetime
 
 # Third-party imports
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
@@ -25,17 +26,6 @@ from app.database import SessionLocal, engine
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
-app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
-app.add_exception_handler(Exception, error_handler)
 
 # Database session dependency
 def get_db():
@@ -96,18 +86,13 @@ async def initialize_twitch():
 async def initialize_eventsub():
     global event_sub, twitch
     try:
-        # Create EventSub instance
         event_sub = EventSubWebhook(
             WEBHOOK_URL,
             8080,
             twitch
         )
-        
-        # Unsubscribe from any existing subscriptions
         await event_sub.unsubscribe_all()
-        
         event_sub.start()
-        
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
@@ -125,6 +110,16 @@ class Streamer(StreamerBase):
     class Config:
         from_attributes = True
 
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 # Application Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
@@ -140,24 +135,33 @@ async def shutdown_event():
         logger.info("Application shutdown complete")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
+        raise
 
 # API Routes
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    logger.info("Serving homepage")
-    return FileResponse("app/static/index.html")
-
 @app.get("/api/streamers")
 async def get_streamers(db: Session = Depends(get_db)):
     streamers = db.query(models.Streamer).all()
-    return streamers
+    streamer_statuses = []
+    
+    for streamer in streamers:
+        latest_event = db.query(models.Stream)\
+            .filter(models.Stream.streamer_id == streamer.id)\
+            .order_by(models.Stream.timestamp.desc())\
+            .first()
+            
+        streamer_statuses.append({
+            "username": streamer.username,
+            "is_live": latest_event.event_type == 'stream.online' if latest_event else False,
+            "last_event": latest_event.timestamp if latest_event else None
+        })
+    
+    return streamer_statuses
 
 @app.get("/api/viewer-stats")
 async def get_viewer_stats():
-    # Simplified response until viewer tracking is implemented
     return {"labels": [], "data": []}
 
-@app.post("/apii/streamers")
+@app.post("/api/streamers")
 async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
@@ -168,7 +172,6 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
         background_tasks.add_task(subscribe_to_streamer, username, db)
         logger.info(f"Added subscription task for streamer: {username}")
         
-        # Return immediately with a success message
         return JSONResponse(
             status_code=202, 
             content={
@@ -177,7 +180,7 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
             }
         )
     except Exception as e:
-        logger.error(f"Error adding streamer {username}: {e}")
+        logger.error(f"Error adding streamer: {e}")
         raise
 
 async def subscribe_to_streamer(username: str, db: Session):
@@ -237,24 +240,9 @@ async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
         logger.error(f"Error processing EventSub callback: {e}")
         raise
 
-@app.get("/streamers")
-async def get_streamers(db: Session = Depends(get_db)):
-    streamers = db.query(models.Streamer).all()
-    streamer_statuses = []
-    
-    for streamer in streamers:
-        # Get latest stream event for this streamer
-        latest_event = db.query(models.Stream)\
-            .filter(models.Stream.streamer_id == streamer.id)\
-            .order_by(models.Stream.timestamp.desc())\
-            .first()
-            
-        is_live = latest_event.event_type == 'stream.online' if latest_event else False
-        
-        streamer_statuses.append({
-            "username": streamer.username,
-            "is_live": is_live,
-            "last_event": latest_event.timestamp if latest_event else None
-        })
-    
-    return streamer_statuses
+# Static files
+app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
+app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
+
+# Error handler
+app.add_exception_handler(Exception, error_handler)
