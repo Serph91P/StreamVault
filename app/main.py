@@ -207,18 +207,14 @@ async def subscribe_to_streamer(username: str, db: Session):
         
         # Get user info using helper function
         user = await first(twitch.get_users(logins=[username]))
-        users = []
-        async for user in users_generator:
-            users.append(user)
         
-        if not users:
+        if not user:
             logger.warning(f"Streamer {username} not found")
             await manager.send_notification(f"Streamer {username} does not exist.")
             return
 
-        user_data = users[0]
-        user_id = user_data.id  # Note: Using dot notation instead of dictionary access
-        display_name = user_data.display_name
+        user_id = user.id
+        display_name = user.display_name
         
         logger.info(f"Found streamer {display_name} with ID {user_id}")
 
