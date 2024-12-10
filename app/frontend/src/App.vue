@@ -7,7 +7,6 @@
     
     <div class="main-content">
       <StreamerList />
-      <ViewerStats />
       <NotificationFeed />
     </div>
   </div>
@@ -16,6 +15,9 @@
 <script setup>
 import StreamerList from '@/components/StreamerList.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
-import ViewerStats from '@/components/ViewerStats.vue'
 import AddStreamerForm from '@/components/AddStreamerForm.vue'
+
+const refreshData = () => {
+  // Implement if needed
+}
 </script>
