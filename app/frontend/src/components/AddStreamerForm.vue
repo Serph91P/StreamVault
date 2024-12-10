@@ -7,8 +7,11 @@
         placeholder="Enter streamer username"
         required
       >
-      <button type="submit">Add Streamer</button>
+      <button type="submit" :disabled="isSubmitting">Add Streamer</button>
     </form>
+    <div v-if="feedback" :class="['feedback', feedback.type]">
+      {{ feedback.message }}
+    </div>
   </div>
 </template>
 
@@ -16,24 +19,37 @@
 import { ref } from 'vue'
 
 const username = ref('')
+const isSubmitting = ref(false)
+const feedback = ref(null)
 const emit = defineEmits(['streamer-added'])
 
 const addStreamer = async () => {
   try {
+    isSubmitting.value = true
+    feedback.value = null
+    
+    const formData = new FormData()
+    formData.append('username', username.value)
+    
     const response = await fetch('/api/streamers', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `username=${encodeURIComponent(username.value)}`
+      body: formData
     })
     
+    const data = await response.json()
+    
     if (response.ok) {
-      emit('streamer-added')
+      feedback.value = { type: 'success', message: data.message }
       username.value = ''
+      emit('streamer-added')
+    } else {
+      feedback.value = { type: 'error', message: data.message }
     }
   } catch (error) {
     console.error('Error adding streamer:', error)
+    feedback.value = { type: 'error', message: 'Failed to add streamer' }
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -65,5 +81,26 @@ button {
 
 button:hover {
   background-color: #45a049;
+}
+
+.feedback {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.feedback.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.feedback.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>
