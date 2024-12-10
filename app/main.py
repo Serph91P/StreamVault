@@ -187,13 +187,13 @@ async def subscribe_to_streamer(username: str, db: Session):
     try:
         logger.info(f"Starting subscription process for {username}")
         user_info = await twitch.get_users(logins=[username])
+        user_data = list(user_info)[0] if user_info else None
         
-        if not user_info['data']:
+        if not user_data:
             logger.warning(f"Streamer {username} not found")
             await manager.send_notification(f"Streamer {username} does not exist.")
             return
 
-        user_data = user_info['data'][0]
         user_id = user_data['id']
         display_name = user_data['display_name']
         
