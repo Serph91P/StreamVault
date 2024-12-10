@@ -25,6 +25,15 @@ from app.database import SessionLocal, engine
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
 app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
 app.add_exception_handler(Exception, error_handler)
 
@@ -138,7 +147,17 @@ async def read_root():
     logger.info("Serving homepage")
     return FileResponse("app/static/index.html")
 
-@app.post("/add_streamer")
+@app.get("/api/streamers")
+async def get_streamers(db: Session = Depends(get_db)):
+    streamers = db.query(models.Streamer).all()
+    return streamers
+
+@app.get("/api/viewer-stats")
+async def get_viewer_stats():
+    # Simplified response until viewer tracking is implemented
+    return {"labels": [], "data": []}
+
+@app.post("/apii/streamers")
 async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
@@ -239,12 +258,3 @@ async def get_streamers(db: Session = Depends(get_db)):
         })
     
     return streamer_statuses
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
