@@ -206,7 +206,7 @@ async def subscribe_to_streamer(username: str, db: Session):
         logger.info(f"Starting subscription process for {username}")
         
         # Get user info using helper function
-        users_generator = await twitch.get_users(logins=[username])
+        user = await first(twitch.get_users(logins=[username]))
         users = []
         async for user in users_generator:
             users.append(user)
