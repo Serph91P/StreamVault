@@ -22,6 +22,27 @@ from app.middleware.error_handler import error_handler
 import app.models as models
 from app.database import SessionLocal, engine
 
+# Event Handlers
+async def on_stream_online(data):
+    streamer_id = data.event.broadcaster_user_id
+    with SessionLocal() as db:
+        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+        if streamer:
+            new_stream = models.Stream(streamer_id=streamer_id, event_type='stream.online')
+            db.add(new_stream)
+            db.commit()
+            await manager.send_notification(f"{streamer.username} is now **online**!")
+
+async def on_stream_offline(data):
+    streamer_id = data.event.broadcaster_user_id
+    with SessionLocal() as db:
+        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+        if streamer:
+            new_stream = models.Stream(streamer_id=streamer_id, event_type='stream.offline')
+            db.add(new_stream)
+            db.commit()
+            await manager.send_notification(f"{streamer.username} is now **offline**!")
+
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
@@ -73,21 +94,6 @@ if not all([APP_ID, APP_SECRET, BASE_URL]):
 twitch = None
 event_sub = None
 
-        # Define callback functions
-        async def on_stream_online(data):
-            logger.info(f"Stream online: {display_name}")
-            new_stream = models.Stream(streamer_id=user_id, event_type='stream.online')
-            db.add(new_stream)
-            db.commit()
-            await manager.send_notification(f"{display_name} is now **online**!")
-
-        async def on_stream_offline(data):
-            logger.info(f"Stream offline: {display_name}")
-            new_stream = models.Stream(streamer_id=user_id, event_type='stream.offline')
-            db.add(new_stream)
-            db.commit()
-            await manager.send_notification(f"{display_name} is now **offline**!")
-
 async def initialize_twitch():
     global twitch
     try:
@@ -101,23 +107,19 @@ async def initialize_twitch():
 async def initialize_eventsub():
     global event_sub, twitch
     try:
-        # Basic setup with minimal required parameters
         event_sub = EventSubWebhook(
-            WEBHOOK_URL,  # Your callback URL
-            8080,        # Port for local webhook server
-            twitch       # Your authenticated Twitch instance
+            WEBHOOK_URL,
+            8080,
+            twitch
         )
-        
-        # Clear existing subscriptions
         await event_sub.unsubscribe_all()
-        
-        # Start the webhook server
         event_sub.start()
-        
         logger.info("EventSub initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize EventSub: {e}")
-        raise# Pydantic Models
+        raise
+
+# Pydantic Models
 class StreamerBase(BaseModel):
     username: str
 
@@ -175,10 +177,6 @@ async def get_streamers(db: Session = Depends(get_db)):
         })
     
     return streamer_statuses
-
-@app.get("/api/viewer-stats")
-async def get_viewer_stats():
-    return {"labels": [], "data": []}
 
 @app.post("/api/streamers")
 async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
