@@ -11,25 +11,35 @@
     </div>
   </div>
 </template>
+  <script setup>
+  import { ref, onMounted, watch } from 'vue'
+  import { useWebSocket } from '@/composables/useWebSocket'
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { useWebSocket } from '@/composables/useWebSocket'
+  const streamers = ref([])
+  const { messages } = useWebSocket()
 
-const streamers = ref([])
-const { messages } = useWebSocket()
+  const fetchStreamers = async () => {
+    try {
+      const response = await fetch('/api/streamers')
+      const data = await response.json()
+      streamers.value = data
+    } catch (error) {
+      console.error('Failed to fetch streamers:', error)
+    }
+  }
 
-onMounted(async () => {
-  await fetchStreamers()
-  setInterval(fetchStreamers, 60000)
-})
+  // Fetch immediately after adding a streamer
+  watch(() => props.refreshTrigger, () => {
+    fetchStreamers()
+  })
 
-async function fetchStreamers() {
-  const response = await fetch('/api/streamers')
-  streamers.value = await response.json()
-}
+  // Regular polling
+  onMounted(() => {
+    fetchStreamers()
+    setInterval(fetchStreamers, 60000)
+  })
 
-function formatDate(date) {
-  return date ? new Date(date).toLocaleString() : 'Never'
-}
-</script>
+  function formatDate(date) {
+    return date ? new Date(date).toLocaleString() : 'Never'
+  }
+  </script>
