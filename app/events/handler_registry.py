@@ -27,10 +27,15 @@ class EventHandlerRegistry:
         logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
-        await self.event_sub.listen_stream_online(user_id, self.handle_stream_online)
-        await self.event_sub.listen_stream_offline(user_id, self.handle_stream_offline)
-        await self.event_sub.listen_channel_update(user_id)
-        await self.event_sub.listen_channel_update_v2(user_id)
+        try:
+            await self.event_sub.listen_stream_online(user_id, self.handle_stream_online)
+            await self.event_sub.listen_stream_offline(user_id, self.handle_stream_offline)
+            await self.event_sub.listen_channel_update(user_id)
+            await self.event_sub.listen_channel_update_v2(user_id)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to subscribe to events for user {user_id}: {e}")
+            return False
 
     async def unsubscribe_from_events(self, user_id: str):
         await self.event_sub.delete_all_subscriptions_of_type('stream.online', user_id)

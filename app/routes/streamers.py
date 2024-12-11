@@ -16,7 +16,8 @@ async def get_streamers(
 async def add_streamer(
     username: str,
     background_tasks: BackgroundTasks,
-    streamer_service: StreamerService = Depends(get_streamer_service)
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     try:
         existing = await streamer_service.get_streamer_by_username(username)
@@ -32,7 +33,9 @@ async def add_streamer(
             "message": f"Adding streamer {username}..."
         })
         
-        result = await streamer_service.add_streamer(username, background_tasks)
+        result = await streamer_service.add_streamer(username)
+        if result["success"]:
+            await event_registry.subscribe_to_events(result["streamer"].id)
         return JSONResponse(status_code=202, content=result)
     except Exception as e:
         await streamer_service.notify({
@@ -40,7 +43,6 @@ async def add_streamer(
             "message": f"Error adding streamer: {str(e)}"
         })
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
