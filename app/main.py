@@ -82,11 +82,12 @@ async def websocket_endpoint(websocket: WebSocket):
 # Application Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
+    global twitch, event_registry
     await initialize_twitch()
+    event_registry = EventHandlerRegistry(connection_manager, twitch)
     await event_registry.initialize_eventsub()
-    event_registry.register_handlers()
+    
     logger.info("Application startup complete")
-
 @app.on_event("shutdown")
 async def shutdown_event():
     await event_registry.shutdown()
