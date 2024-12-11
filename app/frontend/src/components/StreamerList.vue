@@ -42,7 +42,7 @@
           <td>{{ formatDate(streamer.last_updated) }}</td>
           <td>
             <button 
-              @click.prevent="deleteStreamer(streamer.id)" 
+              @click="deleteStreamer(streamer.id)" 
               class="delete-btn"
               :disabled="isDeleting"
             >
@@ -93,9 +93,14 @@ const fetchStreamers = async () => {
 }
 
 const deleteStreamer = async (streamerId) => {
-  if (!streamerId || isDeleting.value) return
+  console.log('Attempting to delete streamer:', streamerId)
   
-  if (window.confirm('Are you sure you want to delete this streamer?')) {
+  if (!streamerId) {
+    console.error('No streamer ID provided')
+    return
+  }
+
+  if (confirm('Are you sure you want to delete this streamer?')) {
     isDeleting.value = true
     try {
       const response = await fetch(`/api/streamers/${streamerId}`, {
@@ -105,15 +110,17 @@ const deleteStreamer = async (streamerId) => {
         }
       })
       
+      console.log('Delete response:', response)
+      
       if (response.ok) {
         console.log('Streamer deleted successfully')
         await fetchStreamers()
       } else {
-        const errorData = await response.json()
-        console.error('Failed to delete streamer:', errorData)
+        const error = await response.json()
+        console.error('Delete failed:', error)
       }
     } catch (error) {
-      console.error('Error deleting streamer:', error)
+      console.error('Delete error:', error)
     } finally {
       isDeleting.value = false
     }
@@ -125,12 +132,10 @@ const formatDate = (date) => {
   return new Date(date).toLocaleString()
 }
 
-// Initial load and polling setup
 onMounted(() => {
   fetchStreamers()
   const pollInterval = setInterval(fetchStreamers, 60000)
   
-  // Cleanup on component unmount
   onUnmounted(() => {
     clearInterval(pollInterval)
   })
