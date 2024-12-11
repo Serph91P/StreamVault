@@ -30,7 +30,7 @@ app = FastAPI()
 connection_manager = ConnectionManager()
 twitch = None
 event_sub = None
-event_registry = EventHandlerRegistry(connection_manager)
+event_registry = EventHandlerRegistry(connection_manager, twitch)
 
 # Database session dependency
 def get_db():
