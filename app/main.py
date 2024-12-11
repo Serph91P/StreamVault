@@ -179,20 +179,22 @@ async def get_streamers(db: Session = Depends(get_db)):
         })
     
     return streamer_statuses
-async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
-    try:
-        existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
-        if existing_streamer:
-            logger.warning(f"Attempted to add existing streamer: {username}")
-            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
 
-        background_tasks.add_task(subscribe_to_streamer, username, db)
-        logger.info(f"Added subscription task for streamer: {username}")
-        
+@app.post("/api/streamers")
+async def add_streamer(streamer: StreamerCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    try:
+        existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == streamer.username).first()
+        if existing_streamer:
+            return JSONResponse(
+                status_code=400,
+                content={"message": f"Streamer {streamer.username} is already subscribed."}
+            )
+
+        background_tasks.add_task(subscribe_to_streamer, streamer.username, db)
         return JSONResponse(
-            status_code=202, 
+            status_code=202,
             content={
-                "message": f"Processing subscription for {username}",
+                "message": f"Processing subscription for {streamer.username}",
                 "status": "processing"
             }
         )
