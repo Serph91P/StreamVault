@@ -62,6 +62,22 @@ class EventHandlerRegistry:
                 db.commit()
                 await self.manager.send_notification(f"{streamer.username} is now **offline**!")
 
+    async def handle_channel_update(self, data: Any) -> None:
+        streamer_id = data.event.broadcaster_user_id
+        with SessionLocal() as db:
+            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if streamer:
+                await self.manager.send_notification(f"{streamer.username} updated their channel!")
+
+    async def handle_channel_update_v2(self, data: Any) -> None:
+        streamer_id = data.event.broadcaster_user_id
+        with SessionLocal() as db:
+            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if streamer:
+                await self.manager.send_notification(f"{streamer.username} made channel updates!")
+
     def register_handlers(self):
         self.handlers['stream.online'] = self.handle_stream_online
         self.handlers['stream.offline'] = self.handle_stream_offline
+        self.handlers['channel.update'] = self.handle_channel_update
+        self.handlers['channel.update.v2'] = self.handle_channel_update_v2        self.handlers['stream.offline'] = self.handle_stream_offline
