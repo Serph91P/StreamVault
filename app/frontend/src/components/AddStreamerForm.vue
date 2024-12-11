@@ -29,10 +29,9 @@ const addStreamer = async () => {
   statusMessage.value = 'Checking Twitch API...'
   
   try {
-    const response = await fetch('/api/streamers', {
+    const response = await fetch(`/api/streamers/${username.value}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value })
+      headers: { 'Content-Type': 'application/json' }
     })
     
     statusMessage.value = 'Setting up EventSub notifications...'
@@ -49,7 +48,6 @@ const addStreamer = async () => {
   }
 }
 </script>
-
 <style scoped>
 .add-streamer-form {
   display: flex;
