@@ -1,45 +1,182 @@
 <template>
-  <div class="streamer-grid">
-    <div v-for="streamer in streamers" :key="streamer.id" 
-         :class="['streamer-card', streamer.is_live ? 'live' : 'offline']">
-      <h3>{{ streamer.username }}</h3>
-      <div class="status">
-        <span :class="['status-dot', streamer.is_live ? 'live' : 'offline']"></span>
-        {{ streamer.is_live ? 'Live' : 'Offline' }}
-      </div>
-      <p class="last-seen">Last update: {{ formatDate(streamer.last_event) }}</p>
-    </div>
+  <div class="streamer-table-container">
+    <table class="streamer-table">
+      <thead>
+        <tr>
+          <th @click="sortBy('username')">
+            Streamer
+            <span class="sort-icon">↕</span>
+          </th>
+          <th @click="sortBy('status')">
+            Status
+            <span class="sort-icon">↕</span>
+          </th>
+          <th @click="sortBy('lastUpdate')">
+            Last Update
+            <span class="sort-icon">↕</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="streamer in sortedStreamers" 
+            :key="streamer.username"
+            :class="{ 'live': streamer.is_live }">
+          <td>
+            <div class="streamer-info">
+              <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
+              {{ streamer.username }}
+            </div>
+          </td>
+          <td>
+            <span class="status-badge" :class="{ 'live': streamer.is_live }">
+              {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+            </span>
+          </td>
+          <td>{{ formatDate(streamer.last_event) }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
-  <script setup>
-  import { ref, onMounted, watch } from 'vue'
-  import { useWebSocket } from '@/composables/useWebSocket'
 
-  const streamers = ref([])
-  const { messages } = useWebSocket()
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
+import { useWebSocket } from '@/composables/useWebSocket'
 
-  const fetchStreamers = async () => {
-    try {
-      const response = await fetch('/api/streamers')
-      const data = await response.json()
-      streamers.value = data
-    } catch (error) {
-      console.error('Failed to fetch streamers:', error)
-    }
-  }
+const streamers = ref([])
+const { messages } = useWebSocket()
 
-  // Fetch immediately after adding a streamer
-  watch(() => props.refreshTrigger, () => {
-    fetchStreamers()
+const sortKey = ref('username')
+const sortDir = ref('asc')
+
+const sortedStreamers = computed(() => {
+  return [...streamers.value].sort((a, b) => {
+    const modifier = sortDir.value === 'asc' ? 1 : -1
+    if (a[sortKey.value] < b[sortKey.value]) return -1 * modifier
+    if (a[sortKey.value] > b[sortKey.value]) return 1 * modifier
+    return 0
   })
+})
 
-  // Regular polling
-  onMounted(() => {
-    fetchStreamers()
-    setInterval(fetchStreamers, 60000)
-  })
-
-  function formatDate(date) {
-    return date ? new Date(date).toLocaleString() : 'Never'
+const sortBy = (key) => {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = 'asc'
   }
-  </script>
+}
+
+const fetchStreamers = async () => {
+  try {
+    const response = await fetch('/api/streamers')
+    const data = await response.json()
+    streamers.value = data
+  } catch (error) {
+    console.error('Failed to fetch streamers:', error)
+  }
+}
+
+// Fetch immediately after adding a streamer
+watch(() => props.refreshTrigger, () => {
+  fetchStreamers()
+})
+
+// Regular polling
+onMounted(() => {
+  fetchStreamers()
+  setInterval(fetchStreamers, 60000)
+})
+
+const formatDate = (date) => {
+  if (!date) return 'Never'
+  return new Date(date).toLocaleString()
+}
+</script>
+
+<style scoped>
+.streamer-table-container {
+  overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.streamer-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  background: #6441a5;
+  color: white;
+  padding: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+th:hover {
+  background: #7d5bbe;
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.sort-icon {
+  font-size: 0.8em;
+  margin-left: 4px;
+}
+
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4444;
+  transition: background-color 0.3s;
+}
+
+.status-dot.live {
+  background: #44ff44;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #ff4444;
+  color: white;
+  transition: background-color 0.3s;
+}
+
+.status-badge.live {
+  background: #44ff44;
+}
+
+tr {
+  transition: background-color 0.2s;
+}
+
+tr:hover {
+  background: #f5f5f5;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+tr.live {
+  animation: pulse 2s infinite;
+}
+</style>
