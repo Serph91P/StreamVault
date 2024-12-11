@@ -1,106 +1,80 @@
 <template>
-  <div class="add-streamer-form">
-    <form @submit.prevent="addStreamer">
-      <input 
-        type="text" 
-        v-model="username" 
-        placeholder="Enter streamer username"
-        required
-      >
-      <button type="submit" :disabled="isSubmitting">Add Streamer</button>
-    </form>
-    <div v-if="feedback" :class="['feedback', feedback.type]">
-      {{ feedback.message }}
+  <form @submit.prevent="addStreamer" class="streamer-form">
+    <input 
+      type="text" 
+      v-model="username" 
+      :disabled="isLoading"
+      placeholder="Streamer Username" 
+      required
+    >
+    <button type="submit" :disabled="isLoading">
+      <span v-if="isLoading" class="loader"></span>
+      {{ isLoading ? 'Adding Streamer...' : 'Add Streamer' }}
+    </button>
+    <div v-if="isLoading" class="status-message">
+      {{ statusMessage }}
     </div>
-  </div>
+  </form>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 
 const username = ref('')
-const isSubmitting = ref(false)
-const feedback = ref(null)
-const emit = defineEmits(['streamer-added'])
+const isLoading = ref(false)
+const statusMessage = ref('')
 
 const addStreamer = async () => {
+  isLoading.value = true
+  statusMessage.value = 'Checking Twitch API...'
+  
   try {
-    isSubmitting.value = true
-    feedback.value = null
-    
-    const formData = new FormData()
-    formData.append('username', username.value)
-    
     const response = await fetch('/api/streamers', {
       method: 'POST',
-      body: formData
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username.value })
     })
     
+    statusMessage.value = 'Setting up EventSub notifications...'
     const data = await response.json()
     
     if (response.ok) {
-      feedback.value = { type: 'success', message: data.message }
       username.value = ''
-      emit('streamer-added')
-    } else {
-      feedback.value = { type: 'error', message: data.message }
     }
   } catch (error) {
-    console.error('Error adding streamer:', error)
-    feedback.value = { type: 'error', message: 'Failed to add streamer' }
+    console.error('Error:', error)
   } finally {
-    isSubmitting.value = false
+    isLoading.value = false
+    statusMessage.value = ''
   }
 }
 </script>
 
 <style scoped>
-.add-streamer-form {
-  margin: 1rem 0;
+.loader {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #6441a5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-form {
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.status-message {
+  margin-top: 10px;
+  color: #6441a5;
+  font-size: 0.9em;
+}
+
+.streamer-form {
   display: flex;
-  gap: 1rem;
-}
-
-input {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-button {
-  padding: 0.5rem 1rem;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #45a049;
-}
-
-.feedback {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 4px;
-}
-
-.feedback.success {
-  background-color: #d4edda;
-  color: #155724;
-}
-
-.feedback.error {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-
-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+  flex-direction: column;
+  gap: 10px;
 }
 </style>
