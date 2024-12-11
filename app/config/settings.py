@@ -10,7 +10,4 @@ class Settings(BaseSettings):
         super().__init__()
         self.WEBHOOK_URL = f"{self.BASE_URL}/eventsub"
 
-    class Config:
-        env_file = ".env"
-
 settings = Settings()
