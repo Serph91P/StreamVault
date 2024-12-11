@@ -3,12 +3,21 @@
     <table class="streamer-table">
       <thead>
         <tr>
-          <th @click="sortBy('username')">Streamer</th>
-          <th @click="sortBy('status')">Status</th>
+          <th @click="sortBy('username')">
+            Streamer
+            <span class="sort-icon">{{ sortKey === 'username' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+          </th>
+          <th @click="sortBy('status')">
+            Status
+            <span class="sort-icon">{{ sortKey === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+          </th>
           <th>Title</th>
           <th>Category</th>
           <th>Language</th>
-          <th @click="sortBy('lastUpdate')">Last Update</th>
+          <th @click="sortBy('lastUpdate')">
+            Last Update
+            <span class="sort-icon">{{ sortKey === 'lastUpdate' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+          </th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -32,8 +41,12 @@
           <td>{{ streamer.language || '-' }}</td>
           <td>{{ formatDate(streamer.last_updated) }}</td>
           <td>
-            <button @click="deleteStreamer(streamer.id)" class="delete-btn">
-              Delete
+            <button 
+              @click.prevent="deleteStreamer(streamer.id)" 
+              class="delete-btn"
+              :disabled="isDeleting"
+            >
+              {{ isDeleting ? 'Deleting...' : 'Delete' }}
             </button>
           </td>
         </tr>
@@ -43,11 +56,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const streamers = ref([])
 const sortKey = ref('username')
 const sortDir = ref('asc')
+const isDeleting = ref(false)
 
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
@@ -70,6 +84,7 @@ const sortBy = (key) => {
 const fetchStreamers = async () => {
   try {
     const response = await fetch('/api/streamers')
+    if (!response.ok) throw new Error('Failed to fetch streamers')
     const data = await response.json()
     streamers.value = data
   } catch (error) {
@@ -78,18 +93,29 @@ const fetchStreamers = async () => {
 }
 
 const deleteStreamer = async (streamerId) => {
-  if (!streamerId) return
+  if (!streamerId || isDeleting.value) return
   
-  if (confirm('Are you sure you want to delete this streamer?')) {
+  if (window.confirm('Are you sure you want to delete this streamer?')) {
+    isDeleting.value = true
     try {
       const response = await fetch(`/api/streamers/${streamerId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
+      
       if (response.ok) {
+        console.log('Streamer deleted successfully')
         await fetchStreamers()
+      } else {
+        const errorData = await response.json()
+        console.error('Failed to delete streamer:', errorData)
       }
     } catch (error) {
       console.error('Error deleting streamer:', error)
+    } finally {
+      isDeleting.value = false
     }
   }
 }
@@ -99,9 +125,15 @@ const formatDate = (date) => {
   return new Date(date).toLocaleString()
 }
 
+// Initial load and polling setup
 onMounted(() => {
   fetchStreamers()
-  setInterval(fetchStreamers, 60000)
+  const pollInterval = setInterval(fetchStreamers, 60000)
+  
+  // Cleanup on component unmount
+  onUnmounted(() => {
+    clearInterval(pollInterval)
+  })
 })
 </script>
 
@@ -111,6 +143,7 @@ onMounted(() => {
   background: #242424;
   border-radius: 8px;
   border: 1px solid #383838;
+  margin: 20px 0;
 }
 
 .streamer-table {
@@ -125,6 +158,11 @@ th {
   padding: 12px;
   cursor: pointer;
   border-bottom: 1px solid #383838;
+  user-select: none;
+}
+
+th:hover {
+  background: #383838;
 }
 
 td {
@@ -135,6 +173,7 @@ td {
 .sort-icon {
   font-size: 0.8em;
   margin-left: 4px;
+  opacity: 0.7;
 }
 
 .streamer-info {
@@ -186,8 +225,13 @@ tr:hover {
   transition: background 0.2s;
 }
 
-.delete-btn:hover {
+.delete-btn:hover:not(:disabled) {
   background: #c82333;
+}
+
+.delete-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 @keyframes pulse {
