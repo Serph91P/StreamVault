@@ -3,24 +3,18 @@
     <table class="streamer-table">
       <thead>
         <tr>
-          <th @click="sortBy('username')">
-            Streamer
-            <span class="sort-icon">↕</span>
-          </th>
-          <th @click="sortBy('status')">
-            Status
-            <span class="sort-icon">↕</span>
-          </th>
-          <th @click="sortBy('lastUpdate')">
-            Last Update
-            <span class="sort-icon">↕</span>
-          </th>
+          <th @click="sortBy('username')">Streamer</th>
+          <th @click="sortBy('status')">Status</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Language</th>
+          <th>Last Update</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="streamer in sortedStreamers" 
-            :key="streamer.username"
+            :key="streamer.id"
             :class="{ 'live': streamer.is_live }">
           <td>
             <div class="streamer-info">
@@ -33,7 +27,10 @@
               {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
             </span>
           </td>
-          <td>{{ formatDate(streamer.last_event) }}</td>
+          <td>{{ streamer.title || '-' }}</td>
+          <td>{{ streamer.category || '-' }}</td>
+          <td>{{ streamer.language || '-' }}</td>
+          <td>{{ formatDate(streamer.last_updated) }}</td>
           <td>
             <button @click="deleteStreamer(streamer.id)" class="delete-btn">
               Delete
