@@ -3,6 +3,7 @@ from app.database import SessionLocal
 from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
 from app.config.settings import settings
+from app.dependencies import get_streamer_service, get_event_registry
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 
