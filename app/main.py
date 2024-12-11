@@ -206,37 +206,37 @@ async def eventsub_verify():
     return Response(content="pyTwitchAPI eventsub", media_type="text/plain")
 
 async def subscribe_to_streamer(username: str, db: Session):
-    try:
         logger.info(f"Starting subscription process for {username}")
-        
-        # Get user info using helper function
-        user = await first(twitch.get_users(logins=[username]))
-        
-        if not user:
-            logger.warning(f"Streamer {username} not found")
-            await manager.send_notification(f"Streamer {username} does not exist.")
-            return
+        try:
+            user_info = await twitch.get_users(logins=[username])
+            if not user_info['data']:
+                await manager.send_notification(f"Streamer {username} not found")
+                return
 
-        user_id = user.id
-        display_name = user.display_name
-        
-        logger.info(f"Found streamer {display_name} with ID {user_id}")
+            user_data = user_info['data'][0]
+            user_id = user_data['id']
+            display_name = user_data['display_name']
+            logger.info(f"Found streamer {display_name} with ID {user_id}")
 
-        # Add to database
-        new_streamer = models.Streamer(id=user_id, username=display_name)
-        db.add(new_streamer)
-        db.commit()
-        logger.info(f"Added streamer {display_name} to database")
+            # Add streamer to database first
+            new_streamer = models.Streamer(id=user_id, username=display_name)
+            db.add(new_streamer)
+            db.commit()
+            logger.info(f"Added streamer {display_name} to database")
 
-        # Subscribe to events
-        await event_sub.listen_stream_online(user_id, on_stream_online)
-        await event_sub.listen_stream_offline(user_id, on_stream_offline)
-        logger.info(f"Subscribed to events for {display_name}")
-        
-        await manager.send_notification(f"Successfully subscribed to {display_name}.")
-    except Exception as e:
-        logger.error(f"Failed to subscribe to {username}: {str(e)}")
-        await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
+            # Subscribe to events with proper webhook configuration
+            try:
+                await event_sub.listen_stream_online(user_id)
+                await event_sub.listen_stream_offline(user_id)
+                await manager.send_notification(f"Successfully subscribed to {display_name}")
+            except Exception as e:
+                logger.error(f"EventSub subscription failed: {str(e)}")
+                # Keep the streamer in DB but notify of subscription issue
+                await manager.send_notification(f"Added {display_name} but event subscription failed")
+
+        except Exception as e:
+            logger.error(f"Failed to subscribe to {username}: {str(e)}")
+            await manager.send_notification(f"Failed to add {username}")
 
 @app.post("/eventsub/callback")
 async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
