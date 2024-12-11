@@ -80,4 +80,4 @@ class EventHandlerRegistry:
         self.handlers['stream.online'] = self.handle_stream_online
         self.handlers['stream.offline'] = self.handle_stream_offline
         self.handlers['channel.update'] = self.handle_channel_update
-        self.handlers['channel.update.v2'] = self.handle_channel_update_v2        self.handlers['stream.offline'] = self.handle_stream_offline
+        self.handlers['channel.update.v2'] = self.handle_channel_update_v2
