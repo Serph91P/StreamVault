@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     WEBHOOK_URL: Optional[str] = None
     DATABASE_URL: str
     LOG_LEVEL: str = "INFO"
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
 
     def __init__(self):
         super().__init__()
