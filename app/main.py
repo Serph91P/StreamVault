@@ -175,15 +175,13 @@ async def get_streamers(db: Session = Depends(get_db)):
             "id": streamer.id,
             "username": streamer.username,
             "is_live": latest_event.event_type == 'stream.online' if latest_event else False,
-            "title": streamer.title,
-            "category": streamer.category,
-            "language": streamer.language,
+            "title": latest_event.title if latest_event else None,
+            "category": latest_event.category if latest_event else None,
+            "language": latest_event.language if latest_event else None,
             "last_updated": latest_event.timestamp if latest_event else None
         })
     
-    return streamer_statuses
-
-@app.post("/api/streamers")
+    return streamer_statuses@app.post("/api/streamers")
 async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()

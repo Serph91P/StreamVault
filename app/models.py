@@ -14,4 +14,7 @@ class Stream(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id"), nullable=False)
     event_type = Column(String, nullable=False)
+    title = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
