@@ -1,34 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
-from app.database import get_db
 from app.services.streamer_service import StreamerService
-from app.config.settings import settings
-from typing import List
+from app.dependencies import get_streamer_service, get_event_registry
+from app.events.handler_registry import EventHandlerRegistry
 
-router = APIRouter()
+router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
-@router.get("/api/streamers")
+@router.get("")
 async def get_streamers(
-    db: Session = Depends(get_db),
-    streamer_service: StreamerService = Depends()
+    streamer_service: StreamerService = Depends(get_streamer_service)
 ):
     return await streamer_service.get_streamers()
 
-@router.post("/api/streamers")
+@router.post("/{username}")
 async def add_streamer(
     username: str,
     background_tasks: BackgroundTasks,
-    streamer_service: StreamerService = Depends()
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     result = await streamer_service.add_streamer(username)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return {"message": f"Successfully added {username}", "streamer": result["streamer"]}
+    if result["success"]:
+        await event_registry.subscribe_to_events(result["streamer"].id)
+    return result
 
-@router.delete("/api/streamers/{streamer_id}")
+@router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
-    streamer_service: StreamerService = Depends()
+    streamer_service: StreamerService = Depends(get_streamer_service)
 ):
     if await streamer_service.delete_streamer(streamer_id):
         return {"message": "Streamer deleted successfully"}
