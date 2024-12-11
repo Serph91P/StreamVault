@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 
 # Third-party imports
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from twitchAPI.twitch import Twitch
@@ -276,11 +276,31 @@ async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
         logger.error(f"Error processing EventSub callback: {e}")
         raise
 
+@app.delete("/api/streamers/{streamer_id}")
+async def delete_streamer(streamer_id: int, db: Session = Depends(get_db)):
+    try:
+        # Unsubscribe from EventSub
+        await event_sub.delete_all_subscriptions_of_type('stream.online', streamer_id)
+        await event_sub.delete_all_subscriptions_of_type('stream.offline', streamer_id)
+        
+        # Delete from database
+        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+        if streamer:
+            db.delete(streamer)
+            db.commit()
+            await manager.send_notification(f"Removed streamer {streamer.username}")
+            return {"message": "Streamer deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting streamer {streamer_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete streamer")
+
 # Static files
 app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
 app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
+
+
 
 

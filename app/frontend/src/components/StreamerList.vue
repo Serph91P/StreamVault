@@ -15,6 +15,7 @@
             Last Update
             <span class="sort-icon">↕</span>
           </th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -33,6 +34,11 @@
             </span>
           </td>
           <td>{{ formatDate(streamer.last_event) }}</td>
+          <td>
+            <button @click="deleteStreamer(streamer.id)" class="delete-btn">
+              Delete
+            </button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -92,37 +98,48 @@ const formatDate = (date) => {
   if (!date) return 'Never'
   return new Date(date).toLocaleString()
 }
+
+const deleteStreamer = async (streamerId) => {
+  if (confirm('Are you sure you want to delete this streamer?')) {
+    try {
+      const response = await fetch(`/api/streamers/${streamerId}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await fetchStreamers()
+      }
+    } catch (error) {
+      console.error('Error deleting streamer:', error)
+    }
+  }
+}
 </script>
 
 <style scoped>
 .streamer-table-container {
   overflow-x: auto;
-  background: white;
+  background: #242424;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #383838;
 }
 
 .streamer-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  color: #fff;
 }
 
 th {
-  background: #6441a5;
-  color: white;
+  background: #2f2f2f;
   padding: 12px;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-th:hover {
-  background: #7d5bbe;
+  border-bottom: 1px solid #383838;
 }
 
 td {
   padding: 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #383838;
 }
 
 .sort-icon {
@@ -153,13 +170,12 @@ td {
   border-radius: 12px;
   font-size: 0.8em;
   font-weight: bold;
-  background: #ff4444;
-  color: white;
-  transition: background-color 0.3s;
+  background: #dc3545;
+  color: #fff;
 }
 
 .status-badge.live {
-  background: #44ff44;
+  background: #28a745;
 }
 
 tr {
@@ -167,7 +183,21 @@ tr {
 }
 
 tr:hover {
-  background: #f5f5f5;
+  background: #2f2f2f;
+}
+
+.delete-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.delete-btn:hover {
+  background: #c82333;
 }
 
 @keyframes pulse {
