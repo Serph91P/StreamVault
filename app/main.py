@@ -83,20 +83,14 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.on_event("startup")
 async def startup_event():
     await initialize_twitch()
-    await initialize_eventsub()
+    await event_registry.initialize_eventsub()
     event_registry.register_handlers()
     logger.info("Application startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    try:
-        if event_sub:
-            await event_sub.stop()
-        logger.info("Application shutdown complete")
-    except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
-        raise
-
+    await event_registry.shutdown()
+    logger.info("Application shutdown complete")
 # EventSub Callback Routes
 @app.get("/eventsub/callback")
 async def eventsub_verify():
