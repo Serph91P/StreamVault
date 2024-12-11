@@ -172,37 +172,58 @@ async def get_streamers(db: Session = Depends(get_db)):
             .first()
             
         streamer_statuses.append({
+            "id": streamer.id,
             "username": streamer.username,
             "is_live": latest_event.event_type == 'stream.online' if latest_event else False,
-            "last_event": latest_event.timestamp if latest_event else None
+            "title": streamer.title,
+            "category": streamer.category,
+            "language": streamer.language,
+            "last_updated": latest_event.timestamp if latest_event else None
         })
     
     return streamer_statuses
 
 @app.post("/api/streamers")
-async def add_streamer(
-    username: str = Form(...), 
-    background_tasks: BackgroundTasks = BackgroundTasks(), 
-    db: Session = Depends(get_db)
-):
-    logger.info(f"Received request to add streamer: {username}")
-    
+async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
         if existing_streamer:
-            logger.warning(f"Streamer already exists: {username}")
-            return JSONResponse(status_code=400, content={"message": f"Streamer {username} already exists"})
+            logger.warning(f"Attempted to add existing streamer: {username}")
+            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
 
         background_tasks.add_task(subscribe_to_streamer, username, db)
-        logger.info(f"Added subscription task for: {username}")
+        logger.info(f"Added subscription task for streamer: {username}")
         
         return JSONResponse(
             status_code=202, 
-            content={"message": f"Processing subscription for {username}"}
+            content={
+                "message": f"Processing subscription for {username}",
+                "status": "processing"
+            }
         )
     except Exception as e:
         logger.error(f"Error adding streamer: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/streamers/{streamer_id}")
+async def delete_streamer(streamer_id: int, db: Session = Depends(get_db)):
+    try:
+        # Unsubscribe from EventSub
+        await event_sub.delete_all_subscriptions_of_type('stream.online', streamer_id)
+        await event_sub.delete_all_subscriptions_of_type('stream.offline', streamer_id)
+        await event_sub.delete_all_subscriptions_of_type('channel.update', streamer_id)
+        await event_sub.delete_all_subscriptions_of_type('channel.update.v2', streamer_id)
+        
+        # Delete from database
+        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
+        if streamer:
+            db.delete(streamer)
+            db.commit()
+            await manager.send_notification(f"Removed streamer {streamer.username}")
+            return {"message": "Streamer deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting streamer {streamer_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete streamer")
 
 @app.get("/eventsub/callback")
 async def eventsub_verify():
