@@ -3,7 +3,7 @@ from twitchAPI.twitch import Twitch
 from fastapi import BackgroundTasks
 from app.models import Streamer, Stream
 from app.services.websocket_manager import ConnectionManager
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 
 logger = logging.getLogger("streamvault")
@@ -17,7 +17,7 @@ class StreamerService:
     async def notify(self, message: Dict[str, Any]):
         await self.manager.send_notification(message)
 
-    async def get_streamers(self):
+    async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
         
@@ -39,7 +39,7 @@ class StreamerService:
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
 
-    async def add_streamer(self, username: str, background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    async def add_streamer(self, username: str) -> Dict[str, Any]:
         try:
             await self.notify({
                 "type": "status",
@@ -66,6 +66,7 @@ class StreamerService:
             new_streamer = Streamer(id=user_id, username=display_name)
             self.db.add(new_streamer)
             self.db.commit()
+            logger.info(f"Added new streamer: {display_name}")
 
             await self.notify({
                 "type": "success",
@@ -74,9 +75,7 @@ class StreamerService:
 
             return {
                 "success": True,
-                "message": f"Processing subscription for {display_name}",
-                "status": "processing",
-                "streamer": {"id": user_id, "username": display_name}
+                "streamer": new_streamer
             }
 
         except Exception as e:
@@ -96,5 +95,6 @@ class StreamerService:
                 "type": "success",
                 "message": f"Removed streamer {streamer.username}"
             })
+            logger.info(f"Deleted streamer: {streamer.username}")
             return True
         return False

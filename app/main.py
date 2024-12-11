@@ -1,25 +1,18 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.websockets import WebSocketState
 import logging
 
-# Local imports
-from app.config.settings import settings
 from app.config.logging_config import setup_logging
-from app.middleware.auth import AuthMiddleware
-from app.middleware.error_handler import error_handler
 from app.database import engine
 import app.models as models
-from app.services.websocket_manager import ConnectionManager
+from app.dependencies import manager, get_event_registry, get_twitch
+from app.middleware.error_handler import error_handler
 
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
-
-# Initialize WebSocket manager
-manager = ConnectionManager()
 
 # WebSocket endpoint
 @app.websocket("/ws")
@@ -34,10 +27,14 @@ async def websocket_endpoint(websocket: WebSocket):
 # Application Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
+    await get_twitch()
+    event_registry = await get_event_registry()
     logger.info("Application startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    event_registry = await get_event_registry()
+    await event_registry.shutdown()
     logger.info("Application shutdown complete")
 
 # EventSub Callback Routes
@@ -50,6 +47,7 @@ async def eventsub_callback(request: Request):
     try:
         headers = request.headers
         body = await request.json()
+        event_registry = await get_event_registry()
         
         if headers.get('Twitch-Eventsub-Message-Type') == 'webhook_callback_verification':
             logger.info("Handling EventSub verification")

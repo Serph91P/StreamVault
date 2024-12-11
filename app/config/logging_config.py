@@ -1,25 +1,23 @@
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
+from app.config.settings import settings
 
 def setup_logging():
     logger = logging.getLogger('streamvault')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(settings.LOG_LEVEL)
 
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    file_handler = RotatingFileHandler(
-        'streamvault.log',
-        maxBytes=10485760,  # 10MB
-        backupCount=5
-    )
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler()
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
     logger.addHandler(console_handler)
+
+    # File handler for persistent logs
+    file_handler = logging.FileHandler('streamvault.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
     return logger
