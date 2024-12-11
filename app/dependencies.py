@@ -36,8 +36,5 @@ async def get_event_registry():
         await event_registry.initialize_eventsub()
     return event_registry
 
-async def get_streamer_service(
-    db=Depends(get_db),
-    twitch=Depends(get_twitch)
-):
+def get_streamer_service(db=Depends(get_db)):
     return StreamerService(db=db, twitch=twitch)

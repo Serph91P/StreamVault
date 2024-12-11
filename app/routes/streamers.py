@@ -15,7 +15,6 @@ async def get_streamers(
 @router.post("/{username}")
 async def add_streamer(
     username: str,
-    background_tasks: BackgroundTasks,
     streamer_service: StreamerService = Depends(get_streamer_service),
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
@@ -37,8 +36,10 @@ async def add_streamer(
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
-    streamer_service: StreamerService = Depends(get_streamer_service)
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     if await streamer_service.delete_streamer(streamer_id):
+        await event_registry.unsubscribe_from_events(str(streamer_id))
         return {"message": "Streamer deleted successfully"}
     raise HTTPException(status_code=404, detail="Streamer not found")
