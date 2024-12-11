@@ -1,10 +1,11 @@
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 class Settings(BaseSettings):
     TWITCH_APP_ID: str
     TWITCH_APP_SECRET: str
     BASE_URL: str
-    WEBHOOK_URL: str = None
+    WEBHOOK_URL: Optional[str] = None
 
     def __init__(self):
         super().__init__()
