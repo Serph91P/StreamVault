@@ -51,12 +51,59 @@ const addStreamer = async () => {
 </script>
 
 <style scoped>
+.add-streamer-form {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.input-field {
+  background: #242424;
+  border: 1px solid #383838;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #6441a5;
+}
+
+.input-field::placeholder {
+  color: #666;
+}
+
+.add-button {
+  background: #6441a5;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-button:hover {
+  background: #7d5bbe;
+}
+
+.add-button:disabled {
+  background: #4a3178;
+  cursor: not-allowed;
+}
+
 .loader {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #6441a5;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -64,17 +111,5 @@ const addStreamer = async () => {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-.status-message {
-  margin-top: 10px;
-  color: #6441a5;
-  font-size: 0.9em;
-}
-
-.streamer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 </style>
