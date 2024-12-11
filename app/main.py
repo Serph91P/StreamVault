@@ -227,56 +227,56 @@ async def eventsub_verify():
     return Response(content="pyTwitchAPI eventsub", media_type="text/plain")
 
 async def subscribe_to_streamer(username: str, db: Session):
+    try:
+        user_info = await twitch.get_users(logins=[username])
+        if not user_info['data']:
+            await manager.send_notification(f"Streamer {username} does not exist.")
+            return
+
+        user_data = user_info['data'][0]
+        user_id = user_data['id']
+        display_name = user_data['display_name']
+        logger.info(f"Found streamer {display_name} with ID {user_id}")
+
+        # Subscribe to all events with individual error handling
+        subscription_errors = []
         try:
-            user_info = await twitch.get_users(logins=[username])
-            if not user_info['data']:
-                await manager.send_notification(f"Streamer {username} not found")
-                return
-
-            user_data = user_info['data'][0]
-            user_id = user_data['id']
-            display_name = user_data['display_name']
-            logger.info(f"Found streamer {display_name} with ID {user_id}")
-
-            # Subscribe to all events with individual error handling
-            subscription_errors = []
-            try:
-                await event_sub.listen_stream_online(user_id)
-            except Exception as e:
-                subscription_errors.append(f"Stream online subscription failed: {str(e)}")
-            
-            try:
-                await event_sub.listen_stream_offline(user_id)
-            except Exception as e:
-                subscription_errors.append(f"Stream offline subscription failed: {str(e)}")
-            
-            try:
-                await event_sub.listen_channel_update(user_id)
-            except Exception as e:
-                subscription_errors.append(f"Channel update subscription failed: {str(e)}")
-            
-            try:
-                await event_sub.listen_channel_update_v2(user_id)
-            except Exception as e:
-                subscription_errors.append(f"Channel update v2 subscription failed: {str(e)}")
-
-            if subscription_errors:
-                error_message = "\n".join(subscription_errors)
-                logger.error(f"Subscription errors for {display_name}:\n{error_message}")
-                await manager.send_notification(f"Failed to set up all subscriptions for {display_name}. Errors: {error_message}")
-                return
-
-            # Only add to database if all subscriptions succeed
-            new_streamer = models.Streamer(id=user_id, username=display_name)
-            db.add(new_streamer)
-            db.commit()
-            logger.info(f"Added streamer {display_name} to database")
-        
-            await manager.send_notification(f"Successfully subscribed to {display_name}")
-
+            await event_sub.listen_stream_online(user_id)
         except Exception as e:
-            logger.error(f"Failed to subscribe to {username}: {str(e)}")
-            await manager.send_notification(f"Failed to add {username}")
+            subscription_errors.append(f"Stream online subscription failed: {str(e)}")
+        
+        try:
+            await event_sub.listen_stream_offline(user_id)
+        except Exception as e:
+            subscription_errors.append(f"Stream offline subscription failed: {str(e)}")
+        
+        try:
+            await event_sub.listen_channel_update(user_id)
+        except Exception as e:
+            subscription_errors.append(f"Channel update subscription failed: {str(e)}")
+        
+        try:
+            await event_sub.listen_channel_update_v2(user_id)
+        except Exception as e:
+            subscription_errors.append(f"Channel update v2 subscription failed: {str(e)}")
+
+        if subscription_errors:
+            error_message = "\n".join(subscription_errors)
+            logger.error(f"Subscription errors for {display_name}:\n{error_message}")
+            await manager.send_notification(f"Failed to set up all subscriptions for {display_name}. Errors: {error_message}")
+            return
+
+        # Only add to database if all subscriptions succeed
+        new_streamer = models.Streamer(id=user_id, username=display_name)
+        db.add(new_streamer)
+        db.commit()
+        logger.info(f"Added streamer {display_name} to database")
+    
+        await manager.send_notification(f"Successfully subscribed to {display_name}")
+
+    except Exception as e:
+        logger.error(f"Failed to subscribe to {username}: {str(e)}")
+        await manager.send_notification(f"Failed to add {username}")
 
 @app.post("/eventsub/callback")
 async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
