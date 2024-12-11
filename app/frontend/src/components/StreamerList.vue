@@ -100,16 +100,18 @@ const formatDate = (date) => {
 }
 
 const deleteStreamer = async (streamerId) => {
+  if (!streamerId) return;
+  
   if (confirm('Are you sure you want to delete this streamer?')) {
     try {
       const response = await fetch(`/api/streamers/${streamerId}`, {
         method: 'DELETE'
-      })
+      });
       if (response.ok) {
-        await fetchStreamers()
+        await fetchStreamers();
       }
     } catch (error) {
-      console.error('Error deleting streamer:', error)
+      console.error('Error deleting streamer:', error);
     }
   }
 }
