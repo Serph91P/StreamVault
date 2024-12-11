@@ -180,12 +180,19 @@ async def get_streamers(db: Session = Depends(get_db)):
     return streamer_statuses
 
 @app.post("/api/streamers")
-async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
+async def add_streamer(
+    username: str = Form(...), 
+    background_tasks: BackgroundTasks = BackgroundTasks(), 
+    db: Session = Depends(get_db)
+):
     try:
         existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
         if existing_streamer:
             logger.warning(f"Attempted to add existing streamer: {username}")
-            return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
+            return JSONResponse(
+                status_code=400, 
+                content={"message": f"Streamer {username} is already subscribed."}
+            )
 
         background_tasks.add_task(subscribe_to_streamer, username, db)
         logger.info(f"Added subscription task for streamer: {username}")
@@ -199,7 +206,7 @@ async def add_streamer(username: str = Form(...), background_tasks: BackgroundTa
         )
     except Exception as e:
         logger.error(f"Error adding streamer: {e}")
-        raise
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/eventsub/callback")
 async def eventsub_verify():

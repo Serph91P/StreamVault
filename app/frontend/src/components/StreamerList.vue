@@ -8,7 +8,7 @@
           <th>Title</th>
           <th>Category</th>
           <th>Language</th>
-          <th>Last Update</th>
+          <th @click="sortBy('lastUpdate')">Last Update</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -43,12 +43,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { ref, computed, onMounted } from 'vue'
 
 const streamers = ref([])
-const { messages } = useWebSocket()
-
 const sortKey = ref('username')
 const sortDir = ref('asc')
 
@@ -80,38 +77,32 @@ const fetchStreamers = async () => {
   }
 }
 
-// Fetch immediately after adding a streamer
-watch(() => props.refreshTrigger, () => {
-  fetchStreamers()
-})
-
-// Regular polling
-onMounted(() => {
-  fetchStreamers()
-  setInterval(fetchStreamers, 60000)
-})
+const deleteStreamer = async (streamerId) => {
+  if (!streamerId) return
+  
+  if (confirm('Are you sure you want to delete this streamer?')) {
+    try {
+      const response = await fetch(`/api/streamers/${streamerId}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await fetchStreamers()
+      }
+    } catch (error) {
+      console.error('Error deleting streamer:', error)
+    }
+  }
+}
 
 const formatDate = (date) => {
   if (!date) return 'Never'
   return new Date(date).toLocaleString()
 }
 
-const deleteStreamer = async (streamerId) => {
-  if (!streamerId) return;
-  
-  if (confirm('Are you sure you want to delete this streamer?')) {
-    try {
-      const response = await fetch(`/api/streamers/${streamerId}`, {
-        method: 'DELETE'
-      });
-      if (response.ok) {
-        await fetchStreamers();
-      }
-    } catch (error) {
-      console.error('Error deleting streamer:', error);
-    }
-  }
-}
+onMounted(() => {
+  fetchStreamers()
+  setInterval(fetchStreamers, 60000)
+})
 </script>
 
 <style scoped>
