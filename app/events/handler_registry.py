@@ -35,10 +35,15 @@ class EventHandlerRegistry:
             if not self.event_sub:
                 await self.initialize_eventsub()
 
-            async for _ in self.event_sub.listen_stream_online(broadcaster_user_id=user_id): pass
-            async for _ in self.event_sub.listen_stream_offline(broadcaster_user_id=user_id): pass
-            async for _ in self.event_sub.listen_channel_update(broadcaster_user_id=user_id): pass
-                
+            subscriptions = []
+            subscriptions.append(self.event_sub.listen_stream_online(broadcaster_user_id=user_id))
+            subscriptions.append(self.event_sub.listen_stream_offline(broadcaster_user_id=user_id))
+            subscriptions.append(self.event_sub.listen_channel_update(broadcaster_user_id=user_id))
+
+            for sub in subscriptions:
+                async for _ in sub:
+                    break  
+
             logger.info(f"Successfully subscribed to all events for user {user_id}")
             return True
         except Exception as e:
