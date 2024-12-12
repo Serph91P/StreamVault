@@ -43,4 +43,4 @@ jobs:
         cache-to: type=gha,mode=max
         build-args: |
           BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-        tags: frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}          frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}          frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
+        tags: frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
