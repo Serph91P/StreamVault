@@ -36,18 +36,32 @@ class EventHandlerRegistry:
                 await self.initialize_eventsub()
 
             subscriptions = []
-            subscriptions.append(self.event_sub.listen_stream_online(broadcaster_user_id=user_id))
-            subscriptions.append(self.event_sub.listen_stream_offline(broadcaster_user_id=user_id))
-            subscriptions.append(self.event_sub.listen_channel_update(broadcaster_user_id=user_id))
+            subscriptions.append(
+                self.event_sub.listen_stream_online(
+                    broadcaster_user_id=user_id,
+                    callback=lambda event: self.handle_stream_online(event)
+                )
+            )
+            subscriptions.append(
+                self.event_sub.listen_stream_offline(
+                    broadcaster_user_id=user_id,
+                    callback=lambda event: self.handle_stream_offline(event)
+                )
+            )
+            subscriptions.append(
+                self.event_sub.listen_channel_update(
+                    broadcaster_user_id=user_id,
+                    callback=lambda event: self.handle_channel_update(event)
+                )
+            )
 
             for sub in subscriptions:
-                async for _ in sub:
-                    break  
+                await sub  # Ensure each subscription is awaited correctly
 
             logger.info(f"Successfully subscribed to all events for user {user_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to subscribe to events for user {user_id}: {e}")
+            logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
             return False
 
     async def unsubscribe_from_events(self, user_id: str):
