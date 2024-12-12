@@ -26,6 +26,7 @@ class ConnectionManager:
             message = json.dumps(message)
 
         for connection in self.active_connections:
+            logger.debug(f"Sending message to connection: {connection}")
             if connection.application_state == WebSocketState.CONNECTED:
                 try:
                     await connection.send_text(message)
@@ -36,6 +37,7 @@ class ConnectionManager:
                 disconnected.append(connection)
 
         for conn in disconnected:
+            logger.warning(f"Cleaning up disconnected connection: {conn}")
             self.disconnect(conn)
 
     async def broadcast(self, message: str):
