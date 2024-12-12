@@ -27,7 +27,7 @@ class EventHandlerRegistry:
             self.twitch
         )
         await self.event_sub.unsubscribe_all()
-        await self.event_sub.start()
+        self.event_sub.start()
         logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
