@@ -15,7 +15,11 @@ class StreamerService:
         self.manager = ConnectionManager()
 
     async def notify(self, message: Dict[str, Any]):
-        await self.manager.send_notification(message)
+        try:
+            await self.manager.send_notification(message)
+        except Exception as e:
+            logger.error(f"Notification failed: {e}")
+            raise
 
     async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()

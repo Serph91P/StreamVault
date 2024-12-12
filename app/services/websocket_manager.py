@@ -21,12 +21,12 @@ class ConnectionManager:
 
     async def send_notification(self, message: str | Dict[str, Any]):
         disconnected = []
-        
+
         if isinstance(message, dict):
             message = json.dumps(message)
 
         for connection in self.active_connections:
-            if connection.client_state != WebSocketState.DISCONNECTED:
+            if connection.application_state == WebSocketState.CONNECTED:
                 try:
                     await connection.send_text(message)
                 except Exception as e:
@@ -35,10 +35,8 @@ class ConnectionManager:
             else:
                 disconnected.append(connection)
 
-        # Clean up disconnected connections
         for conn in disconnected:
-            if conn in self.active_connections:
-                self.disconnect(conn)
+            self.disconnect(conn)
 
     async def broadcast(self, message: str):
         await self.send_notification(message)
