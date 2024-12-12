@@ -49,38 +49,37 @@ class StreamerService:
                 "type": "status",
                 "message": f"Looking up streamer {username}..."
             })
-            
-            user_info = await self.twitch.get_users(logins=[username])
-            if not user_info['data']:
+
+            async for user_data in self.twitch.get_users(logins=[username]):
+                if not user_data:
+                    await self.notify({
+                        "type": "error",
+                        "message": f"Streamer {username} does not exist."
+                    })
+                    return {"success": False, "message": f"Streamer {username} does not exist."}
+
+                user_id = user_data['id']
+                display_name = user_data['display_name']
+
                 await self.notify({
-                    "type": "error",
-                    "message": f"Streamer {username} does not exist."
+                    "type": "status",
+                    "message": f"Setting up subscriptions for {display_name}..."
                 })
-                return {"success": False, "message": f"Streamer {username} does not exist."}
 
-            user_data = user_info['data'][0]
-            user_id = user_data['id']
-            display_name = user_data['display_name']
-            
-            await self.notify({
-                "type": "status",
-                "message": f"Setting up subscriptions for {display_name}..."
-            })
+                new_streamer = Streamer(id=user_id, username=display_name)
+                self.db.add(new_streamer)
+                self.db.commit()
+                logger.info(f"Added new streamer: {display_name}")
 
-            new_streamer = Streamer(id=user_id, username=display_name)
-            self.db.add(new_streamer)
-            self.db.commit()
-            logger.info(f"Added new streamer: {display_name}")
+                await self.notify({
+                    "type": "success",
+                    "message": f"Successfully added {display_name}"
+                })
 
-            await self.notify({
-                "type": "success",
-                "message": f"Successfully added {display_name}"
-            })
-
-            return {
-                "success": True,
-                "streamer": new_streamer
-            }
+                return {
+                    "success": True,
+                    "streamer": new_streamer
+                }
 
         except Exception as e:
             logger.error(f"Failed to add streamer {username}: {str(e)}")
