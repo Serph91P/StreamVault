@@ -27,17 +27,21 @@ class EventHandlerRegistry:
             self.twitch
         )
         await self.event_sub.unsubscribe_all()
-        self.event_sub.start()
+        await self.event_sub.start()
         logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
         try:
             if not self.event_sub:
                 await self.initialize_eventsub()
+
+            await self.event_sub.listen_stream_online(broadcaster_user_id=user_id)
+            await self.event_sub.listen_stream_offline(broadcaster_user_id=user_id)
+            await self.event_sub.listen_channel_update(broadcaster_user_id=user_id)
                 
-            await self.event_sub.listen_stream_online(user_id, self.handle_stream_online)
-            await self.event_sub.listen_stream_offline(user_id, self.handle_stream_offline)
-            await self.event_sub.listen_channel_update(user_id)
+            # await self.event_sub.listen_stream_online(user_id, self.handle_stream_online)
+            # await self.event_sub.listen_stream_offline(user_id, self.handle_stream_offline)
+            # await self.event_sub.listen_channel_update(user_id)
             # await self.event_sub.listen_channel_update_v2(user_id)
             logger.info(f"Successfully subscribed to all events for user {user_id}")
             return True
