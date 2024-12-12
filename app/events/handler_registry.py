@@ -35,28 +35,34 @@ class EventHandlerRegistry:
             if not self.event_sub:
                 await self.initialize_eventsub()
 
+            async def handle_stream_online(event):
+                await self.handle_stream_online(event)
+
+            async def handle_stream_offline(event):
+                await self.handle_stream_offline(event)
+
+            async def handle_channel_update(event):
+                await self.handle_channel_update(event)
+
             subscriptions = []
             subscriptions.append(
-                self.event_sub.listen_stream_online(
+                await self.event_sub.listen_stream_online(
                     broadcaster_user_id=user_id,
-                    callback=lambda event: self.handle_stream_online(event)
+                    callback=handle_stream_online
                 )
             )
             subscriptions.append(
-                self.event_sub.listen_stream_offline(
+                await self.event_sub.listen_stream_offline(
                     broadcaster_user_id=user_id,
-                    callback=lambda event: self.handle_stream_offline(event)
+                    callback=handle_stream_offline
                 )
             )
             subscriptions.append(
-                self.event_sub.listen_channel_update(
+                await self.event_sub.listen_channel_update(
                     broadcaster_user_id=user_id,
-                    callback=lambda event: self.handle_channel_update(event)
+                    callback=handle_channel_update
                 )
             )
-
-            for sub in subscriptions:
-                await sub  # Ensure each subscription is awaited correctly
 
             logger.info(f"Successfully subscribed to all events for user {user_id}")
             return True
