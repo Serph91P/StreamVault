@@ -71,7 +71,10 @@ async def eventsub_callback(request: Request):
 
         # Handle notifications
         if message_type == "notification":
+            logger.info("Handling EventSub notification")
             event_type = body.get("subscription", {}).get("type")
+            event_data = body.get("event", {})
+
             if not event_type:
                 logger.error("Missing event type in notification")
                 return JSONResponse(
@@ -79,13 +82,32 @@ async def eventsub_callback(request: Request):
                     content={"error": "Missing event type in notification"}
                 )
 
+            if not event_data:
+                logger.error("Missing event data in notification")
+                return JSONResponse(
+                    status_code=400, 
+                    content={"error": "Missing event data in notification"}
+                )
+
             # Look for a handler for the event type
             handler = event_registry.handlers.get(event_type)
             if handler:
-                logger.info(f"Handling event type: {event_type}")
-                await handler(body)
+                try:
+                    logger.info(f"Processing event type: {event_type}")
+                    await handler(event_data)
+                    logger.info(f"Event type {event_type} processed successfully.")
+                except Exception as e:
+                    logger.error(f"Error while processing event type {event_type}: {e}", exc_info=True)
+                    return JSONResponse(
+                        status_code=500, 
+                        content={"error": f"Error processing event type {event_type}: {e}"}
+                    )
             else:
                 logger.warning(f"No handler found for event type: {event_type}")
+                return JSONResponse(
+                    status_code=400, 
+                    content={"error": f"No handler registered for event type: {event_type}"}
+                )
 
             return JSONResponse(
                 status_code=200, 
