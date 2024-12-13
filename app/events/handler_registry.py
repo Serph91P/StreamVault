@@ -102,43 +102,109 @@ class EventHandlerRegistry:
             await self.event_sub.stop()
             logger.info("EventSub shutdown complete")
 
-    async def handle_stream_online(self, data: Any) -> None:
-        streamer_id = data.event.broadcaster_user_id
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if streamer:
-                new_stream = Stream(streamer_id=streamer_id, event_type='stream.online')
-                db.add(new_stream)
-                db.commit()
-                await self.manager.send_notification(f"{streamer.username} is now **online**!")
-                logger.info(f"Handled stream online event for {streamer.username}")
+    async def handle_stream_online(self, data: dict):
+        try:
+            logger.debug(f"Handling stream.online event with data: {data}")
 
-    async def handle_stream_offline(self, data: Any) -> None:
-        streamer_id = data.event.broadcaster_user_id
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if streamer:
-                new_stream = Stream(streamer_id=streamer_id, event_type='stream.offline')
-                db.add(new_stream)
-                db.commit()
-                await self.manager.send_notification(f"{streamer.username} is now **offline**!")
-                logger.info(f"Handled stream offline event for {streamer.username}")
+            streamer_id = data.get("broadcaster_user_id")
+            streamer_name = data.get("broadcaster_user_name")
 
-    async def handle_channel_update(self, data: Any) -> None:
-        streamer_id = data.event.broadcaster_user_id
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if streamer:
-                await self.manager.send_notification(f"{streamer.username} updated their channel!")
-                logger.info(f"Handled channel update event for {streamer.username}")
+            if not streamer_id or not streamer_name:
+                logger.error("Missing broadcaster_user_id or broadcaster_user_name in event data")
+                return
 
-    async def handle_channel_update_v2(self, data: Any) -> None:
-        streamer_id = data.event.broadcaster_user_id
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if streamer:
-                await self.manager.send_notification(f"{streamer.username} made channel updates!")
-                logger.info(f"Handled channel update v2 event for {streamer.username}")
+            logger.info(f"Streamer {streamer_name} (ID: {streamer_id}) is now online.")
+            await self.websocket_manager.send_notification({
+                "type": "stream.online",
+                "data": {
+                    "streamer_id": streamer_id,
+                    "streamer_name": streamer_name
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error handling stream.online event: {e}", exc_info=True)
+            raise
+
+
+    async def handle_stream_offline(self, data: dict) -> None:
+        try:
+            logger.debug(f"Handling stream.offline event with data: {data}")
+
+            streamer_id = data.get("broadcaster_user_id")
+
+            if not streamer_id:
+                logger.error("Missing broadcaster_user_id in event data")
+                return
+
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if streamer:
+                    new_stream = Stream(streamer_id=streamer_id, event_type='stream.offline')
+                    db.add(new_stream)
+                    db.commit()
+                    await self.websocket_manager.send_notification({
+                        "type": "stream.offline",
+                        "data": {
+                            "streamer_id": streamer_id,
+                            "streamer_name": streamer.username
+                        }
+                    })
+                    logger.info(f"Handled stream offline event for {streamer.username}")
+        except Exception as e:
+            logger.error(f"Error handling stream.offline event: {e}", exc_info=True)
+            raise
+
+
+    async def handle_channel_update(self, data: dict) -> None:
+        try:
+            logger.debug(f"Handling channel.update event with data: {data}")
+
+            streamer_id = data.get("broadcaster_user_id")
+
+            if not streamer_id:
+                logger.error("Missing broadcaster_user_id in event data")
+                return
+
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if streamer:
+                    await self.websocket_manager.send_notification({
+                        "type": "channel.update",
+                        "data": {
+                            "streamer_id": streamer_id,
+                            "streamer_name": streamer.username
+                        }
+                    })
+                    logger.info(f"Handled channel update event for {streamer.username}")
+        except Exception as e:
+            logger.error(f"Error handling channel.update event: {e}", exc_info=True)
+            raise
+
+
+    async def handle_channel_update_v2(self, data: dict) -> None:
+        try:
+            logger.debug(f"Handling channel.update.v2 event with data: {data}")
+
+            streamer_id = data.get("broadcaster_user_id")
+
+            if not streamer_id:
+                logger.error("Missing broadcaster_user_id in event data")
+                return
+
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if streamer:
+                    await self.websocket_manager.send_notification({
+                        "type": "channel.update.v2",
+                        "data": {
+                            "streamer_id": streamer_id,
+                            "streamer_name": streamer.username
+                        }
+                    })
+                    logger.info(f"Handled channel update v2 event for {streamer.username}")
+        except Exception as e:
+            logger.error(f"Error handling channel.update.v2 event: {e}", exc_info=True)
+            raise
 
     def register_handlers(self):
         self.handlers['stream.online'] = self.handle_stream_online
