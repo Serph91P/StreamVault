@@ -71,14 +71,19 @@ class EventHandlerRegistry:
             return False
 
     async def unsubscribe_from_events(self, user_id: str):
-        if not self.event_sub:
-            return
-            
-        await self.event_sub.delete_all_subscriptions_of_type('stream.online', user_id)
-        await self.event_sub.delete_all_subscriptions_of_type('stream.offline', user_id)
-        await self.event_sub.delete_all_subscriptions_of_type('channel.update', user_id)
-        await self.event_sub.delete_all_subscriptions_of_type('channel.update.v2', user_id)
-        logger.info(f"Unsubscribed from all events for user {user_id}")
+        try:
+            if not self.event_sub:
+                await self.initialize_eventsub()
+
+            # Retrieve all subscriptions
+            subscriptions = await self.event_sub.get_subscriptions()
+            for sub in subscriptions.data:
+                if sub.condition.get("broadcaster_user_id") == user_id:
+                    await self.event_sub.delete_subscription(sub.id)
+
+            logger.info(f"Successfully unsubscribed all events for user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to unsubscribe from events for user {user_id}: {e}", exc_info=True)
 
     async def shutdown(self):
         if self.event_sub:
