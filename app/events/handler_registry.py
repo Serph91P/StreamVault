@@ -36,39 +36,35 @@ class EventHandlerRegistry:
                 await self.initialize_eventsub()
 
             async def handle_stream_online(event):
+                logger.info(f"Stream online event received: {event}")
                 await self.handle_stream_online(event)
 
             async def handle_stream_offline(event):
+                logger.info(f"Stream offline event received: {event}")
                 await self.handle_stream_offline(event)
 
             async def handle_channel_update(event):
+                logger.info(f"Channel update event received: {event}")
                 await self.handle_channel_update(event)
 
-            subscriptions = []
-            subscriptions.append(
-                await self.event_sub.listen_stream_online(
-                    broadcaster_user_id=user_id,
-                    callback=handle_stream_online
-                )
+            await self.event_sub.listen_stream_online(
+                broadcaster_user_id=user_id,
+                callback=handle_stream_online
             )
-            subscriptions.append(
-                await self.event_sub.listen_stream_offline(
-                    broadcaster_user_id=user_id,
-                    callback=handle_stream_offline
-                )
+            await self.event_sub.listen_stream_offline(
+                broadcaster_user_id=user_id,
+                callback=handle_stream_offline
             )
-            subscriptions.append(
-                await self.event_sub.listen_channel_update(
-                    broadcaster_user_id=user_id,
-                    callback=handle_channel_update
-                )
+            await self.event_sub.listen_channel_update(
+                broadcaster_user_id=user_id,
+                callback=handle_channel_update
             )
 
             logger.info(f"Successfully subscribed to all events for user {user_id}")
             return True
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
-            return False
+            raise
 
     async def unsubscribe_from_events(self, user_id: str):
         try:
