@@ -35,6 +35,8 @@ class EventHandlerRegistry:
             if not self.event_sub:
                 await self.initialize_eventsub()
 
+            logger.debug(f"Subscribing to events for user_id: {user_id}")
+
             async def handle_stream_online(event):
                 logger.info(f"Stream online event received: {event}")
                 await self.handle_stream_online(event)
@@ -47,23 +49,34 @@ class EventHandlerRegistry:
                 logger.info(f"Channel update event received: {event}")
                 await self.handle_channel_update(event)
 
+            logger.debug(f"Setting up stream.online subscription for user_id: {user_id}")
             await self.event_sub.listen_stream_online(
-                broadcaster_user_id=user_id,
+                broadcaster_user_id=str(user_id),
                 callback=handle_stream_online
             )
+            logger.info(f"Successfully subscribed to stream.online for user_id: {user_id}")
+
+            logger.debug(f"Setting up stream.offline subscription for user_id: {user_id}")
             await self.event_sub.listen_stream_offline(
-                broadcaster_user_id=user_id,
+                broadcaster_user_id=str(user_id),
                 callback=handle_stream_offline
             )
+            logger.info(f"Successfully subscribed to stream.offline for user_id: {user_id}")
+
+            logger.debug(f"Setting up channel.update subscription for user_id: {user_id}")
             await self.event_sub.listen_channel_update(
-                broadcaster_user_id=user_id,
+                broadcaster_user_id=str(user_id),
                 callback=handle_channel_update
             )
+            logger.info(f"Successfully subscribed to channel.update for user_id: {user_id}")
 
-            logger.info(f"Successfully subscribed to all events for user {user_id}")
+            logger.info(f"All subscriptions set up successfully for user_id: {user_id}")
             return True
+
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
+            if hasattr(e, 'args'):
+                logger.error(f"Error args: {e.args}")
             raise
 
     async def unsubscribe_from_events(self, user_id: str):
@@ -71,13 +84,16 @@ class EventHandlerRegistry:
             if not self.event_sub:
                 await self.initialize_eventsub()
 
-            # Retrieve all subscriptions
+            logger.debug(f"Fetching subscriptions for user ID: {user_id}")
             subscriptions = await self.event_sub.get_subscriptions()
+
+            deleted_count = 0
             for sub in subscriptions.data:
                 if sub.condition.get("broadcaster_user_id") == user_id:
                     await self.event_sub.delete_subscription(sub.id)
+                    deleted_count += 1
 
-            logger.info(f"Successfully unsubscribed all events for user {user_id}")
+            logger.info(f"Deleted {deleted_count} subscriptions for user ID: {user_id}")
         except Exception as e:
             logger.error(f"Failed to unsubscribe from events for user {user_id}: {e}", exc_info=True)
 
