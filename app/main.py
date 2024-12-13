@@ -38,31 +38,73 @@ async def shutdown_event():
     logger.info("Application shutdown complete")
 
 # EventSub Callback Routes
+# EventSub Verification Endpoint
 @app.get("/eventsub/callback")
 async def eventsub_verify():
     return Response(content="pyTwitchAPI eventsub", media_type="text/plain")
 
+# EventSub Callback Handler
 @app.post("/eventsub/callback")
 async def eventsub_callback(request: Request):
     try:
+        # Log all incoming requests for debugging
         headers = request.headers
         body = await request.json()
-        event_registry = await get_event_registry()
-        
-        if headers.get('Twitch-Eventsub-Message-Type') == 'webhook_callback_verification':
-            logger.info("Handling EventSub verification")
-            return Response(content=body['challenge'], media_type='text/plain')
+        logger.debug(f"Received EventSub request: headers={headers}, body={body}")
 
-        if headers.get('Twitch-Eventsub-Message-Type') == 'notification':
-            event_type = body['subscription']['type']
+        # Initialize event registry
+        event_registry = await get_event_registry()
+
+        # Handle webhook verification
+        message_type = headers.get("Twitch-Eventsub-Message-Type")
+        if message_type == "webhook_callback_verification":
+            logger.info("Handling EventSub verification")
+            challenge = body.get("challenge")
+            if not challenge:
+                logger.error("Missing challenge in webhook verification")
+                return JSONResponse(
+                    status_code=400, 
+                    content={"error": "Missing challenge in webhook verification"}
+                )
+            logger.info(f"Webhook verified with challenge: {challenge}")
+            return Response(content=challenge, media_type="text/plain")
+
+        # Handle notifications
+        if message_type == "notification":
+            event_type = body.get("subscription", {}).get("type")
+            if not event_type:
+                logger.error("Missing event type in notification")
+                return JSONResponse(
+                    status_code=400, 
+                    content={"error": "Missing event type in notification"}
+                )
+
+            # Look for a handler for the event type
             handler = event_registry.handlers.get(event_type)
             if handler:
+                logger.info(f"Handling event type: {event_type}")
                 await handler(body)
-            
-        return JSONResponse(status_code=200, content={"message": "Event processed successfully."})
+            else:
+                logger.warning(f"No handler found for event type: {event_type}")
+
+            return JSONResponse(
+                status_code=200, 
+                content={"message": "Event processed successfully."}
+            )
+
+        # Log and respond to unsupported message types
+        logger.warning(f"Unsupported message type: {message_type}")
+        return JSONResponse(
+            status_code=400, 
+            content={"error": f"Unsupported message type: {message_type}"}
+        )
+    
     except Exception as e:
-        logger.error(f"Error processing EventSub callback: {e}")
-        raise
+        logger.error(f"Error processing EventSub callback: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, 
+            content={"error": f"Internal server error: {e}"}
+        )
 
 # Include routers
 from app.routes import streamers
