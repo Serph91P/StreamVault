@@ -114,7 +114,7 @@ class EventHandlerRegistry:
                 return
 
             logger.info(f"Streamer {streamer_name} (ID: {streamer_id}) is now online.")
-            await self.websocket_manager.send_notification({
+            await self.manager.send_notification({
                 "type": "stream.online",
                 "data": {
                     "streamer_id": streamer_id,
@@ -142,7 +142,7 @@ class EventHandlerRegistry:
                     new_stream = Stream(streamer_id=streamer_id, event_type='stream.offline')
                     db.add(new_stream)
                     db.commit()
-                    await self.websocket_manager.send_notification({
+                    await self.manager.send_notification({
                         "type": "stream.offline",
                         "data": {
                             "streamer_id": streamer_id,
@@ -168,7 +168,7 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 if streamer:
-                    await self.websocket_manager.send_notification({
+                    await self.manager.send_notification({
                         "type": "channel.update",
                         "data": {
                             "streamer_id": streamer_id,
@@ -194,7 +194,7 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 if streamer:
-                    await self.websocket_manager.send_notification({
+                    await self.manager.send_notification({
                         "type": "channel.update.v2",
                         "data": {
                             "streamer_id": streamer_id,
