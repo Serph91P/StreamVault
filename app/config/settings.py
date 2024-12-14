@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     TWITCH_APP_SECRET: str
     BASE_URL: str
     WEBHOOK_URL: Optional[str] = None
+    WEBHOOK_SECRET: str
     DATABASE_URL: str
     LOG_LEVEL: str = "INFO"
     POSTGRES_USER: str
