@@ -2,13 +2,17 @@
   <div class="app">
     <header>
       <h1>StreamVault</h1>
+      <nav>
+        <router-link to="/">Home</router-link>
+        <router-link to="/subscriptions">Subscriptions</router-link>
+      </nav>
       <AddStreamerForm @streamer-added="refreshData" />
     </header>
     
     <div class="main-content">
       <StreamerList />
-      <SubscriptionManager />
       <NotificationFeed />
+      <router-view />
     </div>
   </div>
 </template>
@@ -17,7 +21,6 @@
 import StreamerList from '@/components/StreamerList.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import AddStreamerForm from '@/components/AddStreamerForm.vue'
-import SubscriptionManager from '@/components/SubscriptionManager.vue'
 
 const refreshData = () => {
   // Implement if needed
