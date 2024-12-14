@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
@@ -21,30 +21,18 @@ async def add_streamer(
     streamer_service: StreamerService = Depends(get_streamer_service),
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
-    try:
-        logger.debug(f"Attempting to add streamer: {username}")
-        
-        existing = await streamer_service.get_streamer_by_username(username)
-        if existing:
-            return JSONResponse(
-                status_code=400,
-                content={"message": f"Streamer {username} is already subscribed."}
-            )
-        
-        result = await streamer_service.add_streamer(username)
-        if result["success"]:
+    logger.debug(f"Add streamer request received for username: {username}")
+    
+    result = await streamer_service.add_streamer(username)
+    if result["success"]:
+        try:
             await event_registry.subscribe_to_events(result["streamer"].id)
-            return JSONResponse(
-                status_code=200,
-                content={"message": f"Successfully added streamer {username}"}
-            )
-        return JSONResponse(
-            status_code=400,
-            content={"message": result.get("message", "Failed to add streamer")}
-        )
-    except Exception as e:
-        logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+            return JSONResponse(status_code=200, content=result)
+        except Exception as e:
+            logger.error(f"Failed to subscribe to events: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    raise HTTPException(status_code=400, detail=result["message"])
 
 @router.delete("/{streamer_id}")
 async def delete_streamer(

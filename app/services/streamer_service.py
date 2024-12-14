@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from twitchAPI.twitch import Twitch
-from fastapi import BackgroundTasks
 from app.models import Streamer, Stream
 from app.services.websocket_manager import ConnectionManager
 from typing import Dict, Any, Optional, List
@@ -47,37 +46,41 @@ class StreamerService:
         try:
             logger.debug(f"Starting add_streamer process for username: {username}")
             
-            # Log Twitch API call
-            logger.debug("Calling Twitch API to get user info")
-            user_info_list = []
-            async for user_info in self.twitch.get_users(logins=[username]):
-                logger.debug(f"Received Twitch API response: {user_info}")
-                user_info_list.append(user_info)
+            # Check if streamer already exists
+            existing_streamer = await self.get_streamer_by_username(username)
+            if existing_streamer:
+                logger.debug(f"Streamer {username} already exists")
+                return {"success": False, "message": f"Streamer {username} already exists"}
 
-            if not user_info_list:
-                logger.debug(f"No user found for username: {username}")
-                return {"success": False, "message": f"Streamer {username} does not exist."}
+            # Get user info from Twitch
+            users = []
+            async for user in self.twitch.get_users(logins=[username]):
+                users.append(user)
+                logger.debug(f"Found Twitch user: {user.display_name}")
 
-            user_data = user_info_list[0]
-            logger.debug(f"Processing user data: {user_data}")
+            if not users:
+                logger.debug(f"No Twitch user found for username: {username}")
+                return {"success": False, "message": f"Streamer {username} not found on Twitch"}
 
-            # Create new streamer
+            user = users[0]
             new_streamer = Streamer(
-                id=user_data.id,
-                username=user_data.display_name
+                id=user.id,
+                username=user.display_name,
+                display_name=user.display_name
             )
+            
             self.db.add(new_streamer)
             self.db.commit()
-            
-            logger.info(f"Successfully added streamer: {new_streamer.username}")
+            logger.info(f"Successfully added streamer: {user.display_name}")
+
             return {
                 "success": True,
                 "streamer": new_streamer
             }
 
         except Exception as e:
-            logger.error(f"Error in add_streamer: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Error adding streamer: {e}", exc_info=True)
+            return {"success": False, "message": str(e)}
 
     async def delete_streamer(self, streamer_id: int) -> bool:
         streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
