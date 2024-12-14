@@ -31,11 +31,9 @@ def get_db():
 async def get_event_registry():
     global event_registry, twitch
     if not event_registry:
-        if not twitch:
-            twitch = await get_twitch()
-        event_registry = EventHandlerRegistry(manager, twitch)
+        twitch = await get_twitch()  # Make sure to await this
+        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, twitch=twitch)
         await event_registry.initialize_eventsub()
     return event_registry
-
 def get_streamer_service(db=Depends(get_db)):
     return StreamerService(db=db, twitch=twitch)
