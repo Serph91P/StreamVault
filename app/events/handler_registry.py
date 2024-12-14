@@ -11,12 +11,13 @@ import logging
 logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, twitch: Twitch):
+    def __init__(self, connection_manager: ConnectionManager, twitch: Twitch = None):
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {}
         self.manager = connection_manager
         self.twitch = twitch
         self.event_sub = None
         self.register_handlers()
+        logger.debug(f"Available methods: {dir(self)}")
 
     async def initialize_eventsub(self):
         if not self.twitch:
