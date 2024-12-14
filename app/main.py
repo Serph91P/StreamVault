@@ -39,11 +39,12 @@ async def shutdown_event():
     event_registry = await get_event_registry()
     logger.info("Application shutdown complete")
 
+# EventSub Routes
 @app.get("/eventsub")
-async def eventsub_verify():
-    return Response(content="pyTwitchAPI eventsub", media_type="text/plain")    
+@app.head("/eventsub")
+async def eventsub_root():
+    return Response(content="Twitch EventSub Endpoint", media_type="text/plain")
 
-# EventSub Callback Routes
 @app.post("/eventsub")
 async def eventsub_callback(request: Request):
     try:
