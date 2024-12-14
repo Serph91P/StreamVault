@@ -8,18 +8,21 @@ from app.services.websocket_manager import ConnectionManager
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 
+logger = logging.getLogger('streamvault')
+
 # Shared instances
 websocket_manager = ConnectionManager()
 twitch = None
 event_registry = None
-logger = logging.getLogger('streamvault')
 
 # Initialize Twitch client
 async def get_twitch():
     global twitch
     if not twitch:
+        logger.debug("Initializing Twitch client")
         twitch = Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
         await twitch.authenticate_app([])
+        logger.info("Twitch client initialized successfully")
     return twitch
 
 def get_db():
