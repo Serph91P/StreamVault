@@ -61,4 +61,7 @@ async def delete_subscription(
 async def delete_all_subscriptions(
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
-    return await event_registry.delete_all_subscriptions()
+    try:
+        return await event_registry.delete_all_subscriptions()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
