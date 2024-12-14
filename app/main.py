@@ -6,7 +6,7 @@ import logging
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
-from app.dependencies import manager, get_event_registry, get_twitch
+from app.dependencies import websocket_manager, get_event_registry, get_twitch
 from app.middleware.error_handler import error_handler
 
 # Initialize application components
@@ -17,12 +17,12 @@ app = FastAPI()
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await websocket_manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        websocket_manager.disconnect(websocket)
 
 # Application Lifecycle Events
 @app.on_event("startup")

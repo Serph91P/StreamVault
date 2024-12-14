@@ -9,10 +9,10 @@ import logging
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
-    def __init__(self, db: Session, twitch: Twitch):
+    def __init__(self, db: Session, twitch: Twitch, websocket_manager: ConnectionManager):
         self.db = db
         self.twitch = twitch
-        self.manager = ConnectionManager()
+        self.manager = websocket_manager
 
     async def notify(self, message: Dict[str, Any]):
         try:

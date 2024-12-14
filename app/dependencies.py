@@ -8,7 +8,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 
 # Shared instances
-manager = ConnectionManager()
+websocket_manager = ConnectionManager()
 twitch = None
 event_registry = EventHandlerRegistry(connection_manager=websocket_manager)
 
@@ -35,4 +35,4 @@ async def get_event_registry():
         await event_registry.initialize_eventsub()
     return event_registry
 def get_streamer_service(db=Depends(get_db)):
-    return StreamerService(db=db, twitch=twitch)
+    return StreamerService(db=db, twitch=twitch, websocket_manager=websocket_manager)
