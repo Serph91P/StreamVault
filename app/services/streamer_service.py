@@ -50,9 +50,11 @@ class StreamerService:
                 "message": f"Looking up streamer {username}..."
             })
 
-            # Handling the async generator properly
+            # Add debug logging to see the Twitch API response
+            logger.debug(f"Fetching user info for username: {username}")
             user_info_list = []
             async for user_info in self.twitch.get_users(logins=[username]):
+                logger.debug(f"Received user info: {user_info}")
                 user_info_list.append(user_info)
 
             if not user_info_list:
@@ -62,11 +64,8 @@ class StreamerService:
                 })
                 return {"success": False, "message": f"Streamer {username} does not exist."}
 
-            # Assuming `user_info_list` contains TwitchUser objects
             user_data = user_info_list[0]
-            logger.debug(f"Processing user_data: {user_data}")
-
-            user_id = getattr(user_data, 'id', None)
+            user_id = str(getattr(user_data, 'id', None))
             display_name = getattr(user_data, 'display_name', None)
 
             if not user_id or not display_name:
