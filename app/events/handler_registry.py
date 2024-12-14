@@ -215,7 +215,12 @@ class EventHandlerRegistry:
             raise ValueError("Twitch client not initialized")
         logger.debug("Attempting to list subscriptions")
         subscriptions = []
-        async for sub in self.twitch.get_eventsub_subscriptions():
+    
+        # Get the subscriptions first
+        subs = await self.twitch.get_eventsub_subscriptions()
+    
+        # Then process them
+        for sub in subs:
             subscriptions.append({
                 "id": sub.id,
                 "type": sub.type,
