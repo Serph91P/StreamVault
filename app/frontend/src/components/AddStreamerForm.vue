@@ -1,16 +1,19 @@
 <template>
   <form @submit.prevent="addStreamer" class="streamer-form">
-    <input 
-      type="text" 
-      v-model="username" 
-      :disabled="isLoading"
-      placeholder="Streamer Username" 
-      required
-    >
-    <button type="submit" :disabled="isLoading">
-      <span v-if="isLoading" class="loader"></span>
-      {{ isLoading ? 'Adding Streamer...' : 'Add Streamer' }}
-    </button>
+    <div class="input-group">
+      <input 
+        type="text" 
+        v-model="username" 
+        :disabled="isLoading"
+        placeholder="Enter Twitch username" 
+        required
+        class="input-field"
+      >
+      <button type="submit" :disabled="isLoading" class="submit-button">
+        <span v-if="isLoading" class="loader"></span>
+        {{ isLoading ? 'Adding...' : 'Add Streamer' }}
+      </button>
+    </div>
     <div v-if="isLoading" class="status-message">
       {{ statusMessage }}
     </div>
@@ -48,52 +51,62 @@ const addStreamer = async () => {
   }
 }
 </script>
+
 <style scoped>
-.add-streamer-form {
+.streamer-form {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.input-group {
   display: flex;
-  gap: 12px;
-  margin: 20px 0;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .input-field {
-  background: #242424;
-  border: 1px solid #383838;
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 4px;
+  flex: 1;
+  background: #18181b;
+  border: 2px solid #3a3a3d;
+  color: #efeff1;
+  padding: 12px 16px;
+  border-radius: 6px;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .input-field:focus {
   outline: none;
-  border-color: #6441a5;
+  border-color: #9147ff;
+  box-shadow: 0 0 0 2px rgba(145, 71, 255, 0.2);
 }
 
 .input-field::placeholder {
-  color: #666;
+  color: #5c5c5e;
 }
 
-.add-button {
-  background: #6441a5;
+.submit-button {
+  background: #9147ff;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 12px 24px;
+  border-radius: 6px;
   font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.add-button:hover {
-  background: #7d5bbe;
+.submit-button:hover {
+  background: #772ce8;
 }
 
-.add-button:disabled {
-  background: #4a3178;
+.submit-button:disabled {
+  background: #392e5c;
   cursor: not-allowed;
 }
 
@@ -104,6 +117,13 @@ const addStreamer = async () => {
   border-top: 2px solid transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+.status-message {
+  text-align: center;
+  color: #adadb8;
+  margin-top: 1rem;
+  font-size: 0.9rem;
 }
 
 @keyframes spin {
