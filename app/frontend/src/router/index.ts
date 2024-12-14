@@ -24,4 +24,4 @@ const router = createRouter({
   ]
 })
 
-export default routerexport default router
+export default router
