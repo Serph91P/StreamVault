@@ -1,3 +1,4 @@
+import logging
 from fastapi import Depends
 from app.database import SessionLocal
 from app.services.streamer_service import StreamerService
@@ -11,6 +12,7 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 websocket_manager = ConnectionManager()
 twitch = None
 event_registry = None
+logger = logging.getLogger('streamvault')
 
 # Initialize Twitch client
 async def get_twitch():
@@ -30,10 +32,12 @@ def get_db():
 async def get_event_registry():
     global event_registry, twitch
     if not event_registry:
-        if not twitch:
-            twitch = await get_twitch()
-        event_registry = EventHandlerRegistry(websocket_manager, twitch)
+        logger.debug("Initializing event registry")
+        twitch = await get_twitch()
+        logger.debug(f"Twitch client initialized: {twitch}")
+        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, twitch=twitch)
         await event_registry.initialize_eventsub()
+        logger.debug("Event registry initialization complete")
     return event_registry
 
 def get_streamer_service(
