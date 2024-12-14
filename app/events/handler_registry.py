@@ -16,8 +16,8 @@ class EventHandlerRegistry:
         self.manager = connection_manager
         self.twitch = twitch
         self.event_sub = None
+        logger.debug(f"EventHandlerRegistry initialized with methods: {[method for method in dir(self) if not method.startswith('_')]}")
         self.register_handlers()
-        logger.debug(f"Available methods: {dir(self)}")
 
     async def initialize_eventsub(self):
         if not self.twitch:
@@ -210,36 +210,35 @@ class EventHandlerRegistry:
         self.handlers['channel.update'] = self.handle_channel_update
         self.handlers['channel.update.v2'] = self.handle_channel_update_v2
 
-async def list_subscriptions(self):
-    if not self.twitch:
-        raise ValueError("Twitch client not initialized")
-    
-    subscriptions = []
-    async for sub in self.twitch.get_eventsub_subscriptions():
-        subscriptions.append({
-            "id": sub.id,
-            "type": sub.type,
-            "status": sub.status,
-            "condition": sub.condition,
-            "created_at": sub.created_at
-        })
-    
-    return {"subscriptions": subscriptions}
+    async def list_subscriptions(self):
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
+        logger.debug("Attempting to list subscriptions")
+        subscriptions = []
+        async for sub in self.twitch.get_eventsub_subscriptions():
+            subscriptions.append({
+                "id": sub.id,
+                "type": sub.type,
+                "status": sub.status,
+                "condition": sub.condition,
+                "created_at": sub.created_at
+            })
+        return {"subscriptions": subscriptions}
 
-async def delete_subscription(self, subscription_id: str):
-    if not self.twitch:
-        raise ValueError("Twitch client not initialized")
-    
-    await self.twitch.delete_eventsub_subscription(subscription_id)
-    return {"message": f"Subscription {subscription_id} deleted successfully"}
+    async def delete_subscription(self, subscription_id: str):
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
+        
+        await self.twitch.delete_eventsub_subscription(subscription_id)
+        return {"message": f"Subscription {subscription_id} deleted successfully"}
 
-async def delete_all_subscriptions(self):
-    if not self.twitch:
-        raise ValueError("Twitch client not initialized")
-    
-    deleted_count = 0
-    async for sub in self.twitch.get_eventsub_subscriptions():
-        await self.twitch.delete_eventsub_subscription(sub.id)
-        deleted_count += 1
-    
-    return {"message": f"Deleted {deleted_count} subscriptions"}
+    async def delete_all_subscriptions(self):
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
+        
+        deleted_count = 0
+        async for sub in self.twitch.get_eventsub_subscriptions():
+            await self.twitch.delete_eventsub_subscription(sub.id)
+            deleted_count += 1
+        
+        return {"message": f"Deleted {deleted_count} subscriptions"}
