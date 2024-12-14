@@ -35,7 +35,7 @@ class EventHandlerRegistry:
                     condition={'broadcaster_user_id': str(user_id)},
                     transport={
                         'method': 'webhook',
-                        'callback': f"{settings.WEBHOOK_URL}/callback",
+                        'callback': f"{settings.WEBHOOK_URL}",
                         'secret': settings.WEBHOOK_SECRET
                     }
                 )
