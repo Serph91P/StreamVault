@@ -50,31 +50,30 @@ class StreamerService:
                 "message": f"Looking up streamer {username}..."
             })
 
-            # Add debug logging to see the Twitch API response
-            logger.debug(f"Fetching user info for username: {username}")
-            user_info_list = []
-            async for user_info in self.twitch.get_users(logins=[username]):
-                logger.debug(f"Received user info: {user_info}")
-                user_info_list.append(user_info)
+            # Get user info from Twitch
+            users = []
+            async for user in self.twitch.get_users(logins=[username]):
+                users.append(user)
 
-            if not user_info_list:
+            if not users:
                 await self.notify({
                     "type": "error",
                     "message": f"Streamer {username} does not exist."
                 })
                 return {"success": False, "message": f"Streamer {username} does not exist."}
 
-            user_data = user_info_list[0]
-            user_id = str(getattr(user_data, 'id', None))
-            display_name = getattr(user_data, 'display_name', None)
+            user_data = users[0]
+            user_id = user_data.id
+            display_name = user_data.display_name
 
-            if not user_id or not display_name:
-                raise ValueError("Incomplete Twitch user data received")
-
-            await self.notify({
-                "type": "status",
-                "message": f"Setting up subscriptions for {display_name}..."
-            })
+            # Check if streamer already exists
+            existing_streamer = await self.get_streamer_by_username(display_name)
+            if existing_streamer:
+                await self.notify({
+                    "type": "error",
+                    "message": f"Streamer {display_name} is already added."
+                })
+                return {"success": False, "message": f"Streamer {display_name} is already added."}
 
             new_streamer = Streamer(id=user_id, username=display_name)
             self.db.add(new_streamer)
