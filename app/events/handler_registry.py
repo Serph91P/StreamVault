@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, twitch: Twitch = None):
+    def __init__(self, connection_manager: ConnectionManager, twitch: Twitch):
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {}
         self.manager = connection_manager
         self.twitch = twitch

@@ -28,7 +28,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.on_event("startup")
 async def startup_event():
     twitch_client = await get_twitch()
-    event_registry = await get_event_registry()
+    await get_event_registry()
     logger.info("Application startup complete")
 
 @app.on_event("shutdown")

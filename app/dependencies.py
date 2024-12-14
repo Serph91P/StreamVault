@@ -10,7 +10,7 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 # Shared instances
 websocket_manager = ConnectionManager()
 twitch = None
-event_registry = EventHandlerRegistry(connection_manager=websocket_manager)
+event_registry = None
 
 # Initialize Twitch client
 async def get_twitch():
@@ -30,9 +30,14 @@ def get_db():
 async def get_event_registry():
     global event_registry, twitch
     if not event_registry:
-        twitch = await get_twitch()  # Make sure to await this
-        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, twitch=twitch)
+        if not twitch:
+            twitch = await get_twitch()
+        event_registry = EventHandlerRegistry(websocket_manager, twitch)
         await event_registry.initialize_eventsub()
     return event_registry
-def get_streamer_service(db=Depends(get_db)):
-    return StreamerService(db=db, twitch=twitch, websocket_manager=websocket_manager)
+
+def get_streamer_service(
+    db=Depends(get_db), 
+    twitch_client=Depends(get_twitch)
+):
+    return StreamerService(db=db, twitch=twitch_client, websocket_manager=websocket_manager)
