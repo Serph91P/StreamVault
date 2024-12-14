@@ -39,8 +39,12 @@ async def shutdown_event():
     event_registry = await get_event_registry()
     logger.info("Application shutdown complete")
 
+@app.get("/eventsub")
+async def eventsub_verify():
+    return Response(content="pyTwitchAPI eventsub", media_type="text/plain")    
+
 # EventSub Callback Routes
-@app.post("/eventsub/callback")
+@app.post("/eventsub")
 async def eventsub_callback(request: Request):
     try:
         # Verify the webhook signature
