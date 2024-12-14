@@ -43,3 +43,22 @@ async def delete_streamer(
         await event_registry.unsubscribe_from_events(str(streamer_id))
         return {"message": "Streamer deleted successfully"}
     raise HTTPException(status_code=404, detail="Streamer not found")
+
+@router.get("/subscriptions")
+async def get_subscriptions(
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
+):
+    return await event_registry.list_subscriptions()
+
+@router.delete("/subscriptions/{subscription_id}")
+async def delete_subscription(
+    subscription_id: str,
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
+):
+    return await event_registry.delete_subscription(subscription_id)
+
+@router.delete("/subscriptions")
+async def delete_all_subscriptions(
+    event_registry: EventHandlerRegistry = Depends(get_event_registry)
+):
+    return await event_registry.delete_all_subscriptions()

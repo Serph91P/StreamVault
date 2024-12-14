@@ -7,6 +7,7 @@
     
     <div class="main-content">
       <StreamerList />
+      <SubscriptionManager />
       <NotificationFeed />
     </div>
   </div>
@@ -16,6 +17,7 @@
 import StreamerList from '@/components/StreamerList.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import AddStreamerForm from '@/components/AddStreamerForm.vue'
+import SubscriptionManager from '@/components/SubscriptionManager.vue'
 
 const refreshData = () => {
   // Implement if needed

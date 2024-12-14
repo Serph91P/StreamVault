@@ -32,54 +32,50 @@ class EventHandlerRegistry:
         logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
-        max_retries = 3
-        current_retry = 0
+        try:
+            if not self.event_sub:
+                await self.initialize_eventsub()
+
+            # Check existing subscriptions
+            subscriptions = await self.twitch.get_eventsub_subscriptions()
+            logger.info(f"Current subscriptions: {subscriptions}")
+        
+            # Continue with subscription logic...
+            logger.debug(f"Subscribing to events for user_id: {user_id}")
+
+            async def handle_stream_online(event):
+                logger.info(f"Stream online event received: {event}")
+                await self.handle_stream_online(event)
+
+            async def handle_stream_offline(event):
+                logger.info(f"Stream offline event received: {event}")
+                await self.handle_stream_offline(event)
+
+            async def handle_channel_update(event):
+                logger.info(f"Channel update event received: {event}")
+                await self.handle_channel_update(event)
+
+            await self.event_sub.listen_stream_online(
+                broadcaster_user_id=str(user_id),
+                callback=handle_stream_online
+            )
     
-        while current_retry < max_retries:
-            try:
-                if not self.event_sub:
-                    await self.initialize_eventsub()
+            await self.event_sub.listen_stream_offline(
+                broadcaster_user_id=str(user_id),
+                callback=handle_stream_offline
+            )
+    
+            await self.event_sub.listen_channel_update(
+                broadcaster_user_id=str(user_id),
+                callback=handle_channel_update
+            )
 
-                logger.debug(f"Subscribing to events for user_id: {user_id}")
+            logger.info(f"All subscriptions set up successfully for user_id: {user_id}")
+            return True
 
-                async def handle_stream_online(event):
-                    logger.info(f"Stream online event received: {event}")
-                    await self.handle_stream_online(event)
-
-                async def handle_stream_offline(event):
-                    logger.info(f"Stream offline event received: {event}")
-                    await self.handle_stream_offline(event)
-
-                async def handle_channel_update(event):
-                    logger.info(f"Channel update event received: {event}")
-                    await self.handle_channel_update(event)
-
-                await self.event_sub.listen_stream_online(
-                    broadcaster_user_id=str(user_id),
-                    callback=handle_stream_online
-                )
-            
-                await self.event_sub.listen_stream_offline(
-                    broadcaster_user_id=str(user_id),
-                    callback=handle_stream_offline
-                )
-            
-                await self.event_sub.listen_channel_update(
-                    broadcaster_user_id=str(user_id),
-                    callback=handle_channel_update
-                )
-
-                logger.info(f"All subscriptions set up successfully for user_id: {user_id}")
-                return True
-
-            except Exception as e:
-                current_retry += 1
-                if current_retry >= max_retries:
-                    logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
-                    raise
-                logger.warning(f"Retry {current_retry} of {max_retries} for user {user_id}")
-                await asyncio.sleep(1)  # Wait before retrying
-
+        except Exception as e:
+            logger.error(f"Failed to check/create subscriptions for user {user_id}: {e}", exc_info=True)
+            raise
     async def unsubscribe_from_events(self, user_id: str):
         try:
             if not self.event_sub:
@@ -212,3 +208,30 @@ class EventHandlerRegistry:
         self.handlers['stream.offline'] = self.handle_stream_offline
         self.handlers['channel.update'] = self.handle_channel_update
         self.handlers['channel.update.v2'] = self.handle_channel_update_v2
+
+async def list_subscriptions(self):
+    subscriptions = await self.twitch.get_eventsub_subscriptions()
+    return {
+        "subscriptions": [
+            {
+                "id": sub.id,
+                "type": sub.type,
+                "status": sub.status,
+                "condition": sub.condition,
+                "created_at": sub.created_at
+            }
+            for sub in subscriptions
+        ]
+    }
+
+async def delete_subscription(self, subscription_id: str):
+    await self.twitch.delete_eventsub_subscription(subscription_id)
+    return {"message": f"Subscription {subscription_id} deleted successfully"}
+
+async def delete_all_subscriptions(self):
+    subscriptions = await self.twitch.get_eventsub_subscriptions()
+    deleted_count = 0
+    for sub in subscriptions:
+        await self.twitch.delete_eventsub_subscription(sub.id)
+        deleted_count += 1
+    return {"message": f"Deleted {deleted_count} subscriptions"}
