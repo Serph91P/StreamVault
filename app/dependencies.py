@@ -10,7 +10,6 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 # Shared instances
 manager = ConnectionManager()
 twitch = None
-websocket_manager = ConnectionManager()
 event_registry = EventHandlerRegistry(connection_manager=websocket_manager)
 
 # Initialize Twitch client
