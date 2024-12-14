@@ -25,7 +25,7 @@ class EventHandlerRegistry:
             
         self.event_sub = EventSubWebhook(
             settings.WEBHOOK_URL,
-            8080,
+            7000,
             self.twitch
         )
         await self.event_sub.unsubscribe_all()
