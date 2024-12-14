@@ -5,8 +5,8 @@
       <nav>
         <router-link to="/">Home</router-link>
         <router-link to="/subscriptions">Subscriptions</router-link>
+        <router-link to="/add-streamer">Add Streamer</router-link>
       </nav>
-      <AddStreamerForm @streamer-added="refreshData" />
     </header>
     
     <div class="main-content">
@@ -20,7 +20,7 @@
 <script setup>
 import StreamerList from '@/components/StreamerList.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
-import AddStreamerForm from '@/components/AddStreamerForm.vue'
+// import AddStreamerForm from '@/components/AddStreamerForm.vue'
 
 const refreshData = () => {
   // Implement if needed
