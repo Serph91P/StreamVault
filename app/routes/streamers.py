@@ -3,6 +3,9 @@ from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
+import logging
+
+logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
@@ -19,6 +22,8 @@ async def add_streamer(
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     try:
+        logger.debug(f"Attempting to add streamer: {username}")
+        
         existing = await streamer_service.get_streamer_by_username(username)
         if existing:
             return JSONResponse(
@@ -29,8 +34,16 @@ async def add_streamer(
         result = await streamer_service.add_streamer(username)
         if result["success"]:
             await event_registry.subscribe_to_events(result["streamer"].id)
-        return result
+            return JSONResponse(
+                status_code=200,
+                content={"message": f"Successfully added streamer {username}"}
+            )
+        return JSONResponse(
+            status_code=400,
+            content={"message": result.get("message", "Failed to add streamer")}
+        )
     except Exception as e:
+        logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{streamer_id}")
