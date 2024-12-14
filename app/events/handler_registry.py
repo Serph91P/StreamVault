@@ -216,11 +216,11 @@ class EventHandlerRegistry:
         logger.debug("Attempting to list subscriptions")
         subscriptions = []
     
-        # Get the subscriptions first
+        # Get the subscriptions and access the data attribute
         subs = await self.twitch.get_eventsub_subscriptions()
     
-        # Then process them
-        for sub in subs:
+        # Process the subscriptions from the data attribute
+        for sub in subs.data:
             subscriptions.append({
                 "id": sub.id,
                 "type": sub.type,
