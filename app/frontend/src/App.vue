@@ -5,8 +5,8 @@
         <h1>StreamVault</h1>
         <nav>
           <router-link to="/">Home</router-link>
-          <router-link to="/subscriptions">Subscriptions</router-link>
           <router-link to="/add-streamer">Add Streamer</router-link>
+          <router-link to="/subscriptions">Subscriptions</router-link>
         </nav>
       </div>
     </header>
