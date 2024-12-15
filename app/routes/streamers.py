@@ -23,17 +23,29 @@ async def add_streamer(
 ):
     logger.debug(f"Add streamer request received for username: {username}")
     
+    existing = await streamer_service.get_streamer_by_username(username)
+    if existing:
+        return JSONResponse(
+            status_code=400,
+            content={"message": f"Streamer {username} is already subscribed."}
+        )
+    
     result = await streamer_service.add_streamer(username)
     if result["success"]:
         try:
             await event_registry.subscribe_to_events(result["streamer"].id)
-            return JSONResponse(status_code=200, content=result)
+            return JSONResponse(
+                status_code=200,
+                content={"message": f"Successfully added streamer {username}"}
+            )
         except Exception as e:
             logger.error(f"Failed to subscribe to events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     
-    raise HTTPException(status_code=400, detail=result["message"])
-
+    return JSONResponse(
+        status_code=400,
+        content={"message": result.get("message", "Failed to add streamer")}
+    )
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
