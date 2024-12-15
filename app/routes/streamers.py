@@ -31,6 +31,8 @@ async def add_streamer(
         )
     
     result = await streamer_service.add_streamer(username)
+    logger.debug(f"Add streamer result: {result}")
+    
     if result["success"]:
         try:
             await event_registry.subscribe_to_events(result["streamer"].id)

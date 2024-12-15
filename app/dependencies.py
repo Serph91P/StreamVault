@@ -22,7 +22,10 @@ async def get_twitch():
         logger.debug("Initializing Twitch client")
         twitch = Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
         await twitch.authenticate_app([])
-        logger.info("Twitch client initialized successfully")
+        async for user in twitch.get_users(logins=['twitch']):
+            logger.debug(f"Test API call successful: {user.display_name}")
+            break
+        logger.info("Twitch client initialized and tested successfully")
     return twitch
 
 def get_db():

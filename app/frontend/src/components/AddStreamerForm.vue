@@ -39,9 +39,11 @@ const addStreamer = async () => {
     
     statusMessage.value = 'Setting up EventSub notifications...'
     const data = await response.json()
+    console.log('Response:', data)
     
     if (response.ok) {
       username.value = ''
+      console.error('Error response:', data)
     }
   } catch (error) {
     console.error('Error:', error)
