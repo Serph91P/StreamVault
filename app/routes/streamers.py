@@ -24,7 +24,10 @@ async def add_streamer(
     logger.debug(f"Add streamer request received for username: {username}")
     
     existing = await streamer_service.get_streamer_by_username(username)
+    logger.debug(f"Existing streamer check result: {existing}")
+
     if existing:
+        logger.debug(f"Streamer {username} already exists")
         return JSONResponse(
             status_code=400,
             content={"message": f"Streamer {username} is already subscribed."}
@@ -35,6 +38,7 @@ async def add_streamer(
     
     if result["success"]:
         try:
+            logger.debug(f"Attempting to subscribe to events for streamer ID: {result['streamer'].id}")
             await event_registry.subscribe_to_events(result["streamer"].id)
             return JSONResponse(
                 status_code=200,
@@ -44,6 +48,7 @@ async def add_streamer(
             logger.error(f"Failed to subscribe to events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     
+    logger.debug(f"Failed to add streamer with error: {result.get('message')}")
     return JSONResponse(
         status_code=400,
         content={"message": result.get("message", "Failed to add streamer")}
