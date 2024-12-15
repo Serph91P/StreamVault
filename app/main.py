@@ -40,12 +40,12 @@ async def shutdown_event():
     logger.info("Application shutdown complete")
 
 # EventSub Routes
-@app.get("/eventsub")
-@app.head("/eventsub")
+@app.get("/eventsub/callback")
+@app.head("/eventsub/callback")
 async def eventsub_root():
     return Response(content="Twitch EventSub Endpoint", media_type="text/plain")
 
-@app.post("/eventsub")
+@app.post("/eventsub/callback")
 async def eventsub_callback(request: Request):
     try:
         # Verify the webhook signature
@@ -132,7 +132,7 @@ async def eventsub_callback(request: Request):
             status_code=500, 
             content={"error": f"Internal server error: {str(e)}"}
         )
-
+    
 # Include routers
 from app.routes import streamers
 app.include_router(streamers.router)
