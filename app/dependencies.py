@@ -7,6 +7,7 @@ from app.config.settings import settings
 from app.services.websocket_manager import ConnectionManager
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
+from app.services.auth_service import AuthService
 
 logger = logging.getLogger('streamvault')
 
@@ -35,6 +36,9 @@ def get_db():
     finally:
         db.close()
 
+def get_auth_service(db=Depends(get_db)):
+    return AuthService(db=db)
+
 async def get_event_registry():
     global event_registry, twitch
     if not event_registry:
@@ -51,3 +55,5 @@ def get_streamer_service(
     twitch_client=Depends(get_twitch)
 ):
     return StreamerService(db=db, twitch=twitch_client, websocket_manager=websocket_manager)
+
+
