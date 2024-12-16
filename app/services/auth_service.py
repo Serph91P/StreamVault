@@ -1,12 +1,14 @@
 from sqlalchemy.orm import Session
 from app.models import User, Session
-from passlib.context import CryptContext
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 import secrets
 import logging
+from typing import Optional
 
 logger = logging.getLogger("streamvault")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ph = PasswordHasher()
 
 class AuthService:
     def __init__(self, db: Session):
@@ -16,7 +18,7 @@ class AuthService:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
 
     async def create_admin(self, username: str, password: str) -> User:
-        hashed_password = pwd_context.hash(password)
+        hashed_password = ph.hash(password)
         admin = User(
             username=username,
             password=hashed_password,
@@ -28,8 +30,12 @@ class AuthService:
 
     async def validate_login(self, username: str, password: str) -> Optional[User]:
         user = self.db.query(User).filter_by(username=username).first()
-        if user and pwd_context.verify(password, user.password):
-            return user
+        if user:
+            try:
+                ph.verify(user.password, password)
+                return user
+            except VerifyMismatchError:
+                return None
         return None
 
     async def create_session(self, user_id: int) -> str:
