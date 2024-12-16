@@ -43,25 +43,26 @@ router.beforeEach(async (to, from, next) => {
   }
 
   try {
-    const response = await fetch('/setup')
-    const data = await response.json()
+    // First check if setup is required
+    const setupResponse = await fetch('/setup')
+    const setupData = await setupResponse.json()
     
-    if (data.setup_required) {
-      next('/setup')
+    if (setupData.setup_required) {
+      return next('/setup')  // Return here to ensure setup takes priority
+    }
+    
+    // Only check auth if setup is complete
+    const authResponse = await fetch('/auth/check')
+    const authData = await authResponse.json()
+    
+    if (!authData.authenticated && to.path !== '/login') {
+      next('/login')
     } else {
-      // Check if user is logged in
-      const authResponse = await fetch('/auth/check')
-      const authData = await authResponse.json()
-      
-      if (!authData.authenticated && to.path !== '/login') {
-        next('/login')
-      } else {
-        next()
-      }
+      next()
     }
   } catch (error) {
-    console.error('Error checking auth status:', error)
-    next('/login')
+    console.error('Error checking status:', error)
+    next('/setup')  // Default to setup on error
   }
 })
 
