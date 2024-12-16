@@ -134,8 +134,9 @@ async def eventsub_callback(request: Request):
         )
     
 # Include routers
-from app.routes import streamers
+from app.routes import streamers, auth
 app.include_router(streamers.router)
+app.include_router(auth.router)
 
 # Static files
 app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
