@@ -37,32 +37,34 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  // Skip check for setup and login routes
+  // Public routes that don't need checks
   if (to.path === '/setup' || to.path === '/login') {
     return next()
   }
 
   try {
-    // First check if setup is required
+    // Check setup status first
     const setupResponse = await fetch('/setup')
     const setupData = await setupResponse.json()
     
-    if (setupData.setup_required) {
-      return next('/setup')  // Return here to ensure setup takes priority
+    // If setup is required, redirect to setup page immediately
+    if (setupData.setup_required === true) {
+      return next('/setup')
     }
-    
+
     // Only check auth if setup is complete
     const authResponse = await fetch('/auth/check')
     const authData = await authResponse.json()
     
     if (!authData.authenticated && to.path !== '/login') {
-      next('/login')
-    } else {
-      next()
+      return next('/login')
     }
+    
+    return next()
   } catch (error) {
-    console.error('Error checking status:', error)
-    next('/setup')  // Default to setup on error
+    console.error('Error checking application status:', error)
+    // On error, default to setup page
+    return next('/setup')
   }
 })
 
