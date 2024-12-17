@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
 
@@ -11,24 +12,26 @@ async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
         return RedirectResponse(url="/")
     return {"setup_required": True}
 
-from fastapi import Form
+
+
+class SetupRequest(BaseModel):
+    username: str
+    password: str
 
 @router.post("/setup")
 async def setup_admin(
-    username: str = Form(...),
-    password: str = Form(...),
+    request: SetupRequest,
     auth_service: AuthService = Depends(get_auth_service)
 ):
     if await auth_service.admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
     
-    admin = await auth_service.create_admin(username, password)
+    admin = await auth_service.create_admin(request.username, request.password)
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created"})
     response.set_cookie(key="session", value=token, httponly=True)
-    return response
-@router.post("/login")
+    return response@router.post("/login")
 async def login(
     username: str,
     password: str,
