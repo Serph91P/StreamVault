@@ -11,10 +11,12 @@ async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
         return RedirectResponse(url="/")
     return {"setup_required": True}
 
+from fastapi import Form
+
 @router.post("/setup")
 async def setup_admin(
-    username: str,
-    password: str,
+    username: str = Form(...),
+    password: str = Form(...),
     auth_service: AuthService = Depends(get_auth_service)
 ):
     if await auth_service.admin_exists():
@@ -26,7 +28,6 @@ async def setup_admin(
     response = JSONResponse(content={"message": "Admin account created"})
     response.set_cookie(key="session", value=token, httponly=True)
     return response
-
 @router.post("/login")
 async def login(
     username: str,

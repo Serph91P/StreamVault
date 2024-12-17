@@ -68,10 +68,7 @@ const handleSetup = async () => {
     
     const response = await fetch('/setup', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams(formData)
+      body: formData
     })
     
     if (response.ok) {
