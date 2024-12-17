@@ -39,7 +39,17 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   // Public routes that don't need checks
   if (to.path === '/setup' || to.path === '/login') {
-    return next()
+    try {
+      const setupResponse = await fetch('/setup')
+      const setupData = await setupResponse.json()
+      if (!setupData.setup_required) {
+        return next('/')
+      }
+      return next()
+    } catch (error) {
+      console.error('Error checking setup status:', error)
+      return next()
+    }
   }
 
   try {
@@ -47,7 +57,6 @@ router.beforeEach(async (to, from, next) => {
     const setupResponse = await fetch('/setup')
     const setupData = await setupResponse.json()
     
-    // If setup is required, redirect to setup page immediately
     if (setupData.setup_required === true) {
       return next('/setup')
     }
@@ -63,7 +72,6 @@ router.beforeEach(async (to, from, next) => {
     return next()
   } catch (error) {
     console.error('Error checking application status:', error)
-    // On error, default to setup page
     return next('/setup')
   }
 })

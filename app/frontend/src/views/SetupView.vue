@@ -62,13 +62,15 @@ const handleSetup = async () => {
   error.value = ''
   
   try {
-    const formData = new FormData()
-    formData.append('username', username.value)
-    formData.append('password', password.value)
-    
     const response = await fetch('/setup', {
       method: 'POST',
-      body: formData
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username.value,
+        password: password.value
+      })
     })
     
     if (response.ok) {
@@ -82,8 +84,7 @@ const handleSetup = async () => {
   } finally {
     isLoading.value = false
   }
-}
-</script>
+}</script>
 
 <style scoped>
 .setup-page {
