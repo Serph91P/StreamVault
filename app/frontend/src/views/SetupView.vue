@@ -62,13 +62,16 @@ const handleSetup = async () => {
   error.value = ''
   
   try {
+    const formData = new FormData()
+    formData.append('username', username.value)
+    formData.append('password', password.value)
+    
     const response = await fetch('/setup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: username.value,
-        password: password.value
-      })
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams(formData)
     })
     
     if (response.ok) {
@@ -87,11 +90,16 @@ const handleSetup = async () => {
 
 <style scoped>
 .setup-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   background: #18181b;
+  z-index: 100;
 }
 
 .setup-form {
@@ -100,6 +108,7 @@ const handleSetup = async () => {
   border-radius: 8px;
   width: 100%;
   max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .setup-info {
@@ -129,10 +138,12 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-weight: 500;
 }
 
 button:disabled {
   background: #392e5c;
+  cursor: not-allowed;
 }
 
 .error {
