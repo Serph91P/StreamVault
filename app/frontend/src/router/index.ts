@@ -37,12 +37,12 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  // Public routes that don't need checks
   if (to.path === '/setup' || to.path === '/login') {
     try {
       const setupResponse = await fetch('/setup')
       const setupData = await setupResponse.json()
-      if (!setupData.setup_required) {
+      
+      if (!setupData.setup_required && to.path === '/setup') {
         return next('/')
       }
       return next()
@@ -53,19 +53,15 @@ router.beforeEach(async (to, from, next) => {
   }
 
   try {
-    // Check setup status first
     const setupResponse = await fetch('/setup')
     const setupData = await setupResponse.json()
     
-    if (setupData.setup_required === true) {
+    if (setupData.setup_required) {
       return next('/setup')
     }
 
-    // Only check auth if setup is complete
     const authResponse = await fetch('/auth/check')
-    const authData = await authResponse.json()
-    
-    if (!authData.authenticated && to.path !== '/login') {
+    if (!authResponse.ok) {
       return next('/login')
     }
     

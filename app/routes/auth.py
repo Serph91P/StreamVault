@@ -8,11 +8,8 @@ router = APIRouter(tags=["auth"])
 
 @router.get("/setup")
 async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
-    if await auth_service.admin_exists():
-        return RedirectResponse(url="/")
-    return {"setup_required": True}
-
-
+    admin_exists = await auth_service.admin_exists()
+    return JSONResponse(content={"setup_required": not admin_exists})
 
 class SetupRequest(BaseModel):
     username: str
