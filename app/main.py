@@ -143,11 +143,11 @@ app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 
 # Static files for assets
-app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
+app.mount("/assets", StaticFiles(directory="app/frontend/src/assets"), name="assets")
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    return FileResponse("app/frontend/dist/index.html")
+    return FileResponse("app/frontend/index.html")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)

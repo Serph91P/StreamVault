@@ -25,48 +25,45 @@
     </form>
   </div>
 </template>
+  <script setup>
+  import { ref } from 'vue'
+  import { useRouter } from 'vue-router'
 
-<script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+  const router = useRouter()
+  const username = ref('')
+  const password = ref('')
+  const isLoading = ref(false)
+  const error = ref('')
 
-const router = useRouter()
-const username = ref('')
-const password = ref('')
-const isLoading = ref(false)
-const error = ref('')
-
-const handleLogin = async () => {
-  isLoading.value = true
-  error.value = ''
+  const handleLogin = async () => {
+    isLoading.value = true
+    error.value = ''
   
-  try {
-    const formData = new FormData()
-    formData.append('username', username.value)
-    formData.append('password', password.value)
-
-    const response = await fetch('/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams(formData)
-    })
+    try {
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: username.value,
+          password: password.value
+        })
+      })
     
-    if (response.ok) {
-      router.push('/')
-    } else {
-      const data = await response.json()
-      error.value = data.detail || 'Login failed'
+      if (response.ok) {
+        router.push('/')
+      } else {
+        const data = await response.json()
+        error.value = data.detail || 'Login failed'
+      }
+    } catch (e) {
+      error.value = 'An error occurred'
+    } finally {
+      isLoading.value = false
     }
-  } catch (e) {
-    error.value = 'An error occurred'
-  } finally {
-    isLoading.value = false
   }
-}
-</script>
-
+  </script>
 <style scoped>
 .login-page {
   position: fixed;
