@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from app.services.auth_service import AuthService
@@ -36,10 +36,11 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 async def login(
-    request: LoginRequest,
+    username: str = Form(...),
+    password: str = Form(...),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    user = await auth_service.validate_login(request.username, request.password)
+    user = await auth_service.validate_login(username, password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -48,9 +49,13 @@ async def login(
     response.set_cookie(key="session", value=token, httponly=True)
     return response
 
-@router.get("/auth/check")
-async def check_auth(auth_service: AuthService = Depends(get_auth_service)):
+@router.get("/check")
+async def check_auth(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
     session_token = request.cookies.get("session")
     if not session_token or not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Not authenticated")
     return JSONResponse(content={"authenticated": True})
+
