@@ -39,7 +39,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   if (to.path === '/setup' || to.path === '/login') {
     try {
-      const setupResponse = await fetch('/setup')
+      const setupResponse = await fetch('auth/setup')
       const setupData = await setupResponse.json()
       
       if (!setupData.setup_required && to.path === '/setup') {
@@ -53,7 +53,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   try {
-    const setupResponse = await fetch('/setup')
+    const setupResponse = await fetch('/auth/setup')
     const setupData = await setupResponse.json()
     
     if (setupData.setup_required) {
