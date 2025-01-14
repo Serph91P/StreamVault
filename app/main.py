@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth
+from app.routes import streamers, auth
 import logging
 import hmac
 import hashlib
@@ -137,7 +137,7 @@ async def eventsub_callback(request: Request):
 # Include routers
 from app.routes import streamers, auth
 app.include_router(streamers.router)
-app.include_router(auth.router, prefix="/auth")
+app.include_router(auth.router)
 
 # Add this after including the router
 for route in app.routes:
