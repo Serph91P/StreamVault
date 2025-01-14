@@ -45,7 +45,18 @@ class StreamerService:
     async def add_streamer(self, username: str) -> Dict[str, Any]:
         try:
             logger.debug(f"Starting add_streamer process for username: {username}")
+        
+            # Basic validation
+            if not username or not username.strip():
+                return {"success": False, "message": "Username cannot be empty"}
             
+            # Clean username
+            username = username.strip().lower()
+        
+            # Validate username format
+            if not re.match(r'^[a-zA-Z0-9_]{4,25}$', username):
+                return {"success": False, "message": "Invalid Twitch username format"}
+
             await self.notify({
                 "type": "status",
                 "message": f"Looking up streamer {username}..."
@@ -86,7 +97,7 @@ class StreamerService:
             )
             self.db.add(new_streamer)
             self.db.commit()
-            
+        
             logger.info(f"Successfully added streamer: {new_streamer.username}")
             await self.notify({
                 "type": "success",
@@ -105,7 +116,6 @@ class StreamerService:
                 "message": f"Failed to add {username}: {str(e)}"
             })
             return {"success": False, "message": str(e)}
-
     async def delete_streamer(self, streamer_id: int) -> bool:
         streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if streamer:

@@ -26,33 +26,41 @@ import { ref } from 'vue'
 const username = ref('')
 const isLoading = ref(false)
 const statusMessage = ref('')
-
-const addStreamer = async () => {
-  isLoading.value = true
-  statusMessage.value = 'Checking Twitch API...'
+  const addStreamer = async () => {
+    isLoading.value = true
+    statusMessage.value = 'Checking Twitch API...'
   
-  try {
-    const response = await fetch(`/api/streamers/${username.value.toLowerCase()}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
+    try {
+      // Clean the username input - remove spaces and special characters
+      const cleanUsername = username.value.trim().toLowerCase()
     
-    const data = await response.json()
+      // Validate username format
+      if (!cleanUsername.match(/^[a-zA-Z0-9_]{4,25}$/)) {
+        statusMessage.value = 'Invalid Twitch username format'
+        return
+      }
+
+      const response = await fetch(`/api/streamers/${cleanUsername}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
     
-    if (response.ok) {
-      statusMessage.value = 'Streamer added successfully!'
-      username.value = ''
-    } else {
-      statusMessage.value = data.message || 'Failed to add streamer'
+      const data = await response.json()
+    
+      if (response.ok) {
+        statusMessage.value = 'Streamer added successfully!'
+        username.value = ''
+      } else {
+        statusMessage.value = data.message || 'Failed to add streamer'
+      }
+    } catch (error) {
+      statusMessage.value = 'Error adding streamer'
+      console.error('Error:', error)
+    } finally {
+      isLoading.value = false
     }
-  } catch (error) {
-    statusMessage.value = 'Error adding streamer'
-    console.error('Error:', error)
-  } finally {
-    isLoading.value = false
   }
-}
-</script>
+  </script>
 
 <style scoped>
 .streamer-form {
