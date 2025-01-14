@@ -14,9 +14,6 @@ from app.middleware.error_handler import error_handler
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 
-# Add middleware
-
-
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
@@ -136,18 +133,18 @@ async def eventsub_callback(request: Request):
         return JSONResponse(
             status_code=500, 
             content={"error": f"Internal server error: {str(e)}"}
-    )
+        )
 
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 
 # Static files for assets
-app.mount("/assets", StaticFiles(directory="app/frontend/src/assets"), name="assets")
+app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    return FileResponse("app/frontend/index.html")
+    return FileResponse("app/frontend/dist/index.html")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
