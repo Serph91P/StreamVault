@@ -137,7 +137,7 @@ async def eventsub_callback(request: Request):
 # Include routers
 from app.routes import streamers, auth
 app.include_router(streamers.router)
-app.include_router(auth.router)
+app.include_router(auth.router, prefix="/auth")
 
 # Add this after including the router
 for route in app.routes:
