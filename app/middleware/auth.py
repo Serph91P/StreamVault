@@ -10,20 +10,29 @@ logger = logging.getLogger("streamvault")
 class AuthMiddleware:
     def __init__(self, auth_service: AuthService):
         self.auth_service = auth_service
-        self.security = HTTPBearer()
 
     async def __call__(self, request: Request, call_next):
-        # Skip auth for API and EventSub routes
-        if request.url.path.startswith(("/api/", "/eventsub/", "/static/", "/setup")):
+        # Public paths that don't require authentication
+        public_paths = [
+            "/auth/login",
+            "/auth/setup",
+            "/eventsub/callback",
+            "/static/",
+            "/assets/"
+        ]
+
+        if any(request.url.path.startswith(path) for path in public_paths):
             return await call_next(request)
 
         # Check if admin exists
-        if not await self.auth_service.admin_exists():
-            return RedirectResponse(url="/setup")
+        admin_exists = await self.auth_service.admin_exists()
+        if not admin_exists:
+            return RedirectResponse(url="/auth/setup", status_code=307)
 
-        # Check session token
+        # Verify session token
         session_token = request.cookies.get("session")
         if not session_token or not await self.auth_service.validate_session(session_token):
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url="/auth/login", status_code=307)
 
+        return await call_next(request)
         return await call_next(request)

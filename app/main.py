@@ -9,9 +9,13 @@ import hashlib
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
-from app.dependencies import websocket_manager, get_event_registry, get_twitch
+from app.dependencies import websocket_manager, get_event_registry, get_twitch, get_auth_service
 from app.middleware.error_handler import error_handler
 from app.config.settings import settings
+from app.middleware.auth import AuthMiddleware
+
+# Add middleware
+
 
 # Initialize application components
 logger = setup_logging()
@@ -152,3 +156,6 @@ app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="fron
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
+
+# Auth Middleware
+app.add_middleware(AuthMiddleware, auth_service=get_auth_service())

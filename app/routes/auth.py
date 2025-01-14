@@ -27,7 +27,7 @@ async def setup_admin(
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created"})
-    response.set_cookie(key="session", value=token, httponly=True)
+    response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
 class LoginRequest(BaseModel):
@@ -36,17 +36,16 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 async def login(
-    username: str = Form(...),
-    password: str = Form(...),
+    request: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    user = await auth_service.validate_login(username, password)
+    user = await auth_service.validate_login(request.username, request.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = await auth_service.create_session(user.id)
     response = JSONResponse(content={"message": "Login successful"})
-    response.set_cookie(key="session", value=token, httponly=True)
+    response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
 @router.get("/check")
