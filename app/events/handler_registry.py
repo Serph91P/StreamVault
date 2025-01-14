@@ -1,5 +1,6 @@
 from typing import Dict, Callable, Awaitable, Any
 from twitchAPI.twitch import Twitch
+from twitchAPI.eventsub.webhook import EventSubWebhook
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.models import Streamer, Stream
@@ -13,75 +14,56 @@ class EventHandlerRegistry:
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {}
         self.manager = connection_manager
         self.twitch = twitch
+        self.eventsub = None
         self.register_handlers()
 
     async def initialize_eventsub(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
+        
+        # Initialize EventSub Webhook
+        self.eventsub = EventSubWebhook(
+            callback_url=settings.WEBHOOK_URL,
+            port=7000,  # Match your application port
+            twitch=self.twitch
+        )
+        
+        # Start EventSub client
+        self.eventsub.start()
         logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
         try:
-            if not self.twitch:
-                raise ValueError("Twitch client not initialized")
+            if not self.eventsub:
+                raise ValueError("EventSub not initialized")
 
             logger.debug(f"Subscribing to events for user_id: {user_id}")
             
-            # Event types and their corresponding subscription data
-            event_subscriptions = [
-                {
-                    'subscription': {
-                        'type': 'stream.online',
-                        'version': '1',
-                        'condition': {'broadcaster_user_id': str(user_id)},
-                        'transport': {
-                            'method': 'webhook',
-                            'callback': f"{settings.WEBHOOK_URL}",
-                            'secret': settings.WEBHOOK_SECRET
-                        }
-                    }
-                },
-                {
-                    'subscription': {
-                        'type': 'stream.offline',
-                        'version': '1',
-                        'condition': {'broadcaster_user_id': str(user_id)},
-                        'transport': {
-                            'method': 'webhook',
-                            'callback': f"{settings.WEBHOOK_URL}",
-                            'secret': settings.WEBHOOK_SECRET
-                        }
-                    }
-                },
-                {
-                    'subscription': {
-                        'type': 'channel.update',
-                        'version': '1',
-                        'condition': {'broadcaster_user_id': str(user_id)},
-                        'transport': {
-                            'method': 'webhook',
-                            'callback': f"{settings.WEBHOOK_URL}",
-                            'secret': settings.WEBHOOK_SECRET
-                        }
-                    }
-                }
-            ]
+            # Subscribe to stream.online events
+            await self.eventsub.listen_stream_online(
+                str(user_id),
+                self.handle_stream_online
+            )
+            
+            # Subscribe to stream.offline events
+            await self.eventsub.listen_stream_offline(
+                str(user_id),
+                self.handle_stream_offline
+            )
+            
+            # Subscribe to channel.update events
+            await self.eventsub.listen_channel_update(
+                str(user_id),
+                self.handle_channel_update
+            )
 
-            # Create subscriptions
-            for sub_data in event_subscriptions:
-                await self.twitch.eventsub.create_subscription(
-                    sub_data['subscription']['type'],
-                    sub_data['subscription']['version'],
-                    sub_data['subscription']['condition'],
-                    sub_data['subscription']['transport']
-                )
-                logger.info(f"Successfully subscribed to {sub_data['subscription']['type']} for user_id: {user_id}")
-
+            logger.info(f"Successfully subscribed to all events for user_id: {user_id}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
             raise
+
     async def handle_stream_online(self, data: dict):
         try:
             logger.debug(f"Handling stream.online event with data: {data}")
@@ -187,20 +169,15 @@ class EventHandlerRegistry:
         }
 
     async def delete_subscription(self, subscription_id: str):
-        if not self.twitch:
-            raise ValueError("Twitch client not initialized")
+        if not self.eventsub:
+            raise ValueError("EventSub not initialized")
         
-        await self.twitch.delete_eventsub_subscription(subscription_id)
+        await self.eventsub.unsubscribe(subscription_id)
         return {"message": f"Subscription {subscription_id} deleted successfully"}
 
     async def delete_all_subscriptions(self):
-        if not self.twitch:
-            raise ValueError("Twitch client not initialized")
+        if not self.eventsub:
+            raise ValueError("EventSub not initialized")
         
-        deleted_count = 0
-        subs = await self.twitch.get_eventsub_subscriptions()
-        for sub in subs.data:
-            await self.twitch.delete_eventsub_subscription(sub.id)
-            deleted_count += 1
-        
-        return {"message": f"Deleted {deleted_count} subscriptions"}
+        await self.eventsub.unsubscribe_all()
+        return {"message": "All subscriptions deleted successfully"}
