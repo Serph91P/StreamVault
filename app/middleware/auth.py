@@ -2,6 +2,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
+from app.database import SessionLocal
 
 class AuthMiddleware:
     def __init__(self, app):
