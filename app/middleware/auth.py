@@ -1,8 +1,11 @@
-from fastapi import Request
+from fastapi import Request, WebSocket
 from fastapi.responses import RedirectResponse
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.database import SessionLocal
+import logging
+
+logger = logging.getLogger("streamvault")
 
 class AuthMiddleware:
     def __init__(self, app):
@@ -26,6 +29,11 @@ class AuthMiddleware:
             if scope["type"] not in ("http", "websocket"):
                 return await self.app(scope, receive, send)
 
+            # Handle WebSocket connections differently
+            if scope["type"] == "websocket":
+                return await self.app(scope, receive, send)
+
+            # Process HTTP requests
             request = Request(scope, receive=receive)
             
             # Public paths that don't require authentication
