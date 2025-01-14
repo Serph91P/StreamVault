@@ -25,11 +25,13 @@ async def add_streamer(
     
     # Check for existing streamer first
     existing = await streamer_service.get_streamer_by_username(username)
+    logger.debug(f"Existing streamer check result: {existing}")
+
     if existing:
         logger.debug(f"Streamer {username} already exists")
         return JSONResponse(
             status_code=400,
-            content={"message": f"Streamer {username} is already added"}
+            content={"message": f"Streamer {username} is already subscribed."}
         )
     
     try:
@@ -38,7 +40,6 @@ async def add_streamer(
         logger.debug(f"Add streamer result: {result}")
         
         if result["success"]:
-            # Set up EventSub subscriptions
             try:
                 logger.debug(f"Setting up EventSub for streamer ID: {result['streamer'].id}")
                 await event_registry.subscribe_to_events(str(result['streamer'].id))
@@ -55,22 +56,16 @@ async def add_streamer(
                     }
                 )
             except Exception as sub_error:
-                # If EventSub setup fails, we should still return success but log the error
                 logger.error(f"EventSub setup failed: {sub_error}", exc_info=True)
                 return JSONResponse(
-                    status_code=200,
+                    status_code=400,
                     content={
-                        "success": True,
-                        "message": f"Added streamer {username} but failed to set up notifications",
-                        "streamer": {
-                            "id": result['streamer'].id,
-                            "username": result['streamer'].username
-                        }
+                        "success": False,
+                        "message": f"Failed to set up notifications: {str(sub_error)}"
                     }
                 )
         else:
-            # Handle failed streamer addition
-            logger.debug(f"Failed to add streamer: {result.get('message')}")
+            logger.error(f"Failed to add streamer: {result.get('message')}")
             return JSONResponse(
                 status_code=400,
                 content={
@@ -80,15 +75,15 @@ async def add_streamer(
             )
             
     except Exception as e:
-        # Handle unexpected errors
         logger.error(f"Unexpected error adding streamer: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
                 "success": False,
-                "message": "Internal server error while adding streamer"
+                "message": f"Internal server error: {str(e)}"
             }
         )
+    
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
