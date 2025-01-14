@@ -14,7 +14,7 @@
         {{ isLoading ? 'Adding...' : 'Add Streamer' }}
       </button>
     </div>
-    <div v-if="isLoading" class="status-message">
+    <div v-if="statusMessage" class="status-message" :class="{ error: hasError }">
       {{ statusMessage }}
     </div>
   </form>
@@ -26,41 +26,46 @@ import { ref } from 'vue'
 const username = ref('')
 const isLoading = ref(false)
 const statusMessage = ref('')
-  const addStreamer = async () => {
-    isLoading.value = true
-    statusMessage.value = 'Checking Twitch API...'
-  
-    try {
-      // Clean the username input - remove spaces and special characters
-      const cleanUsername = username.value.trim().toLowerCase()
-    
-      // Validate username format
-      if (!cleanUsername.match(/^[a-zA-Z0-9_]{4,25}$/)) {
-        statusMessage.value = 'Invalid Twitch username format'
-        return
-      }
+const hasError = ref(false)
 
-      const response = await fetch(`/api/streamers/${cleanUsername}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
+const addStreamer = async () => {
+  if (!username.value.trim()) return
+
+  isLoading.value = true
+  statusMessage.value = 'Adding streamer...'
+  hasError.value = false
+
+  try {
+    const cleanUsername = username.value.trim().toLowerCase()
     
-      const data = await response.json()
-    
-      if (response.ok) {
-        statusMessage.value = 'Streamer added successfully!'
-        username.value = ''
-      } else {
-        statusMessage.value = data.message || 'Failed to add streamer'
+    const response = await fetch(`/api/streamers/${cleanUsername}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      statusMessage.value = 'Error adding streamer'
-      console.error('Error:', error)
-    } finally {
-      isLoading.value = false
+    })
+    
+    const data = await response.json()
+    
+    if (response.ok) {
+      statusMessage.value = 'Streamer added successfully!'
+      username.value = ''
+      emit('streamer-added')
+    } else {
+      hasError.value = true
+      statusMessage.value = data.message || 'Failed to add streamer'
     }
+  } catch (error) {
+    hasError.value = true
+    statusMessage.value = 'Error connecting to server'
+    console.error('Error:', error)
+  } finally {
+    isLoading.value = false
   }
-  </script>
+}
+
+const emit = defineEmits(['streamer-added'])
+</script>
 
 <style scoped>
 .streamer-form {
