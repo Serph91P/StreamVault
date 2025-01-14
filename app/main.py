@@ -141,7 +141,10 @@ app.include_router(auth.router, prefix="/auth")
 
 # Add this after including the router
 for route in app.routes:
-    print(f"Registered route: {route.path} [{route.methods}]")
+    if hasattr(route, "methods"):
+        print(f"Registered HTTP route: {route.path} [{route.methods}]")
+    else:
+        print(f"Registered WebSocket route: {route.path}")
 
 # Static files
 app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
