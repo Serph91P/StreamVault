@@ -45,18 +45,10 @@ class StreamerService:
     async def add_streamer(self, username: str) -> Dict[str, Any]:
         try:
             logger.debug(f"Starting add_streamer process for username: {username}")
-        
-            # Basic validation
-            if not username or not username.strip():
-                return {"success": False, "message": "Username cannot be empty"}
             
             # Clean and validate username
             username = username.strip().lower()
-        
-            # Validate username format
-            if not re.match(r'^[a-zA-Z0-9_]{4,25}$', username):
-                return {"success": False, "message": "Invalid Twitch username format"}
-
+            
             await self.notify({
                 "type": "status",
                 "message": f"Looking up streamer {username}..."
