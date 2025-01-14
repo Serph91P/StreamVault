@@ -24,12 +24,12 @@ const router = createRouter({
       component: AddStreamerView
     },
     {
-      path: '/setup',
+      path: '/auth/setup',
       name: 'setup',
       component: SetupView
     },
     {
-      path: '/login',
+      path: '/auth/login',
       name: 'login',
       component: LoginView
     }
@@ -37,12 +37,12 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  if (to.path === '/setup' || to.path === '/login') {
+  if (to.path === '/auth/setup' || to.path === '/auth/login') {
     try {
       const setupResponse = await fetch('/auth/setup')
       const setupData = await setupResponse.json()
       
-      if (!setupData.setup_required && to.path === '/setup') {
+      if (!setupData.setup_required && to.path === '/auth/setup') {
         return next('/')
       }
       return next()
@@ -57,19 +57,18 @@ router.beforeEach(async (to, from, next) => {
     const setupData = await setupResponse.json()
     
     if (setupData.setup_required) {
-      return next('/setup')
+      return next('/auth/setup')
     }
 
     const authResponse = await fetch('/auth/check')
     if (!authResponse.ok) {
-      return next('/login')
+      return next('/auth/login')
     }
     
     return next()
   } catch (error) {
     console.error('Error checking application status:', error)
-    return next('/setup')
+    return next('/auth/setup')
   }
 })
-
 export default router
