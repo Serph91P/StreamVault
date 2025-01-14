@@ -48,6 +48,10 @@ async def login(
     response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
+@router.get("/login")
+async def login_page():
+    return JSONResponse(content={"message": "Login page"})
+
 @router.get("/check")
 async def check_auth(
     request: Request,
@@ -57,4 +61,3 @@ async def check_auth(
     if not session_token or not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Not authenticated")
     return JSONResponse(content={"authenticated": True})
-
