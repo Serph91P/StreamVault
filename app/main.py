@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
 import logging
@@ -137,9 +137,8 @@ async def eventsub_callback(request: Request):
             status_code=500, 
             content={"error": f"Internal server error: {str(e)}"}
         )
-    
-# Include routers
-from app.routes import streamers, auth
+
+# API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 
@@ -150,10 +149,14 @@ for route in app.routes:
     else:
         print(f"Registered WebSocket route: {route.path}")
 
-# Static files
+# Static files for assets
 app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
-app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="frontend")
 
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if full_path.startswith(("api/", "auth/")):
+        raise HTTPException(status_code=404)
+    return FileResponse("app/frontend/dist/index.html")
 # Error handler
 app.add_exception_handler(Exception, error_handler)
 
