@@ -32,24 +32,24 @@ const addStreamer = async () => {
   statusMessage.value = 'Checking Twitch API...'
   
   try {
-    const response = await fetch(`/api/streamers/${username.value}`, {
+    const response = await fetch(`/api/streamers/${username.value.toLowerCase()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
     
-    statusMessage.value = 'Setting up EventSub notifications...'
     const data = await response.json()
-    console.log('Response:', data)
     
     if (response.ok) {
+      statusMessage.value = 'Streamer added successfully!'
       username.value = ''
-      console.error('Error response:', data)
+    } else {
+      statusMessage.value = data.message || 'Failed to add streamer'
     }
   } catch (error) {
+    statusMessage.value = 'Error adding streamer'
     console.error('Error:', error)
   } finally {
     isLoading.value = false
-    statusMessage.value = ''
   }
 }
 </script>
