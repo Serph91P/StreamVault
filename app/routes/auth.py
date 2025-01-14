@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, Form
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
@@ -50,7 +50,7 @@ async def login(
 
 @router.get("/login")
 async def login_page():
-    return JSONResponse(content={"message": "Login page"})
+    return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
 async def check_auth(
