@@ -1,15 +1,18 @@
-from fastapi import Request, HTTPException
+from fastapi import Request
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.services.auth_service import AuthService
-from typing import Optional
-import logging
-
-logger = logging.getLogger("streamvault")
+from app.dependencies import get_auth_service
 
 class AuthMiddleware:
-    def __init__(self, auth_service: AuthService):
-        self.auth_service = auth_service
+    def __init__(self, app):
+        self.app = app
+        self._auth_service = None
+
+    @property
+    def auth_service(self):
+        if self._auth_service is None:
+            self._auth_service = get_auth_service()
+        return self._auth_service
 
     async def __call__(self, request: Request, call_next):
         # Public paths that don't require authentication
@@ -34,5 +37,4 @@ class AuthMiddleware:
         if not session_token or not await self.auth_service.validate_session(session_token):
             return RedirectResponse(url="/auth/login", status_code=307)
 
-        return await call_next(request)
         return await call_next(request)

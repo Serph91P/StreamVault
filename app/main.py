@@ -158,4 +158,4 @@ app.mount("/", StaticFiles(directory="app/frontend/dist", html=True), name="fron
 app.add_exception_handler(Exception, error_handler)
 
 # Auth Middleware
-app.add_middleware(AuthMiddleware, auth_service=get_auth_service())
+app.add_middleware(AuthMiddleware)
