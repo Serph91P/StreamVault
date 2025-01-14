@@ -24,7 +24,7 @@ class EventHandlerRegistry:
         # Initialize EventSub Webhook
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
-            port=7000,  # Match your application port
+            port=settings.EVENTSUB_PORT,
             twitch=self.twitch
         )
         

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
+    EVENTSUB_PORT: int = 8080  # Default to 8080 if not specified
 
     def __init__(self):
         super().__init__()
