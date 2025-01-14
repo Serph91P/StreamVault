@@ -136,27 +136,19 @@ async def eventsub_callback(request: Request):
         return JSONResponse(
             status_code=500, 
             content={"error": f"Internal server error: {str(e)}"}
-        )
+    )
 
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
-
-# Add this after including the router
-for route in app.routes:
-    if hasattr(route, "methods"):
-        print(f"Registered HTTP route: {route.path} [{route.methods}]")
-    else:
-        print(f"Registered WebSocket route: {route.path}")
 
 # Static files for assets
 app.mount("/static", StaticFiles(directory="app/frontend/dist"), name="static")
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path.startswith(("api/", "auth/")):
-        raise HTTPException(status_code=404)
     return FileResponse("app/frontend/dist/index.html")
+
 # Error handler
 app.add_exception_handler(Exception, error_handler)
 
