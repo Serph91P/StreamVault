@@ -50,7 +50,7 @@ class StreamerService:
             if not username or not username.strip():
                 return {"success": False, "message": "Username cannot be empty"}
             
-            # Clean username
+            # Clean and validate username
             username = username.strip().lower()
         
             # Validate username format
@@ -62,32 +62,41 @@ class StreamerService:
                 "message": f"Looking up streamer {username}..."
             })
 
-            # Log Twitch API call
-            logger.debug("Calling Twitch API to get user info")
+            # Detailed logging for Twitch API interaction
+            logger.debug(f"Calling Twitch API for user: {username}")
             user_info_list = []
-            async for user_info in self.twitch.get_users(logins=[username]):
-                logger.debug(f"Received Twitch API response: {user_info}")
-                user_info_list.append(user_info)
+            try:
+                async for user_info in self.twitch.get_users(logins=[username]):
+                    logger.debug(f"Received Twitch API response: {user_info}")
+                    user_info_list.append(user_info)
+            except Exception as e:
+                logger.error(f"Twitch API error: {str(e)}")
+                return {
+                    "success": False,
+                    "message": f"Twitch API error: {str(e)}"
+                }
 
             if not user_info_list:
-                logger.debug(f"No user found for username: {username}")
+                msg = f"No Twitch user found for username: {username}"
+                logger.error(msg)
                 await self.notify({
                     "type": "error",
-                    "message": f"Streamer {username} does not exist."
+                    "message": msg
                 })
-                return {"success": False, "message": f"Streamer {username} does not exist."}
+                return {"success": False, "message": msg}
 
             user_data = user_info_list[0]
-            logger.debug(f"Processing user data: {user_data}")
+            logger.info(f"Found Twitch user: {user_data.display_name}")
 
             # Check for existing streamer
             existing_streamer = await self.get_streamer_by_username(user_data.display_name)
             if existing_streamer:
+                msg = f"Streamer {user_data.display_name} already exists"
                 await self.notify({
                     "type": "error",
-                    "message": f"Streamer {user_data.display_name} is already added."
+                    "message": msg
                 })
-                return {"success": False, "message": f"Streamer {user_data.display_name} is already added."}
+                return {"success": False, "message": msg}
 
             # Create new streamer
             new_streamer = Streamer(
@@ -97,7 +106,7 @@ class StreamerService:
             )
             self.db.add(new_streamer)
             self.db.commit()
-        
+            
             logger.info(f"Successfully added streamer: {new_streamer.username}")
             await self.notify({
                 "type": "success",
@@ -110,12 +119,14 @@ class StreamerService:
             }
 
         except Exception as e:
-            logger.error(f"Error in add_streamer: {str(e)}", exc_info=True)
+            error_msg = f"Error adding streamer: {str(e)}"
+            logger.error(error_msg, exc_info=True)
             await self.notify({
                 "type": "error",
-                "message": f"Failed to add {username}: {str(e)}"
+                "message": error_msg
             })
-            return {"success": False, "message": str(e)}
+            return {"success": False, "message": error_msg}
+
     async def delete_streamer(self, streamer_id: int) -> bool:
         streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if streamer:
