@@ -27,26 +27,61 @@ class EventHandlerRegistry:
 
             logger.debug(f"Subscribing to events for user_id: {user_id}")
             
-            # Create subscriptions using Twitch API directly
-            for event_type in ['stream.online', 'stream.offline', 'channel.update']:
-                await self.twitch.create_eventsub_subscription(
-                    type=event_type,
-                    version='1',
-                    condition={'broadcaster_user_id': str(user_id)},
-                    transport={
-                        'method': 'webhook',
-                        'callback': f"{settings.WEBHOOK_URL}",
-                        'secret': settings.WEBHOOK_SECRET
+            # Event types and their corresponding subscription data
+            event_subscriptions = [
+                {
+                    'subscription': {
+                        'type': 'stream.online',
+                        'version': '1',
+                        'condition': {'broadcaster_user_id': str(user_id)},
+                        'transport': {
+                            'method': 'webhook',
+                            'callback': f"{settings.WEBHOOK_URL}",
+                            'secret': settings.WEBHOOK_SECRET
+                        }
                     }
+                },
+                {
+                    'subscription': {
+                        'type': 'stream.offline',
+                        'version': '1',
+                        'condition': {'broadcaster_user_id': str(user_id)},
+                        'transport': {
+                            'method': 'webhook',
+                            'callback': f"{settings.WEBHOOK_URL}",
+                            'secret': settings.WEBHOOK_SECRET
+                        }
+                    }
+                },
+                {
+                    'subscription': {
+                        'type': 'channel.update',
+                        'version': '1',
+                        'condition': {'broadcaster_user_id': str(user_id)},
+                        'transport': {
+                            'method': 'webhook',
+                            'callback': f"{settings.WEBHOOK_URL}",
+                            'secret': settings.WEBHOOK_SECRET
+                        }
+                    }
+                }
+            ]
+
+            # Create subscriptions
+            for sub_data in event_subscriptions:
+                await self.twitch.eventsub.create_subscription(
+                    sub_data['subscription']['type'],
+                    sub_data['subscription']['version'],
+                    sub_data['subscription']['condition'],
+                    sub_data['subscription']['transport']
                 )
-                logger.info(f"Successfully subscribed to {event_type} for user_id: {user_id}")
+                logger.info(f"Successfully subscribed to {sub_data['subscription']['type']} for user_id: {user_id}")
 
             return True
 
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
             raise
-
     async def handle_stream_online(self, data: dict):
         try:
             logger.debug(f"Handling stream.online event with data: {data}")
