@@ -62,7 +62,7 @@ const handleSetup = async () => {
   error.value = ''
   
   try {
-    const response = await fetch('/setup', {
+    const response = await fetch('/auth/setup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -84,7 +84,8 @@ const handleSetup = async () => {
   } finally {
     isLoading.value = false
   }
-}</script>
+}
+</script>
 
 <style scoped>
 .setup-page {
