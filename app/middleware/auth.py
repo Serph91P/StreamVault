@@ -49,11 +49,17 @@ class AuthMiddleware:
             if any(request.url.path.startswith(path) for path in public_paths):
                 return await self.app(scope, receive, send)
 
-            # Check if admin exists
             admin_exists = await self.auth_service.admin_exists()
             if not admin_exists:
-                response = RedirectResponse(url="/auth/setup", status_code=307)
-                return await response(scope, receive, send)
+                if not request.url.path.startswith("/auth/setup"):
+                    response = RedirectResponse(url="/auth/setup", status_code=307)
+                    return await response(scope, receive, send)
+            else:
+                session_token = request.cookies.get("session")
+                if not session_token or not await self.auth_service.validate_session(session_token):
+                    if not request.url.path.startswith("/auth/login"):
+                        response = RedirectResponse(url="/auth/login", status_code=307)
+                        return await response(scope, receive, send)
 
             # Verify session token
             session_token = request.cookies.get("session")
