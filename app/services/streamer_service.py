@@ -45,30 +45,15 @@ class StreamerService:
     async def add_streamer(self, username: str) -> Dict[str, Any]:
         try:
             logger.debug(f"Starting add_streamer process for username: {username}")
-            
-            # Clean and validate username
             username = username.strip().lower()
-            
+        
             await self.notify({
                 "type": "status",
                 "message": f"Looking up streamer {username}..."
             })
 
-            # Detailed logging for Twitch API interaction
-            logger.debug(f"Calling Twitch API for user: {username}")
-            user_info_list = []
-            try:
-                async for user_info in self.twitch.get_users(logins=[username]):
-                    logger.debug(f"Received Twitch API response: {user_info}")
-                    user_info_list.append(user_info)
-            except Exception as e:
-                logger.error(f"Twitch API error: {str(e)}")
-                return {
-                    "success": False,
-                    "message": f"Twitch API error: {str(e)}"
-                }
-
-            if not user_info_list:
+            users = await self.twitch.get_users(logins=[username])
+            if not users.data:
                 msg = f"No Twitch user found for username: {username}"
                 logger.error(msg)
                 await self.notify({
@@ -77,28 +62,27 @@ class StreamerService:
                 })
                 return {"success": False, "message": msg}
 
-            user_data = user_info_list[0]
-            logger.info(f"Found Twitch user: {user_data.display_name}")
+            user = users.data[0]
+            logger.info(f"Found Twitch user: {user.display_name}")
 
-            # Check for existing streamer
-            existing_streamer = await self.get_streamer_by_username(user_data.display_name)
+            existing_streamer = await self.get_streamer_by_username(user.display_name)
             if existing_streamer:
-                msg = f"Streamer {user_data.display_name} already exists"
+                msg = f"Streamer {user.display_name} already exists"
                 await self.notify({
                     "type": "error",
                     "message": msg
                 })
                 return {"success": False, "message": msg}
 
-            # Create new streamer
             new_streamer = Streamer(
-                id=user_data.id,
-                username=user_data.display_name,
-                display_name=user_data.display_name
+                twitch_id=user.id,
+                username=user.login,
+                display_name=user.display_name
             )
+        
             self.db.add(new_streamer)
             self.db.commit()
-            
+        
             logger.info(f"Successfully added streamer: {new_streamer.username}")
             await self.notify({
                 "type": "success",
@@ -111,14 +95,14 @@ class StreamerService:
             }
 
         except Exception as e:
+            self.db.rollback()
             error_msg = f"Error adding streamer: {str(e)}"
             logger.error(error_msg, exc_info=True)
             await self.notify({
                 "type": "error",
                 "message": error_msg
             })
-            return {"success": False, "message": error_msg}
-
+            raise
     async def delete_streamer(self, streamer_id: int) -> bool:
         streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if streamer:
