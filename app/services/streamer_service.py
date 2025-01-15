@@ -52,8 +52,11 @@ class StreamerService:
                 "message": f"Looking up streamer {username}..."
             })
 
-            users = await self.twitch.get_users(logins=[username])
-            if not users.data:
+            user_info_list = []
+            async for user_info in self.twitch.get_users(logins=[username]):
+                user_info_list.append(user_info)
+
+            if not user_info_list:
                 msg = f"No Twitch user found for username: {username}"
                 logger.error(msg)
                 await self.notify({
@@ -62,7 +65,7 @@ class StreamerService:
                 })
                 return {"success": False, "message": msg}
 
-            user = users.data[0]
+            user_data = user_info_list[0]
             logger.info(f"Found Twitch user: {user.display_name}")
 
             existing_streamer = await self.get_streamer_by_username(user.display_name)
