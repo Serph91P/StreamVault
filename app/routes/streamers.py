@@ -4,6 +4,8 @@ from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 import logging
+from app.config.settings import settings
+
 
 logger = logging.getLogger("streamvault")
 
@@ -134,19 +136,25 @@ async def delete_all_subscriptions(
     
 @router.post("/test/subscription/{broadcaster_id}")
 async def setup_test_subscription(
-    broadcaster_id: str = "17116817",  # Default to mock user ID
+    broadcaster_id: str,
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     try:
         test_sub_id = await event_registry.setup_test_subscription(broadcaster_id)
-        return {
-            "success": True,
-            "subscription_id": test_sub_id,
-            "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {broadcaster_id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
-        }
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "subscription_id": test_sub_id,
+                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {broadcaster_id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to set up test subscription: {e}", exc_info=True)
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": str(e)
+            }
+        )
