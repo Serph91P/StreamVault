@@ -55,14 +55,18 @@ async def login_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
         return RedirectResponse(url="/auth/setup", status_code=307)
-    return JSONResponse(content={"login_required": True})
+    return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
 async def check_auth(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
+    admin_exists = await auth_service.admin_exists()
+    if not admin_exists:
+        return JSONResponse(content={"setup_required": True})
+    
     session_token = request.cookies.get("session")
     if not session_token or not await auth_service.validate_session(session_token):
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return JSONResponse(content={"authenticated": False})
     return JSONResponse(content={"authenticated": True})
