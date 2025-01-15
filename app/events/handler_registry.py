@@ -172,7 +172,7 @@ class EventHandlerRegistry:
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
         
-        await self.eventsub.unsubscribe(subscription_id)
+        await self.eventsub.delete_subscription(subscription_id)
         return {"message": f"Subscription {subscription_id} deleted successfully"}
 
     async def delete_all_subscriptions(self):
