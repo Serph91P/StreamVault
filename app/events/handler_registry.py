@@ -35,7 +35,6 @@ class EventHandlerRegistry:
         self.eventsub.start()
         logger.debug(f"Using webhook secret: {settings.WEBHOOK_SECRET[:4]}...")
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
-        logger.info("EventSub initialized successfully")
 
     async def subscribe_to_events(self, user_id: str):
         try:
@@ -87,15 +86,15 @@ class EventHandlerRegistry:
     async def handle_stream_online(self, data: dict):
         try:
             logger.debug(f"Handling stream.online event with data: {data}")
-            streamer_id = data.get("broadcaster_user_id")
+            twitch_id = data.get("broadcaster_user_id")
             streamer_name = data.get("broadcaster_user_name")
 
-            if not streamer_id or not streamer_name:
+            if not twitch_id or not streamer_name:
                 logger.error("Missing broadcaster data in event")
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
                     new_stream = Stream(streamer_id=streamer.id, event_type='stream.online')
                     db.add(new_stream)
@@ -104,7 +103,7 @@ class EventHandlerRegistry:
                     await self.manager.send_notification({
                         "type": "stream.online",
                         "data": {
-                            "streamer_id": streamer_id,
+                            "streamer_id": twitch_id,
                             "streamer_name": streamer_name
                         }
                     })
@@ -116,14 +115,14 @@ class EventHandlerRegistry:
     async def handle_stream_offline(self, data: dict) -> None:
         try:
             logger.debug(f"Handling stream.offline event with data: {data}")
-            streamer_id = data.get("broadcaster_user_id")
+            twitch_id = data.get("broadcaster_user_id")
 
-            if not streamer_id:
+            if not twitch_id:
                 logger.error("Missing broadcaster_user_id in event data")
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
                     new_stream = Stream(streamer_id=streamer.id, event_type='stream.offline')
                     db.add(new_stream)
@@ -131,7 +130,7 @@ class EventHandlerRegistry:
                     await self.manager.send_notification({
                         "type": "stream.offline",
                         "data": {
-                            "streamer_id": streamer_id,
+                            "streamer_id": twitch_id,
                             "streamer_name": streamer.username
                         }
                     })
@@ -143,19 +142,19 @@ class EventHandlerRegistry:
     async def handle_channel_update(self, data: dict) -> None:
         try:
             logger.debug(f"Handling channel.update event with data: {data}")
-            streamer_id = data.get("broadcaster_user_id")
+            twitch_id = data.get("broadcaster_user_id")
 
-            if not streamer_id:
+            if not twitch_id:
                 logger.error("Missing broadcaster_user_id in event data")
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
                     await self.manager.send_notification({
                         "type": "channel.update",
                         "data": {
-                            "streamer_id": streamer_id,
+                            "streamer_id": twitch_id,
                             "streamer_name": streamer.username
                         }
                     })
@@ -212,4 +211,3 @@ class EventHandlerRegistry:
             "message": "Subscription deletion complete",
             "results": deletion_results
         }
-
