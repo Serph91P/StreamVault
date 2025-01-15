@@ -55,7 +55,7 @@ async def login_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
         return RedirectResponse(url="/auth/setup", status_code=307)
-    return FileResponse("app/frontend/dist/index.html")
+    return JSONResponse(content={"login_required": True})
 
 @router.get("/check")
 async def check_auth(
