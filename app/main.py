@@ -11,6 +11,7 @@ from app.database import engine
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_twitch, get_auth_service
 from app.middleware.error_handler import error_handler
+from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 
@@ -18,6 +19,7 @@ from app.middleware.auth import AuthMiddleware
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
+app.middleware("http")(logging_middleware)
 
 # WebSocket endpoint
 @app.websocket("/ws")
