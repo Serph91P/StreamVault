@@ -10,8 +10,8 @@ router = APIRouter(tags=["auth"])
 async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if admin_exists:
-        return JSONResponse(content={"redirect": "/auth/login"})
-    return JSONResponse(content={"setup_required": True})
+        return RedirectResponse(url="/auth/login", status_code=307)
+    return FileResponse("app/frontend/dist/index.html")
 
 class SetupRequest(BaseModel):
     username: str
@@ -54,8 +54,8 @@ async def login(
 async def login_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
-        return JSONResponse(content={"redirect": "/auth/setup"})
-    return JSONResponse(content={"login_required": True})
+        return RedirectResponse(url="/auth/setup", status_code=307)
+    return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
 async def check_auth(
