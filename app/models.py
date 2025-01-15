@@ -5,7 +5,8 @@ from app.database import Base
 class Streamer(Base):
     __tablename__ = "streamers"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    twitch_id = Column(String, unique=True, nullable=False)
     username = Column(String, unique=True, nullable=False)
     display_name = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -23,7 +24,7 @@ class Stream(Base):
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
