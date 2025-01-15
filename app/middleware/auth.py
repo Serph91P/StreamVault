@@ -29,6 +29,11 @@ class AuthMiddleware:
             if scope["type"] not in ("http", "websocket"):
                 return await self.app(scope, receive, send)
 
+            # Handle WebSocket connections directly
+            if scope["type"] == "websocket":
+                return await self.app(scope, receive, send)
+
+            # Process HTTP requests
             request = Request(scope, receive=receive)
             is_json_request = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
 
