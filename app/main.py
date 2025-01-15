@@ -69,9 +69,13 @@ async def eventsub_callback(request: Request):
         body = await request.body()
         headers = request.headers
         
-        message_id = headers.get('Twitch-Eventsub-Message-Id')
-        timestamp = headers.get('Twitch-Eventsub-Message-Timestamp')
-        signature = headers.get('Twitch-Eventsub-Message-Signature')
+        message_id = headers.get('Twitch-Eventsub-Message-Id', '')
+        timestamp = headers.get('Twitch-Eventsub-Message-Timestamp', '')
+        signature = headers.get('Twitch-Eventsub-Message-Signature', '')
+        
+        if not all([message_id, timestamp, signature]):
+            logger.error("Missing required headers for signature verification")
+            return JSONResponse(status_code=403, content={"error": "Missing required headers"})
         
         # Verify webhook signature
         hmac_message = message_id + timestamp + body.decode()
