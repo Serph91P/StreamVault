@@ -198,7 +198,18 @@ class EventHandlerRegistry:
             raise ValueError("Twitch client not initialized")
         
         subs = await self.twitch.get_eventsub_subscriptions()
+        deletion_results = []
+        
         for sub in subs.data:
-            await self.twitch.delete_eventsub_subscription(sub.id)
-        return {"message": "All subscriptions deleted successfully"}
+            try:
+                await self.twitch.delete_eventsub_subscription(sub.id)
+                deletion_results.append({"id": sub.id, "status": "deleted"})
+            except Exception as e:
+                logger.error(f"Failed to delete subscription {sub.id}: {e}")
+                deletion_results.append({"id": sub.id, "status": "failed", "error": str(e)})
+        
+        return {
+            "message": "Subscription deletion complete",
+            "results": deletion_results
+        }
 
