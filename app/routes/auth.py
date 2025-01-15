@@ -56,11 +56,16 @@ async def login(
 @router.api_route("/login", methods=["GET", "HEAD"])
 async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
+    
+    # For API requests
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        if not admin_exists:
+            return JSONResponse(content={"redirect": "/auth/setup"})
+        return JSONResponse(content={"login_required": True})
+    
+    # For browser requests
     if not admin_exists:
         return RedirectResponse(url="/auth/setup", status_code=307)
-    
-    if "application/json" in request.headers.get("accept", ""):
-        return JSONResponse(content={"login_required": True})
     return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
