@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     def __init__(self):
         super().__init__()
-        self.WEBHOOK_URL = f"{self.BASE_URL}/eventsub/callback"
+        self.WEBHOOK_URL = f"{self.BASE_URL}/eventsub"
 
     class Config:
         env_file = ".env"
