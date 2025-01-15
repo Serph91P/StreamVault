@@ -187,15 +187,18 @@ class EventHandlerRegistry:
         }
 
     async def delete_subscription(self, subscription_id: str):
-        if not self.eventsub:
-            raise ValueError("EventSub not initialized")
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
         
-        await self.eventsub.delete_subscription(subscription_id)
+        await self.twitch.delete_eventsub_subscription(subscription_id)
         return {"message": f"Subscription {subscription_id} deleted successfully"}
 
     async def delete_all_subscriptions(self):
-        if not self.eventsub:
-            raise ValueError("EventSub not initialized")
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
         
-        await self.eventsub.unsubscribe_all()
+        subs = await self.twitch.get_eventsub_subscriptions()
+        for sub in subs.data:
+            await self.twitch.delete_eventsub_subscription(sub.id)
         return {"message": "All subscriptions deleted successfully"}
+
