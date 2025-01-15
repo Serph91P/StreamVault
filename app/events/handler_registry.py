@@ -28,8 +28,7 @@ class EventHandlerRegistry:
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
-            twitch=self.twitch,
-            # secret=settings.WEBHOOK_SECRET
+            twitch=self.twitch
         )
         
         # Start EventSub client
@@ -69,8 +68,8 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
             raise
+
     async def setup_test_subscription(self, broadcaster_id: str):
-        """Set up a test subscription for a specific broadcaster"""
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
             
@@ -96,9 +95,9 @@ class EventHandlerRegistry:
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
                 if streamer:
-                    new_stream = Stream(streamer_id=streamer_id, event_type='stream.online')
+                    new_stream = Stream(streamer_id=streamer.id, event_type='stream.online')
                     db.add(new_stream)
                     db.commit()
                     
@@ -117,7 +116,6 @@ class EventHandlerRegistry:
     async def handle_stream_offline(self, data: dict) -> None:
         try:
             logger.debug(f"Handling stream.offline event with data: {data}")
-
             streamer_id = data.get("broadcaster_user_id")
 
             if not streamer_id:
@@ -125,9 +123,9 @@ class EventHandlerRegistry:
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
                 if streamer:
-                    new_stream = Stream(streamer_id=streamer_id, event_type='stream.offline')
+                    new_stream = Stream(streamer_id=streamer.id, event_type='stream.offline')
                     db.add(new_stream)
                     db.commit()
                     await self.manager.send_notification({
@@ -145,7 +143,6 @@ class EventHandlerRegistry:
     async def handle_channel_update(self, data: dict) -> None:
         try:
             logger.debug(f"Handling channel.update event with data: {data}")
-
             streamer_id = data.get("broadcaster_user_id")
 
             if not streamer_id:
@@ -153,7 +150,7 @@ class EventHandlerRegistry:
                 return
 
             with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == streamer_id).first()
                 if streamer:
                     await self.manager.send_notification({
                         "type": "channel.update",
