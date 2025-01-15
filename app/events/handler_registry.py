@@ -16,21 +16,20 @@ class EventHandlerRegistry:
         self.twitch = twitch
         self.eventsub = None
         self.register_handlers()
+
     async def initialize_eventsub(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
-    
+        
         full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
         logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
-    
+        
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
-            twitch=self.twitch,
-            wait_for_subscription_confirm=True,
-            wait_for_subscription_confirm_timeout=30
+            twitch=self.twitch
         )
-    
+        
         self.eventsub.start()
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
 
@@ -40,47 +39,52 @@ class EventHandlerRegistry:
                 raise ValueError("EventSub not initialized")
 
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
-        
-            # Subscribe to each event type sequentially
+            
+            # Track subscription status
+            subscription_statuses = {}
+            
+            # Subscribe to stream.online and wait for confirmation
             logger.debug("Setting up stream.online subscription")
             online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
-            logger.info(f"Successfully subscribed to stream.online for {twitch_id}")
-        
+            subscription_statuses['stream.online'] = online_sub
+            logger.info(f"Stream.online subscription created with ID: {online_sub}")
+            
+            # Verify subscription is active before continuing
+            subs = await self.twitch.get_eventsub_subscriptions()
+            if not any(sub.id == online_sub and sub.status == "enabled" for sub in subs.data):
+                raise Exception("Failed to confirm stream.online subscription")
+            
+            # Repeat for other event types
             logger.debug("Setting up stream.offline subscription")
             offline_sub = await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
-            logger.info(f"Successfully subscribed to stream.offline for {twitch_id}")
-        
+            subscription_statuses['stream.offline'] = offline_sub
+            logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
+            
+            subs = await self.twitch.get_eventsub_subscriptions()
+            if not any(sub.id == offline_sub and sub.status == "enabled" for sub in subs.data):
+                raise Exception("Failed to confirm stream.offline subscription")
+            
             logger.debug("Setting up channel.update subscription")
             update_sub = await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
-            logger.info(f"Successfully subscribed to channel.update for {twitch_id}")
+            subscription_statuses['channel.update'] = update_sub
+            logger.info(f"Channel.update subscription created with ID: {update_sub}")
+            
+            subs = await self.twitch.get_eventsub_subscriptions()
+            if not any(sub.id == update_sub and sub.status == "enabled" for sub in subs.data):
+                raise Exception("Failed to confirm channel.update subscription")
 
-            logger.info(f"All subscriptions completed for twitch_id: {twitch_id}")
+            logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {twitch_id}: {e}", exc_info=True)
-            # Clean up any successful subscriptions if one fails
-            try:
-                await self.eventsub.unsubscribe_all()
-            except Exception as cleanup_error:
-                logger.error(f"Failed to clean up subscriptions: {cleanup_error}")
+            # Clean up any successful subscriptions
+            for sub_id in subscription_statuses.values():
+                try:
+                    await self.eventsub.delete_subscription(sub_id)
+                except Exception as cleanup_error:
+                    logger.error(f"Failed to clean up subscription {sub_id}: {cleanup_error}")
             raise
-
-    async def setup_test_subscription(self, broadcaster_id: str):
-        if not self.eventsub:
-            raise ValueError("EventSub not initialized")
-            
-        broadcaster_id = str(broadcaster_id)
-        test_sub_id = await self.eventsub.listen_stream_online(broadcaster_id, self.handle_stream_online)
-        logger.info(
-            f"Test stream.online event command:\n"
-            f"twitch event trigger stream.online "
-            f"-F {settings.WEBHOOK_URL}/callback "
-            f"-t {broadcaster_id} "
-            f"-u {test_sub_id} "
-            f"-s {settings.WEBHOOK_SECRET}"
-        )
-        return test_sub_id
 
     async def handle_stream_online(self, data: dict):
         try:
@@ -223,3 +227,49 @@ class EventHandlerRegistry:
             "message": "Subscription deletion complete",
             "results": deletion_results
         }
+
+    async def setup_test_subscription(self, broadcaster_id: str):
+        if not self.twitch:
+            raise ValueError("Twitch client not initialized")
+            
+        logger.debug(f"Setting up test subscription for broadcaster ID: {broadcaster_id}")
+        
+        # Verify the broadcaster exists
+        users = await self.twitch.get_users(user_ids=[broadcaster_id])
+        if not users.data:
+            logger.error(f"No Twitch user found for ID: {broadcaster_id}")
+            return {
+                "success": False,
+                "message": f"No Twitch user found for ID: {broadcaster_id}"
+            }
+        
+        try:
+            test_sub_id = await self.eventsub.listen_stream_online(broadcaster_id, self.handle_stream_online)
+            
+            # Verify subscription status
+            subs = await self.twitch.get_eventsub_subscriptions()
+            if not any(sub.id == test_sub_id and sub.status == "enabled" for sub in subs.data):
+                raise Exception("Failed to confirm test subscription")
+            
+            logger.info(f"Test subscription created successfully with ID: {test_sub_id}")
+            
+            # Commands for different event types
+            test_commands = {
+                "stream.online": f"twitch event trigger streamup -F {settings.WEBHOOK_URL}/callback -t {broadcaster_id} -u {test_sub_id}",
+                "stream.offline": f"twitch event trigger streamdown -F {settings.WEBHOOK_URL}/callback -t {broadcaster_id} -u {test_sub_id}",
+                "stream.change": f"twitch event trigger stream-change -F {settings.WEBHOOK_URL}/callback -t {broadcaster_id} -u {test_sub_id}"
+            }
+
+            return {
+                "success": True,
+                "subscription_id": test_sub_id,
+                "test_commands": test_commands,
+                "verify_command": f"twitch event verify-subscription streamup -F {settings.WEBHOOK_URL}/callback"
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to set up test subscription: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"Failed to set up test subscription: {str(e)}"
+            }
