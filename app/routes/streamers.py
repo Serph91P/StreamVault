@@ -3,9 +3,8 @@ from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
-import logging
 from app.config.settings import settings
-
+import logging
 
 logger = logging.getLogger("streamvault")
 
@@ -141,8 +140,13 @@ async def setup_test_subscription(
 ):
     try:
         # Get user info from Twitch API
-        users = await event_registry.twitch.get_users(user_ids=[broadcaster_id])
-        if not users.data:
+        users_generator = event_registry.twitch.get_users(user_ids=[broadcaster_id])
+        users = []
+        async for user in users_generator:
+            users.append(user)
+            break
+        
+        if not users:
             return JSONResponse(
                 status_code=400,
                 content={
@@ -150,16 +154,14 @@ async def setup_test_subscription(
                     "error": f"Twitch user with ID {broadcaster_id} not found"
                 }
             )
-        
-        user = users.data[0]
-        test_sub_id = await event_registry.setup_test_subscription(user.id)
-        
+            
+        test_sub_id = await event_registry.setup_test_subscription(users[0].id)
         return JSONResponse(
             status_code=200,
             content={
                 "success": True,
                 "subscription_id": test_sub_id,
-                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {user.id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
+                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
             }
         )
     except Exception as e:
