@@ -24,48 +24,32 @@ class EventHandlerRegistry:
         full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
         logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
         
-        # Initialize EventSub Webhook
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
             twitch=self.twitch
         )
         
-        # Start EventSub client
         self.eventsub.start()
         logger.debug(f"Using webhook secret: {settings.WEBHOOK_SECRET[:4]}...")
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
 
-    async def subscribe_to_events(self, user_id: str):
+    async def subscribe_to_events(self, twitch_id: str):
         try:
             if not self.eventsub:
                 raise ValueError("EventSub not initialized")
 
-            logger.debug(f"Subscribing to events for user_id: {user_id}")
+            logger.debug(f"Subscribing to events for twitch_id: {twitch_id}")
             
-            # Subscribe to stream.online events
-            await self.eventsub.listen_stream_online(
-                str(user_id),
-                self.handle_stream_online
-            )
-            
-            # Subscribe to stream.offline events
-            await self.eventsub.listen_stream_offline(
-                str(user_id),
-                self.handle_stream_offline
-            )
-            
-            # Subscribe to channel.update events
-            await self.eventsub.listen_channel_update(
-                str(user_id),
-                self.handle_channel_update
-            )
+            await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
+            await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
+            await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
 
-            logger.info(f"Successfully subscribed to all events for user_id: {user_id}")
+            logger.info(f"Successfully subscribed to all events for twitch_id: {twitch_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
+            logger.error(f"Failed to subscribe to events for user {twitch_id}: {e}", exc_info=True)
             raise
 
     async def setup_test_subscription(self, broadcaster_id: str):
@@ -96,7 +80,10 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    new_stream = Stream(streamer_id=streamer.id, event_type='stream.online')
+                    new_stream = Stream(
+                        streamer_id=streamer.id,
+                        event_type='stream.online'
+                    )
                     db.add(new_stream)
                     db.commit()
                     
@@ -124,7 +111,10 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    new_stream = Stream(streamer_id=streamer.id, event_type='stream.offline')
+                    new_stream = Stream(
+                        streamer_id=streamer.id,
+                        event_type='stream.offline'
+                    )
                     db.add(new_stream)
                     db.commit()
                     await self.manager.send_notification({
