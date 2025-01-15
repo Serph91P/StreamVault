@@ -68,7 +68,10 @@ class StreamerService:
             user_data = user_info_list[0]
             logger.info(f"Found Twitch user: {user_data.display_name}")
 
-            existing_streamer = await self.get_streamer_by_username(user_data.display_name)
+            existing_streamer = self.db.query(Streamer).filter(
+                Streamer.twitch_id == user_data.id
+            ).first()
+            
             if existing_streamer:
                 msg = f"Streamer {user_data.display_name} already exists"
                 await self.notify({
@@ -84,17 +87,18 @@ class StreamerService:
             )
         
             self.db.add(new_streamer)
-            self.db.commit()
-        
-            logger.info(f"Successfully added streamer: {new_streamer.username}")
+            self.db.flush()  # Get the ID without committing
+            
+            logger.info(f"Prepared streamer addition: {new_streamer.username}")
             await self.notify({
-                "type": "success",
-                "message": f"Successfully added {new_streamer.username}"
+                "type": "status",
+                "message": f"Setting up notifications for {new_streamer.username}..."
             })
 
             return {
                 "success": True,
-                "streamer": new_streamer
+                "streamer": new_streamer,
+                "twitch_id": user_data.id
             }
 
         except Exception as e:
