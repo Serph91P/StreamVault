@@ -156,12 +156,21 @@ async def setup_test_subscription(
             )
             
         test_sub_id = await event_registry.setup_test_subscription(users[0].id)
+        
+        # Commands for different event types
+        test_commands = {
+            "stream.online": f"twitch event trigger streamup -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}",
+            "stream.offline": f"twitch event trigger streamdown -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}",
+            "stream.change": f"twitch event trigger stream-change -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}"
+        }
+
         return JSONResponse(
             status_code=200,
             content={
                 "success": True,
                 "subscription_id": test_sub_id,
-                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
+                "test_commands": test_commands,
+                "verify_command": f"twitch event verify-subscription streamup -F {settings.WEBHOOK_URL}/callback"
             }
         )
     except Exception as e:
