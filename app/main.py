@@ -52,7 +52,20 @@ async def eventsub_root():
 @app.post("/eventsub/callback")
 async def eventsub_callback(request: Request):
     try:
-        # Verify the webhook signature
+        # Get the message type first
+        message_type = request.headers.get("Twitch-Eventsub-Message-Type")
+        
+        # Handle webhook verification
+        if message_type == "webhook_callback_verification":
+            challenge_data = await request.json()
+            challenge = challenge_data.get('challenge')
+            return Response(
+                content=challenge,
+                media_type="text/plain",
+                status_code=200
+            )
+
+        # For other event types, proceed with signature verification
         body = await request.body()
         headers = request.headers
         
@@ -78,20 +91,6 @@ async def eventsub_callback(request: Request):
 
         # Initialize event registry
         event_registry = await get_event_registry()
-
-        # Handle webhook verification
-        message_type = headers.get("Twitch-Eventsub-Message-Type")
-        if message_type == "webhook_callback_verification":
-            logger.info("Handling EventSub verification")
-            challenge = body_json.get("challenge")
-            if not challenge:
-                logger.error("Missing challenge in webhook verification")
-                return JSONResponse(
-                    status_code=400, 
-                    content={"error": "Missing challenge in webhook verification"}
-                )
-            logger.info(f"Webhook verified with challenge: {challenge}")
-            return Response(content=challenge, media_type="text/plain")
 
         # Handle notifications
         if message_type == "notification":
@@ -133,7 +132,7 @@ async def eventsub_callback(request: Request):
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
         return JSONResponse(
-            status_code=500, 
+            status_code=500,
             content={"error": f"Internal server error: {str(e)}"}
         )
 
