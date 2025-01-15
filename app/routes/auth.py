@@ -7,10 +7,13 @@ from app.dependencies import get_auth_service
 router = APIRouter(tags=["auth"])
 
 @router.api_route("/setup", methods=["GET", "HEAD"])
-async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
+async def setup_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if admin_exists:
         return RedirectResponse(url="/auth/login", status_code=307)
+    
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse(content={"setup_required": True})
     return FileResponse("app/frontend/dist/index.html")
 
 class SetupRequest(BaseModel):
@@ -51,10 +54,13 @@ async def login(
     return response
 
 @router.api_route("/login", methods=["GET", "HEAD"])
-async def login_page(auth_service: AuthService = Depends(get_auth_service)):
+async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
         return RedirectResponse(url="/auth/setup", status_code=307)
+    
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse(content={"login_required": True})
     return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
