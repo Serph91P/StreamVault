@@ -66,11 +66,11 @@ class StreamerService:
                 return {"success": False, "message": msg}
 
             user_data = user_info_list[0]
-            logger.info(f"Found Twitch user: {user.display_name}")
+            logger.info(f"Found Twitch user: {user_data.display_name}")
 
-            existing_streamer = await self.get_streamer_by_username(user.display_name)
+            existing_streamer = await self.get_streamer_by_username(user_data.display_name)
             if existing_streamer:
-                msg = f"Streamer {user.display_name} already exists"
+                msg = f"Streamer {user_data.display_name} already exists"
                 await self.notify({
                     "type": "error",
                     "message": msg
@@ -78,9 +78,9 @@ class StreamerService:
                 return {"success": False, "message": msg}
 
             new_streamer = Streamer(
-                twitch_id=user.id,
-                username=user.login,
-                display_name=user.display_name
+                twitch_id=user_data.id,
+                username=user_data.login,
+                display_name=user_data.display_name
             )
         
             self.db.add(new_streamer)
@@ -105,8 +105,7 @@ class StreamerService:
                 "type": "error",
                 "message": error_msg
             })
-            raise
-    async def delete_streamer(self, streamer_id: int) -> bool:
+            raise    async def delete_streamer(self, streamer_id: int) -> bool:
         streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if streamer:
             self.db.delete(streamer)
