@@ -49,25 +49,31 @@ async def add_streamer(
         if result["success"]:
             try:
                 logger.debug(f"Setting up EventSub for streamer ID: {result['streamer'].id}")
-                await event_registry.subscribe_to_events(str(result['streamer'].id))
+                await event_registry.subscribe_to_events(result["twitch_id"])
+                streamer_service.db.commit()
+                
+                await streamer_service.notify({
+                    "type": "success",
+                    "message": f"Successfully added {result['streamer'].username}"
+                })
                 
                 return JSONResponse(
-                    status_code=201,  # Changed to 201 for resource creation
+                    status_code=201,
                     content={
                         "success": True,
                         "message": f"Successfully added streamer {username}",
                         "streamer": {
-                            "id": result['streamer'].id,
-                            "username": result['streamer'].username
+                            "id": result["streamer"].id,
+                            "username": result["streamer"].username
                         }
                     }
                 )
             except Exception as sub_error:
-                # Add more detailed error logging
+                streamer_service.db.rollback()
                 logger.error(f"EventSub setup failed with error type {type(sub_error)}")
                 logger.error(f"EventSub setup failed: {sub_error}", exc_info=True)
                 return JSONResponse(
-                    status_code=500,  # Changed from 400 to 500 for server error
+                    status_code=500,
                     content={
                         "success": False,
                         "message": f"Failed to set up notifications: {str(sub_error)}"
@@ -92,7 +98,7 @@ async def add_streamer(
                 "message": f"Internal server error: {str(e)}"
             }
         )
-    
+
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
