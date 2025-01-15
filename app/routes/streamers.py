@@ -23,6 +23,9 @@ async def add_streamer(
 ):
     logger.debug(f"Add streamer request received for username: {username}")
     
+    # Add more detailed logging here to track the flow
+    logger.debug("Starting streamer addition process")
+    
     # Check for existing streamer first
     existing = await streamer_service.get_streamer_by_username(username)
     logger.debug(f"Existing streamer check result: {existing}")
@@ -30,11 +33,14 @@ async def add_streamer(
     if existing:
         logger.debug(f"Streamer {username} already exists")
         return JSONResponse(
-            status_code=400,
+            status_code=409,  # Changed from 400 to 409 for conflict
             content={"message": f"Streamer {username} is already subscribed."}
         )
     
     try:
+        # Add logging before streamer addition attempt
+        logger.debug(f"Attempting to add streamer {username}")
+        
         # Attempt to add the streamer
         result = await streamer_service.add_streamer(username)
         logger.debug(f"Add streamer result: {result}")
@@ -45,7 +51,7 @@ async def add_streamer(
                 await event_registry.subscribe_to_events(str(result['streamer'].id))
                 
                 return JSONResponse(
-                    status_code=200,
+                    status_code=201,  # Changed to 201 for resource creation
                     content={
                         "success": True,
                         "message": f"Successfully added streamer {username}",
@@ -56,9 +62,11 @@ async def add_streamer(
                     }
                 )
             except Exception as sub_error:
+                # Add more detailed error logging
+                logger.error(f"EventSub setup failed with error type {type(sub_error)}")
                 logger.error(f"EventSub setup failed: {sub_error}", exc_info=True)
                 return JSONResponse(
-                    status_code=400,
+                    status_code=500,  # Changed from 400 to 500 for server error
                     content={
                         "success": False,
                         "message": f"Failed to set up notifications: {str(sub_error)}"
