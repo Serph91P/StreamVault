@@ -10,18 +10,17 @@ router = APIRouter(tags=["auth"])
 async def setup_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     
-    # For API/AJAX requests
-    if "application/json" in request.headers.get("accept", ""):
-        return JSONResponse(content={
-            "setup_required": not admin_exists,
-            "redirect": "/auth/login" if admin_exists else None
-        })
+    # Always return JSON for XHR/fetch requests
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
+        return JSONResponse(
+            content={"setup_required": not admin_exists},
+            headers={"Content-Type": "application/json"}
+        )
     
-    # For browser requests
+    # Handle browser requests
     if admin_exists:
         return RedirectResponse(url="/auth/login", status_code=307)
     return FileResponse("app/frontend/dist/index.html")
-
 class SetupRequest(BaseModel):
     username: str
     password: str

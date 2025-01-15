@@ -1,5 +1,5 @@
 from fastapi import Request, WebSocket
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.database import SessionLocal
@@ -29,12 +29,8 @@ class AuthMiddleware:
             if scope["type"] not in ("http", "websocket"):
                 return await self.app(scope, receive, send)
 
-            # Handle WebSocket connections differently
-            if scope["type"] == "websocket":
-                return await self.app(scope, receive, send)
-
-            # Process HTTP requests
             request = Request(scope, receive=receive)
+            is_json_request = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
 
             # Public paths that don't require authentication
             public_paths = [
@@ -45,27 +41,24 @@ class AuthMiddleware:
                 "/static/",
                 "/assets/"
             ]
-            
+
             if any(request.url.path.startswith(path) for path in public_paths):
                 return await self.app(scope, receive, send)
 
             admin_exists = await self.auth_service.admin_exists()
+
             if not admin_exists:
                 if not request.url.path.startswith("/auth/setup"):
-                    response = RedirectResponse(url="/auth/setup", status_code=307)
-                    return await response(scope, receive, send)
-            else:
-                session_token = request.cookies.get("session")
-                if not session_token or not await self.auth_service.validate_session(session_token):
-                    if not request.url.path.startswith("/auth/login"):
-                        response = RedirectResponse(url="/auth/login", status_code=307)
-                        return await response(scope, receive, send)
+                    if is_json_request:
+                        return await JSONResponse({"error": "Setup required", "redirect": "/auth/setup"}, status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
 
-            # Verify session token
             session_token = request.cookies.get("session")
             if not session_token or not await self.auth_service.validate_session(session_token):
-                response = RedirectResponse(url="/auth/login", status_code=307)
-                return await response(scope, receive, send)
+                if not request.url.path.startswith("/auth/login"):
+                    if is_json_request:
+                        return await JSONResponse({"error": "Authentication required", "redirect": "/auth/login"}, status_code=401)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
 
             return await self.app(scope, receive, send)
         finally:
