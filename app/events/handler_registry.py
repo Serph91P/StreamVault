@@ -29,7 +29,7 @@ class EventHandlerRegistry:
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
             twitch=self.twitch,
-            secret=settings.WEBHOOK_SECRET
+            # secret=settings.WEBHOOK_SECRET
         )
         
         # Start EventSub client
