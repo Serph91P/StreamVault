@@ -6,10 +6,12 @@ from app.dependencies import get_auth_service
 
 router = APIRouter(tags=["auth"])
 
-@router.get("/setup")
+@router.api_route("/setup", methods=["GET", "HEAD"])
 async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
-    return JSONResponse(content={"setup_required": not admin_exists})
+    if not admin_exists:
+        return FileResponse("app/frontend/dist/index.html")
+    return RedirectResponse(url="/auth/login", status_code=307)
 
 class SetupRequest(BaseModel):
     username: str
