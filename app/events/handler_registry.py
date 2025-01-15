@@ -41,6 +41,9 @@ class EventHandlerRegistry:
 
             logger.debug(f"Subscribing to events for twitch_id: {twitch_id}")
             
+            # Ensure twitch_id is string
+            twitch_id = str(twitch_id)
+            
             await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
             await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
             await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
@@ -56,6 +59,7 @@ class EventHandlerRegistry:
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
             
+        broadcaster_id = str(broadcaster_id)
         test_sub_id = await self.eventsub.listen_stream_online(broadcaster_id, self.handle_stream_online)
         logger.info(
             f"Test stream.online event command:\n"
@@ -70,7 +74,7 @@ class EventHandlerRegistry:
     async def handle_stream_online(self, data: dict):
         try:
             logger.debug(f"Handling stream.online event with data: {data}")
-            twitch_id = data.get("broadcaster_user_id")
+            twitch_id = str(data.get("broadcaster_user_id"))
             streamer_name = data.get("broadcaster_user_name")
 
             if not twitch_id or not streamer_name:
@@ -95,6 +99,8 @@ class EventHandlerRegistry:
                         }
                     })
                     logger.info(f"Handled stream online event for {streamer_name}")
+                else:
+                    logger.warning(f"No streamer found for twitch_id: {twitch_id}")
         except Exception as e:
             logger.error(f"Error handling stream.online event: {e}", exc_info=True)
             raise
@@ -102,7 +108,7 @@ class EventHandlerRegistry:
     async def handle_stream_offline(self, data: dict) -> None:
         try:
             logger.debug(f"Handling stream.offline event with data: {data}")
-            twitch_id = data.get("broadcaster_user_id")
+            twitch_id = str(data.get("broadcaster_user_id"))
 
             if not twitch_id:
                 logger.error("Missing broadcaster_user_id in event data")
@@ -125,6 +131,8 @@ class EventHandlerRegistry:
                         }
                     })
                     logger.info(f"Handled stream offline event for {streamer.username}")
+                else:
+                    logger.warning(f"No streamer found for twitch_id: {twitch_id}")
         except Exception as e:
             logger.error(f"Error handling stream.offline event: {e}", exc_info=True)
             raise
@@ -132,7 +140,7 @@ class EventHandlerRegistry:
     async def handle_channel_update(self, data: dict) -> None:
         try:
             logger.debug(f"Handling channel.update event with data: {data}")
-            twitch_id = data.get("broadcaster_user_id")
+            twitch_id = str(data.get("broadcaster_user_id"))
 
             if not twitch_id:
                 logger.error("Missing broadcaster_user_id in event data")
@@ -149,6 +157,8 @@ class EventHandlerRegistry:
                         }
                     })
                     logger.info(f"Handled channel update event for {streamer.username}")
+                else:
+                    logger.warning(f"No streamer found for twitch_id: {twitch_id}")
         except Exception as e:
             logger.error(f"Error handling channel.update event: {e}", exc_info=True)
             raise
