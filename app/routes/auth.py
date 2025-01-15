@@ -50,8 +50,11 @@ async def login(
     response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
-@router.get("/login")
-async def login_page():
+@router.api_route("/login", methods=["GET", "HEAD"])
+async def login_page(auth_service: AuthService = Depends(get_auth_service)):
+    admin_exists = await auth_service.admin_exists()
+    if not admin_exists:
+        return RedirectResponse(url="/auth/setup", status_code=307)
     return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")

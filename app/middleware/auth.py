@@ -35,16 +35,17 @@ class AuthMiddleware:
 
             # Process HTTP requests
             request = Request(scope, receive=receive)
-            
+
             # Public paths that don't require authentication
             public_paths = [
                 "/auth/login",
                 "/auth/setup",
+                "/auth/check",
                 "/eventsub/callback",
                 "/static/",
                 "/assets/"
             ]
-
+            
             if any(request.url.path.startswith(path) for path in public_paths):
                 return await self.app(scope, receive, send)
 
