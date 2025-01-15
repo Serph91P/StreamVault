@@ -1,9 +1,9 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import SubscriptionsView from '../views/SubscriptionsView.vue'
-import AddStreamerView from '../views/AddStreamerView.vue'
-import SetupView from '../views/SetupView.vue'
-import LoginView from '../views/LoginView.vue'
+import { createRouter, createWebHistory } from 'vue-router';
+import HomeView from '../views/HomeView.vue';
+import SubscriptionsView from '../views/SubscriptionsView.vue';
+import AddStreamerView from '../views/AddStreamerView.vue';
+import SetupView from '../views/SetupView.vue';
+import LoginView from '../views/LoginView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -11,64 +11,69 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView
+      component: HomeView,
     },
     {
       path: '/subscriptions',
       name: 'subscriptions',
-      component: SubscriptionsView
+      component: SubscriptionsView,
     },
     {
       path: '/add-streamer',
       name: 'add-streamer',
-      component: AddStreamerView
+      component: AddStreamerView,
     },
     {
       path: '/auth/setup',
       name: 'setup',
-      component: SetupView
+      component: SetupView,
     },
     {
       path: '/auth/login',
       name: 'login',
-      component: LoginView
-    }
-  ]
-})
+      component: LoginView,
+    },
+  ],
+});
 
 router.beforeEach(async (to, from, next) => {
-  if (to.path === '/auth/setup' || to.path === '/auth/login') {
-    try {
-      const setupResponse = await fetch('/auth/setup')
-      const setupData = await setupResponse.json()
-      
-      if (!setupData.setup_required && to.path === '/auth/setup') {
-        return next('/')
-      }
-      return next()
-    } catch (error) {
-      console.error('Error checking setup status:', error)
-      return next()
-    }
-  }
-
   try {
-    const setupResponse = await fetch('/auth/setup')
-    const setupData = await setupResponse.json()
-    
-    if (setupData.setup_required) {
-      return next('/auth/setup')
-    }
+    const response = await fetch('/auth/setup', {
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
 
-    const authResponse = await fetch('/auth/check')
-    if (!authResponse.ok) {
-      return next('/auth/login')
+    const data = await response.json();
+
+    if (data.setup_required) {
+      if (to.path !== '/auth/setup') {
+        return next('/auth/setup');
+      }
+      return next();
+    } else {
+      if (to.path === '/auth/setup') {
+        return next('/');
+      }
+
+      const authResponse = await fetch('/auth/check', {
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+
+      if (!authResponse.ok && to.path !== '/auth/login') {
+        return next('/auth/login');
+      }
+
+      return next();
     }
-    
-    return next()
   } catch (error) {
-    console.error('Error checking application status:', error)
-    return next('/auth/setup')
+    console.error('Router error:', error);
+    return next('/auth/setup');
   }
-})
-export default router
+});
+
+export default router;
