@@ -21,16 +21,33 @@ class EventHandlerRegistry:
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
         
+        full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
+        logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
+        
         # Initialize EventSub Webhook
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
-            twitch=self.twitch
+            twitch=self.twitch,
+            secret=settings.WEBHOOK_SECRET
         )
         
         # Start EventSub client
         self.eventsub.start()
+        logger.debug(f"Using webhook secret: {settings.WEBHOOK_SECRET[:4]}...")
+        logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
         logger.info("EventSub initialized successfully")
+
+        # Set up test subscription and log command
+        test_sub_id = await self.eventsub.listen_stream_online("test_broadcaster_id", self.handle_stream_online)
+        logger.info(
+            f"Test stream.online event command:\n"
+            f"twitch event trigger stream.online "
+            f"-F {settings.WEBHOOK_URL}/callback "
+            f"-t test_broadcaster_id "
+            f"-u {test_sub_id} "
+            f"-s {settings.WEBHOOK_SECRET}"
+        )
 
     async def subscribe_to_events(self, user_id: str):
         try:
