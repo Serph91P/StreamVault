@@ -40,34 +40,19 @@ class EventHandlerRegistry:
                 raise ValueError("EventSub not initialized")
 
             logger.debug(f"Subscribing to events for twitch_id: {twitch_id}")
-    
-            subscriptions = []
-            try:
-                sub_id = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
-                subscriptions.append(("stream.online", sub_id))
-                logger.debug(f"Successfully subscribed to stream.online for {twitch_id}")
-            except Exception as e:
-                logger.error(f"Failed to subscribe to stream.online: {e}")
+            
+            # All subscriptions must succeed
+            await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
+            logger.debug(f"Subscribed to stream.online for {twitch_id}")
+            
+            await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
+            logger.debug(f"Subscribed to stream.offline for {twitch_id}")
+            
+            await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
+            logger.debug(f"Subscribed to channel.update for {twitch_id}")
 
-            try:
-                sub_id = await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
-                subscriptions.append(("stream.offline", sub_id))
-                logger.debug(f"Successfully subscribed to stream.offline for {twitch_id}")
-            except Exception as e:
-                logger.error(f"Failed to subscribe to stream.offline: {e}")
-
-            try:
-                sub_id = await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
-                subscriptions.append(("channel.update", sub_id))
-                logger.debug(f"Successfully subscribed to channel.update for {twitch_id}")
-            except Exception as e:
-                logger.error(f"Failed to subscribe to channel.update: {e}")
-
-            if subscriptions:
-                logger.info(f"Successfully created {len(subscriptions)} subscriptions for {twitch_id}")
-                return True
-            else:
-                raise Exception("No subscriptions could be created")
+            logger.info(f"Successfully subscribed to all events for twitch_id: {twitch_id}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {twitch_id}: {e}", exc_info=True)
