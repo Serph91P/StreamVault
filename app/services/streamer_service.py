@@ -105,15 +105,22 @@ class StreamerService:
                 "type": "error",
                 "message": error_msg
             })
-            raise    async def delete_streamer(self, streamer_id: int) -> bool:
-        streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
-        if streamer:
-            self.db.delete(streamer)
-            self.db.commit()
-            await self.notify({
-                "type": "success",
-                "message": f"Removed streamer {streamer.username}"
-            })
-            logger.info(f"Deleted streamer: {streamer.username}")
-            return True
-        return False
+            raise
+
+    async def delete_streamer(self, streamer_id: int) -> bool:
+        try:
+            streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if streamer:
+                self.db.delete(streamer)
+                self.db.commit()
+                await self.notify({
+                    "type": "success",
+                    "message": f"Removed streamer {streamer.username}"
+                })
+                logger.info(f"Deleted streamer: {streamer.username}")
+                return True
+            return False
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error deleting streamer: {e}")
+            raise
