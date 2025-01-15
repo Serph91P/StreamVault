@@ -72,22 +72,26 @@ async def eventsub_callback(request: Request):
         message_id = headers.get('Twitch-Eventsub-Message-Id', '')
         timestamp = headers.get('Twitch-Eventsub-Message-Timestamp', '')
         signature = headers.get('Twitch-Eventsub-Message-Signature', '')
+
+        # Skip signature verification for test events from twitch-cli
+        is_test_event = not all([message_id, timestamp, signature])
         
-        if not all([message_id, timestamp, signature]):
-            logger.error("Missing required headers for signature verification")
-            return JSONResponse(status_code=403, content={"error": "Missing required headers"})
-        
-        # Verify webhook signature
-        hmac_message = message_id + timestamp + body.decode()
-        expected_signature = 'sha256=' + hmac.new(
-            settings.WEBHOOK_SECRET.encode('utf-8'),
-            hmac_message.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if signature != expected_signature:
-            logger.error("Invalid webhook signature")
-            return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+        if not is_test_event:
+            if not all([message_id, timestamp, signature]):
+                logger.error("Missing required headers for signature verification")
+                return JSONResponse(status_code=403, content={"error": "Missing required headers"})
+            
+            # Verify webhook signature
+            hmac_message = message_id + timestamp + body.decode()
+            expected_signature = 'sha256=' + hmac.new(
+                settings.WEBHOOK_SECRET.encode('utf-8'),
+                hmac_message.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            if signature != expected_signature:
+                logger.error("Invalid webhook signature")
+                return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
         # Process the webhook payload
         body_json = await request.json()
