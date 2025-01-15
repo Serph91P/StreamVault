@@ -10,8 +10,8 @@ router = APIRouter(tags=["auth"])
 async def setup_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if admin_exists:
-        return RedirectResponse(url="/auth/login", status_code=307)
-    return FileResponse("app/frontend/dist/index.html")
+        return JSONResponse(content={"redirect": "/auth/login"})
+    return JSONResponse(content={"setup_required": True})
 
 class SetupRequest(BaseModel):
     username: str
@@ -28,7 +28,7 @@ async def setup_admin(
     admin = await auth_service.create_admin(request.username, request.password)
     token = await auth_service.create_session(admin.id)
     
-    response = JSONResponse(content={"message": "Admin account created"})
+    response = JSONResponse(content={"message": "Admin account created", "success": True})
     response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
@@ -46,7 +46,7 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = await auth_service.create_session(user.id)
-    response = JSONResponse(content={"message": "Login successful"})
+    response = JSONResponse(content={"message": "Login successful", "success": True})
     response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
@@ -54,8 +54,8 @@ async def login(
 async def login_page(auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
-        return RedirectResponse(url="/auth/setup", status_code=307)
-    return FileResponse("app/frontend/dist/index.html")
+        return JSONResponse(content={"redirect": "/auth/setup"})
+    return JSONResponse(content={"login_required": True})
 
 @router.get("/check")
 async def check_auth(
