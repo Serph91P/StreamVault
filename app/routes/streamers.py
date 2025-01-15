@@ -140,9 +140,9 @@ async def setup_test_subscription(
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
     try:
-        # First verify the user exists on Twitch
-        user = await event_registry.twitch.get_users(user_ids=[broadcaster_id])
-        if not user.data:
+        # Get user info from Twitch API
+        users = await event_registry.twitch.get_users(user_ids=[broadcaster_id])
+        if not users.data:
             return JSONResponse(
                 status_code=400,
                 content={
@@ -150,14 +150,16 @@ async def setup_test_subscription(
                     "error": f"Twitch user with ID {broadcaster_id} not found"
                 }
             )
-            
-        test_sub_id = await event_registry.setup_test_subscription(user.data[0].id)
+        
+        user = users.data[0]
+        test_sub_id = await event_registry.setup_test_subscription(user.id)
+        
         return JSONResponse(
             status_code=200,
             content={
                 "success": True,
                 "subscription_id": test_sub_id,
-                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {user.data[0].id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
+                "test_command": f"twitch event trigger stream.online -F {settings.WEBHOOK_URL}/callback -t {user.id} -u {test_sub_id} -s {settings.WEBHOOK_SECRET}"
             }
         )
     except Exception as e:
@@ -169,4 +171,3 @@ async def setup_test_subscription(
                 "error": str(e)
             }
         )
-
