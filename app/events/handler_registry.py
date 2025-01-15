@@ -38,17 +38,6 @@ class EventHandlerRegistry:
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
         logger.info("EventSub initialized successfully")
 
-        # Set up test subscription and log command
-        test_sub_id = await self.eventsub.listen_stream_online("test_broadcaster_id", self.handle_stream_online)
-        logger.info(
-            f"Test stream.online event command:\n"
-            f"twitch event trigger stream.online "
-            f"-F {settings.WEBHOOK_URL}/callback "
-            f"-t test_broadcaster_id "
-            f"-u {test_sub_id} "
-            f"-s {settings.WEBHOOK_SECRET}"
-        )
-
     async def subscribe_to_events(self, user_id: str):
         try:
             if not self.eventsub:
@@ -80,6 +69,21 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {user_id}: {e}", exc_info=True)
             raise
+    async def setup_test_subscription(self, broadcaster_id: str):
+        """Set up a test subscription for a specific broadcaster"""
+        if not self.eventsub:
+            raise ValueError("EventSub not initialized")
+            
+        test_sub_id = await self.eventsub.listen_stream_online(broadcaster_id, self.handle_stream_online)
+        logger.info(
+            f"Test stream.online event command:\n"
+            f"twitch event trigger stream.online "
+            f"-F {settings.WEBHOOK_URL}/callback "
+            f"-t {broadcaster_id} "
+            f"-u {test_sub_id} "
+            f"-s {settings.WEBHOOK_SECRET}"
+        )
+        return test_sub_id
 
     async def handle_stream_online(self, data: dict):
         try:
