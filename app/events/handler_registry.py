@@ -180,6 +180,7 @@ class EventHandlerRegistry:
             "subscriptions": [
                 {
                     "id": sub.id,
+                    "broadcaster_id": sub.condition.get('broadcaster_user_id'),
                     "type": sub.type,
                     "status": sub.status,
                     "condition": sub.condition,
