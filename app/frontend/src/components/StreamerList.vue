@@ -190,6 +190,7 @@ interface Streamer {
   category: string
   language: string
   last_updated: string
+  [key: string]: string | boolean  // Index signature for dynamic property access
 }
 
 const streamers = ref<Streamer[]>([])
@@ -200,8 +201,10 @@ const isDeleting = ref(false)
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
     const modifier = sortDir.value === 'asc' ? 1 : -1
-    if (a[sortKey.value] < b[sortKey.value]) return -1 * modifier
-    if (a[sortKey.value] > b[sortKey.value]) return 1 * modifier
+    const aValue = a[sortKey.value]
+    const bValue = b[sortKey.value]
+    if (aValue < bValue) return -1 * modifier
+    if (aValue > bValue) return 1 * modifier
     return 0
   })
 })
