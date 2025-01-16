@@ -51,6 +51,62 @@
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+interface Subscription {
+  id: string
+  type: string
+  status: string
+  created_at: string
+}
+
+const subscriptions = ref<Subscription[]>([])
+const loading = ref(false)
+
+async function loadSubscriptions() {
+  loading.value = true
+  try {
+    const response = await fetch('/api/streamers/subscriptions')
+    const data = await response.json()
+    subscriptions.value = data.subscriptions
+  } catch (error) {
+    console.error('Failed to load subscriptions:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function deleteSubscription(id: string) {
+  try {
+    await fetch(`/api/streamers/subscriptions/${id}`, {
+      method: 'DELETE'
+    })
+    await loadSubscriptions()
+  } catch (error) {
+    console.error('Failed to delete subscription:', error)
+  }
+}
+
+async function deleteAllSubscriptions() {
+  if (!confirm('Are you sure you want to delete all subscriptions?')) return
+  
+  loading.value = true
+  try {
+    await fetch('/api/streamers/subscriptions', {
+      method: 'DELETE'
+    })
+    subscriptions.value = []
+  } catch (error) {
+    console.error('Failed to delete all subscriptions:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadSubscriptions)
+</script>
+
 <style scoped>
 .subscriptions-page {
   padding: 2rem;
