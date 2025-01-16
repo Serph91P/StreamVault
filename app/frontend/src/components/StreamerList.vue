@@ -179,11 +179,20 @@ tr.live {
   animation: pulse 2s infinite;
 }
 </style>
-
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
-const streamers = ref([])
+interface Streamer {
+  id: string
+  username: string
+  is_live: boolean
+  title: string
+  category: string
+  language: string
+  last_updated: string
+}
+
+const streamers = ref<Streamer[]>([])
 const sortKey = ref('username')
 const sortDir = ref('asc')
 const isDeleting = ref(false)
