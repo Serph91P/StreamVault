@@ -1,148 +1,69 @@
 <template>
-  <div class="streamer-table-container">
-    <table class="streamer-table">
-      <thead>
-        <tr>
-          <th @click="sortBy('username')">
-            Streamer
-            <span class="sort-icon">{{ sortKey === 'username' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-          </th>
-          <th @click="sortBy('status')">
-            Status
-            <span class="sort-icon">{{ sortKey === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-          </th>
-          <th>Title</th>
-          <th>Category</th>
-          <th>Language</th>
-          <th @click="sortBy('lastUpdate')">
-            Last Update
-            <span class="sort-icon">{{ sortKey === 'lastUpdate' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-          </th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="streamer in sortedStreamers" 
-            :key="streamer.id"
-            :class="{ 'live': streamer.is_live }">
-          <td>
-            <div class="streamer-info">
-              <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-              {{ streamer.username }}
-            </div>
-          </td>
-          <td>
-            <span class="status-badge" :class="{ 'live': streamer.is_live }">
-              {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
-            </span>
-          </td>
-          <td>{{ streamer.title || '-' }}</td>
-          <td>{{ streamer.category || '-' }}</td>
-          <td>{{ streamer.language || '-' }}</td>
-          <td>{{ formatDate(streamer.last_updated) }}</td>
-          <td>
-            <button 
-              @click="deleteStreamer(streamer.id)" 
-              class="delete-btn"
-              :disabled="isDeleting"
-            >
-              {{ isDeleting ? 'Deleting...' : 'Delete' }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="container">
+    <div class="streamer-table-container">
+      <table class="streamer-table">
+        <thead>
+          <tr>
+            <th @click="sortBy('username')" style="width: 15%">
+              Streamer
+              <span class="sort-icon">{{ sortKey === 'username' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+            </th>
+            <th @click="sortBy('status')" style="width: 10%">
+              Status
+              <span class="sort-icon">{{ sortKey === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+            </th>
+            <th style="width: 30%">Title</th>
+            <th style="width: 15%">Category</th>
+            <th style="width: 10%">Language</th>
+            <th @click="sortBy('lastUpdate')" style="width: 15%">
+              Last Update
+              <span class="sort-icon">{{ sortKey === 'lastUpdate' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+            </th>
+            <th style="width: 5%">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="streamer in sortedStreamers" 
+              :key="streamer.id"
+              :class="{ 'live': streamer.is_live }">
+            <td>
+              <div class="streamer-info">
+                <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
+                {{ streamer.username }}
+              </div>
+            </td>
+            <td>
+              <span class="status-badge" :class="{ 'live': streamer.is_live }">
+                {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+              </span>
+            </td>
+            <td class="title-cell">{{ streamer.title || '-' }}</td>
+            <td>{{ streamer.category || '-' }}</td>
+            <td>{{ streamer.language || '-' }}</td>
+            <td>{{ formatDate(streamer.last_updated) }}</td>
+            <td>
+              <button 
+                @click="deleteStreamer(streamer.id)" 
+                class="delete-btn"
+                :disabled="isDeleting"
+              >
+                {{ isDeleting ? 'Deleting...' : 'Delete' }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-
-const streamers = ref([])
-const sortKey = ref('username')
-const sortDir = ref('asc')
-const isDeleting = ref(false)
-
-const sortedStreamers = computed(() => {
-  return [...streamers.value].sort((a, b) => {
-    const modifier = sortDir.value === 'asc' ? 1 : -1
-    if (a[sortKey.value] < b[sortKey.value]) return -1 * modifier
-    if (a[sortKey.value] > b[sortKey.value]) return 1 * modifier
-    return 0
-  })
-})
-
-const sortBy = (key) => {
-  if (sortKey.value === key) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-  } else {
-    sortKey.value = key
-    sortDir.value = 'asc'
-  }
-}
-
-const fetchStreamers = async () => {
-  try {
-    const response = await fetch('/api/streamers')
-    if (!response.ok) throw new Error('Failed to fetch streamers')
-    const data = await response.json()
-    streamers.value = data
-  } catch (error) {
-    console.error('Failed to fetch streamers:', error)
-  }
-}
-
-const deleteStreamer = async (streamerId) => {
-  console.log('Attempting to delete streamer:', streamerId)
-  
-  if (!streamerId) {
-    console.error('No streamer ID provided')
-    return
-  }
-
-  if (confirm('Are you sure you want to delete this streamer?')) {
-    isDeleting.value = true
-    try {
-      const response = await fetch(`/api/streamers/${streamerId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      console.log('Delete response:', response)
-      
-      if (response.ok) {
-        console.log('Streamer deleted successfully')
-        await fetchStreamers()
-      } else {
-        const error = await response.json()
-        console.error('Delete failed:', error)
-      }
-    } catch (error) {
-      console.error('Delete error:', error)
-    } finally {
-      isDeleting.value = false
-    }
-  }
-}
-
-const formatDate = (date) => {
-  if (!date) return 'Never'
-  return new Date(date).toLocaleString()
-}
-
-onMounted(() => {
-  fetchStreamers()
-  const pollInterval = setInterval(fetchStreamers, 60000)
-  
-  onUnmounted(() => {
-    clearInterval(pollInterval)
-  })
-})
-</script>
-
 <style scoped>
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
 .streamer-table-container {
   overflow-x: auto;
   background: #242424;
@@ -156,23 +77,28 @@ onMounted(() => {
   border-collapse: collapse;
   text-align: left;
   color: #fff;
+  font-size: 1.1em;
 }
 
 th {
   background: #2f2f2f;
-  padding: 12px;
+  padding: 16px;
   cursor: pointer;
   border-bottom: 1px solid #383838;
   user-select: none;
-}
-
-th:hover {
-  background: #383838;
+  font-weight: 600;
 }
 
 td {
-  padding: 12px;
+  padding: 16px;
   border-bottom: 1px solid #383838;
+}
+
+.title-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sort-icon {
@@ -200,12 +126,15 @@ td {
 }
 
 .status-badge {
-  padding: 4px 8px;
+  padding: 6px 12px;
   border-radius: 12px;
-  font-size: 0.8em;
+  font-size: 0.9em;
   font-weight: bold;
   background: #dc3545;
   color: #fff;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
 }
 
 .status-badge.live {
@@ -224,10 +153,11 @@ tr:hover {
   background: #dc3545;
   color: white;
   border: none;
-  padding: 6px 12px;
+  padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.2s;
+  font-size: 0.9em;
 }
 
 .delete-btn:hover:not(:disabled) {
