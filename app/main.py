@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
 import logging
 import hmac
