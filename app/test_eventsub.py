@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from twitchAPI.object.eventsub import ChannelFollowEvent
+from twitchAPI.helper import first
 import asyncio
 from app.config.settings import settings
 import logging
-
 logger = logging.getLogger('streamvault')
 
 router = APIRouter(prefix="/test", tags=["test"])
