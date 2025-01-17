@@ -13,28 +13,29 @@ async def on_follow(data: ChannelFollowEvent):
 @router.get("/eventsub/test/{broadcaster_name}")
 async def test_eventsub(broadcaster_name: str):
     try:
-        # Initialize Twitch API using settings - add await here
+        # Initialize Twitch API
         twitch = await Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
         
-        # Get broadcaster info - this is already correctly awaited
+        # Get broadcaster info
         users = await twitch.get_users(logins=[broadcaster_name])
         if not users.data:
             raise HTTPException(status_code=404, detail="Broadcaster not found")
         broadcaster = users.data[0]
         
-        # Setup EventSub using settings
+        # Setup EventSub with full webhook URL including /callback
+        full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
         eventsub = EventSubWebhook(
-            callback_url=settings.WEBHOOK_URL,
+            callback_url=full_webhook_url,
             port=settings.EVENTSUB_PORT,
             twitch=twitch
         )
         
-        # Start EventSub - remove await from start() as it's not async
+        # Clear existing subscriptions and start
         await eventsub.unsubscribe_all()
         eventsub.start()
         
         # Subscribe to follow events
-        await eventsub.listen_channel_follow_v2(
+        subscription = await eventsub.listen_channel_follow_v2(
             broadcaster_id=broadcaster.id,
             moderator_id=broadcaster.id,
             callback=on_follow
@@ -44,7 +45,8 @@ async def test_eventsub(broadcaster_name: str):
             "status": "success",
             "message": f"EventSub test started for broadcaster: {broadcaster_name}",
             "broadcaster_id": broadcaster.id,
-            "callback_url": settings.WEBHOOK_URL
+            "subscription_id": subscription,
+            "callback_url": full_webhook_url
         }
         
     except Exception as e:
