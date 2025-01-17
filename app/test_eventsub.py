@@ -32,13 +32,15 @@ async def test_eventsub(broadcaster_name: str):
             raise HTTPException(status_code=404, detail="Broadcaster not found")
         logger.info(f"Found broadcaster: {broadcaster.display_name} (ID: {broadcaster.id})")
         
-        # Setup EventSub
-        full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
-        logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
+        # Setup EventSub with test-specific callback URL and different port
+        full_webhook_url = f"{settings.WEBHOOK_URL}/test/callback"
+        test_port = settings.EVENTSUB_PORT + 1
+        logger.debug(f"Initializing EventSub with test callback URL: {full_webhook_url} on port {test_port}")
         eventsub = EventSubWebhook(
             callback_url=full_webhook_url,
-            port=settings.EVENTSUB_PORT,
-            twitch=twitch
+            port=test_port,
+            twitch=twitch,
+            callback_loop=asyncio.get_event_loop()
         )
         
         # Clear existing subscriptions
