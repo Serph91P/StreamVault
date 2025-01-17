@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response, Request
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from twitchAPI.object.eventsub import ChannelFollowEvent
@@ -109,4 +109,36 @@ async def stop_eventsub():
         
     except Exception as e:
         logger.error(f"Error in stop_eventsub: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/eventsub/test/callback")
+async def handle_test_callback(request: Request):
+    try:
+        logger.debug("Received test callback")
+        # Read the headers and body
+        headers = request.headers
+        body = await request.body()
+        
+        # Extract the message type
+        message_type = headers.get("Twitch-Eventsub-Message-Type")
+        logger.debug(f"Received EventSub request: type={message_type}")
+        
+        # Handle challenge requests
+        if message_type == "webhook_callback_verification":
+            challenge_data = await request.json()
+            challenge = challenge_data.get("challenge")
+            if challenge:
+                logger.info("Challenge request received and processed successfully")
+                return Response(content=challenge, media_type="text/plain")
+        
+        # Handle actual events
+        if message_type == "notification":
+            data = await request.json()
+            logger.info(f"Received event notification: {data}")
+            return {"status": "success"}
+            
+        return Response(status_code=204)
+        
+    except Exception as e:
+        logger.error(f"Error handling test callback: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
