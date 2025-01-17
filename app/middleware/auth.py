@@ -47,7 +47,7 @@ class AuthMiddleware:
                 "/static/",
                 "/assets/",
                 "/api/streamers/test",
-                "/test/eventsub"
+                "/test/eventsub/test/callback"
             ]
 
             if any(request.url.path.startswith(path) for path in public_paths):
