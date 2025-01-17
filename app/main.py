@@ -1,11 +1,12 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
 import logging
 import hmac
 import hashlib
 import json
+import asyncio
 
 from app.config.logging_config import setup_logging
 from app.database import engine
@@ -67,19 +68,20 @@ async def eventsub_callback(request: Request):
             challenge = body_json.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully.")
+                # Respond with the challenge and set Content-Type to exactly 'text/plain' without charset
                 return Response(content=challenge, media_type=None, headers={"Content-Type": "text/plain"})
             else:
                 logger.error("Challenge request missing 'challenge' field.")
-                return JSONResponse(status_code=400, content={"error": "Missing challenge field"})
+                return Response(status_code=400)
 
-        # Validate signature for notifications
+        # Validate signature for notifications and revocations
         message_id = headers.get("Twitch-Eventsub-Message-Id", "")
         timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
         signature = headers.get("Twitch-Eventsub-Message-Signature", "")
 
         if not all([message_id, timestamp, signature]):
             logger.error("Missing required headers for signature verification")
-            return JSONResponse(status_code=403, content={"error": "Missing required headers"})
+            return Response(status_code=403)
 
         # Compute and verify the HMAC signature
         hmac_message = message_id + timestamp + body.decode()
@@ -91,10 +93,10 @@ async def eventsub_callback(request: Request):
 
         if signature != expected_signature:
             logger.error("Invalid webhook signature")
-            return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+            return Response(status_code=403)
 
         # Process the notification
-        body_json = await request.json()
+        body_json = json.loads(body)
         logger.info(f"Notification received: {body_json}")
 
         # Initialize the event registry
@@ -106,28 +108,35 @@ async def eventsub_callback(request: Request):
 
             if not event_type or not event_data:
                 logger.error("Missing event type or data in notification")
-                return JSONResponse(status_code=400, content={"error": "Missing event type or data"})
+                return Response(status_code=400)
 
             handler = event_registry.handlers.get(event_type)
             if handler:
                 logger.info(f"Handling event type: {event_type}")
                 try:
-                    await handler(event_data)
-                    return JSONResponse(content={"message": "Event processed successfully"}, status_code=200)
+                    # Start event processing asynchronously
+                    asyncio.create_task(handler(event_data))
+                    # Return immediately with 204 No Content
+                    return Response(status_code=204)
                 except Exception as e:
                     logger.error(f"Error processing event: {e}", exc_info=True)
-                    return JSONResponse(status_code=500, content={"error": f"Error processing event: {str(e)}"})
+                    return Response(status_code=500)
             else:
                 logger.warning(f"No handler found for event type: {event_type}")
-                return JSONResponse(status_code=400, content={"error": f"No handler for event type: {event_type}"})
+                return Response(status_code=400)
+
+        # Handle revocation messages
+        if message_type == "revocation":
+            logger.warning("Subscription revoked by Twitch")
+            return Response(status_code=204)
 
         # Unsupported message type
         logger.warning(f"Unsupported message type: {message_type}")
-        return JSONResponse(status_code=400, content={"error": f"Unsupported message type: {message_type}"})
+        return Response(status_code=400)
 
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"error": f"Internal server error: {str(e)}"})
+        return Response(status_code=500)
     
 # API routes first
 app.include_router(streamers.router)
