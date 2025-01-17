@@ -30,8 +30,6 @@ class EventHandlerRegistry:
             port=settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop(),
-            wait_for_subscription_confirm=True,
-            wait_for_subscription_confirm_timeout=60
         )
         
         self.eventsub.start()
@@ -54,7 +52,12 @@ class EventHandlerRegistry:
             )
             logger.debug(f"Subscription response: {response}")
 
-            online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
+            online_sub = await self.eventsub.listen_stream_online(
+                twitch_id, 
+                self.handle_stream_online,
+                wait_for_subscription_confirm=True,
+                wait_for_subscription_confirm_timeout=60
+            )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
             # Log current subscriptions
