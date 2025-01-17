@@ -10,8 +10,8 @@ logger = logging.getLogger('streamvault')
 
 router = APIRouter(prefix="/test", tags=["test"])
 
-async def on_follow(data: ChannelFollowEvent):
-    logger.info(f'Follow Event Received: {data.event.user_name} now follows {data.event.broadcaster_user_name}!')
+async def on_online(data: ChannelFollowEvent):
+    logger.info(f'Online Event Received: {data.event.user_name}!')
 
 @router.get("/eventsub/test/{broadcaster_name}")
 async def test_eventsub(broadcaster_name: str):
@@ -53,14 +53,14 @@ async def test_eventsub(broadcaster_name: str):
         eventsub.start()
         logger.info("EventSub webhook server started successfully")
         
-        # Subscribe to follow events
-        logger.debug(f"Setting up follow event subscription for broadcaster ID: {broadcaster.id}")
-        subscription = await eventsub.listen_channel_follow_v2(
+        # Subscribe to stream.online events
+        logger.debug(f"Setting up stream.online subscription for broadcaster ID: {broadcaster.id}")
+        subscription = await eventsub.listen_stream_online(
             broadcaster_user_id=broadcaster.id,
-            moderator_user_id=broadcaster.id,
-            callback=on_follow
+            callback=on_online
         )
-        logger.info(f"Successfully subscribed to follow events. Subscription ID: {subscription}")
+        logger.info(f"Successfully subscribed to stream.online events. Subscription ID: {subscription}")
+        logger.info(f"Successfully subscribed to online events. Subscription ID: {subscription}")
         
         return {
             "status": "success",
