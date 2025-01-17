@@ -42,15 +42,14 @@ class EventHandlerRegistry:
             
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
-            subscription_statuses = {}
-
-            # Subscribe to stream.online
-            logger.debug("Unsubscribing from all existing subscriptions")
-            await self.eventsub.unsubscribe_all()
+            # Set up stream.online subscription with shorter timeout
             logger.debug("Setting up stream.online subscription")
-            online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
+            online_sub = await self.eventsub.listen_stream_online(
+                twitch_id, 
+                self.handle_stream_online,
+                timeout=10
+            )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
-            subscription_statuses['stream.online'] = online_sub
 
             # Log current subscriptions
             # subs = await self.twitch.get_eventsub_subscriptions()
@@ -71,20 +70,11 @@ class EventHandlerRegistry:
             # logger.info(f"Channel.update subscription created with ID: {update_sub}")
             # subscription_statuses['channel.update'] = update_sub
 
-            subs = await self.twitch.get_eventsub_subscriptions()
-            logger.debug(f"Subscriptions after channel.update: {subs.data}")
-
             logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to subscribe to events for user {twitch_id}: {e}", exc_info=True)
-            # Clean up any successful subscriptions
-            for sub_id in subscription_statuses.values():
-                try:
-                    await self.eventsub.delete_subscription(sub_id)
-                except Exception as cleanup_error:
-                    logger.error(f"Failed to clean up subscription {sub_id}: {cleanup_error}")
             raise
 
     async def handle_stream_online(self, data: dict):
