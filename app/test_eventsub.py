@@ -9,6 +9,7 @@ from twitchAPI.helper import first
 import asyncio
 from app.config.settings import settings
 import logging
+
 logger = logging.getLogger('streamvault')
 
 router = APIRouter(prefix="/test", tags=["test"])
@@ -36,7 +37,7 @@ async def test_eventsub(broadcaster_name: str):
         logger.info(f"Found broadcaster: {broadcaster.display_name} (ID: {broadcaster.id})")
         
         # Setup EventSub with test-specific callback URL and different port
-        full_webhook_url = f"{settings.WEBHOOK_URL}/test"
+        full_webhook_url = f"{settings.BASE_URL}/test/eventsub/test"
         test_port = settings.EVENTSUB_PORT + 1
         logger.debug(f"Initializing EventSub with test callback URL: {full_webhook_url} on port {test_port}")
         eventsub = EventSubWebhook(
@@ -63,55 +64,17 @@ async def test_eventsub(broadcaster_name: str):
             callback=on_online
         )
         logger.info(f"Successfully subscribed to stream.online events. Subscription ID: {subscription}")
-        logger.info(f"Successfully subscribed to online events. Subscription ID: {subscription}")
         
         return {
             "status": "success",
             "message": f"EventSub test started for broadcaster: {broadcaster_name}",
             "broadcaster_id": broadcaster.id,
             "subscription_id": subscription,
-            "callback_url": full_webhook_url
+            "callback_url": f"{full_webhook_url}/callback"
         }
         
     except Exception as e:
         logger.error(f"Error in test_eventsub: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/eventsub/stop")
-async def stop_eventsub():
-    try:
-        logger.info("Starting EventSub shutdown process")
-        
-        # Initialize Twitch API
-        logger.debug("Initializing Twitch API client for shutdown")
-        twitch = Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
-        await twitch.authenticate_app([])
-        logger.info("Twitch API client authenticated for shutdown")
-        
-        # Create EventSub instance
-        logger.debug("Creating EventSub instance for cleanup")
-        eventsub = EventSubWebhook(
-            callback_url=f"{settings.WEBHOOK_URL}/callback",
-            port=settings.EVENTSUB_PORT,
-            twitch=twitch
-        )
-        
-        # Cleanup subscriptions
-        logger.debug("Unsubscribing from all EventSub subscriptions")
-        await eventsub.unsubscribe_all()
-        logger.info("Successfully unsubscribed from all events")
-        
-        logger.debug("Stopping EventSub webhook server")
-        await eventsub.stop()
-        logger.info("EventSub webhook server stopped successfully")
-        
-        return {
-            "status": "success",
-            "message": "EventSub test stopped and all subscriptions cleared"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in stop_eventsub: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/eventsub/test/callback")
