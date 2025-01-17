@@ -13,10 +13,10 @@ async def on_follow(data: ChannelFollowEvent):
 @router.get("/eventsub/test/{broadcaster_name}")
 async def test_eventsub(broadcaster_name: str):
     try:
-        # Initialize Twitch API using settings
+        # Initialize Twitch API using settings - add await here
         twitch = await Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
         
-        # Get broadcaster info
+        # Get broadcaster info - this is already correctly awaited
         users = await twitch.get_users(logins=[broadcaster_name])
         if not users.data:
             raise HTTPException(status_code=404, detail="Broadcaster not found")
@@ -29,7 +29,7 @@ async def test_eventsub(broadcaster_name: str):
             twitch=twitch
         )
         
-        # Start EventSub
+        # Start EventSub - remove await from start() as it's not async
         await eventsub.unsubscribe_all()
         eventsub.start()
         
