@@ -42,12 +42,8 @@ class EventHandlerRegistry:
             
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
-            # Set up stream.online subscription with shorter timeout
             logger.debug("Setting up stream.online subscription")
-            online_sub = await self.eventsub.listen_stream_online(
-                twitch_id, 
-                self.handle_stream_online
-            )
+            online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
             # Log current subscriptions
