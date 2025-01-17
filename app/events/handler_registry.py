@@ -45,29 +45,31 @@ class EventHandlerRegistry:
             subscription_statuses = {}
 
             # Subscribe to stream.online
+            logger.debug("Unsubscribing from all existing subscriptions")
+            await self.eventsub.unsubscribe_all()
             logger.debug("Setting up stream.online subscription")
             online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
             subscription_statuses['stream.online'] = online_sub
 
             # Log current subscriptions
-            subs = await self.twitch.get_eventsub_subscriptions()
-            logger.debug(f"Subscriptions after stream.online: {subs.data}")
+            # subs = await self.twitch.get_eventsub_subscriptions()
+            # logger.debug(f"Subscriptions after stream.online: {subs.data}")
 
             # Subscribe to stream.offline
-            logger.debug("Setting up stream.offline subscription")
-            offline_sub = await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
-            logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
-            subscription_statuses['stream.offline'] = offline_sub
+            # logger.debug("Setting up stream.offline subscription")
+            # offline_sub = await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
+            # logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
+            # subscription_statuses['stream.offline'] = offline_sub
 
-            subs = await self.twitch.get_eventsub_subscriptions()
-            logger.debug(f"Subscriptions after stream.offline: {subs.data}")
+            # subs = await self.twitch.get_eventsub_subscriptions()
+            # logger.debug(f"Subscriptions after stream.offline: {subs.data}")
 
             # Subscribe to channel.update
-            logger.debug("Setting up channel.update subscription")
-            update_sub = await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
-            logger.info(f"Channel.update subscription created with ID: {update_sub}")
-            subscription_statuses['channel.update'] = update_sub
+            # logger.debug("Setting up channel.update subscription")
+            # update_sub = await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
+            # logger.info(f"Channel.update subscription created with ID: {update_sub}")
+            # subscription_statuses['channel.update'] = update_sub
 
             subs = await self.twitch.get_eventsub_subscriptions()
             logger.debug(f"Subscriptions after channel.update: {subs.data}")
