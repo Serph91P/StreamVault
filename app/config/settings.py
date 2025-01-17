@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     EVENTSUB_PORT: int = 8080
+    EVENTSUB_SECRET: str
 
     def __init__(self):
         super().__init__()
