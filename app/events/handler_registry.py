@@ -6,6 +6,7 @@ from app.services.websocket_manager import ConnectionManager
 from app.models import Streamer, Stream
 from app.config.settings import settings
 import logging
+import asyncio
 
 logger = logging.getLogger('streamvault')
 
@@ -27,7 +28,8 @@ class EventHandlerRegistry:
         self.eventsub = EventSubWebhook(
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
-            twitch=self.twitch
+            twitch=self.twitch,
+            callback_loop=asyncio.get_event_loop()
         )
         
         self.eventsub.start()
