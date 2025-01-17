@@ -36,7 +36,7 @@ async def test_eventsub(broadcaster_name: str):
         logger.info(f"Found broadcaster: {broadcaster.display_name} (ID: {broadcaster.id})")
         
         # Setup EventSub with test-specific callback URL and different port
-        full_webhook_url = f"{settings.WEBHOOK_URL}/test/callback"
+        full_webhook_url = f"{settings.WEBHOOK_URL}/test"
         test_port = settings.EVENTSUB_PORT + 1
         logger.debug(f"Initializing EventSub with test callback URL: {full_webhook_url} on port {test_port}")
         eventsub = EventSubWebhook(
