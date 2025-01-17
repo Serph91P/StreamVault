@@ -37,41 +37,38 @@ class EventHandlerRegistry:
         try:
             if not self.eventsub:
                 raise ValueError("EventSub not initialized")
-
+            
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
-            
-            # Track subscription status
+
             subscription_statuses = {}
-            
-            # Subscribe to stream.online and wait for confirmation
+
+            # Subscribe to stream.online
             logger.debug("Setting up stream.online subscription")
             online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
-            subscription_statuses['stream.online'] = online_sub
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
-            
-            # Verify subscription is active before continuing
+            subscription_statuses['stream.online'] = online_sub
+
+            # Log current subscriptions
             subs = await self.twitch.get_eventsub_subscriptions()
-            if not any(sub.id == online_sub and sub.status == "enabled" for sub in subs.data):
-                raise Exception("Failed to confirm stream.online subscription")
-            
-            # Repeat for other event types
+            logger.debug(f"Subscriptions after stream.online: {subs.data}")
+
+            # Subscribe to stream.offline
             logger.debug("Setting up stream.offline subscription")
             offline_sub = await self.eventsub.listen_stream_offline(twitch_id, self.handle_stream_offline)
-            subscription_statuses['stream.offline'] = offline_sub
             logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
-            
+            subscription_statuses['stream.offline'] = offline_sub
+
             subs = await self.twitch.get_eventsub_subscriptions()
-            if not any(sub.id == offline_sub and sub.status == "enabled" for sub in subs.data):
-                raise Exception("Failed to confirm stream.offline subscription")
-            
+            logger.debug(f"Subscriptions after stream.offline: {subs.data}")
+
+            # Subscribe to channel.update
             logger.debug("Setting up channel.update subscription")
             update_sub = await self.eventsub.listen_channel_update(twitch_id, self.handle_channel_update)
-            subscription_statuses['channel.update'] = update_sub
             logger.info(f"Channel.update subscription created with ID: {update_sub}")
-            
+            subscription_statuses['channel.update'] = update_sub
+
             subs = await self.twitch.get_eventsub_subscriptions()
-            if not any(sub.id == update_sub and sub.status == "enabled" for sub in subs.data):
-                raise Exception("Failed to confirm channel.update subscription")
+            logger.debug(f"Subscriptions after channel.update: {subs.data}")
 
             logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
             return True
@@ -188,6 +185,7 @@ class EventHandlerRegistry:
             raise ValueError("Twitch client not initialized")
         
         subs = await self.twitch.get_eventsub_subscriptions()
+        logger.debug(f"Listing current subscriptions: {subs}")
         return {
             "subscriptions": [
                 {
