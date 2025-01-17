@@ -14,7 +14,8 @@ async def on_follow(data: ChannelFollowEvent):
 async def test_eventsub(broadcaster_name: str):
     try:
         # Initialize Twitch API
-        twitch = await Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
+        twitch = Twitch(settings.TWITCH_APP_ID, settings.TWITCH_APP_SECRET)
+        await twitch.authenticate_app([])
         
         # Get broadcaster info
         users = await twitch.get_users(logins=[broadcaster_name])
