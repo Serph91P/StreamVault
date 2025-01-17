@@ -55,8 +55,8 @@ class EventHandlerRegistry:
             online_sub = await self.eventsub.listen_stream_online(
                 twitch_id, 
                 self.handle_stream_online,
-                wait_for_subscription_confirm=True,
-                wait_for_subscription_confirm_timeout=60
+                # wait_for_subscription_confirm=True,
+                # wait_for_subscription_confirm_timeout=60
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
