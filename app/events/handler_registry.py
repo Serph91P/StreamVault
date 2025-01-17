@@ -29,7 +29,9 @@ class EventHandlerRegistry:
             callback_url=settings.WEBHOOK_URL,
             port=settings.EVENTSUB_PORT,
             twitch=self.twitch,
-            callback_loop=asyncio.get_event_loop()
+            callback_loop=asyncio.get_event_loop(),
+            wait_for_subscription_confirm=True,
+            wait_for_subscription_confirm_timeout=60
         )
         
         self.eventsub.start()
@@ -43,6 +45,15 @@ class EventHandlerRegistry:
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
             logger.debug("Setting up stream.online subscription")
+
+            response = await self.twitch.create_eventsub_subscription(
+                'stream.online',
+                '1',
+                {'broadcaster_user_id': twitch_id},
+                {'method': 'webhook', 'callback': f"{settings.WEBHOOK_URL}/callback"}
+            )
+            logger.debug(f"Subscription response: {response}")
+
             online_sub = await self.eventsub.listen_stream_online(twitch_id, self.handle_stream_online)
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
