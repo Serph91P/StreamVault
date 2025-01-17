@@ -1,10 +1,11 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
 import logging
 import hmac
 import hashlib
+import json
 
 from app.config.logging_config import setup_logging
 from app.database import engine
@@ -62,11 +63,11 @@ async def eventsub_callback(request: Request):
 
         # Handle challenge requests
         if message_type == "webhook_callback_verification":
-            challenge_data = await request.json()
-            challenge = challenge_data.get("challenge")
+            body_json = json.loads(body)
+            challenge = body_json.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully.")
-                return Response(content=challenge, media_type="text/plain", status_code=200)
+                return PlainTextResponse(content=challenge)
             else:
                 logger.error("Challenge request missing 'challenge' field.")
                 return JSONResponse(status_code=400, content={"error": "Missing challenge field"})
