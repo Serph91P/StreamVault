@@ -52,98 +52,82 @@ async def eventsub_root():
 @app.post("/eventsub/callback")
 async def eventsub_callback(request: Request):
     try:
-        # Get the message type first
-        message_type = request.headers.get("Twitch-Eventsub-Message-Type")
-        
-        # Handle webhook verification
+        # Read the headers and body
+        headers = request.headers
+        body = await request.body()
+
+        # Extract the Twitch Message Type
+        message_type = headers.get("Twitch-Eventsub-Message-Type")
+        logger.debug(f"Received EventSub request: type={message_type}, headers={headers}, body={body}")
+
+        # Handle challenge requests
         if message_type == "webhook_callback_verification":
             challenge_data = await request.json()
-            challenge = challenge_data.get('challenge')
-            return Response(
-                content=challenge,
-                media_type="text/plain",
-                status_code=200
-            )
+            challenge = challenge_data.get("challenge")
+            if challenge:
+                logger.info("Challenge request received and processed successfully.")
+                return Response(content=challenge, media_type="text/plain", status_code=200)
+            else:
+                logger.error("Challenge request missing 'challenge' field.")
+                return JSONResponse(status_code=400, content={"error": "Missing challenge field"})
 
-        # For other event types, proceed with signature verification
-        body = await request.body()
-        headers = request.headers
-        
-        message_id = headers.get('Twitch-Eventsub-Message-Id', '')
-        timestamp = headers.get('Twitch-Eventsub-Message-Timestamp', '')
-        signature = headers.get('Twitch-Eventsub-Message-Signature', '')
+        # Validate signature for notifications
+        message_id = headers.get("Twitch-Eventsub-Message-Id", "")
+        timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
+        signature = headers.get("Twitch-Eventsub-Message-Signature", "")
 
-        # Skip signature verification for test events from twitch-cli
-        is_test_event = not all([message_id, timestamp, signature])
-        
-        if not is_test_event:
-            if not all([message_id, timestamp, signature]):
-                logger.error("Missing required headers for signature verification")
-                return JSONResponse(status_code=403, content={"error": "Missing required headers"})
-            
-            # Verify webhook signature
-            hmac_message = message_id + timestamp + body.decode()
-            expected_signature = 'sha256=' + hmac.new(
-                settings.WEBHOOK_SECRET.encode('utf-8'),
-                hmac_message.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            if signature != expected_signature:
-                logger.error("Invalid webhook signature")
-                return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+        if not all([message_id, timestamp, signature]):
+            logger.error("Missing required headers for signature verification")
+            return JSONResponse(status_code=403, content={"error": "Missing required headers"})
 
-        # Process the webhook payload
+        # Compute and verify the HMAC signature
+        hmac_message = message_id + timestamp + body.decode()
+        expected_signature = "sha256=" + hmac.new(
+            settings.WEBHOOK_SECRET.encode("utf-8"),
+            hmac_message.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        if signature != expected_signature:
+            logger.error("Invalid webhook signature")
+            return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+
+        # Process the notification
         body_json = await request.json()
-        logger.debug(f"Received EventSub request: headers={headers}, body={body_json}")
+        logger.info(f"Notification received: {body_json}")
 
-        # Initialize event registry
+        # Initialize the event registry
         event_registry = await get_event_registry()
 
-        # Handle notifications
         if message_type == "notification":
             event_type = body_json.get("subscription", {}).get("type")
             event_data = body_json.get("event")
 
             if not event_type or not event_data:
                 logger.error("Missing event type or data in notification")
-                return JSONResponse(
-                    status_code=400, 
-                    content={"error": "Missing event type or data"}
-                )
+                return JSONResponse(status_code=400, content={"error": "Missing event type or data"})
 
             handler = event_registry.handlers.get(event_type)
             if handler:
                 logger.info(f"Handling event type: {event_type}")
                 try:
                     await handler(event_data)
+                    return JSONResponse(content={"message": "Event processed successfully"}, status_code=200)
                 except Exception as e:
                     logger.error(f"Error processing event: {e}", exc_info=True)
-                    return JSONResponse(
-                        status_code=500, 
-                        content={"error": f"Error processing event: {str(e)}"}
-                    )
+                    return JSONResponse(status_code=500, content={"error": f"Error processing event: {str(e)}"})
             else:
                 logger.warning(f"No handler found for event type: {event_type}")
-                return JSONResponse(
-                    status_code=400, 
-                    content={"error": f"No handler for event type: {event_type}"}
-                )
+                return JSONResponse(status_code=400, content={"error": f"No handler for event type: {event_type}"})
 
-            return JSONResponse(content={"message": "Event processed successfully"})
+        # Unsupported message type
+        logger.warning(f"Unsupported message type: {message_type}")
+        return JSONResponse(status_code=400, content={"error": f"Unsupported message type: {message_type}"})
 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": f"Unsupported message type: {message_type}"}
-        )
-    
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Internal server error: {str(e)}"}
-        )
-
+        return JSONResponse(status_code=500, content={"error": f"Internal server error: {str(e)}"})
+    
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
