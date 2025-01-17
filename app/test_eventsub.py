@@ -24,13 +24,12 @@ async def test_eventsub(broadcaster_name: str):
         await twitch.authenticate_app([])
         logger.info("Twitch API client authenticated successfully")
         
-        # Get broadcaster info
+        # Get broadcaster info using first helper
         logger.debug(f"Fetching user info for broadcaster: {broadcaster_name}")
-        users = await twitch.get_users(logins=[broadcaster_name])
-        if not users.data:
+        broadcaster = await first(twitch.get_users(logins=[broadcaster_name]))
+        if not broadcaster:
             logger.error(f"Broadcaster not found: {broadcaster_name}")
             raise HTTPException(status_code=404, detail="Broadcaster not found")
-        broadcaster = users.data[0]
         logger.info(f"Found broadcaster: {broadcaster.display_name} (ID: {broadcaster.id})")
         
         # Setup EventSub
