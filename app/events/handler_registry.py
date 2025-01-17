@@ -56,7 +56,8 @@ class EventHandlerRegistry:
                 twitch_id, 
                 self.handle_stream_online,
                 wait_for_subscription_confirm=True,
-                wait_for_subscription_confirm_timeout=60
+                wait_for_subscription_confirm_timeout=60,
+                secret=settings.EVENTSUB_SECRET
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
