@@ -1,6 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from app.routes import streamers, auth
 import logging
 import hmac
@@ -67,7 +66,7 @@ async def eventsub_callback(request: Request):
             challenge = body_json.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully.")
-                return PlainTextResponse(content=challenge)
+                return Response(content=challenge, media_type="text/plain")
             else:
                 logger.error("Challenge request missing 'challenge' field.")
                 return JSONResponse(status_code=400, content={"error": "Missing challenge field"})
