@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException, Response, Request
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
+import hmac
+import hashlib
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from twitchAPI.object.eventsub import ChannelFollowEvent
@@ -118,27 +121,54 @@ async def handle_test_callback(request: Request):
         # Read the headers and body
         headers = request.headers
         body = await request.body()
-        
-        # Extract the message type
+
+        # Extract the Twitch Message Type
         message_type = headers.get("Twitch-Eventsub-Message-Type")
-        logger.debug(f"Received EventSub request: type={message_type}")
-        
-        # Handle challenge requests
+        logger.debug(f"Received EventSub request: type={message_type}, headers={headers}, body={body}")
+
+        # Verify signature
+        message_id = headers.get("Twitch-Eventsub-Message-Id", "")
+        timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
+        signature = headers.get("Twitch-Eventsub-Message-Signature", "")
+
+        if not all([message_id, timestamp, signature]):
+            logger.error("Missing required headers for signature verification")
+            return JSONResponse(status_code=403, content={"error": "Missing required headers"})
+
+        # Compute and verify HMAC signature
+        hmac_message = message_id + timestamp + body.decode()
+        expected_signature = "sha256=" + hmac.new(
+            settings.WEBHOOK_SECRET.encode("utf-8"),
+            hmac_message.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        if signature != expected_signature:
+            logger.error("Invalid webhook signature")
+            return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+
+        # Handle verification challenge
         if message_type == "webhook_callback_verification":
             challenge_data = await request.json()
             challenge = challenge_data.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully")
                 return Response(content=challenge, media_type="text/plain")
-        
-        # Handle actual events
+
+        # Handle notifications
         if message_type == "notification":
             data = await request.json()
             logger.info(f"Received event notification: {data}")
-            return {"status": "success"}
-            
+            return JSONResponse(content={"success": True})
+
+        # Handle revocation
+        if message_type == "revocation":
+            data = await request.json()
+            logger.warning(f"Subscription revoked: {data}")
+            return JSONResponse(content={"success": True})
+
         return Response(status_code=204)
-        
+
     except Exception as e:
         logger.error(f"Error handling test callback: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
