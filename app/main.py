@@ -14,13 +14,11 @@ from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
-from app.test_eventsub import router as test_router
 
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
-app.include_router(test_router)
 app.middleware("http")(logging_middleware)
 
 # WebSocket endpoint
