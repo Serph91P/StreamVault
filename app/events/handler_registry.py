@@ -48,7 +48,7 @@ class EventHandlerRegistry:
                 'stream.online',
                 '1',
                 {'broadcaster_user_id': twitch_id},
-                {'method': 'webhook', 'callback': f"{settings.WEBHOOK_URL}/callback"}
+                {'method': 'webhook', 'callback': f"{settings.WEBHOOK_URL}/callback", 'secret': settings.EVENTSUB_SECRET}
             )
             logger.debug(f"Subscription response: {response}")
 
@@ -56,8 +56,7 @@ class EventHandlerRegistry:
                 twitch_id, 
                 self.handle_stream_online,
                 wait_for_subscription_confirm=True,
-                wait_for_subscription_confirm_timeout=60,
-                secret=settings.EVENTSUB_SECRET
+                wait_for_subscription_confirm_timeout=60
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
