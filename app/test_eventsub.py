@@ -114,7 +114,7 @@ async def stop_eventsub():
         logger.error(f"Error in stop_eventsub: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/eventsub/test")
+@router.post("/eventsub/test/callback")
 async def handle_test_callback(request: Request):
     try:
         logger.debug("Received test callback")
