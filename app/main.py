@@ -96,34 +96,44 @@ async def eventsub_callback(request: Request):
             return Response(status_code=403)
 
         # Process the notification
-        body_json = json.loads(body)
-        logger.info(f"Notification received: {body_json}")
-
-        # Initialize the event registry
-        event_registry = await get_event_registry()
-
         if message_type == "notification":
+            event_registry = await get_event_registry()
+            body_json = json.loads(body)
             event_type = body_json.get("subscription", {}).get("type")
             event_data = body_json.get("event")
 
-            if not event_type or not event_data:
-                logger.error("Missing event type or data in notification")
-                return Response(status_code=400)
-
-            handler = event_registry.handlers.get(event_type)
-            if handler:
-                logger.info(f"Handling event type: {event_type}")
-                try:
-                    # Start event processing asynchronously
+            if event_type and event_data:
+                handler = event_registry.handlers.get(event_type)
+                if handler:
+                    # Process event asynchronously
                     asyncio.create_task(handler(event_data))
-                    # Return immediately with 204 No Content
                     return Response(status_code=204)
-                except Exception as e:
-                    logger.error(f"Error processing event: {e}", exc_info=True)
-                    return Response(status_code=500)
-            else:
-                logger.warning(f"No handler found for event type: {event_type}")
-                return Response(status_code=400)
+
+        # Initialize the event registry
+        # event_registry = await get_event_registry()
+
+        # if message_type == "notification":
+        #     event_type = body_json.get("subscription", {}).get("type")
+        #     event_data = body_json.get("event")
+
+        #     if not event_type or not event_data:
+        #         logger.error("Missing event type or data in notification")
+        #         return Response(status_code=400)
+
+        #     handler = event_registry.handlers.get(event_type)
+        #     if handler:
+        #         logger.info(f"Handling event type: {event_type}")
+        #         try:
+                    # Start event processing asynchronously
+                    # asyncio.create_task(handler(event_data))
+                    # Return immediately with 204 No Content
+            #         return Response(status_code=204)
+            #     except Exception as e:
+            #         logger.error(f"Error processing event: {e}", exc_info=True)
+            #         return Response(status_code=500)
+            # else:
+            #     logger.warning(f"No handler found for event type: {event_type}")
+            #     return Response(status_code=400)
 
         # Handle revocation messages
         if message_type == "revocation":
