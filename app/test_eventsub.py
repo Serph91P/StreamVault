@@ -56,8 +56,8 @@ async def test_eventsub(broadcaster_name: str):
         # Subscribe to follow events
         logger.debug(f"Setting up follow event subscription for broadcaster ID: {broadcaster.id}")
         subscription = await eventsub.listen_channel_follow_v2(
-            broadcaster_id=broadcaster.id,
-            moderator_id=broadcaster.id,
+            broadcaster_user_id=broadcaster.id,
+            moderator_user_id=broadcaster.id,
             callback=on_follow
         )
         logger.info(f"Successfully subscribed to follow events. Subscription ID: {subscription}")
