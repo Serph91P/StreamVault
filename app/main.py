@@ -8,6 +8,8 @@ import hashlib
 import json
 import asyncio
 
+from app.events.handler_registry import EventHandlerRegistry
+
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
