@@ -44,13 +44,16 @@ class EventHandlerRegistry:
 
             logger.debug("Setting up stream.online subscription")
 
-            response = await self.twitch.create_eventsub_subscription(
-                'stream.online',
-                '1',
-                {'broadcaster_user_id': twitch_id},
-                {'method': 'webhook', 'callback': f"{settings.WEBHOOK_URL}/callback", 'secret': settings.EVENTSUB_SECRET}
-            )
-            logger.debug(f"Subscription response: {response}")
+            existing_subs = await self.twitch.get_eventsub_subscriptions()
+            logger.debug(f"Existing subscriptions: {existing_subs}")
+
+            # response = await self.twitch.create_eventsub_subscription(
+            #     'stream.online',
+            #     '1',
+            #     {'broadcaster_user_id': twitch_id},
+            #     {'method': 'webhook', 'callback': f"{settings.WEBHOOK_URL}/callback", 'secret': settings.EVENTSUB_SECRET}
+            # )
+            # logger.debug(f"Subscription response: {response}")
 
             online_sub = await self.eventsub.listen_stream_online(
                 twitch_id, 
@@ -83,7 +86,9 @@ class EventHandlerRegistry:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to subscribe to events for user {twitch_id}: {e}", exc_info=True)
+            logger.error(f"Error subscribing to Twitch EventSub: {e}", exc_info=True)
+            if hasattr(e, 'response') and e.response:
+                logger.error(f"Twitch API response: {e.response.text}")
             raise
 
     async def handle_stream_online(self, data: dict):
