@@ -35,7 +35,7 @@ class EventHandlerRegistry:
             callback_loop=asyncio.get_event_loop()
         )
 
-        eventsub.secret = self.settings.EVENTSUB_SECRET
+        self.eventsub.secret = self.settings.EVENTSUB_SECRET
 
         self.eventsub.start()
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
