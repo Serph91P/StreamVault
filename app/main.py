@@ -154,7 +154,7 @@ app.include_router(auth.router, prefix="/auth")
 
 
 #Subscription test
-@router.post("/test-subscription/{twitch_id}")
+@app.post("/test-subscription/{twitch_id}")
 async def test_subscription(twitch_id: str, event_registry: EventHandlerRegistry = Depends(get_event_registry)):
     try:
         logger.debug(f"Testing subscription for Twitch ID: {twitch_id}")
@@ -171,7 +171,7 @@ async def test_subscription(twitch_id: str, event_registry: EventHandlerRegistry
         return {"success": False, "error": str(e)}
 
 #Delete all subscriptions
-@router.delete("/delete-all-subscriptions")
+@app.delete("/delete-all-subscriptions")
 async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
     try:
         logger.debug("Deleting all subscriptions")
