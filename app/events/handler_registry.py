@@ -16,6 +16,7 @@ class EventHandlerRegistry:
         self.manager = connection_manager
         self.twitch = twitch
         self.eventsub = None
+        self.settings = settings
         self.register_handlers()
 
     async def initialize_eventsub(self):
