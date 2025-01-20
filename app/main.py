@@ -69,9 +69,19 @@ async def eventsub_callback(request: Request):
         message_type = headers.get("Twitch-Eventsub-Message-Type")
         logger.debug(f"Received EventSub request: type={message_type}")
 
-        # Handle challenge requests with exact content-type requirement
+        valid_message_types = {"webhook_callback_verification", "notification", "revocation"}
+        if message_type not in valid_message_types:
+            logger.warning(f"Unsupported message type: {message_type}")
+            return Response(status_code=400)
+
+        # Handle challenge requests
         if message_type == "webhook_callback_verification":
-            body_json = json.loads(body)
+            try:
+                body_json = json.loads(body)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON body: {e}")
+                return Response(status_code=400)
+
             challenge = body_json.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully.")
@@ -80,7 +90,7 @@ async def eventsub_callback(request: Request):
                 logger.error("Challenge request missing 'challenge' field.")
                 return Response(status_code=400)
 
-        # Validate signature for notifications and revocations
+        # Validate signature
         message_id = headers.get("Twitch-Eventsub-Message-Id", "")
         timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
         signature = headers.get("Twitch-Eventsub-Message-Signature", "")
@@ -93,7 +103,6 @@ async def eventsub_callback(request: Request):
             logger.error("Missing required headers for signature verification")
             return Response(status_code=403)
 
-        # Compute and verify the HMAC signature
         hmac_message = message_id + timestamp + body.decode()
         expected_signature = "sha256=" + hmac.new(
             settings.WEBHOOK_SECRET.encode("utf-8"),
@@ -105,74 +114,53 @@ async def eventsub_callback(request: Request):
         logger.debug(f"HMAC message content: {hmac_message}")
 
         if signature != expected_signature:
-            logger.error("Invalid webhook signature")
+            logger.error(
+                "Invalid webhook signature. "
+                f"Expected: {expected_signature}, Received: {signature}, HMAC Message: {hmac_message}"
+            )
             return Response(status_code=403)
 
-                    # Process event asynchronously
-                    asyncio.create_task(handler(event_data))
-                    return Response(status_code=204)
-
-        # Initialize the event registry
-        # event_registry = await get_event_registry()
-
-        # if message_type == "notification":
-        #     event_type = body_json.get("subscription", {}).get("type")
-        #     event_data = body_json.get("event")
-
-        #     if not event_type or not event_data:
-        #         logger.error("Missing event type or data in notification")
-        #         return Response(status_code=400)
-
-        #     handler = event_registry.handlers.get(event_type)
-        #     if handler:
-        #         logger.info(f"Handling event type: {event_type}")
-        #         try:
-                    # Start event processing asynchronously
-                    # asyncio.create_task(handler(event_data))
-                    # Return immediately with 204 No Content
-            #         return Response(status_code=204)
-            #     except Exception as e:
-            #         logger.error(f"Error processing event: {e}", exc_info=True)
-            #         return Response(status_code=500)
-            # else:
-            #     logger.warning(f"No handler found for event type: {event_type}")
-            #     return Response(status_code=400)
-
-        # Process the notification
+        # Process notifications
         if message_type == "notification":
+            try:
+                body_json = json.loads(body)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON body: {e}")
+                return Response(status_code=400)
+
             event_registry = await get_event_registry()
-            body_json = json.loads(body)
             event_type = body_json.get("subscription", {}).get("type")
             event_data = body_json.get("event")
 
             logger.debug(f"Event type: {event_type}")
             logger.debug(f"Event data: {event_data}")
 
-            if event_type and event_data:
-                handler = event_registry.handlers.get(event_type)
-                if handler:
-                    try:
-                        asyncio.create_task(handler(event_data))
-                        return Response(status_code=204)
-                    except Exception as e:
-                        logger.error(f"Error in event handler for {event_type}: {e}", exc_info=True)
-                        return Response(status_code=500)
-                else:
-                    logger.warning(f"No handler found for event type: {event_type}")
-                    return Response(status_code=400)
+            handler = event_registry.handlers.get(event_type)
+            if handler:
+                try:
+                    await asyncio.wait_for(handler(event_data), timeout=5.0)
+                    return Response(status_code=204)
+                except asyncio.TimeoutError:
+                    logger.error(f"Handler for {event_type} timed out")
+                    return Response(status_code=500)
+                except Exception as e:
+                    logger.error(f"Error in event handler for {event_type}: {e}", exc_info=True)
+                    return Response(status_code=500)
+            else:
+                logger.warning(f"No handler found for event type: {event_type}. Available handlers: {list(event_registry.handlers.keys())}")
+                return Response(status_code=400)
 
-        # Handle revocation messages
         if message_type == "revocation":
-            logger.warning("Subscription revoked by Twitch")
+            body_json = json.loads(body)
+            subscription_id = body_json.get("subscription", {}).get("id", "unknown")
+            reason = body_json.get("subscription", {}).get("status", "unknown reason")
+            logger.warning(f"Subscription {subscription_id} revoked by Twitch. Reason: {reason}")
             return Response(status_code=204)
-
-        # Unsupported message type
-        logger.warning(f"Unsupported message type: {message_type}")
-        return Response(status_code=400)
 
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
         return Response(status_code=500)
+
     
 # API routes first
 app.include_router(streamers.router)
