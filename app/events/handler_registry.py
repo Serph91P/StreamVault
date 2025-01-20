@@ -27,8 +27,8 @@ class EventHandlerRegistry:
         logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
         
         self.eventsub = EventSubWebhook(
-            callback_url=settings.WEBHOOK_URL,
-            port=settings.EVENTSUB_PORT,
+            callback_url=self.settings.WEBHOOK_URL,
+            port=self.settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop(),
         )
