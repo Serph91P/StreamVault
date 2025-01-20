@@ -68,40 +68,60 @@ class EventHandlerRegistry:
 
     async def handle_stream_online(self, data: dict):
         try:
-            logger.debug(f"Handling stream.online event with data: {data}")
-            twitch_id = str(data.get("broadcaster_user_id"))
-            streamer_name = data.get("broadcaster_user_name")
+            logger.info(f"Stream online event received: {data}")
 
-            if not twitch_id or not streamer_name:
-                logger.error("Missing broadcaster data in event")
+            # Basic logging to ensure event data is received and parsed correctly
+            broadcaster_id = data.get("broadcaster_user_id")
+            broadcaster_name = data.get("broadcaster_user_name")
+
+            if not broadcaster_id or not broadcaster_name:
+                logger.warning("Missing broadcaster information in event data")
                 return
 
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
-                if streamer:
-                    new_stream = Stream(
-                        streamer_id=streamer.id,
-                        event_type='stream.online'
-                    )
-                    db.add(new_stream)
-                    db.commit()
+            logger.debug(f"Broadcaster ID: {broadcaster_id}, Name: {broadcaster_name}")
 
-                    await self.manager.send_notification({
-                        "type": "stream.online",
-                        "data": {
-                            "streamer_id": twitch_id,
-                            "streamer_name": streamer_name
-                        }
-                    })
-                    logger.info(f"Handled stream online event for {streamer_name}")
-                else:
-                    logger.warning(f"No streamer found for twitch_id: {twitch_id}")
+            # Placeholder for further processing logic
+            logger.info(f"Processing stream.online event for {broadcaster_name}")
+
         except Exception as e:
             logger.error(f"Error handling stream.online event: {e}", exc_info=True)
-            raise
 
-    def register_handlers(self):
-        self.handlers['stream.online'] = self.handle_stream_online
+    # async def handle_stream_online(self, data: dict):
+    #     try:
+    #         logger.debug(f"Handling stream.online event with data: {data}")
+    #         twitch_id = str(data.get("broadcaster_user_id"))
+    #         streamer_name = data.get("broadcaster_user_name")
+
+    #         if not twitch_id or not streamer_name:
+    #             logger.error("Missing broadcaster data in event")
+    #             return
+
+    #         with SessionLocal() as db:
+    #             streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
+    #             if streamer:
+    #                 new_stream = Stream(
+    #                     streamer_id=streamer.id,
+    #                     event_type='stream.online'
+    #                 )
+    #                 db.add(new_stream)
+    #                 db.commit()
+
+    #                 await self.manager.send_notification({
+    #                     "type": "stream.online",
+    #                     "data": {
+    #                         "streamer_id": twitch_id,
+    #                         "streamer_name": streamer_name
+    #                     }
+    #                 })
+    #                 logger.info(f"Handled stream online event for {streamer_name}")
+    #             else:
+    #                 logger.warning(f"No streamer found for twitch_id: {twitch_id}")
+    #     except Exception as e:
+    #         logger.error(f"Error handling stream.online event: {e}", exc_info=True)
+    #         raise
+
+    # def register_handlers(self):
+    #     self.handlers['stream.online'] = self.handle_stream_online
 
     async def list_subscriptions(self):
         if not self.twitch:
