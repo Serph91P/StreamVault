@@ -152,6 +152,35 @@ async def eventsub_callback(request: Request):
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 
+
+#Subscription test
+@router.post("/test-subscription/{twitch_id}")
+async def test_subscription(twitch_id: str, event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+    try:
+        logger.debug(f"Testing subscription for Twitch ID: {twitch_id}")
+        response = await event_registry.twitch.create_eventsub_subscription(
+            'stream.online',
+            '1',
+            {'broadcaster_user_id': twitch_id},
+            {'method': 'webhook', 'callback': f"{event_registry.settings.WEBHOOK_URL}/callback", 'secret': event_registry.settings.EVENTSUB_SECRET}
+        )
+        logger.debug(f"Subscription response: {response}")
+        return {"success": True, "response": response}
+    except Exception as e:
+        logger.error(f"Error testing subscription for Twitch ID {twitch_id}: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+#Delete all subscriptions
+@router.delete("/delete-all-subscriptions")
+async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+    try:
+        logger.debug("Deleting all subscriptions")
+        result = await event_registry.delete_all_subscriptions()
+        return {"success": True, "result": result}
+    except Exception as e:
+        logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
 
