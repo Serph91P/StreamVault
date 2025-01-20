@@ -4,7 +4,7 @@ import SubscriptionsView from '../views/SubscriptionsView.vue';
 import AddStreamerView from '../views/AddStreamerView.vue';
 import SetupView from '../views/SetupView.vue';
 import LoginView from '../views/LoginView.vue';
-import AdminView from './views/AdminView.vue';
+import AdminView from '../views/AdminView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -38,8 +38,7 @@ const router = createRouter({
       path: "/admin",
       name: "Admin",
       component: AdminView,
-    }
-    
+    },
   ],
 });
 
