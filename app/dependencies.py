@@ -45,7 +45,7 @@ async def get_event_registry():
         logger.debug("Initializing event registry")
         twitch = await get_twitch()
         logger.debug(f"Twitch client initialized: {twitch}")
-        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, twitch=twitch)
+        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, twitch=twitch, settings=settings)
         await event_registry.initialize_eventsub()
         logger.debug("Event registry initialization complete")
     return event_registry
