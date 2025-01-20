@@ -161,7 +161,13 @@ async def test_subscription(
     twitch_id: str, 
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
+    logger.debug(f"Received request to test subscription for Twitch ID: {twitch_id}")
     try:
+        logger.debug(f"Starting EventSub subscription creation for Twitch ID: {twitch_id}")
+        logger.debug(f"EventSub callback URL: {event_registry.settings.WEBHOOK_URL}/callback")
+        logger.debug(f"EventSub secret: {event_registry.settings.EVENTSUB_SECRET}")
+
+        # Attempt to create the subscription
         response = await event_registry.twitch.create_eventsub_subscription(
             'stream.online',
             '1',
@@ -172,8 +178,11 @@ async def test_subscription(
                 'secret': event_registry.settings.EVENTSUB_SECRET
             }
         )
+
+        logger.debug(f"Subscription creation response: {response}")
         return {"success": True, "response": response}
     except Exception as e:
+        logger.error(f"Error during subscription test for Twitch ID {twitch_id}: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
 #Delete all subscriptions
