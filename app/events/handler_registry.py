@@ -31,7 +31,6 @@ class EventHandlerRegistry:
             port=self.settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop(),
-            secret=self.settings.EVENTSUB_SECRET,  # Ensure the secret is configured here
             wait_for_subscription_confirm=True  # Explicitly set confirmation
         )
         
