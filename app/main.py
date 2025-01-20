@@ -60,17 +60,21 @@ async def eventsub_callback(request: Request):
         headers = request.headers
         body = await request.body()
 
+        # Debug logging for request details
+        logger.debug(f"Raw headers: {dict(headers)}")
+        logger.debug(f"Raw body length: {len(body)}")
+        logger.debug(f"Raw body content: {body.decode()}")
+
         # Extract the Twitch Message Type
         message_type = headers.get("Twitch-Eventsub-Message-Type")
-        logger.debug(f"Received EventSub request: type={message_type}, headers={headers}, body={body}")
+        logger.debug(f"Received EventSub request: type={message_type}")
 
-        # Handle challenge requests
+        # Handle challenge requests with exact content-type requirement
         if message_type == "webhook_callback_verification":
             body_json = json.loads(body)
             challenge = body_json.get("challenge")
             if challenge:
                 logger.info("Challenge request received and processed successfully.")
-                # Respond with the challenge and set Content-Type to exactly 'text/plain' without charset
                 return Response(content=challenge, media_type=None, headers={"Content-Type": "text/plain"})
             else:
                 logger.error("Challenge request missing 'challenge' field.")
@@ -80,6 +84,10 @@ async def eventsub_callback(request: Request):
         message_id = headers.get("Twitch-Eventsub-Message-Id", "")
         timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
         signature = headers.get("Twitch-Eventsub-Message-Signature", "")
+
+        logger.debug(f"Message ID: {message_id}")
+        logger.debug(f"Timestamp: {timestamp}")
+        logger.debug(f"Received signature: {signature}")
 
         if not all([message_id, timestamp, signature]):
             logger.error("Missing required headers for signature verification")
@@ -93,20 +101,13 @@ async def eventsub_callback(request: Request):
             hashlib.sha256
         ).hexdigest()
 
+        logger.debug(f"Computed signature: {expected_signature}")
+        logger.debug(f"HMAC message content: {hmac_message}")
+
         if signature != expected_signature:
             logger.error("Invalid webhook signature")
             return Response(status_code=403)
 
-        # Process the notification
-        if message_type == "notification":
-            event_registry = await get_event_registry()
-            body_json = json.loads(body)
-            event_type = body_json.get("subscription", {}).get("type")
-            event_data = body_json.get("event")
-
-            if event_type and event_data:
-                handler = event_registry.handlers.get(event_type)
-                if handler:
                     # Process event asynchronously
                     asyncio.create_task(handler(event_data))
                     return Response(status_code=204)
@@ -136,6 +137,29 @@ async def eventsub_callback(request: Request):
             # else:
             #     logger.warning(f"No handler found for event type: {event_type}")
             #     return Response(status_code=400)
+
+        # Process the notification
+        if message_type == "notification":
+            event_registry = await get_event_registry()
+            body_json = json.loads(body)
+            event_type = body_json.get("subscription", {}).get("type")
+            event_data = body_json.get("event")
+
+            logger.debug(f"Event type: {event_type}")
+            logger.debug(f"Event data: {event_data}")
+
+            if event_type and event_data:
+                handler = event_registry.handlers.get(event_type)
+                if handler:
+                    try:
+                        asyncio.create_task(handler(event_data))
+                        return Response(status_code=204)
+                    except Exception as e:
+                        logger.error(f"Error in event handler for {event_type}: {e}", exc_info=True)
+                        return Response(status_code=500)
+                else:
+                    logger.warning(f"No handler found for event type: {event_type}")
+                    return Response(status_code=400)
 
         # Handle revocation messages
         if message_type == "revocation":
@@ -178,9 +202,19 @@ async def test_subscription(
                 'secret': event_registry.settings.EVENTSUB_SECRET
             }
         )
+        
+        logger.debug(f"Raw subscription creation response: {response}")
 
-        logger.debug(f"Subscription creation response: {response}")
-        return {"success": True, "response": response}
+        # Fetch existing subscriptions for additional context
+        existing_subscriptions = await event_registry.twitch.get_eventsub_subscriptions()
+        logger.debug(f"Existing EventSub subscriptions: {existing_subscriptions}")
+
+        # Return detailed response
+        return {
+            "success": True,
+            "response": response,
+            "existing_subscriptions": existing_subscriptions.data if existing_subscriptions else "No subscriptions found"
+        }
     except Exception as e:
         logger.error(f"Error during subscription test for Twitch ID {twitch_id}: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
