@@ -7,6 +7,8 @@ from app.models import Streamer, Stream
 from app.config.settings import settings
 import logging
 import asyncio
+import hmac
+import hashlib
 
 logger = logging.getLogger('streamvault')
 
@@ -22,17 +24,17 @@ class EventHandlerRegistry:
     async def initialize_eventsub(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
-        
+
         full_webhook_url = f"{settings.WEBHOOK_URL}"
         logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
-        
+
         self.eventsub = EventSubWebhook(
             callback_url=full_webhook_url,
             port=self.settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop()
         )
-        
+
         self.eventsub.start()
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
 
@@ -40,7 +42,7 @@ class EventHandlerRegistry:
         try:
             if not self.eventsub:
                 raise ValueError("EventSub not initialized")
-            
+
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
             # Check existing subscriptions
@@ -50,8 +52,8 @@ class EventHandlerRegistry:
             # Subscribe to stream.online event
             logger.debug("Setting up stream.online subscription")
             online_sub = await self.eventsub.listen_stream_online(
-                twitch_id,
-                self.handle_stream_online
+                broadcaster_user_id=twitch_id,
+                callback=self.handle_stream_online
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
@@ -83,7 +85,7 @@ class EventHandlerRegistry:
                     )
                     db.add(new_stream)
                     db.commit()
-                    
+
                     await self.manager.send_notification({
                         "type": "stream.online",
                         "data": {
@@ -98,73 +100,13 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream.online event: {e}", exc_info=True)
             raise
 
-    # async def handle_stream_offline(self, data: dict) -> None:
-    #     try:
-    #         logger.debug(f"Handling stream.offline event with data: {data}")
-    #         twitch_id = str(data.get("broadcaster_user_id"))
-
-    #         if not twitch_id:
-    #             logger.error("Missing broadcaster_user_id in event data")
-    #             return
-
-    #         with SessionLocal() as db:
-    #             streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
-    #             if streamer:
-    #                 new_stream = Stream(
-    #                     streamer_id=streamer.id,
-    #                     event_type='stream.offline'
-    #                 )
-    #                 db.add(new_stream)
-    #                 db.commit()
-    #                 await self.manager.send_notification({
-    #                     "type": "stream.offline",
-    #                     "data": {
-    #                         "streamer_id": twitch_id,
-    #                         "streamer_name": streamer.username
-    #                     }
-    #                 })
-    #                 logger.info(f"Handled stream offline event for {streamer.username}")
-    #             else:
-    #                 logger.warning(f"No streamer found for twitch_id: {twitch_id}")
-    #     except Exception as e:
-    #         logger.error(f"Error handling stream.offline event: {e}", exc_info=True)
-    #         raise
-
-    # async def handle_channel_update(self, data: dict) -> None:
-    #     try:
-    #         logger.debug(f"Handling channel.update event with data: {data}")
-    #         twitch_id = str(data.get("broadcaster_user_id"))
-
-    #         if not twitch_id:
-    #             logger.error("Missing broadcaster_user_id in event data")
-    #             return
-
-    #         with SessionLocal() as db:
-    #             streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
-    #             if streamer:
-    #                 await self.manager.send_notification({
-    #                     "type": "channel.update",
-    #                     "data": {
-    #                         "streamer_id": twitch_id,
-    #                         "streamer_name": streamer.username
-    #                     }
-    #                 })
-    #                 logger.info(f"Handled channel update event for {streamer.username}")
-    #             else:
-    #                 logger.warning(f"No streamer found for twitch_id: {twitch_id}")
-    #     except Exception as e:
-    #         logger.error(f"Error handling channel.update event: {e}", exc_info=True)
-    #         raise
-
     def register_handlers(self):
         self.handlers['stream.online'] = self.handle_stream_online
-        # self.handlers['stream.offline'] = self.handle_stream_offline
-        # self.handlers['channel.update'] = self.handle_channel_update
 
     async def list_subscriptions(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
-        
+
         subs = await self.twitch.get_eventsub_subscriptions()
         logger.debug(f"Listing current subscriptions: {subs}")
         return {
@@ -183,17 +125,17 @@ class EventHandlerRegistry:
     async def delete_subscription(self, subscription_id: str):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
-        
+
         await self.twitch.delete_eventsub_subscription(subscription_id)
         return {"message": f"Subscription {subscription_id} deleted successfully"}
 
     async def delete_all_subscriptions(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
-        
+
         subs = await self.twitch.get_eventsub_subscriptions()
         deletion_results = []
-        
+
         for sub in subs.data:
             try:
                 await self.twitch.delete_eventsub_subscription(sub.id)
@@ -201,7 +143,7 @@ class EventHandlerRegistry:
             except Exception as e:
                 logger.error(f"Failed to delete subscription {sub.id}: {e}")
                 deletion_results.append({"id": sub.id, "status": "failed", "error": str(e)})
-        
+
         return {
             "message": "Subscription deletion complete",
             "results": deletion_results
