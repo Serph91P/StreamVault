@@ -23,7 +23,7 @@ class EventHandlerRegistry:
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
         
-        full_webhook_url = f"{settings.WEBHOOK_URL}/callback"
+        full_webhook_url = f"{settings.WEBHOOK_URL}"
         logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
         
         self.eventsub = EventSubWebhook(
