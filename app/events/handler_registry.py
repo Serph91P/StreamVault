@@ -35,6 +35,8 @@ class EventHandlerRegistry:
             callback_loop=asyncio.get_event_loop()
         )
 
+        eventsub.secret = self.settings.EVENTSUB_SECRET
+
         self.eventsub.start()
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
 
@@ -67,24 +69,8 @@ class EventHandlerRegistry:
             raise
 
     async def handle_stream_online(self, data: dict):
-        try:
-            logger.info(f"Stream online event received: {data}")
+        logger.info(f"Stream online event received: {data}")
 
-            # Basic logging to ensure event data is received and parsed correctly
-            broadcaster_id = data.get("broadcaster_user_id")
-            broadcaster_name = data.get("broadcaster_user_name")
-
-            if not broadcaster_id or not broadcaster_name:
-                logger.warning("Missing broadcaster information in event data")
-                return
-
-            logger.debug(f"Broadcaster ID: {broadcaster_id}, Name: {broadcaster_name}")
-
-            # Placeholder for further processing logic
-            logger.info(f"Processing stream.online event for {broadcaster_name}")
-
-        except Exception as e:
-            logger.error(f"Error handling stream.online event: {e}", exc_info=True)
 
     # async def handle_stream_online(self, data: dict):
     #     try:
