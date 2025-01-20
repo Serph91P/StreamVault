@@ -51,8 +51,8 @@ class EventHandlerRegistry:
             logger.debug("Setting up stream.online subscription")
             online_sub = await self.eventsub.listen_stream_online(
                 twitch_id,
-                secret=self.settings.EVENTSUB_SECRET,
-                self.handle_stream_online
+                self.handle_stream_online,
+                secret=self.settings.EVENTSUB_SECRET
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
