@@ -47,7 +47,8 @@ class AuthMiddleware:
                 "/static/",
                 "/assets/",
                 "/api/streamers/test",
-                "/api/admin/test-subscription"
+                "/api/admin/test-subscription",
+                "/api/admin/delete-all-subscriptions"
             ]
 
             if any(request.url.path.startswith(path) for path in public_paths):
