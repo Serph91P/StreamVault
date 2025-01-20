@@ -156,58 +156,58 @@ app.include_router(auth.router, prefix="/auth")
 
 
 #Subscription test
-@app.post("/api/admin/test-subscription/{twitch_id}")
-async def test_subscription(
-    twitch_id: str, 
-    event_registry: EventHandlerRegistry = Depends(get_event_registry)
-):
-    try:
-        response = await event_registry.twitch.create_eventsub_subscription(
-            'stream.online',
-            '1',
-            {'broadcaster_user_id': twitch_id},
-            {
-                'method': 'webhook', 
-                'callback': f"{event_registry.settings.WEBHOOK_URL}/callback", 
-                'secret': event_registry.settings.EVENTSUB_SECRET
-            }
-        )
-        return {"success": True, "response": response}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# @app.post("/api/admin/test-subscription/{twitch_id}")
+# async def test_subscription(
+#     twitch_id: str, 
+#     event_registry: EventHandlerRegistry = Depends(get_event_registry)
+# ):
+#     try:
+#         response = await event_registry.twitch.create_eventsub_subscription(
+#             'stream.online',
+#             '1',
+#             {'broadcaster_user_id': twitch_id},
+#             {
+#                 'method': 'webhook', 
+#                 'callback': f"{event_registry.settings.WEBHOOK_URL}/callback", 
+#                 'secret': event_registry.settings.EVENTSUB_SECRET
+#             }
+#         )
+#         return {"success": True, "response": response}
+#     except Exception as e:
+#         return {"success": False, "error": str(e)}
 
 #Delete all subscriptions
-@app.delete("/delete-all-subscriptions")
-async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
-    try:
-        logger.debug("Attempting to delete all subscriptions")
+# @app.delete("/delete-all-subscriptions")
+# async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+#     try:
+#         logger.debug("Attempting to delete all subscriptions")
         
-        # Holen aller bestehenden Subscriptions
-        existing_subs = await event_registry.twitch.get_eventsub_subscriptions()
-        logger.debug(f"Found {len(existing_subs.data)} subscriptions to delete")
+#         # Holen aller bestehenden Subscriptions
+#         existing_subs = await event_registry.twitch.get_eventsub_subscriptions()
+#         logger.debug(f"Found {len(existing_subs.data)} subscriptions to delete")
         
-        # Löschen jeder einzelnen Subscription
-        results = []
-        for sub in existing_subs.data:
-            try:
-                await event_registry.twitch.delete_eventsub_subscription(sub.id)
-                logger.info(f"Deleted subscription {sub.id}")
-                results.append({"id": sub.id, "status": "deleted"})
-            except Exception as sub_error:
-                logger.error(f"Failed to delete subscription {sub.id}: {sub_error}", exc_info=True)
-                results.append({"id": sub.id, "status": "failed", "error": str(sub_error)})
+#         # Löschen jeder einzelnen Subscription
+#         results = []
+#         for sub in existing_subs.data:
+#             try:
+#                 await event_registry.twitch.delete_eventsub_subscription(sub.id)
+#                 logger.info(f"Deleted subscription {sub.id}")
+#                 results.append({"id": sub.id, "status": "deleted"})
+#             except Exception as sub_error:
+#                 logger.error(f"Failed to delete subscription {sub.id}: {sub_error}", exc_info=True)
+#                 results.append({"id": sub.id, "status": "failed", "error": str(sub_error)})
         
-        # Zusammenfassung der Ergebnisse
-        return {
-            "success": True,
-            "deleted_subscriptions": results,
-            "total_deleted": len([res for res in results if res["status"] == "deleted"]),
-            "total_failed": len([res for res in results if res["status"] == "failed"]),
-        }
+#         # Zusammenfassung der Ergebnisse
+#         return {
+#             "success": True,
+#             "deleted_subscriptions": results,
+#             "total_deleted": len([res for res in results if res["status"] == "deleted"]),
+#             "total_failed": len([res for res in results if res["status"] == "failed"]),
+#         }
 
-    except Exception as e:
-        logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+#     except Exception as e:
+#         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
+#         return {"success": False, "error": str(e)}
 
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
