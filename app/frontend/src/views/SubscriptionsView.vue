@@ -87,31 +87,46 @@ async function loadSubscriptions() {
 
 async function deleteSubscription(id: string) {
   try {
-    await fetch(`/api/streamers/subscriptions/${id}`, {
+    const response = await fetch(`/api/streamers/subscriptions/${id}`, {
       method: 'DELETE'
     })
-    await loadSubscriptions()
+    if (!response.ok) throw new Error('Failed to delete subscription')
+    
+    // Remove from local list
+    subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
   } catch (error) {
     console.error('Failed to delete subscription:', error)
   }
 }
 
-async function deleteAllSubscriptions() {
+const deleteAllSubscriptions = async () => {
   if (!confirm('Are you sure you want to delete all subscriptions?')) return
   
   loading.value = true
   try {
-    await fetch('/api/streamers/subscriptions', {
-      method: 'DELETE'
+    const response = await fetch('/api/streamers/subscriptions', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
+    
+    if (!response.ok) throw new Error('Failed to delete subscriptions')
+    
+    const result = await response.json()
+    console.log('Delete all result:', result)
+    
+    // Clear the local list
     subscriptions.value = []
+    
+    // Refresh the list to confirm
+    await loadSubscriptions()
   } catch (error) {
     console.error('Failed to delete all subscriptions:', error)
   } finally {
     loading.value = false
   }
 }
-
 onMounted(loadSubscriptions)
 </script>
 

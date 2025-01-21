@@ -273,18 +273,38 @@ class EventHandlerRegistry:
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
 
-        subs = await self.twitch.get_eventsub_subscriptions()
-        deletion_results = []
+        try:
+            subs = await self.twitch.get_eventsub_subscriptions()
+            deletion_results = []
 
-        for sub in subs.data:
-            try:
-                await self.twitch.delete_eventsub_subscription(sub.id)
-                deletion_results.append({"id": sub.id, "status": "deleted"})
-            except Exception as e:
-                logger.error(f"Failed to delete subscription {sub.id}: {e}")
-                deletion_results.append({"id": sub.id, "status": "failed", "error": str(e)})
+            for sub in subs.data:
+                try:
+                    await self.twitch.delete_eventsub_subscription(sub.id)
+                    deletion_results.append({"id": sub.id, "status": "deleted"})
+                    await self.manager.send_notification({
+                        "type": "subscription.deleted",
+                        "data": {
+                            "subscription_id": sub.id,
+                            "message": f"Subscription {sub.id} deleted successfully"
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to delete subscription {sub.id}: {e}")
+                    deletion_results.append({"id": sub.id, "status": "failed", "error": str(e)})
 
-        return {
-            "message": "Subscription deletion complete",
-            "results": deletion_results
-        }
+            await self.manager.send_notification({
+                "type": "subscriptions.deleted.all",
+                "data": {
+                    "message": "All subscriptions deleted successfully",
+                    "count": len(deletion_results)
+                }
+            })
+
+            return {
+                "success": True,
+                "message": "All subscriptions deleted successfully",
+                "results": deletion_results
+            }
+        except Exception as e:
+            logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
+            raise
