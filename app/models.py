@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.sql import func
 from app.database import Base
+from datetime import datetime
 
 class Streamer(Base):
     __tablename__ = "streamers"
