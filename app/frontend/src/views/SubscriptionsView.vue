@@ -20,6 +20,7 @@
       <table class="streamer-table">
         <thead>
           <tr>
+            <th>Streamer</th>
             <th>Type</th>
             <th>Status</th>
             <th>Created At</th>
@@ -28,6 +29,7 @@
         </thead>
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
+            <td>{{ sub.broadcaster_name || sub.broadcaster_id }}</td>
             <td>{{ sub.type }}</td>
             <td>
               <span class="status-badge" :class="sub.status">
@@ -36,7 +38,9 @@
             </td>
             <td>{{ new Date(sub.created_at).toLocaleString() }}</td>
             <td>
-              <button @click="deleteSubscription(sub.id)" class="delete-btn" :disabled="loading">
+              <button @click="deleteSubscription(sub.id)" 
+                      class="delete-btn" 
+                      :disabled="loading">
                 Delete
               </button>
             </td>
@@ -44,7 +48,6 @@
         </tbody>
       </table>
     </div>
-
     <div v-else class="empty-state">
       <p>No subscriptions found</p>
     </div>
