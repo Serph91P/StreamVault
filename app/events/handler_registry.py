@@ -61,6 +61,20 @@ class EventHandlerRegistry:
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
+            # Subscribe to stream.offline event
+            offline_sub = await self.eventsub.listen_stream_offline(
+                broadcaster_user_id=twitch_id,
+                callback=self.handle_stream_offline
+            )
+            logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
+
+            # Subscribe to channel update event
+            update_sub = await self.eventsub.listen_channel_update(
+                broadcaster_user_id=twitch_id,
+                callback=self.handle_stream_update
+            )
+            logger.info(f"Channel.update subscription created with ID: {update_sub}")
+
             logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
             return True
 
@@ -71,45 +85,144 @@ class EventHandlerRegistry:
             raise
 
     async def handle_stream_online(self, data: dict):
-        logger.info(f"Stream online event received: {data}")
+        try:
+            logger.debug(f"Handling stream.online event with data: {data}")
+            twitch_id = str(data.get("broadcaster_user_id"))
+            streamer_name = data.get("broadcaster_user_name")
+            title = data.get("title")
+            category = data.get("category_name")
 
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
+                if streamer:
+                    # Create new stream session
+                    new_stream = Stream(
+                        streamer_id=streamer.id,
+                        current_title=title,
+                        current_category=category
+                    )
+                    db.add(new_stream)
+                    db.flush()  # Get the stream ID
 
-    # async def handle_stream_online(self, data: dict):
-    #     try:
-    #         logger.debug(f"Handling stream.online event with data: {data}")
-    #         twitch_id = str(data.get("broadcaster_user_id"))
-    #         streamer_name = data.get("broadcaster_user_name")
+                    # Record the online event
+                    stream_event = StreamEvent(
+                        stream_id=new_stream.id,
+                        event_type='stream.online',
+                        title=title,
+                        category=category
+                    )
+                    db.add(stream_event)
+                    db.commit()
 
-    #         if not twitch_id or not streamer_name:
-    #             logger.error("Missing broadcaster data in event")
-    #             return
+                    await self.manager.send_notification({
+                        "type": "stream.online",
+                        "data": {
+                            "streamer_id": twitch_id,
+                            "streamer_name": streamer_name,
+                            "title": title,
+                            "category": category
+                        }
+                    })
+                    logger.info(f"Handled stream online event for {streamer_name}")
 
-    #         with SessionLocal() as db:
-    #             streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
-    #             if streamer:
-    #                 new_stream = Stream(
-    #                     streamer_id=streamer.id,
-    #                     event_type='stream.online'
-    #                 )
-    #                 db.add(new_stream)
-    #                 db.commit()
+        except Exception as e:
+            logger.error(f"Error handling stream.online event: {e}", exc_info=True)
+            raise
 
-    #                 await self.manager.send_notification({
-    #                     "type": "stream.online",
-    #                     "data": {
-    #                         "streamer_id": twitch_id,
-    #                         "streamer_name": streamer_name
-    #                     }
-    #                 })
-    #                 logger.info(f"Handled stream online event for {streamer_name}")
-    #             else:
-    #                 logger.warning(f"No streamer found for twitch_id: {twitch_id}")
-    #     except Exception as e:
-    #         logger.error(f"Error handling stream.online event: {e}", exc_info=True)
-    #         raise
+    async def handle_stream_offline(self, data: dict):
+        try:
+            logger.debug(f"Handling stream.offline event with data: {data}")
+            twitch_id = str(data.get("broadcaster_user_id"))
+            streamer_name = data.get("broadcaster_user_name")
 
-    # def register_handlers(self):
-    #     self.handlers['stream.online'] = self.handle_stream_online
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
+                if streamer:
+                    # Find and close current stream
+                    current_stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .first()
+                    
+                    if current_stream:
+                        current_stream.ended_at = datetime.utcnow()
+                    
+                        # Record the offline event
+                        stream_event = StreamEvent(
+                            stream_id=current_stream.id,
+                            event_type='stream.offline'
+                        )
+                        db.add(stream_event)
+                        db.commit()
+
+                        await self.manager.send_notification({
+                            "type": "stream.offline",
+                            "data": {
+                                "streamer_id": twitch_id,
+                                "streamer_name": streamer_name
+                            }
+                        })
+                        logger.info(f"Handled stream offline event for {streamer_name}")
+
+        except Exception as e:
+            logger.error(f"Error handling stream.offline event: {e}", exc_info=True)
+            raise
+
+    async def handle_stream_update(self, data: dict):
+        try:
+            logger.debug(f"Handling channel.update event with data: {data}")
+            twitch_id = str(data.get("broadcaster_user_id"))
+            streamer_name = data.get("broadcaster_user_name")
+            title = data.get("title")
+            category = data.get("category_name")
+
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
+                if streamer:
+                    # Get current active stream or create offline updates container
+                    current_stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .first()
+                    
+                    if not current_stream:
+                        # Create container for offline updates
+                        current_stream = Stream(
+                            streamer_id=streamer.id,
+                            current_title=title,
+                            current_category=category
+                        )
+                        db.add(current_stream)
+                        db.flush()
+                    else:
+                        # Update current stream state
+                        current_stream.current_title = title
+                        current_stream.current_category = category
+
+                    # Record the update event
+                    stream_event = StreamEvent(
+                        stream_id=current_stream.id,
+                        event_type='stream.update',
+                        title=title,
+                        category=category
+                    )
+                    db.add(stream_event)
+                    db.commit()
+
+                    await self.manager.send_notification({
+                        "type": "stream.update",
+                        "data": {
+                            "streamer_id": twitch_id,
+                            "streamer_name": streamer_name,
+                            "title": title,
+                            "category": category
+                        }
+                    })
+                    logger.info(f"Handled stream update event for {streamer_name}")
+
+        except Exception as e:
+            logger.error(f"Error handling stream.update event: {e}", exc_info=True)
+            raise
 
     async def list_subscriptions(self):
         if not self.twitch:
