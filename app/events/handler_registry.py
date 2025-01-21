@@ -47,37 +47,33 @@ class EventHandlerRegistry:
             if not self.eventsub:
                 raise ValueError("EventSub not initialized")
 
-            logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
+            logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
 
-            # Stream.online subscription and verification
-            online_sub = await self.eventsub.listen_stream_online(
-                broadcaster_user_id=twitch_id,
-                callback=self.handle_stream_online
+            # Create all subscriptions at once
+            subscriptions = await asyncio.gather(
+                self.eventsub.listen_stream_online(
+                    broadcaster_user_id=twitch_id,
+                    callback=self.handle_stream_online
+                ),
+                self.eventsub.listen_stream_offline(
+                    broadcaster_user_id=twitch_id,
+                    callback=self.handle_stream_offline
+                ),
+                self.eventsub.listen_channel_update(
+                    broadcaster_user_id=twitch_id,
+                    callback=self.handle_stream_update
+                )
             )
-            logger.info(f"Stream.online subscription created with ID: {online_sub}")
-            await self.verify_subscription(online_sub)
 
-            # Stream.offline subscription and verification
-            offline_sub = await self.eventsub.listen_stream_offline(
-                broadcaster_user_id=twitch_id,
-                callback=self.handle_stream_offline
-            )
-            logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
-            await self.verify_subscription(offline_sub)
+            # Verify all subscriptions
+            for sub_id in subscriptions:
+                await self.verify_subscription(sub_id)
 
-            # Channel.update subscription and verification
-            update_sub = await self.eventsub.listen_channel_update(
-                broadcaster_user_id=twitch_id,
-                callback=self.handle_stream_update
-            )
-            logger.info(f"Channel.update subscription created with ID: {update_sub}")
-            await self.verify_subscription(update_sub)
-
-            logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
+            logger.info(f"All subscriptions created and verified for twitch_id: {twitch_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Error subscribing to Twitch EventSub: {e}", exc_info=True)
+            logger.error(f"Error in batch subscription: {e}", exc_info=True)
             raise
 
     async def verify_subscription(self, subscription_id: str, max_attempts: int = 30):
