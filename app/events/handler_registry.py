@@ -49,26 +49,24 @@ class EventHandlerRegistry:
 
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
-            # Check existing subscriptions
-            existing_subs = await self.twitch.get_eventsub_subscriptions()
-            logger.debug(f"Existing subscriptions: {existing_subs}")
-
-            # Subscribe to stream.online event
-            logger.debug("Setting up stream.online subscription")
+            # Subscribe to events sequentially
             online_sub = await self.eventsub.listen_stream_online(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_online
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
 
-            # Subscribe to stream.offline event
+            # Wait a moment before next subscription
+            await asyncio.sleep(1)
+
             offline_sub = await self.eventsub.listen_stream_offline(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_offline
             )
             logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
 
-            # Subscribe to channel update event
+            await asyncio.sleep(1)
+
             update_sub = await self.eventsub.listen_channel_update(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_update
@@ -80,8 +78,6 @@ class EventHandlerRegistry:
 
         except Exception as e:
             logger.error(f"Error subscribing to Twitch EventSub: {e}", exc_info=True)
-            if hasattr(e, 'response') and e.response:
-                logger.error(f"Twitch API response: {e.response.text}")
             raise
 
     async def handle_stream_online(self, data: dict):

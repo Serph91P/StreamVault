@@ -232,6 +232,11 @@ const deleteStreamer = async (streamerId: string) => {
       method: 'DELETE'
     })
     if (!response.ok) throw new Error('Failed to delete streamer')
+    
+    // Remove from local list immediately
+    streamers.value = streamers.value.filter(s => s.id !== streamerId)
+    
+    // Refresh the full list
     await fetchStreamers()
   } catch (error) {
     console.error('Failed to delete streamer:', error)
@@ -239,6 +244,13 @@ const deleteStreamer = async (streamerId: string) => {
     isDeleting.value = false
   }
 }
+
+// Add auto-refresh
+onMounted(() => {
+  fetchStreamers()
+  const interval = setInterval(fetchStreamers, 30000) // Refresh every 30 seconds
+  onUnmounted(() => clearInterval(interval))
+})
 
 const fetchStreamers = async () => {
   try {
