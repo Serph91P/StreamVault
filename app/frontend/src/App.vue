@@ -78,6 +78,19 @@ nav a.router-link-active {
 }
 
 .main-content {
+  margin-top: 80px;
+  padding: 2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.content-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}.main-content {
   margin-top: 80px; /* Height of fixed header */
   padding: 2rem;
   flex: 1;
