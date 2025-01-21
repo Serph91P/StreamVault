@@ -23,100 +23,55 @@ async def add_streamer(
     streamer_service: StreamerService = Depends(get_streamer_service),
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
-    logger.debug(f"Add streamer request received for username: {username}")
-    logger.debug("Starting streamer addition process")
-
-    # Check for existing streamer
-    existing = await streamer_service.get_streamer_by_username(username)
-    logger.debug(f"Existing streamer check result: {existing}")
-
-    if existing:
-        logger.debug(f"Streamer {username} already exists")
+    # First, quickly add the streamer to database
+    result = await streamer_service.add_streamer(username)
+    if not result["success"]:
         return JSONResponse(
-            status_code=409,
-            content={"message": f"Streamer {username} is already subscribed."}
+            status_code=400,
+            content={"success": False, "message": result.get("message")}
         )
-
-    try:
-        # Try adding the streamer
-        logger.debug(f"Attempting to add streamer {username}")
-        result = await streamer_service.add_streamer(username)
-        logger.debug(f"Add streamer result: {result}")
-
-        if result["success"]:
-            try:
-                logger.debug(f"Setting up EventSub for streamer ID: {result['streamer'].id}")
-                await event_registry.subscribe_to_events(result["twitch_id"])
-
-                # Commit the database transaction
-                streamer_service.db.commit()
-
-                # Notify the user via WebSocket
-                try:
-                    await streamer_service.notify({
-                        "type": "success",
-                        "message": f"Successfully added {result['streamer'].username}"
-                    })
-                except Exception as notify_error:
-                    logger.error(f"Failed to send WebSocket notification: {notify_error}", exc_info=True)
-
-                return JSONResponse(
-                    status_code=201,
-                    content={
-                        "success": True,
-                        "message": f"Successfully added streamer {username}",
-                        "streamer": {
-                            "id": result["streamer"].id,
-                            "username": result["streamer"].username
-                        }
-                    }
-                )
-            except Exception as sub_error:
-                streamer_service.db.rollback()
-                logger.error(f"EventSub setup failed: {sub_error}", exc_info=True)
-
-                try:
-                    await streamer_service.notify({
-                        "type": "error",
-                        "message": f"Failed to set up notifications for {username}: {str(sub_error)}"
-                    })
-                except Exception as notify_error:
-                    logger.error(f"Failed to send WebSocket notification: {notify_error}", exc_info=True)
-
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "success": False,
-                        "message": f"Failed to set up notifications: {str(sub_error)}"
-                    }
-                )
-        else:
-            logger.error(f"Failed to add streamer: {result.get('message')}")
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "success": False,
-                    "message": result.get("message", "Failed to add streamer")
-                }
-            )
-    except Exception as e:
-        logger.error(f"Unexpected error adding streamer: {e}", exc_info=True)
-
-        try:
-            await streamer_service.notify({
-                "type": "error",
-                "message": f"Internal server error: {str(e)}"
-            })
-        except Exception as notify_error:
-            logger.error(f"Failed to send WebSocket notification: {notify_error}", exc_info=True)
-
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "message": f"Internal server error: {str(e)}"
+    
+    # Commit immediately to ensure streamer is saved
+    streamer_service.db.commit()
+    
+    # Create background task for EventSub setup
+    asyncio.create_task(setup_eventsub_background(
+        event_registry,
+        result["twitch_id"],
+        streamer_service,
+        username
+    ))
+    
+    return JSONResponse(
+        status_code=201,
+        content={
+            "success": True,
+            "message": f"Streamer {username} added. Setting up notifications...",
+            "streamer": {
+                "id": result["streamer"].id,
+                "username": result["streamer"].username
             }
-        )
+        }
+    )
+
+async def setup_eventsub_background(
+    event_registry: EventHandlerRegistry,
+    twitch_id: str,
+    streamer_service: StreamerService,
+    username: str
+):
+    try:
+        await event_registry.subscribe_to_events(twitch_id)
+        await streamer_service.notify({
+            "type": "success",
+            "message": f"Successfully set up notifications for {username}"
+        })
+    except Exception as e:
+        logger.error(f"Background EventSub setup failed: {e}")
+        await streamer_service.notify({
+            "type": "error",
+            "message": f"Failed to set up notifications for {username}: {str(e)}"
+        })
 
 @router.delete("/{streamer_id}")
 async def delete_streamer(
