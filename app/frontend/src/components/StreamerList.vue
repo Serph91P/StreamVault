@@ -236,10 +236,11 @@ const deleteStreamer = async (streamerId: string) => {
     // Remove from local list immediately
     streamers.value = streamers.value.filter(s => s.id !== streamerId)
     
-    // Refresh subscriptions list if component exists
-    if (typeof loadSubscriptions === 'function') {
-      await loadSubscriptions()
-    }
+    // Emit event for parent components
+    emit('streamerDeleted')
+    
+    // Refresh the full list
+    await fetchStreamers()
   } catch (error) {
     console.error('Failed to delete streamer:', error)
   } finally {
