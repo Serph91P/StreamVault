@@ -198,6 +198,11 @@ const sortKey = ref('username')
 const sortDir = ref('asc')
 const isDeleting = ref(false)
 
+// Define emit types
+const emit = defineEmits<{
+  streamerDeleted: []
+}>()
+
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
     const modifier = sortDir.value === 'asc' ? 1 : -1
