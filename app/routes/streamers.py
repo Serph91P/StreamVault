@@ -79,10 +79,26 @@ async def delete_streamer(
     streamer_service: StreamerService = Depends(get_streamer_service),
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
-    if await streamer_service.delete_streamer(streamer_id):
-        await event_registry.unsubscribe_from_events(str(streamer_id))
-        return {"message": "Streamer deleted successfully"}
-    raise HTTPException(status_code=404, detail="Streamer not found")
+    try:
+        streamer = await streamer_service.delete_streamer(streamer_id)
+        if streamer:
+            # Delete all EventSub subscriptions for this streamer
+            subs = await event_registry.list_subscriptions()
+            for sub in subs["subscriptions"]:
+                if sub["broadcaster_id"] == streamer.twitch_id:
+                    await event_registry.delete_subscription(sub["id"])
+            
+            return {"success": True, "message": "Streamer deleted successfully"}
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Streamer not found"}
+        )
+    except Exception as e:
+        logger.error(f"Error deleting streamer: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 
 @router.get("/subscriptions")
 async def get_subscriptions(

@@ -90,15 +90,24 @@ class StreamerService:
         try:
             streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
             if streamer:
+                # Store twitch_id before deletion for EventSub cleanup
+                twitch_id = streamer.twitch_id
+                username = streamer.username
+                
+                # Delete from database
                 self.db.delete(streamer)
                 self.db.commit()
+                
+                # Send notification
                 await self.notify({
                     "type": "success",
-                    "message": f"Removed streamer {streamer.username}"
+                    "message": f"Removed streamer {username}"
                 })
-                logger.info(f"Deleted streamer: {streamer.username}")
-                return True
-            return False
+                
+                logger.info(f"Deleted streamer: {username}")
+                return twitch_id
+                
+            return None
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
