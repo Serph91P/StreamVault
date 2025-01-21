@@ -38,7 +38,9 @@ class EventHandlerRegistry:
         self.eventsub.secret = self.settings.EVENTSUB_SECRET
 
         self.eventsub.start()
+        
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
+        logger.debug(f"EventSub initialized successfully with secret: {eventsub.secret}")
 
     async def subscribe_to_events(self, twitch_id: str):
         try:
