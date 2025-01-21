@@ -99,35 +99,30 @@ async function deleteSubscription(id: string) {
   }
 }
 
-const deleteAllSubscriptions = async () => {
+async function deleteAllSubscriptions() {
   if (!confirm('Are you sure you want to delete all subscriptions?')) return
   
   loading.value = true
   try {
     const response = await fetch('/api/streamers/subscriptions', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      method: 'DELETE'
     })
     
-    if (!response.ok) throw new Error('Failed to delete subscriptions')
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to delete subscriptions')
+    }
     
-    const result = await response.json()
-    console.log('Delete all result:', result)
-    
-    // Clear the local list
+    // Clear local list
     subscriptions.value = []
-    
-    // Refresh the list to confirm
+    // Refresh to confirm
     await loadSubscriptions()
   } catch (error) {
     console.error('Failed to delete all subscriptions:', error)
   } finally {
     loading.value = false
   }
-}
-onMounted(loadSubscriptions)
+}onMounted(loadSubscriptions)
 </script>
 
 <style scoped>

@@ -120,11 +120,7 @@ async def delete_all_subscriptions(
     try:
         logger.debug("Attempting to delete all subscriptions")
         result = await event_registry.delete_all_subscriptions()
-        return {
-            "success": True,
-            "message": "All subscriptions deleted successfully",
-            "result": result
-        }
+        return result
     except Exception as e:
         logger.error(f"Failed to delete subscriptions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
