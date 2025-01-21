@@ -130,15 +130,13 @@ async function deleteAllSubscriptions() {
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.controls {
-  margin-bottom: 2rem;
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: center;
 }
 
 .streamer-table-container {
+  width: 100%;
   overflow-x: auto;
   background: #242424;
   border-radius: 8px;

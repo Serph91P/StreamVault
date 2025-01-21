@@ -56,15 +56,19 @@
     </div>
   </div>
 </template>
-
 <style scoped>
 .container {
-  max-width: 1400px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .streamer-table-container {
+  width: 100%;
   overflow-x: auto;
   background: #242424;
   border-radius: 8px;
