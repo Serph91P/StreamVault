@@ -14,6 +14,15 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections.append(websocket)
         logger.info(f"WebSocket connected: {websocket.client}")
+        
+        # Send initial status message
+        await websocket.send_json({
+            "type": "connection.status",
+            "data": {
+                "status": "connected",
+                "message": "WebSocket connection established"
+            }
+        })
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
