@@ -29,7 +29,7 @@
         </thead>
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
-            <td>{{ sub.broadcaster_name || sub.broadcaster_id }}</td>
+            <td>{{ sub.condition?.broadcaster_user_id }}</td>
             <td>{{ sub.type }}</td>
             <td>
               <span class="status-badge" :class="sub.status">
@@ -62,6 +62,11 @@ interface Subscription {
   type: string
   status: string
   created_at: string
+  broadcaster_id?: string
+  broadcaster_name?: string
+  condition: {
+    broadcaster_user_id: string
+  }
 }
 
 const subscriptions = ref<Subscription[]>([])
