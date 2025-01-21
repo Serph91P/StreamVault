@@ -229,19 +229,29 @@ class EventHandlerRegistry:
             raise ValueError("Twitch client not initialized")
 
         subs = await self.twitch.get_eventsub_subscriptions()
-        logger.debug(f"Listing current subscriptions: {subs}")
-        return {
-            "subscriptions": [
-                {
-                    "id": sub.id,
-                    "broadcaster_id": sub.condition.get('broadcaster_user_id'),
-                    "type": sub.type,
-                    "status": sub.status,
-                    "condition": sub.condition,
-                    "created_at": sub.created_at
-                } for sub in subs.data
-            ]
-        }
+        subscriptions_data = []
+    
+        for sub in subs.data:
+            broadcaster_id = sub.condition.get('broadcaster_user_id')
+            broadcaster_name = None
+        
+            if broadcaster_id:
+                users = []
+                async for user in self.twitch.get_users(user_ids=[broadcaster_id]):
+                    broadcaster_name = user.display_name
+                    break
+
+            subscriptions_data.append({
+                "id": sub.id,
+                "broadcaster_id": broadcaster_id,
+                "broadcaster_name": broadcaster_name,
+                "type": sub.type,
+                "status": sub.status,
+                "condition": sub.condition,
+                "created_at": sub.created_at
+            })
+    
+        return {"subscriptions": subscriptions_data}
 
     async def delete_subscription(self, subscription_id: str):
         if not self.twitch:
