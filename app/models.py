@@ -13,14 +13,21 @@ class Streamer(Base):
 
 class Stream(Base):
     __tablename__ = "streams"
+    id = Column(Integer, primary_key=True)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"))
+    started_at = Column(DateTime, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    current_title = Column(String, nullable=True)
+    current_category = Column(String, nullable=True)
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
-    event_type = Column(String, nullable=False)
+class StreamEvent(Base):
+    __tablename__ = "stream_events"
+    id = Column(Integer, primary_key=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    event_type = Column(String)  # 'stream.online', 'stream.offline', 'stream.update'
     title = Column(String, nullable=True)
     category = Column(String, nullable=True)
-    language = Column(String, nullable=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = "users"
