@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from starlette.websockets import WebSocketState
 import logging
 import json
+from datetime import datetime
 
 logger = logging.getLogger('streamvault')
 
@@ -15,39 +16,34 @@ class ConnectionManager:
         self.active_connections.append(websocket)
         logger.info(f"WebSocket connected: {websocket.client}")
         
-        # Send initial status message
+        # Send initial connection status
         await websocket.send_json({
             "type": "connection.status",
             "data": {
                 "status": "connected",
-                "message": "WebSocket connection established"
+                "timestamp": datetime.utcnow().isoformat(),
+                "message": "StreamVault WebSocket connected"
             }
         })
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-        logger.info(f"WebSocket disconnected: {websocket.client}")
+    async def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.info(f"WebSocket disconnected: {websocket.client}")
 
-    async def send_notification(self, message: str | Dict[str, Any]):
+    async def send_notification(self, message: Dict[str, Any]):
         disconnected = []
-
-        if isinstance(message, dict):
-            message = json.dumps(message)
-
+        
         for connection in self.active_connections:
-            logger.debug(f"Sending message to connection: {connection}")
             if connection.application_state == WebSocketState.CONNECTED:
                 try:
-                    await connection.send_text(message)
+                    await connection.send_json(message)
                 except Exception as e:
                     logger.error(f"Failed to send message to {connection.client}: {e}")
                     disconnected.append(connection)
             else:
                 disconnected.append(connection)
 
+        # Clean up disconnected connections
         for conn in disconnected:
-            logger.warning(f"Cleaning up disconnected connection: {conn}")
-            self.disconnect(conn)
-
-    async def broadcast(self, message: str):
-        await self.send_notification(message)
+            await self.disconnect(conn)
