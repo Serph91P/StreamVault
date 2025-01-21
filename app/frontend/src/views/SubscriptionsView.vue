@@ -29,7 +29,7 @@
         </thead>
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
-            <td>{{ sub.condition?.broadcaster_user_id }}</td>
+            <td>{{ sub.broadcaster_name || sub.condition?.broadcaster_user_id }}</td>
             <td>{{ sub.type }}</td>
             <td>
               <span class="status-badge" :class="sub.status">
