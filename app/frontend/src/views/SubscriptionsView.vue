@@ -98,30 +98,32 @@ async function deleteSubscription(id: string) {
     console.error('Failed to delete subscription:', error)
   }
 }
-
 async function deleteAllSubscriptions() {
   if (!confirm('Are you sure you want to delete all subscriptions?')) return
   
   loading.value = true
   try {
     const response = await fetch('/api/streamers/subscriptions', {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json'
+      }
     })
     
+    const data = await response.json()
+    
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to delete subscriptions')
+      throw new Error(data.error || 'Failed to delete subscriptions')
     }
     
-    // Clear local list
     subscriptions.value = []
-    // Refresh to confirm
     await loadSubscriptions()
   } catch (error) {
-    console.error('Failed to delete all subscriptions:', error)
+    console.error('Failed to delete all subscriptions:', error.message)
   } finally {
     loading.value = false
   }
+}
 }onMounted(loadSubscriptions)
 </script>
 
