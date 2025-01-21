@@ -86,29 +86,29 @@ class StreamerService:
             logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
             return {"success": False, "message": f"Error adding streamer: {str(e)}"}
 
-    async def delete_streamer(self, streamer_id: int) -> bool:
+    async def delete_streamer(self, streamer_id: int) -> Dict[str, Any]:
         try:
             streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
             if streamer:
-                # Store twitch_id before deletion for EventSub cleanup
-                twitch_id = streamer.twitch_id
-                username = streamer.username
-                
-                # Delete from database
+                streamer_data = {
+                    "twitch_id": streamer.twitch_id,
+                    "username": streamer.username
+                }
+            
                 self.db.delete(streamer)
                 self.db.commit()
-                
-                # Send notification
+            
                 await self.notify({
                     "type": "success",
-                    "message": f"Removed streamer {username}"
+                    "message": f"Removed streamer {streamer_data['username']}"
                 })
-                
-                logger.info(f"Deleted streamer: {username}")
-                return twitch_id
-                
+            
+                logger.info(f"Deleted streamer: {streamer_data['username']}")
+                return streamer_data
+            
             return None
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
+            raise
             raise
