@@ -13,7 +13,6 @@
     </TransitionGroup>
   </div>
 </template>
-
 <script setup>
 import { ref, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -21,15 +20,24 @@ import { useWebSocket } from '@/composables/useWebSocket'
 const notifications = ref([])
 const { messages } = useWebSocket()
 
+const NOTIFICATION_TIMEOUT = 5000 // 5 seconds
+
 watch(messages, (newMessages) => {
   if (newMessages.length > 0) {
     const message = newMessages[newMessages.length - 1]
-    notifications.value.unshift({
+    const notification = {
       id: Date.now(),
       message: message.data?.message || message.message,
       type: message.type,
       timestamp: new Date()
-    })
+    }
+    
+    notifications.value.unshift(notification)
+    
+    // Remove notification after timeout
+    setTimeout(() => {
+      notifications.value = notifications.value.filter(n => n.id !== notification.id)
+    }, NOTIFICATION_TIMEOUT)
   }
 }, { deep: true })
 
@@ -37,7 +45,6 @@ function formatTime(date) {
   return new Date(date).toLocaleTimeString()
 }
 </script>
-
 <style scoped>
 .notification-feed {
   position: fixed;
