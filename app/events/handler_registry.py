@@ -49,36 +49,50 @@ class EventHandlerRegistry:
 
             logger.debug(f"Starting subscription process for twitch_id: {twitch_id}")
 
-            # Subscribe to events sequentially
+            # Subscribe to stream.online event and wait for confirmation
             online_sub = await self.eventsub.listen_stream_online(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_online
             )
             logger.info(f"Stream.online subscription created with ID: {online_sub}")
+            
+            # Wait for subscription to be confirmed
+            await self.wait_for_subscription_confirmation(online_sub)
 
-            # Wait a moment before next subscription
-            await asyncio.sleep(1)
-
+            # Subscribe to stream.offline event
             offline_sub = await self.eventsub.listen_stream_offline(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_offline
             )
             logger.info(f"Stream.offline subscription created with ID: {offline_sub}")
+            
+            await self.wait_for_subscription_confirmation(offline_sub)
 
-            await asyncio.sleep(1)
-
+            # Subscribe to channel update event
             update_sub = await self.eventsub.listen_channel_update(
                 broadcaster_user_id=twitch_id,
                 callback=self.handle_stream_update
             )
             logger.info(f"Channel.update subscription created with ID: {update_sub}")
+            
+            await self.wait_for_subscription_confirmation(update_sub)
 
-            logger.info(f"All subscriptions confirmed for twitch_id: {twitch_id}")
             return True
 
         except Exception as e:
             logger.error(f"Error subscribing to Twitch EventSub: {e}", exc_info=True)
             raise
+
+    async def wait_for_subscription_confirmation(self, subscription_id: str, timeout: int = 10):
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            subs = await self.twitch.get_eventsub_subscriptions()
+            for sub in subs.data:
+                if sub.id == subscription_id and sub.status == "enabled":
+                    logger.info(f"Subscription {subscription_id} confirmed")
+                    return True
+            await asyncio.sleep(1)
+        raise TimeoutError(f"Subscription {subscription_id} was not confirmed within {timeout} seconds")
 
     async def handle_stream_online(self, data: dict):
         try:
