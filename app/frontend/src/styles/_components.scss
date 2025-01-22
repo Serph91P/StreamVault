@@ -286,17 +286,34 @@ button {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+  .streamer-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: v.$spacing-md;
+    padding: v.$spacing-md;
 
-.streamer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: v.$spacing-md;
-  
-  @media (min-width: map-get(v.$breakpoints, 'lg')) {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: map-get(v.$breakpoints, 'lg')) {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
-}
 
+  .streamer-card {
+    background: v.$background-darker;
+    border-radius: 8px;
+    padding: v.$spacing-md;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-md;
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
 .interactive-element {
   @media (hover: none) {
     min-height: 44px; // iOS minimum touch target
