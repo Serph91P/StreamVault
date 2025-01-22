@@ -4,15 +4,13 @@
 .login-page,
 .setup-page {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   background: v.$background-dark;
   z-index: 100;
+  padding: v.$spacing-md;
 }
 
 .login-form,
@@ -21,15 +19,96 @@
   padding: v.$spacing-lg;
   border-radius: 8px;
   width: 100%;
-  max-width: 400px;
+  max-width: 320px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    max-width: 400px;
+    padding: v.$spacing-xl;
+  }
+
+  h2 {
+    margin-bottom: v.$spacing-lg;
+    text-align: center;
+    font-size: v.$font-lg;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      font-size: v.$font-xl;
+    }
+  }
+}
+
+// Add Streamer View
+.add-streamer-page {
+  padding: v.$spacing-md;
+  margin: v.$spacing-md;
+  background: v.$background-darker;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-xl;
+    margin: v.$spacing-lg auto;
+    max-width: 800px;
+  }
+
+  h2 {
+    font-size: v.$font-lg;
+    margin-bottom: v.$spacing-md;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      font-size: v.$font-xl;
+    }
+  }
+
+  .description {
+    color: v.$text-secondary;
+    margin-bottom: v.$spacing-lg;
+    font-size: v.$font-base;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      font-size: v.$font-lg;
+    }
+  }
 }
 
 // Subscriptions View
 .subscriptions-page {
-  padding: v.$spacing-lg;
-  max-width: v.$desktop;
-  margin: 0 auto;
+  padding: v.$spacing-md;
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-xl;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
+    margin-bottom: v.$spacing-lg;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      flex-direction: row;
+      gap: v.$spacing-md;
+    }
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: v.$spacing-xs v.$spacing-sm;
+    border-radius: 12px;
+    font-size: v.$font-xs;
+    font-weight: bold;
+    text-align: center;
+    min-width: 60px;
+
+    &.enabled {
+      background: v.$success-color;
+    }
+
+    &.disabled {
+      background: v.$danger-color;
+    }
+  }
 }
 
 .streamer-table-container {
@@ -48,40 +127,19 @@
   color: v.$text-primary;
 }
 
-.add-streamer-page {
-  padding: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
-  background: #1f1f23;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  h2 {
-    color: #efeff1;
-    margin-bottom: 1rem;
-    font-size: 1.8rem;
-  }
-
-  .description {
-    color: #adadb8;
-    margin-bottom: 2rem;
-    font-size: 1.1rem;
-  }
-}
-
-.status-message {
+// Loading States
+.loading-state {
   text-align: center;
-  color: #adadb8;
-  margin-top: 1rem;
-  font-size: 0.9rem;
+  padding: v.$spacing-xl;
 
-  &.error {
-    color: #ff4444;
+  .spinner {
+    margin: 0 auto v.$spacing-md;
   }
 }
 
+// Empty States
 .empty-state {
   text-align: center;
-  padding: 2rem;
-  color: #666;
+  padding: v.$spacing-xl;
+  color: v.$text-secondary;
 }

@@ -8,11 +8,30 @@ $primary-color: #9147ff;
 $danger-color: #ff4444;
 $success-color: #28a745;
 
-// Spacing
+// Spacing (using rem for better scaling)
+$spacing-xs: 0.25rem;
 $spacing-sm: 0.5rem;
 $spacing-md: 1rem;
-$spacing-lg: 2rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
 
-// Breakpoints
-$tablet: 768px;
-$desktop: 1200px;
+// Breakpoints (mobile-first)
+$breakpoints: (
+  'sm': 375px,
+  'md': 768px,
+  'lg': 1024px,
+  'xl': 1200px
+);
+
+// Container widths
+$container-sm: 100%;
+$container-md: 720px;
+$container-lg: 960px;
+$container-xl: 1140px;
+
+// Font sizes
+$font-xs: 0.75rem;
+$font-sm: 0.875rem;
+$font-base: 1rem;
+$font-lg: 1.125rem;
+$font-xl: 1.25rem;

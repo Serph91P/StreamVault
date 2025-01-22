@@ -14,22 +14,35 @@
   right: 0;
   z-index: 100;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: v.$spacing-sm;
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md;
+  }
 }
 
 .header-content {
-  width: 100%;
-  padding: v.$spacing-md;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: v.$spacing-md;
+  gap: v.$spacing-sm;
+  width: 100%;
 
-  @media (min-width: v.$tablet) {
+  h1 {
+    font-size: v.$font-lg;
+    margin: 0;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      font-size: v.$font-xl;
+    }
+  }
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
     flex-direction: row;
     justify-content: space-between;
-    max-width: v.$desktop;
+    max-width: v.$container-xl;
     margin: 0 auto;
-    padding: v.$spacing-md v.$spacing-lg;
+    gap: v.$spacing-md;
   }
 }
 
@@ -38,11 +51,15 @@
   padding: v.$spacing-md;
   flex: 1;
   width: 100%;
+  box-sizing: border-box;
 
-  @media (min-width: v.$tablet) {
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
     margin-top: 80px;
     padding: v.$spacing-lg;
-    max-width: v.$desktop;
+  }
+
+  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+    max-width: v.$container-xl;
     margin-left: auto;
     margin-right: auto;
   }
