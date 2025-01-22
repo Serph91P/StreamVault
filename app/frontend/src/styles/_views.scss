@@ -1,3 +1,5 @@
+@use 'variables' as v;
+
 // Login and Setup Views
 .login-page,
 .setup-page {
@@ -9,14 +11,14 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: $background-dark;
+  background: v.$background-dark;
   z-index: 100;
 }
 
 .login-form,
 .setup-form {
-  background: $background-darker;
-  padding: $spacing-lg;
+  background: v.$background-darker;
+  padding: v.$spacing-lg;
   border-radius: 8px;
   width: 100%;
   max-width: 400px;
@@ -25,17 +27,17 @@
 
 // Subscriptions View
 .subscriptions-page {
-  padding: $spacing-lg;
-  max-width: $desktop;
+  padding: v.$spacing-lg;
+  max-width: v.$desktop;
   margin: 0 auto;
 }
 
 .streamer-table-container {
   width: 100%;
   overflow-x: auto;
-  background: $background-darker;
+  background: v.$background-darker;
   border-radius: 8px;
-  border: 1px solid $border-color;
+  border: 1px solid v.$border-color;
   margin: 20px 0;
 }
 
@@ -43,7 +45,7 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  color: $text-primary;
+  color: v.$text-primary;
 }
 
 .add-streamer-page {

@@ -1,37 +1,39 @@
+@use 'variables' as v;
+
 // Navigation
 nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: $spacing-sm;
+  gap: v.$spacing-sm;
   width: 100%;
 
-  @media (min-width: $tablet) {
+  @media (min-width: v.$tablet) {
     width: auto;
     gap: 1.5rem;
   }
 
   a {
-    color: $text-secondary;
+    color: v.$text-secondary;
     text-decoration: none;
     font-weight: 500;
-    padding: $spacing-sm;
+    padding: v.$spacing-sm;
     border-radius: 4px;
     transition: all 0.2s ease;
     font-size: 0.9rem;
 
-    @media (min-width: $tablet) {
-      padding: $spacing-sm $spacing-md;
+    @media (min-width: v.$tablet) {
+      padding: v.$spacing-sm v.$spacing-md;
       font-size: 1rem;
     }
 
     &:hover {
-      color: $text-primary;
+      color: v.$text-primary;
       background: rgba(255, 255, 255, 0.1);
     }
 
     &.router-link-active {
-      color: $primary-color;
+      color: v.$primary-color;
       background: rgba(145, 71, 255, 0.1);
     }
   }
@@ -39,22 +41,22 @@ nav {
 
 // Forms
 .form-group {
-  margin-bottom: $spacing-md;
+  margin-bottom: v.$spacing-md;
 }
 
 input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid $border-color;
+  border: 1px solid v.$border-color;
   border-radius: 4px;
-  background: $background-dark;
-  color: $text-primary;
+  background: v.$background-dark;
+  color: v.$text-primary;
 }
 
 button {
   width: 100%;
   padding: 0.75rem;
-  background: $primary-color;
+  background: v.$primary-color;
   color: white;
   border: none;
   border-radius: 4px;
