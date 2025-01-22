@@ -29,9 +29,17 @@ $container-md: 720px;
 $container-lg: 960px;
 $container-xl: 1140px;
 
-// Font sizes
-$font-xs: 0.75rem;
-$font-sm: 0.875rem;
-$font-base: 1rem;
-$font-lg: 1.125rem;
-$font-xl: 1.25rem;
+// Fluid typography function
+@function fluid-type($min-vw, $max-vw, $min-size, $max-size) {
+  $factor: calc(100 * ($max-size - $min-size) / ($max-vw - $min-vw));
+  @return clamp(#{$min-size}rem, #{$factor}vw, #{$max-size}rem);
+}
+
+// Updated font sizes
+$font-scale: (
+  'xs': fluid-type(320, 1200, 0.75, 0.875),
+  'sm': fluid-type(320, 1200, 0.875, 1),
+  'base': fluid-type(320, 1200, 1, 1.125),
+  'lg': fluid-type(320, 1200, 1.125, 1.25),
+  'xl': fluid-type(320, 1200, 1.25, 1.5)
+);
