@@ -286,3 +286,20 @@ button {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
+.streamer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: v.$spacing-md;
+  
+  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+.interactive-element {
+  @media (hover: none) {
+    min-height: 44px; // iOS minimum touch target
+    min-width: 44px;
+  }
+}
