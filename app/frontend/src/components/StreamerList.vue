@@ -1,58 +1,32 @@
 <template>
   <div class="container">
-    <div class="streamer-table-container">
-      <table class="streamer-table">
-        <thead>
-          <tr>
-            <th @click="sortBy('username')" style="width: 15%">
-              Streamer
-              <span class="sort-icon">{{ sortKey === 'username' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-            </th>
-            <th @click="sortBy('status')" style="width: 10%">
-              Status
-              <span class="sort-icon">{{ sortKey === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-            </th>
-            <th style="width: 30%">Title</th>
-            <th style="width: 15%">Category</th>
-            <th style="width: 10%">Language</th>
-            <th @click="sortBy('lastUpdate')" style="width: 15%">
-              Last Update
-              <span class="sort-icon">{{ sortKey === 'lastUpdate' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-            </th>
-            <th style="width: 5%">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="streamer in sortedStreamers" 
-              :key="streamer.id"
-              :class="{ 'live': streamer.is_live }">
-            <td>
-              <div class="streamer-info">
-                <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-                {{ streamer.username }}
-              </div>
-            </td>
-            <td>
-              <span class="status-badge" :class="{ 'live': streamer.is_live }">
-                {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
-              </span>
-            </td>
-            <td class="title-cell">{{ streamer.title || '-' }}</td>
-            <td>{{ streamer.category || '-' }}</td>
-            <td>{{ streamer.language || '-' }}</td>
-            <td>{{ formatDate(streamer.last_updated) }}</td>
-            <td>
-              <button 
-                @click="deleteStreamer(streamer.id)" 
-                class="delete-btn"
-                :disabled="isDeleting"
-              >
-                {{ isDeleting ? 'Deleting...' : 'Delete' }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="streamer-grid">
+      <div v-for="streamer in sortedStreamers" 
+           :key="streamer.id"
+           class="streamer-card">
+        <div class="streamer-header">
+          <div class="streamer-info">
+            <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
+            <h3>{{ streamer.username }}</h3>
+          </div>
+          <span class="status-badge interactive-element" :class="{ 'live': streamer.is_live }">
+            {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+          </span>
+        </div>
+        <div class="streamer-content">
+          <p class="title">{{ streamer.title || '-' }}</p>
+          <p class="category">{{ streamer.category || '-' }}</p>
+          <p class="language">{{ streamer.language || '-' }}</p>
+          <p class="last-update">{{ formatDate(streamer.last_updated) }}</p>
+        </div>
+        <button 
+          @click="deleteStreamer(streamer.id)" 
+          class="delete-btn interactive-element"
+          :disabled="isDeleting"
+        >
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
