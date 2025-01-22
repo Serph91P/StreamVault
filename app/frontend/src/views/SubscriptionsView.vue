@@ -53,77 +53,78 @@
     </div>
   </div>
 </template>
-  <script setup lang="ts">
-  import { ref, onMounted } from 'vue'
 
-  interface Subscription {
-    id: string
-    type: string
-    status: string
-    created_at: string
-    broadcaster_id?: string
-    broadcaster_name?: string
-    condition: {
-      broadcaster_user_id: string
-    }
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+interface Subscription {
+  id: string
+  type: string
+  status: string
+  created_at: string
+  broadcaster_id?: string
+  broadcaster_name?: string
+  condition: {
+    broadcaster_user_id: string
   }
+}
 
-  const subscriptions = ref<Subscription[]>([])
-  const loading = ref(false)
+const subscriptions = ref<Subscription[]>([])
+const loading = ref(false)
 
-  async function loadSubscriptions() {
-    loading.value = true
-    try {
-      const response = await fetch('/api/streamers/subscriptions')
-      const data = await response.json()
-      subscriptions.value = data.subscriptions
-    } catch (error) {
-      console.error('Failed to load subscriptions:', error)
-    } finally {
-      loading.value = false
-    }
+async function loadSubscriptions() {
+  loading.value = true
+  try {
+    const response = await fetch('/api/streamers/subscriptions')
+    const data = await response.json()
+    subscriptions.value = data.subscriptions
+  } catch (error) {
+    console.error('Failed to load subscriptions:', error)
+  } finally {
+    loading.value = false
   }
+}
 
-  async function deleteSubscription(id: string) {
-    try {
-      const response = await fetch(`/api/streamers/subscriptions/${id}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) throw new Error('Failed to delete subscription')
+async function deleteSubscription(id: string) {
+  try {
+    const response = await fetch(`/api/streamers/subscriptions/${id}`, {
+      method: 'DELETE'
+    })
+    if (!response.ok) throw new Error('Failed to delete subscription')
     
-      subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
-    } catch (error) {
-      console.error('Failed to delete subscription:', error)
-    }
+    subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
+  } catch (error) {
+    console.error('Failed to delete subscription:', error)
   }
+}
 
-  async function deleteAllSubscriptions() {
-    if (!confirm('Are you sure you want to delete all subscriptions?')) return
+async function deleteAllSubscriptions() {
+  if (!confirm('Are you sure you want to delete all subscriptions?')) return
   
-    loading.value = true
-    try {
-      const response = await fetch('/api/streamers/subscriptions', {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/json'
-        }
-      })
-    
-      const data = await response.json()
-    
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete subscriptions')
+  loading.value = true
+  try {
+    const response = await fetch('/api/streamers/subscriptions', {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json'
       }
+    })
     
-      subscriptions.value = []
-      await loadSubscriptions()
-    } catch (error) {
-      console.error('Failed to delete all subscriptions:', error.message)
-    } finally {
-      loading.value = false
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to delete subscriptions')
     }
+    
+    subscriptions.value = []
+    await loadSubscriptions()
+  } catch (error: any) {
+    console.error('Failed to delete all subscriptions:', error.message)
+  } finally {
+    loading.value = false
   }
+}
 
-  onMounted(loadSubscriptions)
-  </script>
+onMounted(loadSubscriptions)
+</script>
 <style scoped>
