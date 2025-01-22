@@ -72,6 +72,10 @@ nav {
   grid-template-columns: 1fr;
   gap: v.$spacing-md;
   padding: v.$spacing-md;
+  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 
   @media (min-width: map-get(v.$breakpoints, 'md')) {
     grid-template-columns: repeat(2, 1fr);
@@ -138,8 +142,19 @@ nav {
 
   .input-group {
     display: flex;
-    flex-direction: column;
+    align-items: stretch; // This ensures equal height
     gap: v.$spacing-md;
+
+    .input-field, 
+    .submit-button {
+      height: 44px; // Consistent height
+      display: flex;
+      align-items: center;
+    }
+
+    .submit-button {
+      padding: 0 v.$spacing-xl; // Wider padding for better proportion
+    }
 
     @media (min-width: map-get(v.$breakpoints, 'md')) {
       flex-direction: row;
@@ -164,28 +179,25 @@ nav {
     }
   }
 }
-
-.subscription-list {
-  display: flex;
-  flex-direction: column;
-  gap: v.$spacing-sm;
-}
-
-.subscription-item {
-  display: flex;
-  flex-direction: column;
-  padding: v.$spacing-sm;
-  border: 1px solid v.$border-color;
-  border-radius: 4px;
-  background: v.$background-darker;
-
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+  .subscription-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: v.$spacing-md;
+  
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
   }
-}
 
+  .subscription-item {
+    background: v.$background-darker;
+    padding: v.$spacing-md;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
+  }
+  
 // Viewer Stats
 .viewer-stats {
   width: 100%;
@@ -311,9 +323,18 @@ nav {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch; // Smooth scrolling on iOS
+  padding: v.$spacing-md;
+  
+  .streamer-table {
+    th, td {
+      padding: v.$spacing-md;
+      
+      @media (min-width: map-get(v.$breakpoints, 'md')) {
+        padding: v.$spacing-lg;
+      }
+    }
 
-  @media (max-width: map-get(v.$breakpoints, 'md')) {
-    .streamer-table {
+    @media (max-width: map-get(v.$breakpoints, 'md')) {
       display: block;
       
       th, td {
@@ -325,6 +346,28 @@ nav {
         float: left;
         font-weight: bold;
         text-transform: uppercase;
+      }
+    }
+  }
+}
+
+// Enhanced button styles
+.controls {
+  .btn {
+    background: v.$primary-color;
+    padding: v.$spacing-sm v.$spacing-lg;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: darken(v.$primary-color, 10%);
+    }
+
+    &.danger {
+      background: v.$danger-color;
+      &:hover {
+        background: darken(v.$danger-color, 10%);
       }
     }
   }

@@ -42,6 +42,8 @@
 .add-streamer-page {
   padding: v.$spacing-md;
   margin: v.$spacing-md;
+  max-width: calc(100% - (v.$spacing-md * 2));
+  box-sizing: border-box;
   background: v.$background-darker;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -70,9 +72,11 @@
       font-size: map-get(v.$font-scale, 'lg');
     }
   }
-}
 
-// Subscriptions View
+  .streamer-form {
+    max-width: 100%;
+  }
+}// Subscriptions View
 .subscriptions-page {
   padding: v.$spacing-md;
 
