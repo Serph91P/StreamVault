@@ -127,4 +127,3 @@ async function deleteAllSubscriptions() {
 
 onMounted(loadSubscriptions)
 </script>
-<style scoped>
