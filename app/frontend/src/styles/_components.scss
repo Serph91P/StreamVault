@@ -5,29 +5,26 @@ nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: v.$spacing-xs;
+  gap: v.$spacing-sm;
   width: 100%;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: v.$tablet) {
     width: auto;
-    gap: v.$spacing-md;
+    gap: 1.5rem;
   }
 
   a {
     color: v.$text-secondary;
     text-decoration: none;
     font-weight: 500;
-    padding: v.$spacing-xs v.$spacing-sm;
+    padding: v.$spacing-sm;
     border-radius: 4px;
     transition: all 0.2s ease;
-    font-size: v.$font-sm;
-    text-align: center;
-    width: calc(50% - v.$spacing-xs);
+    font-size: 0.9rem;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      width: auto;
+    @media (min-width: v.$tablet) {
       padding: v.$spacing-sm v.$spacing-md;
-      font-size: v.$font-base;
+      font-size: 1rem;
     }
 
     &:hover {
@@ -45,114 +42,75 @@ nav {
 // Forms
 .form-group {
   margin-bottom: v.$spacing-md;
-  width: 100%;
 }
 
 .input-field {
-  width: 100%;
-  padding: v.$spacing-md;
-  background: v.$background-darker;
-  border: 2px solid v.$border-color;
+  flex: 1;
+  background: #18181b;
+  border: 2px solid #3a3a3d;
+  color: #efeff1;
+  padding: 12px 16px;
   border-radius: 6px;
-  color: v.$text-primary;
-  font-size: v.$font-base;
+  font-size: 1rem;
   transition: all 0.2s ease;
+  width: 100%;
 
   &:focus {
     outline: none;
-    border-color: v.$primary-color;
-    box-shadow: 0 0 0 2px rgba(v.$primary-color, 0.2);
+    border-color: #9147ff;
+    box-shadow: 0 0 0 2px rgba(145, 71, 255, 0.2);
   }
 
   &::placeholder {
-    color: v.$text-secondary;
+    color: #5c5c5e;
   }
 }
 
-// Buttons
-.btn, 
-button {
-  width: 100%;
+// Streamer Grid and Cards
+.streamer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: v.$spacing-md;
   padding: v.$spacing-md;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: v.$font-base;
-  text-align: center;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  gap: v.$spacing-sm;
 
   @media (min-width: map-get(v.$breakpoints, 'md')) {
-    width: auto;
-    min-width: 120px;
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  &.primary {
-    background: v.$primary-color;
-    color: white;
-
-    &:hover:not(:disabled) {
-      background: darken(v.$primary-color, 10%);
-    }
-  }
-
-  &.danger {
-    background: v.$danger-color;
-    color: white;
-
-    &:hover:not(:disabled) {
-      background: darken(v.$danger-color, 10%);
-    }
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-// Tables
-.streamer-table-container {
-  width: 100%;
-  overflow-x: auto;
+.streamer-card {
   background: v.$background-darker;
   border-radius: 8px;
-  border: 1px solid v.$border-color;
-  margin: v.$spacing-md 0;
-}
+  padding: v.$spacing-md;
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-md;
+  transition: transform 0.2s ease;
 
-.streamer-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 600px; // Ensures table doesn't get too cramped on mobile
-
-  th, td {
-    padding: v.$spacing-sm;
-    text-align: left;
-    border-bottom: 1px solid v.$border-color;
-
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      padding: v.$spacing-md;
-    }
-  }
-
-  th {
-    background: rgba(0, 0, 0, 0.2);
-    font-weight: 600;
-    color: v.$text-secondary;
+  &:hover {
+    transform: translateY(-2px);
   }
 }
 
+// Notification Feed
 .notification-feed {
   position: fixed;
-  top: 80px;
-  right: 20px;
-  width: 300px;
+  bottom: v.$spacing-md;
+  left: v.$spacing-md;
+  right: v.$spacing-md;
   z-index: 1000;
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    bottom: auto;
+    top: 80px;
+    right: v.$spacing-md;
+    left: auto;
+    width: 300px;
+  }
 }
 
 .notification-item {
@@ -172,6 +130,83 @@ button {
   }
 }
 
+// Streamer Form
+.streamer-form {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-md;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+  }
+}
+
+// Subscription Manager
+.subscription-manager {
+  padding: v.$spacing-md;
+
+  .controls {
+    margin-bottom: v.$spacing-md;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      flex-direction: row;
+      gap: v.$spacing-md;
+    }
+  }
+}
+
+.subscription-list {
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-sm;
+}
+
+.subscription-item {
+  display: flex;
+  flex-direction: column;
+  padding: v.$spacing-sm;
+  border: 1px solid v.$border-color;
+  border-radius: 4px;
+  background: v.$background-darker;
+
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+// Viewer Stats
+.viewer-stats {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: v.$spacing-md;
+  background: v.$background-darker;
+  border-radius: 8px;
+
+  canvas {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 200px;
+
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
+      min-height: 300px;
+    }
+  }
+}
+
+// Status Indicators
 .status-dot {
   width: 8px;
   height: 8px;
@@ -184,71 +219,43 @@ button {
   }
 }
 
-.viewer-stats {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 1rem;
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+  min-width: 60px;
+  text-align: center;
+
+  &.enabled {
+    background: v.$success-color;
+  }
+
+  &.disabled {
+    background: v.$danger-color;
+  }
 }
 
-.subscription-manager {
-  padding: 1rem;
-}
-
-.controls {
-  margin-bottom: 1rem;
-  display: flex;
-  gap: 1rem;
-}
-
-.subscription-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.subscription-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.subscription-info {
-  display: flex;
-  gap: 1rem;
-}
-
-.streamer-form {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.input-group {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.submit-button {
-  background: #9147ff;
+// Buttons
+.submit-button,
+.delete-btn {
+  background: v.$primary-color;
   color: white;
   border: none;
-  padding: 12px 24px;
+  padding: v.$spacing-sm v.$spacing-md;
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: v.$font-base;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  width: 100%;
 
-  &:hover {
-    background: #772ce8;
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
+    width: auto;
+  }
+
+  &:hover:not(:disabled) {
+    background: darken(v.$primary-color, 10%);
   }
 
   &:disabled {
@@ -257,22 +264,15 @@ button {
   }
 }
 
-.welcome {
-  padding: 2rem;
-  text-align: center;
+.delete-btn {
+  background: v.$danger-color;
+
+  &:hover:not(:disabled) {
+    background: darken(v.$danger-color, 10%);
+  }
 }
 
-.notification-enter-active,
-.notification-leave-active {
-  transition: all 0.3s ease;
-}
-
-.notification-enter-from,
-.notification-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
+// Animations
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -286,37 +286,46 @@ button {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
-  .streamer-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: v.$spacing-md;
-    padding: v.$spacing-md;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      grid-template-columns: repeat(2, 1fr);
-    }
+.notification-enter-active,
+.notification-leave-active {
+  transition: all 0.3s ease;
+}
 
-    @media (min-width: map-get(v.$breakpoints, 'lg')) {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
+.notification-enter-from,
+.notification-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
 
-  .streamer-card {
-    background: v.$background-darker;
-    border-radius: 8px;
-    padding: v.$spacing-md;
-    display: flex;
-    flex-direction: column;
-    gap: v.$spacing-md;
-    transition: transform 0.2s ease;
-
-    &:hover {
-      transform: translateY(-2px);
-    }
-  }
+// Interactive Elements
 .interactive-element {
   @media (hover: none) {
-    min-height: 44px; // iOS minimum touch target
+    min-height: 44px;
     min-width: 44px;
+  }
+}
+
+// Responsive Tables
+.streamer-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; // Smooth scrolling on iOS
+
+  @media (max-width: map-get(v.$breakpoints, 'md')) {
+    .streamer-table {
+      display: block;
+      
+      th, td {
+        min-width: 120px; // Prevent text from wrapping too early
+      }
+      
+      td:before {
+        content: attr(data-label);
+        float: left;
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+    }
   }
 }
