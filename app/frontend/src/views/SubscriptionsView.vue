@@ -53,202 +53,77 @@
     </div>
   </div>
 </template>
+  <script setup lang="ts">
+  import { ref, onMounted } from 'vue'
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-
-interface Subscription {
-  id: string
-  type: string
-  status: string
-  created_at: string
-  broadcaster_id?: string
-  broadcaster_name?: string
-  condition: {
-    broadcaster_user_id: string
-  }
-}
-
-const subscriptions = ref<Subscription[]>([])
-const loading = ref(false)
-
-async function loadSubscriptions() {
-  loading.value = true
-  try {
-    const response = await fetch('/api/streamers/subscriptions')
-    const data = await response.json()
-    subscriptions.value = data.subscriptions
-  } catch (error) {
-    console.error('Failed to load subscriptions:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function deleteSubscription(id: string) {
-  try {
-    const response = await fetch(`/api/streamers/subscriptions/${id}`, {
-      method: 'DELETE'
-    })
-    if (!response.ok) throw new Error('Failed to delete subscription')
-    
-    // Remove from local list
-    subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
-  } catch (error) {
-    console.error('Failed to delete subscription:', error)
-  }
-}
-async function deleteAllSubscriptions() {
-  if (!confirm('Are you sure you want to delete all subscriptions?')) return
-  
-  loading.value = true
-  try {
-    const response = await fetch('/api/streamers/subscriptions', {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json'
-      }
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete subscriptions')
+  interface Subscription {
+    id: string
+    type: string
+    status: string
+    created_at: string
+    broadcaster_id?: string
+    broadcaster_name?: string
+    condition: {
+      broadcaster_user_id: string
     }
-    
-    subscriptions.value = []
-    await loadSubscriptions()
-  } catch (error) {
-    console.error('Failed to delete all subscriptions:', error.message)
-  } finally {
-    loading.value = false
   }
-}
-}onMounted(loadSubscriptions)
-</script>
 
+  const subscriptions = ref<Subscription[]>([])
+  const loading = ref(false)
+
+  async function loadSubscriptions() {
+    loading.value = true
+    try {
+      const response = await fetch('/api/streamers/subscriptions')
+      const data = await response.json()
+      subscriptions.value = data.subscriptions
+    } catch (error) {
+      console.error('Failed to load subscriptions:', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteSubscription(id: string) {
+    try {
+      const response = await fetch(`/api/streamers/subscriptions/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) throw new Error('Failed to delete subscription')
+    
+      subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
+    } catch (error) {
+      console.error('Failed to delete subscription:', error)
+    }
+  }
+
+  async function deleteAllSubscriptions() {
+    if (!confirm('Are you sure you want to delete all subscriptions?')) return
+  
+    loading.value = true
+    try {
+      const response = await fetch('/api/streamers/subscriptions', {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+    
+      const data = await response.json()
+    
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete subscriptions')
+      }
+    
+      subscriptions.value = []
+      await loadSubscriptions()
+    } catch (error) {
+      console.error('Failed to delete all subscriptions:', error.message)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  onMounted(loadSubscriptions)
+  </script>
 <style scoped>
-.subscriptions-page {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.streamer-table-container {
-  width: 100%;
-  overflow-x: auto;
-  background: #242424;
-  border-radius: 8px;
-  border: 1px solid #383838;
-  margin: 20px 0;
-}
-
-.streamer-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  color: #fff;
-}
-
-th {
-  background: #2f2f2f;
-  padding: 12px;
-  border-bottom: 1px solid #383838;
-}
-
-td {
-  padding: 12px;
-  border-bottom: 1px solid #383838;
-}
-
-tr:hover {
-  background: #2f2f2f;
-}
-
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8em;
-  font-weight: bold;
-}
-
-.status-badge.enabled {
-  background: #28a745;
-}
-
-.status-badge.disabled {
-  background: #dc3545;
-}
-
-.delete-btn {
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.delete-btn:hover:not(:disabled) {
-  background: #c82333;
-}
-
-.delete-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 2rem;
-  color: #fff;
-}
-
-.spinner {
-  border: 4px solid #383838;
-  border-top: 4px solid #3498db;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: #3498db;
-  color: white;
-}
-
-.btn.danger {
-  background: #dc3545;
-  color: white;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-}
-</style>
