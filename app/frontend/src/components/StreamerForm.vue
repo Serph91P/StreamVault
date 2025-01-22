@@ -33,9 +33,3 @@ export default {
   }
 }
 </script>
-
-<style scoped>
-.streamer-form {
-  margin: 1rem 0;
-}
-</style>
