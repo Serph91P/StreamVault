@@ -93,5 +93,3 @@ const handleSetup = async () => {
   }
 };
 </script>
-
-<style scoped>
