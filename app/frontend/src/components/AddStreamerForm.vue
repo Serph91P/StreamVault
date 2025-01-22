@@ -7,9 +7,9 @@
         :disabled="isLoading"
         placeholder="Enter Twitch username" 
         required
-        class="input-field"
+        class="input-field interactive-element"
       >
-      <button type="submit" :disabled="isLoading" class="submit-button">
+      <button type="submit" :disabled="isLoading" class="submit-button interactive-element">
         <span v-if="isLoading" class="loader"></span>
         {{ isLoading ? 'Adding...' : 'Add Streamer' }}
       </button>

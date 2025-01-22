@@ -1,10 +1,10 @@
 <template>
   <div class="subscription-manager">
     <div class="controls">
-      <button @click="loadSubscriptions" class="btn primary">
+      <button @click="loadSubscriptions" class="btn primary interactive-element">
         Check Subscriptions
       </button>
-      <button @click="deleteAllSubscriptions" class="btn danger">
+      <button @click="deleteAllSubscriptions" class="btn danger interactive-element">
         Delete All Subscriptions
       </button>
     </div>
@@ -16,7 +16,7 @@
           <span>Status: {{ sub.status }}</span>
           <span>Created: {{ new Date(sub.created_at).toLocaleString() }}</span>
         </div>
-        <button @click="deleteSubscription(sub.id)" class="btn danger small">
+        <button @click="deleteSubscription(sub.id)" class="delete-btn interactive-element">
           Delete
         </button>
       </div>

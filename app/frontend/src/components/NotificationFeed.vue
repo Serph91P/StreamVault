@@ -3,7 +3,7 @@
     <TransitionGroup name="notification">
       <div v-for="notification in notifications" 
            :key="notification.id" 
-           class="notification-item"
+           class="notification-item interactive-element"
            :class="notification.type">
         <div class="notification-content">
           {{ notification.message }}
@@ -20,7 +20,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 const notifications = ref([])
 const { messages } = useWebSocket()
 
-const NOTIFICATION_TIMEOUT = 5000 // 5 seconds
+const NOTIFICATION_TIMEOUT = 3000
 
 watch(messages, (newMessages) => {
   if (newMessages.length > 0) {
