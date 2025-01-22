@@ -142,4 +142,5 @@
   text-align: center;
   padding: v.$spacing-xl;
   color: v.$text-secondary;
+  font-size: map-get(v.$font-scale, 'base');
 }

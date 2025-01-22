@@ -8,7 +8,7 @@ nav {
   gap: v.$spacing-sm;
   width: 100%;
 
-  @media (min-width: v.$tablet) {
+  @media (min-width: map-get(v.$breakpoints, 'md')) {
     width: auto;
     gap: 1.5rem;
   }
@@ -22,7 +22,7 @@ nav {
     transition: all 0.2s ease;
     font-size: map-get(v.$font-scale, 'sm');
 
-    @media (min-width: v.$tablet) {
+    @media (min-width: map-get(v.$breakpoints, 'md')) {
       padding: v.$spacing-sm v.$spacing-md;
       font-size: map-get(v.$font-scale, 'base');
     }
@@ -66,7 +66,7 @@ nav {
   }
 }
 
-// Streamer Grid and Cards
+// Streamer Grid
 .streamer-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -222,7 +222,7 @@ nav {
 .status-badge {
   padding: 4px 8px;
   border-radius: 12px;
-  font-size: 0.8em;
+  font-size: map-get(v.$font-scale, 'xs');
   font-weight: bold;
   min-width: 60px;
   text-align: center;
@@ -244,7 +244,7 @@ nav {
   border: none;
   padding: v.$spacing-sm v.$spacing-md;
   border-radius: 6px;
-  font-size: v.$font-base;
+  font-size: map-get(v.$font-scale, 'base');
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease;
