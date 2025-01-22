@@ -27,16 +27,14 @@
   align-items: center;
   gap: v.$spacing-sm;
   width: 100%;
+    h1 {
+      font-size: map-get(v.$font-scale, 'lg');
+      margin: 0;
 
-  h1 {
-    font-size: v.$font-lg;
-    margin: 0;
-
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      font-size: v.$font-xl;
+      @media (min-width: map-get(v.$breakpoints, 'md')) {
+        font-size: map-get(v.$font-scale, 'xl');
+      }
     }
-  }
-
   @media (min-width: map-get(v.$breakpoints, 'md')) {
     flex-direction: row;
     justify-content: space-between;
