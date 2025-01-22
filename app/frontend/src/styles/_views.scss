@@ -12,32 +12,49 @@
   z-index: 100;
   padding: v.$spacing-md;
 }
-
-.login-form,
-.setup-form {
-  background: v.$background-darker;
-  padding: v.$spacing-lg;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 320px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
-    max-width: 400px;
-    padding: v.$spacing-xl;
-  }
-
-  h2 {
-    margin-bottom: v.$spacing-lg;
+  .login-form,
+  .setup-form {
+    background: v.$background-darker;
+    padding: v.$spacing-lg;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 320px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    font-size: map-get(v.$font-scale, 'lg');
 
     @media (min-width: map-get(v.$breakpoints, 'md')) {
-      font-size: map-get(v.$font-scale, 'xl');
+      max-width: 400px;
+      padding: v.$spacing-xl;
+    }
+
+    h2 {
+      margin-bottom: v.$spacing-lg;
+      text-align: center;
+      font-size: map-get(v.$font-scale, 'lg');
+
+      @media (min-width: map-get(v.$breakpoints, 'md')) {
+        font-size: map-get(v.$font-scale, 'xl');
+      }
+    }
+
+    .form-group {
+      width: 100%;
+      max-width: 300px;
+    }
+  
+    .input-field {
+      text-align: center;
+    }
+  
+    button {
+      background: v.$primary-color;
+      width: 100%;
+      max-width: 300px;
     }
   }
-}
-
 // Add Streamer View
 .add-streamer-page {
   padding: v.$spacing-md;

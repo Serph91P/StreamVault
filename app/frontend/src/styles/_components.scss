@@ -250,8 +250,8 @@ nav {
 
 // Buttons
 .submit-button,
-.delete-btn {
-  background: v.$primary-color;
+.btn {
+  background: #42b883; // Vue green
   color: white;
   border: none;
   padding: v.$spacing-sm v.$spacing-md;
@@ -267,7 +267,7 @@ nav {
   }
 
   &:hover:not(:disabled) {
-    background: darken(v.$primary-color, 10%);
+    background: #3aa776;
   }
 
   &:disabled {
@@ -281,6 +281,14 @@ nav {
 
   &:hover:not(:disabled) {
     background: darken(v.$danger-color, 10%);
+  }
+}
+
+// Vue-style inputs
+.input-field {
+  border-color: #42b883;
+  &:focus {
+    box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
   }
 }
 
