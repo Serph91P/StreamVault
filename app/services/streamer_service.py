@@ -27,14 +27,14 @@ class StreamerService:
         for streamer in streamers:
             latest_event = self.db.query(Stream)\
                 .filter(Stream.streamer_id == streamer.id)\
-                .order_by(Stream.timestamp.desc())\
+                .order_by(Stream.started_at.desc())\
                 .first()
                 
             streamer_statuses.append({
                 "id": streamer.id,
                 "username": streamer.username,
                 "is_live": latest_event.event_type == 'stream.online' if latest_event else False,
-                "last_updated": latest_event.timestamp if latest_event else None
+                "last_updated": latest_event.started_at if latest_event else None
             })
         
         return streamer_statuses
