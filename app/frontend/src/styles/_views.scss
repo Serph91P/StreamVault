@@ -50,9 +50,19 @@
     }
   
     button {
-      background: v.$primary-color;
-      width: 100%;
-      max-width: 300px;
+      background: $button-primary;
+      background-image: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+      box-shadow: $button-shadow;
+      
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: $button-shadow-hover;
+      }
+      
+      &:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: $button-shadow-active;
+      }
     }
   }
 // Add Streamer View

@@ -4,9 +4,19 @@ $background-darker: #1f1f23;
 $text-primary: #efeff1;
 $text-secondary: #adadb8;
 $border-color: #303034;
-$primary-color: #9147ff;
-$danger-color: #ff4444;
+$primary-color: #42b883;
+$danger-color: #ef4444;
 $success-color: #28a745;
+
+// Button colors
+$button-primary: $primary-color;
+$button-danger: $danger-color;
+$button-disabled: #392e5c;
+
+// Button effects
+$button-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+$button-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.15);
+$button-shadow-active: 0 1px 2px rgba(0, 0, 0, 0.1);
 
 // Spacing (using rem for better scaling)
 $spacing-xs: 0.25rem;

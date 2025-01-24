@@ -250,8 +250,9 @@ nav {
 
 // Buttons
 .submit-button,
-.btn {
-  background: #42b883; // Vue green
+.btn,
+.delete-btn {
+  background: $button-primary;
   color: white;
   border: none;
   padding: v.$spacing-sm v.$spacing-md;
@@ -259,28 +260,73 @@ nav {
   font-size: map-get(v.$font-scale, 'base');
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
   width: 100%;
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  box-shadow: $button-shadow;
 
   @media (min-width: map-get(v.$breakpoints, 'md')) {
     width: auto;
   }
 
   &:hover:not(:disabled) {
-    background: #3aa776;
+    transform: translateY(-1px);
+    box-shadow: $button-shadow-hover;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: $button-shadow-active;
   }
 
   &:disabled {
-    background: #392e5c;
+    background: $button-disabled;
     cursor: not-allowed;
+    opacity: 0.7;
   }
 }
 
 .delete-btn {
-  background: v.$danger-color;
-
+  background: $button-danger;
+  
   &:hover:not(:disabled) {
-    background: darken(v.$danger-color, 10%);
+    background: darken($button-danger, 10%);
+  }
+}
+
+// Button ripple effect
+.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255,255,255,0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn:focus:not(:active)::after {
+  animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(40, 40);
   }
 }
 
