@@ -229,17 +229,6 @@ class EventHandlerRegistry:
                         current_stream.language = language
                         stream_event.stream_id = current_stream.id
 
-
-
-
-
-
-
-
-
-
-
-
                     db.add(stream_event)
                     db.commit()
 
@@ -250,12 +239,11 @@ class EventHandlerRegistry:
                             "streamer_name": streamer_name,
                             "title": title,
                             "category_name": category_name,
-
                             "language": language,
-                            "is_live": current_stream is not None
+                            "is_live": current_stream is not None,
+                            "last_updated": datetime.utcnow().isoformat()
                         }
                     })
-
 
         except Exception as e:
             logger.error(f"Error handling channel.update event: {e}", exc_info=True)
