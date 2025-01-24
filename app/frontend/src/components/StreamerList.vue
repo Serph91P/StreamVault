@@ -1,32 +1,30 @@
 <template>
-  <div class="container">
-    <div class="streamer-grid">
-      <div v-for="streamer in sortedStreamers" 
-           :key="streamer.id"
-           class="streamer-card">
-        <div class="streamer-header">
-          <div class="streamer-info">
-            <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-            <h3>{{ streamer.username }}</h3>
-          </div>
-          <span class="status-badge interactive-element" :class="{ 'live': streamer.is_live }">
-            {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
-          </span>
+  <div class="streamer-grid">
+    <div v-for="streamer in sortedStreamers" 
+         :key="streamer.id"
+         class="streamer-card">
+      <div class="streamer-header">
+        <div class="streamer-info">
+          <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
+          <h3>{{ streamer.username }}</h3>
         </div>
-        <div class="streamer-content">
-          <p class="title">{{ streamer.title || '-' }}</p>
-          <p class="category">{{ streamer.category || '-' }}</p>
-          <p class="language">{{ streamer.language || '-' }}</p>
-          <p class="last-update">{{ formatDate(streamer.last_updated) }}</p>
-        </div>
-        <button 
-          @click="deleteStreamer(streamer.id)" 
-          class="delete-btn interactive-element"
-          :disabled="isDeleting"
-        >
-          {{ isDeleting ? 'Deleting...' : 'Delete' }}
-        </button>
+        <span class="status-badge" :class="{ 'live': streamer.is_live }">
+          {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+        </span>
       </div>
+      <div class="streamer-content">
+        <p><strong>Title:</strong> {{ streamer.title || '-' }}</p>
+        <p><strong>Category:</strong> {{ streamer.category_name || '-' }}</p>
+        <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
+        <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_updated) }}</p>
+      </div>
+      <button 
+        @click="deleteStreamer(streamer.id)" 
+        class="delete-btn"
+        :disabled="isDeleting"
+      >
+        {{ isDeleting ? 'Deleting...' : 'Delete' }}
+      </button>
     </div>
   </div>
 </template>
@@ -104,7 +102,6 @@ const deleteStreamer = async (streamerId: string) => {
     isDeleting.value = false
   }
 }
-
 const fetchStreamers = async () => {
   try {
     const response = await fetch('/api/streamers')
