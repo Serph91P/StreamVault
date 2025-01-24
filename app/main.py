@@ -61,21 +61,11 @@ async def eventsub_callback(request: Request):
         body = await request.body()
         received_signature = headers.get("Twitch-Eventsub-Message-Signature")
 
-        # Debug logging for request details
-        logger.debug(f"Raw headers: {dict(headers)}")
-        logger.debug(f"Raw body length: {len(body)}")
-        logger.debug(f"Raw body content: {body.decode()}")
-
         # Extract required headers
         message_id = headers.get("Twitch-Eventsub-Message-Id", "")
         timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
         signature = headers.get("Twitch-Eventsub-Message-Signature", "")
         message_type = headers.get("Twitch-Eventsub-Message-Type", "")
-
-        logger.debug(f"Message ID: {message_id}")
-        logger.debug(f"Timestamp: {timestamp}")
-        logger.debug(f"Received signature: {signature}")
-        logger.debug(f"Message Type: {message_type}")
 
         # Validate required headers
         if not all([message_id, timestamp, signature, message_type]):
@@ -96,20 +86,8 @@ async def eventsub_callback(request: Request):
             logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
             return Response(status_code=403)
 
-        logger.debug(f"Computed signature: {expected_signature}")
-        logger.debug(f"HMAC message content: {hmac_message}")
-
-        # Use a timing-safe comparison for signature validation
-        if not hmac.compare_digest(signature, expected_signature):
-            logger.error(
-                f"Invalid webhook signature. "
-                f"Expected: {expected_signature}, Received: {signature}"
-            )
-            return Response(status_code=403)
-
-        # Process webhook message
+        # Process webhook message based on message_type
         if message_type == "webhook_callback_verification":
-            # Handle challenge verification
             try:
                 body_json = json.loads(body)
                 challenge = body_json.get("challenge")
