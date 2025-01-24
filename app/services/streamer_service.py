@@ -34,6 +34,9 @@ class StreamerService:
                 "id": streamer.id,
                 "username": streamer.username,
                 "is_live": latest_stream and latest_stream.ended_at is None,
+                "title": latest_stream.title if latest_stream else None,
+                "category_name": latest_stream.category_name if latest_stream else None,
+                "language": latest_stream.language if latest_stream else None,
                 "last_updated": latest_stream.started_at if latest_stream else None
             })
     
