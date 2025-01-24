@@ -240,11 +240,11 @@ nav {
   min-width: 60px;
   text-align: center;
 
-  &.enabled {
+  &.live {
     background: v.$success-color;
   }
 
-  &.disabled {
+  &.offline {
     background: v.$danger-color;
   }
 }
