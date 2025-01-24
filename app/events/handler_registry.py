@@ -103,8 +103,9 @@ class EventHandlerRegistry:
             logger.debug(f"Handling stream.online event with data: {data}")
             twitch_id = str(data.get("broadcaster_user_id"))
             streamer_name = data.get("broadcaster_user_name")
-            title = data.get("title")
-            category = data.get("category_name")
+            twitch_stream_id = data.get("id")
+            stream_type = data.get("type")
+            started_at = data.get("started_at")
 
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
@@ -112,18 +113,17 @@ class EventHandlerRegistry:
                     # Create new stream session
                     new_stream = Stream(
                         streamer_id=streamer.id,
-                        current_title=title,
-                        current_category=category
+                        twitch_stream_id=twitch_stream_id,
+                        stream_type=stream_type,
+                        started_at=started_at
                     )
                     db.add(new_stream)
-                    db.flush()  # Get the stream ID
+                    db.flush()
 
                     # Record the online event
                     stream_event = StreamEvent(
                         stream_id=new_stream.id,
-                        event_type='stream.online',
-                        title=title,
-                        category=category
+                        event_type='stream.online'
                     )
                     db.add(stream_event)
                     db.commit()
@@ -133,8 +133,8 @@ class EventHandlerRegistry:
                         "data": {
                             "streamer_id": twitch_id,
                             "streamer_name": streamer_name,
-                            "title": title,
-                            "category": category
+                            "stream_id": twitch_stream_id,
+                            "started_at": started_at
                         }
                     })
                     logger.info(f"Handled stream online event for {streamer_name}")
@@ -148,6 +148,7 @@ class EventHandlerRegistry:
             logger.debug(f"Handling stream.offline event with data: {data}")
             twitch_id = str(data.get("broadcaster_user_id"))
             streamer_name = data.get("broadcaster_user_name")
+            broadcaster_user_login = data.get("broadcaster_user_login")
 
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
@@ -157,14 +158,15 @@ class EventHandlerRegistry:
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .first()
-                    
+                
                     if current_stream:
                         current_stream.ended_at = datetime.utcnow()
-                    
-                        # Record the offline event
+                
+                        # Record the offline event with all available data
                         stream_event = StreamEvent(
                             stream_id=current_stream.id,
-                            event_type='stream.offline'
+                            event_type='stream.offline',
+                            broadcaster_user_login=broadcaster_user_login
                         )
                         db.add(stream_event)
                         db.commit()
@@ -173,7 +175,8 @@ class EventHandlerRegistry:
                             "type": "stream.offline",
                             "data": {
                                 "streamer_id": twitch_id,
-                                "streamer_name": streamer_name
+                                "streamer_name": streamer_name,
+                                "broadcaster_user_login": broadcaster_user_login
                             }
                         })
                         logger.info(f"Handled stream offline event for {streamer_name}")
@@ -188,54 +191,63 @@ class EventHandlerRegistry:
             twitch_id = str(data.get("broadcaster_user_id"))
             streamer_name = data.get("broadcaster_user_name")
             title = data.get("title")
-            category = data.get("category_name")
+            category_id = data.get("category_id")
+            category_name = data.get("category_name")
+            language = data.get("language")
 
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    # Get current active stream or create offline updates container
+                    # Get current active stream or create new one
                     current_stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .first()
                     
                     if not current_stream:
-                        # Create container for offline updates
+                        # Create new stream if none active
                         current_stream = Stream(
                             streamer_id=streamer.id,
-                            current_title=title,
-                            current_category=category
+                            title=title,
+                            category_id=category_id,
+                            category_name=category_name,
+                            language=language
                         )
                         db.add(current_stream)
                         db.flush()
                     else:
-                        # Update current stream state
-                        current_stream.current_title = title
-                        current_stream.current_category = category
+                        # Update current stream
+                        current_stream.title = title
+                        current_stream.category_id = category_id
+                        current_stream.category_name = category_name
+                        current_stream.language = language
 
                     # Record the update event
                     stream_event = StreamEvent(
                         stream_id=current_stream.id,
                         event_type='channel.update',
                         title=title,
-                        category=category
+                        category_id=category_id,
+                        category_name=category_name,
+                        language=language
                     )
                     db.add(stream_event)
                     db.commit()
 
                     await self.manager.send_notification({
-                        "type": "channel-update",
+                        "type": "channel.update",
                         "data": {
                             "streamer_id": twitch_id,
                             "streamer_name": streamer_name,
                             "title": title,
-                            "category": category
+                            "category_name": category_name,
+                            "language": language
                         }
                     })
                     logger.info(f"Handled stream update event for {streamer_name}")
 
         except Exception as e:
-            logger.error(f"Error handling channel-update event: {e}", exc_info=True)
+            logger.error(f"Error handling channel.update event: {e}", exc_info=True)
             raise
 
     async def list_subscriptions(self):
