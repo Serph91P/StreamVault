@@ -9,7 +9,7 @@ import logging
 import asyncio
 import hmac
 import hashlib
-import datetime
+from datetime import datetime, timezone
 
 
 logger = logging.getLogger('streamvault')
@@ -241,7 +241,7 @@ class EventHandlerRegistry:
                             "category_name": category_name,
                             "language": language,
                             "is_live": current_stream is not None,
-                            "last_updated": datetime.utcnow().isoformat()
+                            "last_updated": datetime.now(timezone.utc).isoformat()
                         }
                     })
 
