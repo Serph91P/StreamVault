@@ -198,41 +198,30 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    # Get current active stream or create new one
+                    # Only update existing active stream
                     current_stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .first()
-                    
-                    if not current_stream:
-                        # Create new stream if none active
-                        current_stream = Stream(
-                            streamer_id=streamer.id,
-                            title=title,
-                            category_id=category_id,
-                            category_name=category_name,
-                            language=language
-                        )
-                        db.add(current_stream)
-                        db.flush()
-                    else:
+                
+                    if current_stream:
                         # Update current stream
                         current_stream.title = title
                         current_stream.category_id = category_id
                         current_stream.category_name = category_name
                         current_stream.language = language
 
-                    # Record the update event
-                    stream_event = StreamEvent(
-                        stream_id=current_stream.id,
-                        event_type='channel.update',
-                        title=title,
-                        category_id=category_id,
-                        category_name=category_name,
-                        language=language
-                    )
-                    db.add(stream_event)
-                    db.commit()
+                        # Record the update event
+                        stream_event = StreamEvent(
+                            stream_id=current_stream.id,
+                            event_type='channel.update',
+                            title=title,
+                            category_id=category_id,
+                            category_name=category_name,
+                            language=language
+                        )
+                        db.add(stream_event)
+                        db.commit()
 
                     await self.manager.send_notification({
                         "type": "channel.update",
@@ -249,7 +238,7 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling channel.update event: {e}", exc_info=True)
             raise
-
+        
     async def list_subscriptions(self):
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
