@@ -252,12 +252,12 @@ nav {
 .submit-button,
 .btn,
 .delete-btn {
-  background: $button-primary;
+  background: v.$primary-color;
   color: white;
   border: none;
   padding: v.$spacing-sm v.$spacing-md;
   border-radius: 6px;
-  font-size: map-get(v.$font-scale, 'base');
+  font-size: map.get(v.$font-scale, 'base');
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -265,37 +265,36 @@ nav {
   position: relative;
   overflow: hidden;
   background-image: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
-  box-shadow: $button-shadow;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     width: auto;
   }
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: $button-shadow-hover;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   }
 
   &:active:not(:disabled) {
     transform: translateY(1px);
-    box-shadow: $button-shadow-active;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
   &:disabled {
-    background: $button-disabled;
+    background: #392e5c;
     cursor: not-allowed;
     opacity: 0.7;
   }
 }
 
 .delete-btn {
-  background: $button-danger;
+  background: v.$danger-color;
   
   &:hover:not(:disabled) {
-    background: darken($button-danger, 10%);
+    background: darken(v.$danger-color, 10%);
   }
 }
-
 // Button ripple effect
 .btn::after {
   content: '';
