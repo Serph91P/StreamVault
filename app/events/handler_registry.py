@@ -3,7 +3,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
-from app.models import Streamer, Stream
+from app.models import Streamer, Stream, StreamEvent
 from app.config.settings import settings
 import logging
 import asyncio
@@ -19,7 +19,6 @@ class EventHandlerRegistry:
         self.twitch = twitch
         self.eventsub = None
         self.settings = settings
-        # self.register_handlers()
 
     async def initialize_eventsub(self):
         if not self.twitch:
