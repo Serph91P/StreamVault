@@ -59,6 +59,7 @@ async def eventsub_callback(request: Request):
         # Read headers and body
         headers = request.headers
         body = await request.body()
+        received_signature = headers.get("Twitch-Eventsub-Message-Signature")
 
         # Debug logging for request details
         logger.debug(f"Raw headers: {dict(headers)}")
@@ -80,14 +81,20 @@ async def eventsub_callback(request: Request):
         if not all([message_id, timestamp, signature, message_type]):
             logger.error("Missing required headers for signature verification.")
             return Response(status_code=403)
+        
+        # Combine message components exactly as Twitch does
+        hmac_message = message_id.encode() + timestamp.encode() + body
 
-        # Create HMAC signature
-        hmac_message = message_id + timestamp + body.decode()
-        expected_signature = "sha256=" + hmac.new(
-            settings.EVENTSUB_SECRET.encode("utf-8"),
-            hmac_message.encode("utf-8"),
+        # Calculate signature using raw bytes
+        calculated_signature = "sha256=" + hmac.new(
+            settings.EVENTSUB_SECRET.encode(),
+            hmac_message,
             hashlib.sha256
         ).hexdigest()
+
+        if not hmac.compare_digest(received_signature, calculated_signature):
+            logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
+            return Response(status_code=403)
 
         logger.debug(f"Computed signature: {expected_signature}")
         logger.debug(f"HMAC message content: {hmac_message}")
