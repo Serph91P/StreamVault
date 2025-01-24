@@ -1,5 +1,56 @@
+@use 'sass:map';
 @use 'variables' as v;
 
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: v.$background-dark;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: v.$spacing-sm;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md;
+  }
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: v.$spacing-sm;
+  width: 100%;
+
+  h1 {
+    font-size: map.get(v.$font-scale, 'lg');
+    margin: 0;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'xl');
+    }
+  }
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    flex-direction: row;
+    justify-content: space-between;
+    max-width: v.$container-xl;
+    margin: 0 auto;
+    gap: v.$spacing-md;
+  }
+}
+
+.main-content {
+  margin-top: 120px;
+  padding: v.$spacing-md;
+}
 .app {
   min-height: 100vh;
   display: flex;

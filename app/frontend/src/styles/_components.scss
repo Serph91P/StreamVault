@@ -1,3 +1,4 @@
+@use 'sass:map';
 @use 'variables' as v;
 
 // Navigation
@@ -294,8 +295,7 @@ nav {
   &:hover:not(:disabled) {
     background: darken(v.$danger-color, 10%);
   }
-}
-// Button ripple effect
+}// Button ripple effect
 .btn::after {
   content: '';
   position: absolute;
