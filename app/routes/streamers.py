@@ -153,7 +153,7 @@ async def setup_test_subscription(
         test_commands = {
             "stream.online": f"twitch event trigger streamup -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}",
             "stream.offline": f"twitch event trigger streamdown -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}",
-            "stream.change": f"twitch event trigger stream-change -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}"
+            "channel.update": f"twitch event trigger stream-change -F {settings.WEBHOOK_URL}/callback -t {users[0].id} -u {test_sub_id}"
         }
 
         return JSONResponse(

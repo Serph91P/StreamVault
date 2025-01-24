@@ -9,12 +9,18 @@ import logging
 import asyncio
 import hmac
 import hashlib
+import datetime
+
 
 logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
     def __init__(self, connection_manager: ConnectionManager, twitch: Twitch = None, settings=None):
-        self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {}
+        self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
+            "stream.online": self.handle_stream_online,
+            "stream.offline": self.handle_stream_offline,
+            "channel.update": self.handle_stream_update
+        }
         self.manager = connection_manager
         self.twitch = twitch
         self.eventsub = None
@@ -210,7 +216,7 @@ class EventHandlerRegistry:
                     # Record the update event
                     stream_event = StreamEvent(
                         stream_id=current_stream.id,
-                        event_type='stream.update',
+                        event_type='channel.update',
                         title=title,
                         category=category
                     )
@@ -218,7 +224,7 @@ class EventHandlerRegistry:
                     db.commit()
 
                     await self.manager.send_notification({
-                        "type": "stream.update",
+                        "type": "channel-update",
                         "data": {
                             "streamer_id": twitch_id,
                             "streamer_name": streamer_name,
@@ -229,7 +235,7 @@ class EventHandlerRegistry:
                     logger.info(f"Handled stream update event for {streamer_name}")
 
         except Exception as e:
-            logger.error(f"Error handling stream.update event: {e}", exc_info=True)
+            logger.error(f"Error handling channel-update event: {e}", exc_info=True)
             raise
 
     async def list_subscriptions(self):
