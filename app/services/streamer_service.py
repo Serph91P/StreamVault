@@ -23,20 +23,20 @@ class StreamerService:
     async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
-        
+    
         for streamer in streamers:
-            latest_event = self.db.query(Stream)\
+            latest_stream = self.db.query(Stream)\
                 .filter(Stream.streamer_id == streamer.id)\
                 .order_by(Stream.started_at.desc())\
                 .first()
-                
+            
             streamer_statuses.append({
                 "id": streamer.id,
                 "username": streamer.username,
-                "is_live": latest_event.event_type == 'stream.online' if latest_event else False,
-                "last_updated": latest_event.started_at if latest_event else None
+                "is_live": latest_stream and latest_stream.ended_at is None,
+                "last_updated": latest_stream.started_at if latest_stream else None
             })
-        
+    
         return streamer_statuses
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
