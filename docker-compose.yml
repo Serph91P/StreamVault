@@ -1,6 +1,6 @@
 services:
   app:
-    build: .
+    image: frequency2098/streamvault
     container_name: streamvault
     volumes:
       - .:/app
@@ -14,7 +14,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:13-alpine
@@ -26,6 +27,11 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db_data:
