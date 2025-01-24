@@ -59,28 +59,38 @@ async def eventsub_callback(request: Request):
         # Read headers and body
         headers = request.headers
         body = await request.body()
-        received_signature = headers.get("Twitch-Eventsub-Message-Signature")
 
         # Extract required headers
         message_id = headers.get("Twitch-Eventsub-Message-Id", "")
         timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
-        signature = headers.get("Twitch-Eventsub-Message-Signature", "")
+        received_signature = headers.get("Twitch-Eventsub-Message-Signature", "")
         message_type = headers.get("Twitch-Eventsub-Message-Type", "")
 
+        # Debug logging
+        logger.debug(f"Message ID: {message_id}")
+        logger.debug(f"Timestamp: {timestamp}")
+        logger.debug(f"Received signature: {received_signature}")
+        logger.debug(f"Raw body: {body.decode()}")
+        
         # Validate required headers
-        if not all([message_id, timestamp, signature, message_type]):
+        if not all([message_id, timestamp, received_signature, message_type]):
             logger.error("Missing required headers for signature verification.")
             return Response(status_code=403)
-        
-        # Combine message components exactly as Twitch does
+
+        # Create message exactly as Twitch does
         hmac_message = message_id.encode() + timestamp.encode() + body
 
-        # Calculate signature using raw bytes
+        # Calculate HMAC using raw bytes
         calculated_signature = "sha256=" + hmac.new(
             settings.EVENTSUB_SECRET.encode(),
             hmac_message,
             hashlib.sha256
         ).hexdigest()
+
+        # Debug HMAC calculation
+        logger.debug(f"HMAC message: {hmac_message}")
+        logger.debug(f"Calculated signature: {calculated_signature}")
+        logger.debug(f"Secret used: {settings.EVENTSUB_SECRET}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
             logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
