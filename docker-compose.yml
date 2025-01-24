@@ -10,7 +10,7 @@ services:
       - TWITCH_APP_ID=${TWITCH_APP_ID}
       - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
       - BASE_URL=${BASE_URL}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - EVENTSUB_SECRET=${EVENTSUB_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     restart: unless-stopped
     depends_on:
