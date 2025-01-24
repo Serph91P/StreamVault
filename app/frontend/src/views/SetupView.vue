@@ -2,10 +2,11 @@
   <div class="setup-page">
     <form @submit.prevent="handleSetup" class="setup-form">
       <h2>Initial Setup</h2>
-      <p class="setup-info">Create your admin account</p>
+      <p class="description">Create your admin account</p>
 
       <div class="form-group">
         <input 
+          class="input-field"
           type="text" 
           v-model="username" 
           placeholder="Admin Username" 
@@ -14,6 +15,7 @@
       </div>
       <div class="form-group">
         <input 
+          class="input-field"
           type="password" 
           v-model="password" 
           placeholder="Password" 
@@ -22,6 +24,7 @@
       </div>
       <div class="form-group">
         <input 
+          class="input-field"
           type="password" 
           v-model="confirmPassword" 
           placeholder="Confirm Password" 
@@ -29,11 +32,16 @@
         >
       </div>
 
-      <button type="submit" :disabled="isLoading || !isValid">
-        {{ isLoading ? 'Creating Account...' : 'Create Admin Account' }}
+      <button 
+        type="submit" 
+        class="submit-button" 
+        :disabled="isLoading || !isValid"
+      >
+        <span class="loader" v-if="isLoading"></span>
+        <span>{{ isLoading ? 'Creating Account...' : 'Create Admin Account' }}</span>
       </button>
 
-      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="error" class="notification-item error">{{ error }}</div>
     </form>
   </div>
 </template>

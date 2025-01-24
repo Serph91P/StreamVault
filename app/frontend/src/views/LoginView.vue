@@ -4,6 +4,7 @@
       <h2>Login</h2>
       <div class="form-group">
         <input 
+          class="input-field"
           type="text" 
           v-model="username" 
           placeholder="Username" 
@@ -12,21 +13,27 @@
       </div>
       <div class="form-group">
         <input 
+          class="input-field"
           type="password" 
           v-model="password" 
           placeholder="Password" 
           required
         >
       </div>
-      <button type="submit" :disabled="isLoading">
-        {{ isLoading ? 'Logging in...' : 'Login' }}
+      <button 
+        type="submit" 
+        class="submit-button" 
+        :disabled="isLoading"
+      >
+        <span class="loader" v-if="isLoading"></span>
+        <span>{{ isLoading ? 'Logging in...' : 'Login' }}</span>
       </button>
-      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="error" class="notification-item error">{{ error }}</div>
     </form>
   </div>
 </template>
-  <script setup>
-  import { ref } from 'vue'
+<script setup>
+import { ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   const router = useRouter()
