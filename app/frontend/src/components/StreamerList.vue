@@ -43,6 +43,7 @@ interface Streamer {
   category_name?: string
   language?: string
   last_updated?: string
+  [key: string]: string | boolean | undefined
 }
 
 interface WebSocketData {
@@ -51,7 +52,6 @@ interface WebSocketData {
   category_name?: string
   language?: string
   last_updated?: string
-  [key: string]: string | boolean | undefined
 }
 
 const { messages } = useWebSocket()
@@ -65,11 +65,6 @@ const emit = defineEmits<{
   streamerDeleted: []
 }>()
 
-const formatDate = (date: string | undefined): string => {
-  if (!date) return 'Never'
-  return new Date(date).toLocaleString()
-}
-
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
     const modifier = sortDir.value === 'asc' ? 1 : -1
@@ -80,6 +75,20 @@ const sortedStreamers = computed(() => {
     return 0
   })
 })
+
+const sortBy = (key: string) => {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = 'asc'
+  }
+}
+
+const formatDate = (date: string | undefined): string => {
+  if (!date) return 'Never'
+  return new Date(date).toLocaleString()
+}
 
 function updateStreamerInfo(data: WebSocketData) {
   streamers.value = streamers.value.map(streamer => {
@@ -94,11 +103,6 @@ function updateStreamerInfo(data: WebSocketData) {
     }
     return streamer
   })
-}
-
-const formatDate = (date: string): string => {
-  if (!date) return 'Never'
-  return new Date(date).toLocaleString()
 }
 
 const deleteStreamer = async (streamerId: string) => {
