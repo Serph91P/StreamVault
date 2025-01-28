@@ -51,6 +51,7 @@ interface WebSocketData {
   category_name?: string
   language?: string
   last_updated?: string
+  [key: string]: string | boolean | undefined
 }
 
 const { messages } = useWebSocket()
@@ -63,6 +64,11 @@ const sortDir = ref('asc')
 const emit = defineEmits<{
   streamerDeleted: []
 }>()
+
+const formatDate = (date: string | undefined): string => {
+  if (!date) return 'Never'
+  return new Date(date).toLocaleString()
+}
 
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
