@@ -1,15 +1,31 @@
-const CACHE_NAME = 'streamvault-v1'
+const CACHE_NAME = 'streamvault-v2'
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/assets/*'
+  '/assets/*',
+  '/api/streamers'
 ]
 
 self.addEventListener('install', event => {
+  self.skipWaiting()
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
+  )
+})
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName)
+          }
+        })
+      )
+    })
   )
 })
 
@@ -20,10 +36,7 @@ self.addEventListener('fetch', event => {
         if (response) {
           return response
         }
-        return fetch(event.request).catch(() => {
-          // Return cached version if network fetch fails
-          return caches.match(event.request)
-        })
+        return fetch(event.request)
       })
   )
 })
