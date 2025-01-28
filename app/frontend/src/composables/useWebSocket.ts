@@ -1,12 +1,19 @@
 import { ref, onMounted, onUnmounted } from 'vue'
+import type { Ref } from 'vue'
+
+interface WebSocketMessage {
+  type: string
+  data?: any
+  message?: string
+}
 
 export function useWebSocket() {
-  const messages = ref([])
+  const messages: Ref<WebSocketMessage[]> = ref([])
   const connectionStatus = ref('disconnected')
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl = `${wsProtocol}//${window.location.host}/ws`
-  let ws = null
-  let reconnectTimer = null
+  let ws: WebSocket | null = null
+  let reconnectTimer: number | null = null
 
   const connect = () => {
     ws = new WebSocket(wsUrl)
@@ -29,7 +36,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       connectionStatus.value = 'disconnected'
       console.log('WebSocket disconnected, attempting reconnect...')
-      reconnectTimer = setTimeout(connect, 5000)
+      reconnectTimer = window.setTimeout(connect, 5000)
     }
 
     ws.onerror = (error) => {
@@ -42,12 +49,8 @@ export function useWebSocket() {
   })
 
   onUnmounted(() => {
-    if (ws) {
-      ws.close()
-    }
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-    }
+    if (ws) ws.close()
+    if (reconnectTimer) clearTimeout(reconnectTimer)
   })
 
   return {
