@@ -155,25 +155,25 @@ class EventHandlerRegistry:
             logger.debug(f"Handling stream.offline event with data: {data}")
             twitch_id = str(data.get("broadcaster_user_id"))
             streamer_name = data.get("broadcaster_user_name")
-            broadcaster_user_login = data.get("broadcaster_user_login")
 
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    # Find and close current stream
+                    # Find the latest active stream
                     current_stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
+                        .order_by(Stream.started_at.desc())\
                         .first()
                 
                     if current_stream:
-                        current_stream.ended_at = datetime.utcnow()
-                
-                        # Record the offline event with all available data
+                        # Keep the stream data but mark it as ended
+                        current_stream.ended_at = datetime.now(timezone.utc)
+                    
+                        # Record the offline event
                         stream_event = StreamEvent(
                             stream_id=current_stream.id,
-                            event_type='stream.offline',
-                            broadcaster_user_login=broadcaster_user_login
+                            event_type='stream.offline'
                         )
                         db.add(stream_event)
                         db.commit()
@@ -183,7 +183,9 @@ class EventHandlerRegistry:
                             "data": {
                                 "streamer_id": twitch_id,
                                 "streamer_name": streamer_name,
-                                "broadcaster_user_login": broadcaster_user_login
+                                "title": current_stream.title,
+                                "category_name": current_stream.category_name,
+                                "language": current_stream.language
                             }
                         })
                         logger.info(f"Handled stream offline event for {streamer_name}")
@@ -191,7 +193,6 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream.offline event: {e}", exc_info=True)
             raise
-
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Handling channel.update event with data: {data}")

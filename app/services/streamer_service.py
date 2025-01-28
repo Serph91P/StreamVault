@@ -23,7 +23,7 @@ class StreamerService:
     async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
-    
+
         for streamer in streamers:
             latest_stream = self.db.query(Stream)\
                 .filter(Stream.streamer_id == streamer.id)\
@@ -32,6 +32,7 @@ class StreamerService:
             
             streamer_statuses.append({
                 "id": streamer.id,
+                "twitch_id": streamer.twitch_id,
                 "username": streamer.username,
                 "is_live": latest_stream and latest_stream.ended_at is None,
                 "title": latest_stream.title if latest_stream else None,
@@ -39,7 +40,7 @@ class StreamerService:
                 "language": latest_stream.language if latest_stream else None,
                 "last_updated": latest_stream.started_at if latest_stream else None
             })
-    
+
         return streamer_statuses
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
