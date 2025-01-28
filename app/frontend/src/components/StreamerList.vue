@@ -68,8 +68,8 @@ const emit = defineEmits<{
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
     const modifier = sortDir.value === 'asc' ? 1 : -1
-    const aValue = a[sortKey.value]
-    const bValue = b[sortKey.value]
+    const aValue = a[sortKey.value] ?? ''
+    const bValue = b[sortKey.value] ?? ''
     if (aValue < bValue) return -1 * modifier
     if (aValue > bValue) return 1 * modifier
     return 0
