@@ -199,12 +199,12 @@ class EventHandlerRegistry:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
                 if streamer:
-                    # Check for active stream first
+                    # Get or create stream record
                     current_stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .first()
-                
+
                     if not current_stream:
                         # This is a pre-stream update, create a new stream record
                         current_stream = Stream(
@@ -212,17 +212,17 @@ class EventHandlerRegistry:
                             title=title,
                             category_name=category_name,
                             language=language,
-                            started_at=None  # Will be set when stream goes live
+                            is_live=False  # Explicitly set as not live
                         )
                         db.add(current_stream)
-                        db.flush()
                     else:
-                        # Update existing stream
                         current_stream.title = title
                         current_stream.category_name = category_name
                         current_stream.language = language
 
-                    # Record the update event
+                    db.flush()
+
+                    # Record update event
                     stream_event = StreamEvent(
                         stream_id=current_stream.id,
                         event_type='channel.update',
@@ -240,13 +240,14 @@ class EventHandlerRegistry:
                             "streamer_name": streamer_name,
                             "title": title,
                             "category_name": category_name,
-                            "language": language
+                            "language": language,
+                            "is_live": current_stream.is_live
                         }
                     })
 
         except Exception as e:
             logger.error(f"Error handling channel.update event: {e}", exc_info=True)
-            raise
+            raise        
         
     async def list_subscriptions(self):
         if not self.twitch:

@@ -20,9 +20,9 @@ class Stream(Base):
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_live = Column(Boolean, default=False)  # Explicit live status tracking
+    started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
-
 class StreamEvent(Base):
     __tablename__ = "stream_events"
     id = Column(Integer, primary_key=True)
