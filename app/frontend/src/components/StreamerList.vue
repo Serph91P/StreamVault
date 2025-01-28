@@ -114,46 +114,73 @@ const deleteStreamer = async (streamerId: string) => {
       method: 'DELETE'
     })
     if (!response.ok) throw new Error('Failed to delete streamer')
-  
-    streamers.value = streamers.value.filter(s => s.id !== streamerId)
-    emit('streamerDeleted')
-    await fetchStreamers()
-  } catch (error) {
-    console.error('Failed to delete streamer:', error)
-  } finally {
-    isDeleting.value = false
-  }
-}
-
-const fetchStreamers = async () => {
-  try {
-    const response = await fetch('/api/streamers')
-    if (!response.ok) throw new Error('Failed to fetch streamers')
-    const data = await response.json()
-    streamers.value = data
-  } catch (error) {
-    console.error('Failed to fetch streamers:', error)
-  }
-}
-
-// Watch for WebSocket messages
-watch(messages, (newMessages) => {
-  if (newMessages.length > 0) {
-    const message = newMessages[newMessages.length - 1]
-    
-    // Handle different event types
-    switch (message.type) {
-      case 'channel.update':
-        updateStreamerInfo(message.data)
-        break
-      case 'stream.online':
-      case 'stream.offline':
-        fetchStreamers() // Refresh full list for status changes
-        break
+        streamers.value = streamers.value.filter(s => s.id !== streamerId)
+        emit('streamerDeleted')
+        await fetchStreamers()
+      } catch (error) {
+        console.error('Failed to delete streamer:', error)
+      } finally {
+        isDeleting.value = false
+      }
     }
-  }
-}, { deep: true })
 
+    const fetchStreamers = async () => {
+      try {
+        const response = await fetch('/api/streamers')
+        if (!response.ok) throw new Error('Failed to fetch streamers')
+        const data = await response.json()
+        streamers.value = data
+      } catch (error) {
+        console.error('Failed to fetch streamers:', error)
+      }
+    }
+
+    // Update the WebSocketData interface to match exactly what we receive
+    interface WebSocketData {
+      streamer_id: string
+      streamer_name: string
+      title: string
+      category_name: string
+      language: string
+      is_live?: boolean
+    }
+
+    // Modify the updateStreamerInfo function to handle all cases
+    function updateStreamerInfo(data: WebSocketData) {
+      streamers.value = streamers.value.map(streamer => {
+        if (streamer.twitch_id === data.streamer_id) {
+          return {
+            ...streamer,
+            title: data.title,
+            category_name: data.category_name,
+            language: data.language,
+            is_live: data.is_live !== undefined ? data.is_live : streamer.is_live,
+            last_updated: new Date().toISOString()
+          }
+        }
+        return streamer
+      })
+    }
+
+    // Update the watch function to handle all event types
+    watch(messages, (newMessages) => {
+      if (newMessages.length > 0) {
+        const message = newMessages[newMessages.length - 1]
+        console.log('WebSocket message received:', message) // For debugging
+    
+        switch (message.type) {
+          case 'channel.update':
+            updateStreamerInfo(message.data)
+            break
+          case 'stream.online':
+            updateStreamerInfo({ ...message.data, is_live: true })
+            break
+          case 'stream.offline':
+            updateStreamerInfo({ ...message.data, is_live: false })
+            break
+        }
+      }
+    }, { deep: true })
 onMounted(() => {
   fetchStreamers()
   const interval = setInterval(fetchStreamers, 60000)
