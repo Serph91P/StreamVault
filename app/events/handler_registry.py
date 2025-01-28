@@ -71,18 +71,26 @@ class EventHandlerRegistry:
             )
 
             # Verify all subscriptions
-            for sub_id in subscriptions:
-                await self.verify_subscription(sub_id)
+            verification_results = await asyncio.gather(
+                *[self.verify_subscription(sub_id) for sub_id in subscriptions],
+                return_exceptions=True
+            )
 
-            logger.info(f"All subscriptions created and verified for twitch_id: {twitch_id}")
-            return True
+            # Check if all verifications were successful
+            if all(isinstance(result, bool) and result for result in verification_results):
+                logger.info(f"All subscriptions created and verified for twitch_id: {twitch_id}")
+                return True
+            else:
+                failed = [i for i, result in enumerate(verification_results) if not (isinstance(result, bool) and result)]
+                logger.error(f"Failed to verify subscriptions at indices: {failed}")
+                return False
 
         except Exception as e:
             logger.error(f"Error in batch subscription: {e}", exc_info=True)
             raise
 
-    async def verify_subscription(self, subscription_id: str, max_attempts: int = 30):
-        """Verify that a subscription is enabled"""
+    async def verify_subscription(self, subscription_id: str, max_attempts: int = 60):
+        """Verify that a subscription is enabled with increased timeout"""
         for attempt in range(max_attempts):
             subs = await self.twitch.get_eventsub_subscriptions()
             for sub in subs.data:
@@ -91,12 +99,16 @@ class EventHandlerRegistry:
                         logger.info(f"Subscription {subscription_id} verified as enabled")
                         return True
                     elif sub.status == "webhook_callback_verification_pending":
+                        logger.debug(f"Subscription {subscription_id} pending verification, attempt {attempt + 1}/{max_attempts}")
                         await asyncio.sleep(1)
                         continue
                     else:
                         raise ValueError(f"Subscription {subscription_id} failed with status: {sub.status}")
             await asyncio.sleep(1)
+        
+        logger.error(f"Subscription {subscription_id} verification timed out after {max_attempts} attempts")
         raise TimeoutError(f"Subscription {subscription_id} verification timed out")
+
     async def handle_stream_online(self, data: dict):
         try:
             logger.debug(f"Handling stream.online event with data: {data}")
