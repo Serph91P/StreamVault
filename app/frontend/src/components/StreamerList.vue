@@ -54,11 +54,19 @@ interface WebSocketData {
   is_live?: boolean
 }
 
-const { messages } = useWebSocket()
+const { messages, connectionStatus } = useWebSocket()
 const streamers = ref<Streamer[]>([])
 const isDeleting = ref(false)
 const sortKey = ref('username')
 const sortDir = ref('asc')
+
+// Add connection status monitoring
+watch(connectionStatus, (newStatus) => {
+  console.log('WebSocket connection status:', newStatus)
+  if (newStatus === 'connected') {
+    fetchStreamers()
+  }
+})
 
 const emit = defineEmits<{
   streamerDeleted: []
@@ -130,12 +138,12 @@ const fetchStreamers = async () => {
     const response = await fetch('/api/streamers')
     if (!response.ok) throw new Error('Failed to fetch streamers')
     const data = await response.json()
+    console.log('Fetched streamers data:', data)
     streamers.value = data
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
   }
 }
-
 watch(messages, (newMessages) => {
   if (newMessages.length > 0) {
     const message = newMessages[newMessages.length - 1]
