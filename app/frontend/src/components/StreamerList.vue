@@ -31,7 +31,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import type { Ref } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 interface Streamer {
@@ -61,7 +60,6 @@ const isDeleting = ref(false)
 const sortKey = ref('username')
 const sortDir = ref('asc')
 
-// Define emit types
 const emit = defineEmits<{
   streamerDeleted: []
 }>()
@@ -116,7 +114,7 @@ const deleteStreamer = async (streamerId: string) => {
       method: 'DELETE'
     })
     if (!response.ok) throw new Error('Failed to delete streamer')
-  
+    
     streamers.value = streamers.value.filter(s => s.id !== streamerId)
     emit('streamerDeleted')
     await fetchStreamers()
