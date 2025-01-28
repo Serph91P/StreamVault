@@ -17,23 +17,18 @@ class Stream(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
-    twitch_stream_id = Column(String, nullable=True)
     title = Column(String, nullable=True)
-    category_id = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    stream_type = Column(String, nullable=True)
-    started_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
     ended_at = Column(DateTime(timezone=True), nullable=True)
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
-    
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
     event_type = Column(String, nullable=False)
     title = Column(String, nullable=True)
-    category_id = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
