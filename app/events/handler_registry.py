@@ -218,31 +218,22 @@ class EventHandlerRegistry:
                         .first()
 
                     if not current_stream:
-                        # This is a pre-stream update, create a new stream record
+                        # Create new stream record for updates
                         current_stream = Stream(
                             streamer_id=streamer.id,
                             title=title,
                             category_name=category_name,
                             language=language,
-                            is_live=False  # Explicitly set as not live
+                            is_live=False  # Explicitly mark as not live
                         )
                         db.add(current_stream)
                     else:
+                        # Update existing stream
                         current_stream.title = title
                         current_stream.category_name = category_name
                         current_stream.language = language
+                        # Don't change is_live status here
 
-                    db.flush()
-
-                    # Record update event
-                    stream_event = StreamEvent(
-                        stream_id=current_stream.id,
-                        event_type='channel.update',
-                        title=title,
-                        category_name=category_name,
-                        language=language
-                    )
-                    db.add(stream_event)
                     db.commit()
 
                     await self.manager.send_notification({
@@ -259,7 +250,7 @@ class EventHandlerRegistry:
 
         except Exception as e:
             logger.error(f"Error handling channel.update event: {e}", exc_info=True)
-            raise        
+            raise
         
     async def list_subscriptions(self):
         if not self.twitch:

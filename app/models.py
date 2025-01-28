@@ -20,7 +20,7 @@ class Stream(Base):
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    is_live = Column(Boolean, default=False)  # Explicit live status tracking
+    is_live = Column(Boolean, default=False)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
 class StreamEvent(Base):
