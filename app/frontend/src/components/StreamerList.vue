@@ -162,11 +162,10 @@ const deleteStreamer = async (streamerId: string) => {
       })
     }
 
-    // Update the watch function to handle all event types
     watch(messages, (newMessages) => {
       if (newMessages.length > 0) {
         const message = newMessages[newMessages.length - 1]
-        console.log('WebSocket message received:', message) // For debugging
+        console.log('WebSocket message received:', message)
     
         switch (message.type) {
           case 'channel.update':
