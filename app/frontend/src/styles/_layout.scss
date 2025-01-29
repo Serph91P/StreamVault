@@ -67,7 +67,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: v.$spacing-sm;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-md;
   }
 }
@@ -80,15 +80,15 @@
   width: 100%;
 
   h1 {
-    font-size: map-get(v.$font-scale, 'lg');
+    font-size: map.get(v.$font-scale, 'lg');
     margin: 0;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      font-size: map-get(v.$font-scale, 'xl');
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'xl');
     }
   }
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     flex-direction: row;
     justify-content: space-between;
     max-width: v.$container-xl;
@@ -104,12 +104,12 @@
   width: 100%;
   box-sizing: border-box;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     margin-top: 80px;
     padding: v.$spacing-lg;
   }
 
-  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
     max-width: v.$container-xl;
     margin-left: auto;
     margin-right: auto;
