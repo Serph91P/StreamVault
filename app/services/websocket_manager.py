@@ -4,6 +4,7 @@ from starlette.websockets import WebSocketState
 import logging
 import json
 from datetime import datetime
+import asyncio
 
 logger = logging.getLogger('streamvault')
 
