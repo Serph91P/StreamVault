@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from twitchAPI.twitch import Twitch
-from app.models import Streamer, Stream
+from app.models import Streamer, Stream, StreamEvent
 from app.services.websocket_manager import ConnectionManager
 from typing import Dict, Any, Optional, List
 import logging
