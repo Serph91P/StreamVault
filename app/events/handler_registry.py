@@ -244,7 +244,7 @@ class EventHandlerRegistry:
                             "title": title,
                             "category_name": category_name,
                             "language": language,
-                            "is_live": current_stream.is_live
+                            "is_live": current_stream.is_live  # Ensure is_live status is not changed
                         }
                     })
 
