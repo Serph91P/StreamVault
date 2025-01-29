@@ -160,47 +160,7 @@ async def eventsub_callback(request: Request):
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
-
-
-#Subscription test
-@app.post("/api/admin/test-subscription/{twitch_id}")
-async def test_subscription(
-    twitch_id: str, 
-    event_registry: EventHandlerRegistry = Depends(get_event_registry)
-):
-    logger.debug(f"Received request to test subscription for Twitch ID: {twitch_id}")
-    try:
-        logger.debug(f"Starting EventSub subscription creation for Twitch ID: {twitch_id}")
-        logger.debug(f"EventSub callback URL: {event_registry.settings.WEBHOOK_URL}/callback")
-        logger.debug(f"EventSub secret: {event_registry.settings.EVENTSUB_SECRET}")
-
-        # Attempt to create the subscription
-        response = await event_registry.twitch.create_eventsub_subscription(
-            'stream.online',
-            '1',
-            {'broadcaster_user_id': twitch_id},
-            {
-                'method': 'webhook', 
-                'callback': f"{event_registry.settings.WEBHOOK_URL}/callback", 
-                'secret': event_registry.settings.EVENTSUB_SECRET
-            }
-        )
-        
-        logger.debug(f"Raw subscription creation response: {response}")
-
-        # Fetch existing subscriptions for additional context
-        existing_subscriptions = await event_registry.twitch.get_eventsub_subscriptions()
-        logger.debug(f"Existing EventSub subscriptions: {existing_subscriptions}")
-
-        # Return detailed response
-        return {
-            "success": True,
-            "response": response,
-            "existing_subscriptions": existing_subscriptions.data if existing_subscriptions else "No subscriptions found"
-        }
-    except Exception as e:
-        logger.error(f"Error during subscription test for Twitch ID {twitch_id}: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+app.include_router(settings.router, prefix="/settings")
 
 #Delete all subscriptions
 @app.delete("/delete-all-subscriptions")
