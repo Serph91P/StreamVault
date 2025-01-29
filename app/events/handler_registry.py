@@ -48,68 +48,79 @@ class EventHandlerRegistry:
         
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
         logger.debug(f"EventSub initialized successfully with secret: {self.eventsub.secret}")
-
-    async def subscribe_to_events(self, twitch_id: str):
+        
+async def verify_subscription(self, subscription_id: str, max_attempts: int = 10) -> bool:
+    """Verify subscription status with retries"""
+    for attempt in range(max_attempts):
         try:
-            if not self.eventsub:
-                raise ValueError("EventSub not initialized")
-
-            logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-
-            # Create all subscriptions at once
-            subscriptions = await asyncio.gather(
-                self.eventsub.listen_stream_online(
-                    broadcaster_user_id=twitch_id,
-                    callback=self.handle_stream_online
-                ),
-                self.eventsub.listen_stream_offline(
-                    broadcaster_user_id=twitch_id,
-                    callback=self.handle_stream_offline
-                ),
-                self.eventsub.listen_channel_update(
-                    broadcaster_user_id=twitch_id,
-                    callback=self.handle_stream_update
-                )
-            )
-
-            # Verify all subscriptions
-            verification_results = await asyncio.gather(
-                *[self.verify_subscription(sub_id) for sub_id in subscriptions],
-                return_exceptions=True
-            )
-
-            # Check if all verifications were successful
-            if all(isinstance(result, bool) and result for result in verification_results):
-                logger.info(f"All subscriptions created and verified for twitch_id: {twitch_id}")
-                return True
-            else:
-                failed = [i for i, result in enumerate(verification_results) if not (isinstance(result, bool) and result)]
-                logger.error(f"Failed to verify subscriptions at indices: {failed}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error in batch subscription: {e}", exc_info=True)
-            raise
-
-    async def verify_subscription(self, subscription_id: str, max_attempts: int = 60):
-        """Verify that a subscription is enabled with increased timeout"""
-        for attempt in range(max_attempts):
             subs = await self.twitch.get_eventsub_subscriptions()
             for sub in subs.data:
-                if sub.id == subscription_id:
-                    if sub.status == "enabled":
-                        logger.info(f"Subscription {subscription_id} verified as enabled")
-                        return True
-                    elif sub.status == "webhook_callback_verification_pending":
-                        logger.debug(f"Subscription {subscription_id} pending verification, attempt {attempt + 1}/{max_attempts}")
-                        await asyncio.sleep(1)
-                        continue
-                    else:
-                        raise ValueError(f"Subscription {subscription_id} failed with status: {sub.status}")
+                if sub.id == subscription_id and sub.status == "enabled":
+                    return True
+            await asyncio.sleep(1)  # Wait between checks
+        except Exception as e:
+            logger.error(f"Error checking subscription {subscription_id}: {e}")
             await asyncio.sleep(1)
+    return False
+
+async def subscribe_to_events(self, twitch_id: str):
+    try:
+        if not self.eventsub:
+            raise ValueError("EventSub not initialized")
+
+        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
         
-        logger.error(f"Subscription {subscription_id} verification timed out after {max_attempts} attempts")
-        raise TimeoutError(f"Subscription {subscription_id} verification timed out")
+        # Create subscriptions one at a time with retries
+        subscriptions = []
+        
+        async def create_sub(sub_type, handler):
+            for attempt in range(3):  # Max 3 retries
+                try:
+                    if sub_type == "stream.online":
+                        sub_id = await self.eventsub.listen_stream_online(
+                            broadcaster_user_id=twitch_id,
+                            callback=handler
+                        )
+                    elif sub_type == "stream.offline":
+                        sub_id = await self.eventsub.listen_stream_offline(
+                            broadcaster_user_id=twitch_id,
+                            callback=handler
+                        )
+                    elif sub_type == "channel.update":
+                        sub_id = await self.eventsub.listen_channel_update(
+                            broadcaster_user_id=twitch_id,
+                            callback=handler
+                        )
+                    
+                    # Wait for verification
+                    is_verified = await self.verify_subscription(sub_id)
+                    if is_verified:
+                        return sub_id
+                    
+                except Exception as e:
+                    logger.error(f"Attempt {attempt + 1} failed for {sub_type}: {e}")
+                    if attempt == 2:  # Last attempt
+                        raise
+                    await asyncio.sleep(1)
+        
+        # Create subscriptions sequentially
+        sub_types = [
+            ("stream.online", self.handle_stream_online),
+            ("stream.offline", self.handle_stream_offline),
+            ("channel.update", self.handle_stream_update)
+        ]
+        
+        for sub_type, handler in sub_types:
+            sub_id = await create_sub(sub_type, handler)
+            if sub_id:
+                subscriptions.append(sub_id)
+                logger.info(f"Successfully subscribed to {sub_type} events")
+
+        return subscriptions
+
+    except Exception as e:
+        logger.error(f"Error in batch subscription: {e}", exc_info=True)
+        raise
 
     async def handle_stream_online(self, data: dict):
         try:
