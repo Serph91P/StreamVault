@@ -70,53 +70,37 @@ class EventHandlerRegistry:
 
             logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
             
-            # Create subscriptions one at a time with retries
-            subscriptions = []
-            
-            async def create_sub(sub_type, handler):
-                for attempt in range(3):  # Max 3 retries
-                    try:
-                        if sub_type == "stream.online":
-                            sub_id = await self.eventsub.listen_stream_online(
-                                broadcaster_user_id=twitch_id,
-                                callback=handler
-                            )
-                        elif sub_type == "stream.offline":
-                            sub_id = await self.eventsub.listen_stream_offline(
-                                broadcaster_user_id=twitch_id,
-                                callback=handler
-                            )
-                        elif sub_type == "channel.update":
-                            sub_id = await self.eventsub.listen_channel_update(
-                                broadcaster_user_id=twitch_id,
-                                callback=handler
-                            )
-                        
-                        # Wait for verification
-                        is_verified = await self.verify_subscription(sub_id)
-                        if is_verified:
-                            return sub_id
-                        
-                    except Exception as e:
-                        logger.error(f"Attempt {attempt + 1} failed for {sub_type}: {e}")
-                        if attempt == 2:  # Last attempt
-                            raise
-                        await asyncio.sleep(1)
-            
-            # Create subscriptions sequentially
-            sub_types = [
-                ("stream.online", self.handle_stream_online),
-                ("stream.offline", self.handle_stream_offline),
-                ("channel.update", self.handle_stream_update)
-            ]
-            
-            for sub_type, handler in sub_types:
-                sub_id = await create_sub(sub_type, handler)
-                if sub_id:
-                    subscriptions.append(sub_id)
-                    logger.info(f"Successfully subscribed to {sub_type} events")
+            async def create_sub(sub_type: str) -> str:
+                try:
+                    if sub_type == "stream.online":
+                        return await self.eventsub.listen_stream_online(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_online
+                        )
+                    elif sub_type == "stream.offline":
+                        return await self.eventsub.listen_stream_offline(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_offline
+                        )
+                    elif sub_type == "channel.update":
+                        return await self.eventsub.listen_channel_update(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_update
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to create {sub_type} subscription: {e}")
+                    raise
 
-            return subscriptions
+            # Create all subscriptions in parallel
+            sub_types = ["stream.online", "stream.offline", "channel.update"]
+            sub_ids = await asyncio.gather(*[create_sub(st) for st in sub_types])
+            
+            # Verify all subscriptions
+            verifications = await asyncio.gather(*[
+                self.verify_subscription(sub_id) for sub_id in sub_ids if sub_id
+            ])
+
+            return [sid for sid, verified in zip(sub_ids, verifications) if verified]
 
         except Exception as e:
             logger.error(f"Error in batch subscription: {e}", exc_info=True)
