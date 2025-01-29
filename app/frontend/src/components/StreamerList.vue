@@ -66,6 +66,7 @@ const handleDelete = async (streamerId: string) => {
   }
 }
 
+// Improved message handling
 watch(messages, (newMessages) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
@@ -74,22 +75,23 @@ watch(messages, (newMessages) => {
 
   switch (message.type) {
     case 'channel.update':
-      // Only update metadata, preserve existing is_live status
       const existingStreamer = streamers.value.find(s => s.twitch_id === message.data.streamer_id)
-      updateStreamer(message.data.streamer_id, {
-        title: message.data.title,
-        category_name: message.data.category_name,
-        language: message.data.language,
-        last_updated: new Date().toISOString(),
-        is_live: existingStreamer?.is_live || false
-      })
+      if (existingStreamer) {
+        updateStreamer(message.data.streamer_id, {
+          title: message.data.title,
+          category_name: message.data.category_name,
+          language: message.data.language,
+          last_updated: new Date().toISOString(),
+          is_live: existingStreamer.is_live // Preserve existing live status
+        })
+      }
       break
     case 'stream.online':
       updateStreamer(message.data.streamer_id, { 
         is_live: true,
-        title: message.data.title,
-        category_name: message.data.category_name,
-        language: message.data.language,
+        title: message.data.title || '',
+        category_name: message.data.category_name || '',
+        language: message.data.language || '',
         last_updated: new Date().toISOString()
       })
       break
@@ -100,17 +102,19 @@ watch(messages, (newMessages) => {
       })
       break
   }
-})
+}, { deep: true })
 
+// Improved connection handling
 watch(connectionStatus, (status) => {
   if (status === 'connected') {
-    fetchStreamers()
+    void fetchStreamers()
   }
-})
+}, { immediate: true })
 
+// Better lifecycle management
 onMounted(() => {
-  fetchStreamers()
-  const interval = setInterval(fetchStreamers, 60000)
+  void fetchStreamers()
+  const interval = setInterval(() => void fetchStreamers(), 60000)
   onUnmounted(() => clearInterval(interval))
 })
 </script>

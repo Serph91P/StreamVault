@@ -17,19 +17,27 @@ export function useStreamers() {
   const isLoading = ref(false)
 
   const updateStreamer = (twitch_id: string, updates: Partial<Streamer>) => {
-    streamers.value = streamers.value.map(streamer => 
-      streamer.twitch_id === twitch_id 
-        ? { ...streamer, ...updates, last_updated: new Date().toISOString() }
-        : streamer
-    )
+    const index = streamers.value.findIndex(s => s.twitch_id === twitch_id)
+    if (index !== -1) {
+      streamers.value[index] = {
+        ...streamers.value[index],
+        ...updates,
+        last_updated: new Date().toISOString()
+      }
+      // Force reactivity update
+      streamers.value = [...streamers.value]
+    }
   }
 
   const fetchStreamers = async () => {
     isLoading.value = true
     try {
       const response = await fetch('/api/streamers')
+      if (!response.ok) throw new Error('Failed to fetch streamers')
       const data = await response.json()
       streamers.value = data
+    } catch (error) {
+      console.error('Error fetching streamers:', error)
     } finally {
       isLoading.value = false
     }

@@ -19,11 +19,10 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Notification failed: {e}")
             raise
-
     async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
-    
+
         for streamer in streamers:
             # Get latest stream record
             latest_stream = self.db.query(Stream)\
@@ -40,18 +39,18 @@ class StreamerService:
                     .first()
                 if last_event:
                     last_updated = last_event.timestamp
-                
+
             streamer_statuses.append({
                 "id": streamer.id,
                 "twitch_id": streamer.twitch_id,
                 "username": streamer.username,
-                "is_live": latest_stream and latest_stream.ended_at is None,
+                "is_live": bool(latest_stream and latest_stream.ended_at is None),  # Explicit boolean conversion
                 "title": latest_stream.title if latest_stream else None,
                 "category_name": latest_stream.category_name if latest_stream else None,
                 "language": latest_stream.language if latest_stream else None,
                 "last_updated": last_updated
             })
-    
+
         return streamer_statuses
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
