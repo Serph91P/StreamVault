@@ -175,3 +175,78 @@
   color: v.$text-secondary;
   font-size: map-get(v.$font-scale, 'base');
 }
+
+.settings-container {
+  padding: $spacing-md;
+  max-width: 800px;
+  margin: 0 auto;
+  background: $background-darker;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: map-get($breakpoints, 'md')) {
+    padding: $spacing-lg;
+  }
+
+  h2 {
+    margin-bottom: $spacing-lg;
+    font-size: map-get($font-scale, 'lg');
+  }
+}
+.settings-form {
+  .form-group {
+    margin-bottom: $spacing-lg;
+
+    label {
+      display: block;
+      margin-bottom: $spacing-sm;
+      color: $text-secondary;
+    }
+
+    .input-with-tooltip {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+
+      input {
+        flex: 1;
+      }
+    }
+  }
+
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-md;
+
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+    }
+  }
+}
+
+.streamer-notifications {
+  margin-top: $spacing-xl;
+  border-top: 1px solid $border-color;
+  padding-top: $spacing-lg;
+
+  h3 {
+    margin-bottom: $spacing-lg;
+    font-size: map-get($font-scale, 'base');
+  }
+
+  .streamer-settings {
+    background: rgba($background-dark, 0.5);
+    padding: $spacing-md;
+    border-radius: 6px;
+    margin-bottom: $spacing-md;
+
+    .notification-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: $spacing-md;
+    }
+  }
+}
