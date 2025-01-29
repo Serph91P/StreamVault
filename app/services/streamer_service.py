@@ -31,11 +31,15 @@ class StreamerService:
                 .order_by(Stream.id.desc())\
                 .first()
             
-            # Get latest event to determine current status
-            latest_event = self.db.query(StreamEvent)\
-                .filter(StreamEvent.stream_id == latest_stream.id if latest_stream else None)\
-                .order_by(StreamEvent.timestamp.desc())\
-                .first()
+            # Get last update time from events
+            last_updated = None
+            if latest_stream:
+                last_event = self.db.query(StreamEvent)\
+                    .filter(StreamEvent.stream_id == latest_stream.id)\
+                    .order_by(StreamEvent.timestamp.desc())\
+                    .first()
+                if last_event:
+                    last_updated = last_event.timestamp
                 
             streamer_statuses.append({
                 "id": streamer.id,
@@ -45,10 +49,11 @@ class StreamerService:
                 "title": latest_stream.title if latest_stream else None,
                 "category_name": latest_stream.category_name if latest_stream else None,
                 "language": latest_stream.language if latest_stream else None,
-                "last_updated": latest_stream.started_at if latest_stream else None
+                "last_updated": last_updated
             })
     
         return streamer_statuses
+
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
 
@@ -120,5 +125,4 @@ class StreamerService:
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
-            raise
             raise

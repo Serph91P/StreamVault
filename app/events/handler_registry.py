@@ -220,8 +220,7 @@ class EventHandlerRegistry:
                             streamer_id=streamer.id,
                             title=title,
                             category_name=category_name,
-                            language=language,
-                            is_live=False  # Explicitly mark as not live
+                            language=language
                         )
                         db.add(current_stream)
                     else:
