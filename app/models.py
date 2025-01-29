@@ -49,3 +49,17 @@ class Session(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     token = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class NotificationSettings(Base):
+    __tablename__ = "notification_settings"
+    id = Column(Integer, primary_key=True)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"))
+    notify_online = Column(Boolean, default=True)
+    notify_offline = Column(Boolean, default=True)
+    notify_update = Column(Boolean, default=True)
+    
+class GlobalSettings(Base):
+    __tablename__ = "global_settings"
+    id = Column(Integer, primary_key=True)
+    notification_url = Column(String, nullable=True)  # Apprise URL
+    notifications_enabled = Column(Boolean, default=True)
