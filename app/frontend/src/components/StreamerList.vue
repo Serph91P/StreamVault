@@ -74,26 +74,26 @@ watch(messages, (newMessages) => {
 
   switch (message.type) {
     case 'channel.update':
-      // Handle updates regardless of live status
+      // Only update metadata, preserve existing is_live status
+      const existingStreamer = streamers.value.find(s => s.twitch_id === message.data.streamer_id)
       updateStreamer(message.data.streamer_id, {
+        title: message.data.title,
+        category_name: message.data.category_name,
+        language: message.data.language,
+        last_updated: new Date().toISOString(),
+        is_live: existingStreamer?.is_live || false
+      })
+      break
+    case 'stream.online':
+      updateStreamer(message.data.streamer_id, { 
+        is_live: true,
         title: message.data.title,
         category_name: message.data.category_name,
         language: message.data.language,
         last_updated: new Date().toISOString()
       })
       break
-    case 'stream.online':
-      // When stream goes live, merge any existing metadata
-      updateStreamer(message.data.streamer_id, { 
-        is_live: true,
-        title: message.data.title || streamers.value.find(s => s.twitch_id === message.data.streamer_id)?.title,
-        category_name: message.data.category_name || streamers.value.find(s => s.twitch_id === message.data.streamer_id)?.category_name,
-        language: message.data.language || streamers.value.find(s => s.twitch_id === message.data.streamer_id)?.language,
-        last_updated: new Date().toISOString()
-      })
-      break
     case 'stream.offline':
-      // Maintain metadata when going offline
       updateStreamer(message.data.streamer_id, { 
         is_live: false,
         last_updated: new Date().toISOString()
