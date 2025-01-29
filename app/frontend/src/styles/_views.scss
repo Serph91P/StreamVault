@@ -236,7 +236,7 @@
   }
 
   .streamer-settings {
-    background: color.adjust(v.$background-dark, $alpha: -0.5);
+    background: rgba(v.$background-dark, 0.5);
     padding: v.$spacing-md;
     border-radius: 6px;
     margin-bottom: v.$spacing-md;

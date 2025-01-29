@@ -1,4 +1,5 @@
 @use 'sass:map';
+@use 'sass:color';
 @use 'variables' as v;
 
 // Navigation
@@ -293,7 +294,7 @@ nav {
   background: v.$danger-color;
   
   &:hover:not(:disabled) {
-    background: color.scale(v.$danger-color, 10%);
+    background: darken(v.$danger-color, 10%);
   }
 }// Button ripple effect
 .btn::after {
@@ -414,13 +415,13 @@ nav {
     transition: background 0.2s ease;
 
     &:hover {
-      background: color.scale(v.$primary-color, 10%);
+      background: darken(v.$primary-color, 10%);
     }
 
     &.danger {
       background: v.$danger-color;
       &:hover {
-        background: color.scale(v.$danger-color, 10%);
+        background: darken(v.$danger-color, 10%);
       }
     }
   }
