@@ -294,7 +294,7 @@ nav {
   background: v.$danger-color;
   
   &:hover:not(:disabled) {
-    background: darken(v.$danger-color, 10%);
+    background: color.scale(v.$danger-color, $lightness: -20%);
   }
 }// Button ripple effect
 .btn::after {
@@ -415,13 +415,13 @@ nav {
     transition: background 0.2s ease;
 
     &:hover {
-      background: darken(v.$primary-color, 10%);
+      background: color.scale(v.$primary-color, $lightness: -20%);
     }
 
     &.danger {
       background: v.$danger-color;
       &:hover {
-        background: darken(v.$danger-color, 10%);
+        background: color.scale(v.$danger-color, $lightness: -20%);
       }
     }
   }
