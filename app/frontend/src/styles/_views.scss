@@ -14,31 +14,32 @@
   z-index: 100;
   padding: v.$spacing-md;
 }
-  .login-form,
-  .setup-form {
-    background: v.$background-darker;
-    padding: v.$spacing-lg;
-    border-radius: 8px;
-    width: 100%;
-    max-width: 320px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      max-width: 400px;
-      padding: v.$spacing-xl;
-    }
+.login-form,
+.setup-form {
+  background: v.$background-darker;
+  padding: v.$spacing-lg;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 320px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    max-width: 400px;
+    padding: v.$spacing-xl;
+  }
 
     h2 {
       margin-bottom: v.$spacing-lg;
       text-align: center;
-      font-size: map-get(v.$font-scale, 'lg');
+      font-size: map.get(v.$font-scale, 'lg');
 
-      @media (min-width: map-get(v.$breakpoints, 'md')) {
-        font-size: map-get(v.$font-scale, 'xl');
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        font-size: map.get(v.$font-scale, 'xl');
       }
     }
 
@@ -76,28 +77,28 @@
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-xl;
     margin: v.$spacing-lg auto;
     max-width: 800px;
   }
 
   h2 {
-    font-size: map-get(v.$font-scale, 'lg');
+    font-size: map.get(v.$font-scale, 'lg');
     margin-bottom: v.$spacing-md;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      font-size: map-get(v.$font-scale, 'xl');
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'xl');
     }
   }
 
   .description {
     color: v.$text-secondary;
     margin-bottom: v.$spacing-lg;
-    font-size: map-get(v.$font-scale, 'base');
+    font-size: map.get(v.$font-scale, 'base');
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
-      font-size: map-get(v.$font-scale, 'lg');
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'lg');
     }
   }
 
@@ -108,7 +109,7 @@
 .subscriptions-page {
   padding: v.$spacing-md;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-xl;
   }
 
@@ -118,7 +119,7 @@
     gap: v.$spacing-sm;
     margin-bottom: v.$spacing-lg;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       flex-direction: row;
       gap: v.$spacing-md;
     }
@@ -128,7 +129,7 @@
     display: inline-block;
     padding: v.$spacing-xs v.$spacing-sm;
     border-radius: 12px;
-    font-size: map-get(v.$font-scale, 'xs');
+    font-size: map.get(v.$font-scale, 'xs');
     font-weight: bold;
     text-align: center;
     min-width: 60px;
@@ -174,7 +175,7 @@
   text-align: center;
   padding: v.$spacing-xl;
   color: v.$text-secondary;
-  font-size: map-get(v.$font-scale, 'base');
+  font-size: map.get(v.$font-scale, 'base');
 }
 
 .settings-container {

@@ -9,7 +9,7 @@ nav {
   gap: v.$spacing-sm;
   width: 100%;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     width: auto;
     gap: 1.5rem;
   }
@@ -21,11 +21,11 @@ nav {
     padding: v.$spacing-sm;
     border-radius: 4px;
     transition: all 0.2s ease;
-    font-size: map-get(v.$font-scale, 'sm');
+    font-size: map.get(v.$font-scale, 'sm');
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-sm v.$spacing-md;
-      font-size: map-get(v.$font-scale, 'base');
+      font-size: map.get(v.$font-scale, 'base');
     }
 
     &:hover {
@@ -52,7 +52,7 @@ nav {
   color: #efeff1;
   padding: 12px 16px;
   border-radius: 6px;
-  font-size: map-get(v.$font-scale, 'base');
+  font-size: map.get(v.$font-scale, 'base');
   transition: all 0.2s ease;
   width: 100%;
 
@@ -78,11 +78,11 @@ nav {
   width: 100%;
   box-sizing: border-box;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
     grid-template-columns: repeat(3, 1fr);
   }
 }
@@ -109,7 +109,7 @@ nav {
   right: v.$spacing-md;
   z-index: 1000;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     bottom: auto;
     top: 80px;
     right: v.$spacing-md;
@@ -157,7 +157,7 @@ nav {
       padding: 0 v.$spacing-xl; // Wider padding for better proportion
     }
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       flex-direction: row;
       align-items: flex-start;
     }
@@ -174,7 +174,7 @@ nav {
     flex-direction: column;
     gap: v.$spacing-sm;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       flex-direction: row;
       gap: v.$spacing-md;
     }
@@ -185,7 +185,7 @@ nav {
     grid-template-columns: 1fr;
     gap: v.$spacing-md;
   
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     }
   }
@@ -213,7 +213,7 @@ nav {
     height: auto !important;
     min-height: 200px;
 
-    @media (min-width: map-get(v.$breakpoints, 'md')) {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
       min-height: 300px;
     }
   }
@@ -235,7 +235,7 @@ nav {
 .status-badge {
   padding: 4px 8px;
   border-radius: 12px;
-  font-size: map-get(v.$font-scale, 'xs');
+  font-size: map.get(v.$font-scale, 'xs');
   font-weight: bold;
   min-width: 60px;
   text-align: center;
@@ -293,7 +293,7 @@ nav {
   background: v.$danger-color;
   
   &:hover:not(:disabled) {
-    background: darken(v.$danger-color, 10%);
+    background: color.scale(v.$danger-color, 10%);
   }
 }// Button ripple effect
 .btn::after {
@@ -382,12 +382,12 @@ nav {
     th, td {
       padding: v.$spacing-md;
       
-      @media (min-width: map-get(v.$breakpoints, 'md')) {
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
         padding: v.$spacing-lg;
       }
     }
 
-    @media (max-width: map-get(v.$breakpoints, 'md')) {
+    @media (max-width: map.get(v.$breakpoints, 'md')) {
       display: block;
       
       th, td {
@@ -414,13 +414,13 @@ nav {
     transition: background 0.2s ease;
 
     &:hover {
-      background: darken(v.$primary-color, 10%);
+      background: color.scale(v.$primary-color, 10%);
     }
 
     &.danger {
       background: v.$danger-color;
       &:hover {
-        background: darken(v.$danger-color, 10%);
+        background: color.scale(v.$danger-color, 10%);
       }
     }
   }
