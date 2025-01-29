@@ -41,6 +41,8 @@ class EventHandlerRegistry:
         )
 
         self.eventsub.secret = self.settings.EVENTSUB_SECRET
+        self.eventsub.wait_for_subscription_confirm = True
+        self.eventsub.wait_for_subscription_confirm_timeout = 60
 
         self.eventsub.start()
         
