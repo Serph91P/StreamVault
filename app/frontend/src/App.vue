@@ -7,6 +7,7 @@
           <router-link to="/">Home</router-link>
           <router-link to="/add-streamer">Add Streamer</router-link>
           <router-link to="/subscriptions">Subscriptions</router-link>
+          <router-link to="/settings">Settings</router-link>
         </nav>
       </div>
     </header>
