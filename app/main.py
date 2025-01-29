@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
+from app.routes import settings as settings_router
 import logging
 import hmac
 import hashlib
@@ -160,7 +161,7 @@ async def eventsub_callback(request: Request):
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
-app.include_router(settings.router, prefix="/settings")
+app.include_router(settings_router.router, prefix="/settings")
 
 #Delete all subscriptions
 @app.delete("/delete-all-subscriptions")
