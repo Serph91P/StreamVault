@@ -4,7 +4,7 @@ import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
-const { settings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
+const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
 
 interface ComponentData {
   notificationUrl: string
@@ -21,7 +21,8 @@ const data = ref<ComponentData>({
 })
 
 onMounted(async () => {
-  const settingsData = await settings.value as NotificationSettings
+  await fetchSettings()
+  const settingsData = settings.value
   data.value = {
     notificationUrl: settingsData?.notification_url || '',
     notificationsEnabled: settingsData?.notifications_enabled ?? true,
@@ -35,14 +36,14 @@ const saveSettings = async () => {
     notification_url: data.value.notificationUrl,
     notifications_enabled: data.value.notificationsEnabled,
     apprise_docs_url: data.value.appriseDocsUrl
-  } as NotificationSettings)
+  })
 }
 
 const handleStreamerSettingsUpdate = async (
   streamerId: number, 
-  settings: Partial<StreamerNotificationSettings>
+  streamerSettings: Partial<StreamerNotificationSettings>
 ) => {
-  const updatedSettings = await updateStreamerSettings(streamerId, settings)
+  const updatedSettings = await updateStreamerSettings(streamerId, streamerSettings)
   const index = data.value.streamerSettings.findIndex(s => s.streamer_id === streamerId)
   if (index !== -1) {
     data.value.streamerSettings[index] = updatedSettings

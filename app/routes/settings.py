@@ -45,8 +45,7 @@ async def update_settings(settings: NotificationSettings, db: Session = Depends(
             global_settings.notification_url = settings.notification_url
     
     db.commit()
-    return settings
-@router.get("/streamer/{streamer_id}")
+    return settings@router.get("/streamer/{streamer_id}")
 async def get_streamer_settings(streamer_id: int):
     with SessionLocal() as db:
         settings = db.query(NotificationSettings)\
