@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.database import SessionLocal
 from app.models import GlobalSettings, NotificationSettings
 from apprise import Apprise
 from typing import Dict, Any
+import logging
+
+logger = logging.getLogger("streamvault")
 
 router = APIRouter(
     prefix="/settings",
@@ -30,22 +33,19 @@ async def get_settings():
             "apprise_docs_url": "https://github.com/caronc/apprise/wiki"
         }
 
-@router.post("")
-async def update_settings(settings_data: dict):
-    if settings_data.get("notification_url") and not validate_apprise_url(settings_data["notification_url"]):
-        raise HTTPException(status_code=400, detail="Invalid notification URL format")
-
-    with SessionLocal() as db:
-        settings = db.query(GlobalSettings).first()
-        if not settings:
-            settings = GlobalSettings()
-            db.add(settings)
-        
-        settings.notification_url = settings_data.get("notification_url")
-        settings.notifications_enabled = settings_data.get("notifications_enabled", True)
-        db.commit()
-        return settings
-
+@router.post("/")
+async def update_settings(settings: NotificationSettings, db: Session = Depends(get_db)):
+    global_settings = db.query(GlobalSettings).first()
+    if not global_settings:
+        global_settings = GlobalSettings()
+        db.add(global_settings)
+    
+    if settings.notification_url:
+        if validate_apprise_url(settings.notification_url):
+            global_settings.notification_url = settings.notification_url
+    
+    db.commit()
+    return settings
 @router.get("/streamer/{streamer_id}")
 async def get_streamer_settings(streamer_id: int):
     with SessionLocal() as db:
@@ -56,6 +56,7 @@ async def get_streamer_settings(streamer_id: int):
 
 @router.post("/streamer/{streamer_id}")
 async def update_streamer_settings(streamer_id: int, settings_data: dict):
+    logger.debug(f"Received request to update streamer settings for streamer_id {streamer_id}: {settings_data}")
     with SessionLocal() as db:
         settings = db.query(NotificationSettings)\
             .filter(NotificationSettings.streamer_id == streamer_id)\
