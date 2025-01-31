@@ -3,6 +3,7 @@ from app.database import SessionLocal, get_db
 from app.models import GlobalSettings, NotificationSettings
 from apprise import Apprise
 from typing import Dict, Any
+from sqlalchemy.orm import Session
 import logging
 
 logger = logging.getLogger("streamvault")
