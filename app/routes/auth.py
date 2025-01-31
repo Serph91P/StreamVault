@@ -27,13 +27,13 @@ class SetupRequest(BaseModel):
 
 @router.post("/setup")
 async def setup_admin(
-    request: SetupRequest,
+    request: UserCreate,
     auth_service: AuthService = Depends(get_auth_service)
 ):
     if await auth_service.admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
     
-    admin = await auth_service.create_admin(request.username, request.password)
+    admin = await auth_service.create_admin(request)
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created", "success": True})

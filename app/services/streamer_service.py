@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from twitchAPI.twitch import Twitch
 from app.models import Streamer, Stream, StreamEvent
+from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from typing import Dict, Any, Optional, List
 import logging
@@ -19,18 +20,16 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Notification failed: {e}")
             raise
-    async def get_streamers(self) -> List[Dict[str, Any]]:
+    async def get_streamers(self) -> List[StreamerResponse]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
 
         for streamer in streamers:
-            # Get latest stream record
             latest_stream = self.db.query(Stream)\
                 .filter(Stream.streamer_id == streamer.id)\
                 .order_by(Stream.id.desc())\
                 .first()
             
-            # Get last update time from events
             last_updated = None
             if latest_stream:
                 last_event = self.db.query(StreamEvent)\
@@ -40,16 +39,17 @@ class StreamerService:
                 if last_event:
                     last_updated = last_event.timestamp
 
-            streamer_statuses.append({
-                "id": streamer.id,
-                "twitch_id": streamer.twitch_id,
-                "username": streamer.username,
-                "is_live": bool(latest_stream and latest_stream.ended_at is None),  # Explicit boolean conversion
-                "title": latest_stream.title if latest_stream else None,
-                "category_name": latest_stream.category_name if latest_stream else None,
-                "language": latest_stream.language if latest_stream else None,
-                "last_updated": last_updated
-            })
+            streamer_statuses.append(StreamerResponse(
+                id=streamer.id,
+                twitch_id=streamer.twitch_id,
+                username=streamer.username,
+                display_name=streamer.display_name,
+                is_live=bool(latest_stream and latest_stream.ended_at is None),
+                title=latest_stream.title if latest_stream else None,
+                category_name=latest_stream.category_name if latest_stream else None,
+                language=latest_stream.language if latest_stream else None,
+                last_updated=last_updated
+            ))
 
         return streamer_statuses
 

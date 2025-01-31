@@ -1,17 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
+from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.config.settings import settings
 import logging
 import asyncio
+from typing import List
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
-@router.get("")
+@router.get("", response_model=List[StreamerResponse])
 async def get_streamers(
     streamer_service: StreamerService = Depends(get_streamer_service)
 ):

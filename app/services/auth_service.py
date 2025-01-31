@@ -5,6 +5,7 @@ from argon2.exceptions import VerifyMismatchError
 import secrets
 import logging
 from typing import Optional
+from app.schemas.auth import UserCreate, UserResponse
 
 logger = logging.getLogger("streamvault")
 
@@ -17,16 +18,16 @@ class AuthService:
     async def admin_exists(self) -> bool:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
 
-    async def create_admin(self, username: str, password: str) -> User:
-        hashed_password = ph.hash(password)
+    async def create_admin(self, user_data: UserCreate) -> UserResponse:
+        hashed_password = ph.hash(user_data.password)
         admin = User(
-            username=username,
+            username=user_data.username,
             password=hashed_password,
             is_admin=True
         )
         self.db.add(admin)
         self.db.commit()
-        return admin
+        return UserResponse.model_validate(admin)
 
     async def validate_login(self, username: str, password: str) -> Optional[User]:
         user = self.db.query(User).filter_by(username=username).first()
