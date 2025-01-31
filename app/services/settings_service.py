@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models import GlobalSettings, NotificationSettings
+from app.schemas.settings import NotificationSettingsSchema
 from apprise import Apprise
 import logging
 
