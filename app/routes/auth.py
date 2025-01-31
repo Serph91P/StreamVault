@@ -3,6 +3,8 @@ from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
+from app.schemas.auth import UserCreate
+
 
 router = APIRouter(tags=["auth"])
 
