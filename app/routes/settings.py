@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from app.database import SessionLocal
+from app.database import SessionLocal, get_db
 from app.models import GlobalSettings, NotificationSettings
 from apprise import Apprise
 from typing import Dict, Any
