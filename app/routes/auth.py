@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
-from pydantic import BaseModel
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
-from app.schemas.auth import UserCreate
-
+from app.schemas.auth import UserCreate, LoginResponse
 
 router = APIRouter(tags=["auth"])
 
@@ -23,9 +21,6 @@ async def setup_page(request: Request, auth_service: AuthService = Depends(get_a
     if admin_exists:
         return RedirectResponse(url="/auth/login", status_code=307)
     return FileResponse("app/frontend/dist/index.html")
-class SetupRequest(BaseModel):
-    username: str
-    password: str
 
 @router.post("/setup")
 async def setup_admin(
@@ -42,13 +37,9 @@ async def setup_admin(
     response.set_cookie(key="session", value=token, httponly=True, secure=True)
     return response
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
 @router.post("/login")
 async def login(
-    request: LoginRequest,
+    request: UserCreate,
     auth_service: AuthService = Depends(get_auth_service)
 ):
     user = await auth_service.validate_login(request.username, request.password)
