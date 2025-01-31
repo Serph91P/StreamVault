@@ -28,7 +28,7 @@ class SettingsService:
             "apprise_docs_url": "https://github.com/caronc/apprise/wiki"
         }
 
-    async def update_settings(self, settings_data: NotificationSettings):
+    async def update_settings(self, settings_data: NotificationSettingsSchema) -> NotificationSettingsSchema:
         global_settings = self.db.query(GlobalSettings).first()
         if not global_settings:
             global_settings = GlobalSettings()
@@ -37,9 +37,14 @@ class SettingsService:
         if settings_data.notification_url:
             if self.validate_apprise_url(settings_data.notification_url):
                 global_settings.notification_url = settings_data.notification_url
+                global_settings.notifications_enabled = settings_data.notifications_enabled
         
         self.db.commit()
-        return settings_data
+        
+        return NotificationSettingsSchema(
+            notification_url=global_settings.notification_url,
+            notifications_enabled=global_settings.notifications_enabled
+        )
 
     async def get_streamer_settings(self, streamer_id: int):
         return self.db.query(NotificationSettings)\
