@@ -352,4 +352,10 @@
       }
     }
   }
+
+  .controls {
+    display: flex;
+    gap: v.$spacing-sm; // Fixed variable reference
+    margin-bottom: v.$spacing-md;
+  }
 }
