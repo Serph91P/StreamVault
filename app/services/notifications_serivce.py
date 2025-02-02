@@ -1,7 +1,9 @@
 from apprise import Apprise
-from typing import Optional
 from sqlalchemy.orm import Session
 from app.models import NotificationSettings, GlobalSettings
+import logging
+
+logger = logging.getLogger("streamvault")
 
 class NotificationService:
     def __init__(self, db: Session):
@@ -11,8 +13,11 @@ class NotificationService:
 
     def _load_settings(self):
         settings = self.db.query(GlobalSettings).first()
-        if settings and settings.notification_url:
-            self._apprise.add(settings.notification_url)
+        if settings and settings.notification_url and settings.notifications_enabled:
+            try:
+                self._apprise.add(settings.notification_url)
+            except Exception as e:
+                logger.error(f"Failed to load notification settings: {e}")
 
     async def notify(self, streamer_id: int, event_type: str, message: str):
         settings = self.db.query(GlobalSettings).first()
@@ -33,4 +38,7 @@ class NotificationService:
         }.get(event_type, False)
 
         if should_notify:
-            await self._apprise.async_notify(body=message)
+            try:
+                await self._apprise.async_notify(body=message)
+            except Exception as e:
+                logger.error(f"Failed to send notification: {e}")

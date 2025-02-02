@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models import GlobalSettings, NotificationSettings
-from app.schemas.settings import NotificationSettingsSchema
+from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
 from apprise import Apprise
 import logging
 
@@ -15,21 +15,18 @@ class SettingsService:
             apobj = Apprise()
             return apobj.add(url)
         except Exception:
+            logger.error(f"Failed to validate Apprise URL: {url}", exc_info=True)
             return False
 
-    async def get_settings(self):
+    async def get_settings(self) -> GlobalSettingsSchema:
         settings = self.db.query(GlobalSettings).first()
         if not settings:
             settings = GlobalSettings()
             self.db.add(settings)
             self.db.commit()
-        return {
-            "notification_url": settings.notification_url,
-            "notifications_enabled": settings.notifications_enabled,
-            "apprise_docs_url": "https://github.com/caronc/apprise/wiki"
-        }
+        return GlobalSettingsSchema.model_validate(settings)
 
-    async def update_settings(self, settings_data: NotificationSettingsSchema) -> NotificationSettingsSchema:
+    async def update_settings(self, settings_data: GlobalSettingsSchema) -> GlobalSettingsSchema:
         global_settings = self.db.query(GlobalSettings).first()
         if not global_settings:
             global_settings = GlobalSettings()
@@ -39,20 +36,27 @@ class SettingsService:
             if self.validate_apprise_url(settings_data.notification_url):
                 global_settings.notification_url = settings_data.notification_url
                 global_settings.notifications_enabled = settings_data.notifications_enabled
+            else:
+                raise ValueError("Invalid notification URL format")
         
         self.db.commit()
-        
-        return NotificationSettingsSchema(
-            notification_url=global_settings.notification_url,
-            notifications_enabled=global_settings.notifications_enabled
-        )
+        return GlobalSettingsSchema.model_validate(global_settings)
 
-    async def get_streamer_settings(self, streamer_id: int):
-        return self.db.query(NotificationSettings)\
+    async def get_streamer_settings(self, streamer_id: int) -> StreamerNotificationSettingsSchema:
+        settings = self.db.query(NotificationSettings)\
             .filter(NotificationSettings.streamer_id == streamer_id)\
             .first()
+        if not settings:
+            settings = NotificationSettings(streamer_id=streamer_id)
+            self.db.add(settings)
+            self.db.commit()
+        return StreamerNotificationSettingsSchema.model_validate(settings)
 
-    async def update_streamer_settings(self, streamer_id: int, settings_data: dict):
+    async def update_streamer_settings(
+        self, 
+        streamer_id: int, 
+        settings_data: StreamerNotificationSettingsSchema
+    ) -> StreamerNotificationSettingsSchema:
         settings = self.db.query(NotificationSettings)\
             .filter(NotificationSettings.streamer_id == streamer_id)\
             .first()
@@ -60,8 +64,8 @@ class SettingsService:
             settings = NotificationSettings(streamer_id=streamer_id)
             self.db.add(settings)
         
-        settings.notify_online = settings_data.get("notify_online", True)
-        settings.notify_offline = settings_data.get("notify_offline", True)
-        settings.notify_update = settings_data.get("notify_update", True)
+        settings.notify_online = settings_data.notify_online
+        settings.notify_offline = settings_data.notify_offline
+        settings.notify_update = settings_data.notify_update
         self.db.commit()
-        return settings
+        return StreamerNotificationSettingsSchema.model_validate(settings)
