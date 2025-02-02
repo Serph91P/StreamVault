@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Bool
 from sqlalchemy.sql import func
 from app.database import Base
 from datetime import datetime
+from pydantic import BaseModel
 
 class Streamer(Base):
     __tablename__ = "streamers"
@@ -63,3 +64,20 @@ class GlobalSettings(Base):
     id = Column(Integer, primary_key=True)
     notification_url = Column(String, nullable=True)  # Apprise URL
     notifications_enabled = Column(Boolean, default=True)
+
+class NotificationSettingsSchema(BaseModel):
+    notification_url: str | None = None
+    notifications_enabled: bool = True
+
+    class Config:
+        from_attributes = True
+
+class StreamerNotificationSettingsSchema(BaseModel):
+    id: int | None = None
+    streamer_id: int
+    notify_online: bool = True
+    notify_offline: bool = True 
+    notify_update: bool = True
+
+    class Config:
+        from_attributes = True

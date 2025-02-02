@@ -5,6 +5,7 @@ from apprise import Apprise
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 import logging
+from app.schemas.settings import StreamerNotificationSettingsSchema
 
 logger = logging.getLogger("streamvault")
 
@@ -46,17 +47,24 @@ async def update_settings(settings: NotificationSettings, db: Session = Depends(
             global_settings.notification_url = settings.notification_url
     
     db.commit()
-    return settings@router.get("/streamer/{streamer_id}")
+    return settings
+
+@router.get("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def get_streamer_settings(streamer_id: int):
     with SessionLocal() as db:
         settings = db.query(NotificationSettings)\
             .filter(NotificationSettings.streamer_id == streamer_id)\
             .first()
+        if not settings:
+            raise HTTPException(status_code=404, detail="Settings not found")
         return settings
 
-@router.post("/streamer/{streamer_id}")
-async def update_streamer_settings(streamer_id: int, settings_data: dict):
-    logger.debug(f"Received request to update streamer settings for streamer_id {streamer_id}: {settings_data}")
+@router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
+async def update_streamer_settings(
+    streamer_id: int, 
+    settings_data: StreamerNotificationSettingsSchema
+):
+    logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     with SessionLocal() as db:
         settings = db.query(NotificationSettings)\
             .filter(NotificationSettings.streamer_id == streamer_id)\
@@ -65,8 +73,8 @@ async def update_streamer_settings(streamer_id: int, settings_data: dict):
             settings = NotificationSettings(streamer_id=streamer_id)
             db.add(settings)
         
-        settings.notify_online = settings_data.get("notify_online", True)
-        settings.notify_offline = settings_data.get("notify_offline", True)
-        settings.notify_update = settings_data.get("notify_update", True)
+        settings.notify_online = settings_data.notify_online
+        settings.notify_offline = settings_data.notify_offline
+        settings.notify_update = settings_data.notify_update
         db.commit()
         return settings
