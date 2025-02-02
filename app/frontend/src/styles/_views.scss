@@ -213,11 +213,11 @@
 
   .form-control {
     width: 100%;
-    padding: $spacing-sm $spacing-md;
-    border: 1px solid $border-color;
+    padding: v.$spacing-sm v.$spacing-md;
+    border: 1px solid v.$border-color;
     border-radius: 4px;
-    background: $background-dark;
-    color: $text-primary;
+    background: v.$background-dark;
+    color: v.$text-primary;
   }
 
   .tooltip-wrapper {
@@ -225,15 +225,15 @@
     top: 100%;
     left: 0;
     z-index: 1000;
-    margin-top: $spacing-sm;
-    background: $background-darker;
-    padding: $spacing-sm;
+    margin-top: v.$spacing-sm;
+    background: v.$background-darker;
+    padding: v.$spacing-sm;
     border-radius: 4px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border: 1px solid $border-color;
+    border: 1px solid v.$border-color;
 
     a {
-      color: $primary-color;
+      color: v.$primary-color;
       text-decoration: none;
       
       &:hover {
@@ -295,5 +295,61 @@
     margin-bottom: v.$spacing-lg;
     font-size: map.get(v.$font-scale, 'lg');
     color: v.$text-primary;
+  }
+
+  .settings-form {
+    padding: v.$spacing-md;
+
+    .form-group {
+      margin-bottom: v.$spacing-lg;
+
+      label {
+        display: block;
+        margin-bottom: v.$spacing-sm;
+        color: v.$text-secondary;
+      }
+    }
+  }
+
+  .streamer-notifications {
+    margin-top: v.$spacing-xl;
+    border-top: 1px solid v.$border-color;
+    padding-top: v.$spacing-lg;
+
+    h3 {
+      margin-bottom: v.$spacing-md;
+      color: v.$text-primary;
+    }
+
+    .streamer-card {
+      background: v.$background-darker;
+      padding: v.$spacing-md;
+      border-radius: 8px;
+      margin-bottom: v.$spacing-md;
+
+      .streamer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: v.$spacing-md;
+      }
+
+      .notification-toggles {
+        display: flex;
+        gap: v.$spacing-md;
+        flex-wrap: wrap;
+
+        .toggle {
+          display: flex;
+          align-items: center;
+          gap: v.$spacing-sm;
+          color: v.$text-primary;
+
+          input[type="checkbox"] {
+            margin-right: v.$spacing-xs;
+          }
+        }
+      }
+    }
   }
 }
