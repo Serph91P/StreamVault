@@ -426,3 +426,64 @@ nav {
     }
   }
 }
+
+// Settings Container
+.settings-container {
+  padding: $spacing-md;
+  max-width: 800px;
+  margin: 0 auto;
+
+  .settings-title {
+    margin-bottom: $spacing-lg;
+    color: $text-primary;
+  }
+
+  .settings-form {
+    background: $background-darker;
+    padding: $spacing-md;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .streamer-notifications {
+    margin-top: $spacing-xl;
+
+    .streamer-controls {
+      margin-bottom: $spacing-md;
+      
+      h3 {
+        margin-bottom: $spacing-sm;
+      }
+    }
+
+    .streamer-card {
+      background: $background-darker;
+      padding: $spacing-md;
+      border-radius: 8px;
+      margin-bottom: $spacing-md;
+
+      .streamer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: $spacing-md;
+
+        h4 {
+          margin: 0;
+        }
+      }
+
+      .notification-toggles {
+        display: flex;
+        gap: $spacing-md;
+        flex-wrap: wrap;
+
+        .toggle {
+          display: flex;
+          align-items: center;
+          gap: $spacing-sm;
+        }
+      }
+    }
+  }
+}

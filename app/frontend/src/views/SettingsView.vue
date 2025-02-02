@@ -63,11 +63,14 @@ const toggleAllStreamers = (enabled: boolean) => {
     toggleAllForStreamer(streamer.streamer_id, enabled)
   })
 }
+
+// Add showTooltip ref
+const showTooltip = ref(false)
 </script>
 
 <template>
   <div class="settings-container">
-    <h2>Notification Settings</h2>
+    <h2 class="settings-title">Notification Settings</h2>
     
     <div class="settings-form">
       <div class="form-group">
@@ -77,14 +80,19 @@ const toggleAllStreamers = (enabled: boolean) => {
             v-model="data.notificationUrl" 
             placeholder="e.g., ntfy://topic or telegram://bot_token/chat_id"
             class="form-control"
+            @focus="showTooltip = true"
+            @blur="showTooltip = false"
           />
-          <Tooltip>
-            Check the <a 
-              :href="data.appriseDocsUrl" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >Apprise Documentation</a> for supported services and URL formats
-          </Tooltip>
+          <div v-if="showTooltip" class="tooltip-wrapper">
+            <Tooltip>
+              Check the <a 
+                :href="data.appriseDocsUrl" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                @click.stop
+              >Apprise Documentation</a> for supported services and URL formats
+            </Tooltip>
+          </div>
         </div>
       </div>
 

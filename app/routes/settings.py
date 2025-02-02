@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
-    prefix="/settings",
+    prefix="/api/settings",
     tags=["settings"]
 )
 

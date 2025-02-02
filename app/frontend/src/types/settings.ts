@@ -6,7 +6,7 @@ export interface NotificationSettings {
 
 export interface StreamerNotificationSettings {
   streamer_id: number
-  username: string
+  username?: string
   notify_online: boolean
   notify_offline: boolean
   notify_update: boolean

@@ -178,24 +178,6 @@
   font-size: map.get(v.$font-scale, 'base');
 }
 
-.settings-container {
-  padding: v.$spacing-md;
-  max-width: 800px;
-  margin: 0 auto;
-  background: v.$background-darker;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-lg;
-  }
-
-  h2 {
-    margin-bottom: v.$spacing-lg;
-    font-size: map.get(v.$font-scale, 'lg');
-  }
-}
-
 .settings-form {
   .form-group {
     margin-bottom: v.$spacing-lg;
@@ -225,6 +207,53 @@
   }
 }
 
+.input-with-tooltip {
+  position: relative;
+  width: 100%;
+
+  .form-control {
+    width: 100%;
+    padding: $spacing-sm $spacing-md;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    background: $background-dark;
+    color: $text-primary;
+  }
+
+  .tooltip-wrapper {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    margin-top: $spacing-sm;
+    background: $background-darker;
+    padding: $spacing-sm;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid $border-color;
+
+    a {
+      color: $primary-color;
+      text-decoration: none;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.global-controls {
+  display: flex;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-md;
+
+  .btn {
+    padding: $spacing-xs $spacing-sm;
+    font-size: map-get($font-scale, 'sm');
+  }
+}
+
 .streamer-notifications {
   margin-top: v.$spacing-xl;
   border-top: 1px solid v.$border-color;
@@ -246,5 +275,25 @@
       flex-wrap: wrap;
       gap: v.$spacing-md;
     }
+  }
+}
+
+// Keep view-specific styles including .settings-container
+.settings-container {
+  padding: v.$spacing-md;
+  max-width: 800px;
+  margin: 0 auto;
+  background: v.$background-darker;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  .settings-title {
+    margin-bottom: v.$spacing-lg;
+    font-size: map.get(v.$font-scale, 'lg');
+    color: v.$text-primary;
   }
 }
