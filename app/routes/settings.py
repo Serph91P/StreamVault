@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from app.database import SessionLocal, get_db
 from app.models import GlobalSettings, NotificationSettings
+from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
 from apprise import Apprise
-from typing import Dict, Any
 from sqlalchemy.orm import Session
 import logging
-from app.schemas.settings import StreamerNotificationSettingsSchema
 
 logger = logging.getLogger("streamvault")
 
@@ -21,7 +20,7 @@ def validate_apprise_url(url: str) -> bool:
     except Exception:
         return False
 
-@router.get("")
+@router.get("", response_model=GlobalSettingsSchema)
 async def get_settings():
     with SessionLocal() as db:
         settings = db.query(GlobalSettings).first()
@@ -29,25 +28,27 @@ async def get_settings():
             settings = GlobalSettings()
             db.add(settings)
             db.commit()
-        return {
-            "notification_url": settings.notification_url,
-            "notifications_enabled": settings.notifications_enabled,
-            "apprise_docs_url": "https://github.com/caronc/apprise/wiki"
-        }
+        return GlobalSettingsSchema(
+            notification_url=settings.notification_url,
+            notifications_enabled=settings.notifications_enabled,
+            apprise_docs_url="https://github.com/caronc/apprise/wiki"
+        )
 
-@router.post("/")
-async def update_settings(settings: NotificationSettings, db: Session = Depends(get_db)):
-    global_settings = db.query(GlobalSettings).first()
-    if not global_settings:
-        global_settings = GlobalSettings()
-        db.add(global_settings)
+@router.post("", response_model=GlobalSettingsSchema)
+async def update_settings(settings_data: GlobalSettingsSchema, db: Session = Depends(get_db)):
+    settings = db.query(GlobalSettings).first()
+    if not settings:
+        settings = GlobalSettings()
+        db.add(settings)
     
-    if settings.notification_url:
-        if validate_apprise_url(settings.notification_url):
-            global_settings.notification_url = settings.notification_url
+    if settings_data.notification_url:
+        if not validate_apprise_url(settings_data.notification_url):
+            raise HTTPException(status_code=400, detail="Invalid notification URL format")
+        settings.notification_url = settings_data.notification_url
     
+    settings.notifications_enabled = settings_data.notifications_enabled
     db.commit()
-    return settings
+    return GlobalSettingsSchema.model_validate(settings)
 
 @router.get("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def get_streamer_settings(streamer_id: int):
@@ -57,7 +58,7 @@ async def get_streamer_settings(streamer_id: int):
             .first()
         if not settings:
             raise HTTPException(status_code=404, detail="Settings not found")
-        return settings
+        return StreamerNotificationSettingsSchema.model_validate(settings)
 
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def update_streamer_settings(
@@ -77,4 +78,4 @@ async def update_streamer_settings(
         settings.notify_offline = settings_data.notify_offline
         settings.notify_update = settings_data.notify_update
         db.commit()
-        return settings
+        return StreamerNotificationSettingsSchema.model_validate(settings)
