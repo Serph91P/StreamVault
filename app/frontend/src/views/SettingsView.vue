@@ -16,7 +16,7 @@ interface ComponentData {
 const data = ref<ComponentData>({
   notificationUrl: '',
   notificationsEnabled: true,
-  appriseDocsUrl: '',
+  appriseDocsUrl: 'https://github.com/caronc/apprise/wiki',
   streamerSettings: []
 })
 
@@ -89,7 +89,6 @@ const showTooltip = ref(false)
                 :href="data.appriseDocsUrl" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                @click.stop
               >Apprise Documentation</a> for supported services and URL formats
             </Tooltip>
           </div>
