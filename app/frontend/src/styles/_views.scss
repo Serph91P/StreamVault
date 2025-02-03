@@ -246,7 +246,7 @@
 .global-controls {
   display: flex;
   gap: v.$spacing-sm;
-  margin-bottom: $spacing-md;
+  margin-bottom: v.$spacing-md;
 
   .btn {
     padding: $spacing-xs v.$spacing-sm;
