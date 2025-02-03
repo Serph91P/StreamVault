@@ -18,29 +18,20 @@ class SettingsService:
             logger.error(f"Failed to validate Apprise URL: {url}", exc_info=True)
             return False
 
-    async def get_settings(self) -> GlobalSettingsSchema:
+    async def get_settings(self) -> GlobalSettings:
         settings = self.db.query(GlobalSettings).first()
         if not settings:
             settings = GlobalSettings()
             self.db.add(settings)
             self.db.commit()
-        return GlobalSettingsSchema.model_validate(settings)
+        return settings
 
-    async def update_settings(self, settings_data: GlobalSettingsSchema) -> GlobalSettingsSchema:
-        global_settings = self.db.query(GlobalSettings).first()
-        if not global_settings:
-            global_settings = GlobalSettings()
-            self.db.add(global_settings)
-        
-        if settings_data.notification_url:
-            if self.validate_apprise_url(settings_data.notification_url):
-                global_settings.notification_url = settings_data.notification_url
-                global_settings.notifications_enabled = settings_data.notifications_enabled
-            else:
-                raise ValueError("Invalid notification URL format")
-        
+    async def update_settings(self, settings_data: GlobalSettingsSchema) -> GlobalSettings:
+        settings = await self.get_settings()
+        for key, value in settings_data.dict(exclude_unset=True).items():
+            setattr(settings, key, value)
         self.db.commit()
-        return GlobalSettingsSchema.model_validate(global_settings)
+        return settings
 
     async def get_streamer_settings(self, streamer_id: int) -> StreamerNotificationSettingsSchema:
         settings = self.db.query(NotificationSettings)\
