@@ -61,6 +61,10 @@ class NotificationSettings(Base):
     
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
+    
     id = Column(Integer, primary_key=True)
-    notification_url = Column(String, nullable=True)  # Apprise URL
+    notification_url = Column(String)
     notifications_enabled = Column(Boolean, default=True)
+    notify_online_global = Column(Boolean, default=True)
+    notify_offline_global = Column(Boolean, default=True)
+    notify_update_global = Column(Boolean, default=True)
