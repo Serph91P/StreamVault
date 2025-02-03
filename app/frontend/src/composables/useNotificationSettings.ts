@@ -25,11 +25,11 @@ export function useNotificationSettings(): NotificationSettingsComposable {
     })
     settings.value = await response.json()
   }
-
   const getStreamerSettings = async (): Promise<StreamerNotificationSettings[]> => {
     const response = await fetch('/api/settings/streamer')
     return await response.json()
-  }
+}
+
 
   const updateStreamerSettings = async (
     streamerId: number, 
