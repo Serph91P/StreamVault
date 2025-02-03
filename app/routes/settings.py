@@ -50,15 +50,11 @@ async def update_settings(settings_data: GlobalSettingsSchema, db: Session = Dep
     db.commit()
     return GlobalSettingsSchema.model_validate(settings)
 
-@router.get("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
-async def get_streamer_settings(streamer_id: int):
+@router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
+async def get_all_streamer_settings():
     with SessionLocal() as db:
-        settings = db.query(NotificationSettings)\
-            .filter(NotificationSettings.streamer_id == streamer_id)\
-            .first()
-        if not settings:
-            raise HTTPException(status_code=404, detail="Settings not found")
-        return StreamerNotificationSettingsSchema.model_validate(settings)
+        settings = db.query(NotificationSettings).all()
+        return [StreamerNotificationSettingsSchema.model_validate(s) for s in settings]
 
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def update_streamer_settings(
