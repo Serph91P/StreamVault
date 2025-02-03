@@ -250,7 +250,8 @@
 
   .btn {
     padding: v.$spacing-xs v.$spacing-sm;
-    font-size: map-get($font-scale, 'sm');
+    font-size: map.get(v.$font-scale, 'sm');
+
   }
 }
 
