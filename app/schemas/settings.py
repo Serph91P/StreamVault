@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl
-from typing import Optional
+from typing import List, Optional
 
 class GlobalSettingsSchema(BaseModel):
     notification_url: Optional[str] = None
@@ -11,7 +11,7 @@ class GlobalSettingsSchema(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
 class StreamerNotificationSettingsSchema(BaseModel):
     id: Optional[int] = None
     streamer_id: int
