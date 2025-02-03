@@ -245,11 +245,11 @@
 
 .global-controls {
   display: flex;
-  gap: $spacing-sm;
+  gap: v.$spacing-sm;
   margin-bottom: $spacing-md;
 
   .btn {
-    padding: $spacing-xs $spacing-sm;
+    padding: $spacing-xs v.$spacing-sm;
     font-size: map-get($font-scale, 'sm');
   }
 }
