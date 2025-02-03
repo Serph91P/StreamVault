@@ -5,6 +5,7 @@ from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSetti
 from apprise import Apprise
 from sqlalchemy.orm import Session
 import logging
+from typing import List
 
 logger = logging.getLogger("streamvault")
 
