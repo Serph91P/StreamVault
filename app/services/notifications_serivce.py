@@ -31,10 +31,11 @@ class NotificationService:
         if not notification_settings:
             return
 
+        # Check global settings first, then individual overrides
         should_notify = {
-            "stream.online": notification_settings.notify_online,
-            "stream.offline": notification_settings.notify_offline,
-            "channel.update": notification_settings.notify_update
+            "stream.online": settings.notify_online_global and notification_settings.notify_online,
+            "stream.offline": settings.notify_offline_global and notification_settings.notify_offline,
+            "channel.update": settings.notify_update_global and notification_settings.notify_update
         }.get(event_type, False)
 
         if should_notify:
