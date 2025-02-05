@@ -68,78 +68,47 @@ class EventHandlerRegistry:
                 await asyncio.sleep(1)
         return False
     
-        # async def subscribe_to_events(self, twitch_id: str):
-    #     try:
-    #         if not self.eventsub:
-    #             raise ValueError("EventSub not initialized")
-
-    #         logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-            
-    #         async def create_sub(sub_type: str) -> str:
-    #             try:
-    #                 if sub_type == "stream.online":
-    #                     return await self.eventsub.listen_stream_online(
-    #                         broadcaster_user_id=twitch_id,
-    #                         callback=self.handle_stream_online
-    #                     )
-    #                 elif sub_type == "stream.offline":
-    #                     return await self.eventsub.listen_stream_offline(
-    #                         broadcaster_user_id=twitch_id,
-    #                         callback=self.handle_stream_offline
-    #                     )
-    #                 elif sub_type == "channel.update":
-    #                     return await self.eventsub.listen_channel_update(
-    #                         broadcaster_user_id=twitch_id,
-    #                         callback=self.handle_stream_update
-    #                     )
-    #             except Exception as e:
-    #                 logger.error(f"Failed to create {sub_type} subscription: {e}")
-    #                 raise
-
-    #         # Create all subscriptions in parallel
-    #         sub_types = ["stream.online", "stream.offline", "channel.update"]
-    #         sub_ids = await asyncio.gather(*[create_sub(st) for st in sub_types])
-            
-    #         # Verify all subscriptions
-    #         verifications = await asyncio.gather(*[
-    #             self.verify_subscription(sub_id) for sub_id in sub_ids if sub_id
-    #         ])
-
-    #         return [sid for sid, verified in zip(sub_ids, verifications) if verified]
-
-    #     except Exception as e:
-    #         logger.error(f"Error in batch subscription: {e}", exc_info=True)
-    #         raise
-
-
-    
-    async def subscribe_to_events(self):
-        sub_types = ["stream.online", "stream.offline", "channel.update"]
+    async def subscribe_to_events(self, twitch_id: str):
         try:
-            sub_ids = await asyncio.gather(*[self.create_sub(st) for st in sub_types])
-            logger.info(f"Successfully created subscriptions: {sub_ids}")
-        except Exception as e:
-            logger.error(f"Error in batch subscription: {str(e)}", exc_info=True)
+            if not self.eventsub:
+                raise ValueError("EventSub not initialized")
 
-    async def create_sub(self, sub_type):
-        try:
-            if sub_type == "stream.online":
-                return await self.eventsub.listen_stream_online(
-                    broadcaster_user_id="your_broadcaster_user_id",
-                    callback=self.handle_stream_online
-                )
-            elif sub_type == "stream.offline":
-                return await self.eventsub.listen_stream_offline(
-                    broadcaster_user_id="your_broadcaster_user_id",
-                    callback=self.handle_stream_offline
-                )
-            elif sub_type == "channel.update":
-                return await self.eventsub.listen_channel_update(
-                    broadcaster_user_id="your_broadcaster_user_id",
-                    callback=self.handle_stream_update
-                )
+            logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
+            
+            async def create_sub(sub_type: str) -> str:
+                try:
+                    if sub_type == "stream.online":
+                        return await self.eventsub.listen_stream_online(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_online
+                        )
+                    elif sub_type == "stream.offline":
+                        return await self.eventsub.listen_stream_offline(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_offline
+                        )
+                    elif sub_type == "channel.update":
+                        return await self.eventsub.listen_channel_update(
+                            broadcaster_user_id=twitch_id,
+                            callback=self.handle_stream_update
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to create {sub_type} subscription: {e}")
+                    raise
+
+            # Create all subscriptions in parallel
+            sub_types = ["stream.online", "stream.offline", "channel.update"]
+            sub_ids = await asyncio.gather(*[create_sub(st) for st in sub_types])
+            
+            # Verify all subscriptions
+            verifications = await asyncio.gather(*[
+                self.verify_subscription(sub_id) for sub_id in sub_ids if sub_id
+            ])
+
+            return [sid for sid, verified in zip(sub_ids, verifications) if verified]
+
         except Exception as e:
-            logger.error(f"Failed to create {sub_type} subscription: {str(e)}", exc_info=True)
+            logger.error(f"Error in batch subscription: {e}", exc_info=True)
             raise
 
     async def handle_stream_online(self, data: dict):
