@@ -26,7 +26,7 @@ from app.middleware.auth import AuthMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup tasks
+    # Print routes
     print("\n=== Registered Routes ===")
     for route in app.routes:
         if isinstance(route, APIRoute):
@@ -35,18 +35,23 @@ async def lifespan(app: FastAPI):
             print(f"WebSocket Route: {route.path}")
     print("=======================\n")
     
-    # Initialize Twitch and EventSub
-    twitch_client = await get_twitch()
+    logger.info("Starting application initialization...")
+    await get_twitch()
     event_registry = await get_event_registry()
+    
+    # Initialize EventSub with detailed logging
+    logger.info("Initializing EventSub...")
     await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
     
     yield
     
-    # Cleanup
+    # Cleanup with logging
+    logger.info("Starting application shutdown...")
     event_registry = await get_event_registry()
     if event_registry.eventsub:
         event_registry.eventsub.stop()
+        logger.info("EventSub stopped")
     logger.info("Application shutdown complete")
 
 # Initialize application components
