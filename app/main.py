@@ -210,17 +210,16 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
-
-
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
-
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    return FileResponse("app/frontend/dist/index.html")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
 
 # Auth Middleware
 app.add_middleware(AuthMiddleware)
+
+# SPA catch-all route must be last
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    return FileResponse("app/frontend/dist/index.html")
