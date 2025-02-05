@@ -32,6 +32,6 @@ RUN npm run build
 WORKDIR /app
 COPY . .
 
-EXPOSE 7000
+EXPOSE 7000 8080
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
