@@ -28,17 +28,13 @@ class EventHandlerRegistry:
 
     async def initialize_eventsub(self):
         if self.eventsub and self.eventsub.running:
-            logger.debug("EventSub already initialized and running")
             return
             
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
 
-        full_webhook_url = f"{settings.WEBHOOK_URL}"
-        logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
-
         self.eventsub = EventSubWebhook(
-            callback_url=full_webhook_url,
+            callback_url=f"{settings.WEBHOOK_URL}",
             port=self.settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop()
@@ -49,8 +45,6 @@ class EventHandlerRegistry:
         self.eventsub.wait_for_subscription_confirm_timeout = 60
 
         self.eventsub.start()
-        
-        logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
 
     async def verify_subscription(self, subscription_id: str, max_attempts: int = 10) -> bool:
         for attempt in range(max_attempts):
