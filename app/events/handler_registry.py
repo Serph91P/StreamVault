@@ -56,12 +56,6 @@ class EventHandlerRegistry:
             logger.error(f"Failed to start EventSub webhook server: {e}")
             raise
 
-        # Add debug route
-        async def health_check(request):
-            return web.Response(text="EventSub Server is running")
-        
-        self.eventsub.app.router.add_get('/health', health_check)
-
     async def verify_subscription(self, subscription_id: str, max_attempts: int = 10) -> bool:
         for attempt in range(max_attempts):
             try:

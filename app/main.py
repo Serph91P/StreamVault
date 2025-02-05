@@ -62,6 +62,10 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "StreamVault"}
+
 # EventSub Routes
 # @app.get("/eventsub/callback")
 # @app.head("/eventsub/callback")
