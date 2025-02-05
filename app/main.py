@@ -62,18 +62,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
 
-# Application Lifecycle Events
-# @app.on_event("startup")
-# async def startup_event():
-#     await get_twitch()
-#     await get_event_registry()
-#     logger.info("Application startup complete")
-
-# @app.on_event("shutdown")
-# async def shutdown_event():
-#     event_registry = await get_event_registry()
-#     logger.info("Application shutdown complete")
-
 # EventSub Routes
 # @app.get("/eventsub/callback")
 # @app.head("/eventsub/callback")
