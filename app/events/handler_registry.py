@@ -47,16 +47,6 @@ class EventHandlerRegistry:
         self.eventsub.start()
         
         logger.info(f"EventSub initialized successfully with URL: {full_webhook_url}")
-        logger.debug(f"EventSub initialized successfully with secret: {self.eventsub.secret}")
-
-        # Add keep-alive task
-        asyncio.create_task(self._keep_eventsub_alive())
-
-    async def _keep_eventsub_alive(self):
-        while True:
-            await asyncio.sleep(30)  # Check every 30 seconds
-            if self.eventsub and self.eventsub.running:
-                logger.debug("EventSub connection alive")
 
     async def verify_subscription(self, subscription_id: str, max_attempts: int = 10) -> bool:
         for attempt in range(max_attempts):
