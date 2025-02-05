@@ -27,6 +27,10 @@ class EventHandlerRegistry:
         self.settings = settings
 
     async def initialize_eventsub(self):
+        if self.eventsub and self.eventsub.running:
+            logger.debug("EventSub already initialized and running")
+            return
+            
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
 
