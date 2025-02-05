@@ -9,6 +9,8 @@ import hashlib
 import json
 import asyncio
 
+from contextlib import asynccontextmanager
+
 from app.events.handler_registry import EventHandlerRegistry
 
 from app.config.logging_config import setup_logging
@@ -20,10 +22,29 @@ from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup tasks
+    print("\n=== Registered Routes ===")
+    for route in app.routes:
+        print(f"Route: {route.path}, Methods: {route.methods}")
+    print("=======================\n")
+    
+    # Original startup event logic
+    await get_twitch()
+    await get_event_registry()
+    logger.info("Application startup complete")
+    
+    yield
+    
+    # Original shutdown event logic
+    event_registry = await get_event_registry()
+    logger.info("Application shutdown complete")
+
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.middleware("http")(logging_middleware)
 
 # WebSocket endpoint
@@ -37,16 +58,16 @@ async def websocket_endpoint(websocket: WebSocket):
         websocket_manager.disconnect(websocket)
 
 # Application Lifecycle Events
-@app.on_event("startup")
-async def startup_event():
-    await get_twitch()
-    await get_event_registry()
-    logger.info("Application startup complete")
+# @app.on_event("startup")
+# async def startup_event():
+#     await get_twitch()
+#     await get_event_registry()
+#     logger.info("Application startup complete")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    event_registry = await get_event_registry()
-    logger.info("Application shutdown complete")
+# @app.on_event("shutdown")
+# async def shutdown_event():
+#     event_registry = await get_event_registry()
+#     logger.info("Application shutdown complete")
 
 # EventSub Routes
 @app.get("/eventsub/callback")
@@ -195,6 +216,8 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
     except Exception as e:
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
+
+
 
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
