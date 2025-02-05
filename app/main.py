@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketRoute, WebSocketDisconnect, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
@@ -27,7 +27,10 @@ async def lifespan(app: FastAPI):
     # Startup tasks
     print("\n=== Registered Routes ===")
     for route in app.routes:
-        print(f"Route: {route.path}, Methods: {route.methods}")
+        if isinstance(route, APIRoute):
+            print(f"Route: {route.path}, Methods: {route.methods}")
+        elif isinstance(route, WebSocketRoute):
+            print(f"WebSocket Route: {route.path}")
     print("=======================\n")
     
     # Original startup event logic
