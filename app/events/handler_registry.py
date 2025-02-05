@@ -10,6 +10,7 @@ import asyncio
 import hmac
 import hashlib
 from datetime import datetime, timezone
+from aiohttp import web
 
 
 logger = logging.getLogger('streamvault')
@@ -54,6 +55,12 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Failed to start EventSub webhook server: {e}")
             raise
+
+        # Add debug route
+        async def health_check(request):
+            return web.Response(text="EventSub Server is running")
+        
+        self.eventsub.app.router.add_get('/health', health_check)
 
     async def verify_subscription(self, subscription_id: str, max_attempts: int = 10) -> bool:
         for attempt in range(max_attempts):
