@@ -27,7 +27,7 @@ class EventHandlerRegistry:
         self.settings = settings
 
     async def initialize_eventsub(self):
-        if self.eventsub and self.eventsub.running:
+        if self.eventsub:
             return
             
         if not self.twitch:
