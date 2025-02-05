@@ -10,7 +10,6 @@ from typing import List
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
-    prefix="/api/settings",
     tags=["settings"]
 )
 
