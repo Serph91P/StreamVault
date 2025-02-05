@@ -35,15 +35,18 @@ async def lifespan(app: FastAPI):
             print(f"WebSocket Route: {route.path}")
     print("=======================\n")
     
-    # Original startup event logic
-    await get_twitch()
-    await get_event_registry()
+    # Initialize Twitch and EventSub
+    twitch_client = await get_twitch()
+    event_registry = await get_event_registry()
+    await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
     
     yield
     
-    # Original shutdown event logic
+    # Cleanup
     event_registry = await get_event_registry()
+    if event_registry.eventsub:
+        event_registry.eventsub.stop()
     logger.info("Application shutdown complete")
 
 # Initialize application components
