@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.WEBHOOK_URL:
-            self.WEBHOOK_URL = f"{self.BASE_URL}/eventsub"
+            self.WEBHOOK_URL = self.BASE_URL
 
     class Config:
         env_file = ".env"
