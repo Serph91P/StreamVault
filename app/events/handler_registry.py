@@ -33,12 +33,13 @@ class EventHandlerRegistry:
         if not self.twitch:
             raise ValueError("Twitch client not initialized")
 
-        full_webhook_url = f"{settings.WEBHOOK_URL}"
-        logger.debug(f"Initializing EventSub with callback URL: {full_webhook_url}")
+        base_url = self.settings.WEBHOOK_URL if self.settings else settings.WEBHOOK_URL
+        callback_url = f"{base_url}/eventsub"
+        logger.debug(f"Initializing EventSub with callback URL: {base_url}")
         logger.debug(f"EventSub server will listen on port: {self.settings.EVENTSUB_PORT}")
 
         self.eventsub = EventSubWebhook(
-            callback_url=full_webhook_url,
+            callback_url=callback_url,
             port=self.settings.EVENTSUB_PORT,
             twitch=self.twitch,
             callback_loop=asyncio.get_event_loop()
