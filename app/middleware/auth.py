@@ -43,7 +43,7 @@ class AuthMiddleware:
                 "/auth/setup",
                 "/auth/check",
                 "/eventsub/callback",
-                "/eventsub",
+                "/callback",
                 "/static/",
                 "/assets/"
             ]
