@@ -5,6 +5,8 @@ from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from typing import Dict, Any, Optional, List
 import logging
+import aiohttp
+from app.config.settings import settings
 
 logger = logging.getLogger("streamvault")
 
@@ -13,6 +15,9 @@ class StreamerService:
         self.db = db
         self.twitch = twitch
         self.manager = websocket_manager
+        self.client_id = settings.TWITCH_APP_ID
+        self.client_secret = settings.TWITCH_APP_SECRET
+        self.base_url = "https://api.twitch.tv/helix"
 
     async def notify(self, message: Dict[str, Any]):
         try:
@@ -20,6 +25,38 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Notification failed: {e}")
             raise
+
+    async def get_app_access_token(self):
+        async with aiohttp.ClientSession() as session:
+            async with session.post("https://id.twitch.tv/oauth2/token", data={
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials"
+            }) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data["access_token"]
+                else:
+                    logger.error(f"Failed to get app access token. Status: {response.status}")
+                    return None
+
+    async def get_streamer_info(self, streamer_id):
+        token = await self.get_app_access_token()
+        if not token:
+            return None
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.base_url}/users?id={streamer_id}", headers={
+                "Client-ID": self.client_id,
+                "Authorization": f"Bearer {token}"
+            }) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data["data"][0] if data["data"] else None
+                else:
+                    logger.error(f"Failed to get streamer info. Status: {response.status}")
+                    return None
+
     async def get_streamers(self) -> List[StreamerResponse]:
         streamers = self.db.query(Streamer).all()
         streamer_statuses = []
