@@ -8,8 +8,8 @@
   flex-direction: column;
 }
 
-.app-header {
-  background: v.$background-dark;
+.header {
+  background: v.$background-darker;
   position: fixed;
   top: 0;
   left: 0;
@@ -21,92 +21,34 @@
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-md;
   }
+
+  .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
-.header-content {
+.nav-container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: v.$spacing-sm;
-  width: 100%;
-
-  h1 {
-    font-size: map.get(v.$font-scale, 'lg');
-    margin: 0;
-
-    @media (min-width: map.get(v.$breakpoints, 'md')) {
-      font-size: map.get(v.$font-scale, 'xl');
-    }
-  }
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: v.$spacing-md;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    flex-direction: row;
-    justify-content: space-between;
-    max-width: v.$container-xl;
+    justify-content: flex-start;
     margin: 0 auto;
     gap: v.$spacing-md;
   }
 }
 
 .main-content {
-  margin-top: 120px;
-  padding: v.$spacing-md;
-}
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  background: v.$background-dark;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: v.$spacing-sm;
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-md;
-  }
-}
-
-.header-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: v.$spacing-sm;
-  width: 100%;
-
-  h1 {
-    font-size: map.get(v.$font-scale, 'lg');
-    margin: 0;
-
-    @media (min-width: map.get(v.$breakpoints, 'md')) {
-      font-size: map.get(v.$font-scale, 'xl');
-    }
-  }
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    flex-direction: row;
-    justify-content: space-between;
-    max-width: v.$container-xl;
-    margin: 0 auto;
-    gap: v.$spacing-md;
-  }
-}
-
-.main-content {
-  margin-top: 120px;
-  padding: v.$spacing-md;
   flex: 1;
-  width: 100%;
+  padding-top: calc(56px + v.$spacing-md);
+  padding: v.$spacing-md;
   box-sizing: border-box;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    margin-top: 80px;
     padding: v.$spacing-lg;
   }
 
