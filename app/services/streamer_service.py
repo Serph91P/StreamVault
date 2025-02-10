@@ -122,13 +122,16 @@ class StreamerService:
     async def add_streamer(self, username: str) -> Dict[str, Any]:
         try:
             username = username.strip().lower()
+            logger.debug(f"Adding streamer: {username}")
             
             # Get user info from Twitch
             users = await self.get_users_by_login([username])
             if not users:
+                logger.error(f"No Twitch user found for username: {username}")
                 return {"success": False, "message": f"No Twitch user found for username: {username}"}
 
             user_data = users[0]
+            logger.debug(f"User data retrieved: {user_data}")
             
             # Check for existing
             existing_streamer = self.db.query(Streamer).filter(
@@ -136,6 +139,7 @@ class StreamerService:
             ).first()
             
             if existing_streamer:
+                logger.error(f"Streamer {user_data['display_name']} already exists")
                 return {"success": False, "message": f"Streamer {user_data['display_name']} already exists"}
 
             # Create new streamer
@@ -147,6 +151,7 @@ class StreamerService:
         
             self.db.add(new_streamer)
             self.db.flush()
+            logger.info(f"Streamer {new_streamer.username} added successfully")
             
             return {
                 "success": True,
@@ -184,3 +189,42 @@ class StreamerService:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
             raise
+
+    async def subscribe_to_events(self, twitch_id: str):
+        if not self.eventsub:
+            raise ValueError("EventSub not initialized")
+
+        access_token = await self.get_access_token()
+        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
+
+        async with aiohttp.ClientSession() as session:
+            for event_type in self.handlers.keys():
+                try:
+                    async with session.post(
+                        "https://api.twitch.tv/helix/eventsub/subscriptions",
+                        headers={
+                            "Client-ID": self.settings.TWITCH_APP_ID,
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "type": event_type,
+                            "version": "1",
+                            "condition": {
+                                "broadcaster_user_id": twitch_id
+                            },
+                            "transport": {
+                                "method": "webhook",
+                                "callback": self.eventsub["callback_url"],
+                                "secret": self.eventsub["secret"]
+                            }
+                        }
+                    ) as response:
+                        if response.status == 202:
+                            logger.info(f"Subscribed to {event_type} for twitch_id: {twitch_id}")
+                        else:
+                            error_data = await response.json()
+                            logger.error(f"Failed to subscribe to {event_type}. Status: {response.status}, Error: {error_data}")
+                except Exception as e:
+                    logger.error(f"Error subscribing to {event_type}: {e}")
+                    raise
