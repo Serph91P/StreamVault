@@ -1,5 +1,4 @@
 from sqlalchemy.orm import Session
-from twitchAPI.twitch import Twitch
 from app.models import Streamer, Stream, StreamEvent
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
@@ -11,13 +10,13 @@ from app.config.settings import settings
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
-    def __init__(self, db: Session, twitch: Twitch, websocket_manager: ConnectionManager):
+    def __init__(self, db: Session, websocket_manager: ConnectionManager):
         self.db = db
-        self.twitch = twitch
         self.manager = websocket_manager
         self.client_id = settings.TWITCH_APP_ID
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
+        self._access_token = None
 
     async def notify(self, message: Dict[str, Any]):
         try:
@@ -26,30 +25,57 @@ class StreamerService:
             logger.error(f"Notification failed: {e}")
             raise
 
-    async def get_app_access_token(self):
+    async def get_access_token(self) -> str:
+        """Get or refresh Twitch access token"""
+        if not self._access_token:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    params={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "grant_type": "client_credentials"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        self._access_token = data["access_token"]
+                    else:
+                        raise ValueError(f"Failed to get access token: {response.status}")
+        return self._access_token
+
+    async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
+        token = await self.get_access_token()
+        users = []
+        
         async with aiohttp.ClientSession() as session:
-            async with session.post("https://id.twitch.tv/oauth2/token", data={
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "grant_type": "client_credentials"
-            }) as response:
+            async with session.get(
+                f"{self.base_url}/users",
+                params={"login": usernames},
+                headers={
+                    "Client-ID": self.client_id,
+                    "Authorization": f"Bearer {token}"
+                }
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data["access_token"]
+                    return data.get("data", [])
                 else:
-                    logger.error(f"Failed to get app access token. Status: {response.status}")
-                    return None
+                    logger.error(f"Failed to get users. Status: {response.status}")
+                    return []
 
-    async def get_streamer_info(self, streamer_id):
-        token = await self.get_app_access_token()
-        if not token:
-            return None
-
+    async def get_streamer_info(self, streamer_id: str) -> Optional[Dict[str, Any]]:
+        token = await self.get_access_token()
+        
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.base_url}/users?id={streamer_id}", headers={
-                "Client-ID": self.client_id,
-                "Authorization": f"Bearer {token}"
-            }) as response:
+            async with session.get(
+                f"{self.base_url}/users",
+                params={"id": streamer_id},
+                headers={
+                    "Client-ID": self.client_id,
+                    "Authorization": f"Bearer {token}"
+                }
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data["data"][0] if data["data"] else None
@@ -97,30 +123,26 @@ class StreamerService:
         try:
             username = username.strip().lower()
             
-            # Quick user lookup
-            user_info_list = []
-            async for user_info in self.twitch.get_users(logins=[username]):
-                user_info_list.append(user_info)
-                break  # Only need first result
-                
-            if not user_info_list:
+            # Get user info from Twitch
+            users = await self.get_users_by_login([username])
+            if not users:
                 return {"success": False, "message": f"No Twitch user found for username: {username}"}
 
-            user_data = user_info_list[0]
+            user_data = users[0]
             
             # Check for existing
             existing_streamer = self.db.query(Streamer).filter(
-                Streamer.twitch_id == user_data.id
+                Streamer.twitch_id == user_data["id"]
             ).first()
             
             if existing_streamer:
-                return {"success": False, "message": f"Streamer {user_data.display_name} already exists"}
+                return {"success": False, "message": f"Streamer {user_data['display_name']} already exists"}
 
             # Create new streamer
             new_streamer = Streamer(
-                twitch_id=user_data.id,
-                username=user_data.login,
-                display_name=user_data.display_name
+                twitch_id=user_data["id"],
+                username=user_data["login"],
+                display_name=user_data["display_name"]
             )
         
             self.db.add(new_streamer)
@@ -129,7 +151,7 @@ class StreamerService:
             return {
                 "success": True,
                 "streamer": new_streamer,
-                "twitch_id": user_data.id
+                "twitch_id": user_data["id"]
             }
 
         except Exception as e:
@@ -137,7 +159,7 @@ class StreamerService:
             logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
             return {"success": False, "message": f"Error adding streamer: {str(e)}"}
 
-    async def delete_streamer(self, streamer_id: int) -> dict:
+    async def delete_streamer(self, streamer_id: int) -> Optional[Dict[str, Any]]:
         try:
             streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
             if streamer:
