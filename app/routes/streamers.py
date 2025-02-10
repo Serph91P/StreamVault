@@ -84,9 +84,10 @@ async def delete_streamer(
         if streamer:
             # Delete all EventSub subscriptions for this streamer
             subs = await event_registry.list_subscriptions()
-            for sub in subs["subscriptions"]:
-                if sub["broadcaster_id"] == streamer["twitch_id"]:
-                    await event_registry.delete_subscription(sub["id"])
+            if "subscriptions" in subs:
+                for sub in subs["subscriptions"]:
+                    if sub["broadcaster_id"] == streamer["twitch_id"]:
+                        await event_registry.delete_subscription(sub["id"])
             
             return {"success": True, "message": "Streamer and subscriptions deleted successfully"}
         return JSONResponse(
