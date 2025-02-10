@@ -102,6 +102,14 @@ async def delete_streamer(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
+@router.get("/streamer/{streamer_id}")
+async def get_streamer(streamer_id: str, streamer_service: StreamerService = Depends(get_streamer_service)):
+    streamer_info = await streamer_service.get_streamer_info(streamer_id)
+    if not streamer_info:
+        raise HTTPException(status_code=404, detail="Streamer not found")
+    return streamer_info
+
 @router.get("/subscriptions")
 async def get_subscriptions(
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
