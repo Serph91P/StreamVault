@@ -1,4 +1,3 @@
-
 @forward 'variables';
 @use 'variables' as v;
 @use 'layout';
@@ -34,15 +33,15 @@ img {
   margin-right: auto;
   margin-left: auto;
 
-  @media (min-width: map-get(v.$breakpoints, 'md')) {
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
     max-width: v.$container-md;
   }
 
-  @media (min-width: map-get(v.$breakpoints, 'lg')) {
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
     max-width: v.$container-lg;
   }
 
-  @media (min-width: map-get(v.$breakpoints, 'xl')) {
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
     max-width: v.$container-xl;
   }
 }
