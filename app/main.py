@@ -184,30 +184,8 @@ app.include_router(settings_router.router, prefix="/api/settings")
 async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
     try:
         logger.debug("Attempting to delete all subscriptions")
-        
-        # Holen aller bestehenden Subscriptions
-        existing_subs = await event_registry.twitch.get_eventsub_subscriptions()
-        logger.debug(f"Found {len(existing_subs.data)} subscriptions to delete")
-        
-        # Löschen jeder einzelnen Subscription
-        results = []
-        for sub in existing_subs.data:
-            try:
-                await event_registry.twitch.delete_eventsub_subscription(sub.id)
-                logger.info(f"Deleted subscription {sub.id}")
-                results.append({"id": sub.id, "status": "deleted"})
-            except Exception as sub_error:
-                logger.error(f"Failed to delete subscription {sub.id}: {sub_error}", exc_info=True)
-                results.append({"id": sub.id, "status": "failed", "error": str(sub_error)})
-        
-        # Zusammenfassung der Ergebnisse
-        return {
-            "success": True,
-            "deleted_subscriptions": results,
-            "total_deleted": len([res for res in results if res["status"] == "deleted"]),
-            "total_failed": len([res for res in results if res["status"] == "failed"]),
-        }
-
+        result = await event_registry.delete_all_subscriptions()
+        return result
     except Exception as e:
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
