@@ -111,7 +111,10 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
 async def get_subscriptions(
     event_registry: EventHandlerRegistry = Depends(get_event_registry)
 ):
-    return await event_registry.list_subscriptions()
+    logger.debug("Fetching all subscriptions")
+    subscriptions = await event_registry.list_subscriptions()
+    logger.debug(f"Subscriptions fetched: {subscriptions}")
+    return subscriptions
 
 @router.delete("/subscriptions/{subscription_id}")
 async def delete_subscription(
