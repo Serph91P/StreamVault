@@ -137,7 +137,7 @@ class StreamerService:
             logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
             return {"success": False, "message": f"Error adding streamer: {str(e)}"}
 
-    async def delete_streamer(self, streamer_id: int) -> Dict[str, Any]:
+    async def delete_streamer(self, streamer_id: int) -> dict:
         try:
             streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
             if streamer:
