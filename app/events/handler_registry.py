@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, twitch: Any = None, settings=None):
+    def __init__(self, connection_manager: ConnectionManager, settings=None):
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
