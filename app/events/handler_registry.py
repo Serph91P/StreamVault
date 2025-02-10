@@ -34,7 +34,7 @@ class EventHandlerRegistry:
             raise ValueError("Twitch client not initialized")
 
         base_url = self.settings.WEBHOOK_URL if self.settings else settings.WEBHOOK_URL
-        callback_url = f"{base_url}/eventsub"
+        callback_url = f"{base_url}"
         logger.debug(f"Initializing EventSub with callback URL: {base_url}")
         logger.debug(f"EventSub server will listen on port: {self.settings.EVENTSUB_PORT}")
 
