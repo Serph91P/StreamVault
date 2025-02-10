@@ -4,10 +4,8 @@ from app.services.streamer_service import StreamerService
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
-from app.config.settings import settings
 import logging
 import asyncio
-from typing import List
 
 logger = logging.getLogger("streamvault")
 
