@@ -148,7 +148,75 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
-    # Similar implementations for handle_stream_offline and handle_stream_update...
+    async def handle_stream_offline(self, data: dict):
+        """Handle stream offline events"""
+        try:
+            logger.info(f"Stream offline event received: {data}")
+            async with SessionLocal() as db:
+                streamer = await db.query(Streamer).filter(
+                    Streamer.twitch_id == data["broadcaster_user_id"]
+                ).first()
+                
+                if streamer:
+                    stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .order_by(Stream.started_at.desc())\
+                        .first()
+                    
+                    if stream:
+                        stream.ended_at = datetime.now(timezone.utc)
+                        stream.status = "offline"
+                        await db.commit()
+                    
+                    await self.manager.broadcast({
+                        "type": "stream.offline",
+                        "data": {
+                            "streamer_id": streamer.id,
+                            "twitch_id": data["broadcaster_user_id"]
+                        }
+                    })
+        except Exception as e:
+            logger.error(f"Error handling stream offline event: {e}", exc_info=True)
+
+    async def handle_stream_update(self, data: dict):
+        """Handle channel update events"""
+        try:
+            logger.info(f"Stream update event received: {data}")
+            async with SessionLocal() as db:
+                streamer = await db.query(Streamer).filter(
+                    Streamer.twitch_id == data["broadcaster_user_id"]
+                ).first()
+                
+                if streamer:
+                    stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .order_by(Stream.started_at.desc())\
+                        .first()
+                    
+                    if stream:
+                        event = StreamEvent(
+                            stream_id=stream.id,
+                            title=data.get("title"),
+                            category_name=data.get("category_name"),
+                            language=data.get("language"),
+                            timestamp=datetime.now(timezone.utc)
+                        )
+                        db.add(event)
+                        await db.commit()
+                        
+                        await self.manager.broadcast({
+                            "type": "stream.update",
+                            "data": {
+                                "streamer_id": streamer.id,
+                                "twitch_id": data["broadcaster_user_id"],
+                                "title": data.get("title"),
+                                "category_name": data.get("category_name")
+                            }
+                        })
+        except Exception as e:
+            logger.error(f"Error handling stream update event: {e}", exc_info=True)
 
     async def list_subscriptions(self):
         access_token = await self.get_access_token()
