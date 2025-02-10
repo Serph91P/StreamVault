@@ -18,7 +18,7 @@ from app.events.handler_registry import EventHandlerRegistry
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
-from app.dependencies import websocket_manager, get_event_registry, get_twitch, get_auth_service
+from app.dependencies import websocket_manager, get_event_registry, get_auth_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
@@ -26,9 +26,7 @@ from app.middleware.auth import AuthMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    
     logger.info("Starting application initialization...")
-    await get_twitch()
     event_registry = await get_event_registry()
     
     # Initialize EventSub with detailed logging
