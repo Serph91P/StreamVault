@@ -1,3 +1,4 @@
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
@@ -12,9 +13,7 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
 @router.get("", response_model=List[StreamerResponse])
-async def get_streamers(
-    streamer_service: StreamerService = Depends(get_streamer_service)
-):
+async def get_streamers(streamer_service = Depends(get_streamer_service)):
     return await streamer_service.get_streamers()
 
 @router.post("/{username}")
