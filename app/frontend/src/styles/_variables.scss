@@ -23,11 +23,19 @@ $breakpoints: (
   'xl': 1200px
 );
 
-// Container widths
+// Container max-widths
 $container-sm: 100%;
 $container-md: 720px;
 $container-lg: 960px;
 $container-xl: 1140px;
+
+// Z-index layers
+$z-layers: (
+  'base': 1,
+  'overlay': 50,
+  'modal': 100,
+  'toast': 1000
+);
 
 // Fluid typography function
 @function fluid-type($min-vw, $max-vw, $min-size, $max-size) {
