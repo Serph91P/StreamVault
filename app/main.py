@@ -225,3 +225,14 @@ app.add_middleware(AuthMiddleware)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     return FileResponse("app/frontend/dist/index.html")
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(
+        "app/frontend/dist/sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/"
+        }
+    )
