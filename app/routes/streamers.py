@@ -115,7 +115,7 @@ async def get_subscriptions(
     logger.debug("Fetching all subscriptions")
     subscriptions = await event_registry.list_subscriptions()
     logger.debug(f"Subscriptions fetched: {subscriptions}")
-    return subscriptions
+    return {"subscriptions": subscriptions.get("data", [])}
 
 @router.delete("/subscriptions/{subscription_id}")
 async def delete_subscription(
