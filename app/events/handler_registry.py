@@ -47,7 +47,7 @@ class EventHandlerRegistry:
             return
 
         base_url = self.settings.WEBHOOK_URL if self.settings else settings.WEBHOOK_URL
-        callback_url = f"{base_url}/eventsub"
+        callback_url = f"{base_url}"
         logger.debug(f"Initializing EventSub with callback URL: {callback_url}")
 
         self.eventsub = {
