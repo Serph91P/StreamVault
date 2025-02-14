@@ -45,13 +45,13 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: Dict[str, Any]):
+        logger.debug(f"Sending notification to {len(self.active_connections)} connections")
         async with self._lock:
             active_sockets = self.active_connections.copy()
-        
-        results = await asyncio.gather(
-            *[self.send_notification_to_socket(ws, message) for ws in active_sockets],
-            return_exceptions=True
-        )
-        
-        successful = sum(1 for r in results if r is True)
-        logger.debug(f"Notification delivered to {successful}/{len(active_sockets)} connections")
+    
+        for ws in active_sockets:
+            try:
+                await self.send_notification_to_socket(ws, message)
+                logger.debug(f"Notification sent successfully to {ws.client}")
+            except Exception as e:
+                logger.error(f"Failed to send to {ws.client}: {e}")
