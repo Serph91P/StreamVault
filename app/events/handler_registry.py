@@ -52,7 +52,6 @@ class EventHandlerRegistry:
 
         self.eventsub = {
             "callback_url": callback_url,
-            "port": 8080,
             "secret": self.settings.EVENTSUB_SECRET
         }
 
