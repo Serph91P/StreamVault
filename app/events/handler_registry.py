@@ -123,8 +123,8 @@ class EventHandlerRegistry:
     async def handle_stream_online(self, data: dict):
         try:
             logger.info(f"Stream online event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
@@ -135,7 +135,7 @@ class EventHandlerRegistry:
                         status="live"
                     )
                     db.add(stream)
-                    await db.commit()
+                    db.commit()
                     
                     await self.manager.broadcast({
                         "type": "stream.online",
@@ -152,8 +152,8 @@ class EventHandlerRegistry:
         """Handle stream offline events"""
         try:
             logger.info(f"Stream offline event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
@@ -167,7 +167,7 @@ class EventHandlerRegistry:
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                        await db.commit()
+                        db.commit()
                     
                     await self.manager.broadcast({
                         "type": "stream.offline",
@@ -183,8 +183,8 @@ class EventHandlerRegistry:
         """Handle channel update events"""
         try:
             logger.info(f"Stream update event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
@@ -204,7 +204,7 @@ class EventHandlerRegistry:
                             timestamp=datetime.now(timezone.utc)
                         )
                         db.add(event)
-                        await db.commit()
+                        db.commit()
                         
                         await self.manager.broadcast({
                             "type": "channel.update",
