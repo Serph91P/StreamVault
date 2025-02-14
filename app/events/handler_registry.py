@@ -7,6 +7,7 @@ from app.services.websocket_manager import ConnectionManager
 from app.models import Streamer, Stream, StreamEvent
 from app.config.settings import settings
 from datetime import datetime, timezone
+from app.config.settings import settings as app_settings
 
 logger = logging.getLogger('streamvault')
 
@@ -18,12 +19,11 @@ class EventHandlerRegistry:
             "channel.update": self.handle_stream_update
         }
         self.manager = connection_manager
-        self.settings = settings
+        self.settings = settings or settings
         self._access_token = None
         self.eventsub = None
 
     async def get_access_token(self) -> str:
-        """Get or refresh Twitch access token"""
         if not self._access_token:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -40,7 +40,6 @@ class EventHandlerRegistry:
                     else:
                         raise ValueError(f"Failed to get access token: {response.status}")
         return self._access_token
-
     async def initialize_eventsub(self):
         if self.eventsub:
             logger.debug("EventSub already initialized, skipping...")
@@ -259,7 +258,6 @@ class EventHandlerRegistry:
             "success": True,
             "results": results
         }
-
     async def delete_subscription(self, subscription_id: str):
         access_token = await self.get_access_token()
         
