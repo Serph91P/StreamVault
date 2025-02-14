@@ -219,20 +219,24 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
 
     async def list_subscriptions(self):
+        logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
-        
+        logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.twitch.tv/helix/eventsub/subscriptions",
-                headers={
-                    "Client-ID": self.settings.TWITCH_APP_ID,
-                    "Authorization": f"Bearer {access_token}"
-                }
-            ) as response:
+            url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+            headers = {
+                "Client-ID": self.settings.TWITCH_APP_ID,
+                "Authorization": f"Bearer {access_token}"
+            }
+            logger.debug(f"Requesting Twitch subscriptions {url} with headers={headers}")
+            async with session.get(url, headers=headers) as response:
                 if response.status == 200:
-                    return await response.json()
+                    data = await response.json()
+                    logger.debug(f"Received subscription data: {data}")
+                    return data
                 else:
-                    logger.error(f"Failed to list subscriptions: {response.status}")
+                    logger.error(f"Failed to list subscriptions: HTTP {response.status}")
                     return {"data": []}
 
     async def delete_all_subscriptions(self):
