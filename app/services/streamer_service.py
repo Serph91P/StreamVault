@@ -2,11 +2,11 @@ from sqlalchemy.orm import Session
 from app.models import Streamer, Stream, StreamEvent
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
+from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
 import logging
 import aiohttp
 from app.config.settings import settings
-
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
