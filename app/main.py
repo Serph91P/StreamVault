@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application shutdown...")
     event_registry = await get_event_registry()
     if event_registry.eventsub:
-        event_registry.eventsub.stop()
+        event_registry.eventsub
         logger.info("EventSub stopped")
     logger.info("Application shutdown complete")
 
@@ -58,7 +58,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        websocket_manager.disconnect(websocket)
+        await websocket_manager.disconnect(websocket)
 
 @app.get("/health")
 async def health_check():
