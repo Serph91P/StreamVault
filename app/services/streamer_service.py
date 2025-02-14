@@ -190,6 +190,5 @@ class StreamerService:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
             raise
-
     async def subscribe_to_events(self, twitch_id: str):
-        await self.event_registry.subscribe_to_events(twitch_id)                    raise
+        await self.event_registry.subscribe_to_events(twitch_id)
