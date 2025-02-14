@@ -205,7 +205,9 @@ class EventHandlerRegistry:
                         db.add(event)
                         db.commit()
                         
-                        await self.manager.broadcast({
+                        # Add debug logging
+                        logger.debug("Sending WebSocket notification")
+                        await self.manager.send_notification({
                             "type": "channel.update",
                             "data": {
                                 "streamer_id": streamer.id,
@@ -214,9 +216,9 @@ class EventHandlerRegistry:
                                 "category_name": data.get("category_name")
                             }
                         })
+                        logger.debug("WebSocket notification sent")
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
-
     async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
