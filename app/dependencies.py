@@ -36,10 +36,14 @@ async def get_event_registry():
         logger.debug("Event registry initialization complete")
     return event_registry
 
-def get_streamer_service(db=Depends(get_db)):
+def get_streamer_service(
+    db=Depends(get_db), 
+    event_registry=Depends(get_event_registry)
+):
     return StreamerService(
         db=db,
-        websocket_manager=websocket_manager
+        websocket_manager=websocket_manager,
+        event_registry=event_registry
     )
 
 def get_settings_service():
