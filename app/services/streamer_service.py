@@ -10,9 +10,10 @@ from app.config.settings import settings
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
-    def __init__(self, db: Session, websocket_manager: ConnectionManager):
+    def __init__(self, db: Session, websocket_manager: ConnectionManager, event_registry: EventHandlerRegistry):
         self.db = db
         self.manager = websocket_manager
+        self.event_registry = event_registry
         self.client_id = settings.TWITCH_APP_ID
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
@@ -191,40 +192,4 @@ class StreamerService:
             raise
 
     async def subscribe_to_events(self, twitch_id: str):
-        if not self.eventsub:
-            raise ValueError("EventSub not initialized")
-
-        access_token = await self.get_access_token()
-        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-
-        async with aiohttp.ClientSession() as session:
-            for event_type in self.handlers.keys():
-                try:
-                    async with session.post(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "type": event_type,
-                            "version": "1",
-                            "condition": {
-                                "broadcaster_user_id": twitch_id
-                            },
-                            "transport": {
-                                "method": "webhook",
-                                "callback": self.eventsub["callback_url"],
-                                "secret": self.eventsub["secret"]
-                            }
-                        }
-                    ) as response:
-                        if response.status == 202:
-                            logger.info(f"Subscribed to {event_type} for twitch_id: {twitch_id}")
-                        else:
-                            error_data = await response.json()
-                            logger.error(f"Failed to subscribe to {event_type}. Status: {response.status}, Error: {error_data}")
-                except Exception as e:
-                    logger.error(f"Error subscribing to {event_type}: {e}")
-                    raise
+        await self.event_registry.subscribe_to_events(twitch_id)                    raise
