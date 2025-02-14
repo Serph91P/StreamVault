@@ -207,7 +207,7 @@ class EventHandlerRegistry:
                         await db.commit()
                         
                         await self.manager.broadcast({
-                            "type": "stream.update",
+                            "type": "channel.update",
                             "data": {
                                 "streamer_id": streamer.id,
                                 "twitch_id": data["broadcaster_user_id"],
