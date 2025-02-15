@@ -34,7 +34,6 @@ import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
 
-// Define proper interfaces
 interface WebSocketMessage {
   type: string
   data: {
@@ -46,33 +45,12 @@ interface WebSocketMessage {
   }
 }
 
-// Define socket as a ref with browser's WebSocket type
-const socket = ref<WebSocket | null>(null)
-
-// WebSocket connection function
-const connectWebSocket = () => {
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${wsProtocol}//${window.location.host}/ws`
-  
-  socket.value = new WebSocket(wsUrl)
-  
-  socket.value.onopen = () => {
-    console.log('WebSocket connected')
-  }
-
-  socket.value.onmessage = (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data)
-      console.log('Received message:', data)
-      // Handle the message here
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error)
-    }
-  }
-
-  socket.value.onclose = () => {
-    console.log('WebSocket disconnected')
-  }
+interface StreamerUpdateData {
+  is_live?: boolean
+  title?: string
+  category_name?: string
+  language?: string
+  last_updated: string
 }
 
 const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
@@ -107,38 +85,43 @@ const handleDelete = async (streamerId: string) => {
   }
 }
 
-// Improved message handling
-watch(messages, (newMessages: any[]) => {
+// Improved message handling with proper typing
+watch(messages, (newMessages: WebSocketMessage[]) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
-  console.log('Processing WebSocket message:', message) // Debug log
+  console.log('Processing WebSocket message:', message)
 
   switch (message.type) {
-    case 'channel.update':
+    case 'channel.update': {
       const streamerId = message.data.streamer_id
-      console.log('Updating streamer:', streamerId, message.data) // Debug log
-      updateStreamer(streamerId, {
+      const updateData: StreamerUpdateData = {
         title: message.data.title,
         category_name: message.data.category_name,
         last_updated: new Date().toISOString()
-      })
+      }
+      updateStreamer(streamerId, updateData)
       break
-    case 'stream.online':
-      updateStreamer(message.data.streamer_id, { 
+    }
+    case 'stream.online': {
+      const updateData: StreamerUpdateData = {
         is_live: true,
         title: message.data.title || '',
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
-      })
+      }
+      updateStreamer(message.data.streamer_id, updateData)
       break
-    case 'stream.offline':
-      updateStreamer(message.data.streamer_id, { 
+    }
+    case 'stream.offline': {
+      const updateData: StreamerUpdateData = {
         is_live: false,
         last_updated: new Date().toISOString()
-      })
+      }
+      updateStreamer(message.data.streamer_id, updateData)
       break
+    }
   }
 }, { deep: true })
 
@@ -152,11 +135,7 @@ watch(connectionStatus, (status) => {
 // Better lifecycle management with proper event type
 onMounted(() => {
   console.log('StreamerList mounted')
-  connectWebSocket()
-  socket.value?.addEventListener('message', (event: MessageEvent) => {
-    const data = JSON.parse(event.data)
-    console.log('Raw WebSocket message received:', data)
-  })
+  void fetchStreamers()
 })
 
 onUnmounted(() => {
