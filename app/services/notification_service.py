@@ -51,12 +51,22 @@ class NotificationService:
 
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         try:
+            # Check if we should send notification based on settings
+            with SessionLocal() as db:
+                settings = db.query(GlobalSettings).first()
+                if not settings or not settings.notifications_enabled:
+                    logger.debug("Notifications are disabled globally")
+                    return
+
             title = ""
             message = ""
+            image_url = details.get('profile_image_url')
             
             if event_type == "online":
                 title = f"🟢 {streamer_name} is now live!"
-                message = f"Started streaming at {details['started_at']}\nWatch here: {details['url']}"
+                message = f"Started streaming at {details['started_at']}"
+                if 'url' in details:
+                    message += f"\nWatch here: {details['url']}"
             elif event_type == "offline":
                 title = f"🔴 {streamer_name} went offline"
                 message = f"Stream ended at {details.get('ended_at', 'now')}"
@@ -67,12 +77,23 @@ class NotificationService:
                 if 'url' in details:
                     message += f"\nWatch here: {details['url']}"
 
-            await self.apprise.notify(
-                title=title,
-                body=message,
-                tag=streamer_name
-            )
-            logger.info("Notification sent successfully")
+            # Use a single notify call
+            notification_args = {
+                "title": title,
+                "body": message,
+                "tag": streamer_name  # Use tag to prevent duplicate notifications
+            }
+            
+            if image_url:
+                notification_args["attach"] = image_url
+
+            result = await self.apprise.async_notify(**notification_args)
+            
+            if result:
+                logger.info(f"Notification sent successfully for {streamer_name}")
+            else:
+                logger.warning(f"Failed to send notification for {streamer_name}")
+                
         except Exception as e:
             logger.error(f"Error sending notification: {e}")
 
