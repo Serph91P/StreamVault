@@ -16,16 +16,18 @@ export function useStreamers() {
   const streamers: Ref<Streamer[]> = ref([])
   const isLoading = ref(false)
 
-  const updateStreamer = (twitch_id: string, updates: Partial<Streamer>) => {
-    const index = streamers.value.findIndex(s => s.twitch_id === twitch_id)
+  const updateStreamer = async (streamerId: string, updateData: StreamerUpdateData) => {
+    console.log('useStreamers: Updating streamer:', { streamerId, updateData })
+    const index = streamers.value.findIndex(s => s.id === streamerId)
     if (index !== -1) {
+      console.log('useStreamers: Found streamer at index:', index)
       streamers.value[index] = {
         ...streamers.value[index],
-        ...updates,
-        last_updated: new Date().toISOString()
+        ...updateData
       }
-      // Force reactivity update
-      streamers.value = [...streamers.value]
+      console.log('useStreamers: Updated streamer:', streamers.value[index])
+    } else {
+      console.warn('useStreamers: Streamer not found:', streamerId)
     }
   }
 
