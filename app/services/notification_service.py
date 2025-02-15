@@ -1,68 +1,51 @@
 import logging
 import apprise
-from typing import List, Optional
-from app.config.settings import settings
+from app.models import GlobalSettings
+from app.database import SessionLocal
 
 logger = logging.getLogger("streamvault")
 
 class NotificationService:
     def __init__(self):
-        self.settings = settings
         self.apprise = apprise.Apprise()
         self._initialize_apprise()
 
     def _initialize_apprise(self):
-        """Initialize Apprise with configured notification URLs"""
-        urls = self.settings.APPRISE_URLS
-        logger.debug(f"Initializing Apprise with {len(urls)} configured services")
-        
-        for url in urls:
-            self.apprise.add(url)
-            logger.debug(f"Added Apprise URL: {url[:10]}...")  # Log truncated URL for security
+        """Initialize Apprise with URLs from database settings"""
+        with SessionLocal() as db:
+            settings = db.query(GlobalSettings).first()
+            if settings and settings.notification_url and settings.notifications_enabled:
+                logger.debug(f"Initializing Apprise with URL from database")
+                self.apprise.add(settings.notification_url)
+                logger.debug("Apprise URL added successfully")
+            else:
+                logger.debug("Notifications disabled or no URLs configured")
 
-    async def send_notification(self, 
-                              message: str, 
-                              title: str = "StreamVault Notification",
-                              urls: Optional[List[str]] = None) -> bool:
-        """
-        Send notification through configured services
+    async def send_notification(self, message: str, title: str = "StreamVault Notification") -> bool:
+        with SessionLocal() as db:
+            settings = db.query(GlobalSettings).first()
+            if not settings or not settings.notifications_enabled:
+                logger.debug("Notifications are disabled, skipping")
+                return False
+            if not settings.notification_url:
+                logger.debug("No notification URLs configured, skipping")
+                return False
+
+        # Refresh URLs before sending
+        self._initialize_apprise()
         
-        Args:
-            message: The notification message
-            title: Optional notification title
-            urls: Optional list of additional URLs for this notification only
-        
-        Returns:
-            bool: Success status of the notification
-        """
         logger.debug(f"Preparing to send notification: {message[:50]}...")
-
-        if urls:
-            # Create temporary Apprise instance with additional URLs
-            temp_apprise = apprise.Apprise()
-            for url in urls:
-                temp_apprise.add(url)
-            notifier = temp_apprise
-        else:
-            notifier = self.apprise
-
         try:
-            result = await notifier.async_notify(
+            result = await self.apprise.async_notify(
                 body=message,
                 title=title
             )
-            
             if result:
                 logger.info("Notification sent successfully")
-            else:
-                logger.warning("Notification failed to send")
-                
             return result
-
         except Exception as e:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
-
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         """
         Send formatted stream-related notification
