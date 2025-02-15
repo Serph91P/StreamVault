@@ -3,14 +3,20 @@ from sqlalchemy.sql import func
 from app.database import Base
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional
 
 class Streamer(Base):
     __tablename__ = "streamers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     twitch_id = Column(String, unique=True, nullable=False)
-    username = Column(String, unique=True, nullable=False)
-    display_name = Column(String, nullable=True)
+    username = Column(String, nullable=False)
+    profile_image_url = Column(String)
+    is_live = Column(Boolean, default=False)
+    title = Column(String)
+    category_name = Column(String)
+    language = Column(String)
+    last_updated = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Stream(Base):
@@ -54,18 +60,19 @@ class Session(Base):
 
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
-    id = Column(Integer, primary_key=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"))
-    notify_online = Column(Boolean, default=True)
-    notify_offline = Column(Boolean, default=True)
-    notify_update = Column(Boolean, default=True)
+    
+    id: int = Column(Integer, primary_key=True)
+    streamer_id: int = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    notify_online: bool = Column(Boolean, default=True)
+    notify_offline: bool = Column(Boolean, default=True)
+    notify_update: bool = Column(Boolean, default=True)
     
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
     
-    id = Column(Integer, primary_key=True)
-    notification_url = Column(String)
-    notifications_enabled = Column(Boolean, default=True)
-    notify_online_global = Column(Boolean, default=True)
-    notify_offline_global = Column(Boolean, default=True)
-    notify_update_global = Column(Boolean, default=True)
+    id: int = Column(Integer, primary_key=True)
+    notification_url: Optional[str] = Column(String)
+    notifications_enabled: bool = Column(Boolean, default=True)
+    notify_online_global: bool = Column(Boolean, default=True)
+    notify_offline_global: bool = Column(Boolean, default=True)
+    notify_update_global: bool = Column(Boolean, default=True)
