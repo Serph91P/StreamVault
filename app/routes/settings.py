@@ -75,3 +75,21 @@ async def update_streamer_settings(
         settings.notify_update = settings_data.notify_update
         db.commit()
         return StreamerNotificationSettingsSchema.model_validate(settings)
+
+@router.get("/streamers")
+async def get_streamer_settings():
+    try:
+        with SessionLocal() as db:
+            settings = db.query(StreamerSettings).all()
+            return [
+                {
+                    "streamer_id": s.streamer_id,
+                    "notify_online": s.notify_online,
+                    "notify_offline": s.notify_offline,
+                    "notify_update": s.notify_update
+                }
+                for s in settings
+            ]
+    except Exception as e:
+        logger.error(f"Error fetching streamer settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
