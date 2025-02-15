@@ -33,6 +33,7 @@
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
+import type { Ref } from 'vue'
 
 interface WebSocketMessage {
   type: string
@@ -85,8 +86,8 @@ const handleDelete = async (streamerId: string) => {
   }
 }
 
-// Improved message handling with proper typing
-watch(messages, (newMessages: WebSocketMessage[]) => {
+// Fixed watch handler for messages
+watch(() => messages.value, (newMessages: WebSocketMessage[]) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
@@ -138,9 +139,8 @@ onMounted(() => {
   void fetchStreamers()
 })
 
+// Remove the socket.value references since we're using useWebSocket()
 onUnmounted(() => {
-  if (socket.value) {
-    socket.value.close()
-  }
+  // The cleanup is handled by useWebSocket's onUnmounted
 })
 </script>
