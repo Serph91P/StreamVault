@@ -120,50 +120,62 @@ class StreamerService:
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
 
-    async def add_streamer(self, username: str) -> Dict[str, Any]:
+    async def add_streamer(self, username: str) -> Optional[Streamer]:
+        """Add a new streamer to the database."""
         try:
-            username = username.strip().lower()
             logger.debug(f"Adding streamer: {username}")
+            user_data = await self.get_user_data(username)
             
-            # Get user info from Twitch
-            users = await self.get_users_by_login([username])
-            if not users:
-                logger.error(f"No Twitch user found for username: {username}")
-                return {"success": False, "message": f"No Twitch user found for username: {username}"}
-
-            user_data = users[0]
+            if not user_data:
+                logger.error(f"Could not fetch user data for {username}")
+                return None
+                
             logger.debug(f"User data retrieved: {user_data}")
             
-            # Check for existing
-            existing_streamer = self.db.query(Streamer).filter(
-                Streamer.twitch_id == user_data["id"]
-            ).first()
-            
-            if existing_streamer:
-                logger.error(f"Streamer {user_data['display_name']} already exists")
-                return {"success": False, "message": f"Streamer {user_data['display_name']} already exists"}
-
-            # Create new streamer
-            new_streamer = Streamer(
-                twitch_id=user_data["id"],
-                username=user_data["login"],
-                display_name=user_data["display_name"]
-            )
-        
-            self.db.add(new_streamer)
-            self.db.flush()
-            logger.info(f"Streamer {new_streamer.username} added successfully")
-            
-            return {
-                "success": True,
-                "streamer": new_streamer,
-                "twitch_id": user_data["id"]
-            }
-
+            with SessionLocal() as db:
+                # Check if streamer already exists
+                existing = db.query(Streamer).filter(
+                    Streamer.twitch_id == user_data['id']
+                ).first()
+                
+                if existing:
+                    logger.debug(f"Streamer already exists: {username}")
+                    return existing
+                
+                # Create new streamer with correct field mapping
+                new_streamer = Streamer(
+                    twitch_id=user_data['id'],
+                    username=user_data['login'],  # or use display_name if preferred
+                    profile_image_url=user_data['profile_image_url'],
+                    is_live=False,
+                    title=None,
+                    category_name=None,
+                    language=None,
+                    last_updated=datetime.now(timezone.utc)
+                )
+                
+                db.add(new_streamer)
+                
+                # Create default notification settings for the streamer
+                notification_settings = NotificationSettings(
+                    streamer_id=new_streamer.id,
+                    notify_online=True,
+                    notify_offline=True,
+                    notify_update=True
+                )
+                db.add(notification_settings)
+                
+                db.commit()
+                db.refresh(new_streamer)
+                
+                # Initialize EventSub subscriptions
+                await self.event_registry.subscribe_to_events(user_data['id'])
+                
+                return new_streamer
+                
         except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
-            return {"success": False, "message": f"Error adding streamer: {str(e)}"}
+            logger.error(f"Error adding streamer: {e}")
+            raise
 
     async def delete_streamer(self, streamer_id: int) -> Optional[Dict[str, Any]]:
         try:
