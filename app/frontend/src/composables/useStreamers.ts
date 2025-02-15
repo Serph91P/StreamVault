@@ -12,6 +12,14 @@ export interface Streamer {
   last_updated?: string
 }
 
+export interface StreamerUpdateData {
+  is_live?: boolean
+  title?: string
+  category_name?: string
+  language?: string
+  last_updated: string
+}
+
 export function useStreamers() {
   const streamers: Ref<Streamer[]> = ref([])
   const isLoading = ref(false)
