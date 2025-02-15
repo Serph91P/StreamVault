@@ -45,17 +45,17 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: Dict[str, Any]):
-        logger.debug(f"Attempting to send notification: {message}")
+        logger.debug(f"WebSocketManager: Attempting to send notification: {message}")
         async with self._lock:
             active_sockets = self.active_connections.copy()
     
         if not active_sockets:
-            logger.warning("No active WebSocket connections to send notification to")
+            logger.warning("WebSocketManager: No active WebSocket connections to send notification to")
             return
 
         for ws in active_sockets:
             try:
-                success = await self.send_notification_to_socket(ws, message)
-                logger.debug(f"Notification sent to {ws.client}: {success}")
+                await ws.send_json(message)
+                logger.debug(f"WebSocketManager: Notification sent to {ws.client}")
             except Exception as e:
-                logger.error(f"Failed to send to {ws.client}: {e}")
+                logger.error(f"WebSocketManager: Failed to send to {ws.client}: {e}")
