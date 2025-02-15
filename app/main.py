@@ -137,7 +137,7 @@ async def eventsub_callback(request: Request):
                 event_type = body_json.get("subscription", {}).get("type")
                 event_data = body_json.get("event")
 
-                logger.debug(f"Event type: {event_type}")
+                logger.debug(f"Processing EventSub notification: {event_type}")
                 logger.debug(f"Event data: {event_data}")
 
                 handler = event_registry.handlers.get(event_type)
