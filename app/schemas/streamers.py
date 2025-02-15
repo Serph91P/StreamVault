@@ -8,15 +8,16 @@ class StreamerBase(BaseModel):
 class StreamerCreate(StreamerBase):
     pass
 
-class StreamerResponse(StreamerBase):
+class StreamerResponse(BaseModel):
     id: int
     twitch_id: str
-    display_name: str
+    username: str
     is_live: bool
     title: Optional[str] = None
     category_name: Optional[str] = None
     language: Optional[str] = None
     last_updated: Optional[datetime] = None
+    profile_image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
