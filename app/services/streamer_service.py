@@ -86,38 +86,22 @@ class StreamerService:
                     logger.error(f"Failed to get streamer info. Status: {response.status}")
                     return None
 
-    async def get_streamers(self) -> List[StreamerResponse]:
+    async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
-        streamer_statuses = []
-
-        for streamer in streamers:
-            latest_stream = self.db.query(Stream)\
-                .filter(Stream.streamer_id == streamer.id)\
-                .order_by(Stream.id.desc())\
-                .first()
-            
-            last_updated = None
-            if latest_stream:
-                last_event = self.db.query(StreamEvent)\
-                    .filter(StreamEvent.stream_id == latest_stream.id)\
-                    .order_by(StreamEvent.timestamp.desc())\
-                    .first()
-                if last_event:
-                    last_updated = last_event.timestamp
-
-            streamer_statuses.append(StreamerResponse(
-                id=streamer.id,
-                twitch_id=streamer.twitch_id,
-                username=streamer.username,
-                display_name=streamer.display_name,
-                is_live=bool(latest_stream and latest_stream.ended_at is None),
-                title=latest_stream.title if latest_stream else None,
-                category_name=latest_stream.category_name if latest_stream else None,
-                language=latest_stream.language if latest_stream else None,
-                last_updated=last_updated
-            ))
-
-        return streamer_statuses
+        return [
+            {
+                "id": streamer.id,
+                "twitch_id": streamer.twitch_id,
+                "username": streamer.username,  # Changed from display_name
+                "is_live": streamer.is_live,
+                "title": streamer.title,
+                "category_name": streamer.category_name,
+                "language": streamer.language,
+                "last_updated": streamer.last_updated,
+                "profile_image_url": streamer.profile_image_url
+            }
+            for streamer in streamers
+        ]
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
