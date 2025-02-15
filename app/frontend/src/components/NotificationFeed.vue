@@ -39,8 +39,10 @@ function formatNotificationMessage(message) {
 }
 
 watch(messages, (newMessages) => {
+  console.log('Messages changed:', newMessages)
   if (newMessages.length > 0) {
     const message = newMessages[newMessages.length - 1]
+    console.log('Processing new message:', message)
     const notification = {
       id: Date.now(),
       message: formatNotificationMessage(message),
@@ -49,12 +51,13 @@ watch(messages, (newMessages) => {
     }
     
     notifications.value.unshift(notification)
+    console.log('Added notification:', notification)
     
     setTimeout(() => {
       notifications.value = notifications.value.filter(n => n.id !== notification.id)
     }, NOTIFICATION_TIMEOUT)
   }
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 function formatTime(date) {
   return new Date(date).toLocaleTimeString()
