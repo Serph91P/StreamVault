@@ -45,11 +45,9 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: Dict[str, Any]):
-        logger.debug(f"WebSocket notification: {message}")
+        logger.debug(f"Active connections before send: {len(self.active_connections)}")
         async with self._lock:
             active_sockets = self.active_connections.copy()
-    
-        logger.debug(f"Active WebSocket connections: {len(active_sockets)}")
     
         for ws in active_sockets:
             try:
