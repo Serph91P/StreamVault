@@ -2,6 +2,8 @@ import logging
 import apprise
 from app.models import GlobalSettings
 from app.database import SessionLocal
+from app.models import GlobalSettings, NotificationSettings
+
 
 logger = logging.getLogger("streamvault")
 
@@ -70,3 +72,29 @@ class NotificationService:
             base_message += f"\nCategory: {details['category_name']}"
 
         await self.send_notification(base_message)
+
+async def should_notify(self, streamer_id: int, event_type: str) -> bool:
+    with SessionLocal() as db:
+        global_settings = db.query(GlobalSettings).first()
+        if not global_settings or not global_settings.notifications_enabled:
+            return False
+
+        streamer_settings = db.query(NotificationSettings)\
+            .filter(NotificationSettings.streamer_id == streamer_id)\
+            .first()
+
+        # Map event types to settings fields
+        setting_map = {
+            "online": ("notify_online", "notify_online_global"),
+            "offline": ("notify_offline", "notify_offline_global"),
+            "update": ("notify_update", "notify_update_global")
+        }
+
+        streamer_field, global_field = setting_map.get(event_type, (None, None))
+        if not streamer_field or not global_field:
+            return False
+
+        # If streamer has specific settings, use those, otherwise use global
+        if streamer_settings:
+            return getattr(streamer_settings, streamer_field)
+        return getattr(global_settings, global_field)
