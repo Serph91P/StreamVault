@@ -86,8 +86,7 @@ const handleDelete = async (streamerId: string) => {
   }
 }
 
-// Fixed watch handler for messages
-watch(() => messages.value, (newMessages: WebSocketMessage[]) => {
+watch(messages, (newMessages) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
