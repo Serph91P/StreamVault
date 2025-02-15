@@ -16,42 +16,37 @@ router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 async def get_streamers(streamer_service = Depends(get_streamer_service)):
     return await streamer_service.get_streamers()
 
-@router.post("/{username}")
+@router.post("/{username}", response_model=StreamerResponse)
 async def add_streamer(
     username: str,
-    streamer_service: StreamerService = Depends(get_streamer_service),
-    event_registry: EventHandlerRegistry = Depends(get_event_registry)
+    streamer_service: StreamerService = Depends(get_streamer_service)
 ):
-    # First, quickly add the streamer to database
-    result = await streamer_service.add_streamer(username)
-    if not result["success"]:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": result.get("message")}
+    try:
+        streamer = await streamer_service.add_streamer(username)
+        if not streamer:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to add streamer"
+            )
+        
+        # Convert Streamer model to StreamerResponse
+        return StreamerResponse(
+            id=streamer.id,
+            twitch_id=streamer.twitch_id,
+            username=streamer.username,
+            is_live=streamer.is_live,
+            title=streamer.title,
+            category_name=streamer.category_name,
+            language=streamer.language,
+            last_updated=streamer.last_updated,
+            profile_image_url=streamer.profile_image_url
         )
-    
-    # Commit immediately to ensure streamer is saved
-    streamer_service.db.commit()
-    
-    # Create background task for EventSub setup
-    asyncio.create_task(setup_eventsub_background(
-        event_registry,
-        result["twitch_id"],
-        streamer_service,
-        username
-    ))
-    
-    return JSONResponse(
-        status_code=201,
-        content={
-            "success": True,
-            "message": f"Streamer {username} added. Setting up notifications...",
-            "streamer": {
-                "id": result["streamer"].id,
-                "username": result["streamer"].username
-            }
-        }
-    )
+    except Exception as e:
+        logger.error(f"Error adding streamer: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
 async def setup_eventsub_background(
     event_registry: EventHandlerRegistry,
