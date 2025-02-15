@@ -29,6 +29,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
     event_registry = await get_event_registry()
     
+    # Initialize EventSub subscriptions
+    await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
     
     yield
@@ -37,7 +39,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application shutdown...")
     event_registry = await get_event_registry()
     if event_registry.eventsub:
-        event_registry.eventsub
+        await event_registry.eventsub.stop()  # Properly call the stop method
         logger.info("EventSub stopped")
     logger.info("Application shutdown complete")
 
