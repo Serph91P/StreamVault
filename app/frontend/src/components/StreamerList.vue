@@ -110,8 +110,10 @@ watch(connectionStatus, (status) => {
 
 // Better lifecycle management
 onMounted(() => {
-  void fetchStreamers()
-  const interval = setInterval(() => void fetchStreamers(), 60000)
-  onUnmounted(() => clearInterval(interval))
+  console.log('StreamerList mounted')
+  socket.value?.addEventListener('message', (event) => {
+    const data = JSON.parse(event.data)
+    console.log('Raw WebSocket message received:', data)
+  })
 })
 </script>
