@@ -36,6 +36,7 @@ class StreamEvent(Base):
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)
