@@ -203,6 +203,13 @@ class EventHandlerRegistry:
                 ).first()
                 
                 if streamer:
+                    # Update streamer info directly
+                    streamer.title = data.get("title")
+                    streamer.category_name = data.get("category_name")
+                    streamer.language = data.get("language")
+                    streamer.last_updated = datetime.now(timezone.utc)
+                    
+                    # Find active stream if exists
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
@@ -219,31 +226,34 @@ class EventHandlerRegistry:
                             timestamp=datetime.now(timezone.utc)
                         )
                         db.add(event)
-                        db.commit()
-                        
-                        # Send WebSocket notification
-                        logger.debug("Sending WebSocket notification")
-                        await self.manager.send_notification({
-                            "type": "channel.update",
-                            "data": {
-                                "streamer_id": streamer.id,
-                                "twitch_id": data["broadcaster_user_id"],
-                                "title": data.get("title"),
-                                "category_name": data.get("category_name")
-                            }
-                        })
-                        
-                        # Send Apprise notification
-                        await self.notification_service.send_stream_notification(
-                            streamer_name=data["broadcaster_user_name"],
-                            event_type="update",
-                            details={
-                                "title": data.get("title"),
-                                "category_name": data.get("category_name")
-                            }
-                        )
-                        
-                        logger.debug("Notifications sent successfully")
+                    
+                    db.commit()
+                    
+                    # Send WebSocket notification with all needed fields
+                    logger.debug("Sending WebSocket notification")
+                    await self.manager.send_notification({
+                        "type": "channel.update",
+                        "data": {
+                            "streamer_id": streamer.id,
+                            "twitch_id": data["broadcaster_user_id"],
+                            "title": data.get("title"),
+                            "category_name": data.get("category_name"),
+                            "language": data.get("language")  # Added language field
+                        }
+                    })
+                    
+                    # Send Apprise notification
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=data["broadcaster_user_name"],
+                        event_type="update",
+                        details={
+                            "title": data.get("title"),
+                            "category_name": data.get("category_name"),
+                            "language": data.get("language")  # Added language field
+                        }
+                    )
+                    
+                    logger.debug("Notifications sent successfully")
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
 
