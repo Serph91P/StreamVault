@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, Callable, Awaitable, Any
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
+from app.services.notification_service import NotificationService
 from app.models import Streamer, Stream, StreamEvent
 from app.config.settings import settings
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ class EventHandlerRegistry:
         }
         self.manager = connection_manager
         self.settings = settings or settings
+        self.notification_service = NotificationService()
         self._access_token = None
         self.eventsub = None
 
@@ -179,24 +181,24 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
 
     async def handle_stream_update(self, data: dict):
-        """Handle channel update events"""
         try:
             logger.info(f"Stream update event received: {data}")
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
-                
+            
                 if streamer:
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .order_by(Stream.started_at.desc())\
                         .first()
-                    
+                
                     if stream:
                         event = StreamEvent(
                             stream_id=stream.id,
+                            event_type="channel.update",
                             title=data.get("title"),
                             category_name=data.get("category_name"),
                             language=data.get("language"),
@@ -204,8 +206,8 @@ class EventHandlerRegistry:
                         )
                         db.add(event)
                         db.commit()
-                        
-                        # Add debug logging
+                    
+                        # Send WebSocket notification
                         logger.debug("Sending WebSocket notification")
                         await self.manager.send_notification({
                             "type": "channel.update",
@@ -218,8 +220,7 @@ class EventHandlerRegistry:
                         })
                         logger.debug("WebSocket notification sent")
         except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)
-    async def list_subscriptions(self):
+            logger.error(f"Error handling stream update event: {e}", exc_info=True)    async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
         logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
