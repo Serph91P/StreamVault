@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
@@ -77,6 +77,28 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 // Add showTooltip ref
 const showTooltip = ref(false)
+let tooltipTimeout: number | null = null
+
+const handleTooltipEnter = () => {
+  if (tooltipTimeout) {
+    clearTimeout(tooltipTimeout)
+    tooltipTimeout = null
+  }
+  showTooltip.value = true
+}
+
+const handleTooltipLeave = () => {
+  tooltipTimeout = setTimeout(() => {
+    showTooltip.value = false
+  }, 300) as unknown as number
+}
+
+// Clean up timeout on component unmount
+onUnmounted(() => {
+  if (tooltipTimeout) {
+    clearTimeout(tooltipTimeout)
+  }
+})
 </script>
 
 <template>
@@ -92,14 +114,20 @@ const showTooltip = ref(false)
             placeholder="e.g., ntfy://topic or telegram://bot_token/chat_id"
             class="form-control"
             @focus="showTooltip = true"
-            @blur="showTooltip = false"
           />
-          <div v-if="showTooltip" class="tooltip-wrapper">
+          <div 
+            v-if="showTooltip" 
+            class="tooltip-wrapper"
+            @mouseenter="showTooltip = true"
+            @mouseleave="() => setTimeout(() => showTooltip = false, 500)"
+          >
             <Tooltip>
               Check the <a 
                 :href="data.appriseDocsUrl" 
                 target="_blank" 
                 rel="noopener noreferrer"
+                @click.stop
+                class="tooltip-link"
               >Apprise Documentation</a> for supported services and URL formats
             </Tooltip>
           </div>
