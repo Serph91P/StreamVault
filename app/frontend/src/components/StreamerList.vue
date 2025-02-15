@@ -33,6 +33,43 @@
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
+import type { WebSocket } from 'ws'
+
+// Define socket as a ref
+const socket = ref<WebSocket | null>(null)
+
+// Define the event type
+interface WebSocketEvent {
+  data: string
+  type: string
+  target: WebSocket
+}
+
+// WebSocket connection function
+const connectWebSocket = () => {
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws`
+  
+  socket.value = new WebSocket(wsUrl)
+  
+  socket.value.onopen = () => {
+    console.log('WebSocket connected')
+  }
+
+  socket.value.onmessage = (event: WebSocketEvent) => {
+    try {
+      const data = JSON.parse(event.data)
+      console.log('Received message:', data)
+      // Handle the message here
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error)
+    }
+  }
+
+  socket.value.onclose = () => {
+    console.log('WebSocket disconnected')
+  }
+}
 
 const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
 const { messages, connectionStatus } = useWebSocket()
@@ -111,9 +148,16 @@ watch(connectionStatus, (status) => {
 // Better lifecycle management
 onMounted(() => {
   console.log('StreamerList mounted')
+  connectWebSocket()
   socket.value?.addEventListener('message', (event) => {
     const data = JSON.parse(event.data)
     console.log('Raw WebSocket message received:', data)
   })
+})
+
+onUnmounted(() => {
+  if (socket.value) {
+    socket.value.close()
+  }
 })
 </script>
