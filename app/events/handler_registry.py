@@ -120,6 +120,7 @@ class EventHandlerRegistry:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
                 await asyncio.sleep(1)
         return False
+    
     async def handle_stream_online(self, data: dict):
         try:
             logger.info(f"Stream online event received: {data}")
