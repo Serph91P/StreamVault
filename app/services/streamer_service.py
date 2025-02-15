@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
-from app.models import Streamer, Stream, StreamEvent
+from app.models import Streamer, Stream, StreamEvent, NotificationSettings  # Add NotificationSettings
+from app.database import SessionLocal  # Add SessionLocal
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone  # Add datetime and timezone
 import logging
 import aiohttp
 from app.config.settings import settings
@@ -120,6 +122,17 @@ class StreamerService:
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
 
+    async def get_user_data(self, username: str) -> Optional[Dict[str, Any]]:
+        """Fetch user data from Twitch API."""
+        try:
+            users = await self.get_users_by_login([username])
+            if users and len(users) > 0:
+                return users[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching user data: {e}")
+            return None
+
     async def add_streamer(self, username: str) -> Optional[Streamer]:
         """Add a new streamer to the database."""
         try:
@@ -132,48 +145,49 @@ class StreamerService:
                 
             logger.debug(f"User data retrieved: {user_data}")
             
-            with SessionLocal() as db:
-                # Check if streamer already exists
-                existing = db.query(Streamer).filter(
-                    Streamer.twitch_id == user_data['id']
-                ).first()
-                
-                if existing:
-                    logger.debug(f"Streamer already exists: {username}")
-                    return existing
-                
-                # Create new streamer with correct field mapping
-                new_streamer = Streamer(
-                    twitch_id=user_data['id'],
-                    username=user_data['login'],  # or use display_name if preferred
-                    profile_image_url=user_data['profile_image_url'],
-                    is_live=False,
-                    title=None,
-                    category_name=None,
-                    language=None,
-                    last_updated=datetime.now(timezone.utc)
-                )
-                
-                db.add(new_streamer)
-                
-                # Create default notification settings for the streamer
-                notification_settings = NotificationSettings(
-                    streamer_id=new_streamer.id,
-                    notify_online=True,
-                    notify_offline=True,
-                    notify_update=True
-                )
-                db.add(notification_settings)
-                
-                db.commit()
-                db.refresh(new_streamer)
-                
-                # Initialize EventSub subscriptions
-                await self.event_registry.subscribe_to_events(user_data['id'])
-                
-                return new_streamer
+            # Use the existing db connection from the class
+            existing = self.db.query(Streamer).filter(
+                Streamer.twitch_id == user_data['id']
+            ).first()
+            
+            if existing:
+                logger.debug(f"Streamer already exists: {username}")
+                return existing
+            
+            # Create new streamer
+            new_streamer = Streamer(
+                twitch_id=user_data['id'],
+                username=user_data['login'],
+                profile_image_url=user_data['profile_image_url'],
+                is_live=False,
+                title=None,
+                category_name=None,
+                language=None,
+                last_updated=datetime.now(timezone.utc)
+            )
+            
+            self.db.add(new_streamer)
+            self.db.flush()  # Get the ID before creating notification settings
+            
+            # Create default notification settings
+            notification_settings = NotificationSettings(
+                streamer_id=new_streamer.id,
+                notify_online=True,
+                notify_offline=True,
+                notify_update=True
+            )
+            self.db.add(notification_settings)
+            
+            self.db.commit()
+            self.db.refresh(new_streamer)
+            
+            # Initialize EventSub subscriptions
+            await self.event_registry.subscribe_to_events(user_data['id'])
+            
+            return new_streamer
                 
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Error adding streamer: {e}")
             raise
 
