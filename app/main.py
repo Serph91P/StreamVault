@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application shutdown...")
     event_registry = await get_event_registry()
     if event_registry.eventsub:
-        await event_registry.eventsub.stop()  # Properly call the stop method
+        await event_registry.eventsub.stop()
         logger.info("EventSub stopped")
     logger.info("Application shutdown complete")
 
