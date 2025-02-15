@@ -80,7 +80,7 @@ async def update_streamer_settings(
 async def get_streamer_settings():
     try:
         with SessionLocal() as db:
-            settings = db.query(StreamerSettings).all()
+            settings = db.query(NotificationSettings).all()
             return [
                 {
                     "streamer_id": s.streamer_id,
