@@ -107,6 +107,7 @@ watch(messages, (newMessages) => {
       break
     }
     case 'stream.online': {
+      console.log('StreamerList: Processing stream online:', message.data)
       const updateData: StreamerUpdateData = {
         is_live: true,
         title: message.data.title || '',
@@ -118,6 +119,7 @@ watch(messages, (newMessages) => {
       break
     }
     case 'stream.offline': {
+      console.log('StreamerList: Processing stream offline:', message.data)
       const updateData: StreamerUpdateData = {
         is_live: false,
         last_updated: new Date().toISOString()
