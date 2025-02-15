@@ -67,24 +67,21 @@ const handleDelete = async (streamerId: string) => {
 }
 
 // Improved message handling
-watch(messages, (newMessages) => {
+watch(messages, (newMessages: any[]) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
-  console.log('Processing message in StreamerList:', message)
+  console.log('Processing WebSocket message:', message) // Debug log
 
   switch (message.type) {
     case 'channel.update':
-      const existingStreamer = streamers.value.find(s => s.twitch_id === message.data.streamer_id)
-      if (existingStreamer) {
-        updateStreamer(message.data.streamer_id, {
-          title: message.data.title,
-          category_name: message.data.category_name,
-          language: message.data.language,
-          last_updated: new Date().toISOString(),
-          is_live: existingStreamer.is_live // Preserve existing live status
-        })
-      }
+      const streamerId = message.data.streamer_id
+      console.log('Updating streamer:', streamerId, message.data) // Debug log
+      updateStreamer(streamerId, {
+        title: message.data.title,
+        category_name: message.data.category_name,
+        last_updated: new Date().toISOString()
+      })
       break
     case 'stream.online':
       updateStreamer(message.data.streamer_id, { 
