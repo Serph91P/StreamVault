@@ -130,30 +130,45 @@ class EventHandlerRegistry:
                 ).first()
                 
                 if streamer:
+                    logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
+                    # Update streamer info
+                    streamer.is_live = True
+                    streamer.last_updated = datetime.now(timezone.utc)
+                    
+                    # Create new stream entry
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
-                        status="live"
+                        stream_id=data["id"]
                     )
                     db.add(stream)
                     db.commit()
-                    
+
                     # Send WebSocket notification
-                    await self.manager.send_notification({
+                    notification = {
                         "type": "stream.online",
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
+                            "streamer_name": data["broadcaster_user_name"],
                             "started_at": data["started_at"]
                         }
-                    })
-                    
-                    # Send Apprise notification
+                    }
+                    logger.debug(f"Sending WebSocket notification: {notification}")
+                    await self.manager.send_notification(notification)
+
+                    # Send Apprise notification with Twitch URL
+                    twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
                     await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="online",
-                        details={"started_at": data["started_at"]}
+                        details={
+                            "url": twitch_url,
+                            "started_at": data["started_at"]
+                        }
                     )
+                    
+                    logger.debug("Notifications sent successfully")
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
