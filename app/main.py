@@ -29,9 +29,6 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
     event_registry = await get_event_registry()
     
-    # Remove redundant initialization
-    # logger.info("Initializing EventSub...")
-    # await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
     
     yield
@@ -53,11 +50,13 @@ app.middleware("http")(logging_middleware)
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    logger.info(f"New WebSocket connection from {websocket.client}")
     await websocket_manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected: {websocket.client}")
         await websocket_manager.disconnect(websocket)
 
 @app.get("/health")
