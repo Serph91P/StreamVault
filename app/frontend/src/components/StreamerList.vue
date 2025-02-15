@@ -90,16 +90,19 @@ watch(messages, (newMessages) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
-  console.log('Processing WebSocket message:', message)
+  console.log('StreamerList: New message detected:', message)
 
   switch (message.type) {
     case 'channel.update': {
+      console.log('StreamerList: Processing channel update:', message.data)
       const streamerId = message.data.streamer_id
       const updateData: StreamerUpdateData = {
         title: message.data.title,
         category_name: message.data.category_name,
+        language: message.data.language,
         last_updated: new Date().toISOString()
       }
+      console.log('StreamerList: Updating streamer with data:', updateData)
       updateStreamer(streamerId, updateData)
       break
     }
