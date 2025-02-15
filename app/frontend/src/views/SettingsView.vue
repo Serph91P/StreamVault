@@ -77,6 +77,21 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 // Add showTooltip ref
 const showTooltip = ref(false)
+
+// New getStreamerSettings function
+const getStreamerSettings = async () => {
+  try {
+    const response = await fetch('/api/settings/streamers')
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = await response.json()
+    console.log('Received streamer settings:', data)
+    streamerSettings.value = data
+  } catch (error) {
+    console.error('Failed to fetch streamer settings:', error)
+  }
+}
 </script>
 
 <template>
