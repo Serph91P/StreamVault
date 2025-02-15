@@ -25,10 +25,17 @@ export function useNotificationSettings(): NotificationSettingsComposable {
     })
     settings.value = await response.json()
   }
-  const getStreamerSettings = async (): Promise<StreamerNotificationSettings[]> => {
-    const response = await fetch('/api/settings/streamer')
-    return await response.json()
-}
+  const getStreamerSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/streamers')
+      const data = await response.json()
+      console.log('Fetched streamer settings:', data) // Debug log
+      return data
+    } catch (error) {
+      console.error('Failed to fetch streamer settings:', error)
+      return []
+    }
+  }
 
 
   const updateStreamerSettings = async (
