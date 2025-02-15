@@ -1,7 +1,7 @@
 import logging
 import aiohttp
 import asyncio
-from typing import Dict, Callable, Awaitable, Any
+from typing import Dict, Callable, Awaitable, Any, Optional
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
@@ -123,15 +123,19 @@ class EventHandlerRegistry:
     
     async def handle_stream_online(self, data: dict):
         try:
-            logger.info(f"Stream online event received: {data}")
+            # Get user info from Twitch API to get profile image
+            user_info = await self.get_user_info(data["broadcaster_user_id"])
+            
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
                 if streamer:
-                    logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
-                    # Update streamer info
+                    # Update profile image if changed
+                    if user_info and user_info.get("profile_image_url"):
+                        streamer.profile_image_url = user_info["profile_image_url"]
+                    
                     streamer.is_live = True
                     streamer.last_updated = datetime.now(timezone.utc)
                     
@@ -322,3 +326,23 @@ class EventHandlerRegistry:
             "success": True,
             "results": results
         }
+
+    async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get user info from Twitch API including profile image"""
+        try:
+            access_token = await self.get_access_token()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://api.twitch.tv/helix/users?id={user_id}",
+                    headers={
+                        "Client-ID": self.settings.TWITCH_APP_ID,
+                        "Authorization": f"Bearer {access_token}"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data["data"][0] if data.get("data") else None
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching user info: {e}")
+            return None
