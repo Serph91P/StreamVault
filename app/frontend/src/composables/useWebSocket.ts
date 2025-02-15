@@ -26,10 +26,16 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        console.log('WebSocket message received:', data)
-        if (data && (data.type === 'stream.online' || 
-                     data.type === 'stream.offline' || 
-                     data.type === 'channel.update')) {
+        console.log('WebSocket raw message received:', event.data)
+        console.log('WebSocket parsed message:', data)
+        
+        // Add all message types that should update the UI
+        if (data && (
+          data.type === 'stream.online' || 
+          data.type === 'stream.offline' || 
+          data.type === 'channel.update'
+        )) {
+          console.log('Adding message to messages array:', data)
           messages.value.push(data)
         }
       } catch (e) {
