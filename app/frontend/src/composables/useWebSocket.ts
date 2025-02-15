@@ -29,11 +29,11 @@ export function useWebSocket() {
         console.log('WebSocket raw message received:', event.data)
         console.log('WebSocket parsed message:', data)
         
-        // Add all message types that should update the UI
         if (data && (
           data.type === 'stream.online' || 
           data.type === 'stream.offline' || 
-          data.type === 'channel.update'
+          data.type === 'channel.update' ||
+          data.type === 'connection.status'
         )) {
           console.log('Adding message to messages array:', data)
           messages.value.push(data)
