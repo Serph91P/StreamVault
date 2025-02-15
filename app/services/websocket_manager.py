@@ -45,7 +45,7 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: Dict[str, Any]):
-        logger.debug(f"Active connections before send: {len(self.active_connections)}")
+        logger.debug(f"Sending notification to {len(self.active_connections)} clients: {message}")
         async with self._lock:
             active_sockets = self.active_connections.copy()
     
