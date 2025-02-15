@@ -70,7 +70,7 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
 }
 
 const toggleAllStreamers = (enabled: boolean) => {
-  data.value.streamerSettings.forEach(streamer => {
+  data.value.streamerSettings.forEach((streamer: StreamerNotificationSettings) => {
     toggleAllForStreamer(streamer.streamer_id, enabled)
   })
 }
