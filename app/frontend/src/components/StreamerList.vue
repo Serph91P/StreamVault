@@ -33,17 +33,21 @@
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
-import type { WebSocket } from 'ws'
 
-// Define socket as a ref
-const socket = ref<WebSocket | null>(null)
-
-// Define the event type
-interface WebSocketEvent {
-  data: string
+// Define proper interfaces
+interface WebSocketMessage {
   type: string
-  target: WebSocket
+  data: {
+    streamer_id: string
+    title?: string
+    category_name?: string
+    language?: string
+    [key: string]: any
+  }
 }
+
+// Define socket as a ref with browser's WebSocket type
+const socket = ref<WebSocket | null>(null)
 
 // WebSocket connection function
 const connectWebSocket = () => {
@@ -56,7 +60,7 @@ const connectWebSocket = () => {
     console.log('WebSocket connected')
   }
 
-  socket.value.onmessage = (event: WebSocketEvent) => {
+  socket.value.onmessage = (event: MessageEvent) => {
     try {
       const data = JSON.parse(event.data)
       console.log('Received message:', data)
@@ -145,11 +149,11 @@ watch(connectionStatus, (status) => {
   }
 }, { immediate: true })
 
-// Better lifecycle management
+// Better lifecycle management with proper event type
 onMounted(() => {
   console.log('StreamerList mounted')
   connectWebSocket()
-  socket.value?.addEventListener('message', (event) => {
+  socket.value?.addEventListener('message', (event: MessageEvent) => {
     const data = JSON.parse(event.data)
     console.log('Raw WebSocket message received:', data)
   })
