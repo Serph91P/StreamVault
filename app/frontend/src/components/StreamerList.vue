@@ -97,9 +97,9 @@ watch(messages, (newMessages) => {
       console.log('StreamerList: Processing channel update:', message.data)
       const streamerId = message.data.streamer_id
       const updateData: StreamerUpdateData = {
-        title: message.data.title,
-        category_name: message.data.category_name,
-        language: message.data.language,
+        title: message.data.title || '',
+        category_name: message.data.category_name || '',
+        language: message.data.language || '',
         last_updated: new Date().toISOString()
       }
       console.log('StreamerList: Updating streamer with data:', updateData)
