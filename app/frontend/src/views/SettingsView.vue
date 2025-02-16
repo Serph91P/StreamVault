@@ -77,12 +77,13 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 // Add showTooltip ref
 const showTooltip = ref(false)
-let tooltipTimeout: ReturnType<typeof setTimeout> | null = null
+// Change the tooltip timer type
+let tooltipTimeout: number | undefined = undefined
 
 const handleTooltipMouseEnter = () => {
   if (tooltipTimeout) {
     window.clearTimeout(tooltipTimeout)
-    tooltipTimeout = null
+    tooltipTimeout = undefined
   }
   showTooltip.value = true
 }
@@ -118,8 +119,8 @@ onUnmounted(() => {
           <div 
             v-if="showTooltip" 
             class="tooltip-wrapper"
-            @mouseenter="showTooltip = true"
-            @mouseleave="() => setTimeout(() => showTooltip = false, 500)"
+            @mouseenter="handleTooltipMouseEnter"
+            @mouseleave="handleTooltipMouseLeave"
           >
             <Tooltip>
               Check the <a 
