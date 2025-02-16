@@ -77,33 +77,12 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 // Add showTooltip ref
 const showTooltip = ref(false)
-let tooltipTimeout: number | null = null
-
-const handleTooltipEnter = () => {
-  if (tooltipTimeout) {
-    clearTimeout(tooltipTimeout)
-    tooltipTimeout = null
-  }
-  showTooltip.value = true
-}
-
-const handleTooltipLeave = () => {
-  tooltipTimeout = setTimeout(() => {
-    showTooltip.value = false
-  }, 300) as unknown as number
-}
-
-// Clean up timeout on component unmount
-onUnmounted(() => {
-  if (tooltipTimeout) {
-    clearTimeout(tooltipTimeout)
-  }
-})
+let tooltipTimeout: ReturnType<typeof setTimeout> | null = null
 
 const handleTooltipMouseEnter = () => {
   if (tooltipTimeout) {
     window.clearTimeout(tooltipTimeout)
-    tooltipTimeout = undefined
+    tooltipTimeout = null
   }
   showTooltip.value = true
 }
@@ -114,6 +93,7 @@ const handleTooltipMouseLeave = () => {
   }, 300)
 }
 
+// Clean up timeout on component unmount
 onUnmounted(() => {
   if (tooltipTimeout) {
     window.clearTimeout(tooltipTimeout)
@@ -138,15 +118,16 @@ onUnmounted(() => {
           <div 
             v-if="showTooltip" 
             class="tooltip-wrapper"
-            @mouseenter="handleTooltipMouseEnter"
-            @mouseleave="handleTooltipMouseLeave"
+            @mouseenter="showTooltip = true"
+            @mouseleave="() => setTimeout(() => showTooltip = false, 500)"
           >
             <Tooltip>
               Check the <a 
-                href="https://github.com/caronc/apprise/wiki"
+                :href="data.appriseDocsUrl" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 @click.stop
+                class="tooltip-link"
               >Apprise Documentation</a> for supported services and URL formats
             </Tooltip>
           </div>
