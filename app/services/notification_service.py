@@ -129,3 +129,27 @@ class NotificationService:
             if streamer_settings:
                 return getattr(streamer_settings, streamer_field)
             return getattr(global_settings, global_field)
+
+    async def send_test_notification(self) -> bool:
+        """Send a test notification to verify settings"""
+        try:
+            if not self._notification_url:
+                logger.error("No notification URL configured")
+                return False
+
+            result = await self.apprise.async_notify(
+                title="🔔 StreamVault Test Notification",
+                body="If you receive this, your notification settings are working correctly!",
+                tag="test"
+            )
+            
+            if result:
+                logger.info("Test notification sent successfully")
+                return True
+            else:
+                logger.error("Failed to send test notification")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending test notification: {e}")
+            return False

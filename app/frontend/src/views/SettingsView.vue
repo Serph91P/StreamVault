@@ -100,6 +100,26 @@ onUnmounted(() => {
     window.clearTimeout(tooltipTimeout)
   }
 })
+
+const testNotification = async () => {
+  try {
+    const response = await fetch('/api/settings/test-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send test notification');
+    }
+
+    alert('Test notification sent successfully!');
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to send test notification');
+  }
+};
 </script>
 
 <template>
@@ -143,7 +163,16 @@ onUnmounted(() => {
         </label>
       </div>
 
-      <button @click="saveSettings" class="btn btn-primary">Save Settings</button>
+      <div class="form-actions">
+        <button @click="saveSettings" class="btn btn-primary">Save Settings</button>
+        <button 
+          @click="testNotification" 
+          class="btn btn-secondary"
+          :disabled="!data.notificationsEnabled || !data.notificationUrl"
+        >
+          Test Notification
+        </button>
+      </div>
     </div>
 
     <!-- Streamer Notification Table -->

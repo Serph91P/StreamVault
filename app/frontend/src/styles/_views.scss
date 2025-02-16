@@ -220,6 +220,22 @@
     gap: v.$spacing-sm;
     margin-bottom: v.$spacing-md;
   }
+
+  .form-actions {
+    display: flex;
+    gap: v.$spacing-md;
+    margin-top: v.$spacing-lg;
+
+    .btn {
+      flex: 1;
+      max-width: 200px;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
 }
 
 .input-with-tooltip {

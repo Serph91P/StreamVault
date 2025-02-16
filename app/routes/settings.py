@@ -6,6 +6,7 @@ from apprise import Apprise
 from sqlalchemy.orm import Session
 import logging
 from typing import List
+from app.services.notification_service import NotificationService
 
 logger = logging.getLogger("streamvault")
 
@@ -105,3 +106,37 @@ async def get_streamer_settings():
     except Exception as e:
         logger.error(f"Error fetching streamer settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
+
+@router.post("/test-notification")
+async def send_test_notification():
+    """Send a test notification using current settings"""
+    try:
+        with SessionLocal() as db:
+            settings = db.query(GlobalSettings).first()
+            if not settings or not settings.notifications_enabled:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Notifications are disabled"
+                )
+            if not settings.notification_url:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No notification URL configured"
+                )
+
+        notification_service = NotificationService()
+        success = await notification_service.send_test_notification()
+        
+        if success:
+            return {"status": "success", "message": "Test notification sent successfully"}
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to send test notification"
+            )
+    except Exception as e:
+        logger.error(f"Error sending test notification: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
