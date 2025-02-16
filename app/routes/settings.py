@@ -66,8 +66,18 @@ async def update_settings(settings_data: GlobalSettingsSchema):
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 async def get_all_streamer_settings():
     with SessionLocal() as db:
-        settings = db.query(NotificationSettings).all()
-        return [StreamerNotificationSettingsSchema.model_validate(s) for s in settings]
+        settings = db.query(NotificationSettings).join(Streamer).all()
+        return [
+            StreamerNotificationSettingsSchema(
+                streamer_id=s.streamer_id,
+                username=s.streamer.username,
+                profile_image_url=s.streamer.profile_image_url,
+                notify_online=s.notify_online,
+                notify_offline=s.notify_offline,
+                notify_update=s.notify_update
+            ) 
+            for s in settings
+        ]
 
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def update_streamer_settings(
