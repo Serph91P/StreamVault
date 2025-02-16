@@ -1,8 +1,9 @@
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 class GlobalSettingsSchema(BaseModel):
-    notification_url: str = Field(
+    notification_url: Optional[str] = Field(
+        default="",
         description=(
             "The notification service URL. Supports multiple services including:\n"
             "- Discord: discord://webhook_id/webhook_token\n"
