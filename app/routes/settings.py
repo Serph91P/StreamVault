@@ -34,21 +34,33 @@ async def get_settings():
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
-@router.post("", response_model=GlobalSettingsSchema)
-async def update_settings(settings_data: GlobalSettingsSchema, db: Session = Depends(get_db)):
-    settings = db.query(GlobalSettings).first()
-    if not settings:
-        settings = GlobalSettings()
-        db.add(settings)
-    
-    if settings_data.notification_url:
-        if not validate_apprise_url(settings_data.notification_url):
-            raise HTTPException(status_code=400, detail="Invalid notification URL format")
-        settings.notification_url = settings_data.notification_url
-    
-    settings.notifications_enabled = settings_data.notifications_enabled
-    db.commit()
-    return GlobalSettingsSchema.model_validate(settings)
+@router.post("/", response_model=GlobalSettingsSchema)
+async def update_settings(settings_data: GlobalSettingsSchema):
+    try:
+        with SessionLocal() as db:
+            settings = db.query(GlobalSettings).first()
+            if not settings:
+                settings = GlobalSettings()
+                db.add(settings)
+            
+            settings.notification_url = settings_data.notification_url
+            settings.notifications_enabled = settings_data.notifications_enabled
+            settings.notify_online_global = settings_data.notify_online_global
+            settings.notify_offline_global = settings_data.notify_offline_global
+            settings.notify_update_global = settings_data.notify_update_global
+            
+            db.commit()
+            
+            # Reinitialize notification service with new settings
+            from app.services.notification_service import NotificationService
+            notification_service = NotificationService()
+            notification_service._initialize_apprise()
+            
+            logger.info("Settings updated and notification service reinitialized")
+            return GlobalSettingsSchema.model_validate(settings)
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update settings")
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 async def get_all_streamer_settings():

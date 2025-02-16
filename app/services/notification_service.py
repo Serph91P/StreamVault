@@ -1,27 +1,29 @@
 import logging
-import apprise
-from app.models import GlobalSettings
-from app.database import SessionLocal
+from apprise import Apprise
 from app.models import GlobalSettings, NotificationSettings
-
+from app.database import SessionLocal
 
 logger = logging.getLogger("streamvault")
 
 class NotificationService:
     def __init__(self):
-        self.apprise = apprise.Apprise()
+        self.apprise = Apprise()
+        self._notification_url = None
         self._initialize_apprise()
 
     def _initialize_apprise(self):
-        """Initialize Apprise with URLs from database settings"""
-        with SessionLocal() as db:
-            settings = db.query(GlobalSettings).first()
-            if settings and settings.notification_url and settings.notifications_enabled:
-                logger.debug(f"Initializing Apprise with URL from database")
-                self.apprise.add(settings.notification_url)
-                logger.debug("Apprise URL added successfully")
-            else:
-                logger.debug("Notifications disabled or no URLs configured")
+        """Initialize Apprise with the notification URL from settings"""
+        try:
+            with SessionLocal() as db:
+                settings = db.query(GlobalSettings).first()
+                if settings and settings.notifications_enabled and settings.notification_url:
+                    self._notification_url = settings.notification_url
+                    self.apprise.add(self._notification_url)
+                    logger.info(f"Apprise initialized with URL: {self._notification_url}")
+                else:
+                    logger.debug("Notifications disabled or no URLs configured")
+        except Exception as e:
+            logger.error(f"Error initializing Apprise: {e}")
 
     async def send_notification(self, message: str, title: str = "StreamVault Notification") -> bool:
         with SessionLocal() as db:
@@ -50,52 +52,57 @@ class NotificationService:
             return False
 
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
+        """Send a notification about a stream event"""
         try:
-            # Check if we should send notification based on settings
+            # Check if notifications are enabled
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings or not settings.notifications_enabled:
                     logger.debug("Notifications are disabled globally")
                     return
 
+                # Check if URL has changed
+                if settings.notification_url != self._notification_url:
+                    logger.debug("Notification URL changed, reinitializing Apprise")
+                    self.apprise = Apprise()
+                    self._notification_url = settings.notification_url
+                    self.apprise.add(self._notification_url)
+
+            # Format the notification
             title = ""
             message = ""
-            image_url = details.get('profile_image_url')
             
             if event_type == "online":
                 title = f"🟢 {streamer_name} is now live!"
-                message = f"Started streaming at {details['started_at']}"
-                if 'url' in details:
-                    message += f"\nWatch here: {details['url']}"
+                message = f"Started streaming: {details.get('title', 'No title')}\n"
+                message += f"Category: {details.get('category_name', 'No category')}"
             elif event_type == "offline":
                 title = f"🔴 {streamer_name} went offline"
-                message = f"Stream ended at {details.get('ended_at', 'now')}"
+                message = "Stream ended"
             elif event_type == "update":
                 title = f"📝 {streamer_name} updated stream information"
-                message = f"Title: {details.get('title', '')}\n"
-                message += f"Category: {details.get('category_name', '')}"
-                if 'url' in details:
-                    message += f"\nWatch here: {details['url']}"
+                message = f"New title: {details.get('title', 'No title')}\n"
+                message += f"Category: {details.get('category_name', 'No category')}"
 
-            # Use a single notify call
-            notification_args = {
-                "title": title,
-                "body": message,
-                "tag": streamer_name  # Use tag to prevent duplicate notifications
-            }
+            # Add debug logging
+            logger.debug(f"Attempting to send notification: {title} - {message}")
+            logger.debug(f"Using notification URL: {self._notification_url}")
             
-            if image_url:
-                notification_args["attach"] = image_url
-
-            result = await self.apprise.async_notify(**notification_args)
+            # Send the notification
+            result = await self.apprise.async_notify(
+                title=title,
+                body=message,
+                tag=streamer_name
+            )
             
             if result:
                 logger.info(f"Notification sent successfully for {streamer_name}")
             else:
-                logger.warning(f"Failed to send notification for {streamer_name}")
+                logger.error(f"Failed to send notification for {streamer_name}")
                 
         except Exception as e:
             logger.error(f"Error sending notification: {e}")
+            raise
 
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
