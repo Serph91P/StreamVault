@@ -99,6 +99,26 @@ onUnmounted(() => {
     clearTimeout(tooltipTimeout)
   }
 })
+
+const handleTooltipMouseEnter = () => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+    tooltipTimeout = undefined
+  }
+  showTooltip.value = true
+}
+
+const handleTooltipMouseLeave = () => {
+  tooltipTimeout = window.setTimeout(() => {
+    showTooltip.value = false
+  }, 300)
+}
+
+onUnmounted(() => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+  }
+})
 </script>
 
 <template>
@@ -118,16 +138,15 @@ onUnmounted(() => {
           <div 
             v-if="showTooltip" 
             class="tooltip-wrapper"
-            @mouseenter="showTooltip = true"
-            @mouseleave="() => setTimeout(() => showTooltip = false, 500)"
+            @mouseenter="handleTooltipMouseEnter"
+            @mouseleave="handleTooltipMouseLeave"
           >
             <Tooltip>
               Check the <a 
-                :href="data.appriseDocsUrl" 
+                href="https://github.com/caronc/apprise/wiki"
                 target="_blank" 
                 rel="noopener noreferrer"
                 @click.stop
-                class="tooltip-link"
               >Apprise Documentation</a> for supported services and URL formats
             </Tooltip>
           </div>
