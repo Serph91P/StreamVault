@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
 from pydantic import BaseModel
@@ -8,16 +9,17 @@ from typing import Optional
 class Streamer(Base):
     __tablename__ = "streamers"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     twitch_id = Column(String, unique=True, nullable=False)
-    username = Column(String, nullable=False)
-    profile_image_url = Column(String)
+    username = Column(String, nullable=False, index=True)
+    profile_image_url = Column(String, nullable=True)
     is_live = Column(Boolean, default=False)
     title = Column(String)
     category_name = Column(String)
     language = Column(String)
     last_updated = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    notification_settings = relationship("NotificationSettings", back_populates="streamer")
 
 class Stream(Base):
     __tablename__ = "streams"
@@ -61,11 +63,13 @@ class Session(Base):
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
     
-    id: int = Column(Integer, primary_key=True)
-    streamer_id: int = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
-    notify_online: bool = Column(Boolean, default=True)
-    notify_offline: bool = Column(Boolean, default=True)
-    notify_update: bool = Column(Boolean, default=True)
+    id = Column(Integer, primary_key=True, index=True)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    notify_online = Column(Boolean, default=True)
+    notify_offline = Column(Boolean, default=True)
+    notify_update = Column(Boolean, default=True)
+
+    streamer = relationship("Streamer", back_populates="notification_settings")
     
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
