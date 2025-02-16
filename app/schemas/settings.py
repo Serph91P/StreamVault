@@ -1,8 +1,17 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional
 
 class GlobalSettingsSchema(BaseModel):
-    notification_url: Optional[str] = None
+    notification_url: str = Field(
+        description=(
+            "The notification service URL. Supports multiple services including:\n"
+            "- Discord: discord://webhook_id/webhook_token\n"
+            "- Telegram: tgram://bot_token/chat_id\n"
+            "- Ntfy: ntfy://topic or ntfys://server/topic\n"
+            "- Pushover: pover://user_key/app_token\n"
+            "And many more. See Apprise documentation for all supported services."
+        )
+    )
     notifications_enabled: bool = True
     notify_online_global: bool = True
     notify_offline_global: bool = True
