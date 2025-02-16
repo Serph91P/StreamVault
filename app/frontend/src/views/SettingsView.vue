@@ -69,10 +69,14 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   })
 }
 
-const toggleAllStreamers = (enabled: boolean) => {
-  data.value.streamerSettings.forEach((streamer: StreamerNotificationSettings) => {
-    toggleAllForStreamer(streamer.streamer_id, enabled)
-  })
+const toggleAllStreamers = async (enabled: boolean) => {
+  for (const streamer of data.value.streamerSettings) {
+    await handleStreamerSettingsUpdate(streamer.streamer_id, {
+      notify_online: enabled,
+      notify_offline: enabled,
+      notify_update: enabled
+    })
+  }
 }
 
 // Add showTooltip ref
@@ -133,7 +137,7 @@ const testNotification = async () => {
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="e.g., ntfy://topic or telegram://bot_token/chat_id"
+            placeholder="e.g., discord://webhook_id/webhook_token"
             class="form-control"
             @focus="showTooltip = true"
           />
@@ -144,13 +148,15 @@ const testNotification = async () => {
             @mouseleave="handleTooltipMouseLeave"
           >
             <Tooltip>
-              Check the <a 
-                href="https://github.com/caronc/apprise/wiki"
+              StreamVault supports 100+ notification services including Discord, Telegram, Ntfy, 
+              Pushover, Slack, and more. Check the 
+              <a 
+                href="https://github.com/caronc/apprise/wiki#notification-services"
                 target="_blank" 
                 rel="noopener noreferrer"
                 @click.stop
                 class="tooltip-link"
-              >Apprise Documentation</a> for supported services and URL formats
+              >Apprise Documentation</a> for supported services and URL formats.
             </Tooltip>
           </div>
         </div>
@@ -206,6 +212,12 @@ const testNotification = async () => {
           <tbody>
             <tr v-for="streamer in data.streamerSettings" :key="streamer.streamer_id">
               <td class="streamer-info">
+                <img 
+                  v-if="streamer.profile_image_url" 
+                  :src="streamer.profile_image_url" 
+                  :alt="streamer.username" 
+                  class="streamer-avatar"
+                />
                 <span class="streamer-name">{{ streamer.username }}</span>
               </td>
               <td>
