@@ -16,14 +16,28 @@ class NotificationService:
         try:
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
-                if settings and settings.notifications_enabled and settings.notification_url:
-                    self._notification_url = settings.notification_url
-                    self.apprise.add(self._notification_url)
-                    logger.info(f"Apprise initialized with URL: {self._notification_url}")
+                if not settings or not settings.notifications_enabled:
+                    logger.debug("Notifications disabled")
+                    return
+                
+                if not settings.notification_url:
+                    logger.debug("No notification URL configured")
+                    return
+
+                url = settings.notification_url.strip()
+                self._notification_url = url
+                self.apprise = Apprise()
+                
+                # Try to add the URL to Apprise
+                if self.apprise.add(url):
+                    logger.info(f"Apprise initialized successfully with URL: {url}")
                 else:
-                    logger.debug("Notifications disabled or no URLs configured")
+                    logger.error(f"Failed to initialize Apprise with URL: {url}")
+                    self._notification_url = None
+                    
         except Exception as e:
             logger.error(f"Error initializing Apprise: {e}")
+            self._notification_url = None
 
     async def send_notification(self, message: str, title: str = "StreamVault Notification") -> bool:
         with SessionLocal() as db:
@@ -131,24 +145,34 @@ class NotificationService:
             return getattr(global_settings, global_field)
 
     async def send_test_notification(self) -> bool:
-        """Send a test notification to verify settings"""
+        """Send a test notification using current settings"""
         try:
             if not self._notification_url:
                 logger.error("No notification URL configured")
                 return False
 
-            result = await self.apprise.async_notify(
+            # Create new Apprise instance for test
+            apprise = Apprise()
+            if not apprise.add(self._notification_url):
+                logger.error(f"Invalid notification URL: {self._notification_url}")
+                return False
+                
+            logger.debug(f"Sending test notification via: {self._notification_url}")
+            
+            result = await apprise.async_notify(
                 title="🔔 StreamVault Test Notification",
-                body="If you receive this, your notification settings are working correctly!",
-                tag="test"
+                body=(
+                    "This is a test notification from StreamVault.\n\n"
+                    "If you receive this, your notification settings are working correctly!"
+                )
             )
             
             if result:
                 logger.info("Test notification sent successfully")
                 return True
-            else:
-                logger.error("Failed to send test notification")
-                return False
+            
+            logger.error("Failed to send test notification")
+            return False
                 
         except Exception as e:
             logger.error(f"Error sending test notification: {e}")
