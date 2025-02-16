@@ -212,12 +212,13 @@ const testNotification = async () => {
           <tbody>
             <tr v-for="streamer in data.streamerSettings" :key="streamer.streamer_id">
               <td class="streamer-info">
-                <img 
-                  v-if="streamer.profile_image_url" 
-                  :src="streamer.profile_image_url" 
-                  :alt="streamer.username || ''"
-                  class="streamer-avatar"
-                />
+                <!-- Only show image if profile_image_url exists -->
+                <div class="streamer-avatar" v-if="streamer.profile_image_url">
+                  <img 
+                    :src="streamer.profile_image_url" 
+                    :alt="streamer.username || ''"
+                  />
+                </div>
                 <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
               </td>
               <td>
