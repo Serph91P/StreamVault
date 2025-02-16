@@ -292,6 +292,77 @@
       gap: v.$spacing-md;
     }
   }
+
+  .table-controls {
+    margin-bottom: v.$spacing-md;
+    display: flex;
+    gap: v.$spacing-sm;
+  }
+
+  .streamer-table {
+    width: 100%;
+    overflow-x: auto;
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: v.$background-dark;
+      
+      th, td {
+        padding: v.$spacing-md;
+        text-align: left;
+        border-bottom: 1px solid v.$border-color;
+      }
+      
+      th {
+        background: v.$background-darker;
+        font-weight: 600;
+        position: relative;
+        
+        .th-tooltip {
+          display: none;
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: v.$background-darker;
+          padding: v.$spacing-sm;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          white-space: nowrap;
+          z-index: 1;
+        }
+        
+        &:hover .th-tooltip {
+          display: block;
+        }
+      }
+      
+      .streamer-info {
+        display: flex;
+        align-items: center;
+        gap: v.$spacing-sm;
+        
+        .streamer-name {
+          font-weight: 500;
+        }
+      }
+      
+      td {
+        vertical-align: middle;
+        
+        input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+        }
+        
+        .btn-sm {
+          padding: v.$spacing-xs v.$spacing-sm;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
 }
 
 // Keep view-specific styles including .settings-container
