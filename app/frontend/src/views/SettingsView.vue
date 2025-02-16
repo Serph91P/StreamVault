@@ -215,10 +215,10 @@ const testNotification = async () => {
                 <img 
                   v-if="streamer.profile_image_url" 
                   :src="streamer.profile_image_url" 
-                  :alt="streamer.username" 
+                  :alt="streamer.username || ''"
                   class="streamer-avatar"
                 />
-                <span class="streamer-name">{{ streamer.username }}</span>
+                <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
               </td>
               <td>
                 <input 
