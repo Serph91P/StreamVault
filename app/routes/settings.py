@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import SessionLocal, get_db
-from app.models import GlobalSettings, NotificationSettings
+from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
 from apprise import Apprise
 from sqlalchemy.orm import Session
@@ -44,7 +44,8 @@ async def update_settings(settings_data: GlobalSettingsSchema):
                 settings = GlobalSettings()
                 db.add(settings)
             
-            settings.notification_url = settings_data.notification_url
+            # Update settings
+            settings.notification_url = settings_data.notification_url or ""  # Handle None
             settings.notifications_enabled = settings_data.notifications_enabled
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
@@ -52,16 +53,15 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             
             db.commit()
             
-            # Reinitialize notification service with new settings
+            # Reinitialize notification service
             from app.services.notification_service import NotificationService
             notification_service = NotificationService()
             notification_service._initialize_apprise()
             
-            logger.info("Settings updated and notification service reinitialized")
-            return GlobalSettingsSchema.model_validate(settings)
+            return GlobalSettingsSchema.from_orm(settings)
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update settings")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 async def get_all_streamer_settings():
@@ -118,22 +118,27 @@ async def get_streamer_settings():
         raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
 
 @router.post("/test-notification")
-async def send_test_notification():
-    """Send a test notification using current settings"""
+async def test_notification():
     try:
         with SessionLocal() as db:
             settings = db.query(GlobalSettings).first()
-            if not settings or not settings.notifications_enabled:
+            if not settings:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
+                    detail="No settings configured"
+                )
+            if not settings.notifications_enabled:
+                raise HTTPException(
+                    status_code=400,
                     detail="Notifications are disabled"
                 )
             if not settings.notification_url:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail="No notification URL configured"
                 )
 
+        from app.services.notification_service import NotificationService
         notification_service = NotificationService()
         success = await notification_service.send_test_notification()
         
@@ -144,9 +149,8 @@ async def send_test_notification():
                 status_code=500,
                 detail="Failed to send test notification"
             )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error sending test notification: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
