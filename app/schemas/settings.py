@@ -22,10 +22,11 @@ class GlobalSettingsSchema(BaseModel):
         from_attributes = True
 
 class StreamerNotificationSettingsSchema(BaseModel):
-    id: Optional[int] = None
     streamer_id: int
+    username: str | None = None
+    profile_image_url: str | None = None
     notify_online: bool = True
-    notify_offline: bool = True 
+    notify_offline: bool = True
     notify_update: bool = True
 
     class Config:
