@@ -427,6 +427,42 @@
         color: v.$text-secondary;
       }
     }
+
+    .input-with-tooltip {
+      position: relative;
+
+      .form-control {
+        width: 100%;
+        padding: v.$spacing-sm v.$spacing-md;
+        border: 1px solid v.$border-color;
+        border-radius: 4px;
+        background: v.$background-dark;
+        color: v.$text-primary;
+
+        &:focus {
+          border-color: v.$primary-color;
+          outline: none;
+        }
+
+        &.is-invalid {
+          border-color: v.$danger-color;
+        }
+      }
+    }
+  }
+
+  .form-control {
+    &.is-invalid {
+      border-color: v.$danger-color;
+    }
+  }
+
+  .invalid-feedback {
+    display: block;
+    width: 100%;
+    margin-top: v.$spacing-xs;
+    font-size: map.get(v.$font-scale, 'sm');
+    color: v.$danger-color;
   }
 
   .streamer-notifications {
