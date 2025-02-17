@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
+
+const KNOWN_SCHEMES = [
+  'discord', 'telegram', 'tgram', 'slack', 'pushover', 'mailto',
+  'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
+  'signal', 'whatsapp', 'rocket', 'pushbullet', 'apprise', 'http',
+  'https', 'twitter', 'slack', 'dbus'
+];
 
 interface ComponentData {
   notificationUrl: string
@@ -41,6 +48,43 @@ onMounted(async () => {
 })
 
 const isSaving = ref(false);
+
+const isValidNotificationUrl = computed(() => {
+  const url = data.value.notificationUrl.trim();
+  
+  // Empty URL is considered valid (though not for saving)
+  if (!url) return true;
+  
+  // Handle multiple URLs separated by comma
+  if (url.includes(',')) {
+    return url.split(',')
+      .every(part => {
+        const trimmedPart = part.trim();
+        return trimmedPart === '' || validateSingleUrl(trimmedPart);
+      });
+  }
+  
+  return validateSingleUrl(url);
+});
+
+const validateSingleUrl = (url: string): boolean => {
+  // Basic URL structure check
+  if (!url.includes('://')) return false;
+  
+  // Extract scheme
+  const scheme = url.split('://')[0].toLowerCase();
+  
+  // Check against known schemes
+  if (KNOWN_SCHEMES.includes(scheme)) return true;
+  
+  // Allow custom schemes that follow the pattern: xxx://
+  return /^[a-zA-Z]+:\/\/.+/.test(url);
+};
+
+const canSave = computed(() => {
+  return isValidNotificationUrl.value && 
+         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled);
+});
 
 const saveSettings = async () => {
   if (isSaving.value) return;
@@ -151,8 +195,15 @@ const testNotification = async () => {
             v-model="data.notificationUrl" 
             placeholder="e.g., discord://webhook_id/webhook_token"
             class="form-control"
+            :class="{ 'is-invalid': !isValidNotificationUrl && data.value.notificationUrl.trim() }"
             @focus="showTooltip = true"
           />
+          <div 
+            v-if="!isValidNotificationUrl && data.value.notificationUrl.trim()" 
+            class="invalid-feedback"
+          >
+            Please enter a valid notification service URL (e.g., discord://webhook_id/webhook_token)
+          </div>
           <div 
             v-if="showTooltip" 
             class="tooltip-wrapper"
@@ -185,7 +236,7 @@ const testNotification = async () => {
         <button 
           @click="saveSettings" 
           class="btn btn-primary"
-          :disabled="isSaving || !isValidNotificationUrl"
+          :disabled="isSaving || !canSave"
         >
           {{ isSaving ? 'Saving...' : 'Save Settings' }}
         </button>
@@ -277,3 +328,17 @@ const testNotification = async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
+
+.invalid-feedback {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.875em;
+  color: #dc3545;
+}
+</style>
