@@ -11,7 +11,7 @@ from app.services.notification_service import NotificationService
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
-    prefix="/api/settings",  # Add this prefix
+    prefix="/api/settings",  # Ensure this prefix is set
     tags=["settings"]
 )
 
@@ -83,9 +83,7 @@ async def update_streamer_settings(
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
         with SessionLocal() as db:
-            settings = db.query(NotificationSettings)\
-                .filter(NotificationSettings.streamer_id == streamer_id)\
-                .first()
+            settings = db.query(NotificationSettings).filter_by(streamer_id=streamer_id).first()
             if not settings:
                 settings = NotificationSettings(streamer_id=streamer_id)
                 db.add(settings)
