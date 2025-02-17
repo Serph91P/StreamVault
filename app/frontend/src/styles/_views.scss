@@ -13,68 +13,70 @@
   background: v.$background-dark;
   z-index: 100;
   padding: v.$spacing-md;
-}
 
-.login-form,
-.setup-form {
-  background: v.$background-darker;
-  padding: v.$spacing-lg;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 320px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    max-width: 400px;
+  .login-form,
+  .setup-form {
+    background: v.$background-darker;
     padding: v.$spacing-xl;
-  }
-
-  h2 {
-    margin-bottom: v.$spacing-lg;
-    text-align: center;
-    font-size: 1.5rem;
-  }
-
-  .form-group {
+    border-radius: 8px;
     width: 100%;
-    margin-bottom: v.$spacing-md;
-  }
+    max-width: 320px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 
-  .form-control {
-    width: 100%;
-    padding: v.$spacing-sm;
-    background: v.$background-dark;
-    border: 1px solid v.$border-color;
-    border-radius: 4px;
-    color: v.$text-primary;
-    margin-bottom: v.$spacing-sm;
+    .form-group {
+      margin-bottom: v.$spacing-md;
+      width: 100%;
 
-    &:focus {
-      outline: none;
-      border-color: v.$primary-color;
-    }
-  }
-
-  .btn {
-    width: 100%;
-    padding: v.$spacing-sm v.$spacing-md;
-    border: none;
-    border-radius: 4px;
-    background: v.$primary-color;
-    color: white;
-    cursor: pointer;
-    transition: background 0.2s;
-
-    &:hover {
-      background: color.scale(v.$primary-color, $lightness: -10%);
+      .input-field {
+        width: 100%;
+        box-sizing: border-box;  // Add this
+        margin-bottom: v.$spacing-sm;
+        background: v.$background-dark;
+        border: 2px solid v.$border-color;
+        color: v.$text-primary;
+        padding: v.$spacing-sm v.$spacing-md;
+        border-radius: 6px;
+        font-size: map.get(v.$font-scale, 'base');
+        
+        &:focus {
+          border-color: v.$primary-color;
+          outline: none;
+        }
+      }
     }
 
-    &.success {
-      background: v.$success-color;
+    .submit-button {
+      width: 100%;
+      margin-top: v.$spacing-md;
+      padding: v.$spacing-sm v.$spacing-md;
+      background: v.$primary-color;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover:not(:disabled) {
+        background: color.scale(v.$primary-color, $lightness: -10%);
+      }
+
+      &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+    }
+
+    h2 {
+      margin-bottom: v.$spacing-lg;
+      color: v.$text-primary;
+      text-align: center;
+    }
+
+    .description {
+      color: v.$text-secondary;
+      margin-bottom: v.$spacing-lg;
+      text-align: center;
     }
   }
 }
@@ -218,6 +220,22 @@
     gap: v.$spacing-sm;
     margin-bottom: v.$spacing-md;
   }
+
+  .form-actions {
+    display: flex;
+    gap: v.$spacing-md;
+    margin-top: v.$spacing-lg;
+
+    .btn {
+      flex: 1;
+      max-width: 200px;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
 }
 
 .input-with-tooltip {
@@ -290,6 +308,91 @@
       gap: v.$spacing-md;
     }
   }
+
+  .table-controls {
+    margin-bottom: v.$spacing-md;
+    display: flex;
+    gap: v.$spacing-sm;
+  }
+
+  .streamer-table {
+    width: 100%;
+    overflow-x: auto;
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: v.$background-dark;
+      
+      th, td {
+        padding: v.$spacing-md;
+        text-align: left;
+        border-bottom: 1px solid v.$border-color;
+      }
+      
+      th {
+        background: v.$background-darker;
+        font-weight: 600;
+        position: relative;
+        
+        .th-tooltip {
+          display: none;
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: v.$background-darker;
+          padding: v.$spacing-sm;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          white-space: nowrap;
+          z-index: 1;
+        }
+        
+        &:hover .th-tooltip {
+          display: block;
+        }
+      }
+      
+      .streamer-info {
+        display: flex;
+        align-items: center;
+        gap: v.$spacing-sm;
+
+        .streamer-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          overflow: hidden;
+          flex-shrink: 0;
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        .streamer-name {
+          font-weight: 500;
+        }
+      }
+      
+      td {
+        vertical-align: middle;
+        
+        input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+        }
+        
+        .btn-sm {
+          padding: v.$spacing-xs v.$spacing-sm;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
 }
 
 // Keep view-specific styles including .settings-container
@@ -313,6 +416,7 @@
 
   .settings-form {
     padding: v.$spacing-md;
+    margin-bottom: v.$spacing-xl;
 
     .form-group {
       margin-bottom: v.$spacing-lg;

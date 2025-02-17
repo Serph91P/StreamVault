@@ -1,18 +1,21 @@
 from sqlalchemy.orm import Session
-from app.models import Streamer, Stream, StreamEvent
+from app.models import Streamer, Stream, StreamEvent, NotificationSettings  # Add NotificationSettings
+from app.database import SessionLocal  # Add SessionLocal
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
+from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone  # Add datetime and timezone
 import logging
 import aiohttp
 from app.config.settings import settings
-
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
-    def __init__(self, db: Session, websocket_manager: ConnectionManager):
+    def __init__(self, db: Session, websocket_manager: ConnectionManager, event_registry: EventHandlerRegistry):
         self.db = db
         self.manager = websocket_manager
+        self.event_registry = event_registry
         self.client_id = settings.TWITCH_APP_ID
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
@@ -83,86 +86,94 @@ class StreamerService:
                     logger.error(f"Failed to get streamer info. Status: {response.status}")
                     return None
 
-    async def get_streamers(self) -> List[StreamerResponse]:
+    async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
-        streamer_statuses = []
-
-        for streamer in streamers:
-            latest_stream = self.db.query(Stream)\
-                .filter(Stream.streamer_id == streamer.id)\
-                .order_by(Stream.id.desc())\
-                .first()
-            
-            last_updated = None
-            if latest_stream:
-                last_event = self.db.query(StreamEvent)\
-                    .filter(StreamEvent.stream_id == latest_stream.id)\
-                    .order_by(StreamEvent.timestamp.desc())\
-                    .first()
-                if last_event:
-                    last_updated = last_event.timestamp
-
-            streamer_statuses.append(StreamerResponse(
-                id=streamer.id,
-                twitch_id=streamer.twitch_id,
-                username=streamer.username,
-                display_name=streamer.display_name,
-                is_live=bool(latest_stream and latest_stream.ended_at is None),
-                title=latest_stream.title if latest_stream else None,
-                category_name=latest_stream.category_name if latest_stream else None,
-                language=latest_stream.language if latest_stream else None,
-                last_updated=last_updated
-            ))
-
-        return streamer_statuses
+        return [
+            {
+                "id": streamer.id,
+                "twitch_id": streamer.twitch_id,
+                "username": streamer.username,  # Changed from display_name
+                "is_live": streamer.is_live,
+                "title": streamer.title,
+                "category_name": streamer.category_name,
+                "language": streamer.language,
+                "last_updated": streamer.last_updated,
+                "profile_image_url": streamer.profile_image_url
+            }
+            for streamer in streamers
+        ]
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
 
-    async def add_streamer(self, username: str) -> Dict[str, Any]:
+    async def get_user_data(self, username: str) -> Optional[Dict[str, Any]]:
+        """Fetch user data from Twitch API."""
         try:
-            username = username.strip().lower()
-            logger.debug(f"Adding streamer: {username}")
-            
-            # Get user info from Twitch
             users = await self.get_users_by_login([username])
-            if not users:
-                logger.error(f"No Twitch user found for username: {username}")
-                return {"success": False, "message": f"No Twitch user found for username: {username}"}
+            if users and len(users) > 0:
+                return users[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching user data: {e}")
+            return None
 
-            user_data = users[0]
+    async def add_streamer(self, username: str) -> Optional[Streamer]:
+        """Add a new streamer to the database."""
+        try:
+            logger.debug(f"Adding streamer: {username}")
+            user_data = await self.get_user_data(username)
+            
+            if not user_data:
+                logger.error(f"Could not fetch user data for {username}")
+                return None
+                
             logger.debug(f"User data retrieved: {user_data}")
             
-            # Check for existing
-            existing_streamer = self.db.query(Streamer).filter(
-                Streamer.twitch_id == user_data["id"]
+            # Use the existing db connection from the class
+            existing = self.db.query(Streamer).filter(
+                Streamer.twitch_id == user_data['id']
             ).first()
             
-            if existing_streamer:
-                logger.error(f"Streamer {user_data['display_name']} already exists")
-                return {"success": False, "message": f"Streamer {user_data['display_name']} already exists"}
-
+            if existing:
+                logger.debug(f"Streamer already exists: {username}")
+                return existing
+            
             # Create new streamer
             new_streamer = Streamer(
-                twitch_id=user_data["id"],
-                username=user_data["login"],
-                display_name=user_data["display_name"]
+                twitch_id=user_data['id'],
+                username=user_data['login'],
+                profile_image_url=user_data['profile_image_url'],
+                is_live=False,
+                title=None,
+                category_name=None,
+                language=None,
+                last_updated=datetime.now(timezone.utc)
             )
-        
-            self.db.add(new_streamer)
-            self.db.flush()
-            logger.info(f"Streamer {new_streamer.username} added successfully")
             
-            return {
-                "success": True,
-                "streamer": new_streamer,
-                "twitch_id": user_data["id"]
-            }
-
+            self.db.add(new_streamer)
+            self.db.flush()  # Get the ID before creating notification settings
+            
+            # Create default notification settings
+            notification_settings = NotificationSettings(
+                streamer_id=new_streamer.id,
+                notify_online=True,
+                notify_offline=True,
+                notify_update=True
+            )
+            self.db.add(notification_settings)
+            
+            self.db.commit()
+            self.db.refresh(new_streamer)
+            
+            # Initialize EventSub subscriptions
+            await self.event_registry.subscribe_to_events(user_data['id'])
+            
+            return new_streamer
+                
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error adding streamer: {str(e)}", exc_info=True)
-            return {"success": False, "message": f"Error adding streamer: {str(e)}"}
+            logger.error(f"Error adding streamer: {e}")
+            raise
 
     async def delete_streamer(self, streamer_id: int) -> Optional[Dict[str, Any]]:
         try:
@@ -189,42 +200,5 @@ class StreamerService:
             self.db.rollback()
             logger.error(f"Error deleting streamer: {e}")
             raise
-
     async def subscribe_to_events(self, twitch_id: str):
-        if not self.eventsub:
-            raise ValueError("EventSub not initialized")
-
-        access_token = await self.get_access_token()
-        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-
-        async with aiohttp.ClientSession() as session:
-            for event_type in self.handlers.keys():
-                try:
-                    async with session.post(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "type": event_type,
-                            "version": "1",
-                            "condition": {
-                                "broadcaster_user_id": twitch_id
-                            },
-                            "transport": {
-                                "method": "webhook",
-                                "callback": self.eventsub["callback_url"],
-                                "secret": self.eventsub["secret"]
-                            }
-                        }
-                    ) as response:
-                        if response.status == 202:
-                            logger.info(f"Subscribed to {event_type} for twitch_id: {twitch_id}")
-                        else:
-                            error_data = await response.json()
-                            logger.error(f"Failed to subscribe to {event_type}. Status: {response.status}, Error: {error_data}")
-                except Exception as e:
-                    logger.error(f"Error subscribing to {event_type}: {e}")
-                    raise
+        await self.event_registry.subscribe_to_events(twitch_id)

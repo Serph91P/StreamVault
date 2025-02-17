@@ -47,24 +47,48 @@ nav {
 }
 
 .input-field {
-  flex: 1;
-  background: #18181b;
-  border: 2px solid #3a3a3d;
-  color: #efeff1;
-  padding: 12px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  background: v.$background-dark;
+  border: 2px solid v.$border-color;
+  color: v.$text-primary;
+  padding: v.$spacing-sm v.$spacing-md;
   border-radius: 6px;
   font-size: map.get(v.$font-scale, 'base');
   transition: all 0.2s ease;
-  width: 100%;
 
   &:focus {
     outline: none;
-    border-color: #9147ff;
-    box-shadow: 0 0 0 2px rgba(145, 71, 255, 0.2);
+    border-color: v.$primary-color;
+    box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
   }
 
   &::placeholder {
-    color: #5c5c5e;
+    color: v.$text-secondary;
+  }
+}
+
+.input-with-tooltip {
+  position: relative;
+  width: 100%;
+
+  .tooltip-wrapper {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    margin-top: v.$spacing-sm;
+
+    .tooltip-link {
+      color: v.$primary-color;
+      text-decoration: none;
+      cursor: pointer;
+      
+      &:hover {
+        text-decoration: underline;
+        color: color.scale(v.$primary-color, $lightness: -10%);
+      }
+    }
   }
 }
 

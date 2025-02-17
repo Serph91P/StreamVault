@@ -29,9 +29,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
     event_registry = await get_event_registry()
     
-    # Remove redundant initialization
-    # logger.info("Initializing EventSub...")
-    # await event_registry.initialize_eventsub()
+    # Initialize EventSub subscriptions
+    await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
     
     yield
@@ -40,7 +39,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application shutdown...")
     event_registry = await get_event_registry()
     if event_registry.eventsub:
-        event_registry.eventsub.stop()
+        await event_registry.eventsub.stop()
         logger.info("EventSub stopped")
     logger.info("Application shutdown complete")
 
@@ -53,12 +52,14 @@ app.middleware("http")(logging_middleware)
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    logger.info(f"New WebSocket connection from {websocket.client}")
     await websocket_manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        websocket_manager.disconnect(websocket)
+        logger.info(f"WebSocket disconnected: {websocket.client}")
+        await websocket_manager.disconnect(websocket)
 
 @app.get("/health")
 async def health_check():
@@ -136,7 +137,7 @@ async def eventsub_callback(request: Request):
                 event_type = body_json.get("subscription", {}).get("type")
                 event_data = body_json.get("event")
 
-                logger.debug(f"Event type: {event_type}")
+                logger.debug(f"Processing EventSub notification: {event_type}")
                 logger.debug(f"Event data: {event_data}")
 
                 handler = event_registry.handlers.get(event_type)
@@ -225,3 +226,14 @@ app.add_middleware(AuthMiddleware)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     return FileResponse("app/frontend/dist/index.html")
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(
+        "app/frontend/dist/sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/"
+        }
+    )

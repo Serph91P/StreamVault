@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
 import secrets
+from typing import List
 
 class Settings(BaseSettings):
     TWITCH_APP_ID: str
@@ -14,6 +15,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     EVENTSUB_PORT: int = 8080
     EVENTSUB_SECRET: str = secrets.token_urlsafe(32)
+    APPRISE_URLS: List[str] = []
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

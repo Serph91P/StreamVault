@@ -26,8 +26,18 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        messages.value.push(data)
-        console.log('WebSocket message received:', data)
+        console.log('WebSocket raw message received:', event.data)
+        console.log('WebSocket parsed message:', data)
+        
+        if (data && (
+          data.type === 'stream.online' || 
+          data.type === 'stream.offline' || 
+          data.type === 'channel.update' ||
+          data.type === 'connection.status'
+        )) {
+          console.log('Adding message to messages array:', data)
+          messages.value.push(data)
+        }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e)
       }

@@ -33,6 +33,26 @@
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
+import type { Ref } from 'vue'
+
+interface WebSocketMessage {
+  type: string
+  data: {
+    streamer_id: string
+    title?: string
+    category_name?: string
+    language?: string
+    [key: string]: any
+  }
+}
+
+interface StreamerUpdateData {
+  is_live?: boolean
+  title?: string
+  category_name?: string
+  language?: string
+  last_updated: string
+}
 
 const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
 const { messages, connectionStatus } = useWebSocket()
@@ -66,41 +86,47 @@ const handleDelete = async (streamerId: string) => {
   }
 }
 
-// Improved message handling
 watch(messages, (newMessages) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
-  console.log('Processing message in StreamerList:', message)
+  console.log('StreamerList: New message detected:', message)
 
   switch (message.type) {
-    case 'channel.update':
-      const existingStreamer = streamers.value.find(s => s.twitch_id === message.data.streamer_id)
-      if (existingStreamer) {
-        updateStreamer(message.data.streamer_id, {
-          title: message.data.title,
-          category_name: message.data.category_name,
-          language: message.data.language,
-          last_updated: new Date().toISOString(),
-          is_live: existingStreamer.is_live // Preserve existing live status
-        })
+    case 'channel.update': {
+      console.log('StreamerList: Processing channel update:', message.data)
+      const streamerId = message.data.streamer_id
+      const updateData: StreamerUpdateData = {
+        title: message.data.title || '',
+        category_name: message.data.category_name || '',
+        language: message.data.language || '',
+        last_updated: new Date().toISOString()
       }
+      console.log('StreamerList: Updating streamer with data:', updateData)
+      updateStreamer(streamerId, updateData)
       break
-    case 'stream.online':
-      updateStreamer(message.data.streamer_id, { 
+    }
+    case 'stream.online': {
+      console.log('StreamerList: Processing stream online:', message.data)
+      const updateData: StreamerUpdateData = {
         is_live: true,
         title: message.data.title || '',
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
-      })
+      }
+      updateStreamer(message.data.streamer_id, updateData)
       break
-    case 'stream.offline':
-      updateStreamer(message.data.streamer_id, { 
+    }
+    case 'stream.offline': {
+      console.log('StreamerList: Processing stream offline:', message.data)
+      const updateData: StreamerUpdateData = {
         is_live: false,
         last_updated: new Date().toISOString()
-      })
+      }
+      updateStreamer(message.data.streamer_id, updateData)
       break
+    }
   }
 }, { deep: true })
 
@@ -111,10 +137,14 @@ watch(connectionStatus, (status) => {
   }
 }, { immediate: true })
 
-// Better lifecycle management
+// Better lifecycle management with proper event type
 onMounted(() => {
+  console.log('StreamerList mounted')
   void fetchStreamers()
-  const interval = setInterval(() => void fetchStreamers(), 60000)
-  onUnmounted(() => clearInterval(interval))
+})
+
+// Remove the socket.value references since we're using useWebSocket()
+onUnmounted(() => {
+  // The cleanup is handled by useWebSocket's onUnmounted
 })
 </script>

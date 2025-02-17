@@ -7,6 +7,7 @@ from app.config.settings import settings
 from app.services.websocket_manager import ConnectionManager
 from app.services.auth_service import AuthService
 from app.services.settings_service import SettingsService
+from app.services.notification_service import NotificationService
 
 logger = logging.getLogger('streamvault')
 
@@ -36,10 +37,14 @@ async def get_event_registry():
         logger.debug("Event registry initialization complete")
     return event_registry
 
-def get_streamer_service(db=Depends(get_db)):
+def get_streamer_service(
+    db=Depends(get_db), 
+    event_registry=Depends(get_event_registry)
+):
     return StreamerService(
         db=db,
-        websocket_manager=websocket_manager
+        websocket_manager=websocket_manager,
+        event_registry=event_registry
     )
 
 def get_settings_service():
@@ -48,3 +53,6 @@ def get_settings_service():
         yield SettingsService(db)
     finally:
         db.close()
+
+def get_notification_service():
+    return NotificationService()

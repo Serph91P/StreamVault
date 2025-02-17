@@ -1,11 +1,12 @@
 import logging
 import aiohttp
 import asyncio
-from typing import Dict, Callable, Awaitable, Any
+from typing import Dict, Callable, Awaitable, Any, Optional
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
+from app.services.notification_service import NotificationService
 from app.models import Streamer, Stream, StreamEvent
-from app.config.settings import settings
+from app.config.settings import settings as app_settings
 from datetime import datetime, timezone
 
 logger = logging.getLogger('streamvault')
@@ -18,12 +19,12 @@ class EventHandlerRegistry:
             "channel.update": self.handle_stream_update
         }
         self.manager = connection_manager
-        self.settings = settings
+        self.settings = settings or app_settings
+        self.notification_service = NotificationService()
         self._access_token = None
         self.eventsub = None
 
     async def get_access_token(self) -> str:
-        """Get or refresh Twitch access token"""
         if not self._access_token:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -46,7 +47,7 @@ class EventHandlerRegistry:
             logger.debug("EventSub already initialized, skipping...")
             return
 
-        base_url = self.settings.WEBHOOK_URL if self.settings else settings.WEBHOOK_URL
+        base_url = self.settings.WEBHOOK_URL if self.settings else app_settings.WEBHOOK_URL
         callback_url = f"{base_url}/eventsub"
         logger.debug(f"Initializing EventSub with callback URL: {callback_url}")
 
@@ -119,41 +120,67 @@ class EventHandlerRegistry:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
                 await asyncio.sleep(1)
         return False
-
+    
     async def handle_stream_online(self, data: dict):
         try:
-            logger.info(f"Stream online event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            # Get user info from Twitch API to get profile image
+            user_info = await self.get_user_info(data["broadcaster_user_id"])
+            
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
                 if streamer:
+                    # Update profile image if changed
+                    if user_info and user_info.get("profile_image_url"):
+                        streamer.profile_image_url = user_info["profile_image_url"]
+                    
+                    streamer.is_live = True
+                    streamer.last_updated = datetime.now(timezone.utc)
+                    
+                    # Create new stream entry
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
-                        status="live"
+                        stream_id=data["id"]
                     )
                     db.add(stream)
-                    await db.commit()
-                    
-                    await self.manager.broadcast({
+                    db.commit()
+
+                    # Send WebSocket notification
+                    notification = {
                         "type": "stream.online",
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
+                            "streamer_name": data["broadcaster_user_name"],
                             "started_at": data["started_at"]
                         }
-                    })
+                    }
+                    logger.debug(f"Sending WebSocket notification: {notification}")
+                    await self.manager.send_notification(notification)
+
+                    # Send Apprise notification with Twitch URL
+                    twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=data["broadcaster_user_name"],
+                        event_type="online",
+                        details={
+                            "url": twitch_url,
+                            "started_at": data["started_at"]
+                        }
+                    )
+                    
+                    logger.debug("Notifications sent successfully")
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
     async def handle_stream_offline(self, data: dict):
-        """Handle stream offline events"""
         try:
             logger.info(f"Stream offline event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
@@ -167,94 +194,94 @@ class EventHandlerRegistry:
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                        await db.commit()
+                        db.commit()
                     
-                    await self.manager.broadcast({
+                    # Send WebSocket notification
+                    await self.manager.send_notification({
                         "type": "stream.offline",
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"]
                         }
                     })
+                    
+                    # Send Apprise notification
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=data["broadcaster_user_name"],
+                        event_type="offline",
+                        details={}
+                    )
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
-
     async def handle_stream_update(self, data: dict):
-        """Handle channel update events"""
         try:
             logger.info(f"Stream update event received: {data}")
-            async with SessionLocal() as db:
-                streamer = await db.query(Streamer).filter(
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
                 
                 if streamer:
-                    stream = db.query(Stream)\
-                        .filter(Stream.streamer_id == streamer.id)\
-                        .filter(Stream.ended_at.is_(None))\
-                        .order_by(Stream.started_at.desc())\
-                        .first()
+                    logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
+                    # Update streamer info directly
+                    streamer.title = data.get("title")
+                    streamer.category_name = data.get("category_name")
+                    streamer.language = data.get("language")
+                    streamer.last_updated = datetime.now(timezone.utc)
                     
-                    if stream:
-                        event = StreamEvent(
-                            stream_id=stream.id,
-                            title=data.get("title"),
-                            category_name=data.get("category_name"),
-                            language=data.get("language"),
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        db.add(event)
-                        await db.commit()
-                        
-                        await self.manager.broadcast({
-                            "type": "stream.update",
-                            "data": {
-                                "streamer_id": streamer.id,
-                                "twitch_id": data["broadcaster_user_id"],
-                                "title": data.get("title"),
-                                "category_name": data.get("category_name")
-                            }
-                        })
+                    db.commit()
+                    logger.debug(f"Updated streamer info in database: {streamer.title}")
+                    
+                    # Send WebSocket notification with all needed fields
+                    notification = {
+                        "type": "channel.update",
+                        "data": {
+                            "streamer_id": streamer.id,
+                            "twitch_id": data["broadcaster_user_id"],
+                            "streamer_name": data["broadcaster_user_name"],  # Add this
+                            "title": data.get("title"),
+                            "category_name": data.get("category_name"),
+                            "language": data.get("language")
+                        }
+                    }
+                    
+                    await self.manager.send_notification(notification)
+                    
+                    # Send Apprise notification
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=data["broadcaster_user_name"],
+                        event_type="update",
+                        details={
+                            "title": data.get("title"),
+                            "category_name": data.get("category_name"),
+                            "language": data.get("language")  # Added language field
+                        }
+                    )
+                    
+                    logger.debug("Notifications sent successfully")
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
 
     async def list_subscriptions(self):
+        logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.twitch.tv/helix/eventsub/subscriptions",
-                headers={
-                    "Client-ID": self.settings.TWITCH_APP_ID,
-                    "Authorization": f"Bearer {access_token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    logger.error(f"Failed to list subscriptions: {response.status}")
-                    return {"data": []}
+        logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
 
-    async def delete_all_subscriptions(self):
-        subs = await self.list_subscriptions()
-        results = []
-        
-        for sub in subs.get("data", []):
-            try:
-                result = await self.delete_subscription(sub["id"])
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Failed to delete subscription {sub['id']}: {e}")
-                results.append({
-                    "id": sub["id"],
-                    "status": "failed",
-                    "error": str(e)
-                })
-        
-        return {
-            "success": True,
-            "results": results
-        }
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+            headers = {
+                "Client-ID": self.settings.TWITCH_APP_ID,
+                "Authorization": f"Bearer {access_token}"
+            }
+            logger.debug(f"Requesting Twitch subscriptions {url} with headers={headers}")
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    logger.debug(f"Received subscription data: {data}")
+                    return data
+                else:
+                    logger.error(f"Failed to list subscriptions: HTTP {response.status}")
+                    return {"data": []}
 
     async def delete_subscription(self, subscription_id: str):
         access_token = await self.get_access_token()
@@ -278,3 +305,44 @@ class EventHandlerRegistry:
                         "status": "failed",
                         "error": f"Status code: {response.status}"
                     }
+
+    async def delete_all_subscriptions(self):
+        subs = await self.list_subscriptions()
+        results = []
+        
+        for sub in subs.get("data", []):
+            try:
+                result = await self.delete_subscription(sub["id"])
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Failed to delete subscription {sub['id']}: {e}")
+                results.append({
+                    "id": sub["id"],
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        return {
+            "success": True,
+            "results": results
+        }
+
+    async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get user info from Twitch API including profile image"""
+        try:
+            access_token = await self.get_access_token()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://api.twitch.tv/helix/users?id={user_id}",
+                    headers={
+                        "Client-ID": self.settings.TWITCH_APP_ID,
+                        "Authorization": f"Bearer {access_token}"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data["data"][0] if data.get("data") else None
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching user info: {e}")
+            return None

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
@@ -69,38 +69,94 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   })
 }
 
-const toggleAllStreamers = (enabled: boolean) => {
-  data.value.streamerSettings.forEach(streamer => {
-    toggleAllForStreamer(streamer.streamer_id, enabled)
-  })
+const toggleAllStreamers = async (enabled: boolean) => {
+  for (const streamer of data.value.streamerSettings) {
+    await handleStreamerSettingsUpdate(streamer.streamer_id, {
+      notify_online: enabled,
+      notify_offline: enabled,
+      notify_update: enabled
+    })
+  }
 }
 
 // Add showTooltip ref
 const showTooltip = ref(false)
+// Change the tooltip timer type
+let tooltipTimeout: number | undefined = undefined
+
+const handleTooltipMouseEnter = () => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+    tooltipTimeout = undefined
+  }
+  showTooltip.value = true
+}
+
+const handleTooltipMouseLeave = () => {
+  tooltipTimeout = window.setTimeout(() => {
+    showTooltip.value = false
+  }, 300)
+}
+
+// Clean up timeout on component unmount
+onUnmounted(() => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+  }
+})
+
+const testNotification = async () => {
+  try {
+    const response = await fetch('/api/settings/test-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send test notification');
+    }
+
+    alert('Test notification sent successfully!');
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to send test notification');
+  }
+};
 </script>
 
 <template>
   <div class="settings-container">
     <h2 class="settings-title">Notification Settings</h2>
     
+    <!-- Global Settings -->
     <div class="settings-form">
       <div class="form-group">
         <label>Notification Service URL:</label>
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="e.g., ntfy://topic or telegram://bot_token/chat_id"
+            placeholder="e.g., discord://webhook_id/webhook_token"
             class="form-control"
             @focus="showTooltip = true"
-            @blur="showTooltip = false"
           />
-          <div v-if="showTooltip" class="tooltip-wrapper">
+          <div 
+            v-if="showTooltip" 
+            class="tooltip-wrapper"
+            @mouseenter="handleTooltipMouseEnter"
+            @mouseleave="handleTooltipMouseLeave"
+          >
             <Tooltip>
-              Check the <a 
-                :href="data.appriseDocsUrl" 
+              StreamVault supports 100+ notification services including Discord, Telegram, Ntfy, 
+              Pushover, Slack, and more. Check the 
+              <a 
+                href="https://github.com/caronc/apprise/wiki#notification-services"
                 target="_blank" 
                 rel="noopener noreferrer"
-              >Apprise Documentation</a> for supported services and URL formats
+                @click.stop
+                class="tooltip-link"
+              >Apprise Documentation</a> for supported services and URL formats.
             </Tooltip>
           </div>
         </div>
@@ -108,116 +164,97 @@ const showTooltip = ref(false)
 
       <div class="form-group">
         <label>
-          <input 
-            type="checkbox" 
-            v-model="data.notificationsEnabled"
-          />
+          <input type="checkbox" v-model="data.notificationsEnabled" />
           Enable Notifications
         </label>
       </div>
 
-      <button @click="saveSettings" class="btn btn-primary">
-        Save Settings
-      </button>
-    </div>
-
-    <!-- New Global Notification Settings -->
-    <div class="settings-form">
-      <h3>Global Notification Preferences</h3>
-      <div class="notification-toggles">
-        <label class="toggle">
-          <input 
-            type="checkbox" 
-            v-model="data.notifyOnlineGlobal"
-          />
-          Stream Online (Global)
-        </label>
-
-        <label class="toggle">
-          <input 
-            type="checkbox" 
-            v-model="data.notifyOfflineGlobal"
-          />
-          Stream Offline (Global)
-        </label>
-
-        <label class="toggle">
-          <input 
-            type="checkbox" 
-            v-model="data.notifyUpdateGlobal"
-          />
-          Channel Updates (Global)
-        </label>
+      <div class="form-actions">
+        <button @click="saveSettings" class="btn btn-primary">Save Settings</button>
+        <button 
+          @click="testNotification" 
+          class="btn btn-secondary"
+          :disabled="!data.notificationsEnabled || !data.notificationUrl"
+        >
+          Test Notification
+        </button>
       </div>
-
-      <button @click="saveSettings" class="btn btn-primary">
-        Save Global Settings
-      </button>
     </div>
 
-    <!-- Per-Streamer Settings Section -->
+    <!-- Streamer Notification Table -->
     <div class="streamer-notifications">
-      <div class="streamer-controls">
-        <h3>Per-Streamer Settings</h3>
-        <div class="global-controls">
-          <button @click="toggleAllStreamers(true)" class="btn btn-secondary">
-            Enable All
-          </button>
-          <button @click="toggleAllStreamers(false)" class="btn btn-secondary">
-            Disable All
-          </button>
-        </div>
+      <h3>Streamer Notifications</h3>
+      <div class="table-controls">
+        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
+        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
       </div>
-
-      <!-- Individual Streamer Cards -->
-      <div v-for="streamer in data.streamerSettings" 
-           :key="streamer.streamer_id" 
-           class="streamer-card">
-        <div class="streamer-header">
-          <h4>{{ streamer.username }}</h4>
-          <div class="streamer-controls">
-            <button @click="toggleAllForStreamer(streamer.streamer_id, true)" 
-                    class="btn btn-sm">
-              Enable All
-            </button>
-            <button @click="toggleAllForStreamer(streamer.streamer_id, false)" 
-                    class="btn btn-sm">
-              Disable All
-            </button>
-          </div>
-        </div>
-
-        <div class="notification-toggles">
-          <label class="toggle">
-            <input type="checkbox" 
-                   v-model="streamer.notify_online"
-                   @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })" />
-            Stream Online
-            <span class="override-indicator" v-if="streamer.notify_online !== data.notifyOnlineGlobal">
-              (Overridden)
-            </span>
-          </label>
-
-          <label class="toggle">
-            <input type="checkbox" 
-                   v-model="streamer.notify_offline"
-                   @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })" />
-            Stream Offline
-            <span class="override-indicator" v-if="streamer.notify_offline !== data.notifyOfflineGlobal">
-              (Overridden)
-            </span>
-          </label>
-
-          <label class="toggle">
-            <input type="checkbox" 
-                   v-model="streamer.notify_update"
-                   @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })" />
-            Channel Updates
-            <span class="override-indicator" v-if="streamer.notify_update !== data.notifyUpdateGlobal">
-              (Overridden)
-            </span>
-          </label>
-        </div>
+      
+      <div class="streamer-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Streamer</th>
+              <th>
+                Online
+                <div class="th-tooltip">Notify when stream starts</div>
+              </th>
+              <th>
+                Offline
+                <div class="th-tooltip">Notify when stream ends</div>
+              </th>
+              <th>
+                Updates
+                <div class="th-tooltip">Notify on title/category changes</div>
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="streamer in data.streamerSettings" :key="streamer.streamer_id">
+              <td class="streamer-info">
+                <!-- Only show image if profile_image_url exists -->
+                <div class="streamer-avatar" v-if="streamer.profile_image_url">
+                  <img 
+                    :src="streamer.profile_image_url" 
+                    :alt="streamer.username || ''"
+                  />
+                </div>
+                <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
+              </td>
+              <td>
+                <input 
+                  type="checkbox" 
+                  v-model="streamer.notify_online"
+                  @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
+                />
+              </td>
+              <td>
+                <input 
+                  type="checkbox" 
+                  v-model="streamer.notify_offline"
+                  @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
+                />
+              </td>
+              <td>
+                <input 
+                  type="checkbox" 
+                  v-model="streamer.notify_update"
+                  @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
+                />
+              </td>
+              <td>
+                <button 
+                  @click="toggleAllForStreamer(streamer.streamer_id, true)" 
+                  class="btn btn-sm btn-secondary"
+                >Enable All</button>
+                <button 
+                  @click="toggleAllForStreamer(streamer.streamer_id, false)" 
+                  class="btn btn-sm btn-secondary"
+                >Disable All</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
