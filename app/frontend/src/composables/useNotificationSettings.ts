@@ -17,20 +17,34 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   const fetchSettings = async (): Promise<void> => {
     try {
       const response = await fetch('/api/settings')
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      if (!response.ok) throw new Error('Failed to fetch settings')
       settings.value = await response.json()
     } catch (error) {
-      console.error('Failed to fetch settings:', error)
+      console.error('Error fetching settings:', error)
+      throw error
     }
   }
 
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
-    const response = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newSettings)
-    })
-    settings.value = await response.json()
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to update settings')
+      }
+
+      // Update local settings after successful save
+      await fetchSettings()
+      return settings.value
+    } catch (error) {
+      console.error('Error updating settings:', error)
+      throw error
+    }
   }
 
   const getStreamerSettings = async () => {
