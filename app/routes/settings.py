@@ -11,6 +11,7 @@ from app.services.notification_service import NotificationService
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
+    prefix="/api/settings",  # Add this prefix
     tags=["settings"]
 )
 
@@ -21,7 +22,7 @@ def validate_apprise_url(url: str) -> bool:
     except Exception:
         return False
 
-@router.get("", response_model=GlobalSettingsSchema)
+@router.get("/", response_model=GlobalSettingsSchema)  # Add forward slash
 async def get_settings():
     with SessionLocal() as db:
         settings = db.query(GlobalSettings).first()
