@@ -40,15 +40,27 @@ onMounted(async () => {
   }
 })
 
+const isSaving = ref(false);
+
 const saveSettings = async () => {
-  await updateSettings({
-    notification_url: data.value.notificationUrl,
-    notifications_enabled: data.value.notificationsEnabled,
-    notify_online_global: data.value.notifyOnlineGlobal,
-    notify_offline_global: data.value.notifyOfflineGlobal,
-    notify_update_global: data.value.notifyUpdateGlobal
-  })
-}
+  if (isSaving.value) return;
+  
+  try {
+    isSaving.value = true;
+    await updateSettings({
+      notification_url: data.value.notificationUrl,
+      notifications_enabled: data.value.notificationsEnabled,
+      notify_online_global: data.value.notifyOnlineGlobal,
+      notify_offline_global: data.value.notifyOfflineGlobal,
+      notify_update_global: data.value.notifyUpdateGlobal
+    });
+    alert('Settings saved successfully!');
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to save settings');
+  } finally {
+    isSaving.value = false;
+  }
+};
 
 const handleStreamerSettingsUpdate = async (
   streamerId: number, 
@@ -170,7 +182,13 @@ const testNotification = async () => {
       </div>
 
       <div class="form-actions">
-        <button @click="saveSettings" class="btn btn-primary">Save Settings</button>
+        <button 
+          @click="saveSettings" 
+          class="btn btn-primary"
+          :disabled="isSaving || !isValidNotificationUrl"
+        >
+          {{ isSaving ? 'Saving...' : 'Save Settings' }}
+        </button>
         <button 
           @click="testNotification" 
           class="btn btn-secondary"
