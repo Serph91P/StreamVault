@@ -5,7 +5,7 @@ interface NotificationSettingsComposable {
   settings: Ref<NotificationSettings | null>
   streamerSettings: Ref<StreamerNotificationSettings[]>
   fetchSettings: () => Promise<void>
-  updateSettings: (newSettings: Partial<NotificationSettings>) => Promise<void>
+  updateSettings: (newSettings: Partial<NotificationSettings>) => Promise<NotificationSettings | null>
   getStreamerSettings: () => Promise<StreamerNotificationSettings[]>
   updateStreamerSettings: (streamerId: number, settings: Partial<StreamerNotificationSettings>) => Promise<StreamerNotificationSettings>
 }
@@ -25,14 +25,14 @@ export function useNotificationSettings(): NotificationSettingsComposable {
     }
   }
 
-  const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
+  const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<NotificationSettings | null> => {
     try {
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings)
       })
-
+      
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.detail || 'Failed to update settings')
