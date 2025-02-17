@@ -16,7 +16,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
 
   const fetchSettings = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/settings/')  // Add trailing slash
+      const response = await fetch('/api/settings')  // Remove trailing slash
       if (!response.ok) throw new Error('Failed to fetch settings')
       settings.value = await response.json()
     } catch (error) {
@@ -27,7 +27,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
 
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<NotificationSettings | null> => {
     try {
-      const response = await fetch('/api/settings/', {  // Add trailing slash
+      const response = await fetch('/api/settings', {  // Remove trailing slash
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings)
