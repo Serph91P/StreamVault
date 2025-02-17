@@ -195,11 +195,11 @@ const testNotification = async () => {
             v-model="data.notificationUrl" 
             placeholder="e.g., discord://webhook_id/webhook_token"
             class="form-control"
-            :class="{ 'is-invalid': !isValidNotificationUrl && data.value.notificationUrl.trim() }"
+            :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
           />
           <div 
-            v-if="!isValidNotificationUrl && data.value.notificationUrl.trim()" 
+            v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
             class="invalid-feedback"
           >
             Please enter a valid notification service URL (e.g., discord://webhook_id/webhook_token)
