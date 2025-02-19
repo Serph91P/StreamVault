@@ -75,40 +75,34 @@ class NotificationService:
                     logger.debug("Notifications are disabled globally")
                     return False
 
-                # Create fresh Apprise instance
-                apprise = Apprise()
-                if not apprise.add(settings.notification_url):
-                    logger.error(f"Failed to initialize notification URL: {settings.notification_url}")
-                    return False
-
-                # Format notification
-                title, message = "", ""
+                # Format notification like test notification
                 if event_type == "online":
-                    title = f"🟢 {streamer_name} is now live!"
-                    message = f"Started streaming: {details.get('title', 'No title')}\n"
-                    message += f"Category: {details.get('category_name', 'No category')}"
+                    message = (
+                        f"🟢 {streamer_name} is now live!\n\n"
+                        f"Started streaming: {details.get('title', 'No title')}\n"
+                        f"Category: {details.get('category_name', 'No category')}"
+                    )
                 elif event_type == "offline":
-                    title = f"🔴 {streamer_name} went offline"
-                    message = "Stream ended"
+                    message = f"🔴 {streamer_name} went offline\n\nStream ended"
                 elif event_type == "update":
-                    title = f"📝 {streamer_name} updated stream information"
-                    message = f"New title: {details.get('title', 'No title')}\n"
-                    message += f"Category: {details.get('category_name', 'No category')}"
+                    message = (
+                        f"📝 {streamer_name} updated stream information\n\n"
+                        f"New title: {details.get('title', 'No title')}\n"
+                        f"Category: {details.get('category_name', 'No category')}"
+                    )
 
                 logger.debug(f"Attempting to send notification: {message[:50]}...")
             
-                result = await apprise.async_notify(
-                    title=title,
-                    body=message,
-                    tag=streamer_name
+                result = await self.apprise.async_notify(
+                    title="StreamVault Notification",
+                    body=message
                 )
             
-                logger.debug(f"Notification send result: {result}")
                 return result
 
         except Exception as e:
-            logger.error(f"Error sending notification: {e}", exc_info=True)
-            return False        
+            logger.error(f"Error sending notification: {e}")
+            return False
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
