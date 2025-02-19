@@ -25,6 +25,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
     }
   }
 
+<<<<<<< HEAD
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<NotificationSettings | null> => {
     try {
       const response = await fetch('/api/settings', {  // Ensure no trailing slash
@@ -45,6 +46,21 @@ export function useNotificationSettings(): NotificationSettingsComposable {
       console.error('Error updating settings:', error)
       throw error
     }
+=======
+  const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
+    const response = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update settings')
+    }
+    
+    settings.value = await response.json()
+>>>>>>> c17e1ef (feat(notification): add error handling for response in useNotificationSettings)
   }
 
   const getStreamerSettings = async () => {
