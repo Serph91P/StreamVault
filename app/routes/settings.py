@@ -3,7 +3,7 @@ from app.database import SessionLocal, get_db
 from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
 from apprise import Apprise
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import logging
 from typing import List
 from app.services.notification_service import NotificationService
@@ -43,9 +43,18 @@ async def get_settings():
 async def get_all_streamer_settings():
     try:
         with SessionLocal() as db:
-            settings = db.query(NotificationSettings).join(Streamer).all()
+            settings = db.query(NotificationSettings).join(Streamer).options(
+                joinedload(NotificationSettings.streamer)
+            ).all()
             return [
-                StreamerNotificationSettingsSchema.model_validate(s)
+                StreamerNotificationSettingsSchema(
+                    streamer_id=s.streamer_id,
+                    username=s.streamer.username,  # Include username
+                    profile_image_url=s.streamer.profile_image_url,
+                    notify_online=s.notify_online,
+                    notify_offline=s.notify_offline,
+                    notify_update=s.notify_update
+                )
                 for s in settings
             ]
     except Exception as e:
