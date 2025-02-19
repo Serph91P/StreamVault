@@ -139,3 +139,31 @@ async def test_notification():
     except Exception as e:
         logger.error(f"Error sending test notification: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("", response_model=GlobalSettingsSchema)
+async def update_settings(settings_data: GlobalSettingsSchema):
+    try:
+        with SessionLocal() as db:
+            if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
+                raise HTTPException(status_code=400, detail="Invalid notification URL format")
+            
+            settings = db.query(GlobalSettings).first()
+            if not settings:
+                settings = GlobalSettings()
+                db.add(settings)
+            
+            settings.notification_url = settings_data.notification_url or ""
+            settings.notifications_enabled = settings_data.notifications_enabled
+            settings.notify_online_global = settings_data.notify_online_global
+            settings.notify_offline_global = settings_data.notify_offline_global
+            settings.notify_update_global = settings_data.notify_update_global
+            
+            db.commit()
+            
+            notification_service = NotificationService()
+            notification_service._initialize_apprise()
+            
+            return GlobalSettingsSchema.model_validate(settings)
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
