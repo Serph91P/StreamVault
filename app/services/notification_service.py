@@ -99,7 +99,8 @@ class NotificationService:
                     message = f"New title: {details.get('title', 'No title')}\n"
                     message += f"Category: {details.get('category_name', 'No category')}"
 
-                logger.debug(f"Preparing notification - Title: {title}, Message: {message}")
+                logger.debug(f"Attempting to send notification: {message[:50]}...")
+                logger.debug(f"Using notification URL: {self._notification_url}")
             
                 result = await self.apprise.async_notify(
                     title=title,
@@ -117,7 +118,7 @@ class NotificationService:
                     return False
 
         except Exception as e:
-            logger.error(f"Error sending notification: {str(e)}", exc_info=True)
+            logger.error(f"Error sending notification: {e}", exc_info=True)
             return False
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
