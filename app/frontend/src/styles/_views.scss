@@ -512,4 +512,14 @@
     gap: v.$spacing-sm; // Fixed variable reference
     margin-bottom: v.$spacing-md;
   }
+}.form-control.is-invalid {
+  border-color: #dc3545;
+}
+
+.invalid-feedback {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.875em;
+  color: #dc3545;
 }
