@@ -25,7 +25,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   }
 
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
-    const response = await fetch('/api/settings/update', {  // Updated path
+    const response = await fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSettings)
