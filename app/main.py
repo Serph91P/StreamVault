@@ -178,7 +178,7 @@ async def eventsub_callback(request: Request):
 # API routes first
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
-app.include_router(settings_router.router, prefix="/api/settings")
+app.include_router(settings_router.router)
 
 # Delete all subscriptions
 @app.delete("/delete-all-subscriptions")
