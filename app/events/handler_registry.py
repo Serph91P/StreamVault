@@ -215,12 +215,12 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
     async def handle_stream_update(self, data: dict):
         try:
-            logger.info(f"Stream update event received: {data}")
+            logger.debug(f"Processing stream update event: {data}")
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
-                
+            
                 if streamer:
                     logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
                     # Update streamer info directly
@@ -228,40 +228,41 @@ class EventHandlerRegistry:
                     streamer.category_name = data.get("category_name")
                     streamer.language = data.get("language")
                     streamer.last_updated = datetime.now(timezone.utc)
-                    
+                
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
-                    
+                
                     # Send WebSocket notification with all needed fields
                     notification = {
                         "type": "channel.update",
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": data["broadcaster_user_name"],  # Add this
+                            "streamer_name": data["broadcaster_user_name"],
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
                             "language": data.get("language")
                         }
                     }
-                    
+                
                     await self.manager.send_notification(notification)
-                    
-                    # Send Apprise notification
-                    await self.notification_service.send_stream_notification(
+                
+                    # Before sending notification
+                    logger.debug(f"Preparing to send notification via service")
+                    notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="update",
                         details={
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
-                            "language": data.get("language")  # Added language field
+                            "language": data.get("language")
                         }
                     )
-                    
+                    logger.debug(f"Notification result: {notification_result}")
+                
                     logger.debug("Notifications sent successfully")
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
-
     async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
