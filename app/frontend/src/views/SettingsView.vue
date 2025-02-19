@@ -1,25 +1,8 @@
 <script setup lang="ts">
-// Add defineComponent for better type inference
-import { defineComponent } from 'vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
-
-// Define component props and emits
-defineComponent({
-  name: 'SettingsView',
-  components: { Tooltip }
-})
-
-const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
-
-const KNOWN_SCHEMES = [
-  'discord', 'telegram', 'tgram', 'slack', 'pushover', 'mailto',
-  'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
-  'signal', 'whatsapp', 'rocket', 'pushbullet', 'apprise', 'http',
-  'https', 'twitter', 'slack', 'dbus'
-];
 
 interface ComponentData {
   notificationUrl: string
@@ -31,6 +14,8 @@ interface ComponentData {
   streamerSettings: StreamerNotificationSettings[]
 }
 
+const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
+
 const data = ref<ComponentData>({
   notificationUrl: '',
   notificationsEnabled: true,
@@ -40,6 +25,13 @@ const data = ref<ComponentData>({
   notifyUpdateGlobal: true,
   streamerSettings: []
 })
+
+const KNOWN_SCHEMES = [
+  'discord', 'telegram', 'tgram', 'slack', 'pushover', 'mailto',
+  'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
+  'signal', 'whatsapp', 'rocket', 'pushbullet', 'apprise', 'http',
+  'https', 'twitter', 'slack', 'dbus'
+];
 
 onMounted(async () => {
   await fetchSettings()
