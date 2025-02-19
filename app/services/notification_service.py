@@ -75,18 +75,14 @@ class NotificationService:
                     logger.debug("Notifications are disabled globally")
                     return False
 
-                if settings.notification_url != self._notification_url:
-                    logger.debug(f"URL change detected: old={self._notification_url}, new={settings.notification_url}")
-                    self.apprise = Apprise()
-                    self._notification_url = settings.notification_url
-                    add_result = self.apprise.add(self._notification_url)
-                    logger.debug(f"Apprise URL add result: {add_result}")
-                    if not add_result:
-                        logger.error(f"Failed to initialize new notification URL: {self._notification_url}")
-                        return False
+                # Create fresh Apprise instance
+                apprise = Apprise()
+                if not apprise.add(settings.notification_url):
+                    logger.error(f"Failed to initialize notification URL: {settings.notification_url}")
+                    return False
 
-                title = ""
-                message = ""
+                # Format notification
+                title, message = "", ""
                 if event_type == "online":
                     title = f"🟢 {streamer_name} is now live!"
                     message = f"Started streaming: {details.get('title', 'No title')}\n"
@@ -100,26 +96,19 @@ class NotificationService:
                     message += f"Category: {details.get('category_name', 'No category')}"
 
                 logger.debug(f"Attempting to send notification: {message[:50]}...")
-                logger.debug(f"Using notification URL: {self._notification_url}")
             
-                result = await self.apprise.async_notify(
+                result = await apprise.async_notify(
                     title=title,
                     body=message,
                     tag=streamer_name
                 )
             
                 logger.debug(f"Notification send result: {result}")
-            
-                if result:
-                    logger.info(f"Notification sent successfully for {streamer_name}")
-                    return True
-                else:
-                    logger.error(f"Failed to send notification for {streamer_name}")
-                    return False
+                return result
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
-            return False
+            return False        
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
