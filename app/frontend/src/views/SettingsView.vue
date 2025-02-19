@@ -1,8 +1,16 @@
 <script setup lang="ts">
+// Add defineComponent for better type inference
+import { defineComponent } from 'vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import Tooltip from '@/components/Tooltip.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+
+// Define component props and emits
+defineComponent({
+  name: 'SettingsView',
+  components: { Tooltip }
+})
 
 const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
 
@@ -193,7 +201,7 @@ const testNotification = async () => {
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="e.g., discord://webhook_id/webhook_token"
+            placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
             class="form-control"
             :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
@@ -328,17 +336,3 @@ const testNotification = async () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.form-control.is-invalid {
-  border-color: #dc3545;
-}
-
-.invalid-feedback {
-  display: block;
-  width: 100%;
-  margin-top: 0.25rem;
-  font-size: 0.875em;
-  color: #dc3545;
-}
-</style>
