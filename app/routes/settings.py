@@ -36,7 +36,7 @@ async def get_settings():
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
-@router.post("")  # Changed from "/" to "" since prefix already includes /api/settings
+@router.post("/update")  # New explicit path
 async def update_settings(settings_data: GlobalSettingsSchema):
     try:
         with SessionLocal() as db:
