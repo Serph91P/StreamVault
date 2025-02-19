@@ -11,7 +11,7 @@ from app.services.notification_service import NotificationService
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
-    prefix="/api/settings",  # Ensure this prefix is set
+    prefix="/api/settings",  # This is the correct prefix
     tags=["settings"]
 )
 
@@ -36,7 +36,7 @@ async def get_settings():
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
-@router.post("/", response_model=GlobalSettingsSchema)
+@router.post("")  # Changed from "/" to "" since prefix already includes /api/settings
 async def update_settings(settings_data: GlobalSettingsSchema):
     try:
         with SessionLocal() as db:
