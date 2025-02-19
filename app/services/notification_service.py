@@ -65,44 +65,146 @@ class NotificationService:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
 
+    # async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
+    #     try:
+    #         with SessionLocal() as db:
+    #             settings = db.query(GlobalSettings).first()
+    #             logger.debug(f"Current notification settings: enabled={settings.notifications_enabled}, url={settings.notification_url}")
+            
+    #             if not settings or not settings.notifications_enabled:
+    #                 logger.debug("Notifications are disabled globally")
+    #                 return False
+
+    #             # Format notification like test notification
+    #             if event_type == "online":
+    #                 message = (
+    #                     f"🟢 {streamer_name} is now live!\n\n"
+    #                     f"Started streaming: {details.get('title', 'No title')}\n"
+    #                     f"Category: {details.get('category_name', 'No category')}"
+    #                 )
+    #             elif event_type == "offline":
+    #                 message = f"🔴 {streamer_name} went offline\n\nStream ended"
+    #             elif event_type == "update":
+    #                 message = (
+    #                     f"📝 {streamer_name} updated stream information\n\n"
+    #                     f"New title: {details.get('title', 'No title')}\n"
+    #                     f"Category: {details.get('category_name', 'No category')}"
+    #                 )
+
+    #             logger.debug(f"Attempting to send notification: {message[:50]}...")
+            
+    #             result = await self.apprise.async_notify(
+    #                 title="StreamVault Notification",
+    #                 body=message
+    #             )
+            
+    #             return result
+
+    #     except Exception as e:
+    #         logger.error(f"Error sending notification: {e}")
+    #         return False
+
+    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str) -> str:
+        """Configure service-specific parameters based on the notification service."""
+        
+        if 'ntfy' in base_url:
+            # Ntfy configuration
+            params = [
+                f"click={twitch_url}",
+                f"priority={'high' if event_type == 'online' else 'default'}",
+                f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}"
+            ]
+            if profile_image:
+                params.append(f"image={profile_image}")
+            return f"{base_url}?{'&'.join(params)}"
+        
+        elif 'discord' in base_url:
+            # Discord configuration
+            return (f"{base_url}?"
+                    f"avatar_url={profile_image or ''}&"
+                    f"href={twitch_url}&"
+                    f"format=markdown")
+        
+        elif 'telegram' in base_url or 'tgram' in base_url:
+            # Telegram configuration
+            params = []
+            if profile_image:
+                params.append("image=yes")
+            params.append("format=markdown")
+            return f"{base_url}?{'&'.join(params)}" if params else base_url
+        
+        elif 'matrix' in base_url:
+            # Matrix configuration
+            params = [
+                "msgtype=text",
+                "format=markdown",
+                f"thumbnail={'true' if profile_image else 'false'}"
+            ]
+            return f"{base_url}?{'&'.join(params)}"
+        
+        elif 'slack' in base_url:
+            # Slack configuration
+            return (f"{base_url}?"
+                    f"footer=yes&"
+                    f"image={'yes' if profile_image else 'no'}")
+        
+        elif 'pover' in base_url:
+            # Pushover configuration
+            priority = "high" if event_type == "online" else "normal"
+            return (f"{base_url}?"
+                    f"priority={priority}&"
+                    f"url={twitch_url}&"
+                    f"url_title=Watch Stream")
+        
+        # Default case - return original URL if service not specifically handled
+        return base_url
+
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         try:
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
-                logger.debug(f"Current notification settings: enabled={settings.notifications_enabled}, url={settings.notification_url}")
-            
                 if not settings or not settings.notifications_enabled:
-                    logger.debug("Notifications are disabled globally")
                     return False
 
-                # Format notification like test notification
-                if event_type == "online":
-                    message = (
-                        f"🟢 {streamer_name} is now live!\n\n"
-                        f"Started streaming: {details.get('title', 'No title')}\n"
-                        f"Category: {details.get('category_name', 'No category')}"
-                    )
-                elif event_type == "offline":
-                    message = f"🔴 {streamer_name} went offline\n\nStream ended"
-                elif event_type == "update":
-                    message = (
-                        f"📝 {streamer_name} updated stream information\n\n"
-                        f"New title: {details.get('title', 'No title')}\n"
-                        f"Category: {details.get('category_name', 'No category')}"
-                    )
+                # Get Twitch URL and format notification
+                twitch_url = f"https://twitch.tv/{streamer_name}"
+                profile_image = details.get('profile_image_url')
+                
+                # Configure service-specific URL
+                notification_url = self._get_service_specific_url(
+                    base_url=settings.notification_url,
+                    twitch_url=twitch_url,
+                    profile_image=profile_image,
+                    streamer_name=streamer_name,
+                    event_type=event_type
+                )
 
-                logger.debug(f"Attempting to send notification: {message[:50]}...")
-            
-                result = await self.apprise.async_notify(
-                    title="StreamVault Notification",
+                # Create new Apprise instance
+                apprise = Apprise()
+                if not apprise.add(notification_url):
+                    logger.error(f"Failed to initialize notification URL: {notification_url}")
+                    return False
+
+                # Format message
+                title, message = self._format_notification_message(
+                    streamer_name=streamer_name,
+                    event_type=event_type,
+                    details=details
+                )
+
+                # Send notification
+                result = await apprise.async_notify(
+                    title=title,
                     body=message
                 )
-            
+                
+                logger.debug(f"Notification result: {result}")
                 return result
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}")
             return False
+
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
