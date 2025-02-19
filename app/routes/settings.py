@@ -22,7 +22,7 @@ def validate_apprise_url(url: str) -> bool:
     except Exception:
         return False
 
-@router.get("/", response_model=GlobalSettingsSchema)  # Add forward slash
+@router.get("", response_model=GlobalSettingsSchema)
 async def get_settings():
     with SessionLocal() as db:
         settings = db.query(GlobalSettings).first()
@@ -33,36 +33,12 @@ async def get_settings():
         return GlobalSettingsSchema(
             notification_url=settings.notification_url,
             notifications_enabled=settings.notifications_enabled,
+            notify_online_global=settings.notify_online_global,
+            notify_offline_global=settings.notify_offline_global,
+            notify_update_global=settings.notify_update_global,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
-@router.post("/update")  # New explicit path
-async def update_settings(settings_data: GlobalSettingsSchema):
-    try:
-        with SessionLocal() as db:
-            if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
-                raise HTTPException(status_code=400, detail="Invalid notification URL format")
-            
-            settings = db.query(GlobalSettings).first()
-            if not settings:
-                settings = GlobalSettings()
-                db.add(settings)
-            
-            settings.notification_url = settings_data.notification_url or ""
-            settings.notifications_enabled = settings_data.notifications_enabled
-            settings.notify_online_global = settings_data.notify_online_global
-            settings.notify_offline_global = settings_data.notify_offline_global
-            settings.notify_update_global = settings_data.notify_update_global
-            
-            db.commit()
-            
-            notification_service = NotificationService()
-            notification_service._initialize_apprise()
-            
-            return GlobalSettingsSchema.model_validate(settings)
-    except Exception as e:
-        logger.error(f"Error updating settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 async def get_all_streamer_settings():
     try:
