@@ -40,6 +40,9 @@ async def get_settings():
 async def update_settings(settings_data: GlobalSettingsSchema):
     try:
         with SessionLocal() as db:
+            if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
+                raise HTTPException(status_code=400, detail="Invalid notification URL format")
+            
             settings = db.query(GlobalSettings).first()
             if not settings:
                 settings = GlobalSettings()
@@ -53,7 +56,6 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             
             db.commit()
             
-            from app.services.notification_service import NotificationService
             notification_service = NotificationService()
             notification_service._initialize_apprise()
             
@@ -61,7 +63,6 @@ async def update_settings(settings_data: GlobalSettingsSchema):
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 async def get_all_streamer_settings():
     try:
