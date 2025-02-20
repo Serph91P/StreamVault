@@ -95,14 +95,11 @@ nav {
 // Streamer Grid
 .streamer-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: v.$spacing-md;
   padding: v.$spacing-md;
-  margin: 0 auto;
-  max-width: 100%;
   width: 100%;
-  box-sizing: border-box;
-
+  
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -118,8 +115,28 @@ nav {
   padding: v.$spacing-md;
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-md;
+  min-height: 200px;
+  height: 100%;
   transition: transform 0.2s ease;
+
+  .streamer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: v.$spacing-md;
+  }
+
+  .streamer-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
+
+    p {
+      margin: 0;
+      line-height: 1.4;
+    }
+  }
 
   &:hover {
     transform: translateY(-2px);
