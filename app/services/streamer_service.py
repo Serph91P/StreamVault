@@ -5,6 +5,7 @@ from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
+from pathlib import Path
 from datetime import datetime, timezone  # Add datetime and timezone
 import logging
 import aiohttp
@@ -20,6 +21,9 @@ class StreamerService:
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
         self._access_token = None
+        self.data_dir = Path("/app/data")
+        self.image_cache_dir = self.data_dir / "profile_images"
+        self.image_cache_dir.mkdir(parents=True, exist_ok=True)
 
     async def notify(self, message: Dict[str, Any]):
         try:
