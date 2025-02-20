@@ -184,17 +184,23 @@ class StreamerService:
                     "username": streamer.username
                 }
             
+                # Delete notification settings first
+                self.db.query(NotificationSettings).filter(
+                    NotificationSettings.streamer_id == streamer_id
+                ).delete()
+            
+                # Delete the streamer
                 self.db.delete(streamer)
                 self.db.commit()
-            
+        
                 await self.notify({
                     "type": "success",
                     "message": f"Removed streamer {streamer_data['username']}"
                 })
-            
+        
                 logger.info(f"Deleted streamer: {streamer_data['username']}")
                 return streamer_data
-            
+        
             return None
         except Exception as e:
             self.db.rollback()
