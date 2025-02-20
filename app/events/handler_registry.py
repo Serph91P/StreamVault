@@ -120,58 +120,59 @@ class EventHandlerRegistry:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
                 await asyncio.sleep(1)
         return False
-async def handle_stream_online(self, data: dict):
-    try:
-        user_info = await self.get_user_info(data["broadcaster_user_id"])
-        
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(
-                Streamer.twitch_id == data["broadcaster_user_id"]
-            ).first()
+    async def handle_stream_online(self, data: dict):
+        try:
+            user_info = await self.get_user_info(data["broadcaster_user_id"])
             
-            if streamer:
-                if user_info and user_info.get("profile_image_url"):
-                    streamer.profile_image_url = user_info["profile_image_url"]
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(
+                    Streamer.twitch_id == data["broadcaster_user_id"]
+                ).first()
                 
-                streamer.is_live = True
-                streamer.last_updated = datetime.now(timezone.utc)
-                
-                # Create new stream entry with correct field name
-                stream = Stream(
-                    streamer_id=streamer.id,
-                    started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
-                    twitch_stream_id=data["id"]  # Changed from stream_id to match your model
-                )
-                db.add(stream)
-                db.commit()
+                if streamer:
+                    if user_info and user_info.get("profile_image_url"):
+                        streamer.profile_image_url = user_info["profile_image_url"]
+                    
+                    streamer.is_live = True
+                    streamer.last_updated = datetime.now(timezone.utc)
+                    
+                    # Create new stream entry with correct field name
+                    stream = Stream(
+                        streamer_id=streamer.id,
+                        started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
+                        twitch_stream_id=data["id"]  # Changed from stream_id to match your model
+                    )
+                    db.add(stream)
+                    db.commit()
 
-                # Send WebSocket notification
-                notification = {
-                    "type": "stream.online",
-                    "data": {
-                        "streamer_id": streamer.id,
-                        "twitch_id": data["broadcaster_user_id"],
-                        "streamer_name": data["broadcaster_user_name"],
-                        "started_at": data["started_at"]
+                    # Send WebSocket notification
+                    notification = {
+                        "type": "stream.online",
+                        "data": {
+                            "streamer_id": streamer.id,
+                            "twitch_id": data["broadcaster_user_id"],
+                            "streamer_name": data["broadcaster_user_name"],
+                            "started_at": data["started_at"]
+                        }
                     }
-                }
-                logger.debug(f"Sending WebSocket notification: {notification}")
-                await self.manager.send_notification(notification)
+                    logger.debug(f"Sending WebSocket notification: {notification}")
+                    await self.manager.send_notification(notification)
 
-                # Send Apprise notification with Twitch URL
-                twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
-                await self.notification_service.send_stream_notification(
-                    streamer_name=data["broadcaster_user_name"],
-                    event_type="online",
-                    details={
-                        "url": twitch_url,
-                        "started_at": data["started_at"]
-                    }
-                )
-                
-                logger.debug("Notifications sent successfully")
-    except Exception as e:
-        logger.error(f"Error handling stream online event: {e}", exc_info=True)
+                    # Send Apprise notification with Twitch URL
+                    twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=data["broadcaster_user_name"],
+                        event_type="online",
+                        details={
+                            "url": twitch_url,
+                            "started_at": data["started_at"]
+                        }
+                    )
+                    
+                    logger.debug("Notifications sent successfully")
+        except Exception as e:
+            logger.error(f"Error handling stream online event: {e}", exc_info=True)
+
     async def handle_stream_offline(self, data: dict):
         try:
             logger.info(f"Stream offline event received: {data}")
@@ -209,6 +210,7 @@ async def handle_stream_online(self, data: dict):
                     )
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
+            
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
