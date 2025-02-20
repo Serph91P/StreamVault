@@ -5,6 +5,12 @@
          class="streamer-card">
       <div class="streamer-header">
         <div class="streamer-info">
+          <img 
+            v-if="streamer.profile_image_url" 
+            :src="streamer.profile_image_url" 
+            class="profile-image" 
+            :alt="streamer.username"
+          />
           <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
           <h3>{{ streamer.username }}</h3>
         </div>
