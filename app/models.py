@@ -31,6 +31,8 @@ class Stream(Base):
     language = Column(String, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
+    twitch_stream_id = Column(String, nullable=True)
+    
     @property
     def is_live(self):
         return self.ended_at is None
