@@ -115,7 +115,10 @@ class NotificationService:
                 f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}"
             ]
             if profile_image:
-                params.append(f"image={profile_image}")
+                params.extend([
+                    f"image={profile_image}",
+                    f"avatar_url={profile_image}"
+                ])
             return f"{base_url}?{'&'.join(params)}"
         
         elif 'discord' in base_url:
@@ -123,8 +126,7 @@ class NotificationService:
             return (f"{base_url}?"
                     f"avatar_url={profile_image or ''}&"
                     f"href={twitch_url}&"
-                    f"format=markdown")
-        
+                    f"format=markdown")        
         elif 'telegram' in base_url or 'tgram' in base_url:
             # Telegram configuration
             params = []
