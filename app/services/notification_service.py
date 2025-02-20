@@ -1,6 +1,6 @@
 import logging
 from apprise import Apprise
-from app.models import GlobalSettings, NotificationSettings
+from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.database import SessionLocal
 
 logger = logging.getLogger("streamvault")
@@ -168,11 +168,21 @@ class NotificationService:
                 if not settings or not settings.notifications_enabled:
                     return False
 
-                # Get Twitch URL and format notification
+                # Get streamer ID from name
+                streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                if not streamer:
+                    return False
+
+                # Check if notifications are enabled for this specific event type
+                should_send = await self.should_notify(streamer.id, event_type)
+                if not should_send:
+                    logger.debug(f"Notifications disabled for {streamer_name} - {event_type}")
+                    return False
+
+                # Continue with existing notification logic...
                 twitch_url = f"https://twitch.tv/{streamer_name}"
-                profile_image = details.get('profile_image_url')
-                
-                # Configure service-specific URL
+                profile_image = streamer.profile_image_url or ""
+            
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
                     twitch_url=twitch_url,
@@ -199,7 +209,7 @@ class NotificationService:
                     title=title,
                     body=message
                 )
-                
+            
                 logger.debug(f"Notification result: {result}")
                 return result
 
