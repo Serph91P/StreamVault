@@ -3,7 +3,7 @@ services:
     image: frequency2098/streamvault
     container_name: streamvault
     volumes:
-      - .:/app
+      - app_data:/app/data
     ports:
       - "7000:7000"
     environment:
@@ -13,6 +13,7 @@ services:
       - EVENTSUB_SECRET=${EVENTSUB_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - LOG_LEVEL=DEBUG
+
     restart: unless-stopped
     depends_on:
       db:
@@ -36,3 +37,4 @@ services:
 
 volumes:
   db_data:
+  app_data:
