@@ -264,3 +264,26 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Error sending test notification: {e}")
             return False
+
+    def _format_notification_message(self, streamer_name: str, event_type: str, details: dict) -> tuple[str, str]:
+        """Format notification message and title based on event type"""
+        title = "StreamVault Notification"
+        
+        if event_type == "online":
+            message = (
+                f"🟢 {streamer_name} is now live!\n\n"
+                f"Started streaming: {details.get('title', 'No title')}\n"
+                f"Category: {details.get('category_name', 'No category')}"
+            )
+        elif event_type == "offline":
+            message = f"🔴 {streamer_name} went offline\n\nStream ended"
+        elif event_type == "update":
+            message = (
+                f"📝 {streamer_name} updated stream information\n\n"
+                f"New title: {details.get('title', 'No title')}\n"
+                f"Category: {details.get('category_name', 'No category')}"
+            )
+        else:
+            message = f"Event notification for {streamer_name}"
+        
+        return title, message
