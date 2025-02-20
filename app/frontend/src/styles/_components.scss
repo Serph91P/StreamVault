@@ -527,3 +527,16 @@ nav {
     border-color: v.$primary-color;
   }
 }
+
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-sm;
+
+  .profile-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+}
