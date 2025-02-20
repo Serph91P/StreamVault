@@ -133,46 +133,67 @@ class EventHandlerRegistry:
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
                     
-                    streamer.is_live = True
-                    streamer.last_updated = datetime.now(timezone.utc)
-                    
-                    # Create new stream entry with correct field name
+                    # Create new stream with last known information
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
-                        twitch_stream_id=data["id"]  # Changed from stream_id to match your model
+                        twitch_stream_id=data["id"],
+                        title=streamer.title,
+                        category_name=streamer.category_name,
+                        language=streamer.language
                     )
                     db.add(stream)
+                    
+                    # Create initial stream event
+                    initial_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        title=streamer.title,
+                        category_name=streamer.category_name,
+                        language=streamer.language,
+                        timestamp=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00'))
+                    )
+                    db.add(initial_event)
+                    
+                    streamer.is_live = True
+                    streamer.last_updated = datetime.now(timezone.utc)
                     db.commit()
 
-                    # Send WebSocket notification
+                    # WebSocket notification
                     notification = {
                         "type": "stream.online",
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
                             "streamer_name": data["broadcaster_user_name"],
-                            "started_at": data["started_at"]
+                            "started_at": data["started_at"],
+                            "title": streamer.title,
+                            "category_name": streamer.category_name,
+                            "language": streamer.language
                         }
                     }
-                    logger.debug(f"Sending WebSocket notification: {notification}")
                     await self.manager.send_notification(notification)
 
-                    # Send Apprise notification with Twitch URL
+                    # Apprise notification with streamer profile image
                     twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
                     await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="online",
                         details={
                             "url": twitch_url,
-                            "started_at": data["started_at"]
+                            "started_at": data["started_at"],
+                            "title": streamer.title,
+                            "category_name": streamer.category_name,
+                            "language": streamer.language,
+                            "profile_image_url": streamer.profile_image_url
                         }
                     )
                     
                     logger.debug("Notifications sent successfully")
+            
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
-
+            
     async def handle_stream_offline(self, data: dict):
         try:
             logger.info(f"Stream offline event received: {data}")
