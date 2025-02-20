@@ -106,7 +106,7 @@ class NotificationService:
 
     def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str) -> str:
         """Configure service-specific parameters based on the notification service."""
-        
+    
         if 'ntfy' in base_url:
             # Ntfy configuration
             params = [
@@ -114,13 +114,9 @@ class NotificationService:
                 f"priority={'high' if event_type == 'online' else 'default'}",
                 f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}"
             ]
-            if profile_image:
-                params.extend([
-                    f"image={profile_image}",
-                    f"avatar_url={profile_image}"
-                ])
-            return f"{base_url}?{'&'.join(params)}"
-        
+            if profile_image and profile_image.startswith('http'):
+                params.append(f"attach={profile_image}")
+            return f"{base_url}?{'&'.join(params)}"        
         elif 'discord' in base_url:
             # Discord configuration
             return (f"{base_url}?"
