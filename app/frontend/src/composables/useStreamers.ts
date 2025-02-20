@@ -10,8 +10,8 @@ export interface Streamer {
   category_name?: string
   language?: string
   last_updated?: string
+  profile_image_url?: string
 }
-
 export interface StreamerUpdateData {
   is_live?: boolean
   title?: string
