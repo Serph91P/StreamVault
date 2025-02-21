@@ -124,8 +124,10 @@ class StreamerService:
 
     async def download_profile_image(self, url: str, streamer_id: str) -> str:
         """Download and cache profile image"""
-        cache_path = self.image_cache_dir / f"{streamer_id}.jpg"
-        
+        file_name = f"{streamer_id}.jpg"
+        cache_path = self.image_cache_dir / file_name
+        web_path = f"/data/profile_images/{file_name}"
+    
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -134,12 +136,12 @@ class StreamerService:
                         with open(cache_path, 'wb') as f:
                             f.write(content)
                         logger.debug(f"Cached profile image for streamer {streamer_id}")
-                        return str(cache_path)
+                        return web_path
         except Exception as e:
             logger.error(f"Failed to cache profile image: {e}")
             return url
 
-        return str(cache_path) if cache_path.exists() else url
+        return web_path if cache_path.exists() else url
 
     async def add_streamer(self, username: str) -> Optional[Streamer]:
         try:
