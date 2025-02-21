@@ -20,7 +20,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
   db:
     image: postgres:13-alpine
     container_name: streamvault_db

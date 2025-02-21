@@ -16,12 +16,11 @@ services:
       - BASE_URL=${BASE_URL}
       - EVENTSUB_SECRET=${EVENTSUB_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - LOG_LEVEL=DEBUG    
+      - LOG_LEVEL=DEBUG
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-
   db:
     image: postgres:13-alpine
     container_name: streamvault_db_dev

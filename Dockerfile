@@ -1,8 +1,10 @@
 FROM python:3.13-slim
 
-# Create non-root user
+# Create non-root user and set up directories
 RUN groupadd -g 1000 appuser && \
-    useradd -u 1000 -g appuser -s /bin/bash -m appuser
+    useradd -u 1000 -g appuser -s /bin/bash -m appuser && \
+    mkdir -p /app/data/profile_images && \
+    chown -R appuser:appuser /app
 
 WORKDIR /app
 
@@ -36,7 +38,7 @@ RUN npm run build
 WORKDIR /app
 COPY . .
 
-# Set proper permissions
+# Set proper permissions again after all copies
 RUN chown -R appuser:appuser /app
 
 USER appuser
