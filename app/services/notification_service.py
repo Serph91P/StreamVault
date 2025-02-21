@@ -82,7 +82,7 @@ class NotificationService:
                 f"click={twitch_url}",
                 f"priority={'high' if event_type == 'online' else 'default'}",
                 f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}",
-                f"icon={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}"
+                f"avatar_url={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}"
             ]
             return f"{base_url}?{'&'.join(params)}"
     
