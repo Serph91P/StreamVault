@@ -174,18 +174,18 @@ class EventHandlerRegistry:
                     }
                     await self.manager.send_notification(notification)
 
-                    # Apprise notification with streamer profile image
-                    twitch_url = f"https://twitch.tv/{data['broadcaster_user_login']}"
+                    # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="online",
                         details={
-                            "url": twitch_url,
+                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "started_at": data["started_at"],
                             "title": streamer.title,
                             "category_name": streamer.category_name,
                             "language": streamer.language,
-                            "profile_image_url": streamer.profile_image_url
+                            "profile_image_url": streamer.profile_image_url,
+                            "twitch_login": data["broadcaster_user_login"]
                         }
                     )
                     
@@ -212,10 +212,7 @@ class EventHandlerRegistry:
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                
-                    streamer.is_live = False
-                    streamer.last_updated = datetime.now(timezone.utc)
-                    db.commit()
+                        db.commit()
                 
                     # Send WebSocket notification
                     await self.manager.send_notification({
@@ -226,11 +223,15 @@ class EventHandlerRegistry:
                         }
                     })
                     
-                    # Send Apprise notification
+                    # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="offline",
-                        details={}
+                        details={
+                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                            "profile_image_url": streamer.profile_image_url,
+                            "twitch_login": data["broadcaster_user_login"]
+                        }
                     )
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)            
@@ -253,7 +254,7 @@ class EventHandlerRegistry:
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
                 
-                    # Send WebSocket notification with all needed fields
+                    # Send WebSocket notification
                     notification = {
                         "type": "channel.update",
                         "data": {
@@ -268,15 +269,17 @@ class EventHandlerRegistry:
                 
                     await self.manager.send_notification(notification)
                 
-                    # Before sending notification
-                    logger.debug(f"Preparing to send notification via service")
+                    # Enhanced Apprise notification
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=data["broadcaster_user_name"],
                         event_type="update",
                         details={
+                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
-                            "language": data.get("language")
+                            "language": data.get("language"),
+                            "profile_image_url": streamer.profile_image_url,
+                            "twitch_login": data["broadcaster_user_login"]
                         }
                     )
                     logger.debug(f"Notification result: {notification_result}")
