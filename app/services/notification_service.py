@@ -68,20 +68,29 @@ class NotificationService:
     def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str) -> str:
         """Configure service-specific parameters based on the notification service."""
     
+        # Get appropriate title based on event type
+        title_map = {
+            "online": f"{streamer_name} is live!",
+            "offline": f"{streamer_name} went offline",
+            "update": f"{streamer_name} updated stream info",
+            "test": "StreamVault Test Notification"
+        }
+    
         if 'ntfy' in base_url:
             # Ntfy configuration
             params = [
                 f"click={twitch_url}",
                 f"priority={'high' if event_type == 'online' else 'default'}",
-                f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}"
+                f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}",
+                f"icon={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}"
             ]
-            if profile_image and profile_image.startswith('http'):
-                params.append(f"attach={profile_image}")
-            return f"{base_url}?{'&'.join(params)}"        
+            return f"{base_url}?{'&'.join(params)}"
+    
         elif 'discord' in base_url:
             # Discord configuration
             return (f"{base_url}?"
-                    f"avatar_url={profile_image or ''}&"
+                    f"avatar_url={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}&"
+                    f"title={title_map.get(event_type, 'StreamVault Notification')}&"
                     f"href={twitch_url}&"
                     f"format=markdown")        
         elif 'telegram' in base_url or 'tgram' in base_url:
