@@ -215,6 +215,7 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
 
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
+app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
