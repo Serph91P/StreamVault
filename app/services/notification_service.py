@@ -134,7 +134,6 @@ class NotificationService:
                 if not settings or not settings.notifications_enabled:
                     return False
 
-                # Get streamer ID from name
                 streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                 if not streamer:
                     return False
@@ -145,14 +144,12 @@ class NotificationService:
                     logger.debug(f"Notifications disabled for {streamer_name} - {event_type}")
                     return False
 
-                # Continue with existing notification logic...
+                # Get service-specific URL configuration
                 twitch_url = f"https://twitch.tv/{streamer_name}"
-                profile_image = streamer.profile_image_url or ""
-            
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
                     twitch_url=twitch_url,
-                    profile_image=profile_image,
+                    profile_image=streamer.profile_image_url or "",
                     streamer_name=streamer_name,
                     event_type=event_type
                 )
@@ -163,7 +160,7 @@ class NotificationService:
                     logger.error(f"Failed to initialize notification URL: {notification_url}")
                     return False
 
-                # Format message
+                # Format message using existing method
                 title, message = self._format_notification_message(
                     streamer_name=streamer_name,
                     event_type=event_type,
