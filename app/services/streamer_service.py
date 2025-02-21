@@ -1,15 +1,16 @@
 from sqlalchemy.orm import Session
-from app.models import Streamer, Stream, StreamEvent, NotificationSettings  # Add NotificationSettings
-from app.database import SessionLocal  # Add SessionLocal
+from app.models import Streamer, Stream, StreamEvent, NotificationSettings
+from app.database import SessionLocal
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-from datetime import datetime, timezone  # Add datetime and timezone
+from datetime import datetime, timezone
 import logging
 import aiohttp
 from app.config.settings import settings
+
 logger = logging.getLogger("streamvault")
 
 class StreamerService:
@@ -96,7 +97,7 @@ class StreamerService:
             {
                 "id": streamer.id,
                 "twitch_id": streamer.twitch_id,
-                "username": streamer.username,  # Changed from display_name
+                "username": streamer.username,
                 "is_live": streamer.is_live,
                 "title": streamer.title,
                 "category_name": streamer.category_name,
@@ -121,8 +122,26 @@ class StreamerService:
             logger.error(f"Error fetching user data: {e}")
             return None
 
+    async def download_profile_image(self, url: str, streamer_id: str) -> str:
+        """Download and cache profile image"""
+        cache_path = self.image_cache_dir / f"{streamer_id}.jpg"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        content = await response.read()
+                        with open(cache_path, 'wb') as f:
+                            f.write(content)
+                        logger.debug(f"Cached profile image for streamer {streamer_id}")
+                        return str(cache_path)
+        except Exception as e:
+            logger.error(f"Failed to cache profile image: {e}")
+            return url
+
+        return str(cache_path) if cache_path.exists() else url
+
     async def add_streamer(self, username: str) -> Optional[Streamer]:
-        """Add a new streamer to the database."""
         try:
             logger.debug(f"Adding streamer: {username}")
             user_data = await self.get_user_data(username)
@@ -133,7 +152,6 @@ class StreamerService:
                 
             logger.debug(f"User data retrieved: {user_data}")
             
-            # Use the existing db connection from the class
             existing = self.db.query(Streamer).filter(
                 Streamer.twitch_id == user_data['id']
             ).first()
@@ -142,11 +160,17 @@ class StreamerService:
                 logger.debug(f"Streamer already exists: {username}")
                 return existing
             
-            # Create new streamer
+            # Cache profile image
+            cached_image_path = await self.download_profile_image(
+                user_data['profile_image_url'],
+                user_data['id']
+            )
+            
+            # Create new streamer with cached image path
             new_streamer = Streamer(
                 twitch_id=user_data['id'],
                 username=user_data['login'],
-                profile_image_url=user_data['profile_image_url'],
+                profile_image_url=cached_image_path,
                 is_live=False,
                 title=None,
                 category_name=None,
@@ -155,9 +179,8 @@ class StreamerService:
             )
             
             self.db.add(new_streamer)
-            self.db.flush()  # Get the ID before creating notification settings
+            self.db.flush()
             
-            # Create default notification settings
             notification_settings = NotificationSettings(
                 streamer_id=new_streamer.id,
                 notify_online=True,
@@ -169,7 +192,6 @@ class StreamerService:
             self.db.commit()
             self.db.refresh(new_streamer)
             
-            # Initialize EventSub subscriptions
             await self.event_registry.subscribe_to_events(user_data['id'])
             
             return new_streamer
@@ -212,22 +234,3 @@ class StreamerService:
             raise
     async def subscribe_to_events(self, twitch_id: str):
         await self.event_registry.subscribe_to_events(twitch_id)
-
-    async def download_profile_image(self, url: str, streamer_id: str) -> str:
-        """Download and cache profile image"""
-        cache_path = self.image_cache_dir / f"{streamer_id}.jpg"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        content = await response.read()
-                        with open(cache_path, 'wb') as f:
-                            f.write(content)
-                        logger.debug(f"Cached profile image for streamer {streamer_id}")
-                        return str(cache_path)
-        except Exception as e:
-            logger.error(f"Failed to cache profile image: {e}")
-            return url
-
-        return str(cache_path) if cache_path.exists() else url
