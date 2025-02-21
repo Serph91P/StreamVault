@@ -1,4 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
+
+# Create non-root user
+RUN groupadd -g 1000 appuser && \
+    useradd -u 1000 -g appuser -s /bin/bash -m appuser
 
 WORKDIR /app
 
@@ -31,6 +35,11 @@ RUN npm run build
 # Back to main directory and copy rest of app
 WORKDIR /app
 COPY . .
+
+# Set proper permissions
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 7000
 

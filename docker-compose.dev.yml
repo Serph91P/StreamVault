@@ -2,18 +2,21 @@ services:
   app:
     image: frequency2098/streamvault:develop
     container_name: streamvault_dev
+    user: "1000:1000"
     volumes:
       - .:/app
       - app_data:/app/data
     ports:
       - "7000:7000"
     environment:
+      - PUID=1000
+      - PGID=1000
       - TWITCH_APP_ID=${TWITCH_APP_ID}
       - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
       - BASE_URL=${BASE_URL}
       - EVENTSUB_SECRET=${EVENTSUB_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - LOG_LEVEL=DEBUG
+      - LOG_LEVEL=DEBUG    
     restart: unless-stopped
     depends_on:
       db:
