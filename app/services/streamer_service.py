@@ -212,3 +212,22 @@ class StreamerService:
             raise
     async def subscribe_to_events(self, twitch_id: str):
         await self.event_registry.subscribe_to_events(twitch_id)
+
+    async def download_profile_image(self, url: str, streamer_id: str) -> str:
+        """Download and cache profile image"""
+        cache_path = self.image_cache_dir / f"{streamer_id}.jpg"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        content = await response.read()
+                        with open(cache_path, 'wb') as f:
+                            f.write(content)
+                        logger.debug(f"Cached profile image for streamer {streamer_id}")
+                        return str(cache_path)
+        except Exception as e:
+            logger.error(f"Failed to cache profile image: {e}")
+            return url
+
+        return str(cache_path) if cache_path.exists() else url
