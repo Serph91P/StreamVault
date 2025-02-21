@@ -110,6 +110,11 @@ const handleStreamerSettingsUpdate = async (
   streamerId: number, 
   streamerSettings: Partial<StreamerNotificationSettings>
 ) => {
+  if (!streamerId || typeof streamerId !== 'number') {
+    console.error('Invalid streamer ID:', streamerId);
+    return;
+  }
+
   const updatedSettings = await updateStreamerSettings(streamerId, streamerSettings)
   const index = data.value.streamerSettings.findIndex(s => s.streamer_id === streamerId)
   if (index !== -1) {
@@ -118,6 +123,8 @@ const handleStreamerSettingsUpdate = async (
 }
 
 const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
+  if (!streamerId) return; // Add validation
+  
   handleStreamerSettingsUpdate(streamerId, {
     notify_online: enabled,
     notify_offline: enabled,
@@ -127,6 +134,8 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
 
 const toggleAllStreamers = async (enabled: boolean) => {
   for (const streamer of data.value.streamerSettings) {
+    if (!streamer.streamer_id) continue; // Skip invalid entries
+    
     await handleStreamerSettingsUpdate(streamer.streamer_id, {
       notify_online: enabled,
       notify_offline: enabled,
@@ -134,7 +143,6 @@ const toggleAllStreamers = async (enabled: boolean) => {
     })
   }
 }
-
 // Add showTooltip ref
 const showTooltip = ref(false)
 // Change the tooltip timer type
