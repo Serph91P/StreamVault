@@ -1,5 +1,5 @@
 import logging
-from apprise import Apprise
+from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.database import SessionLocal
 
@@ -60,6 +60,8 @@ class NotificationService:
             )
             if result:
                 logger.info("Notification sent successfully")
+            else:
+                logger.error("Failed to send notification - Apprise returned False")
             return result
         except Exception as e:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
@@ -68,6 +70,9 @@ class NotificationService:
     def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str) -> str:
         """Configure service-specific parameters based on the notification service."""
     
+        # Debug-Ausgabe hinzufügen
+        logger.debug(f"Configuring service-specific URL for {base_url}")
+        
         # Get appropriate title based on event type
         title_map = {
             "online": f"{streamer_name} is live!",
@@ -84,22 +89,29 @@ class NotificationService:
                 f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}",
                 f"avatar_url={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}"
             ]
-            return f"{base_url}?{'&'.join(params)}"
+            final_url = f"{base_url}?{'&'.join(params)}"
+            logger.debug(f"Generated ntfy URL: {final_url}")
+            return final_url
     
         elif 'discord' in base_url:
             # Discord configuration
-            return (f"{base_url}?"
+            final_url = (f"{base_url}?"
                     f"avatar_url={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}&"
                     f"title={title_map.get(event_type, 'StreamVault Notification')}&"
                     f"href={twitch_url}&"
-                    f"format=markdown")        
+                    f"format=markdown")
+            logger.debug(f"Generated discord URL: {final_url}")
+            return final_url
+                
         elif 'telegram' in base_url or 'tgram' in base_url:
             # Telegram configuration
             params = []
             if profile_image:
                 params.append("image=yes")
             params.append("format=markdown")
-            return f"{base_url}?{'&'.join(params)}" if params else base_url
+            final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
+            logger.debug(f"Generated telegram URL: {final_url}")
+            return final_url
         
         elif 'matrix' in base_url:
             # Matrix configuration
@@ -108,38 +120,51 @@ class NotificationService:
                 "format=markdown",
                 f"thumbnail={'true' if profile_image else 'false'}"
             ]
-            return f"{base_url}?{'&'.join(params)}"
+            final_url = f"{base_url}?{'&'.join(params)}"
+            logger.debug(f"Generated matrix URL: {final_url}")
+            return final_url
         
         elif 'slack' in base_url:
             # Slack configuration
-            return (f"{base_url}?"
+            final_url = (f"{base_url}?"
                     f"footer=yes&"
                     f"image={'yes' if profile_image else 'no'}")
+            logger.debug(f"Generated slack URL: {final_url}")
+            return final_url
         
         elif 'pover' in base_url:
             # Pushover configuration
             priority = "high" if event_type == "online" else "normal"
-            return (f"{base_url}?"
+            final_url = (f"{base_url}?"
                     f"priority={priority}&"
                     f"url={twitch_url}&"
                     f"url_title=Watch Stream")
+            logger.debug(f"Generated pushover URL: {final_url}")
+            return final_url
         
         # Default case - return original URL if service not specifically handled
+        logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
         return base_url
 
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         try:
+            logger.debug(f"Starting send_stream_notification for {streamer_name}, event type: {event_type}")
+            
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings or not settings.notifications_enabled:
+                    logger.debug("Global notifications disabled")
                     return False
 
                 streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                 if not streamer:
+                    logger.debug(f"Streamer {streamer_name} not found in database")
                     return False
 
                 # Check if notifications are enabled for this specific event type
                 should_send = await self.should_notify(streamer.id, event_type)
+                logger.debug(f"Should notify for {streamer_name} - {event_type}: {should_send}")
+                
                 if not should_send:
                     logger.debug(f"Notifications disabled for {streamer_name} - {event_type}")
                     return False
@@ -168,27 +193,29 @@ class NotificationService:
                 )
 
                 # Send notification
+                logger.debug(f"Sending notification with title: {title}, message: {message[:50]}...")
                 result = await apprise.async_notify(
                     title=title,
-                    body=message
+                    body=message,
+                    body_format=NotifyFormat.TEXT
                 )
             
+                if not result:
+                    logger.error("Apprise notification failed to send")
+                
                 logger.debug(f"Notification result: {result}")
                 return result
 
         except Exception as e:
-            logger.error(f"Error sending notification: {e}")
+            logger.error(f"Error sending notification: {e}", exc_info=True)
             return False
 
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
             if not global_settings or not global_settings.notifications_enabled:
+                logger.debug("Global notifications disabled")
                 return False
-
-            streamer_settings = db.query(NotificationSettings)\
-                .filter(NotificationSettings.streamer_id == streamer_id)\
-                .first()
 
             # Map event types to settings fields
             setting_map = {
@@ -199,12 +226,33 @@ class NotificationService:
 
             streamer_field, global_field = setting_map.get(event_type, (None, None))
             if not streamer_field or not global_field:
+                logger.debug(f"Unknown event type: {event_type}")
+                return False
+                
+            # Wichtig: Debug-Ausgabe der globalen Einstellung
+            global_enabled = getattr(global_settings, global_field)
+            logger.debug(f"Global setting for {event_type}: {global_enabled}")
+            
+            if not global_enabled:
+                logger.debug(f"Global notifications for {event_type} are disabled")
                 return False
 
-            # If streamer has specific settings, use those, otherwise use global
-            if streamer_settings:
-                return getattr(streamer_settings, streamer_field)
-            return getattr(global_settings, global_field)
+            # Streamer-spezifische Einstellungen prüfen
+            streamer_settings = db.query(NotificationSettings)\
+                .filter(NotificationSettings.streamer_id == streamer_id)\
+                .first()
+
+            # Wenn keine streamer-spezifischen Einstellungen existieren, verwende global
+            if not streamer_settings:
+                logger.debug(f"No specific settings for streamer {streamer_id}, using global: {global_enabled}")
+                return global_enabled
+                
+            # Streamer-spezifische Einstellung holen
+            streamer_enabled = getattr(streamer_settings, streamer_field)
+            logger.debug(f"Streamer-specific setting for {event_type}: {streamer_enabled}")
+            
+            # Für diesen Streamer aktiviert?
+            return streamer_enabled
 
     async def send_test_notification(self) -> bool:
         """Send a test notification using current settings"""
