@@ -58,12 +58,12 @@ const streamerName = computed(() => route.query.name as string)
 
 const { streams, isLoading, fetchStreams } = useStreams()
 
-const formatDate = (date: string | undefined): string => {
+const formatDate = (date: string | undefined | null): string => {
   if (!date) return 'Unknown'
   return new Date(date).toLocaleString()
 }
 
-const calculateDuration = (start: string | undefined, end: string | undefined): string => {
+const calculateDuration = (start: string | undefined | null, end: string | undefined | null): string => {
   if (!start) return 'Unknown'
   
   const startTime = new Date(start).getTime()
