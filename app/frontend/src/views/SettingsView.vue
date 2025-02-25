@@ -31,7 +31,7 @@ const KNOWN_SCHEMES = [
   'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
   'signal', 'whatsapp', 'rocket', 'pushbullet', 'apprise', 'http',
   'https', 'twitter', 'slack', 'dbus'
-];
+]
 
 onMounted(async () => {
   await fetchSettings()
@@ -47,72 +47,72 @@ onMounted(async () => {
   }
 })
 
-const isSaving = ref(false);
+const isSaving = ref(false)
 
 const isValidNotificationUrl = computed(() => {
-  const url = data.value.notificationUrl.trim();
+  const url = data.value.notificationUrl.trim()
   
   // Empty URL is considered valid (though not for saving)
-  if (!url) return true;
+  if (!url) return true
   
   // Handle multiple URLs separated by comma
   if (url.includes(',')) {
     return url.split(',')
       .every(part => {
-        const trimmedPart = part.trim();
-        return trimmedPart === '' || validateSingleUrl(trimmedPart);
-      });
+        const trimmedPart = part.trim()
+        return trimmedPart === '' || validateSingleUrl(trimmedPart)
+      })
   }
   
-  return validateSingleUrl(url);
-});
+  return validateSingleUrl(url)
+})
 
 const validateSingleUrl = (url: string): boolean => {
   // Basic URL structure check
-  if (!url.includes('://')) return false;
+  if (!url.includes('://')) return false
   
   // Extract scheme
-  const scheme = url.split('://')[0].toLowerCase();
+  const scheme = url.split('://')[0].toLowerCase()
   
   // Check against known schemes
-  if (KNOWN_SCHEMES.includes(scheme)) return true;
+  if (KNOWN_SCHEMES.includes(scheme)) return true
   
   // Allow custom schemes that follow the pattern: xxx://
-  return /^[a-zA-Z]+:\/\/.+/.test(url);
-};
+  return /^[a-zA-Z]+:\/\/.+/.test(url)
+}
 
 const canSave = computed(() => {
   return isValidNotificationUrl.value && 
-         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled);
-});
+         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled)
+})
 
 const saveSettings = async () => {
-  if (isSaving.value) return;
+  if (isSaving.value) return
   
   try {
-    isSaving.value = true;
+    isSaving.value = true
     await updateSettings({
       notification_url: data.value.notificationUrl,
       notifications_enabled: data.value.notificationsEnabled,
       notify_online_global: data.value.notifyOnlineGlobal,
       notify_offline_global: data.value.notifyOfflineGlobal,
       notify_update_global: data.value.notifyUpdateGlobal
-    });
-    alert('Settings saved successfully!');
+    })
+    alert('Settings saved successfully!')
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to save settings');
+    alert(error instanceof Error ? error.message : 'Failed to save settings')
   } finally {
-    isSaving.value = false;
+    isSaving.value = false
   }
-};
+}
 
 const handleStreamerSettingsUpdate = async (
   streamerId: number, 
   streamerSettings: Partial<StreamerNotificationSettings>
 ) => {
   if (!streamerId || typeof streamerId !== 'number') {
-    console.error('Invalid streamer ID:', streamerId);
-    return;
+    console.error('Invalid streamer ID:', streamerId)
+    return
   }
 
   try {
@@ -126,30 +126,34 @@ const handleStreamerSettingsUpdate = async (
       }
     }
   } catch (error) {
-    console.error('Failed to update streamer settings:', error);
+    console.error('Failed to update streamer settings:', error)
   }
 }
+
 const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
-  if (!streamerId) return; // Add validation
+  if (!streamerId) return // Add validation
   
   handleStreamerSettingsUpdate(streamerId, {
     notify_online: enabled,
     notify_offline: enabled,
     notify_update: enabled
   })
+}
+
 const toggleAllStreamers = async (enabled: boolean) => {
-  if (!data.value?.streamerSettings) return;
+  if (!data.value?.streamerSettings) return
   
   for (const streamer of data.value.streamerSettings) {
-    if (!streamer?.streamer_id) continue;
+    if (!streamer?.streamer_id) continue
     
     await handleStreamerSettingsUpdate(Number(streamer.streamer_id), {
       notify_online: enabled,
       notify_offline: enabled,
       notify_update: enabled
-    });
+    })
   }
-};
+}
+
 // Add showTooltip ref
 const showTooltip = ref(false)
 // Change the tooltip timer type
@@ -183,18 +187,18 @@ const testNotification = async () => {
       headers: {
         'Content-Type': 'application/json',
       },
-    });
+    })
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to send test notification');
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to send test notification')
     }
 
-    alert('Test notification sent successfully!');
+    alert('Test notification sent successfully!')
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to send test notification');
+    alert(error instanceof Error ? error.message : 'Failed to send test notification')
   }
-};
+}
 </script>
 
 <template>
@@ -309,27 +313,28 @@ const testNotification = async () => {
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_online"
-                  @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
+                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_online: streamer.notify_online })"
                 />
               </td>
               <td>
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_offline"
-                  @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
+                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
                 />
               </td>
               <td>
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_update"
-                  @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
+                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_update: streamer.notify_update })"
                 />
               </td>
               <td>
                 <button 
                   @click="toggleAllForStreamer(streamer.streamer_id, true)" 
                   class="btn btn-sm btn-secondary"
+                  style="margin-right: 8px;"
                 >Enable All</button>
                 <button 
                   @click="toggleAllForStreamer(streamer.streamer_id, false)" 
