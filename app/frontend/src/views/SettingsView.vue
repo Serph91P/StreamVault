@@ -137,21 +137,9 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
     notify_offline: enabled,
     notify_update: enabled
   })
-}
-
 const toggleAllStreamers = async (enabled: boolean) => {
   if (!data.value?.streamerSettings) return;
   
-  for (const streamer of data.value.streamerSettings) {
-    if (!streamer?.streamer_id) continue;
-    
-    await handleStreamerSettingsUpdate(Number(streamer.streamer_id), {
-      notify_online: enabled,
-      notify_offline: enabled,
-      notify_update: enabled
-    });
-  }
-};
   for (const streamer of data.value.streamerSettings) {
     if (!streamer?.streamer_id) continue;
     
