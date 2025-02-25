@@ -540,3 +540,160 @@ nav {
     object-fit: cover;
   }
 }
+
+// Stream Cards
+.stream-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: v.$spacing-md;
+  margin-top: v.$spacing-md;
+}
+
+.stream-card {
+  background-color: v.$background-darker;
+  border-radius: v.$border-radius;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  
+  .stream-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: v.$spacing-sm v.$spacing-md;
+    background-color: v.$background-mute;
+    border-bottom: 1px solid v.$color-border;
+  }
+  
+  .stream-info {
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-sm;
+    
+    h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+  }
+  
+  .stream-content {
+    padding: v.$spacing-md;
+    
+    p {
+      margin: v.$spacing-xs 0;
+    }
+  }
+}
+
+// Loading and empty states
+.loading-container, .no-data-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  text-align: center;
+  padding: v.$spacing-lg;
+  
+  p {
+    color: v.$text-secondary;
+    margin-bottom: v.$spacing-md;
+  }
+}
+
+// Back button
+.back-btn-container {
+  margin-bottom: v.$spacing-md;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  
+  &::before {
+    content: "←";
+    margin-right: v.$spacing-xs;
+  }
+}
+
+// Status badge (bereits teilweise implementiert)
+.status-badge {
+  padding: v.$spacing-xs v.$spacing-sm;
+  border-radius: v.$border-radius;
+  font-size: 0.75rem;
+  font-weight: bold;
+  background-color: v.$text-muted;
+  color: white;
+  
+  &.live {
+    background-color: v.$color-danger;
+  }
+}
+// Loading and empty states
+.loading-container, .no-data-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  text-align: center;
+  padding: v.$spacing-xl;
+  
+  p {
+    color: v.$text-secondary;
+    margin-bottom: v.$spacing-md;
+  }
+  
+  .btn {
+    margin-top: v.$spacing-md;
+  }
+}
+
+// Back button
+.back-btn {
+  margin-bottom: v.$spacing-md;
+  display: inline-flex;
+  align-items: center;
+  
+  &::before {
+    content: "←";
+    margin-right: v.$spacing-xs;
+  }
+}
+
+.streamer-footer {
+  display: flex;
+  gap: v.$spacing-sm;
+  margin-top: v.$spacing-sm;
+}
+
+.view-btn {
+  background: v.$success-color;
+  color: white;
+  border: none;
+  padding: v.$spacing-xs v.$spacing-sm;
+  border-radius: v.$border-radius;
+  font-size: map.get(v.$font-scale, 'sm');
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  
+  &:hover:not(:disabled) {
+    background: darken(v.$success-color, 10%);
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
+.delete-btn {
+  flex: 1;
+}
