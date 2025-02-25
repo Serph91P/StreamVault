@@ -61,6 +61,12 @@ export function useNotificationSettings(): NotificationSettingsComposable {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to update settings for streamer ${streamerId}`)
+    }
+    
     return await response.json()
   }
 
