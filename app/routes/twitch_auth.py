@@ -38,14 +38,14 @@ async def twitch_callback(
     if not token_data or "access_token" not in token_data:
         logger.error("Failed to get access token from Twitch")
         # Redirect to error page
-        return RedirectResponse(url="/import-streamers?error=auth_failed")
+        return RedirectResponse(url="/add-streamer?error=auth_failed")
     
     # Store token in query parameter (not ideal for security, but simplest for this demonstration)
     # In production, you would want to use a session or secure cookie
     access_token = token_data["access_token"]
     
     # Redirect back to the import page with the token
-    return RedirectResponse(url=f"/import-streamers?token={access_token}")
+    return RedirectResponse(url=f"/add-streamer?token={access_token}")
 
 @router.get("/followed-channels")
 async def get_followed_channels(
