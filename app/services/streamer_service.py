@@ -167,12 +167,13 @@ class StreamerService:
                 user_data['profile_image_url'],
                 user_data['id']
             )
-            
-            # Create new streamer with cached image path
+        
+            # Create new streamer with both cached image path and original URL
             new_streamer = Streamer(
                 twitch_id=user_data['id'],
                 username=user_data['login'],
                 profile_image_url=cached_image_path,
+                original_profile_image_url=user_data['profile_image_url'],
                 is_live=False,
                 title=None,
                 category_name=None,
@@ -195,9 +196,9 @@ class StreamerService:
             self.db.refresh(new_streamer)
             
             await self.event_registry.subscribe_to_events(user_data['id'])
-            
+        
             return new_streamer
-                
+            
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error adding streamer: {e}")
