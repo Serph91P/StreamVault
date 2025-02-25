@@ -115,13 +115,20 @@ const handleStreamerSettingsUpdate = async (
     return;
   }
 
-  const updatedSettings = await updateStreamerSettings(streamerId, streamerSettings)
-  const index = data.value.streamerSettings.findIndex(s => s.streamer_id === streamerId)
-  if (index !== -1) {
-    data.value.streamerSettings[index] = updatedSettings
+  try {
+    const updatedSettings = await updateStreamerSettings(streamerId, streamerSettings)
+    const index = data.value.streamerSettings.findIndex(s => s.streamer_id === streamerId)
+    if (index !== -1) {
+      // Preserve existing data that may not be returned by the API
+      data.value.streamerSettings[index] = {
+        ...data.value.streamerSettings[index],
+        ...updatedSettings
+      }
+    }
+  } catch (error) {
+    console.error('Failed to update streamer settings:', error);
   }
 }
-
 const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   if (!streamerId) return; // Add validation
   
