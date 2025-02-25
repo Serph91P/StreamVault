@@ -19,6 +19,68 @@ router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 async def get_streamers(streamer_service = Depends(get_streamer_service)):
     return await streamer_service.get_streamers()
 
+@router.post("/resubscribe-all", status_code=200)
+async def resubscribe_all(
+    event_registry: EventHandlerRegistry = Depends(get_event_registry),
+    streamer_service: StreamerService = Depends(get_streamer_service)
+):
+    """Resubscribe to all events for all streamers, skipping existing subscriptions."""
+    try:
+        logger.debug("Starting resubscription for all streamers")
+        
+        # Get all streamers
+        streamers = await streamer_service.get_streamers()
+        
+        # Get existing subscriptions
+        existing_subs = await event_registry.list_subscriptions()
+        existing_twitch_ids = set()
+        
+        for sub in existing_subs.get("data", []):
+            if "condition" in sub and "broadcaster_user_id" in sub["condition"]:
+                existing_twitch_ids.add(sub["condition"]["broadcaster_user_id"])
+        
+        # Track results
+        results = {
+            "total": len(streamers),
+            "processed": 0,
+            "skipped": 0,
+            "errors": []
+        }
+        
+        # Process each streamer
+        for streamer in streamers:
+            try:
+                twitch_id = streamer["twitch_id"]
+                
+                # Check if all event types already exist for this streamer
+                if twitch_id in existing_twitch_ids:
+                    logger.debug(f"Skipping {streamer['username']} - already has subscriptions")
+                    results["skipped"] += 1
+                    continue
+                
+                # Subscribe to events
+                logger.debug(f"Resubscribing to events for {streamer['username']}")
+                await event_registry.subscribe_to_events(twitch_id)
+                results["processed"] += 1
+                
+            except Exception as e:
+                logger.error(f"Error resubscribing for {streamer.get('username', 'unknown')}: {e}")
+                results["errors"].append({
+                    "streamer": streamer.get("username", "unknown"),
+                    "error": str(e)
+                })
+        
+        logger.info(f"Resubscription complete: {results['processed']} processed, {results['skipped']} skipped")
+        return {
+            "success": True,
+            "message": f"Resubscribed to events for {results['processed']} streamers, skipped {results['skipped']}",
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to resubscribe to all events: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{username}", response_model=StreamerResponse)
 async def add_streamer(
     username: str,
@@ -164,66 +226,4 @@ async def get_streamer_streams(streamer_id: int):
             )
     except Exception as e:
         logger.error(f"Error fetching streams for streamer {streamer_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/resubscribe-all", status_code=200)
-async def resubscribe_all(
-    event_registry: EventHandlerRegistry = Depends(get_event_registry),
-    streamer_service: StreamerService = Depends(get_streamer_service)
-):
-    """Resubscribe to all events for all streamers, skipping existing subscriptions."""
-    try:
-        logger.debug("Starting resubscription for all streamers")
-        
-        # Get all streamers
-        streamers = await streamer_service.get_streamers()
-        
-        # Get existing subscriptions
-        existing_subs = await event_registry.list_subscriptions()
-        existing_twitch_ids = set()
-        
-        for sub in existing_subs.get("data", []):
-            if "condition" in sub and "broadcaster_user_id" in sub["condition"]:
-                existing_twitch_ids.add(sub["condition"]["broadcaster_user_id"])
-        
-        # Track results
-        results = {
-            "total": len(streamers),
-            "processed": 0,
-            "skipped": 0,
-            "errors": []
-        }
-        
-        # Process each streamer
-        for streamer in streamers:
-            try:
-                twitch_id = streamer["twitch_id"]
-                
-                # Check if all event types already exist for this streamer
-                if twitch_id in existing_twitch_ids:
-                    logger.debug(f"Skipping {streamer['username']} - already has subscriptions")
-                    results["skipped"] += 1
-                    continue
-                
-                # Subscribe to events
-                logger.debug(f"Resubscribing to events for {streamer['username']}")
-                await event_registry.subscribe_to_events(twitch_id)
-                results["processed"] += 1
-                
-            except Exception as e:
-                logger.error(f"Error resubscribing for {streamer.get('username', 'unknown')}: {e}")
-                results["errors"].append({
-                    "streamer": streamer.get("username", "unknown"),
-                    "error": str(e)
-                })
-        
-        logger.info(f"Resubscription complete: {results['processed']} processed, {results['skipped']} skipped")
-        return {
-            "success": True,
-            "message": f"Resubscribed to events for {results['processed']} streamers, skipped {results['skipped']}",
-            "results": results
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to resubscribe to all events: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
