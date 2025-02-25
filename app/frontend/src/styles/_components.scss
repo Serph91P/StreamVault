@@ -653,7 +653,6 @@ nav {
   }
 }
 
-// Back button
 .back-btn {
   margin-bottom: v.$spacing-md;
   display: inline-flex;
@@ -695,4 +694,82 @@ nav {
 
 .delete-btn {
   flex: 1;
+}
+
+.btn-twitch {
+  background-color: #9146FF;
+  color: white;
+  border: none;
+  padding: v.$spacing-sm v.$spacing-md;
+  border-radius: 6px;
+  font-weight: 600;
+  
+  &:hover {
+    background-color: darken(#9146FF, 10%);
+  }
+  
+  i {
+    margin-right: v.$spacing-xs;
+  }
+}
+
+.channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: v.$spacing-md;
+  margin-top: v.$spacing-md;
+  
+  .channel-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: v.$spacing-md;
+    background: v.$background-darker;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    &.selected {
+      background-color: rgba(v.$primary-color, 0.1);
+      border-left: 3px solid v.$primary-color;
+    }
+    
+    .channel-content {
+      .channel-name {
+        font-weight: bold;
+        margin-bottom: v.$spacing-xs;
+      }
+      
+      .channel-login {
+        font-size: map.get(v.$font-scale, 'sm');
+        color: v.$text-secondary;
+      }
+    }
+    
+    .selection-indicator {
+      font-size: 1.5rem;
+      color: v.$primary-color;
+    }
+  }
+}
+
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid v.$primary-color;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto v.$spacing-md;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
