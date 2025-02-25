@@ -18,9 +18,9 @@ class StreamerResponse(BaseModel):
     language: Optional[str] = None
     last_updated: Optional[datetime] = None
     profile_image_url: Optional[str] = None
+    original_profile_image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
-
 class StreamerList(BaseModel):
     streamers: List[StreamerResponse]
