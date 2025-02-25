@@ -527,3 +527,40 @@
 .btn-with-margin {
   margin-right: 8px;
 }
+.streamer-detail {
+  padding: v.$spacing-md;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  .streamer-header {
+    margin-bottom: v.$spacing-lg;
+    
+    h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        font-size: 1.75rem;
+      }
+    }
+  }
+}
+
+// Streams container
+.streams-container {
+  width: 100%;
+  
+  .back-btn-container {
+    margin-bottom: v.$spacing-md;
+  }
+
+  @media (max-width: map.get(v.$breakpoints, 'md')) {
+    .stream-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
