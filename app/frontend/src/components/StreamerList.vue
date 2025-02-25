@@ -2,7 +2,8 @@
   <div class="streamer-grid">
     <div v-for="streamer in sortedStreamers" 
          :key="streamer.id"
-         class="streamer-card">
+         class="streamer-card"
+         @click="navigateToStreamerDetail(streamer.id, streamer.username)">
       <div class="streamer-header">
         <div class="streamer-info">
           <img 
@@ -24,13 +25,21 @@
         <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
         <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_updated) }}</p>
       </div>
-      <button 
-        @click="handleDelete(streamer.id)" 
-        class="delete-btn"
-        :disabled="isDeleting"
-      >
-        {{ isDeleting ? 'Deleting...' : 'Delete' }}
-      </button>
+      <div class="streamer-footer">
+        <button 
+          @click.stop="handleDelete(streamer.id)" 
+          class="delete-btn"
+          :disabled="isDeleting"
+        >
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
+        <button 
+          @click.stop="navigateToStreamerDetail(streamer.id, streamer.username)" 
+          class="view-btn"
+        >
+          View Streams
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -39,6 +48,7 @@
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useRouter } from 'vue-router'
 import type { Ref } from 'vue'
 
 interface WebSocketMessage {
@@ -62,6 +72,7 @@ interface StreamerUpdateData {
 
 const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
 const { messages, connectionStatus } = useWebSocket()
+const router = useRouter()
 const isDeleting = ref(false)
 
 const emit = defineEmits<{
@@ -90,6 +101,14 @@ const handleDelete = async (streamerId: string) => {
   } finally {
     isDeleting.value = false
   }
+}
+
+const navigateToStreamerDetail = (streamerId: string, username: string) => {
+  router.push({
+    name: 'streamer-detail',
+    params: { id: streamerId },
+    query: { name: username }
+  })
 }
 
 watch(messages, (newMessages) => {
