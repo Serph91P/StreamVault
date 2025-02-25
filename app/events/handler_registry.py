@@ -212,7 +212,11 @@ class EventHandlerRegistry:
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                        db.commit()
+
+                    streamer.is_live = False
+                    streamer.last_updated = datetime.now(timezone.utc)
+                
+                    db.commit()
                 
                     # Send WebSocket notification
                     await self.manager.send_notification({
@@ -235,7 +239,8 @@ class EventHandlerRegistry:
                         }
                     )
         except Exception as e:
-            logger.error(f"Error handling stream offline event: {e}", exc_info=True)            
+            logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
+    
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
