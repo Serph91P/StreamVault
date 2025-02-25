@@ -261,6 +261,11 @@ function resetImport(): void {
   selectedStreamers.value = []
 }
 
+// Add this method to dismiss the error message
+function dismissError(): void {
+  error.value = null
+}
+
 // Lifecycle
 onMounted(async () => {
   // Check if we've returned from Twitch auth
@@ -268,9 +273,13 @@ onMounted(async () => {
   const errorParam = route.query.error as string | undefined
   
   if (errorParam) {
-    error.value = errorParam === 'auth_failed' 
-      ? 'Authentication failed. Please try again.' 
-      : errorParam
+    if (errorParam === 'redirect_mismatch') {
+      error.value = 'redirect_mismatch: The redirect URL in your Twitch application does not match your StreamVault configuration.'
+    } else {
+      error.value = errorParam === 'auth_failed' 
+        ? 'Authentication failed. Please try again.' 
+        : errorParam
+    }
   }
   
   if (tokenParam) {
