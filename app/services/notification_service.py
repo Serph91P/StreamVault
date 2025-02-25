@@ -1,4 +1,8 @@
 import logging
+import aiohttp
+import asyncio
+from typing import Dict, Optional, Any
+from app.config.settings import settings as app_settings
 from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.database import SessionLocal
@@ -67,12 +71,11 @@ class NotificationService:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
 
-    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str) -> str:
+    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str, twitch_id: str = None) -> str:
         """Configure service-specific parameters based on the notification service."""
     
-        # Debug-Ausgabe hinzufügen
         logger.debug(f"Configuring service-specific URL for {base_url}")
-        
+    
         # Get appropriate title based on event type
         title_map = {
             "online": f"{streamer_name} is live!",
@@ -81,14 +84,40 @@ class NotificationService:
             "test": "StreamVault Test Notification"
         }
     
+        # Für Notifications immer die Twitch-URL des Profilbilds verwenden statt lokalem Pfad
+        twitch_profile_url = None
+        if twitch_id:
+            # Konstruiere die öffentliche Twitch-Profilbild-URL basierend auf der Twitch-ID
+            try:
+                # Versuche die Twitch-Profilbild-URL aus dem Twitch API zu holen
+                user_info = asyncio.run(self.get_user_info(twitch_id))
+                if user_info and user_info.get("profile_image_url"):
+                    twitch_profile_url = user_info["profile_image_url"]
+                    logger.debug(f"Using Twitch profile image URL: {twitch_profile_url}")
+            except Exception as e:
+                logger.error(f"Error getting Twitch profile image URL: {e}")
+    
         if 'ntfy' in base_url:
             # Ntfy configuration
             params = [
                 f"click={twitch_url}",
-                f"priority={'high' if event_type == 'online' else 'default'}",
-                f"tags={'live_stream,online' if event_type == 'online' else 'stream,offline'}",
-                f"avatar_url={profile_image if event_type != 'test' else '/app/frontend/public/ms-icon-310x310.png'}"
+                f"priority={'high' if event_type == 'online' else 'default'}"
             ]
+        
+            # Event-spezifische Tags
+            if event_type == "online":
+                params.append("tags=live_stream,online")
+            elif event_type == "offline":
+                params.append("tags=stream,offline")
+            elif event_type == "update":
+                params.append("tags=stream,update")
+            else:
+                params.append("tags=notification")
+        
+            # Verwende die Twitch-URL wenn verfügbar, sonst skip
+            if twitch_profile_url:
+                params.append(f"avatar_url={twitch_profile_url}")
+        
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated ntfy URL: {final_url}")
             return final_url
@@ -102,7 +131,7 @@ class NotificationService:
                     f"format=markdown")
             logger.debug(f"Generated discord URL: {final_url}")
             return final_url
-                
+            
         elif 'telegram' in base_url or 'tgram' in base_url:
             # Telegram configuration
             params = []
@@ -112,7 +141,7 @@ class NotificationService:
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
             logger.debug(f"Generated telegram URL: {final_url}")
             return final_url
-        
+    
         elif 'matrix' in base_url:
             # Matrix configuration
             params = [
@@ -123,7 +152,7 @@ class NotificationService:
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated matrix URL: {final_url}")
             return final_url
-        
+    
         elif 'slack' in base_url:
             # Slack configuration
             final_url = (f"{base_url}?"
@@ -131,7 +160,7 @@ class NotificationService:
                     f"image={'yes' if profile_image else 'no'}")
             logger.debug(f"Generated slack URL: {final_url}")
             return final_url
-        
+    
         elif 'pover' in base_url:
             # Pushover configuration
             priority = "high" if event_type == "online" else "normal"
@@ -141,11 +170,10 @@ class NotificationService:
                     f"url_title=Watch Stream")
             logger.debug(f"Generated pushover URL: {final_url}")
             return final_url
-        
+    
         # Default case - return original URL if service not specifically handled
         logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
         return base_url
-
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         try:
             logger.debug(f"Starting send_stream_notification for {streamer_name}, event type: {event_type}")
@@ -176,7 +204,8 @@ class NotificationService:
                     twitch_url=twitch_url,
                     profile_image=streamer.profile_image_url or "",
                     streamer_name=streamer_name,
-                    event_type=event_type
+                    event_type=event_type,
+                    twitch_id=streamer.twitch_id
                 )
 
                 # Create new Apprise instance
@@ -199,17 +228,16 @@ class NotificationService:
                     body=message,
                     body_format=NotifyFormat.TEXT
                 )
-            
+        
                 if not result:
                     logger.error("Apprise notification failed to send")
-                
+            
                 logger.debug(f"Notification result: {result}")
                 return result
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
             return False
-
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
@@ -310,3 +338,42 @@ class NotificationService:
             message = f"Event notification for {streamer_name}"
         
         return title, message
+
+async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+    """Get user info from Twitch API including profile image"""
+    try:
+        # Access-Token von Twitch API holen (vereinfachte Version)
+        from app.config.settings import settings as app_settings
+        
+        async with aiohttp.ClientSession() as session:
+            # Zuerst Access Token holen
+            async with session.post(
+                "https://id.twitch.tv/oauth2/token",
+                params={
+                    "client_id": app_settings.TWITCH_APP_ID,
+                    "client_secret": app_settings.TWITCH_APP_SECRET,
+                    "grant_type": "client_credentials"
+                }
+            ) as response:
+                if response.status != 200:
+                    logger.error(f"Failed to get access token: {response.status}")
+                    return None
+                
+                data = await response.json()
+                access_token = data["access_token"]
+            
+            # Dann User-Info holen
+            async with session.get(
+                f"https://api.twitch.tv/helix/users?id={user_id}",
+                headers={
+                    "Client-ID": app_settings.TWITCH_APP_ID,
+                    "Authorization": f"Bearer {access_token}"
+                }
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data["data"][0] if data.get("data") else None
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching user info: {e}")
+        return None
