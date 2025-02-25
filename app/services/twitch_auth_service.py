@@ -20,7 +20,7 @@ class TwitchAuthService:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "user:read:follows",  # Permission to read followed channels
+            "scope": "channel:read:subscriptions user:read:follows",
         }
         
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
@@ -50,7 +50,7 @@ class TwitchAuthService:
             return None
             
     async def get_user_followed_channels(self, access_token: str) -> List[Dict[str, Any]]:
-        """Get channels followed by the user"""
+        """Get channels followed by the user using the new API endpoint"""
         try:
             user_id = await self._get_authenticated_user_id(access_token)
             if not user_id:
@@ -97,10 +97,10 @@ class TwitchAuthService:
             return None
     
     async def _get_follows_page(self, user_id: str, access_token: str, cursor: Optional[str] = None) -> tuple[List[Dict[str, Any]], Optional[str]]:
-        """Get a page of followed channels"""
+        """Get a page of followed channels using the new API endpoint"""
         try:
             params = {
-                "user_id": user_id,
+                "broadcaster_id": user_id,
                 "first": 100  # Maximum number of results per page
             }
             
@@ -109,7 +109,7 @@ class TwitchAuthService:
                 
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    "https://api.twitch.tv/helix/users/follows",
+                    "https://api.twitch.tv/helix/channels/followed",
                     params=params,
                     headers={
                         "Client-ID": self.client_id,
@@ -122,13 +122,13 @@ class TwitchAuthService:
                         pagination = data.get("pagination", {})
                         next_cursor = pagination.get("cursor")
                         
-                        # Extract just the broadcaster info
+                        # Extract broadcaster info
                         streamers = []
                         for follow in follows:
                             streamers.append({
-                                "id": follow["to_id"],
-                                "login": follow["to_login"],
-                                "display_name": follow["to_name"]
+                                "id": follow["broadcaster_id"],
+                                "login": follow["broadcaster_login"],
+                                "display_name": follow["broadcaster_name"]
                             })
                             
                         return streamers, next_cursor
