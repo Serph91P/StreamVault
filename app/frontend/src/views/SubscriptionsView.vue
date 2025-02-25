@@ -141,7 +141,7 @@ async function deleteAllSubscriptions() {
   
   loading.value = true
   try {
-    const response = await fetch('/delete-all-subscriptions', {
+    const response = await fetch('/api/streamers/subscriptions', {
       method: 'DELETE',
       headers: {
         'Accept': 'application/json'
@@ -158,16 +158,16 @@ async function deleteAllSubscriptions() {
     console.log('Deleted subscriptions:', data);
     alert('All subscriptions successfully deleted!');
     
-    // Leere die Liste direkt, während der Server antwortet
+    // Aktualisiere die UI
     subscriptions.value = [];
-    
-    // Dann aktualisiere für den Fall, dass nicht alles gelöscht wurde
     await loadSubscriptions();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to delete all subscriptions:', error.message);
     alert(`Error: ${error.message}`);
   } finally {
     loading.value = false;
   }
-}onMounted(loadSubscriptions)
+}
+
+onMounted(loadSubscriptions)
 </script>
