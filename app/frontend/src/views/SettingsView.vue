@@ -152,6 +152,16 @@ const toggleAllStreamers = async (enabled: boolean) => {
     });
   }
 };
+  for (const streamer of data.value.streamerSettings) {
+    if (!streamer?.streamer_id) continue;
+    
+    await handleStreamerSettingsUpdate(Number(streamer.streamer_id), {
+      notify_online: enabled,
+      notify_offline: enabled,
+      notify_update: enabled
+    });
+  }
+};
 // Add showTooltip ref
 const showTooltip = ref(false)
 // Change the tooltip timer type
