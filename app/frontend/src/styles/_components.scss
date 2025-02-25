@@ -551,7 +551,7 @@ nav {
 
 .stream-card {
   background-color: v.$background-darker;
-  border-radius: v.$border-radius;
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease-in-out, box-shadow 0.2s ease;
@@ -566,8 +566,8 @@ nav {
     justify-content: space-between;
     align-items: center;
     padding: v.$spacing-sm v.$spacing-md;
-    background-color: v.$background-mute;
-    border-bottom: 1px solid v.$color-border;
+    background-color: v.$background-darker;
+    border-bottom: 1px solid v.$border-color;
   }
   
   .stream-info {
@@ -621,17 +621,16 @@ nav {
   }
 }
 
-// Status badge (bereits teilweise implementiert)
 .status-badge {
   padding: v.$spacing-xs v.$spacing-sm;
-  border-radius: v.$border-radius;
+  border-radius: 4px;
   font-size: 0.75rem;
   font-weight: bold;
-  background-color: v.$text-muted;
+  background-color: v.$text-secondary;
   color: white;
   
   &.live {
-    background-color: v.$color-danger;
+    background-color: v.$danger-color;
   }
 }
 // Loading and empty states
