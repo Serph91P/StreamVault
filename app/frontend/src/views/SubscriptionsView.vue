@@ -9,6 +9,14 @@
       <button @click="deleteAllSubscriptions" :disabled="loading || !subscriptions.length" class="btn danger">
         Delete All Subscriptions
       </button>
+
+      <button 
+          @click="resubscribeAll" 
+          class="btn btn-success" 
+          :disabled="loadingResubscribe"
+        >
+          {{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All Streamers' }}
+      </button>
     </div>
 
     <div v-if="loading" class="loading-state">
@@ -70,6 +78,7 @@ interface Subscription {
 }
 
 const subscriptions = ref<Subscription[]>([])
+const loadingResubscribe = ref(false);
 const loading = ref(false)
 
 async function loadSubscriptions() {
@@ -82,6 +91,35 @@ async function loadSubscriptions() {
     console.error('Failed to load subscriptions:', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function resubscribeAll() {
+  loadingResubscribe.value = true;
+  try {
+    const response = await fetch('/api/streamers/resubscribe-all', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server response:', errorText);
+      throw new Error(`Failed to resubscribe: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    alert(`Success: ${data.message}`);
+    
+    await loadSubscriptions();
+    
+  } catch (error: any) {
+    console.error('Failed to resubscribe all:', error.message);
+    alert(`Error: ${error.message}`);
+  } finally {
+    loadingResubscribe.value = false;
   }
 }
 
@@ -103,27 +141,30 @@ async function deleteAllSubscriptions() {
   
   loading.value = true
   try {
-    const response = await fetch('/api/streamers/subscriptions', {
+    const response = await fetch('/delete-all-subscriptions', {
       method: 'DELETE',
       headers: {
         'Accept': 'application/json'
       }
     })
     
-    const data = await response.json()
-    
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete subscriptions')
+      const errorText = await response.text();
+      console.error('Server response:', errorText);
+      throw new Error(`Failed to delete subscriptions: ${response.status}`);
     }
     
-    subscriptions.value = []
-    await loadSubscriptions()
+    const data = await response.json();
+    console.log('Deleted subscriptions:', data);
+    
+    // Aktualisiere UI
+    await loadSubscriptions();
   } catch (error: any) {
-    console.error('Failed to delete all subscriptions:', error.message)
+    console.error('Failed to delete all subscriptions:', error.message);
+    alert(`Error: ${error.message}`);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
 onMounted(loadSubscriptions)
 </script>
