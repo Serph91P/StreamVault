@@ -11,16 +11,16 @@ class Streamer(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     twitch_id = Column(String, unique=True, nullable=False)
-    username = Column(String, nullable=False, index=True)
-    profile_image_url = Column(String, nullable=True)
+    username = Column(String, nullable=False)
     is_live = Column(Boolean, default=False)
     title = Column(String)
     category_name = Column(String)
     language = Column(String)
     last_updated = Column(DateTime(timezone=True))
+    profile_image_url = Column(String)
+    original_profile_image_url = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
-
 class Stream(Base):
     __tablename__ = "streams"
 
