@@ -53,24 +53,10 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   }
 
   const updateStreamerSettings = async (streamerId: number, settings: Partial<StreamerNotificationSettings>): Promise<StreamerNotificationSettings> => {
-    // Finde aktuelle Einstellungen für diesen Streamer
-    const currentSettings = streamerSettings.value.find(s => s.streamer_id === streamerId)
-    
-    // Erstelle vollständiges Schema, das der Backend-Endpunkt erwartet
-    const completeSettings: StreamerNotificationSettings = {
-      streamer_id: streamerId,
-      notify_online: settings.notify_online ?? currentSettings?.notify_online ?? false,
-      notify_offline: settings.notify_offline ?? currentSettings?.notify_offline ?? false,
-      notify_update: settings.notify_update ?? currentSettings?.notify_update ?? false,
-      // Diese optionalen Felder benötigt das Backend für die Validierung nicht
-      username: currentSettings?.username,
-      profile_image_url: currentSettings?.profile_image_url
-    }
-    
     const response = await fetch(`/api/settings/streamer/${streamerId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(completeSettings)
+      body: JSON.stringify(settings)
     })
     
     if (!response.ok) {
