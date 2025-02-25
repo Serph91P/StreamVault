@@ -684,7 +684,7 @@ nav {
   flex: 1;
   
   &:hover:not(:disabled) {
-    background: darken(v.$success-color, 10%);
+    background: color.adjust(v.$success-color, $lightness: -10%);
   }
   
   &:disabled {
