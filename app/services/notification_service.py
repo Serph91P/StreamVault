@@ -71,9 +71,9 @@ class NotificationService:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
 
-    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str, twitch_id: str = None) -> str:
+    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str, original_image_url: str = None) -> str:
         """Configure service-specific parameters based on the notification service."""
-    
+
         logger.debug(f"Configuring service-specific URL for {base_url}")
     
         # Get appropriate title based on event type
@@ -83,19 +83,6 @@ class NotificationService:
             "update": f"{streamer_name} updated stream info",
             "test": "StreamVault Test Notification"
         }
-    
-        # Für Notifications immer die Twitch-URL des Profilbilds verwenden statt lokalem Pfad
-        twitch_profile_url = None
-        if twitch_id:
-            # Konstruiere die öffentliche Twitch-Profilbild-URL basierend auf der Twitch-ID
-            try:
-                # Versuche die Twitch-Profilbild-URL aus dem Twitch API zu holen
-                user_info = asyncio.run(self.get_user_info(twitch_id))
-                if user_info and user_info.get("profile_image_url"):
-                    twitch_profile_url = user_info["profile_image_url"]
-                    logger.debug(f"Using Twitch profile image URL: {twitch_profile_url}")
-            except Exception as e:
-                logger.error(f"Error getting Twitch profile image URL: {e}")
     
         if 'ntfy' in base_url:
             # Ntfy configuration
@@ -114,14 +101,19 @@ class NotificationService:
             else:
                 params.append("tags=notification")
         
-            # Verwende die Twitch-URL wenn verfügbar, sonst skip
-            if twitch_profile_url:
-                params.append(f"avatar_url={twitch_profile_url}")
+            # Bevorzuge die Original-URL für Benachrichtigungen
+            if original_image_url and original_image_url.startswith('http'):
+                params.append(f"avatar_url={original_image_url}")
+                logger.debug(f"Using original Twitch profile URL: {original_image_url}")
+            elif profile_image and profile_image.startswith('http'):
+                params.append(f"avatar_url={profile_image}")
+                logger.debug(f"Using profile image URL: {profile_image}")
         
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated ntfy URL: {final_url}")
             return final_url
     
+        # Der Rest der Methode bleibt unverändert...    
         elif 'discord' in base_url:
             # Discord configuration
             final_url = (f"{base_url}?"
@@ -177,7 +169,7 @@ class NotificationService:
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         try:
             logger.debug(f"Starting send_stream_notification for {streamer_name}, event type: {event_type}")
-            
+        
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings or not settings.notifications_enabled:
@@ -205,7 +197,7 @@ class NotificationService:
                     profile_image=streamer.profile_image_url or "",
                     streamer_name=streamer_name,
                     event_type=event_type,
-                    twitch_id=streamer.twitch_id
+                    original_image_url=streamer.original_profile_image_url  # Übergebe die Original-URL
                 )
 
                 # Create new Apprise instance
@@ -228,17 +220,16 @@ class NotificationService:
                     body=message,
                     body_format=NotifyFormat.TEXT
                 )
-        
+    
                 if not result:
                     logger.error("Apprise notification failed to send")
-            
+        
                 logger.debug(f"Notification result: {result}")
                 return result
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
-            return False
-    async def should_notify(self, streamer_id: int, event_type: str) -> bool:
+            return False    async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
             if not global_settings or not global_settings.notifications_enabled:
