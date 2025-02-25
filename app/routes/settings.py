@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import SessionLocal, get_db
 from app.models import GlobalSettings, NotificationSettings, Streamer
-from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
+from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema, StreamerNotificationSettingsUpdateSchema
 from apprise import Apprise
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -64,7 +64,7 @@ async def get_all_streamer_settings():
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
 async def update_streamer_settings(
     streamer_id: int, 
-    settings_data: StreamerNotificationSettingsSchema
+    settings_data: StreamerNotificationSettingsUpdateSchema
 ):
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
@@ -74,12 +74,25 @@ async def update_streamer_settings(
                 settings = NotificationSettings(streamer_id=streamer_id)
                 db.add(settings)
             
-            settings.notify_online = settings_data.notify_online
-            settings.notify_offline = settings_data.notify_offline
-            settings.notify_update = settings_data.notify_update
+            if settings_data.notify_online is not None:
+                settings.notify_online = settings_data.notify_online
+            if settings_data.notify_offline is not None:
+                settings.notify_offline = settings_data.notify_offline
+            if settings_data.notify_update is not None:
+                settings.notify_update = settings_data.notify_update
             
             db.commit()
-            return StreamerNotificationSettingsSchema.model_validate(settings)
+            
+            streamer = db.query(Streamer).get(streamer_id)
+            
+            return StreamerNotificationSettingsSchema(
+                streamer_id=settings.streamer_id,
+                username=streamer.username if streamer else None,
+                profile_image_url=streamer.profile_image_url if streamer else None,
+                notify_online=settings.notify_online,
+                notify_offline=settings.notify_offline,
+                notify_update=settings.notify_update
+            )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
