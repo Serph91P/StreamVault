@@ -20,7 +20,7 @@ class TwitchAuthService:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "channel:read:subscriptions user:read:follows",
+            "scope": "channel:read:subscriptions user:read:follows",  # Updated scopes
         }
         
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
@@ -91,6 +91,9 @@ class TwitchAuthService:
                         data = await response.json()
                         if data.get("data") and len(data["data"]) > 0:
                             return data["data"][0]["id"]
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to get user info: {response.status} - {error_text}")
                     return None
         except Exception as e:
             logger.error(f"Error getting user ID: {e}")
@@ -99,8 +102,9 @@ class TwitchAuthService:
     async def _get_follows_page(self, user_id: str, access_token: str, cursor: Optional[str] = None) -> tuple[List[Dict[str, Any]], Optional[str]]:
         """Get a page of followed channels using the new API endpoint"""
         try:
+            # KORRIGIERT: Parameter ist "user_id", nicht "broadcaster_id"
             params = {
-                "broadcaster_id": user_id,
+                "user_id": user_id,  # Correct parameter name
                 "first": 100  # Maximum number of results per page
             }
             
@@ -109,7 +113,7 @@ class TwitchAuthService:
                 
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    "https://api.twitch.tv/helix/channels/followed",
+                    "https://api.twitch.tv/helix/channels/followed",  # Correct endpoint
                     params=params,
                     headers={
                         "Client-ID": self.client_id,
@@ -122,14 +126,18 @@ class TwitchAuthService:
                         pagination = data.get("pagination", {})
                         next_cursor = pagination.get("cursor")
                         
+                        # Debug logging 
+                        logger.debug(f"Successfully fetched {len(follows)} followed channels")
+                        
                         # Extract broadcaster info
                         streamers = []
                         for follow in follows:
-                            streamers.append({
+                            streamer = {
                                 "id": follow["broadcaster_id"],
                                 "login": follow["broadcaster_login"],
                                 "display_name": follow["broadcaster_name"]
-                            })
+                            }
+                            streamers.append(streamer)
                             
                         return streamers, next_cursor
                     else:
