@@ -229,7 +229,9 @@ class NotificationService:
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
-            return False    async def should_notify(self, streamer_id: int, event_type: str) -> bool:
+            return False    
+    
+    async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
             if not global_settings or not global_settings.notifications_enabled:
