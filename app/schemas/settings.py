@@ -32,3 +32,12 @@ class StreamerNotificationSettingsSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class StreamerNotificationSettingsUpdateSchema(BaseModel):
+    """Schema für partielle Updates der Streamer-Benachrichtigungseinstellungen"""
+    notify_online: Optional[bool] = None
+    notify_offline: Optional[bool] = None
+    notify_update: Optional[bool] = None
+    
+    class Config:
+        from_attributes = True
