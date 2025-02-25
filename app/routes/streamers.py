@@ -5,6 +5,8 @@ from app.services.streamer_service import StreamerService
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
+from app.database import SessionLocal
+from app.models import Stream
 from app.schemas.streams import StreamList, StreamResponse
 import logging
 import asyncio
@@ -132,7 +134,7 @@ async def delete_all_subscriptions(
         logger.error(f"Failed to delete subscriptions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-from app.schemas.streams import StreamList, StreamResponse
+
 
 @router.get("/{streamer_id}/streams", response_model=StreamList)
 async def get_streamer_streams(streamer_id: int):
