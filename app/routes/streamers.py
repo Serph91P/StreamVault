@@ -19,6 +19,43 @@ router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 async def get_streamers(streamer_service = Depends(get_streamer_service)):
     return await streamer_service.get_streamers()
 
+@router.delete("/subscriptions", status_code=200)
+async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+    """Delete all EventSub subscriptions"""
+    try:
+        logger.debug("Attempting to delete all subscriptions")
+        
+        # Get all existing subscriptions
+        existing_subs = await event_registry.list_subscriptions()
+        logger.debug(f"Found {len(existing_subs.get('data', []))} subscriptions to delete")
+        
+        # Delete each subscription
+        results = []
+        for sub in existing_subs.get('data', []):
+            try:
+                result = await event_registry.delete_subscription(sub['id'])
+                logger.info(f"Deleted subscription {sub['id']}")
+                results.append(result)
+            except Exception as sub_error:
+                logger.error(f"Failed to delete subscription {sub['id']}: {sub_error}", exc_info=True)
+                results.append({
+                    "id": sub['id'],
+                    "status": "failed",
+                    "error": str(sub_error)
+                })
+        
+        # Summary of results
+        return {
+            "success": True,
+            "deleted_subscriptions": results,
+            "total_deleted": len([res for res in results if res.get("status") == "deleted"]),
+            "total_failed": len([res for res in results if res.get("status") == "failed"]),
+        }
+
+    except Exception as e:
+        logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/resubscribe-all", status_code=200)
 async def resubscribe_all(
     event_registry: EventHandlerRegistry = Depends(get_event_registry),
