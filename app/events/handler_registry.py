@@ -219,7 +219,8 @@ class EventHandlerRegistry:
                         "type": "stream.offline",
                         "data": {
                             "streamer_id": streamer.id,
-                            "twitch_id": data["broadcaster_user_id"]
+                            "twitch_id": data["broadcaster_user_id"],
+                            "streamer_name": data["broadcaster_user_name"]
                         }
                     })
                     
