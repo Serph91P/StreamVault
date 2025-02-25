@@ -156,15 +156,18 @@ async function deleteAllSubscriptions() {
     
     const data = await response.json();
     console.log('Deleted subscriptions:', data);
+    alert('All subscriptions successfully deleted!');
     
-    // Aktualisiere UI
+    // Leere die Liste direkt, während der Server antwortet
+    subscriptions.value = [];
+    
+    // Dann aktualisiere für den Fall, dass nicht alles gelöscht wurde
     await loadSubscriptions();
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to delete all subscriptions:', error.message);
     alert(`Error: ${error.message}`);
   } finally {
     loading.value = false;
   }
-}
-onMounted(loadSubscriptions)
+}onMounted(loadSubscriptions)
 </script>
