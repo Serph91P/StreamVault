@@ -6,6 +6,7 @@ import SetupView from '../views/SetupView.vue';
 import LoginView from '../views/LoginView.vue';
 import AdminView from '../views/AdminView.vue';
 import SettingsView from '../views/SettingsView.vue';
+import StreamerDetailView from '../views/StreamerDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -45,9 +46,13 @@ const router = createRouter({
       name: 'settings',
       component: SettingsView
     },
+    {
+      path: '/streamer/:id',
+      name: 'streamer-detail',
+      component: StreamerDetailView
+    },
   ],
 });
-
 router.beforeEach(async (to, from, next) => {
   try {
     const response = await fetch('/auth/setup', {
