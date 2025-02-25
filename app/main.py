@@ -180,39 +180,6 @@ app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 
-# Delete all subscriptions
-@app.delete("/delete-all-subscriptions")
-async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
-    try:
-        logger.debug("Attempting to delete all subscriptions")
-        
-        # Get all existing subscriptions
-        existing_subs = await event_registry.list_subscriptions()
-        logger.debug(f"Found {len(existing_subs['subscriptions'])} subscriptions to delete")
-        
-        # Delete each subscription
-        results = []
-        for sub in existing_subs['subscriptions']:
-            try:
-                await event_registry.delete_subscription(sub['id'])
-                logger.info(f"Deleted subscription {sub['id']}")
-                results.append({"id": sub['id'], "status": "deleted"})
-            except Exception as sub_error:
-                logger.error(f"Failed to delete subscription {sub['id']}: {sub_error}", exc_info=True)
-                results.append({"id": sub['id'], "status": "failed", "error": str(sub_error)})
-        
-        # Summary of results
-        return {
-            "success": True,
-            "deleted_subscriptions": results,
-            "total_deleted": len([res for res in results if res["status"] == "deleted"]),
-            "total_failed": len([res for res in results if res["status"] == "failed"]),
-        }
-
-    except Exception as e:
-        logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
-
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
