@@ -186,6 +186,15 @@ app.include_router(twitch_auth.router)
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
+# Static files for root-level items
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("app/frontend/dist/favicon.ico")
+
+@app.get("/icons/{file_path:path}")
+async def serve_icons(file_path: str):
+    return FileResponse(f"app/frontend/dist/icons/{file_path}")
+
 # Error handler
 app.add_exception_handler(Exception, error_handler)
 
