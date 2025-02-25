@@ -939,3 +939,36 @@ nav {
     margin-top: v.$spacing-sm;
   }
 }
+
+.admin-notice {
+  margin: v.$spacing-md 0;
+  padding: v.$spacing-md;
+  background-color: rgba(255, 200, 0, 0.1);
+  border-left: 4px solid #ffcc00;
+  border-radius: 4px;
+  
+  h4 {
+    margin-bottom: v.$spacing-sm;
+    color: darken(#ffcc00, 20%);
+  }
+  
+  .config-steps {
+    margin: v.$spacing-md 0;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: v.$spacing-md;
+    border-radius: 4px;
+    
+    pre {
+      padding: v.$spacing-sm;
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: v.$spacing-xs 0 v.$spacing-md;
+      font-family: monospace;
+    }
+  }
+  
+  .btn {
+    margin-top: v.$spacing-md;
+  }
+}
