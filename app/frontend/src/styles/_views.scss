@@ -396,16 +396,19 @@
 }
 
 // Keep view-specific styles including .settings-container
+/* Fix potential issues in the settings view */
 .settings-container {
   padding: v.$spacing-md;
-  max-width: 800px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
   background: v.$background-darker;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
+  
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
+    max-width: 800px;
   }
 
   .settings-title {
@@ -465,10 +468,24 @@
     color: v.$danger-color;
   }
 
+  /* Make sure streamer notifications table doesn't overflow */
   .streamer-notifications {
     margin-top: v.$spacing-xl;
+    width: 100%;
     border-top: 1px solid v.$border-color;
     padding-top: v.$spacing-lg;
+    
+    .streamer-table {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      
+      table {
+        width: 100%;
+        min-width: 600px; /* Set a min-width to ensure it works in mobile view with scrolling */
+      }
+    }
 
     h3 {
       margin-bottom: v.$spacing-md;
@@ -509,13 +526,37 @@
 
   .controls {
     display: flex;
-    gap: v.$spacing-sm; // Fixed variable reference
+    gap: v.$spacing-sm;
     margin-bottom: v.$spacing-md;
   }
-}.form-control.is-invalid {
-  border-color: #dc3545;
 }
 
+/* Make form controls responsive */
+.form-control {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Fix other views to be mobile-friendly */
+.add-streamer-page, 
+.login-page, 
+.setup-page,
+.subscription-manager,
+.streamer-detail {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: v.$spacing-md;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+}
+
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
 .invalid-feedback {
   display: block;
   width: 100%;

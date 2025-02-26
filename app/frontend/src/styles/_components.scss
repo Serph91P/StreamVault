@@ -95,19 +95,24 @@ nav {
 // Streamer Grid
 .streamer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: v.$spacing-xl;
-  padding: v.$spacing-md;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  row-gap: v.$spacing-lg;
+  column-gap: v.$spacing-md;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     grid-template-columns: repeat(2, 1fr);
-    gap: v.$spacing-lg;
+    column-gap: v.$spacing-lg;
+    row-gap: v.$spacing-xl;
   }
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
     grid-template-columns: repeat(3, 1fr);
-    gap: v.$spacing-xl;
+
+    column-gap: v.$spacing-lg;
+    row-gap: v.$spacing-xl;
   }
 }
 
@@ -130,15 +135,20 @@ nav {
   display: flex;
   flex-direction: column;
   min-height: 200px;
-  height: 100%;
-  margin-bottom: v.$spacing-md;
-  transition: transform 0.2s ease;
 
+
+  width: 100%;
+  box-sizing: border-box;
+  transition: transform 0.2s ease;
+  word-break: break-word; /* Prevent text overflow */
+  
   .streamer-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: v.$spacing-md;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+    gap: v.$spacing-sm; /* Add gap between wrapped items */
   }
 
   .streamer-content {
@@ -150,6 +160,7 @@ nav {
     p {
       margin: 0;
       line-height: 1.4;
+      overflow-wrap: break-word; /* Ensure long words don't overflow */
     }
   }
 
@@ -158,6 +169,32 @@ nav {
   }
 }
 
+/* Ensure responsive tables don't cause horizontal scrolling */
+.streamer-table-container {
+  width: 100%;
+  overflow-x: auto; /* Keep this to allow scrolling inside the container rather than page */
+  -webkit-overflow-scrolling: touch;
+  
+  .streamer-table {
+    width: 100%;
+    table-layout: fixed; /* Helps control table column widths */
+    
+    th, td {
+      word-break: break-word; /* Prevent text from forcing wide columns */
+    }
+  }
+}
+
+/* Fix any other potential horizontal scroll issues */
+.app {
+  overflow-x: hidden; /* Prevent horizontal scrolling at the app level */
+}
+
+/* Make sure all images are responsive */
+img {
+  max-width: 100%;
+  height: auto;
+}
 // Notification Feed
 .notification-feed {
   position: fixed;
