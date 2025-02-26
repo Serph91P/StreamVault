@@ -53,13 +53,16 @@ async def get_followed_channels(
     auth_service: TwitchAuthService = Depends(get_twitch_auth_service)
 ):
     """Get channels that the authenticated user follows"""
+    logger.debug(f"Fetching followed channels with access token: {access_token[:10]}...")
+    
     followed_channels = await auth_service.get_user_followed_channels(access_token)
     
     if followed_channels is None:
+        logger.error("Invalid access token or failed to fetch channels")
         raise HTTPException(status_code=401, detail="Invalid access token")
-        
+    
+    logger.debug(f"Returning {len(followed_channels)} followed channels")
     return {"channels": followed_channels}
-
 @router.post("/import-streamers")
 async def import_streamers(
     streamers: List[Dict[str, Any]],
