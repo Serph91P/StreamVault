@@ -2,8 +2,7 @@
   <div class="streamer-grid">
     <div v-for="streamer in sortedStreamers" 
          :key="streamer.id"
-         class="streamer-card"
-         @click="navigateToStreamerDetail(streamer.id, streamer.username)">
+         class="streamer-card">
       <div class="streamer-header">
         <div class="streamer-info">
           <img 
@@ -13,7 +12,8 @@
             :alt="streamer.username"
           />
           <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-          <h3>{{ streamer.username }}</h3>
+          <!-- Make the username clickable to Twitch -->
+          <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.username)">{{ streamer.username }}</h3>
         </div>
         <span class="status-badge" :class="{ 'live': streamer.is_live }">
           {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
@@ -27,14 +27,14 @@
       </div>
       <div class="streamer-footer">
         <button 
-          @click.stop="handleDelete(streamer.id)" 
+          @click="handleDelete(streamer.id)" 
           class="delete-btn"
           :disabled="isDeleting"
         >
           {{ isDeleting ? 'Deleting...' : 'Delete' }}
         </button>
         <button 
-          @click.stop="navigateToStreamerDetail(streamer.id, streamer.username)" 
+          @click="navigateToStreamerDetail(streamer.id, streamer.username)" 
           class="view-btn"
         >
           View Streams
@@ -88,6 +88,10 @@ const sortedStreamers = computed(() => {
 const formatDate = (date: string | undefined): string => {
   if (!date) return 'Never'
   return new Date(date).toLocaleString()
+}
+
+const navigateToTwitch = (username: string) => {
+  window.open(`https://twitch.tv/${username}`, '_blank');
 }
 
 const handleDelete = async (streamerId: string) => {
