@@ -74,3 +74,10 @@ async def import_streamers(
         
     results = await auth_service.import_followed_streamers(streamers)
     return results
+
+@router.get("/callback-url")
+async def get_callback_url():
+    """Get the configured callback URL for Twitch OAuth"""
+    from app.config.settings import settings
+    callback_url = f"{settings.BASE_URL}/api/twitch/callback"
+    return {"url": callback_url}
