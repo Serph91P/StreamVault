@@ -2,9 +2,34 @@
   <div class="twitch-import-container">
     <div v-if="error" class="error-message">
       {{ error }}
+      
+      <!-- Callback URL guidance for redirect_mismatch error -->
+      <div v-if="error.includes('redirect_mismatch')" class="callback-url-hint">
+        <p><strong>Important:</strong> The Redirect URI in your Twitch Developer Dashboard must match the callback URL of your StreamVault installation.</p>
+        <p v-if="callbackUrl" class="callback-url">
+          Configure this URL in your Twitch Developer Dashboard:<br>
+          <code>{{ callbackUrl }}</code>
+        </p>
+        <p v-else>
+          Configure the following URL in your Twitch Developer Dashboard:<br>
+          <code>https://your-streamvault-domain.com/api/twitch/callback</code><br>
+          Replace "your-streamvault-domain.com" with your actual domain.
+        </p>
+      </div>
     </div>
     
     <div v-if="!isAuthenticated && !loading" class="auth-section">
+      <!-- General guidance about callback URL -->
+      <div class="setup-hint">
+        <p>Before connecting to Twitch, make sure the callback URL is correctly configured in your Twitch Developer Dashboard.</p>
+        <p v-if="callbackUrl" class="callback-url">
+          <strong>Callback URL:</strong> <code>{{ callbackUrl }}</code>
+        </p>
+        <p v-else>
+          <strong>Callback URL format:</strong> <code>https://your-streamvault-domain.com/api/twitch/callback</code>
+        </p>
+      </div>
+      
       <button @click="startTwitchAuth" class="btn btn-twitch">
         <i class="fa fa-twitch"></i> Connect with Twitch
       </button>
@@ -149,6 +174,7 @@ const loadingMessage = ref<string>('Loading...')
 const searchQuery = ref<string>('')
 const importing = ref<boolean>(false)
 const importResults = ref<ImportResults | null>(null)
+const callbackUrl = ref<string | null>(null)
 
 // Computed
 const isAuthenticated = computed(() => !!accessToken.value)
@@ -164,6 +190,19 @@ const filteredChannels = computed(() => {
 })
 
 // Methods
+async function fetchCallbackUrl() {
+  try {
+    const response = await fetch('/api/twitch/callback-url')
+    if (response.ok) {
+      const data = await response.json()
+      callbackUrl.value = data.url
+    }
+  } catch (err) {
+    console.error('Failed to fetch callback URL:', err)
+    // We don't set an error as this is not critical
+  }
+}
+
 function isSelected(channel: Channel): boolean {
   return selectedStreamers.value.some(s => s.id === channel.id)
 }
@@ -244,7 +283,7 @@ async function importSelected(): Promise<void> {
     const results = await response.json()
     importResults.value = results
     
-    // Emittiere ein Event, wenn der Import erfolgreich war
+    // Emit an event if the import was successful
     if (results.added > 0) {
       emit('streamers-imported')
     }
@@ -261,20 +300,22 @@ function resetImport(): void {
   selectedStreamers.value = []
 }
 
-// Add this method to dismiss the error message
 function dismissError(): void {
   error.value = null
 }
 
 // Lifecycle
 onMounted(async () => {
+  // Fetch callback URL
+  await fetchCallbackUrl()
+  
   // Check if we've returned from Twitch auth
   const tokenParam = route.query.token as string | undefined
   const errorParam = route.query.error as string | undefined
   
   if (errorParam) {
     if (errorParam === 'redirect_mismatch') {
-      error.value = 'redirect_mismatch: The redirect URL in your Twitch application does not match your StreamVault configuration.'
+      error.value = 'redirect_mismatch: The Redirect URL in your Twitch Developer Dashboard does not match your StreamVault configuration.'
     } else {
       error.value = errorParam === 'auth_failed' 
         ? 'Authentication failed. Please try again.' 
@@ -291,3 +332,37 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+/* Styles for the component */
+.callback-url-hint {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid #ff9800;
+}
+
+.setup-hint {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: rgba(33, 150, 243, 0.1);
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.callback-url {
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+code {
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 3px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+</style>
