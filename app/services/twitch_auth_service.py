@@ -20,7 +20,7 @@ class TwitchAuthService:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "channel:read:subscriptions user:read:follows",  # Updated scopes
+            "scope": "user:read:follows",
         }
         
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
@@ -57,6 +57,8 @@ class TwitchAuthService:
                 logger.error("Failed to get authenticated user ID")
                 return []
                 
+            logger.debug(f"Got authenticated user ID: {user_id}")
+                
             followed_channels = []
             pagination_cursor = None
             
@@ -89,6 +91,7 @@ class TwitchAuthService:
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
+                        logger.debug(f"User data response: {data}")
                         if data.get("data") and len(data["data"]) > 0:
                             return data["data"][0]["id"]
                     else:
@@ -102,18 +105,20 @@ class TwitchAuthService:
     async def _get_follows_page(self, user_id: str, access_token: str, cursor: Optional[str] = None) -> tuple[List[Dict[str, Any]], Optional[str]]:
         """Get a page of followed channels using the new API endpoint"""
         try:
-            # KORRIGIERT: Parameter ist "user_id", nicht "broadcaster_id"
+            # Der user_id Parameter ist erforderlich laut Twitch-Dokumentation
             params = {
-                "user_id": user_id,  # Correct parameter name
+                "user_id": user_id,
                 "first": 100  # Maximum number of results per page
             }
             
             if cursor:
                 params["after"] = cursor
                 
+            logger.debug(f"Fetching followed channels with params: {params}")
+                
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    "https://api.twitch.tv/helix/channels/followed",  # Correct endpoint
+                    "https://api.twitch.tv/helix/channels/followed",  # Korrekter Endpunkt
                     params=params,
                     headers={
                         "Client-ID": self.client_id,
