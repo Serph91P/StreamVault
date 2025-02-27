@@ -1,39 +1,54 @@
 <template>
   <div class="settings-container">
-    <h2 class="settings-title">Einstellungen</h2>
+    <div v-if="isLoading" class="loading-indicator">
+      <p>Einstellungen werden geladen...</p>
+    </div>
     
-    <!-- Sub-Navigation -->
-    <div class="settings-tabs">
-      <button 
-        class="tab-button" 
-        :class="{ 'active': activeTab === 'notifications' }"
-        @click="activeTab = 'notifications'"
-      >
-        Benachrichtigungen
-      </button>
-      <button 
-        class="tab-button" 
-        :class="{ 'active': activeTab === 'favorites' }"
-        @click="activeTab = 'favorites'"
-      >
-        Favoriten
-      </button>
-    </div>
-
-    <!-- Notification Settings Tab -->
-    <div v-if="activeTab === 'notifications'" class="tab-content">
-      <NotificationSettingsPanel 
-        :settings="notificationData" 
-        :streamerSettings="streamerSettings"
-        @update-settings="saveSettings"
-        @update-streamer-settings="handleStreamerSettingsUpdate"
-        @test-notification="testNotification"
-      />
-    </div>
-
-    <!-- Favorites Settings Tab -->
-    <div v-if="activeTab === 'favorites'" class="tab-content">
-      <FavoritesSettingsPanel />
+    <div v-else>
+      <!-- Tab Navigation -->
+      <div class="settings-tabs">
+        <button 
+          @click="activeTab = 'notifications'" 
+          :class="{ active: activeTab === 'notifications' }"
+          class="tab-button"
+        >
+          Benachrichtigungen
+        </button>
+        <button 
+          @click="activeTab = 'favorites'" 
+          :class="{ active: activeTab === 'favorites' }"
+          class="tab-button"
+        >
+          Favoriten-Spiele
+        </button>
+      </div>
+      
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Notifications Tab -->
+        <div v-if="activeTab === 'notifications'" class="tab-pane">
+          <NotificationSettingsPanel 
+            :settings="settings || {
+              notification_url: '',
+              notifications_enabled: true,
+              apprise_docs_url: '',
+              notify_online_global: true,
+              notify_offline_global: true,
+              notify_update_global: true,
+              notify_favorite_category_global: false
+            }"
+            :streamer-settings="streamerSettings"
+            @update-settings="handleUpdateSettings"
+            @update-streamer-settings="handleUpdateStreamerSettings"
+            @test-notification="handleTestNotification"
+          />
+        </div>
+        
+        <!-- Favorites Tab -->
+        <div v-if="activeTab === 'favorites'" class="tab-pane">
+          <FavoritesSettingsPanel />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -43,56 +58,64 @@ import { ref, onMounted } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
+import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
-// Aktiver Tab
-const activeTab = ref('notifications')
-
-// Notification Settings
 const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
 
-const notificationData = ref({
-  notificationUrl: '',
-  notificationsEnabled: true,
-  appriseDocsUrl: '',
-  notifyOnlineGlobal: true,
-  notifyOfflineGlobal: true,
-  notifyUpdateGlobal: true,
-  notifyFavoriteCategoryGlobal: true
-})
-
-const streamerSettings = ref([])
+const activeTab = ref('notifications')
+const streamerSettings = ref<StreamerNotificationSettings[]>([])
+const isLoading = ref(true)
+const isSaving = ref(false)
 
 onMounted(async () => {
-  await fetchSettings()
-  const settingsData = settings.value
-  notificationData.value = {
-    notificationUrl: settingsData?.notification_url || '',
-    notificationsEnabled: settingsData?.notifications_enabled ?? true,
-    appriseDocsUrl: settingsData?.apprise_docs_url || '',
-    notifyOnlineGlobal: settingsData?.notify_online_global ?? true,
-    notifyOfflineGlobal: settingsData?.notify_offline_global ?? true,
-    notifyUpdateGlobal: settingsData?.notify_update_global ?? true,
-    notifyFavoriteCategoryGlobal: settingsData?.notify_favorite_category_global ?? true
+  isLoading.value = true
+  try {
+    await fetchSettings()
+    streamerSettings.value = await getStreamerSettings()
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+  } finally {
+    isLoading.value = false
   }
-  streamerSettings.value = await getStreamerSettings()
 })
 
-const saveSettings = async (newSettings) => {
-  await updateSettings(newSettings)
-  await fetchSettings()
+const handleUpdateSettings = async (newSettings: Partial<NotificationSettings>) => {
+  try {
+    isSaving.value = true
+    await updateSettings(newSettings)
+    alert('Settings saved successfully!')
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to update settings')
+  } finally {
+    isSaving.value = false
+  }
 }
 
-const handleStreamerSettingsUpdate = async (streamerId, settings) => {
-  await updateStreamerSettings(streamerId, settings)
+const handleUpdateStreamerSettings = async (
+  streamerId: number, 
+  settings: Partial<StreamerNotificationSettings>
+) => {
+  try {
+    const updatedSettings = await updateStreamerSettings(streamerId, settings)
+    const index = streamerSettings.value.findIndex(s => s.streamer_id === streamerId)
+    if (index !== -1) {
+      streamerSettings.value[index] = {
+        ...streamerSettings.value[index],
+        ...updatedSettings
+      }
+    }
+  } catch (error) {
+    console.error('Failed to update streamer settings:', error)
+  }
 }
 
-const testNotification = async () => {
+const handleTestNotification = async () => {
   try {
     const response = await fetch('/api/settings/test-notification', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     })
 
     if (!response.ok) {
@@ -109,35 +132,32 @@ const testNotification = async () => {
 
 <style scoped>
 .settings-container {
-  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  padding: 20px;
 }
 
-.settings-title {
-  margin-bottom: 20px;
-  font-size: 1.8rem;
+.loading-indicator {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
 }
 
 .settings-tabs {
   display: flex;
+  border-bottom: 1px solid #333;
   margin-bottom: 20px;
-  border-bottom: 1px solid #3a3a3a;
 }
 
 .tab-button {
-  padding: 10px 20px;
+  padding: 12px 20px;
   background: none;
   border: none;
-  border-bottom: 3px solid transparent;
-  color: #aaaaaa;
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.tab-button:hover {
-  color: #ffffff;
+  color: #ccc;
+  font-size: 1rem;
+  border-bottom: 3px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
 }
 
 .tab-button.active {
@@ -145,9 +165,12 @@ const testNotification = async () => {
   border-bottom-color: #9146FF;
 }
 
+.tab-button:hover:not(.active) {
+  color: #fff;
+  border-bottom-color: #555;
+}
+
 .tab-content {
-  background-color: #18181b;
-  border-radius: 8px;
-  padding: 20px;
+  min-height: 400px;
 }
 </style>
