@@ -1,37 +1,36 @@
-import { ref } from 'vue'
-
-export interface Stream {
-  id: number
-  streamer_id: number
-  title: string | null
-  category_name: string | null
-  language: string | null
-  started_at: string
-  ended_at: string | null
-  twitch_stream_id: string
-  is_live: boolean
-}
+import { ref, computed } from 'vue'
+import type { Stream } from '@/types/streams'
 
 export function useStreams() {
   const streams = ref<Stream[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const streamerInfo = ref(null)
 
-  const fetchStreams = async (streamerId: string) => {
+  /**
+   * Fetch all streams for a specific streamer
+   */
+  const fetchStreams = async (streamerId: string | number) => {
+    if (!streamerId) return
+    
     isLoading.value = true
     error.value = null
     
     try {
       const response = await fetch(`/api/streamers/${streamerId}/streams`)
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Failed to fetch streams for streamer ID ${streamerId}`)
       }
       
       const data = await response.json()
-      streams.value = data.streams || []
-    } catch (e) {
-      console.error('Error fetching streams:', e)
-      error.value = e instanceof Error ? e.message : 'Unknown error'
+      streams.value = data.streams
+      streamerInfo.value = data.streamer
+      
+    } catch (err) {
+      console.error('Error fetching streams:', err)
+      error.value = err instanceof Error ? err.message : 'Unknown error occurred'
       streams.value = []
     } finally {
       isLoading.value = false
@@ -42,6 +41,7 @@ export function useStreams() {
     streams,
     isLoading,
     error,
+    streamerInfo,
     fetchStreams
   }
 }
