@@ -9,7 +9,7 @@
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="e.g., discord://webhook1,telegram://bot_token
+            placeholder="z.B. discord://webhook1,telegram://bot_token/chat_id"
             class="form-control"
             :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
@@ -18,7 +18,7 @@
             v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
             class="invalid-feedback"
           >
-            Please enter a valid notification service URL (e.g., discord://webhook_id/webhook_token)
+            Bitte gib eine gültige URL ein (z.B. discord://webhook_id/webhook_token)
           </div>
           <div 
             v-if="showTooltip" 
@@ -27,15 +27,15 @@
             @mouseleave="handleTooltipMouseLeave"
           >
             <Tooltip>
-              StreamVault supports 100+ notification services including Discord, Telegram, Ntfy, 
-              Pushover, Slack, and more. Check the 
+              StreamVault unterstützt 100+ Benachrichtigungsdienste wie Discord, Telegram, Ntfy, 
+              Pushover, Slack und mehr. Schau in der 
               <a 
                 href="https://github.com/caronc/apprise/wiki#notification-services"
                 target="_blank" 
                 rel="noopener noreferrer"
                 @click.stop
                 class="tooltip-link"
-              >Apprise Documentation</a> for supported services and URL formats.
+              >Apprise-Dokumentation</a> nach unterstützten Diensten und URL-Formaten.
             </Tooltip>
           </div>
         </div>
@@ -201,7 +201,7 @@ const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-n
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({ ...props.settings })
 
-// Validierung und Speichern - Hier kopieren Sie die Logik aus der alten SettingsView
+// Validierung und Speichern
 const KNOWN_SCHEMES = [
   'discord', 'telegram', 'tgram', 'slack', 'pushover', 'mailto',
   'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
@@ -320,3 +320,100 @@ const toggleAllStreamers = async (enabled: boolean) => {
 const testNotification = () => {
   emit('test-notification')
 }
+</script>
+
+<style scoped>
+.notification-settings {
+  padding: 20px;
+}
+
+.settings-form {
+  margin-bottom: 30px;
+  background-color: #1f1f23;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #333;
+  background-color: #18181b;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: #9146FF;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #3a3a3a;
+  color: white;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.875rem;
+}
+
+.streamer-notifications {
+  margin-top: 30px;
+}
+
+.table-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.streamer-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #1f1f23;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.streamer-table th,
+.streamer-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #333;
+}
+
+.streamer-table th {
+  background-color: #18181b;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.streamer-table tr:last-child td {
+  border-bottom: none;
+}
+</style>
