@@ -69,16 +69,3 @@
     margin-right: auto;
   }
 }
-  padding: v.$spacing-xl;
-  box-sizing: border-box;
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-xl;
-  }
-
-  @media (min-width: map.get(v.$breakpoints, 'lg')) {
-    max-width: v.$container-xl;
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
