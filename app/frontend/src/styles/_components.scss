@@ -1024,3 +1024,68 @@ img {
     margin-top: v.$spacing-md;
   }
 }
+
+// Stream List Component
+.streams-container {
+  padding: 1rem;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.stream-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: v.$spacing-md;
+  margin-top: v.$spacing-md;
+  
+  @media (max-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.streams-summary {
+  margin-bottom: v.$spacing-md;
+  font-size: 0.95rem;
+  color: v.$text-secondary;
+}
+
+.stream-card {
+  background: v.$background-darker;
+  border-radius: v.$border-radius;
+  overflow: hidden;
+  padding: v.$spacing-lg;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-3px);
+  }
+  
+  .stream-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: v.$spacing-md;
+  }
+  
+  .stream-info {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-xs;
+    
+    h3 {
+      margin: 0;
+      font-size: map.get(v.$font-scale, 'base');
+    }
+  }
+  
+  .stream-content {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-xs;
+    
+    p {
+      margin: 0;
+      word-break: break-word;
+    }
+  }
+}
