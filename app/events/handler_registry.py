@@ -165,7 +165,7 @@ class EventHandlerRegistry:
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": data["broadcaster_user_name"],
+                            "streamer_name": streamer.username,
                             "started_at": data["started_at"],
                             "title": streamer.title,
                             "category_name": streamer.category_name,
@@ -176,7 +176,7 @@ class EventHandlerRegistry:
 
                     # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
-                        streamer_name=data["broadcaster_user_name"],
+                        streamer_name=streamer.username,
                         event_type="online",
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
@@ -212,11 +212,7 @@ class EventHandlerRegistry:
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-
-                    streamer.is_live = False
-                    streamer.last_updated = datetime.now(timezone.utc)
-                
-                    db.commit()
+                        db.commit()
                 
                     # Send WebSocket notification
                     await self.manager.send_notification({
@@ -224,13 +220,13 @@ class EventHandlerRegistry:
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": data["broadcaster_user_name"]
+                            "streamer_name": streamer.username
                         }
                     })
                     
                     # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
-                        streamer_name=data["broadcaster_user_name"],
+                        streamer_name=streamer.username,
                         event_type="offline",
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
@@ -266,7 +262,7 @@ class EventHandlerRegistry:
                         "data": {
                             "streamer_id": streamer.id,
                             "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": data["broadcaster_user_name"],
+                            "streamer_name": streamer.username,
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
                             "language": data.get("language")
@@ -277,7 +273,7 @@ class EventHandlerRegistry:
                 
                     # Enhanced Apprise notification
                     notification_result = await self.notification_service.send_stream_notification(
-                        streamer_name=data["broadcaster_user_name"],
+                        streamer_name=streamer.username,
                         event_type="update",
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
@@ -292,8 +288,7 @@ class EventHandlerRegistry:
                 
                     logger.debug("Notifications sent successfully")
         except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)
-    async def list_subscriptions(self):
+            logger.error(f"Error handling stream update event: {e}", exc_info=True)    async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
         logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
