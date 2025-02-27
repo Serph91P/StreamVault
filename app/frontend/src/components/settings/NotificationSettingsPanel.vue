@@ -317,6 +317,23 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
     notify_offline: enabled,
     notify_update: enabled
   }
+
+  emit('update-streamer-settings', streamerId, settingsUpdate)
+}
+
+const toggleAllStreamers = (enabled: boolean) => {
+  if (!props.streamerSettings) return
+  
+  for (const streamer of typedStreamerSettings.value) {
+    if (!streamer?.streamer_id) continue
+    
+    toggleAllForStreamer(streamer.streamer_id, enabled)
+  }
+}
+
+const testNotification = () => {
+  emit('test-notification')
+}
 </script>
 
 <style scoped>
@@ -352,29 +369,9 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
 
 .checkbox-group input[type="checkbox"] {
   margin-right: 8px;
-  margin-top: 4px; /* Aligns checkbox with first line of text */
-}
-</style>
-  
-  emit('update-streamer-settings', streamerId, settingsUpdate)
+  margin-top: 4px;
 }
 
-const toggleAllStreamers = (enabled: boolean) => {
-  if (!props.streamerSettings) return
-  
-  for (const streamer of typedStreamerSettings.value) {
-    if (!streamer?.streamer_id) continue
-    
-    toggleAllForStreamer(streamer.streamer_id, enabled)
-  }
-}
-
-const testNotification = () => {
-  emit('test-notification')
-}
-</script>
-
-<style scoped>
 .settings-form {
   margin-bottom: 30px;
   background-color: #1f1f23;
