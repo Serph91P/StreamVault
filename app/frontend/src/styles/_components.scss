@@ -1094,30 +1094,30 @@ img {
 .settings-tabs {
   display: flex;
   margin-bottom: 20px;
-  border-bottom: 1px solid v.$border-color;
+  border-bottom: 1px solid $border-color;
   
   .tab-button {
     padding: 10px 20px;
     background: none;
     border: none;
     border-bottom: 3px solid transparent;
-    color: v.$text-secondary;
+    color: $text-secondary;
     cursor: pointer;
     font-weight: 500;
     transition: all 0.2s ease;
     
     &:hover {
-      color: v.$text-primary;
+      color: $text-primary;
     }
     
     &.active {
-      color: v.$primary;
-      border-bottom-color: v.$primary;
+      color: $primary;
+      border-bottom-color: $primary;
     }
   }
 }
 
-// Category-Grid
+// Kategorien-Grid
 .categories-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1125,8 +1125,8 @@ img {
   margin-top: 20px;
   
   .category-card {
-    background: v.$background-darker;
-    border-radius: v.$border-radius;
+    background: $background-darker;
+    border-radius: $border-radius;
     overflow: hidden;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     
@@ -1136,7 +1136,7 @@ img {
     }
     
     &.is-favorite {
-      border: 2px solid v.$primary;
+      border: 2px solid $primary;
     }
     
     .category-image {
@@ -1180,3 +1180,4 @@ img {
     gap: 10px;
   }
 }
+
