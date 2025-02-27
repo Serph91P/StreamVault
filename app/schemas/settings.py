@@ -17,6 +17,7 @@ class GlobalSettingsSchema(BaseModel):
     notify_online_global: bool = True
     notify_offline_global: bool = True
     notify_update_global: bool = True
+    notify_favorite_category_global: bool = True
     apprise_docs_url: str = "https://github.com/caronc/apprise/wiki"
 
     class Config:
@@ -29,10 +30,10 @@ class StreamerNotificationSettingsSchema(BaseModel):
     notify_online: bool = True
     notify_offline: bool = True
     notify_update: bool = True
+    notify_favorite_category: bool = True
 
     class Config:
         from_attributes = True
-
 class StreamerNotificationSettingsUpdateSchema(BaseModel):
     """Schema für partielle Updates der Streamer-Benachrichtigungseinstellungen"""
     notify_online: Optional[bool] = None
