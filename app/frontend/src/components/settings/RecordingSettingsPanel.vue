@@ -50,7 +50,7 @@
           <strong>Available Variables:</strong>
           <div class="variables-grid">
             <div v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-item">
-              <code>{{{ variable.key }}}</code> - {{ variable.description }}
+              <code>{{ '{' + variable.key + '}' }}</code> - {{ variable.description }}
             </div>
           </div>
         </div>
