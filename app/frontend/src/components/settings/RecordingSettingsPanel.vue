@@ -1,7 +1,7 @@
 <template>
   <div>
     <h3>Recording Settings</h3>
-    
+
     <!-- Global Settings -->
     <div class="settings-form">
       <div class="form-group">
@@ -10,20 +10,16 @@
           Enable Stream Recording
         </label>
       </div>
-      
+
       <div class="form-group">
         <label>Output Directory:</label>
-        <input 
-          v-model="data.output_directory" 
-          placeholder="/recordings"
-          class="form-control"
-        />
+        <input v-model="data.output_directory" placeholder="/recordings" class="form-control" />
         <div class="help-text">
           Directory inside the Docker container where recordings are saved.
           You can mount this to your host system in docker-compose.yml.
         </div>
       </div>
-      
+
       <div class="form-group">
         <label>Filename Preset:</label>
         <select v-model="data.filename_preset" class="form-control" @change="updateFilenameTemplate">
@@ -38,11 +34,9 @@
 
       <div class="form-group">
         <label>Filename Template:</label>
-        <input 
-          v-model="data.filename_template" 
+        <input v-model="data.filename_template"
           placeholder="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"
-          class="form-control"
-        />
+          class="form-control" />
         <div class="filename-preview" v-if="data.filename_template">
           <strong>Preview:</strong> {{ previewFilename }}
         </div>
@@ -55,7 +49,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="form-group">
         <label>Default Quality:</label>
         <select v-model="data.default_quality" class="form-control">
@@ -67,7 +61,7 @@
           Default quality for all streamers. This can be overridden on a per-streamer basis.
         </div>
       </div>
-      
+
       <div class="form-group">
         <label>
           <input type="checkbox" v-model="data.use_chapters" />
@@ -77,30 +71,20 @@
           Create chapters in the recording based on stream title and game changes.
         </div>
       </div>
-      
+
       <div class="form-group">
         <label>Maximum Concurrent Recordings:</label>
-        <input 
-          v-model.number="data.max_concurrent_recordings" 
-          type="number"
-          min="1"
-          max="10"
-          class="form-control form-control-sm"
-          style="max-width: 100px;"
-        />
+        <input v-model.number="data.max_concurrent_recordings" type="number" min="1" max="10"
+          class="form-control form-control-sm" style="max-width: 100px;" />
       </div>
-      
+
       <div class="form-actions">
-        <button 
-          @click="saveSettings" 
-          class="btn btn-primary"
-          :disabled="isSaving"
-        >
+        <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}
         </button>
       </div>
     </div>
-    
+
     <!-- Active Recordings -->
     <div v-if="activeRecordings.length > 0" class="active-recordings">
       <h3>Active Recordings</h3>
@@ -116,105 +100,82 @@
             <div><strong>Quality:</strong> {{ recording.quality }}</div>
             <div class="output-path"><strong>Output:</strong> {{ recording.output_path }}</div>
           </div>
-          <button 
-            @click="stopRecording(recording.streamer_id)" 
-            class="btn btn-danger"
-            :disabled="isLoading"
-          >
+          <button @click="stopRecording(recording.streamer_id)" class="btn btn-danger" :disabled="isLoading">
             Stop Recording
           </button>
         </div>
       </div>
     </div>
-<!-- Streamer Settings -->
-<div class="streamer-settings">
-  <h3>Streamer Recording Settings</h3>
-  <div class="table-controls">
-    <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
-    <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
-  </div>
-  
-  <div class="streamer-table">
-    <table>
-      <thead>
-        <tr>
-          <th>Streamer</th>
-          <th>
-            Record
-            <div class="th-tooltip">Enable/disable recording for this streamer</div>
-          </th>
-          <th>
-            Quality
-            <div class="th-tooltip">Select recording quality (defaults to global setting if empty)</div>
-          </th>
-          <th>
-            Custom Filename
-            <div class="th-tooltip">Optional custom filename template for this streamer</div>
-          </th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="streamer in streamerSettings" :key="streamer.streamer_id">
-          <td class="streamer-info">
-            <div class="streamer-avatar" v-if="streamer.profile_image_url">
-              <img 
-                :src="streamer.profile_image_url" 
-                :alt="streamer.username || ''"
-              />
-            </div>
-            <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
-          </td>
-          <td>
-            <input 
-              type="checkbox" 
-              v-model="streamer.enabled"
-              @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })"
-            />
-          </td>
-          <td>
-            <select 
-              v-model="streamer.quality"
-              @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
-              class="form-control form-control-sm"
-            >
-              <option value="">Use global default</option>
-              <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </td>
-          <td>
-            <input 
-              type="text"
-              v-model="streamer.custom_filename"
-              @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
-              placeholder="Use global template"
-              class="form-control form-control-sm"
-            />
-          </td>
-          <td>
-            <button 
-              @click="testRecording(streamer.streamer_id)" 
-              class="btn btn-sm btn-secondary"
-              :disabled="isLoading || !data.enabled || !streamer.enabled"
-            >
-              Test Recording
-            </button>
-            <button 
-              @click="toggleStreamerRecording(streamer.streamer_id, true)" 
-              class="btn btn-sm btn-secondary"
-            >Enable</button>
-            <button 
-              @click="toggleStreamerRecording(streamer.streamer_id, false)" 
-              class="btn btn-sm btn-secondary"
-            >Disable</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+    <!-- Streamer Settings -->
+    <div class="streamer-settings">
+      <h3>Streamer Recording Settings</h3>
+      <div class="table-controls">
+        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
+        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
+      </div>
+
+      <div class="streamer-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Streamer</th>
+              <th>
+                Record
+                <div class="th-tooltip">Enable/disable recording for this streamer</div>
+              </th>
+              <th>
+                Quality
+                <div class="th-tooltip">Select recording quality (defaults to global setting if empty)</div>
+              </th>
+              <th>
+                Custom Filename
+                <div class="th-tooltip">Optional custom filename template for this streamer</div>
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="streamer in streamerSettings" :key="streamer.streamer_id">
+              <td class="streamer-info">
+                <div class="streamer-avatar" v-if="streamer.profile_image_url">
+                  <img :src="streamer.profile_image_url" :alt="streamer.username || ''" />
+                </div>
+                <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
+              </td>
+              <td>
+                <input type="checkbox" v-model="streamer.enabled"
+                  @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
+              </td>
+              <td>
+                <select v-model="streamer.quality"
+                  @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
+                  class="form-control form-control-sm">
+                  <option value="">Use global default</option>
+                  <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </td>
+              <td>
+                <input type="text" v-model="streamer.custom_filename"
+                  @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
+                  placeholder="Use global template" class="form-control form-control-sm" />
+              </td>
+              <td>
+                <button @click="testRecording(streamer.streamer_id)" class="btn btn-sm btn-secondary"
+                  :disabled="isLoading || !data.enabled || !streamer.enabled">
+                  Test Recording
+                </button>
+                <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
+                  class="btn btn-sm btn-secondary">Enable</button>
+                <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
+                  class="btn btn-sm btn-secondary">Disable</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -261,7 +222,7 @@ const isSaving = ref(false);
 // Preview filename with example data
 const previewFilename = computed(() => {
   if (!data.value.filename_template) return '';
-  
+
   const now = new Date();
   const year = now.getFullYear().toString();
   const month = (now.getMonth() + 1).toString().padStart(2, '0');
@@ -269,9 +230,9 @@ const previewFilename = computed(() => {
   const hour = now.getHours().toString().padStart(2, '0');
   const minute = now.getMinutes().toString().padStart(2, '0');
   const second = now.getSeconds().toString().padStart(2, '0');
-  
+
   let filename = data.value.filename_template;
-  
+
   // Replace variables
   filename = filename
     .replace(/{streamer}/g, 'example_streamer')
@@ -288,12 +249,12 @@ const previewFilename = computed(() => {
     .replace(/{datetime}/g, `${year}-${month}-${day}_${hour}-${minute}-${second}`)
     .replace(/{id}/g, 'stream_12345')
     .replace(/{season}/g, `S${year}-${month}`);
-  
+
   // Add .mp4 if not present
   if (!filename.toLowerCase().endsWith('.mp4')) {
     filename += '.mp4';
   }
-  
+
   return filename;
 });
 
@@ -314,7 +275,7 @@ const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRec
 };
 const toggleAllStreamers = async (enabled: boolean) => {
   if (!props.streamerSettings) return;
-  
+
   for (const streamer of props.streamerSettings) {
     if (!streamer?.streamer_id) continue;
     await updateStreamerSetting(streamer.streamer_id, { enabled });
