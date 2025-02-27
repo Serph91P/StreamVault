@@ -233,34 +233,49 @@ async def delete_all_subscriptions(
         logger.error(f"Failed to delete subscriptions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-@router.get("/{streamer_id}/streams", response_model=StreamList)
-async def get_streamer_streams(streamer_id: int):
-    """Get all streams for a specific streamer"""
+@router.get("/{streamer_id}/streams", response_model=dict)
+async def get_streams_by_streamer_id(
+    streamer_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get all streams for a streamer by their ID"""
     try:
-        with SessionLocal() as db:
-            streams = db.query(Stream)\
-                .filter(Stream.streamer_id == streamer_id)\
-                .order_by(Stream.started_at.desc())\
-                .all()
-            
-            return StreamList(
-                streams=[
-                    StreamResponse(
-                        id=stream.id,
-                        streamer_id=stream.streamer_id,
-                        title=stream.title,
-                        category_name=stream.category_name,
-                        language=stream.language,
-                        started_at=stream.started_at,
-                        ended_at=stream.ended_at,
-                        twitch_stream_id=stream.twitch_stream_id,
-                        is_live=stream.ended_at is None
-                    )
-                    for stream in streams
-                ]
-            )
+        # Überprüfen, ob der Streamer existiert
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+        
+        # Alle Streams für diesen Streamer abrufen, nach Startdatum absteigend sortiert
+        streams = db.query(Stream).filter(
+            Stream.streamer_id == streamer_id
+        ).order_by(
+            Stream.started_at.desc()
+        ).all()
+        
+        # Streams in ein lesbares Format umwandeln
+        formatted_streams = []
+        for stream in streams:
+            formatted_streams.append({
+                "id": stream.id,
+                "streamer_id": stream.streamer_id,
+                "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+                "title": stream.title,
+                "category_name": stream.category_name,
+                "language": stream.language,
+                "twitch_stream_id": stream.twitch_stream_id
+            })
+        
+        return {
+            "streamer": {
+                "id": streamer.id,
+                "username": streamer.username,
+                "profile_image_url": streamer.profile_image_url
+            },
+            "streams": formatted_streams
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error fetching streams for streamer {streamer_id}: {e}")
+        logger.error(f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
