@@ -39,6 +39,7 @@ class Stream(Base):
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
+
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
     event_type = Column(String, nullable=False)
@@ -49,14 +50,17 @@ class StreamEvent(Base):
     
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    favorite_categories = relationship("FavoriteCategory", back_populates="user", cascade="all, delete-orphan")
 
 class Session(Base):
     __tablename__ = "sessions"
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     token = Column(String, unique=True, nullable=False)
@@ -70,8 +74,31 @@ class NotificationSettings(Base):
     notify_online = Column(Boolean, default=True)
     notify_offline = Column(Boolean, default=True)
     notify_update = Column(Boolean, default=True)
-
+    notify_favorite_category = Column(Boolean, default=True)
     streamer = relationship("Streamer", back_populates="notification_settings")
+
+class Category(Base):
+    __tablename__ = "categories"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    twitch_id = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    box_art_url = Column(String, nullable=True)
+    first_seen = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    favorites = relationship("FavoriteCategory", back_populates="category", cascade="all, delete-orphan")
+
+class FavoriteCategory(Base):
+    __tablename__ = "favorite_categories"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    category_id = Column(Integer, ForeignKey("categories.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    user = relationship("User", back_populates="favorite_categories")
+    category = relationship("Category", back_populates="favorites")
+    __table_args__ = (UniqueConstraint('user_id', 'category_id', name='uq_user_category'),)
+
     
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
