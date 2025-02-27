@@ -291,20 +291,27 @@ class EventHandlerRegistry:
                     category_id = data.get("category_id")
                     
                     if category_name and category_id:
+                        # Kategorie in der Datenbank finden oder erstellen
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
+                            # Box Art URL über die Twitch API abrufen
+                            streamer_service = StreamerService(db=db, websocket_manager=self.manager, event_registry=self)
+                            game_data = await streamer_service.get_game_data(category_id)
+                            
+                            # Neue Kategorie hinzufügen
                             category = Category(
                                 twitch_id=category_id,
                                 name=category_name,
+                                box_art_url=game_data.get("box_art_url") if game_data else None
                             )
                             db.add(category)
                         else:
+                            # Bestehende Kategorie aktualisieren
                             category.name = category_name
                             category.last_seen = datetime.now(timezone.utc)
                         
                         db.commit()
-
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
                         ).all()
