@@ -37,8 +37,13 @@
         </thead>
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
-            <td>{{ sub.broadcaster_name || sub.condition?.broadcaster_user_id }}</td>
-            <td>{{ sub.type }}</td>
+            <td>
+              <div v-if="streamerMap[sub.condition?.broadcaster_user_id]" class="streamer-info">
+                <span class="streamer-name">{{ streamerMap[sub.condition?.broadcaster_user_id] }}</span>
+              </div>
+              <span v-else>{{ sub.broadcaster_name || sub.condition?.broadcaster_user_id }}</span>
+            </td>
+            <td>{{ formatEventType(sub.type) }}</td>
             <td>
               <span class="status-badge" :class="sub.status">
                 {{ sub.status }}
@@ -77,13 +82,51 @@ interface Subscription {
   }
 }
 
+interface Streamer {
+  id: number
+  twitch_id: string
+  username: string
+}
+
 const subscriptions = ref<Subscription[]>([])
-const loadingResubscribe = ref(false);
+const streamers = ref<Streamer[]>([])
+const streamerMap = ref<Record<string, string>>({})
+const loadingResubscribe = ref(false)
 const loading = ref(false)
+
+function formatEventType(type: string): string {
+  switch (type) {
+    case 'stream.online':
+      return 'Stream Start'
+    case 'stream.offline':
+      return 'Stream Ende'
+    case 'channel.update':
+      return 'Kanal Update'
+    default:
+      return type
+  }
+}
+
+async function loadStreamers() {
+  try {
+    const response = await fetch('/api/streamers')
+    const data = await response.json()
+    streamers.value = data.streamers || []
+    
+    streamerMap.value = {}
+    streamers.value.forEach(streamer => {
+      streamerMap.value[streamer.twitch_id] = streamer.username
+    })
+  } catch (error) {
+    console.error('Failed to load streamers:', error)
+  }
+}
 
 async function loadSubscriptions() {
   loading.value = true
   try {
+    await loadStreamers()
+    
     const response = await fetch('/api/streamers/subscriptions')
     const data = await response.json()
     subscriptions.value = data.subscriptions
@@ -95,31 +138,31 @@ async function loadSubscriptions() {
 }
 
 async function resubscribeAll() {
-  loadingResubscribe.value = true;
+  loadingResubscribe.value = true
   try {
     const response = await fetch('/api/streamers/resubscribe-all', {
       method: 'POST',
       headers: {
         'Accept': 'application/json'
       }
-    });
+    })
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server response:', errorText);
-      throw new Error(`Failed to resubscribe: ${response.status}`);
+      const errorText = await response.text()
+      console.error('Server response:', errorText)
+      throw new Error(`Failed to resubscribe: ${response.status}`)
     }
     
-    const data = await response.json();
-    alert(`Success: ${data.message}`);
+    const data = await response.json()
+    alert(`Success: ${data.message}`)
     
-    await loadSubscriptions();
+    await loadSubscriptions()
     
   } catch (error: any) {
-    console.error('Failed to resubscribe all:', error.message);
-    alert(`Error: ${error.message}`);
+    console.error('Failed to resubscribe all:', error.message)
+    alert(`Error: ${error.message}`)
   } finally {
-    loadingResubscribe.value = false;
+    loadingResubscribe.value = false
   }
 }
 
@@ -149,23 +192,22 @@ async function deleteAllSubscriptions() {
     })
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server response:', errorText);
-      throw new Error(`Failed to delete subscriptions: ${response.status}`);
+      const errorText = await response.text()
+      console.error('Server response:', errorText)
+      throw new Error(`Failed to delete subscriptions: ${response.status}`)
     }
     
-    const data = await response.json();
-    console.log('Deleted subscriptions:', data);
-    alert('All subscriptions successfully deleted!');
+    const data = await response.json()
+    console.log('Deleted subscriptions:', data)
+    alert('All subscriptions successfully deleted!')
     
-    // Aktualisiere die UI
-    subscriptions.value = [];
-    await loadSubscriptions();
+    subscriptions.value = []
+    await loadSubscriptions()
   } catch (error: any) {
-    console.error('Failed to delete all subscriptions:', error.message);
-    alert(`Error: ${error.message}`);
+    console.error('Failed to delete all subscriptions:', error.message)
+    alert(`Error: ${error.message}`)
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
