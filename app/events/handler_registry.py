@@ -5,6 +5,7 @@ from typing import Dict, Callable, Awaitable, Any, Optional
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
+from app.services.recording_service import RecordingService
 from app.models import Streamer, Stream, StreamEvent
 from app.config.settings import settings as app_settings
 from datetime import datetime, timezone
@@ -120,6 +121,12 @@ class EventHandlerRegistry:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
                 await asyncio.sleep(1)
         return False
+
+class EventHandlerRegistry:
+    def __init__(self, connection_manager: ConnectionManager, settings=None):
+        # Existing initialization code...
+        self.recording_service = RecordingService()
+        
     async def handle_stream_online(self, data: dict):
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
@@ -190,6 +197,18 @@ class EventHandlerRegistry:
                     )
                     
                     logger.debug("Notifications sent successfully")
+
+                    # After successful notification, start recording if enabled
+                    streamer_id = streamer.id
+                    await self.recording_service.start_recording(streamer_id, {
+                        "id": data["id"],
+                        "broadcaster_user_id": data["broadcaster_user_id"],
+                        "broadcaster_user_name": data["broadcaster_user_name"],
+                        "started_at": data["started_at"],
+                        "title": streamer.title,
+                        "category_name": streamer.category_name,
+                        "language": streamer.language
+                    })
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
@@ -234,6 +253,10 @@ class EventHandlerRegistry:
                             "twitch_login": data["broadcaster_user_login"]
                         }
                     )
+
+                    # Stop recording if it was active
+                    await self.recording_service.stop_recording(streamer.id)
+                
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
     
