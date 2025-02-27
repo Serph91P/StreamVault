@@ -5,6 +5,7 @@ services:
     user: "1000:1000"
     volumes:
       - app_data:/app/data
+      - ./recordings:/recordings
     ports:
       - "7000:7000"
     environment:
