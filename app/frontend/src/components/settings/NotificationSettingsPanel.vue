@@ -121,7 +121,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="streamer in streamerSettings" :key="streamer.streamer_id">
+            <tr v-for="streamer in typedStreamerSettings" :key="streamer.streamer_id">
               <td class="streamer-info">
                 <div class="streamer-avatar" v-if="streamer.profile_image_url">
                   <img 
@@ -179,27 +179,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
-import Tooltip from '@/components/Tooltip.vue'
-import type { StreamerNotificationSettings } from '@/types/settings'
+import { ref, computed } from 'vue'
+import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
 const props = defineProps({
   settings: {
-    type: Object,
+    type: Object as () => NotificationSettings,
     required: true
   },
   streamerSettings: {
-    type: Array,
+    type: Array as () => StreamerNotificationSettings[],
     required: true
   }
+})
+
+// Typed version of streamerSettings to fix TS errors
+const typedStreamerSettings = computed(() => {
+  return props.streamerSettings as StreamerNotificationSettings[]
 })
 
 // Emits
 const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-notification'])
 
 // Data kopieren, um sie im Formular zu verwenden
-const data = ref({ ...props.settings })
+const data = ref({
+  notificationUrl: props.settings.notification_url || '',
+  notificationsEnabled: props.settings.notifications_enabled !== false,
+  notifyOnlineGlobal: props.settings.notify_online_global !== false,
+  notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
+  notifyUpdateGlobal: props.settings.notify_update_global !== false,
+  notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
+})
 
 // Validierung und Speichern
 const KNOWN_SCHEMES = [
@@ -210,8 +221,6 @@ const KNOWN_SCHEMES = [
 ]
 
 const isSaving = ref(false)
-const showTooltip = ref(false)
-let tooltipTimeout: number | undefined = undefined
 
 const isValidNotificationUrl = computed(() => {
   const url = data.value.notificationUrl.trim()
@@ -222,7 +231,7 @@ const isValidNotificationUrl = computed(() => {
   // Handle multiple URLs separated by comma
   if (url.includes(',')) {
     return url.split(',')
-      .every(part => {
+      .every((part: string) => {
         const trimmedPart = part.trim()
         return trimmedPart === '' || validateSingleUrl(trimmedPart)
       })
@@ -244,32 +253,6 @@ const validateSingleUrl = (url: string): boolean => {
   // Allow custom schemes that follow the pattern: xxx://
   return /^[a-zA-Z]+:\/\/.+/.test(url)
 }
-
-const canSave = computed(() => {
-  return isValidNotificationUrl.value && 
-         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled)
-})
-
-const handleTooltipMouseEnter = () => {
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
-    tooltipTimeout = undefined
-  }
-  showTooltip.value = true
-}
-
-const handleTooltipMouseLeave = () => {
-  tooltipTimeout = window.setTimeout(() => {
-    showTooltip.value = false
-  }, 300)
-}
-
-// Clean up timeout on component unmount
-onUnmounted(() => {
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
-  }
-})
 
 // Aktionen
 const saveSettings = async () => {
@@ -299,21 +282,22 @@ const updateStreamerSettings = (streamerId: number, settings: Partial<StreamerNo
 const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   if (!streamerId) return
   
-  emit('update-streamer-settings', streamerId, {
+  const settingsUpdate: Partial<StreamerNotificationSettings> = {
     notify_online: enabled,
     notify_offline: enabled,
-    notify_update: enabled,
-    notify_favorite_category: enabled
-  })
+    notify_update: enabled
+  }
+  
+  emit('update-streamer-settings', streamerId, settingsUpdate)
 }
 
-const toggleAllStreamers = async (enabled: boolean) => {
+const toggleAllStreamers = (enabled: boolean) => {
   if (!props.streamerSettings) return
   
-  for (const streamer of props.streamerSettings) {
+  for (const streamer of typedStreamerSettings.value) {
     if (!streamer?.streamer_id) continue
     
-    toggleAllForStreamer(Number(streamer.streamer_id), enabled)
+    toggleAllForStreamer(streamer.streamer_id, enabled)
   }
 }
 
@@ -323,10 +307,6 @@ const testNotification = () => {
 </script>
 
 <style scoped>
-.notification-settings {
-  padding: 20px;
-}
-
 .settings-form {
   margin-bottom: 30px;
   background-color: #1f1f23;
@@ -342,6 +322,26 @@ const testNotification = () => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  font-weight: normal;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.input-with-tooltip {
+  position: relative;
 }
 
 .form-control {
@@ -400,6 +400,25 @@ const testNotification = () => {
   overflow: hidden;
 }
 
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.streamer-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.streamer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .streamer-table th,
 .streamer-table td {
   padding: 12px 15px;
@@ -415,5 +434,12 @@ const testNotification = () => {
 
 .streamer-table tr:last-child td {
   border-bottom: none;
+}
+
+.th-tooltip {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: #aaa;
+  margin-top: 4px;
 }
 </style>
