@@ -179,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
@@ -210,6 +210,30 @@ const data = ref({
   notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
   notifyUpdateGlobal: props.settings.notify_update_global !== false,
   notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
+})
+
+const showTooltip = ref(false)
+let tooltipTimeout: number | undefined = undefined
+
+const handleTooltipMouseEnter = () => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+    tooltipTimeout = undefined
+  }
+  showTooltip.value = true
+}
+
+const handleTooltipMouseLeave = () => {
+  tooltipTimeout = window.setTimeout(() => {
+    showTooltip.value = false
+  }, 300)
+}
+
+// Cleanup timeout on component unmount
+onUnmounted(() => {
+  if (tooltipTimeout) {
+    window.clearTimeout(tooltipTimeout)
+  }
 })
 
 // Validierung und Speichern
@@ -253,6 +277,12 @@ const validateSingleUrl = (url: string): boolean => {
   // Allow custom schemes that follow the pattern: xxx://
   return /^[a-zA-Z]+:\/\/.+/.test(url)
 }
+
+// Can Save Computed
+const canSave = computed(() => {
+  return isValidNotificationUrl.value && 
+         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled)
+})
 
 // Aktionen
 const saveSettings = async () => {
