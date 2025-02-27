@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3>Benachrichtigungseinstellungen</h3>
+    <h3>Notification Settings</h3>
     
     <!-- Global Settings -->
     <div class="settings-form">
@@ -9,7 +9,7 @@
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="z.B. discord://webhook1,telegram://bot_token/chat_id"
+            placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
             class="form-control"
             :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
@@ -18,7 +18,7 @@
             v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
             class="invalid-feedback"
           >
-            Bitte gib eine gültige URL ein (z.B. discord://webhook_id/webhook_token)
+            Please enter a valid URL (e.g., discord://webhook_id/webhook_token)
           </div>
           <div 
             v-if="showTooltip" 
@@ -26,17 +26,17 @@
             @mouseenter="handleTooltipMouseEnter"
             @mouseleave="handleTooltipMouseLeave"
           >
-            <Tooltip>
-              StreamVault unterstützt 100+ Benachrichtigungsdienste wie Discord, Telegram, Ntfy, 
-              Pushover, Slack und mehr. Schau in der 
+            <div class="tooltip">
+              StreamVault supports over 100 notification services including Discord, Telegram, Ntfy, 
+              Pushover, Slack and more. Check the 
               <a 
                 href="https://github.com/caronc/apprise/wiki#notification-services"
                 target="_blank" 
                 rel="noopener noreferrer"
                 @click.stop
                 class="tooltip-link"
-              >Apprise-Dokumentation</a> nach unterstützten Diensten und URL-Formaten.
-            </Tooltip>
+              >Apprise Documentation</a> for supported services and URL formats.
+            </div>
           </div>
         </div>
       </div>
@@ -44,28 +44,28 @@
       <div class="form-group">
         <label>
           <input type="checkbox" v-model="data.notificationsEnabled" />
-          Benachrichtigungen aktivieren
+          Enable Notifications
         </label>
       </div>
       
       <div class="form-group">
-        <h4>Globale Benachrichtigungseinstellungen</h4>
+        <h4>Global Notification Settings</h4>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyOnlineGlobal" />
-            Stream-Start Benachrichtigungen
+            Stream Start Notifications
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyOfflineGlobal" />
-            Stream-Ende Benachrichtigungen
+            Stream End Notifications
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyUpdateGlobal" />
-            Stream-Update Benachrichtigungen
+            Stream Update Notifications
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyFavoriteCategoryGlobal" />
-            Benachrichtigungen für Favoriten-Spiele
+            Favorite Game Notifications
           </label>
         </div>
       </div>
@@ -76,24 +76,24 @@
           class="btn btn-primary"
           :disabled="isSaving || !canSave"
         >
-          {{ isSaving ? 'Speichern...' : 'Einstellungen speichern' }}
+          {{ isSaving ? 'Saving...' : 'Save Settings' }}
         </button>
         <button 
           @click="testNotification" 
           class="btn btn-secondary"
           :disabled="!data.notificationsEnabled || !data.notificationUrl"
         >
-          Test-Benachrichtigung
+          Test Notification
         </button>
       </div>
     </div>
 
     <!-- Streamer Notification Table -->
     <div class="streamer-notifications">
-      <h3>Streamer-Benachrichtigungen</h3>
+      <h3>Streamer Notifications</h3>
       <div class="table-controls">
-        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Alle aktivieren</button>
-        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Alle deaktivieren</button>
+        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
+        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
       </div>
       
       <div class="streamer-table">
@@ -103,21 +103,21 @@
               <th>Streamer</th>
               <th>
                 Online
-                <div class="th-tooltip">Benachrichtigung bei Stream-Start</div>
+                <div class="th-tooltip">Notify when stream starts</div>
               </th>
               <th>
                 Offline
-                <div class="th-tooltip">Benachrichtigung bei Stream-Ende</div>
+                <div class="th-tooltip">Notify when stream ends</div>
               </th>
               <th>
                 Updates
-                <div class="th-tooltip">Benachrichtigung bei Titel/Kategorie-Änderungen</div>
+                <div class="th-tooltip">Notify on title/category changes</div>
               </th>
               <th>
-                Favoriten
-                <div class="th-tooltip">Benachrichtigung bei Favoriten-Spielen</div>
+                Favorites
+                <div class="th-tooltip">Notify when streaming favorite games</div>
               </th>
-              <th>Aktionen</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -164,11 +164,11 @@
                   @click="toggleAllForStreamer(streamer.streamer_id, true)" 
                   class="btn btn-sm btn-secondary"
                   style="margin-right: 8px;"
-                >Alle an</button>
+                >All On</button>
                 <button 
                   @click="toggleAllForStreamer(streamer.streamer_id, false)" 
                   class="btn btn-sm btn-secondary"
-                >Alle aus</button>
+                >All Off</button>
               </td>
             </tr>
           </tbody>
@@ -317,6 +317,44 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
     notify_offline: enabled,
     notify_update: enabled
   }
+</script>
+
+<style scoped>
+.settings-form {
+  margin-bottom: 30px;
+  background-color: #1f1f23;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: flex-start;
+  font-weight: normal;
+  text-align: left;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+  margin-top: 4px; /* Aligns checkbox with first line of text */
+}
+</style>
   
   emit('update-streamer-settings', streamerId, settingsUpdate)
 }
