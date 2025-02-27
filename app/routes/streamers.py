@@ -5,9 +5,10 @@ from app.services.streamer_service import StreamerService
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
-from app.database import SessionLocal
-from app.models import Stream
+from app.database import SessionLocal, get_db
+from app.models import Stream, Streamer
 from app.schemas.streams import StreamList, StreamResponse
+from sqlalchemy.orm import Session
 import logging
 import asyncio
 
