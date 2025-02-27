@@ -9,7 +9,6 @@
           v-model="searchQuery" 
           placeholder="Spiel suchen..." 
           class="form-control"
-          @input="filterCategories"
         />
       </div>
       <div class="filter-buttons">
@@ -43,7 +42,7 @@
         >
           <div class="category-image">
             <img 
-              :src="category.box_art_url" 
+              :src="category.box_art_url ?? ''" 
               :alt="category.name"
               @error="setDefaultImage($event)"
             />
@@ -75,16 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-
-interface Category {
-  id: number
-  twitch_id: string
-  name: string
-  box_art_url: string | null
-  is_favorite: boolean
-  first_seen: string
-  last_seen: string
-}
+import type { Category } from '@/types/settings'
 
 // State
 const categories = ref<Category[]>([])
