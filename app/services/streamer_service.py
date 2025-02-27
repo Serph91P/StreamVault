@@ -143,35 +143,38 @@ class StreamerService:
 
         return web_path if cache_path.exists() else url
 
-    async def add_streamer(self, username: str) -> Optional[Streamer]:
+    async def add_streamer(self, username: str, display_name: str = None) -> Optional[Streamer]:
         try:
             logger.debug(f"Adding streamer: {username}")
             user_data = await self.get_user_data(username)
-            
+        
             if not user_data:
                 logger.error(f"Could not fetch user data for {username}")
                 return None
-                
-            logger.debug(f"User data retrieved: {user_data}")
             
+            logger.debug(f"User data retrieved: {user_data}")
+        
             existing = self.db.query(Streamer).filter(
                 Streamer.twitch_id == user_data['id']
             ).first()
-            
+        
             if existing:
                 logger.debug(f"Streamer already exists: {username}")
                 return existing
-            
+        
             # Cache profile image
             cached_image_path = await self.download_profile_image(
                 user_data['profile_image_url'],
                 user_data['id']
             )
         
-            # Create new streamer with both cached image path and original URL
+            # Use display_name for better user experience, but store original for API calls
+            streamer_name = display_name or user_data.get('display_name') or user_data['login']
+        
+            # Create new streamer with cached image path and display_name if provided
             new_streamer = Streamer(
                 twitch_id=user_data['id'],
-                username=user_data['login'],
+                username=streamer_name,  # Use display_name instead of login
                 profile_image_url=cached_image_path,
                 original_profile_image_url=user_data['profile_image_url'],
                 is_live=False,
@@ -180,10 +183,10 @@ class StreamerService:
                 language=None,
                 last_updated=datetime.now(timezone.utc)
             )
-            
+        
             self.db.add(new_streamer)
             self.db.flush()
-            
+        
             notification_settings = NotificationSettings(
                 streamer_id=new_streamer.id,
                 notify_online=True,
@@ -191,10 +194,10 @@ class StreamerService:
                 notify_update=True
             )
             self.db.add(notification_settings)
-            
+        
             self.db.commit()
             self.db.refresh(new_streamer)
-            
+        
             await self.event_registry.subscribe_to_events(user_data['id'])
         
             return new_streamer
