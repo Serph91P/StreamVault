@@ -311,6 +311,14 @@ const saveSettings = async () => {
 const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
   emits('updateStreamer', streamerId, settings);
 };
+const toggleAllStreamers = async (enabled: boolean) => {
+  if (!props.streamerSettings) return;
+  
+  for (const streamer of props.streamerSettings) {
+    if (!streamer?.streamer_id) continue;
+    await updateStreamerSetting(streamer.streamer_id, { enabled });
+  }
+};
 
 const testRecording = (streamerId: number) => {
   emits('testRecording', streamerId);
@@ -320,24 +328,16 @@ const stopRecording = (streamerId: number) => {
   emits('stopRecording', streamerId);
 };
 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleString();
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleString();
 };
 
 const formatDuration = (seconds: number) => {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  return [
-    hours > 0 ? `${hours}h` : '',
-    minutes > 0 ? `${minutes}m` : '',
-    `${secs}s`
-  ].filter(Boolean).join(' ');
+  return `${hours}h ${minutes}m`;
 };
 </script>
-
 <style scoped>
 .active-recordings {
   margin-top: 2rem;
