@@ -1,13 +1,13 @@
 <template>
   <div>
-    <h3>Favoriten-Kategorien</h3>
+    <h3>Favorite Categories</h3>
     
     <!-- Filter und Suche -->
     <div class="filter-container">
       <div class="search-box">
         <input 
           v-model="searchQuery" 
-          placeholder="Spiel suchen..." 
+          placeholder="Search for game..." 
           class="form-control"
         />
       </div>
@@ -17,7 +17,7 @@
           class="btn" 
           :class="{ 'btn-primary': showFavoritesOnly, 'btn-secondary': !showFavoritesOnly }"
         >
-          {{ showFavoritesOnly ? 'Alle anzeigen' : 'Nur Favoriten' }}
+          {{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}
         </button>
       </div>
     </div>
@@ -29,9 +29,9 @@
       </div>
       <template v-else>
         <div v-if="filteredCategories.length === 0" class="no-categories">
-          <p v-if="showFavoritesOnly">Du hast noch keine Kategorien als Favorit markiert.</p>
-          <p v-else-if="searchQuery">Keine Kategorien gefunden, die "{{ searchQuery }}" enthalten.</p>
-          <p v-else>Keine Kategorien gefunden. Wenn Streamer neue Kategorien verwenden, werden sie hier angezeigt.</p>
+          <p v-if="showFavoritesOnly">You haven't marked any categories as favorites yet.</p>
+          <p v-else-if="searchQuery">No categories found containing "{{ searchQuery }}".</p>
+          <p v-else>No categories found. When streamers use new categories, they will appear here.</p>
         </div>
         
         <div 
@@ -55,14 +55,14 @@
                 @click="addFavorite(category.id)"
                 class="btn btn-sm btn-outline-primary"
               >
-                Als Favorit markieren
+                Mark as Favorite
               </button>
               <button 
                 v-else 
                 @click="removeFavorite(category.id)"
                 class="btn btn-sm btn-outline-danger"
               >
-                Favorit entfernen
+                Remove Favorite
               </button>
             </div>
           </div>
