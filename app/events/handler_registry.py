@@ -288,7 +288,9 @@ class EventHandlerRegistry:
                 
                     logger.debug("Notifications sent successfully")
         except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)    async def list_subscriptions(self):
+            logger.error(f"Error handling stream update event: {e}", exc_info=True)    
+            
+    async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()
         logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
