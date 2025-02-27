@@ -1,127 +1,106 @@
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useNotificationSettings } from '@/composables/useNotificationSettings'
-import Tooltip from '@/components/Tooltip.vue'
-import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+<template>
+  <div class="settings-container">
+    <div v-if="isLoading" class="loading-indicator">
+      <p>Loading settings...</p>
+    </div>
+    
+    <div v-else>
+      <!-- Tab Navigation -->
+      <div class="settings-tabs">
+        <button 
+          @click="activeTab = 'notifications'" 
+          :class="{ active: activeTab === 'notifications' }"
+          class="tab-button"
+        >
+          Notifications
+        </button>
+        <button 
+          @click="activeTab = 'favorites'" 
+          :class="{ active: activeTab === 'favorites' }"
+          class="tab-button"
+        >
+          Favorite Games
+        </button>
+      </div>
+      
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Notifications Tab -->
+        <div v-if="activeTab === 'notifications'" class="tab-pane">
+          <NotificationSettingsPanel 
+            :settings="settings || {
+              notification_url: '',
+              notifications_enabled: true,
+              apprise_docs_url: '',
+              notify_online_global: true,
+              notify_offline_global: true,
+              notify_update_global: true,
+              notify_favorite_category_global: false
+            }"
+            :streamer-settings="streamerSettings"
+            @update-settings="handleUpdateSettings"
+            @update-streamer-settings="handleUpdateStreamerSettings"
+            @test-notification="handleTestNotification"
+          />
+        </div>
+        
+        <!-- Favorites Tab -->
+        <div v-if="activeTab === 'favorites'" class="tab-pane">
+          <FavoritesSettingsPanel />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
 
-interface ComponentData {
-  notificationUrl: string
-  notificationsEnabled: boolean
-  appriseDocsUrl: string
-  notifyOnlineGlobal: boolean
-  notifyOfflineGlobal: boolean
-  notifyUpdateGlobal: boolean
-  streamerSettings: StreamerNotificationSettings[]
-}
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useNotificationSettings } from '@/composables/useNotificationSettings'
+import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
+import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
+import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 const { settings, fetchSettings, updateSettings, getStreamerSettings, updateStreamerSettings } = useNotificationSettings()
 
-const data = ref<ComponentData>({
-  notificationUrl: '',
-  notificationsEnabled: true,
-  appriseDocsUrl: '',
-  notifyOnlineGlobal: true,
-  notifyOfflineGlobal: true,
-  notifyUpdateGlobal: true,
-  streamerSettings: []
-})
-
-const KNOWN_SCHEMES = [
-  'discord', 'telegram', 'tgram', 'slack', 'pushover', 'mailto',
-  'ntfy', 'matrix', 'twilio', 'msteams', 'slack', 'gchat', 'ligne',
-  'signal', 'whatsapp', 'rocket', 'pushbullet', 'apprise', 'http',
-  'https', 'twitter', 'slack', 'dbus'
-]
-
-onMounted(async () => {
-  await fetchSettings()
-  const settingsData = settings.value
-  data.value = {
-    notificationUrl: settingsData?.notification_url || '',
-    notificationsEnabled: settingsData?.notifications_enabled ?? true,
-    appriseDocsUrl: settingsData?.apprise_docs_url || '',
-    notifyOnlineGlobal: settingsData?.notify_online_global ?? true,
-    notifyOfflineGlobal: settingsData?.notify_offline_global ?? true,
-    notifyUpdateGlobal: settingsData?.notify_update_global ?? true,
-    streamerSettings: await getStreamerSettings()
-  }
-})
-
+const activeTab = ref('notifications')
+const streamerSettings = ref<StreamerNotificationSettings[]>([])
+const isLoading = ref(true)
 const isSaving = ref(false)
 
-const isValidNotificationUrl = computed(() => {
-  const url = data.value.notificationUrl.trim()
-  
-  // Empty URL is considered valid (though not for saving)
-  if (!url) return true
-  
-  // Handle multiple URLs separated by comma
-  if (url.includes(',')) {
-    return url.split(',')
-      .every(part => {
-        const trimmedPart = part.trim()
-        return trimmedPart === '' || validateSingleUrl(trimmedPart)
-      })
+onMounted(async () => {
+  isLoading.value = true
+  try {
+    await fetchSettings()
+    streamerSettings.value = await getStreamerSettings()
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+  } finally {
+    isLoading.value = false
   }
-  
-  return validateSingleUrl(url)
 })
 
-const validateSingleUrl = (url: string): boolean => {
-  // Basic URL structure check
-  if (!url.includes('://')) return false
-  
-  // Extract scheme
-  const scheme = url.split('://')[0].toLowerCase()
-  
-  // Check against known schemes
-  if (KNOWN_SCHEMES.includes(scheme)) return true
-  
-  // Allow custom schemes that follow the pattern: xxx://
-  return /^[a-zA-Z]+:\/\/.+/.test(url)
-}
-
-const canSave = computed(() => {
-  return isValidNotificationUrl.value && 
-         (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled)
-})
-
-const saveSettings = async () => {
-  if (isSaving.value) return
-  
+const handleUpdateSettings = async (newSettings: Partial<NotificationSettings>) => {
   try {
     isSaving.value = true
-    await updateSettings({
-      notification_url: data.value.notificationUrl,
-      notifications_enabled: data.value.notificationsEnabled,
-      notify_online_global: data.value.notifyOnlineGlobal,
-      notify_offline_global: data.value.notifyOfflineGlobal,
-      notify_update_global: data.value.notifyUpdateGlobal
-    })
+    await updateSettings(newSettings)
     alert('Settings saved successfully!')
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to save settings')
+    alert(error instanceof Error ? error.message : 'Failed to update settings')
   } finally {
     isSaving.value = false
   }
 }
 
-const handleStreamerSettingsUpdate = async (
+const handleUpdateStreamerSettings = async (
   streamerId: number, 
-  streamerSettings: Partial<StreamerNotificationSettings>
+  settings: Partial<StreamerNotificationSettings>
 ) => {
-  if (!streamerId || typeof streamerId !== 'number') {
-    console.error('Invalid streamer ID:', streamerId)
-    return
-  }
-
   try {
-    const updatedSettings = await updateStreamerSettings(streamerId, streamerSettings)
-    const index = data.value.streamerSettings.findIndex(s => s.streamer_id === streamerId)
+    const updatedSettings = await updateStreamerSettings(streamerId, settings)
+    const index = streamerSettings.value.findIndex(s => s.streamer_id === streamerId)
     if (index !== -1) {
-      // Preserve existing data that may not be returned by the API
-      data.value.streamerSettings[index] = {
-        ...data.value.streamerSettings[index],
+      streamerSettings.value[index] = {
+        ...streamerSettings.value[index],
         ...updatedSettings
       }
     }
@@ -130,63 +109,13 @@ const handleStreamerSettingsUpdate = async (
   }
 }
 
-const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
-  if (!streamerId) return // Add validation
-  
-  handleStreamerSettingsUpdate(streamerId, {
-    notify_online: enabled,
-    notify_offline: enabled,
-    notify_update: enabled
-  })
-}
-
-const toggleAllStreamers = async (enabled: boolean) => {
-  if (!data.value?.streamerSettings) return
-  
-  for (const streamer of data.value.streamerSettings) {
-    if (!streamer?.streamer_id) continue
-    
-    await handleStreamerSettingsUpdate(Number(streamer.streamer_id), {
-      notify_online: enabled,
-      notify_offline: enabled,
-      notify_update: enabled
-    })
-  }
-}
-
-// Add showTooltip ref
-const showTooltip = ref(false)
-// Change the tooltip timer type
-let tooltipTimeout: number | undefined = undefined
-
-const handleTooltipMouseEnter = () => {
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
-    tooltipTimeout = undefined
-  }
-  showTooltip.value = true
-}
-
-const handleTooltipMouseLeave = () => {
-  tooltipTimeout = window.setTimeout(() => {
-    showTooltip.value = false
-  }, 300)
-}
-
-// Clean up timeout on component unmount
-onUnmounted(() => {
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
-  }
-})
-
-const testNotification = async () => {
+const handleTestNotification = async () => {
   try {
     const response = await fetch('/api/settings/test-notification', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     })
 
     if (!response.ok) {
@@ -201,150 +130,60 @@ const testNotification = async () => {
 }
 </script>
 
-<template>
-  <div class="settings-container">
-    <h2 class="settings-title">Notification Settings</h2>
-    
-    <!-- Global Settings -->
-    <div class="settings-form">
-      <div class="form-group">
-        <label>Notification Service URL:</label>
-        <div class="input-with-tooltip">
-          <input 
-            v-model="data.notificationUrl" 
-            placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
-            class="form-control"
-            :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
-            @focus="showTooltip = true"
-          />
-          <div 
-            v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
-            class="invalid-feedback"
-          >
-            Please enter a valid notification service URL (e.g., discord://webhook_id/webhook_token)
-          </div>
-          <div 
-            v-if="showTooltip" 
-            class="tooltip-wrapper"
-            @mouseenter="handleTooltipMouseEnter"
-            @mouseleave="handleTooltipMouseLeave"
-          >
-            <Tooltip>
-              StreamVault supports 100+ notification services including Discord, Telegram, Ntfy, 
-              Pushover, Slack, and more. Check the 
-              <a 
-                href="https://github.com/caronc/apprise/wiki#notification-services"
-                target="_blank" 
-                rel="noopener noreferrer"
-                @click.stop
-                class="tooltip-link"
-              >Apprise Documentation</a> for supported services and URL formats.
-            </Tooltip>
-          </div>
-        </div>
-      </div>
+<style scoped>
+.settings-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
 
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.notificationsEnabled" />
-          Enable Notifications
-        </label>
-      </div>
+.loading-indicator {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+}
 
-      <div class="form-actions">
-        <button 
-          @click="saveSettings" 
-          class="btn btn-primary"
-          :disabled="isSaving || !canSave"
-        >
-          {{ isSaving ? 'Saving...' : 'Save Settings' }}
-        </button>
-        <button 
-          @click="testNotification" 
-          class="btn btn-secondary"
-          :disabled="!data.notificationsEnabled || !data.notificationUrl"
-        >
-          Test Notification
-        </button>
-      </div>
-    </div>
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid #333;
+  margin-bottom: 20px;
+}
 
-    <!-- Streamer Notification Table -->
-    <div class="streamer-notifications">
-      <h3>Streamer Notifications</h3>
-      <div class="table-controls">
-        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
-        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
-      </div>
-      
-      <div class="streamer-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Streamer</th>
-              <th>
-                Online
-                <div class="th-tooltip">Notify when stream starts</div>
-              </th>
-              <th>
-                Offline
-                <div class="th-tooltip">Notify when stream ends</div>
-              </th>
-              <th>
-                Updates
-                <div class="th-tooltip">Notify on title/category changes</div>
-              </th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="streamer in data.streamerSettings" :key="streamer.streamer_id">
-              <td class="streamer-info">
-                <!-- Only show image if profile_image_url exists -->
-                <div class="streamer-avatar" v-if="streamer.profile_image_url">
-                  <img 
-                    :src="streamer.profile_image_url" 
-                    :alt="streamer.username || ''"
-                  />
-                </div>
-                <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
-              </td>
-              <td>
-                <input 
-                  type="checkbox" 
-                  v-model="streamer.notify_online"
-                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_online: streamer.notify_online })"
-                />
-              </td>
-              <td>
-                <input 
-                  type="checkbox" 
-                  v-model="streamer.notify_offline"
-                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
-                />
-              </td>
-              <td>
-                <input 
-                  type="checkbox" 
-                  v-model="streamer.notify_update"
-                  @change="handleStreamerSettingsUpdate(streamer.streamer_id, { notify_update: streamer.notify_update })"
-                />
-              </td>
-              <td>
-                <button 
-                  @click="toggleAllForStreamer(streamer.streamer_id, true)" 
-                  class="btn btn-sm btn-secondary"
-                  style="margin-right: 8px;"
-                >Enable All</button>
-                <button 
-                  @click="toggleAllForStreamer(streamer.streamer_id, false)" 
-                  class="btn btn-sm btn-secondary"
-                >Disable All</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</template>
+.tab-button {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #ccc;
+  font-size: 1rem;
+  border-bottom: 3px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-button.active {
+  color: #9146FF;
+  border-bottom-color: #9146FF;
+}
+
+.tab-button:hover:not(.active) {
+  color: #fff;
+  border-bottom-color: #555;
+}
+
+.tab-content {
+  min-height: 400px;
+}
+
+/* Add this to your existing styles */
+.checkbox-group label {
+  display: flex;
+  align-items: flex-start;
+  font-weight: normal;
+  text-align: left;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+  margin-top: 4px; /* Aligns checkbox with first line of text */
+}
+</style>

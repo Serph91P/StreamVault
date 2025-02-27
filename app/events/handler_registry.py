@@ -287,9 +287,57 @@ class EventHandlerRegistry:
                     logger.debug(f"Notification result: {notification_result}")
                 
                     logger.debug("Notifications sent successfully")
+                    category_name = data.get("category_name")
+                    category_id = data.get("category_id")
+                    
+                    if category_name and category_id:
+                        # Kategorie in der Datenbank finden oder erstellen
+                        category = db.query(Category).filter(Category.twitch_id == category_id).first()
+                        
+                        if not category:
+                            # Box Art URL über die Twitch API abrufen
+                            streamer_service = StreamerService(db=db, websocket_manager=self.manager, event_registry=self)
+                            game_data = await streamer_service.get_game_data(category_id)
+                            
+                            # Neue Kategorie hinzufügen
+                            category = Category(
+                                twitch_id=category_id,
+                                name=category_name,
+                                box_art_url=game_data.get("box_art_url") if game_data else None
+                            )
+                            db.add(category)
+                        else:
+                            # Bestehende Kategorie aktualisieren
+                            category.name = category_name
+                            category.last_seen = datetime.now(timezone.utc)
+                        
+                        db.commit()
+                        users_with_favorite = db.query(User).join(FavoriteCategory).filter(
+                            FavoriteCategory.category_id == category.id
+                        ).all()
+                        
+                        if users_with_favorite:
+                            for user in users_with_favorite:
+                                settings = db.query(NotificationSettings).filter(
+                                    NotificationSettings.streamer_id == streamer.id
+                                ).first()
+                                
+                                if settings and settings.notify_favorite_category:
+                                    await self.notification_service.send_stream_notification(
+                                        streamer_name=streamer.username,
+                                        event_type="favorite_category",
+                                        details={
+                                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                                            "title": data.get("title"),
+                                            "category_name": category_name,
+                                            "language": data.get("language"),
+                                            "profile_image_url": streamer.profile_image_url,
+                                            "twitch_login": data["broadcaster_user_login"]
+                                        }
+                                    )
         except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)    
-            
+            logger.error(f"Error handling stream update event: {e}", exc_info=True)
+                        
     async def list_subscriptions(self):
         logger.debug("Entering list_subscriptions()")
         access_token = await self.get_access_token()

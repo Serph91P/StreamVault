@@ -314,8 +314,8 @@ class NotificationService:
 
     def _format_notification_message(self, streamer_name: str, event_type: str, details: dict) -> tuple[str, str]:
         """Format notification message and title based on event type"""
-        
-        # Verbesserte Titel je nach Event-Typ
+        title = "StreamVault Notification"
+    
         if event_type == "online":
             title = f"🟢 {streamer_name} is now live!"
             message = (
@@ -331,10 +331,17 @@ class NotificationService:
                 f"New title: {details.get('title', 'No title')}\n"
                 f"Category: {details.get('category_name', 'No category')}"
             )
+        elif event_type == "favorite_category":
+            title = f"🎮 {streamer_name} spielt ein Favoriten-Spiel!"
+            message = (
+                f"🎮 {streamer_name} spielt jetzt {details.get('category_name', 'Unknown Game')}!\n\n"
+                f"Titel: {details.get('title', 'No title')}\n"
+                f"Dieses Spiel ist in deinen Favoriten."
+            )
         else:
             title = f"StreamVault: {streamer_name}"
             message = f"Event notification for {streamer_name}"
-        
+    
         return title, message
 
 async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
