@@ -9,7 +9,7 @@
         <div class="input-with-tooltip">
           <input 
             v-model="data.notificationUrl" 
-            placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
+            placeholder="e.g., discord://webhook1,telegram://bot_token
             class="form-control"
             :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
