@@ -1,7 +1,7 @@
 <template>
   <div class="settings-container">
     <div v-if="isLoading" class="loading-indicator">
-      <p>Einstellungen werden geladen...</p>
+      <p>Loading settings...</p>
     </div>
     
     <div v-else>
@@ -12,14 +12,14 @@
           :class="{ active: activeTab === 'notifications' }"
           class="tab-button"
         >
-          Benachrichtigungen
+          Notifications
         </button>
         <button 
           @click="activeTab = 'favorites'" 
           :class="{ active: activeTab === 'favorites' }"
           class="tab-button"
         >
-          Favoriten-Spiele
+          Favorite Games
         </button>
       </div>
       
@@ -172,5 +172,18 @@ const handleTestNotification = async () => {
 
 .tab-content {
   min-height: 400px;
+}
+
+/* Add this to your existing styles */
+.checkbox-group label {
+  display: flex;
+  align-items: flex-start;
+  font-weight: normal;
+  text-align: left;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+  margin-top: 4px; /* Aligns checkbox with first line of text */
 }
 </style>
