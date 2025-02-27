@@ -176,7 +176,11 @@ class NotificationService:
                     logger.debug("Global notifications disabled")
                     return False
 
-                streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                # Case insensitive search for streamer
+                streamer = db.query(Streamer).filter(
+                    Streamer.username.ilike(streamer_name)
+                ).first()
+            
                 if not streamer:
                     logger.debug(f"Streamer {streamer_name} not found in database")
                     return False
@@ -184,7 +188,7 @@ class NotificationService:
                 # Check if notifications are enabled for this specific event type
                 should_send = await self.should_notify(streamer.id, event_type)
                 logger.debug(f"Should notify for {streamer_name} - {event_type}: {should_send}")
-                
+            
                 if not should_send:
                     logger.debug(f"Notifications disabled for {streamer_name} - {event_type}")
                     return False
@@ -197,7 +201,7 @@ class NotificationService:
                     profile_image=streamer.profile_image_url or "",
                     streamer_name=streamer_name,
                     event_type=event_type,
-                    original_image_url=streamer.original_profile_image_url  # Übergebe die Original-URL
+                    original_image_url=details.get("profile_image_url")
                 )
 
                 # Create new Apprise instance
@@ -220,17 +224,16 @@ class NotificationService:
                     body=message,
                     body_format=NotifyFormat.TEXT
                 )
-    
+        
                 if not result:
                     logger.error("Apprise notification failed to send")
-        
+            
                 logger.debug(f"Notification result: {result}")
                 return result
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
             return False    
-    
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
