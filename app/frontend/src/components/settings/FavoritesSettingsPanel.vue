@@ -123,7 +123,7 @@ const fetchCategories = async () => {
     }
     
     const data = await response.json()
-    categories.value = data.categories
+    categories.value = data.categories || []
   } catch (error) {
     console.error('Error fetching categories:', error)
   } finally {
@@ -187,3 +187,78 @@ onMounted(() => {
   fetchCategories()
 })
 </script>
+
+<style scoped>
+.filter-container {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.search-box {
+  flex: 1;
+  max-width: 300px;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.category-card {
+  background-color: #1f1f23;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.category-card.is-favorite {
+  border: 2px solid #9146FF;
+}
+
+.category-image {
+  height: 180px;
+  overflow: hidden;
+}
+
+.category-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-details {
+  padding: 15px;
+}
+
+.category-details h4 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+}
+
+.category-actions {
+  margin-top: 10px;
+}
+
+.loading, .no-categories {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: #aaa;
+  text-align: center;
+}
+</style>
