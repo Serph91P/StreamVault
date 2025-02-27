@@ -109,3 +109,28 @@ class GlobalSettings(Base):
     notify_online_global: bool = Column(Boolean, default=True)
     notify_offline_global: bool = Column(Boolean, default=True)
     notify_update_global: bool = Column(Boolean, default=True)
+
+class RecordingSettings(Base):
+    __tablename__ = "recording_settings"
+    
+    id = Column(Integer, primary_key=True)
+    enabled = Column(Boolean, default=False)
+    output_directory = Column(String, default="/recordings")
+    filename_template = Column(String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}")
+    default_quality = Column(String, default="best")
+    use_chapters = Column(Boolean, default=True)
+    max_concurrent_recordings = Column(Integer, default=3)
+    filename_preset = Column(String, default="default")   
+     
+class StreamerRecordingSettings(Base):
+    __tablename__ = "streamer_recording_settings"
+    
+    id = Column(Integer, primary_key=True)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    enabled = Column(Boolean, default=True)
+    quality = Column(String, default="best")
+    custom_filename = Column(String, nullable=True)
+    
+    streamer = relationship("Streamer", back_populates="recording_settings")
+
+Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
