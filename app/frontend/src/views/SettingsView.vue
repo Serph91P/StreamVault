@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
@@ -106,3 +106,48 @@ const testNotification = async () => {
   }
 }
 </script>
+
+<style scoped>
+.settings-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.settings-title {
+  margin-bottom: 20px;
+  font-size: 1.8rem;
+}
+
+.settings-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.tab-button {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #aaaaaa;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  color: #ffffff;
+}
+
+.tab-button.active {
+  color: #9146FF;
+  border-bottom-color: #9146FF;
+}
+
+.tab-content {
+  background-color: #18181b;
+  border-radius: 8px;
+  padding: 20px;
+}
+</style>
