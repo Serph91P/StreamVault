@@ -1,0 +1,12 @@
+{
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/docker-build.yml"
+    ],
+<<<<<<< HEAD
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic"
+=======
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true
+>>>>>>> b3a85d8f30c5f5f9bb55228d028960028c94cdd2
+}

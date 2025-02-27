@@ -1,0 +1,625 @@
+@use 'sass:map';
+@use 'sass:color';
+@use 'variables' as v;
+
+// Login and Setup Views
+.login-page,
+.setup-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: v.$background-dark;
+  z-index: 100;
+  padding: v.$spacing-md;
+
+  .login-form,
+  .setup-form {
+    background: v.$background-darker;
+    padding: v.$spacing-xl;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 320px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    .form-group {
+      margin-bottom: v.$spacing-md;
+      width: 100%;
+
+      .input-field {
+        width: 100%;
+        box-sizing: border-box;  // Add this
+        margin-bottom: v.$spacing-sm;
+        background: v.$background-dark;
+        border: 2px solid v.$border-color;
+        color: v.$text-primary;
+        padding: v.$spacing-sm v.$spacing-md;
+        border-radius: 6px;
+        font-size: map.get(v.$font-scale, 'base');
+        
+        &:focus {
+          border-color: v.$primary-color;
+          outline: none;
+        }
+      }
+    }
+
+    .submit-button {
+      width: 100%;
+      margin-top: v.$spacing-md;
+      padding: v.$spacing-sm v.$spacing-md;
+      background: v.$primary-color;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover:not(:disabled) {
+        background: color.scale(v.$primary-color, $lightness: -10%);
+      }
+
+      &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+    }
+
+    h2 {
+      margin-bottom: v.$spacing-lg;
+      color: v.$text-primary;
+      text-align: center;
+    }
+
+    .description {
+      color: v.$text-secondary;
+      margin-bottom: v.$spacing-lg;
+      text-align: center;
+    }
+  }
+}
+
+// Add Streamer View
+.add-streamer-page {
+  padding: v.$spacing-md;
+  margin: v.$spacing-md;
+  max-width: calc(100% - (v.$spacing-md * 2));
+  box-sizing: border-box;
+  background: v.$background-darker;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-xl;
+    margin: v.$spacing-lg auto;
+    max-width: 800px;
+  }
+
+  h2 {
+    font-size: map.get(v.$font-scale, 'lg');
+    margin-bottom: v.$spacing-md;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'xl');
+    }
+  }
+
+  .description {
+    color: v.$text-secondary;
+    margin-bottom: v.$spacing-lg;
+    font-size: map.get(v.$font-scale, 'base');
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      font-size: map.get(v.$font-scale, 'lg');
+    }
+  }
+
+  .streamer-form {
+    max-width: 100%;
+  }
+}
+// Subscriptions View
+.subscriptions-page {
+  padding: v.$spacing-md;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-xl;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
+    margin-bottom: v.$spacing-lg;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      flex-direction: row;
+      gap: v.$spacing-md;
+    }
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: v.$spacing-xs v.$spacing-sm;
+    border-radius: 12px;
+    font-size: map.get(v.$font-scale, 'xs');
+    font-weight: bold;
+    text-align: center;
+    min-width: 60px;
+
+    &.enabled {
+      background: v.$success-color;
+    }
+
+    &.disabled {
+      background: v.$danger-color;
+    }
+  }
+}
+
+.streamer-table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: v.$background-darker;
+  border-radius: 8px;
+  border: 1px solid v.$border-color;
+  margin: 20px 0;
+}
+
+.streamer-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  color: v.$text-primary;
+}
+
+// Loading States
+.loading-state {
+  text-align: center;
+  padding: v.$spacing-xl;
+
+  .spinner {
+    margin: 0 auto v.$spacing-md;
+  }
+}
+
+// Empty States
+.empty-state {
+  text-align: center;
+  padding: v.$spacing-xl;
+  color: v.$text-secondary;
+  font-size: map.get(v.$font-scale, 'base');
+}
+
+.settings-form {
+  .form-group {
+    margin-bottom: v.$spacing-lg;
+
+    label {
+      display: block;
+      margin-bottom: v.$spacing-sm;
+      color: v.$text-secondary;
+    }
+
+    .input-with-tooltip {
+      display: flex;
+      align-items: center;
+      gap: v.$spacing-sm;
+
+      input {
+        flex: 1;
+      }
+    }
+  }
+
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-sm;
+    margin-bottom: v.$spacing-md;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: v.$spacing-md;
+    margin-top: v.$spacing-lg;
+
+    .btn {
+      flex: 1;
+      max-width: 200px;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
+
+.input-with-tooltip {
+  position: relative;
+  width: 100%;
+
+  .form-control {
+    width: 100%;
+    padding: v.$spacing-sm v.$spacing-md;
+    border: 1px solid v.$border-color;
+    border-radius: 4px;
+    background: v.$background-dark;
+    color: v.$text-primary;
+  }
+
+  .tooltip-wrapper {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    margin-top: v.$spacing-sm;
+    background: v.$background-darker;
+    padding: v.$spacing-sm;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid v.$border-color;
+
+    a {
+      color: v.$primary-color;
+      text-decoration: none;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.global-controls {
+  display: flex;
+  gap: v.$spacing-sm;
+  margin-bottom: v.$spacing-md;
+
+  .btn {
+    padding: v.$spacing-xs v.$spacing-sm;
+    font-size: map.get(v.$font-scale, 'sm');
+
+  }
+}
+
+.streamer-notifications {
+  margin-top: v.$spacing-xl;
+  border-top: 1px solid v.$border-color;
+  padding-top: v.$spacing-lg;
+
+  h3 {
+    margin-bottom: v.$spacing-lg;
+    font-size: map.get(v.$font-scale, 'base');
+  }
+
+  .streamer-settings {
+    background: rgba(v.$background-dark, 0.5);
+    padding: v.$spacing-md;
+    border-radius: 6px;
+    margin-bottom: v.$spacing-md;
+
+    .notification-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: v.$spacing-md;
+    }
+  }
+
+  .table-controls {
+    margin-bottom: v.$spacing-md;
+    display: flex;
+    gap: v.$spacing-sm;
+  }
+
+  .streamer-table {
+    width: 100%;
+    overflow-x: auto;
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: v.$background-dark;
+      
+      th, td {
+        padding: v.$spacing-md;
+        text-align: left;
+        border-bottom: 1px solid v.$border-color;
+      }
+      
+      th {
+        background: v.$background-darker;
+        font-weight: 600;
+        position: relative;
+        
+        .th-tooltip {
+          display: none;
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: v.$background-darker;
+          padding: v.$spacing-sm;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          white-space: nowrap;
+          z-index: 1;
+        }
+        
+        &:hover .th-tooltip {
+          display: block;
+        }
+      }
+      
+      .streamer-info {
+        display: flex;
+        align-items: center;
+        gap: v.$spacing-sm;
+
+        .streamer-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          overflow: hidden;
+          flex-shrink: 0;
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        .streamer-name {
+          font-weight: 500;
+        }
+      }
+      
+      td {
+        vertical-align: middle;
+        
+        input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+        }
+        
+        .btn-sm {
+          padding: v.$spacing-xs v.$spacing-sm;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+}
+
+// Keep view-specific styles including .settings-container
+/* Fix potential issues in the settings view */
+.settings-container {
+  padding: v.$spacing-md;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background: v.$background-darker;
+  border-radius: 8px;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+    max-width: 800px;
+  }
+
+  .settings-title {
+    margin-bottom: v.$spacing-lg;
+    font-size: map.get(v.$font-scale, 'lg');
+    color: v.$text-primary;
+  }
+
+  .settings-form {
+    padding: v.$spacing-md;
+    margin-bottom: v.$spacing-xl;
+
+    .form-group {
+      margin-bottom: v.$spacing-lg;
+
+      label {
+        display: block;
+        margin-bottom: v.$spacing-sm;
+        color: v.$text-secondary;
+      }
+    }
+
+    .input-with-tooltip {
+      position: relative;
+
+      .form-control {
+        width: 100%;
+        padding: v.$spacing-sm v.$spacing-md;
+        border: 1px solid v.$border-color;
+        border-radius: 4px;
+        background: v.$background-dark;
+        color: v.$text-primary;
+
+        &:focus {
+          border-color: v.$primary-color;
+          outline: none;
+        }
+
+        &.is-invalid {
+          border-color: v.$danger-color;
+        }
+      }
+    }
+  }
+
+  .form-control {
+    &.is-invalid {
+      border-color: v.$danger-color;
+    }
+  }
+
+  .invalid-feedback {
+    display: block;
+    width: 100%;
+    margin-top: v.$spacing-xs;
+    font-size: map.get(v.$font-scale, 'sm');
+    color: v.$danger-color;
+  }
+
+  /* Make sure streamer notifications table doesn't overflow */
+  .streamer-notifications {
+    margin-top: v.$spacing-xl;
+    width: 100%;
+    border-top: 1px solid v.$border-color;
+    padding-top: v.$spacing-lg;
+    
+    .streamer-table {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      
+      table {
+        width: 100%;
+        min-width: 600px; /* Set a min-width to ensure it works in mobile view with scrolling */
+      }
+    }
+
+    h3 {
+      margin-bottom: v.$spacing-md;
+      color: v.$text-primary;
+    }
+
+    .streamer-card {
+      background: v.$background-darker;
+      padding: v.$spacing-md;
+      border-radius: 8px;
+      margin-bottom: v.$spacing-md;
+
+      .streamer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: v.$spacing-md;
+      }
+
+      .notification-toggles {
+        display: flex;
+        gap: v.$spacing-md;
+        flex-wrap: wrap;
+
+        .toggle {
+          display: flex;
+          align-items: center;
+          gap: v.$spacing-sm;
+          color: v.$text-primary;
+
+          input[type="checkbox"] {
+            margin-right: v.$spacing-xs;
+          }
+        }
+      }
+    }
+  }
+
+  .controls {
+    display: flex;
+    gap: v.$spacing-sm;
+    margin-bottom: v.$spacing-md;
+  }
+}
+
+/* Make form controls responsive */
+.form-control {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Fix other views to be mobile-friendly */
+.add-streamer-page, 
+.login-page, 
+.setup-page,
+.subscription-manager,
+.streamer-detail {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: v.$spacing-md;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+}
+
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
+.invalid-feedback {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.875em;
+  color: #dc3545;
+}
+
+.btn-with-margin {
+  margin-right: 8px;
+}
+.streamer-detail {
+  padding: v.$spacing-md;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  .streamer-header {
+    margin-bottom: v.$spacing-lg;
+    
+    h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        font-size: 1.75rem;
+      }
+    }
+  }
+}
+
+// Streams container
+.streams-container {
+  width: 100%;
+  
+  .back-btn-container {
+    margin-bottom: v.$spacing-md;
+  }
+
+  @media (max-width: map.get(v.$breakpoints, 'md')) {
+    .stream-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.add-streamer-page {
+  .import-section {
+    margin-top: v.$spacing-xl;
+    padding-top: v.$spacing-lg;
+    border-top: 1px solid v.$border-color;
+    
+    h3 {
+      margin-bottom: v.$spacing-sm;
+      font-size: map.get(v.$font-scale, 'base');
+    }
+    
+    .import-description {
+      margin-bottom: v.$spacing-lg;
+      color: v.$text-secondary;
+    }
+  }
+}

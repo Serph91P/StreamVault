@@ -1,0 +1,56 @@
+// Colors
+$background-dark: #18181b;
+$background-darker: #1f1f23;
+$text-primary: #efeff1;
+$text-secondary: #adadb8;
+$border-color: #303034;
+$primary-color: #42b883;
+$danger-color: #ef4444;
+$success-color: #28a745;
+
+// Spacing (using rem for better scaling)
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+
+// Breakpoints (mobile-first)
+$breakpoints: (
+  'sm': 375px,
+  'md': 768px,
+  'lg': 1024px,
+  'xl': 1200px
+);
+
+// Container max-widths
+$container-sm: 100%;
+$container-md: 720px;
+$container-lg: 960px;
+$container-xl: 1140px;
+
+// Z-index layers
+$z-layers: (
+  'base': 1,
+  'overlay': 50,
+  'modal': 100,
+  'toast': 1000
+);
+
+// Fluid typography function
+@function fluid-type($min-vw, $max-vw, $min-size, $max-size) {
+  $factor: calc(100 * ($max-size - $min-size) / ($max-vw - $min-vw));
+  @return clamp(#{$min-size}rem, #{$factor}vw, #{$max-size}rem);
+}
+
+// Updated font sizes
+$font-scale: (
+  'xs': fluid-type(320, 1200, 0.75, 0.875),
+  'sm': fluid-type(320, 1200, 0.875, 1),
+  'base': fluid-type(320, 1200, 1, 1.125),
+  'lg': fluid-type(320, 1200, 1.125, 1.25),
+  'xl': fluid-type(320, 1200, 1.25, 1.5)
+);
+
+// Border styles
+$border-radius: 6px;

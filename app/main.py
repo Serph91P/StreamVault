@@ -1,187 +1,218 @@
-import os
-import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, BackgroundTasks, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
+from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
-from twitchAPI.twitch import Twitch
-from twitchAPI.eventsub import EventSub
-from twitchAPI.types import AuthScope
-from pydantic import BaseModel
-from typing import List
-from sqlalchemy.orm import Session
-import threading
+from fastapi.routing import APIRoute
+from starlette.routing import WebSocketRoute
+from app.routes import streamers, auth
+from app.routes import settings as settings_router
+from app.routes import twitch_auth
+import logging
+import hmac
+import hashlib
+import json
+import asyncio
+
+from contextlib import asynccontextmanager
+
+from app.events.handler_registry import EventHandlerRegistry
+
+from app.config.logging_config import setup_logging
+from app.database import engine
 import app.models as models
-from app.database import SessionLocal, engine
-from starlette.websockets import WebSocketState
+from app.dependencies import websocket_manager, get_event_registry, get_auth_service
+from app.middleware.error_handler import error_handler
+from app.middleware.logging import logging_middleware
+from app.config.settings import settings
+from app.middleware.auth import AuthMiddleware
 
-# Create the database tables
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting application initialization...")
+    event_registry = await get_event_registry()
+    
+    # Initialize EventSub subscriptions
+    await event_registry.initialize_eventsub()
+    logger.info("Application startup complete")
+    
+    yield
+    
+    # Cleanup with logging
+    logger.info("Starting application shutdown...")
+    event_registry = await get_event_registry()
+    if event_registry.eventsub:
+        await event_registry.eventsub.stop()
+        logger.info("EventSub stopped")
+    logger.info("Application shutdown complete")
+
+# Initialize application components
+logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
+app = FastAPI(lifespan=lifespan)
+app.middleware("http")(logging_middleware)
 
-app = FastAPI()
-
-# Mount static files (if any)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Twitch API credentials from environment variables
-APP_ID = os.getenv('TWITCH_APP_ID')
-APP_SECRET = os.getenv('TWITCH_APP_SECRET')
-BASE_URL = os.getenv('BASE_URL')  # Use BASE_URL for webhook URL
-WEBHOOK_URL = f"{BASE_URL}/eventsub"
-
-if not APP_ID or not APP_SECRET or not WEBHOOK_URL:
-    raise Exception("Environment variables TWITCH_APP_ID, TWITCH_APP_SECRET, and WEBHOOK_URL must be set")
-
-# Initialize Twitch API
-twitch = Twitch(APP_ID, APP_SECRET)
-twitch.authenticate_app([])
-
-# Initialize EventSub
-event_sub = EventSub(WEBHOOK_URL, 7000, twitch)
-
-# Start EventSub listener in a separate thread
-def start_eventsub():
-    event_sub.listen()
-
-thread = threading.Thread(target=start_eventsub, daemon=True)
-thread.start()
-
-# Pydantic models
-class StreamerBase(BaseModel):
-    username: str
-
-class StreamerCreate(StreamerBase):
-    pass
-
-class Streamer(StreamerBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-
-# Route to serve the homepage
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Twitch Streamer Monitor</title>
-    </head>
-    <body>
-        <h1>Twitch Streamer Monitor</h1>
-        <form action="/add_streamer" method="post">
-            <input type="text" name="username" placeholder="Streamer Username" required>
-            <button type="submit">Add Streamer</button>
-        </form>
-        <ul id="notifications"></ul>
-        <script>
-            var ws = new WebSocket("ws://" + location.host + "/ws");
-            ws.onmessage = function(event) {
-                var notifications = document.getElementById('notifications');
-                var newItem = document.createElement('li');
-                newItem.textContent = event.data;
-                notifications.appendChild(newItem);
-            };
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-
-# Endpoint to add a streamer
-@app.post("/add_streamer")
-async def add_streamer(username: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db)):
-    # Check if streamer is already in the database
-    existing_streamer = db.query(models.Streamer).filter(models.Streamer.username == username).first()
-    if existing_streamer:
-        return JSONResponse(status_code=400, content={"message": f"Streamer {username} is already subscribed."})
-
-    # Add the subscription task to background tasks
-    background_tasks.add_task(subscribe_to_streamer, username, db)
-    return HTMLResponse(content=f"Subscription to {username} is being processed. You will receive a notification shortly.")
-
-# Function to subscribe to a streamer asynchronously
-async def subscribe_to_streamer(username: str, db: Session):
-    try:
-        # Get user information from Twitch API
-        user_info = await twitch.get_users(logins=[username])
-        if not user_info['data']:
-            await manager.send_notification(f"Streamer {username} does not exist.")
-            return
-
-        user_data = user_info['data'][0]
-        user_id = user_data['id']
-        display_name = user_data['display_name']
-
-        # Add streamer to the database
-        new_streamer = models.Streamer(id=user_id, username=display_name)
-        db.add(new_streamer)
-        db.commit()
-
-        # Subscribe to stream.online and stream.offline events
-        await event_sub.subscribe_channel_stream_online(broadcaster_user_id=user_id, callback_url=f"{WEBHOOK_URL}/eventsub")
-        await event_sub.subscribe_channel_stream_offline(broadcaster_user_id=user_id, callback_url=f"{WEBHOOK_URL}/eventsub")
-
-        await manager.send_notification(f"Successfully subscribed to {display_name}.")
-
-    except Exception as e:
-        await manager.send_notification(f"Failed to subscribe to {username}: {str(e)}")
-
-# EventSub notification handler
-@app.post("/eventsub")
-async def eventsub_callback(request: Request, db: Session = Depends(get_db)):
-    headers = request.headers
-    body = await request.json()
-
-    # Handle EventSub verification
-    if headers.get('Twitch-Eventsub-Message-Type') == 'webhook_callback_verification':
-        return Response(content=body['challenge'], media_type='text/plain')
-
-    # Handle incoming notifications
-    if headers.get('Twitch-Eventsub-Message-Type') == 'notification':
-        event = body['event']
-        streamer_id = event['broadcaster_user_id']
-        streamer = db.query(models.Streamer).filter(models.Streamer.id == streamer_id).first()
-        if not streamer:
-            return JSONResponse(status_code=404, content={"message": "Streamer not found in the database."})
-
-        event_type = body['subscription']['type']
-        message = ""
-        if event_type == 'stream.online':
-            message = f"{streamer.username} is now **online**."
-        elif event_type == 'stream.offline':
-            message = f"{streamer.username} is now **offline**."
-
-        # Save event to the database
-        new_stream = models.Stream(streamer_id=streamer_id, event_type=event_type)
-        db.add(new_stream)
-        db.commit()
-
-        # Send notification via WebSocket
-        await manager.send_notification(message)
-
-    return JSONResponse(status_code=200, content={"message": "Event received successfully."})
-
-# WebSocket endpoint for real-time notifications
+# WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    logger.info(f"New WebSocket connection from {websocket.client}")
+    await websocket_manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        logger.info(f"WebSocket disconnected: {websocket.client}")
+        await websocket_manager.disconnect(websocket)
 
-# Shutdown EventSub when the app stops
-@app.on_event("shutdown")
-async def shutdown_event():
-    await event_sub.stop()
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "StreamVault"}
 
+# EventSub Routes
+@app.get("/eventsub")
+@app.head("/eventsub")
+async def eventsub_root():
+    return Response(content="Twitch EventSub Endpoint", media_type="text/plain")
+
+@app.post("/eventsub")
+async def eventsub_callback(request: Request):
+    try:
+        # Read headers and body
+        headers = request.headers
+        body = await request.body()
+
+        # Extract required headers
+        message_id = headers.get("Twitch-Eventsub-Message-Id", "")
+        timestamp = headers.get("Twitch-Eventsub-Message-Timestamp", "")
+        received_signature = headers.get("Twitch-Eventsub-Message-Signature", "")
+        message_type = headers.get("Twitch-Eventsub-Message-Type", "")
+
+        # Debug logging
+        logger.debug(f"Message ID: {message_id}")
+        logger.debug(f"Timestamp: {timestamp}")
+        logger.debug(f"Received signature: {received_signature}")
+        logger.debug(f"Raw body: {body.decode()}")
+
+        # Validate required headers
+        if not all([message_id, timestamp, received_signature, message_type]):
+            logger.error("Missing required headers for signature verification.")
+            return Response(status_code=403)
+
+        # Create message exactly as Twitch does
+        hmac_message = message_id.encode() + timestamp.encode() + body
+
+        # Calculate HMAC using raw bytes
+        calculated_signature = "sha256=" + hmac.new(
+            settings.EVENTSUB_SECRET.encode(),
+            hmac_message,
+            hashlib.sha256
+        ).hexdigest()
+
+        # Debug HMAC calculation
+        logger.debug(f"HMAC message: {hmac_message}")
+        logger.debug(f"Calculated signature: {calculated_signature}")
+        logger.debug(f"Secret used: {settings.EVENTSUB_SECRET}")
+
+        if not hmac.compare_digest(received_signature, calculated_signature):
+            logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
+            return Response(status_code=403)
+
+        # Process webhook message based on message_type
+        if message_type == "webhook_callback_verification":
+            try:
+                body_json = json.loads(body)
+                challenge = body_json.get("challenge")
+                if challenge:
+                    logger.info("Challenge request received and processed successfully.")
+                    return Response(content=challenge, media_type=None, headers={"Content-Type": "text/plain"})
+                else:
+                    logger.error("Challenge request missing 'challenge' field.")
+                    return Response(status_code=400)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON body: {e}")
+                return Response(status_code=400)
+
+        elif message_type == "notification":
+            # Handle event notifications
+            try:
+                body_json = json.loads(body)
+                event_registry = await get_event_registry()
+                event_type = body_json.get("subscription", {}).get("type")
+                event_data = body_json.get("event")
+
+                logger.debug(f"Processing EventSub notification: {event_type}")
+                logger.debug(f"Event data: {event_data}")
+
+                handler = event_registry.handlers.get(event_type)
+                if handler:
+                    try:
+                        await asyncio.wait_for(handler(event_data), timeout=5.0)
+                        logger.info(f"Event {event_type} handled successfully.")
+                        return Response(status_code=204)
+                    except asyncio.TimeoutError:
+                        logger.error(f"Handler for {event_type} timed out.")
+                        return Response(status_code=500)
+                    except Exception as e:
+                        logger.error(f"Error in event handler for {event_type}: {e}", exc_info=True)
+                        return Response(status_code=500)
+                else:
+                    logger.warning(f"No handler found for event type: {event_type}.")
+                    return Response(status_code=400)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON body: {e}")
+                return Response(status_code=400)
+
+        elif message_type == "revocation":
+            # Handle subscription revocation
+            body_json = json.loads(body)
+            subscription_id = body_json.get("subscription", {}).get("id", "unknown")
+            reason = body_json.get("subscription", {}).get("status", "unknown reason")
+            logger.warning(f"Subscription {subscription_id} revoked by Twitch. Reason: {reason}")
+            return Response(status_code=204)
+
+        else:
+            logger.warning(f"Unsupported message type: {message_type}")
+            return Response(status_code=400)
+
+    except Exception as e:
+        logger.error(f"Error processing webhook: {e}", exc_info=True)
+        return Response(status_code=500)
+
+# API routes first
+app.include_router(streamers.router)
+app.include_router(auth.router, prefix="/auth")
+app.include_router(settings_router.router)
+app.include_router(twitch_auth.router)
+
+# Static files for assets
+app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
+app.mount("/data", StaticFiles(directory="/app/data"), name="data")
+
+# Static files for root-level items
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("app/frontend/dist/favicon.ico")
+
+@app.get("/icons/{file_path:path}")
+async def serve_icons(file_path: str):
+    return FileResponse(f"app/frontend/dist/icons/{file_path}")
+
+# Error handler
+app.add_exception_handler(Exception, error_handler)
+
+# Auth Middleware
+app.add_middleware(AuthMiddleware)
+
+# SPA catch-all route must be last
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    return FileResponse("app/frontend/dist/index.html")
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(
+        "app/frontend/dist/sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/"
+        }
+    )

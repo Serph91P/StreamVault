@@ -1,20 +1,48 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM python:3.13-slim
 
-# Set the working directory in the container
+# Create non-root user and set up directories
+RUN groupadd -g 1000 appuser && \
+    useradd -u 1000 -g appuser -s /bin/bash -m appuser && \
+    mkdir -p /app/data/profile_images && \
+    chown -R appuser:appuser /app
+
 WORKDIR /app
 
-# Copy the requirements file first (for caching)
+# Copy Python requirements first
 COPY requirements.txt ./
 
-# Install the required packages
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Node.js and npm
+RUN apt-get update && apt-get install -y \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y \
+    nodejs \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apt-get remove -y gcc python3-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the rest of the application code
+# Setup frontend
+COPY app/frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm install
+
+# Copy and build frontend
+COPY app/frontend ./
+RUN npm run build
+
+# Back to main directory and copy rest of app
+WORKDIR /app
 COPY . .
 
-# Expose the port FastAPI is running on
+# Set proper permissions again after all copies
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 7000
 
-# Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]

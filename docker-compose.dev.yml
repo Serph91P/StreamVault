@@ -1,0 +1,42 @@
+services:
+  app:
+    image: frequency2098/streamvault:develop
+    container_name: streamvault_dev
+    user: "1000:1000"
+    volumes:
+      - .:/app
+      - app_data:/app/data
+    ports:
+      - "7000:7000"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TWITCH_APP_ID=${TWITCH_APP_ID}
+      - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
+      - BASE_URL=${BASE_URL}
+      - EVENTSUB_SECRET=${EVENTSUB_SECRET}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - LOG_LEVEL=DEBUG
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:13-alpine
+    container_name: streamvault_db_dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
+  app_data:

@@ -1,0 +1,71 @@
+@use 'sass:map';
+@use 'sass:color';
+@use 'variables' as v;
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100vw; /* Limit to viewport width */
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+.header {
+  background: v.$background-darker;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: v.$spacing-sm;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md;
+  }
+
+  .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.nav-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: v.$spacing-md;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    justify-content: flex-start;
+    margin: 0 auto;
+    gap: v.$spacing-md;
+  }
+}
+
+.main-content {
+  flex: 1;
+  padding: v.$spacing-md;
+  margin-top: 56px; /* Account for fixed header */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    padding: v.$spacing-xl;
+    max-width: v.$container-xl;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
