@@ -70,25 +70,44 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
 async def get_all_streamer_recording_settings():
     try:
         with SessionLocal() as db:
-            settings = db.query(StreamerRecordingSettings).join(Streamer).options(
-                joinedload(StreamerRecordingSettings.streamer)
-            ).all()
+            # Get all streamers first
+            streamers = db.query(Streamer).all()
             
-            return [
-                StreamerRecordingSettingsSchema(
-                    streamer_id=s.streamer_id,
-                    username=s.streamer.username,
-                    profile_image_url=s.streamer.profile_image_url,  # Added profile image
-                    enabled=s.enabled,
-                    quality=s.quality,
-                    custom_filename=s.custom_filename
-                )
-                for s in settings
-            ]
+            # Get all existing recording settings
+            existing_settings = db.query(StreamerRecordingSettings).all()
+            
+            # Create a dictionary for quick lookup
+            settings_dict = {s.streamer_id: s for s in existing_settings}
+            
+            # Create or get settings for each streamer
+            result = []
+            for streamer in streamers:
+                if streamer.id in settings_dict:
+                    # Use existing settings
+                    settings = settings_dict[streamer.id]
+                else:
+                    # Create default settings
+                    settings = StreamerRecordingSettings(
+                        streamer_id=streamer.id,
+                        enabled=True
+                    )
+                    db.add(settings)
+                
+                # Create response object
+                result.append(StreamerRecordingSettingsSchema(
+                    streamer_id=streamer.id,
+                    username=streamer.username,
+                    profile_image_url=streamer.profile_image_url,
+                    enabled=settings.enabled,
+                    quality=settings.quality,
+                    custom_filename=settings.custom_filename
+                ))
+            
+            db.commit()
+            return result
     except Exception as e:
-        logger.error(f"Error fetching streamer recording settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
+        logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
 async def update_streamer_recording_settings(
     streamer_id: int, 
     settings_data: StreamerRecordingSettingsSchema
