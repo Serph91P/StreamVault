@@ -182,7 +182,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
-import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
+import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 
 const props = defineProps<{
@@ -190,8 +190,6 @@ const props = defineProps<{
   streamerSettings: StreamerRecordingSettings[];
   activeRecordings: any[];
 }>();
-
-import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 
 const updateFilenameTemplate = () => {
   const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
