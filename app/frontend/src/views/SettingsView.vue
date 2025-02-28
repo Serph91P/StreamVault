@@ -115,7 +115,7 @@ let pollingInterval: number | undefined = undefined
 const fetchRecordingStreamerSettings = async () => {
   try {
     console.log("Fetching recording streamer settings...")
-    const result = await fetchStreamerSettings()
+    const result = await fetchRecordingStreamerSettings()
     recordingStreamerSettings.value = result
     console.log("Loaded recording streamer settings:", recordingStreamerSettings.value)
     return result
