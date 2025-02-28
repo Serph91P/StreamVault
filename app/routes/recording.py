@@ -18,14 +18,26 @@ recording_service = RecordingService()
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
 async def get_recording_settings():
-    with SessionLocal() as db:
-        settings = db.query(RecordingSettings).first()
-        if not settings:
-            settings = RecordingSettings()
-            db.add(settings)
-            db.commit()
-        return settings
-
+    try:
+        with SessionLocal() as db:
+            settings = db.query(RecordingSettings).first()
+            if not settings:
+                # Initialize with default values
+                settings = RecordingSettings(
+                    enabled=True,
+                    output_directory="/recordings",
+                    filename_template="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+                    default_quality="best",
+                    use_chapters=True,
+                    max_concurrent_recordings=3
+                )
+                db.add(settings)
+                db.commit()
+                db.refresh(settings)
+            return settings
+    except Exception as e:
+        logger.error(f"Error fetching recording settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 @router.post("/settings", response_model=RecordingSettingsSchema)
 async def update_recording_settings(settings_data: RecordingSettingsSchema):
     try:
