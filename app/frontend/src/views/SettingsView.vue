@@ -108,9 +108,22 @@ const activeTab = ref('notifications')
 const notificationStreamerSettings = ref<StreamerNotificationSettings[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
-
 // Poll for active recordings
 let pollingInterval: number | undefined = undefined
+
+// Make sure this function properly loads recording streamer settings
+const fetchRecordingStreamerSettings = async () => {
+  try {
+    console.log("Fetching recording streamer settings...")
+    const result = await fetchStreamerSettings()
+    recordingStreamerSettings.value = result
+    console.log("Loaded recording streamer settings:", recordingStreamerSettings.value)
+    return result
+  } catch (error) {
+    console.error('Error fetching recording streamer settings:', error)
+    return []
+  }
+}
 
 onMounted(async () => {
   isLoading.value = true
@@ -119,10 +132,26 @@ onMounted(async () => {
     await fetchNotificationSettings()
     notificationStreamerSettings.value = await getNotificationStreamerSettings()
     
-    // Load recording settings
-    await fetchRecordingSettings()
-    await fetchRecordingStreamerSettings()
-    await fetchActiveRecordings()
+    // Load recording settings with better error handling
+    try {
+      await fetchRecordingSettings()
+      console.log("Recording settings:", recordingSettings.value)
+    } catch (e) {
+      console.error("Failed to load recording settings:", e)
+    }
+    
+    try {
+      await fetchRecordingStreamerSettings()
+      console.log("Recording streamer settings count:", recordingStreamerSettings.value.length)
+    } catch (e) {
+      console.error("Failed to load recording streamer settings:", e) 
+    }
+    
+    try {
+      await fetchActiveRecordings()
+    } catch (e) {
+      console.error("Failed to load active recordings:", e)
+    }
     
     // Start polling for active recordings
     pollingInterval = window.setInterval(() => {
@@ -135,7 +164,6 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
-
 onBeforeUnmount(() => {
   // Clear polling interval when component is unmounted
   if (pollingInterval) {
