@@ -191,6 +191,15 @@ const props = defineProps<{
   activeRecordings: any[];
 }>();
 
+import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
+
+const updateFilenameTemplate = () => {
+  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
+  if (preset) {
+    data.value.filename_template = preset.description;
+  }
+};
+
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
@@ -300,6 +309,8 @@ const formatDuration = (seconds: number) => {
   return `${hours}h ${minutes}m`;
 };
 
+
+
 const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   updateStreamerSetting(streamerId, { enabled });
 };
@@ -396,4 +407,6 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   margin-top: 4px;
 }
 </style>
+
+
 
