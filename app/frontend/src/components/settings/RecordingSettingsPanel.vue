@@ -474,3 +474,4 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   color: #6c757d;
   margin-top: 0.25rem;
 }
+</style>
