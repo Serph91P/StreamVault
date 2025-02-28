@@ -5,7 +5,6 @@ export interface RecordingSettings {
   filename_preset?: string;
   default_quality: string;
   use_chapters: boolean;
-  max_concurrent_recordings: number;
 }
 
 export interface StreamerRecordingSettings {
