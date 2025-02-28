@@ -14,6 +14,7 @@ logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
     def __init__(self, connection_manager: ConnectionManager, settings=None):
+        self.recording_service = RecordingService()
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -122,11 +123,6 @@ class EventHandlerRegistry:
                 await asyncio.sleep(1)
         return False
 
-class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, settings=None):
-        # Existing initialization code...
-        self.recording_service = RecordingService()
-        
     async def handle_stream_online(self, data: dict):
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
