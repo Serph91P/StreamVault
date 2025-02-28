@@ -1,9 +1,17 @@
 <template>
   <div>
     <h3>Recording Settings</h3>
-
+    
+    <div v-if="isLoading" class="loading-message">
+      Loading recording settings...
+    </div>
+    
+    <div v-else-if="error" class="error-message">
+      Error loading settings: {{ error }}
+    </div>
+    
     <!-- Global Settings -->
-    <div class="settings-form">
+    <div v-else class="settings-form">
       <div class="form-group">
         <label>
           <input type="checkbox" v-model="data.enabled" />
@@ -178,8 +186,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
