@@ -299,6 +299,10 @@ const formatDuration = (seconds: number) => {
   const minutes = Math.floor((seconds % 3600) / 60);
   return `${hours}h ${minutes}m`;
 };
+
+const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
+  updateStreamerSetting(streamerId, { enabled });
+};
 </script>
 <style scoped>
 .active-recordings {
@@ -392,3 +396,4 @@ const formatDuration = (seconds: number) => {
   margin-top: 4px;
 }
 </style>
+

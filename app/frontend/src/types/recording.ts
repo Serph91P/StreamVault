@@ -2,6 +2,7 @@ export interface RecordingSettings {
   enabled: boolean;
   output_directory: string;
   filename_template: string;
+  filename_preset?: string;
   default_quality: string;
   use_chapters: boolean;
   max_concurrent_recordings: number;
@@ -9,12 +10,12 @@ export interface RecordingSettings {
 
 export interface StreamerRecordingSettings {
   streamer_id: number;
-  username?: string;
+  username: string;
   enabled: boolean;
-  quality: string;
+  quality?: string;
   custom_filename?: string;
+  profile_image_url?: string;
 }
-
 export interface ActiveRecording {
   streamer_id: number;
   streamer_name: string;
