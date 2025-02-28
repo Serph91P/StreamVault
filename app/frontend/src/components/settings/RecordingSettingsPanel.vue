@@ -114,6 +114,7 @@
         </div>
       </div>
     </div>
+    
     <!-- Streamer Settings -->
     <div class="streamer-settings">
       <h3>Streamer Recording Settings</h3>
@@ -186,7 +187,9 @@
     </div>
   </div>
 </template>
-import { ref, computed, onMounted, watch } from 'vue';
+
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
@@ -197,13 +200,6 @@ const props = defineProps<{
   activeRecordings: any[];
 }>();
 
-const updateFilenameTemplate = () => {
-  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
-  if (preset) {
-    data.value.filename_template = preset.description;
-  }
-};
-
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
@@ -211,17 +207,25 @@ const emits = defineEmits<{
   stopRecording: [streamerId: number];
 }>();
 
-const { isLoading } = useRecordingSettings();
+const { isLoading, error } = useRecordingSettings();
 
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   output_directory: props.settings?.output_directory ?? '/recordings',
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}',
+  filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
   max_concurrent_recordings: props.settings?.max_concurrent_recordings ?? 3
 });
+
+const updateFilenameTemplate = () => {
+  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
+  if (preset) {
+    data.value.filename_template = preset.description;
+  }
+};
 
 // Update local data when props change
 watch(() => props.settings, (newSettings) => {
@@ -286,6 +290,7 @@ const saveSettings = async () => {
 const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
   emits('updateStreamer', streamerId, settings);
 };
+
 const toggleAllStreamers = async (enabled: boolean) => {
   if (!props.streamerSettings) return;
 
@@ -313,12 +318,11 @@ const formatDuration = (seconds: number) => {
   return `${hours}h ${minutes}m`;
 };
 
-
-
 const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   updateStreamerSetting(streamerId, { enabled });
 };
 </script>
+
 <style scoped>
 .active-recordings {
   margin-top: 2rem;
@@ -353,7 +357,6 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   font-size: 0.8rem;
   font-weight: bold;
 }
-
 .recording-details {
   margin-bottom: 1rem;
 }
@@ -410,7 +413,64 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   margin-right: 8px;
   margin-top: 4px;
 }
-</style>
 
+.loading-message, .error-message {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.25rem;
+}
 
+.loading-message {
+  background-color: #f8f9fa;
+  color: #6c757d;
+}
 
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.streamer-info {
+  display: flex;
+  align-items: center;
+}
+
+.streamer-avatar {
+  width: 30px;
+  height: 30px;
+  margin-right: 10px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.streamer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.table-controls {
+  margin-bottom: 1rem;
+}
+
+.table-controls button {
+  margin-right: 0.5rem;
+}
+
+.streamer-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.streamer-table th, .streamer-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.th-tooltip {
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
