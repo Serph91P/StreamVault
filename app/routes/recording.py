@@ -42,25 +42,30 @@ async def get_recording_settings():
 async def update_recording_settings(settings_data: RecordingSettingsSchema):
     try:
         with SessionLocal() as db:
-            settings = db.query(RecordingSettings).first()
-            if not settings:
-                settings = RecordingSettings()
-                db.add(settings)
+            # Get existing settings
+            existing_settings = db.query(RecordingSettings).first()
             
-            settings.enabled = settings_data.enabled
-            settings.output_directory = settings_data.output_directory
-            settings.filename_template = settings_data.filename_template
-            settings.default_quality = settings_data.default_quality
-            settings.use_chapters = settings_data.use_chapters
-            settings.max_concurrent_recordings = settings_data.max_concurrent_recordings
+            if not existing_settings:
+                # Create new settings if doesn't exist
+                existing_settings = RecordingSettings()
+                db.add(existing_settings)
             
+            # Update fields
+            existing_settings.enabled = settings_data.enabled
+            existing_settings.output_directory = settings_data.output_directory
+            existing_settings.filename_template = settings_data.filename_template
+            existing_settings.default_quality = settings_data.default_quality
+            existing_settings.use_chapters = settings_data.use_chapters
+            
+            # Save changes
             db.commit()
+            # This refreshes the instance after commit so it's bound to the session
+            db.refresh(existing_settings)
             
-            return settings
+            return existing_settings
     except Exception as e:
-        logger.error(f"Error updating recording settings: {e}")
+        logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
 async def get_all_streamer_recording_settings():
     try:
