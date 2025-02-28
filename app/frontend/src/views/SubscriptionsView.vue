@@ -93,15 +93,14 @@ const streamers = ref<Streamer[]>([])
 const streamerMap = ref<Record<string, string>>({})
 const loadingResubscribe = ref(false)
 const loading = ref(false)
-
 function formatEventType(type: string): string {
   switch (type) {
     case 'stream.online':
       return 'Stream Start'
     case 'stream.offline':
-      return 'Stream Ende'
+      return 'Stream End'
     case 'channel.update':
-      return 'Kanal Update'
+      return 'Channel Update'
     default:
       return type
   }
@@ -117,6 +116,8 @@ async function loadStreamers() {
     streamers.value.forEach(streamer => {
       streamerMap.value[streamer.twitch_id] = streamer.username
     })
+    
+    console.log("Loaded streamer map:", streamerMap.value)
   } catch (error) {
     console.error('Failed to load streamers:', error)
   }
