@@ -119,7 +119,6 @@ class RecordingSettings(Base):
     filename_template = Column(String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}")
     default_quality = Column(String, default="best")
     use_chapters = Column(Boolean, default=True)
-    max_concurrent_recordings = Column(Integer, default=3)
     filename_preset = Column(String, default="default")   
      
 class StreamerRecordingSettings(Base):
