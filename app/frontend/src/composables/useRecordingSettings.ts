@@ -61,12 +61,16 @@ export function useRecordingSettings() {
       isLoading.value = true;
       error.value = null;
       
+      console.log("Fetching streamer recording settings...")
       const response = await fetch('/api/recording/streamers');
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log("Received streamer settings:", data);
       streamerSettings.value = data;
       return data;
     } catch (err) {
