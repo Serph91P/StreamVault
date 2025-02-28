@@ -80,12 +80,6 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Maximum Concurrent Recordings:</label>
-        <input v-model.number="data.max_concurrent_recordings" type="number" min="1" max="10"
-          class="form-control form-control-sm" style="max-width: 100px;" />
-      </div>
-
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}
@@ -216,8 +210,7 @@ const data = ref<RecordingSettings>({
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
-  use_chapters: props.settings?.use_chapters ?? true,
-  max_concurrent_recordings: props.settings?.max_concurrent_recordings ?? 3
+  use_chapters: props.settings?.use_chapters ?? true
 });
 
 const updateFilenameTemplate = () => {
@@ -382,16 +375,16 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 .variable-item {
   font-size: 0.85rem;
 }
-
 .filename-preview {
   margin-top: 0.5rem;
   padding: 0.5rem;
-  background-color: #f0f0f0;
+  background-color: #343a40;
   border-radius: 0.25rem;
   font-size: 0.9rem;
   word-break: break-all;
+  color: #f8f9fa;
+  border: 1px solid #495057;
 }
-
 .streamer-settings {
   margin-top: 2rem;
 }
