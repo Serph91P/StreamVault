@@ -6,9 +6,18 @@ from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording_service import RecordingService
-from app.models import Streamer, Stream, StreamEvent
+from app.models import (
+    Streamer, 
+    Stream, 
+    StreamEvent, 
+    Category,
+    User,
+    FavoriteCategory,
+    NotificationSettings
+)
 from app.config.settings import settings as app_settings
 from datetime import datetime, timezone
+from app.services.streamer_service import StreamerService
 
 logger = logging.getLogger('streamvault')
 
@@ -310,15 +319,17 @@ class EventHandlerRegistry:
                     category_id = data.get("category_id")
                     
                     if category_name and category_id:
-                        # Kategorie in der Datenbank finden oder erstellen
+                        # Find or create category
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
-                            # Box Art URL über die Twitch API abrufen
-                            streamer_service = StreamerService(db=db, websocket_manager=self.manager, event_registry=self)
+                            streamer_service = StreamerService(
+                                db=db, 
+                                websocket_manager=self.manager, 
+                                event_registry=self
+                            )
                             game_data = await streamer_service.get_game_data(category_id)
                             
-                            # Neue Kategorie hinzufügen
                             category = Category(
                                 twitch_id=category_id,
                                 name=category_name,
