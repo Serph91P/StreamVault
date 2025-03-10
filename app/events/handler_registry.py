@@ -2,6 +2,8 @@ import logging
 import aiohttp
 import asyncio
 from typing import Dict, Callable, Awaitable, Any, Optional
+from datetime import datetime, timezone
+
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
@@ -16,8 +18,6 @@ from app.models import (
     NotificationSettings
 )
 from app.config.settings import settings as app_settings
-from datetime import datetime, timezone
-from app.services.streamer_service import StreamerService
 
 logger = logging.getLogger('streamvault')
 
@@ -319,13 +319,16 @@ class EventHandlerRegistry:
                     category_id = data.get("category_id")
                     
                     if category_name and category_id:
+                        # Import here to avoid circular dependency
+                        from app.services.streamer_service import StreamerService
+                        
                         # Find or create category
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
                             streamer_service = StreamerService(
                                 db=db, 
-                                websocket_manager=self.manager, 
+                                websocket_manager=self.manager,
                                 event_registry=self
                             )
                             game_data = await streamer_service.get_game_data(category_id)
@@ -337,11 +340,12 @@ class EventHandlerRegistry:
                             )
                             db.add(category)
                         else:
-                            # Bestehende Kategorie aktualisieren
                             category.name = category_name
                             category.last_seen = datetime.now(timezone.utc)
                         
                         db.commit()
+
+                        # Check for users with this category as favorite
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
                         ).all()
