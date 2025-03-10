@@ -46,7 +46,7 @@ RUN chown -R appuser:appuser /app
 # Create recordings directory with correct permissions
 RUN mkdir -p /recordings && \
     chown -R appuser:appuser /recordings && \
-    chmod 755 /recordings
+    chmod 775 /recordings
 
 USER appuser
 
