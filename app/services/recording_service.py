@@ -180,7 +180,9 @@ class RecordingService:
                 "ffmpeg",
                 "-i", ts_path,
                 "-c", "copy",  # Copy streams without re-encoding
-                "-map", "0",   # Include all streams
+                "-map", "0:v",  # Map only video streams
+                "-map", "0:a",  # Map only audio streams
+                "-ignore_unknown",  # Ignore unknown streams
                 "-movflags", "+faststart",  # Optimize for web streaming
                 "-y",          # Overwrite output
                 mp4_path
