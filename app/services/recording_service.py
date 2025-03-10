@@ -209,60 +209,53 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
-FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
-    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
-}
-
-def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
-    """Generate a filename from template with variables"""
-    now = datetime.now()
-    
-    # Sanitize values for filesystem safety
-    title = self._sanitize_filename(stream_data.get("title", "untitled"))
-    game = self._sanitize_filename(stream_data.get("category_name", "unknown"))
-    streamer_name = self._sanitize_filename(streamer.username)
-    
-    # Create a dictionary of replaceable values
-    values = {
-        "streamer": streamer_name,
-        "title": title,
-        "game": game,
-        "twitch_id": streamer.twitch_id,
-        "year": now.strftime("%Y"),
-        "month": now.strftime("%m"),
-        "day": now.strftime("%d"),
-        "hour": now.strftime("%H"),
-        "minute": now.strftime("%M"),
-        "second": now.strftime("%S"),
-        "timestamp": now.strftime("%Y%m%d_%H%M%S"),
-        "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
-        "id": stream_data.get("id", ""),
-        "season": f"S{now.year}-{now.month:02d}"
-    }
-    
-    # Check if template is a preset name
-    if template in FILENAME_PRESETS:
-        template = FILENAME_PRESETS[template]
-    
-    # Replace all variables in template
-    filename = template
-    for key, value in values.items():
-        filename = filename.replace(f"{{{key}}}", str(value))
-    
-    # Ensure the filename ends with .mp4
-    if not filename.lower().endswith('.mp4'):
-        filename += '.mp4'
         
-    return filename
+    def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
+        """Generate a filename from template with variables"""
+        now = datetime.now()
+        
+        # Sanitize values for filesystem safety
+        title = self._sanitize_filename(stream_data.get("title", "untitled"))
+        game = self._sanitize_filename(stream_data.get("category_name", "unknown"))
+        streamer_name = self._sanitize_filename(streamer.username)
+        
+        # Create a dictionary of replaceable values
+        values = {
+            "streamer": streamer_name,
+            "title": title,
+            "game": game,
+            "twitch_id": streamer.twitch_id,
+            "year": now.strftime("%Y"),
+            "month": now.strftime("%m"),
+            "day": now.strftime("%d"),
+            "hour": now.strftime("%H"),
+            "minute": now.strftime("%M"),
+            "second": now.strftime("%S"),
+            "timestamp": now.strftime("%Y%m%d_%H%M%S"),
+            "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
+            "id": stream_data.get("id", ""),
+            "season": f"S{now.year}-{now.month:02d}"
+        }
+        
+        # Check if template is a preset name
+        if template in FILENAME_PRESETS:
+            template = FILENAME_PRESETS[template]
+        
+        # Replace all variables in template
+        filename = template
+        for key, value in values.items():
+            filename = filename.replace(f"{{{key}}}", str(value))
+        
+        # Ensure the filename ends with .mp4
+        if not filename.lower().endswith('.mp4'):
+            filename += '.mp4'
+            
+        return filename
+
     def _sanitize_filename(self, name: str) -> str:
         """Remove illegal characters from filename"""
         return re.sub(r'[<>:"/\\|?*]', '_', name)
-    
+
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
         """Get a list of all active recordings"""
         async with self.lock:
@@ -277,3 +270,13 @@ def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], te
                 }
                 for streamer_id, info in self.active_recordings.items()
             ]
+
+FILENAME_PRESETS = {
+    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{day} - {title}",
+    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}",
+    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
+    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
+}
+
