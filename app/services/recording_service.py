@@ -123,15 +123,14 @@ class RecordingService:
                 "-o", ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
-                "--hls-segment-threads", "3",
                 "--stream-segment-threads", "3",
                 "--ringbuffer-size", "32M",
-                "--hls-segment-attempts", "5",
-                "--hls-timeout", "10",
+                "--stream-segment-timeout", "10",
+                "--stream-segment-attempts", "5",
                 "--retry-streams", "3",
                 "--retry-max", "5",
                 "--retry-open", "3",
-                "--hls-segment-queue-threshold", "10",
+                "--hls-segment-stream-data",
                 "--force"
             ]
         
