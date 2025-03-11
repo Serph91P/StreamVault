@@ -130,6 +130,7 @@ watch(messages, (newMessages) => {
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
+        // WICHTIG: is_live nicht ändern bei channel.update
       }
       console.log('StreamerList: Updating streamer with data:', updateData)
       updateStreamer(streamerId, updateData)
