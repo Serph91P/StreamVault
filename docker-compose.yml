@@ -17,6 +17,7 @@ services:
       - EVENTSUB_SECRET=${EVENTSUB_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - LOG_LEVEL=INFO
+      - TZ=Europe/Berlin
     restart: unless-stopped
     depends_on:
       db:
