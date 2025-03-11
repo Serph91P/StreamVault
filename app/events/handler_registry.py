@@ -283,6 +283,24 @@ class EventHandlerRegistry:
                 
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
+
+                stream = db.query(Stream)\
+                    .filter(Stream.streamer_id == streamer.id)\
+                    .filter(Stream.ended_at.is_(None))\
+                    .order_by(Stream.started_at.desc())\
+                    .first()
+                
+                if stream:
+                    stream_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="channel.update",
+                        title=data.get("title"),
+                        category_name=data.get("category_name"),
+                        language=data.get("language"),
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    db.add(stream_event)
+                    db.commit()
                 
                     # Send WebSocket notification
                     notification = {
@@ -293,7 +311,8 @@ class EventHandlerRegistry:
                             "streamer_name": streamer.username,
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
-                            "language": data.get("language")
+                            "language": data.get("language"),
+                            "is_live": streamer.is_live
                         }
                     }
                 
