@@ -241,37 +241,37 @@ class StreamerService:
     async def subscribe_to_events(self, twitch_id: str):
         await self.event_registry.subscribe_to_events(twitch_id)
 
-async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch game data from Twitch API including box art URL."""
-    try:
-        token = await self.get_access_token()
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/games",
-                params={"id": game_id},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get("data") and len(data["data"]) > 0:
-                        game_data = data["data"][0]
-                        
-                        # Die Box Art URL im Twitch-Format ersetzen wir durch die gewünschte Größe
-                        # Format ist normalerweise: https://static-cdn.jtvnw.net/ttv-boxart/123456-{width}x{height}.jpg
-                        box_art_url = game_data.get("box_art_url", "")
-                        if box_art_url:
-                            # Standard-Größe für Box Art
-                            box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
-                            game_data["box_art_url"] = box_art_url
+    async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch game data from Twitch API including box art URL."""
+        try:
+            token = await self.get_access_token()
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.base_url}/games",
+                    params={"id": game_id},
+                    headers={
+                        "Client-ID": self.client_id,
+                        "Authorization": f"Bearer {token}"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get("data") and len(data["data"]) > 0:
+                            game_data = data["data"][0]
                             
-                        return game_data
-                
-                logger.warning(f"Failed to get game data for ID {game_id}. Status: {response.status}")
-                return None
-    except Exception as e:
-        logger.error(f"Error fetching game data: {e}")
-        return None
+                            # Die Box Art URL im Twitch-Format ersetzen wir durch die gewünschte Größe
+                            # Format ist normalerweise: https://static-cdn.jtvnw.net/ttv-boxart/123456-{width}x{height}.jpg
+                            box_art_url = game_data.get("box_art_url", "")
+                            if box_art_url:
+                                # Standard-Größe für Box Art
+                                box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
+                                game_data["box_art_url"] = box_art_url
+                                
+                            return game_data
+                    
+                    logger.warning(f"Failed to get game data for ID {game_id}. Status: {response.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error fetching game data: {e}")
+            return None

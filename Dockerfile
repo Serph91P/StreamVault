@@ -11,9 +11,10 @@ WORKDIR /app
 # Copy Python requirements first
 COPY requirements.txt ./
 
-# Install Node.js and npm
+# Install Node.js, npm, and required packages including FFmpeg
 RUN apt-get update && apt-get install -y \
     curl \
+    ffmpeg \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y \
     nodejs \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     libpq-dev \
     && pip install --no-cache-dir -r requirements.txt \
+    && pip install streamlink==7.1.3 \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
@@ -40,6 +42,11 @@ COPY . .
 
 # Set proper permissions again after all copies
 RUN chown -R appuser:appuser /app
+
+# Create recordings directory with correct permissions
+RUN mkdir -p /recordings && \
+    chown -R appuser:appuser /recordings && \
+    chmod 775 /recordings
 
 USER appuser
 

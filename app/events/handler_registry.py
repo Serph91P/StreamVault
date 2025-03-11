@@ -2,17 +2,28 @@ import logging
 import aiohttp
 import asyncio
 from typing import Dict, Callable, Awaitable, Any, Optional
+from datetime import datetime, timezone
+
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
-from app.models import Streamer, Stream, StreamEvent
+from app.services.recording_service import RecordingService
+from app.models import (
+    Streamer, 
+    Stream, 
+    StreamEvent, 
+    Category,
+    User,
+    FavoriteCategory,
+    NotificationSettings
+)
 from app.config.settings import settings as app_settings
-from datetime import datetime, timezone
 
 logger = logging.getLogger('streamvault')
 
 class EventHandlerRegistry:
     def __init__(self, connection_manager: ConnectionManager, settings=None):
+        self.recording_service = RecordingService()
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -120,6 +131,7 @@ class EventHandlerRegistry:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
                 await asyncio.sleep(1)
         return False
+
     async def handle_stream_online(self, data: dict):
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
@@ -190,6 +202,18 @@ class EventHandlerRegistry:
                     )
                     
                     logger.debug("Notifications sent successfully")
+
+                    # After successful notification, start recording if enabled
+                    streamer_id = streamer.id
+                    await self.recording_service.start_recording(streamer_id, {
+                        "id": data["id"],
+                        "broadcaster_user_id": data["broadcaster_user_id"],
+                        "broadcaster_user_name": data["broadcaster_user_name"],
+                        "started_at": data["started_at"],
+                        "title": streamer.title,
+                        "category_name": streamer.category_name,
+                        "language": streamer.language
+                    })
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
@@ -234,6 +258,10 @@ class EventHandlerRegistry:
                             "twitch_login": data["broadcaster_user_login"]
                         }
                     )
+
+                    # Stop recording if it was active
+                    await self.recording_service.stop_recording(streamer.id)
+                
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
     
@@ -255,6 +283,24 @@ class EventHandlerRegistry:
                 
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
+
+                stream = db.query(Stream)\
+                    .filter(Stream.streamer_id == streamer.id)\
+                    .filter(Stream.ended_at.is_(None))\
+                    .order_by(Stream.started_at.desc())\
+                    .first()
+                
+                if stream:
+                    stream_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="channel.update",
+                        title=data.get("title"),
+                        category_name=data.get("category_name"),
+                        language=data.get("language"),
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    db.add(stream_event)
+                    db.commit()
                 
                     # Send WebSocket notification
                     notification = {
@@ -265,7 +311,8 @@ class EventHandlerRegistry:
                             "streamer_name": streamer.username,
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
-                            "language": data.get("language")
+                            "language": data.get("language"),
+                            "is_live": streamer.is_live
                         }
                     }
                 
@@ -291,15 +338,20 @@ class EventHandlerRegistry:
                     category_id = data.get("category_id")
                     
                     if category_name and category_id:
-                        # Kategorie in der Datenbank finden oder erstellen
+                        # Import here to avoid circular dependency
+                        from app.services.streamer_service import StreamerService
+                        
+                        # Find or create category
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
-                            # Box Art URL über die Twitch API abrufen
-                            streamer_service = StreamerService(db=db, websocket_manager=self.manager, event_registry=self)
+                            streamer_service = StreamerService(
+                                db=db, 
+                                websocket_manager=self.manager,
+                                event_registry=self
+                            )
                             game_data = await streamer_service.get_game_data(category_id)
                             
-                            # Neue Kategorie hinzufügen
                             category = Category(
                                 twitch_id=category_id,
                                 name=category_name,
@@ -307,11 +359,12 @@ class EventHandlerRegistry:
                             )
                             db.add(category)
                         else:
-                            # Bestehende Kategorie aktualisieren
                             category.name = category_name
                             category.last_seen = datetime.now(timezone.utc)
                         
                         db.commit()
+
+                        # Check for users with this category as favorite
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
                         ).all()

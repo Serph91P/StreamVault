@@ -6,6 +6,7 @@ from starlette.routing import WebSocketRoute
 from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
+from app.routes import recording as recording_router
 import logging
 import hmac
 import hashlib
@@ -15,7 +16,6 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from app.events.handler_registry import EventHandlerRegistry
-
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
@@ -181,6 +181,7 @@ app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 app.include_router(twitch_auth.router)
+app.include_router(recording_router.router)
 
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
