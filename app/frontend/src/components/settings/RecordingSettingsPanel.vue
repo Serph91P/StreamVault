@@ -169,11 +169,13 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td>
-                  <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
-                    class="btn btn-sm btn-secondary">Enable</button>
-                  <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
-                    class="btn btn-sm btn-secondary">Disable</button>
+                <td class="action-buttons">
+                  <div class="button-group">
+                    <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
+                      class="btn btn-sm btn-secondary">Enable</button>
+                    <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
+                      class="btn btn-sm btn-secondary">Disable</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -191,6 +193,20 @@
   color: #6c757d;
   text-align: center;
   margin-top: 1rem;
+}
+.action-buttons {
+  white-space: nowrap;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 </style>
 </template>
