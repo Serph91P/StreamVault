@@ -63,7 +63,7 @@
         <select v-model="data.default_quality" class="form-control">
           <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
-          </option>
+          </option>Create Chapters From Stream Events
         </select>
         <div class="help-text">
           Default quality for all streamers. This can be overridden on a per-streamer basis.
@@ -170,10 +170,6 @@
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
                 <td>
-                  <button @click="testRecording(streamer.streamer_id)" class="btn btn-sm btn-secondary"
-                    :disabled="isLoading || !data.enabled || !streamer.enabled">
-                    Test Recording
-                  </button>
                   <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
                     class="btn btn-sm btn-secondary">Enable</button>
                   <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
