@@ -84,10 +84,43 @@ const emit = defineEmits(['streamer-added'])
 
 <style scoped>
 .quality-select {
-  border-radius: 0;
-  border: 1px solid #ccc;
+  background: var(--background-dark, #18181b);
+  color: var(--text-primary, #efeff1);
+  border: 2px solid var(--border-color, #303034);
+  border-radius: 6px;
   padding: 8px 12px;
   font-size: 16px;
   min-width: 120px;
+  transition: all 0.2s ease;
+}
+
+.quality-select:focus {
+  outline: none;
+  border-color: var(--primary-color, #42b883);
+  box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
+}
+
+.input-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .input-group {
+    flex-wrap: nowrap;
+  }
+  
+  .quality-select {
+    flex: 0 0 auto;
+  }
+  
+  .input-field {
+    flex: 1;
+  }
+  
+  .submit-button {
+    flex: 0 0 auto;
+  }
 }
 </style>
