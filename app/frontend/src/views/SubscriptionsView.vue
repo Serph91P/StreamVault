@@ -38,10 +38,18 @@
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
             <td>
-              <div v-if="streamerMap[sub.condition?.broadcaster_user_id]" class="streamer-info">
-                <span class="streamer-name">{{ streamerMap[sub.condition?.broadcaster_user_id] }}</span>
+              <div class="streamer-info">
+                <!-- Debug info to help troubleshoot -->
+                <span v-if="streamerMap[sub.condition?.broadcaster_user_id]" class="streamer-name">
+                  {{ streamerMap[sub.condition?.broadcaster_user_id] }}
+                </span>
+                <span v-else-if="sub.broadcaster_name" class="streamer-name">
+                  {{ sub.broadcaster_name }}
+                </span>
+                <span v-else class="streamer-id">
+                  {{ sub.condition?.broadcaster_user_id || "Unknown" }}
+                </span>
               </div>
-              <span v-else>{{ sub.broadcaster_name || sub.condition?.broadcaster_user_id }}</span>
             </td>
             <td>{{ formatEventType(sub.type) }}</td>
             <td>
@@ -114,10 +122,18 @@ async function loadStreamers() {
     
     streamerMap.value = {}
     streamers.value.forEach(streamer => {
+      // Make sure to convert all IDs to strings for consistent lookup
       streamerMap.value[streamer.twitch_id] = streamer.username
+      // Sometimes IDs might be stored as numbers in one place and strings in another
+      if (typeof streamer.twitch_id === 'number') {
+        streamerMap.value[String(streamer.twitch_id)] = streamer.username
+      } else if (typeof streamer.twitch_id === 'string') {
+        streamerMap.value[parseInt(streamer.twitch_id, 10)] = streamer.username
+      }
     })
     
     console.log("Loaded streamer map:", streamerMap.value)
+    console.log("Subscription broadcaster IDs:", subscriptions.value.map(s => s.condition?.broadcaster_user_id))
   } catch (error) {
     console.error('Failed to load streamers:', error)
   }
