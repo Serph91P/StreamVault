@@ -19,8 +19,10 @@
         >
           {{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}
         </button>
+        <button @click="fetchCategories" class="btn btn-secondary">
+          Refresh Categories
+        </button>
       </div>
-    </div>
     
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
@@ -105,21 +107,27 @@ const filteredCategories = computed(() => {
 // Methoden
 const fetchCategories = async () => {
   try {
-    isLoading.value = true
-    const response = await fetch('/api/categories')
+    isLoading.value = true;
+    console.log("Fetching categories...");
+    const response = await fetch('/api/categories');
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const data = await response.json()
-    categories.value = data.categories || []
+    const data = await response.json();
+    console.log("Categories fetched:", data);
+    categories.value = data.categories || [];
+    
+    if (categories.value.length === 0) {
+      console.log("No categories found in the response");
+    }
   } catch (error) {
-    console.error('Error fetching categories:', error)
+    console.error('Error fetching categories:', error);
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 const addFavorite = async (categoryId: number) => {
   try {
