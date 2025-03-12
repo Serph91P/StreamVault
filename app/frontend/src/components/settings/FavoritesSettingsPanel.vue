@@ -23,6 +23,7 @@
           Refresh Categories
         </button>
       </div>
+    </div>
     
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
