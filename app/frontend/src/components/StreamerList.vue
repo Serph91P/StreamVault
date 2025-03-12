@@ -125,12 +125,15 @@ watch(messages, (newMessages) => {
     case 'channel.update': {
       console.log('StreamerList: Processing channel update:', message.data)
       const streamerId = message.data.streamer_id
+      const streamer = streamers.value.find(s => s.id === streamerId)
+      
       const updateData: StreamerUpdateData = {
         title: message.data.title || '',
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
-        // WICHTIG: is_live nicht ändern bei channel.update
+        // Maintain the current live status
+        // is_live: streamer ? streamer.is_live : false
       }
       console.log('StreamerList: Updating streamer with data:', updateData)
       updateStreamer(streamerId, updateData)
