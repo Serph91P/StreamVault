@@ -49,42 +49,35 @@
       </div>
       
       <div class="form-group">
+        <label>
+          <input type="checkbox" v-model="data.notificationsEnabled" />
+          Enable Notifications
+        </label>
+      </div>
+      
+      <div class="form-group">
         <h4>Global Notification Settings</h4>
         <div class="checkbox-group">
-          <label>
-            <input type="checkbox" v-model="data.notifyOnlineGlobal" />
-            Stream Start Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyOfflineGlobal" />
-            Stream End Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyUpdateGlobal" />
-            Stream Update Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyFavoriteCategoryGlobal" />
-            Favorite Game Notifications
-          </label>
+          <!-- Checkboxes... -->
         </div>
       </div>
 
-    <div class="form-actions">
-      <button 
-        @click="saveSettings" 
-        class="btn btn-primary"
-        :disabled="isSaving || !canSave"
-      >
-        {{ isSaving ? 'Saving...' : 'Save Settings' }}
-      </button>
-      <button 
-        @click="testNotification" 
-        class="btn btn-secondary"
-        :disabled="!data.notificationsEnabled || !data.notificationUrl"
-      >
-        Test Notification
-      </button>
+      <div class="form-actions">
+        <button 
+          @click="saveSettings" 
+          class="btn btn-primary"
+          :disabled="isSaving || !canSave"
+        >
+          {{ isSaving ? 'Saving...' : 'Save Settings' }}
+        </button>
+        <button 
+          @click="testNotification" 
+          class="btn btn-secondary"
+          :disabled="!data.notificationsEnabled || !data.notificationUrl"
+        >
+          Test Notification
+        </button>
+      </div>
     </div>
 
     <!-- Streamer Notification Table -->
