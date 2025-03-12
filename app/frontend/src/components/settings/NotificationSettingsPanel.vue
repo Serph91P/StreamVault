@@ -70,22 +70,21 @@
         </div>
       </div>
 
-      <div class="form-actions">
-        <button 
-          @click="saveSettings" 
-          class="btn btn-primary"
-          :disabled="isSaving || !canSave"
-        >
-          {{ isSaving ? 'Saving...' : 'Save Settings' }}
-        </button>
-        <button 
-          @click="testNotification" 
-          class="btn btn-secondary"
-          :disabled="!data.notificationsEnabled || !data.notificationUrl"
-        >
-          Test Notification
-        </button>
-      </div>
+    <div class="form-actions">
+      <button 
+        @click="saveSettings" 
+        class="btn btn-primary"
+        :disabled="isSaving || !canSave"
+      >
+        {{ isSaving ? 'Saving...' : 'Save Settings' }}
+      </button>
+      <button 
+        @click="testNotification" 
+        class="btn btn-secondary"
+        :disabled="!data.notificationsEnabled || !data.notificationUrl"
+      >
+        Test Notification
+      </button>
     </div>
 
     <!-- Streamer Notification Table -->
@@ -426,20 +425,35 @@ const testNotification = () => {
 
 .btn {
   padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .btn-primary {
-  background-color: #9146FF;
+  background-color: var(--primary-color, #42b883);
   color: white;
 }
 
 .btn-secondary {
-  background-color: #3a3a3a;
+  background-color: var(--background-darker, #3a3a3a);
   color: white;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .btn-sm {
