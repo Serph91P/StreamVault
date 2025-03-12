@@ -4,6 +4,9 @@ import logging
 import subprocess
 import re
 import signal
+import json
+import tempfile
+from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional, List, Any
 
@@ -149,6 +152,44 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Failed to start streamlink: {e}", exc_info=True)
             return None
+        
+    
+    async def _create_chapters_file(self, stream_events, duration):
+        """Create a chapters file from stream events for ffmpeg"""
+        if not stream_events or len(stream_events) < 2:  # Need at least 2 events to make chapters
+            return None
+            
+        # Sort events by timestamp
+        events = sorted(stream_events, key=lambda x: x.timestamp)
+        
+        # Create temp file for chapters
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            for i, event in enumerate(events):
+                start_time = event.timestamp.timestamp()
+                # End time is either the next event or the end of the stream
+                end_time = events[i+1].timestamp.timestamp() if i < len(events)-1 else duration
+                
+                # Format times as HH:MM:SS
+                start_str = self._format_timestamp(start_time)
+                end_str = self._format_timestamp(end_time)
+                
+                # Create chapter title from event
+                title = f"{event.title or 'Stream'}"
+                if event.category_name:
+                    title += f" - {event.category_name}"
+                
+                # Write chapter entry
+                f.write(f"CHAPTER{i+1:02d}={start_str}\n")
+                f.write(f"CHAPTER{i+1:02d}NAME={title}\n")
+            
+            return f.name
+
+    def _format_timestamp(self, seconds):
+        """Format seconds to HH:MM:SS.ms format for chapters"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
 
     async def _monitor_process(self, process: asyncio.subprocess.Process, streamer_name: str, ts_path: str, mp4_path: str) -> None:
         """Monitor recording process and convert TS to MP4 when finished"""
@@ -176,9 +217,46 @@ class RecordingService:
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
+            # Check if we should add chapters
+            chapter_file = None
+            with SessionLocal() as db:
+                # Get global recording settings
+                settings = db.query(RecordingSettings).first()
+                
+                if settings and settings.use_chapters:
+                    # Find the stream by output path
+                    streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
+                    if streamer_name:
+                        # Get the streamer
+                        streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                        if streamer:
+                            # Find the most recent stream for this streamer
+                            stream = db.query(Stream).filter(
+                                Stream.streamer_id == streamer.id
+                            ).order_by(Stream.started_at.desc()).first()
+                            
+                            if stream:
+                                # Get stream events
+                                events = db.query(StreamEvent).filter(
+                                    StreamEvent.stream_id == stream.id
+                                ).all()
+                                
+                                if events:
+                                    duration = (datetime.now() - stream.started_at).total_seconds()
+                                    chapter_file = await self._create_chapters_file(events, duration)
+            
+            # Build ffmpeg command
             cmd = [
                 "ffmpeg",
-                "-i", ts_path,
+                "-i", ts_path
+            ]
+            
+            # Add chapter file if available
+            if chapter_file:
+                cmd.extend(["-i", chapter_file, "-map_metadata", "1"])
+            
+            # Add the rest of the command
+            cmd.extend([
                 "-c", "copy",  # Copy streams without re-encoding
                 "-map", "0:v",  # Map only video streams
                 "-map", "0:a",  # Map only audio streams
@@ -186,7 +264,7 @@ class RecordingService:
                 "-movflags", "+faststart",  # Optimize for web streaming
                 "-y",          # Overwrite output
                 mp4_path
-            ]
+            ])
         
             logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
         
@@ -202,6 +280,9 @@ class RecordingService:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
+                # Clean up chapter file
+                if chapter_file and os.path.exists(chapter_file):
+                    os.remove(chapter_file)
                 return True
             else:
                 stderr_text = stderr.decode('utf-8', errors='ignore')
