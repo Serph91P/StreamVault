@@ -170,11 +170,15 @@
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
                 <td class="action-buttons">
-                  <div class="button-group">
+                  <div class="button-container">
                     <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
-                      class="btn btn-sm btn-secondary">Enable</button>
+                      class="btn btn-sm btn-action">
+                      Enable
+                    </button>
                     <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
-                      class="btn btn-sm btn-secondary">Disable</button>
+                      class="btn btn-sm btn-action">
+                      Disable
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -196,6 +200,21 @@
 }
 .action-buttons {
   white-space: nowrap;
+  max-width: 150px;
+}
+
+.button-container {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+}
+
+.btn-action {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0; /* Allow buttons to shrink below content width */
 }
 
 .button-group {
@@ -207,6 +226,39 @@
   padding: 0.25rem 0.5rem;
   font-size: 0.875rem;
   line-height: 1.5;
+}
+
+.streamer-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Adjust table for mobile */
+@media (max-width: 768px) {
+  .streamer-table table {
+    width: 100%;
+    min-width: 600px; /* Ensures horizontal scrolling on mobile */
+  }
+  
+  .streamer-table th, 
+  .streamer-table td {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .action-buttons {
+    max-width: 120px;
+  }
+  
+  .button-container {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .btn-action {
+    width: 100%;
+    margin: 0;
+  }
 }
 </style>
 </template>
