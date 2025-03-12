@@ -66,6 +66,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
 async def get_all_streamer_recording_settings():
     try:
@@ -108,6 +109,7 @@ async def get_all_streamer_recording_settings():
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
+    
 async def update_streamer_recording_settings(
     streamer_id: int, 
     settings_data: StreamerRecordingSettingsSchema
@@ -146,34 +148,6 @@ async def get_active_recordings():
         logger.error(f"Error fetching active recordings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/test/{streamer_id}")
-async def test_recording(streamer_id: int):
-    """Test recording for a specific streamer"""
-    try:
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if not streamer:
-                raise HTTPException(status_code=404, detail="Streamer not found")
-                
-            # Simulate a stream online event
-            result = await recording_service.start_recording(streamer_id, {
-                "id": f"test_{streamer_id}",
-                "broadcaster_user_id": streamer.twitch_id,
-                "broadcaster_user_name": streamer.username,
-                "started_at": datetime.now().isoformat(),
-                "title": streamer.title or "Test Stream",
-                "category_name": streamer.category_name or "Test Category",
-                "language": streamer.language or "en"
-            })
-            
-            if result:
-                return {"status": "success", "message": f"Test recording started for {streamer.username}"}
-            else:
-                return {"status": "error", "message": "Failed to start test recording"}
-    except Exception as e:
-        logger.error(f"Error starting test recording: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/stop/{streamer_id}")
 async def stop_recording(streamer_id: int):
     """Manually stop an active recording"""
@@ -185,4 +159,51 @@ async def stop_recording(streamer_id: int):
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
         logger.error(f"Error stopping recording: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
+async def update_streamer_recording_settings(
+    streamer_id: int,
+    settings: StreamerRecordingSettingsSchema,
+    db: Session = Depends(get_db)
+):
+    """Update recording settings for a specific streamer"""
+    try:
+        # Check if the streamer exists
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+        
+        # Get or create streamer recording settings
+        streamer_settings = db.query(StreamerRecordingSettings).filter(
+            StreamerRecordingSettings.streamer_id == streamer_id
+        ).first()
+        
+        if not streamer_settings:
+            streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
+            db.add(streamer_settings)
+        
+        # Update settings
+        streamer_settings.enabled = settings.enabled
+        if settings.quality is not None:
+            streamer_settings.quality = settings.quality
+        if settings.custom_filename is not None:
+            streamer_settings.custom_filename = settings.custom_filename
+        
+        db.commit()
+        
+        # Return updated settings with streamer info
+        return StreamerRecordingSettingsSchema(
+            streamer_id=streamer_settings.streamer_id,
+            username=streamer.username,
+            profile_image_url=streamer.profile_image_url,
+            enabled=streamer_settings.enabled,
+            quality=streamer_settings.quality,
+            custom_filename=streamer_settings.custom_filename
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating streamer recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
