@@ -114,15 +114,21 @@ class RecordingService:
         try:
             # Ensure output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
+    
             # Use .ts as intermediate format for better recovery
             ts_output_path = output_path.replace('.mp4', '.ts')
+    
+            # Adjust the quality string for better resolution selection
+            adjusted_quality = quality
+            if quality == "best":
+                # Use a more specific quality selection string to prioritize highest resolution
+                adjusted_quality = "1080p60,1080p,best"
         
-            # Streamlink command with optimized settings
+            # Streamlink command with optimized settings for high quality
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
-                quality,
+                adjusted_quality,
                 "-o", ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
