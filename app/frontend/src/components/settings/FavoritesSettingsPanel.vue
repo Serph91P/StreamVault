@@ -113,6 +113,8 @@ const fetchCategories = async () => {
     const response = await fetch('/api/categories');
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`HTTP error! status: ${response.status}, details: ${errorText}`);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
@@ -129,7 +131,6 @@ const fetchCategories = async () => {
     isLoading.value = false;
   }
 };
-
 const addFavorite = async (categoryId: number) => {
   try {
     const response = await fetch('/api/categories/favorites', {
