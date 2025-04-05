@@ -6,8 +6,9 @@ import re
 import signal
 import json
 import tempfile
+import copy
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from datetime import datetime
 from typing import Dict, Optional, List, Any
 
 from app.database import SessionLocal
@@ -161,42 +162,113 @@ class RecordingService:
         
     
     async def _create_chapters_file(self, stream_events, duration):
-        """Create a chapters file from stream events for ffmpeg"""
-        if not stream_events or len(stream_events) < 2:  # Need at least 2 events to make chapters
+        """Create a chapters file using Matroska XML format for better compatibility"""
+        if not stream_events:
             return None
-            
+    
+        # Ensure we have at least a start and end chapter, even if there's only one event
+        if len(stream_events) == 1:
+            # Create a duplicate event for the end
+            end_event = copy.copy(stream_events[0])
+            # Set the timestamp to stream duration
+            end_event.timestamp = stream_events[0].timestamp + timedelta(seconds=duration)
+            stream_events.append(end_event)
+        
         # Sort events by timestamp
         events = sorted(stream_events, key=lambda x: x.timestamp)
-        
+    
         # Create temp file for chapters
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+            f.write('<?xml version="1.0"?>\n')
+            f.write('<!-- DOCTYPE Chapters SYSTEM "matroskachapters.dtd" -->\n')
+            f.write('<Chapters>\n')
+            f.write('  <EditionEntry>\n')
+        
             for i, event in enumerate(events):
                 start_time = event.timestamp.timestamp()
                 # End time is either the next event or the end of the stream
                 end_time = events[i+1].timestamp.timestamp() if i < len(events)-1 else duration
-                
-                # Format times as HH:MM:SS
-                start_str = self._format_timestamp(start_time)
-                end_str = self._format_timestamp(end_time)
-                
-                # Create chapter title from event
-                title = f"{event.title or 'Stream'}"
-                if event.category_name:
-                    title += f" - {event.category_name}"
-                
-                # Write chapter entry
-                f.write(f"CHAPTER{i+1:02d}={start_str}\n")
-                f.write(f"CHAPTER{i+1:02d}NAME={title}\n")
             
+                # Convert times to nanoseconds (required by Matroska format)
+                start_ns = int(start_time * 1000000000)
+            
+                # Create chapter title
+                if event.category_name:
+                    title = f"{event.category_name}"
+                else:
+                    title = f"{event.title or 'Stream'}"
+            
+                # Write chapter entry in Matroska XML format
+                f.write('    <ChapterAtom>\n')
+                f.write(f'      <ChapterUID>{i+1}</ChapterUID>\n')
+                f.write(f'      <ChapterTimeStart>{self._format_ns_timestamp(start_ns)}</ChapterTimeStart>\n')
+                f.write('      <ChapterDisplay>\n')
+                f.write(f'        <ChapterString>{title}</ChapterString>\n')
+                f.write('        <ChapterLanguage>eng</ChapterLanguage>\n')
+                f.write('      </ChapterDisplay>\n')
+                f.write('    </ChapterAtom>\n')
+        
+            f.write('  </EditionEntry>\n')
+            f.write('</Chapters>')
+        
             return f.name
 
-    def _format_timestamp(self, seconds):
-        """Format seconds to HH:MM:SS.ms format for chapters"""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        seconds = seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+    def _format_ns_timestamp(self, ns):
+        """Format nanoseconds to Matroska timestamp format HH:MM:SS.nnnnnnnnn"""
+        s, ns = divmod(ns, 1000000000)
+        m, s = divmod(s, 60)
+        h, m = divmod(m, 60)
+        return f"{h:02d}:{m:02d}:{s:02d}.{ns:09d}"
 
+    async def _create_subtitle_chapters(self, stream_events, duration, output_path):
+        """Create a subtitle file with chapter markers for better Plex compatibility"""
+        if not stream_events:
+            return
+    
+        # Ensure we have at least a start and end chapter, even if there's only one event
+        if len(stream_events) == 1:
+            # Create a duplicate event for the end
+            end_event = copy.copy(stream_events[0])
+            # Set the timestamp to stream duration
+            end_event.timestamp = stream_events[0].timestamp + timedelta(seconds=duration)
+            stream_events.append(end_event)
+        
+        # Sort events by timestamp
+        events = sorted(stream_events, key=lambda x: x.timestamp)
+    
+        subtitle_path = output_path.replace('.mp4', '.srt')
+    
+        with open(subtitle_path, 'w', encoding='utf-8') as f:
+            for i, event in enumerate(events):
+                start_time = event.timestamp.timestamp()
+                # End time is either the next event or the end of the stream
+                end_time = events[i+1].timestamp.timestamp() if i < len(events)-1 else duration
+            
+                # Format for SRT
+                start_str = self._format_srt_timestamp(start_time)
+                end_str = self._format_srt_timestamp(end_time)
+            
+                # Create subtitle text (focus on category for chapter marking)
+                if event.category_name:
+                    title = f"📌 CHAPTER: {event.category_name}"
+                else:
+                    title = f"📌 TITLE: {event.title or 'Stream'}"
+            
+                # Write subtitle entry
+                f.write(f"{i+1}\n")
+                f.write(f"{start_str} --> {end_str}\n")
+                f.write(f"{title}\n\n")
+        
+        logger.info(f"Created subtitle chapter file at {subtitle_path}")
+
+    def _format_srt_timestamp(self, seconds):
+        """Format seconds to SRT timestamp format HH:MM:SS,mmm"""
+        hours = int(seconds // 3600)
+        seconds %= 3600
+        minutes = int(seconds // 60)
+        seconds %= 60
+        milliseconds = int((seconds - int(seconds)) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{int(seconds):02d},{milliseconds:03d}"    
     async def _monitor_process(self, process: asyncio.subprocess.Process, streamer_name: str, ts_path: str, mp4_path: str) -> None:
         """Monitor recording process and convert TS to MP4 when finished"""
         try:
@@ -228,11 +300,14 @@ class RecordingService:
             with SessionLocal() as db:
                 # Get global recording settings
                 settings = db.query(RecordingSettings).first()
-                
+            
                 if settings and settings.use_chapters:
+                    logger.debug(f"Chapters enabled, attempting to find stream events")
                     # Find the stream by output path
                     streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
+                
                     if streamer_name:
+                        logger.debug(f"Looking for events for streamer: {streamer_name}")
                         # Get the streamer
                         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                         if streamer:
@@ -240,27 +315,37 @@ class RecordingService:
                             stream = db.query(Stream).filter(
                                 Stream.streamer_id == streamer.id
                             ).order_by(Stream.started_at.desc()).first()
-                            
+                        
                             if stream:
                                 # Get stream events
                                 events = db.query(StreamEvent).filter(
                                     StreamEvent.stream_id == stream.id
                                 ).all()
-                                
+                            
+                                logger.debug(f"Found {len(events)} events for stream {stream.id}")
+                            
                                 if events:
                                     duration = (datetime.now() - stream.started_at).total_seconds()
                                     chapter_file = await self._create_chapters_file(events, duration)
-            
+                                    if chapter_file:
+                                        logger.debug(f"Created chapter file at {chapter_file}")
+                                    else:
+                                        logger.debug("Failed to create chapter file")
+        
             # Build ffmpeg command
             cmd = [
                 "ffmpeg",
                 "-i", ts_path
             ]
-            
+        
             # Add chapter file if available
             if chapter_file:
-                cmd.extend(["-i", chapter_file, "-map_metadata", "1"])
-            
+                cmd.extend([
+                    "-i", chapter_file, 
+                    "-map_chapters", "1",
+                    "-metadata", f"title={streamer.username} - {stream.title or 'Stream'}"
+                ])
+        
             # Add the rest of the command
             cmd.extend([
                 "-c", "copy",  # Copy streams without re-encoding
@@ -271,19 +356,24 @@ class RecordingService:
                 "-y",          # Overwrite output
                 mp4_path
             ])
-        
+    
             logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
-        
+    
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-        
+    
             stdout, stderr = await process.communicate()
-        
+    
             if process.returncode == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+            
+                # Create SRT chapter file for better Plex compatibility
+                if 'events' in locals() and events:
+                    await self._create_subtitle_chapters(events, duration, mp4_path)
+                
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
                 # Clean up chapter file
