@@ -225,19 +225,25 @@ class EventHandlerRegistry:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
-            
+        
                 if streamer:
+                    # Update the streamer's is_live status to False
+                    streamer.is_live = False
+                    streamer.last_updated = datetime.now(timezone.utc)
+                
+                    # Update the stream status
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .order_by(Stream.started_at.desc())\
                         .first()
-                
+            
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                        db.commit()
                 
+                    db.commit()
+            
                     # Send WebSocket notification
                     await self.manager.send_notification({
                         "type": "stream.offline",
@@ -247,7 +253,7 @@ class EventHandlerRegistry:
                             "streamer_name": streamer.username
                         }
                     })
-                    
+                
                     # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
@@ -261,10 +267,10 @@ class EventHandlerRegistry:
 
                     # Stop recording if it was active
                     await self.recording_service.stop_recording(streamer.id)
-                
+            
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
-    
+            
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
