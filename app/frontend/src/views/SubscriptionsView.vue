@@ -39,15 +39,8 @@
           <tr v-for="sub in subscriptions" :key="sub.id">
             <td>
               <div class="streamer-info">
-                <!-- Debug info to help troubleshoot -->
-                <span v-if="streamerMap[sub.condition?.broadcaster_user_id]" class="streamer-name">
-                  {{ streamerMap[sub.condition?.broadcaster_user_id] }}
-                </span>
-                <span v-else-if="sub.broadcaster_name" class="streamer-name">
-                  {{ sub.broadcaster_name }}
-                </span>
-                <span v-else class="streamer-id">
-                  {{ sub.condition?.broadcaster_user_id || "Unknown" }}
+                <span class="streamer-name">
+                  {{ getStreamerName(sub.condition?.broadcaster_user_id) }}
                 </span>
               </div>
             </td>
@@ -101,6 +94,7 @@ const streamers = ref<Streamer[]>([])
 const streamerMap = ref<Record<string, string>>({})
 const loadingResubscribe = ref(false)
 const loading = ref(false)
+
 function formatEventType(type: string): string {
   switch (type) {
     case 'stream.online':
@@ -114,6 +108,36 @@ function formatEventType(type: string): string {
   }
 }
 
+function getStreamerName(twitchId: string): string {
+  if (!twitchId) return 'Unknown';
+  
+  // Versuche mit dem ursprünglichen Wert
+  if (streamerMap.value[twitchId]) {
+    return streamerMap.value[twitchId];
+  }
+  
+  // Versuche als String
+  const asString = String(twitchId);
+  if (streamerMap.value[asString]) {
+    return streamerMap.value[asString];
+  }
+  
+  // Versuche als Nummer
+  const asNumber = parseInt(twitchId, 10);
+  if (!isNaN(asNumber) && streamerMap.value[asNumber]) {
+    return streamerMap.value[asNumber];
+  }
+  
+  // Suche in den Streamers nach einem Streamer mit dieser Twitch-ID
+  const streamer = streamers.value.find(
+    s => s.twitch_id === twitchId || 
+         s.twitch_id === asString || 
+         s.twitch_id === String(asNumber)
+  );
+  
+  return streamer ? streamer.username : twitchId;
+}
+
 async function loadStreamers() {
   try {
     const response = await fetch('/api/streamers')
@@ -122,13 +146,16 @@ async function loadStreamers() {
     
     streamerMap.value = {}
     streamers.value.forEach(streamer => {
-      // Make sure to convert all IDs to strings for consistent lookup
-      streamerMap.value[streamer.twitch_id] = streamer.username
-      // Sometimes IDs might be stored as numbers in one place and strings in another
-      if (typeof streamer.twitch_id === 'number') {
-        streamerMap.value[String(streamer.twitch_id)] = streamer.username
-      } else if (typeof streamer.twitch_id === 'string') {
-        streamerMap.value[parseInt(streamer.twitch_id, 10)] = streamer.username
+      if (!streamer || !streamer.twitch_id) return;
+      
+      // Speichere unter verschiedenen Formaten, um höhere Trefferwahrscheinlichkeit zu haben
+      streamerMap.value[streamer.twitch_id] = streamer.username;
+      streamerMap.value[String(streamer.twitch_id)] = streamer.username;
+      
+      // Versuche auch als Ganzzahl zu speichern
+      const numericId = parseInt(String(streamer.twitch_id), 10);
+      if (!isNaN(numericId)) {
+        streamerMap.value[numericId] = streamer.username;
       }
     })
     
@@ -142,11 +169,12 @@ async function loadStreamers() {
 async function loadSubscriptions() {
   loading.value = true
   try {
-    await loadStreamers()
-    
     const response = await fetch('/api/streamers/subscriptions')
     const data = await response.json()
     subscriptions.value = data.subscriptions
+    
+    // Wichtig: Lade Streamer erst nachdem Subscriptions geladen wurden
+    await loadStreamers()
   } catch (error) {
     console.error('Failed to load subscriptions:', error)
   } finally {
