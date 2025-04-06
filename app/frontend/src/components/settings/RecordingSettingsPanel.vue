@@ -169,18 +169,6 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td class="action-buttons">
-                  <div class="button-container">
-                    <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
-                      class="btn btn-sm btn-action">
-                      Enable
-                    </button>
-                    <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
-                      class="btn btn-sm btn-action">
-                      Disable
-                    </button>
-                  </div>
-                </td>
               </tr>
             </tbody>
           </table>
