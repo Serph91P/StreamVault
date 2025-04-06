@@ -56,3 +56,8 @@ def get_settings_service():
 
 def get_notification_service():
     return NotificationService()
+
+def get_current_user(db=Depends(get_db)):
+    from app.models import User
+    user = db.query(User).filter(User.is_admin == True).first()
+    return user
