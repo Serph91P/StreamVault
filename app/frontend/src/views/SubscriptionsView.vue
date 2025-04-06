@@ -110,32 +110,19 @@ function formatEventType(type: string): string {
 
 function getStreamerName(twitchId: string): string {
   if (!twitchId) return 'Unknown';
-  
-  // Versuche mit dem ursprünglichen Wert
-  if (streamerMap.value[twitchId]) {
-    return streamerMap.value[twitchId];
-  }
-  
-  // Versuche als String
-  const asString = String(twitchId);
-  if (streamerMap.value[asString]) {
-    return streamerMap.value[asString];
-  }
-  
-  // Versuche als Nummer
-  const asNumber = parseInt(twitchId, 10);
-  if (!isNaN(asNumber) && streamerMap.value[asNumber]) {
-    return streamerMap.value[asNumber];
-  }
-  
-  // Suche in den Streamers nach einem Streamer mit dieser Twitch-ID
+    
   const streamer = streamers.value.find(
-    s => s.twitch_id === twitchId || 
-         s.twitch_id === asString || 
-         s.twitch_id === String(asNumber)
+    s => s.twitch_id === twitchId || String(s.twitch_id) === twitchId
   );
   
-  return streamer ? streamer.username : twitchId;
+  if (streamer) {
+    return streamer.username;
+  }
+  
+  console.log(`Could not find streamer for ID: ${twitchId}`);
+  console.log("Available streamers:", streamers.value.map(s => ({ id: s.id, twitch_id: s.twitch_id, username: s.username })));
+  
+  return twitchId;
 }
 
 async function loadStreamers() {
