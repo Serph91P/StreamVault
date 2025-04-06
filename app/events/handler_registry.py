@@ -269,7 +269,7 @@ class EventHandlerRegistry:
                     await self.recording_service.stop_recording(streamer.id)
             
         except Exception as e:
-            logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
+            logger.error(f"Error handling stream offline event: {e}", exc_info=True)
             
     async def handle_stream_update(self, data: dict):
         try:
@@ -323,8 +323,10 @@ class EventHandlerRegistry:
                     }
                 
                     await self.manager.send_notification(notification)
+                    logger.debug(f"WebSocket notification sent for channel.update: {notification}")
                 
                     # Enhanced Apprise notification
+                    logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="update",
