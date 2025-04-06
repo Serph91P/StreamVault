@@ -133,3 +133,30 @@ class StreamerRecordingSettings(Base):
     streamer = relationship("Streamer", back_populates="recording_settings")
 
 Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
+
+class StreamMetadata(Base):
+    __tablename__ = "stream_metadata"
+    
+    id = Column(Integer, primary_key=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    
+    # Thumbnails
+    thumbnail_path = Column(String)
+    thumbnail_url = Column(String)
+    
+    # Metadata files
+    nfo_path = Column(String)
+    json_path = Column(String)
+    
+    # Kapitelmarker
+    chapters_path = Column(String)
+    
+    # Stream info stats
+    avg_viewers = Column(Integer)
+    max_viewers = Column(Integer)
+    
+    # Beziehung zum Stream
+    stream = relationship("Stream", back_populates="metadata")
+
+# Füge die Rückbeziehung zum Stream-Modell hinzu
+Stream.metadata = relationship("StreamMetadata", back_populates="stream", uselist=False, cascade="all, delete-orphan")    stream = relationship("Stream", back_populates="metadata")
