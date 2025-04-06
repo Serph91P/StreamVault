@@ -139,7 +139,6 @@
                   Custom Filename
                   <div class="th-tooltip">Optional custom filename template for this streamer</div>
                 </th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
