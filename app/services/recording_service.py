@@ -203,13 +203,10 @@ class RecordingService:
                 "--hls-live-restart",
                 "--stream-segment-threads", "3",
                 "--ringbuffer-size", "32M",
-                "--hls-segment-timeout", "10",  # Updated from stream-segment-timeout
-                "--hls-segment-attempts", "5",  # Updated from stream-segment-attempts
+                "--stream-timeout", "60",  # Use stream-timeout instead of hls-timeout
                 "--retry-streams", "3",
                 "--retry-max", "5",
                 "--retry-open", "3",
-                "--hls-segment-stream-data",  # This is valid
-                "--hls-timeout", "120",  
                 "--twitch-disable-hosting",  # Prevent host switches during recording
                 "--force"
             ]
