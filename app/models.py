@@ -148,15 +148,20 @@ class StreamMetadata(Base):
     nfo_path = Column(String)
     json_path = Column(String)
     
+    # Chat logs
+    chat_path = Column(String)
+    chat_srt_path = Column(String)
+    
     # Kapitelmarker
     chapters_path = Column(String)
     
     # Stream info stats
     avg_viewers = Column(Integer)
     max_viewers = Column(Integer)
+    follower_count = Column(Integer)
     
     # Beziehung zum Stream
     stream = relationship("Stream", back_populates="metadata")
 
 # Füge die Rückbeziehung zum Stream-Modell hinzu
-Stream.metadata = relationship("StreamMetadata", back_populates="stream", uselist=False, cascade="all, delete-orphan")    stream = relationship("Stream", back_populates="metadata")
+Stream.metadata = relationship("StreamMetadata", back_populates="stream", uselist=False, cascade="all, delete-orphan")
