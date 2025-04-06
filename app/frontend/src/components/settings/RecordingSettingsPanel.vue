@@ -190,75 +190,228 @@
   </div>
 
 <style scoped>
-.no-streamers-message {
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 0.25rem;
-  color: #6c757d;
-  text-align: center;
-  margin-top: 1rem;
-}
-.action-buttons {
-  white-space: nowrap;
-  max-width: 150px;
-}
-
-.button-container {
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: nowrap;
-}
-
-.btn-action {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0; /* Allow buttons to shrink below content width */
-}
-
-.button-group {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
+/* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
 
 .streamer-table {
+  width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Adjust table for mobile */
-@media (max-width: 768px) {
-  .streamer-table table {
-    width: 100%;
-    min-width: 600px; /* Ensures horizontal scrolling on mobile */
-  }
-  
+.streamer-table table {
+  width: 100%;
+  min-width: 600px; /* Stellt sicher, dass horizontales Scrollen auf sehr kleinen Geräten möglich ist */
+  border-collapse: collapse;
+}
+
+.streamer-table th, 
+.streamer-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #303034;
+  vertical-align: middle;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+/* Verbesserte lesbarkeit für mobile Geräte */
+.streamer-table th {
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Optimierte Spaltenbreiten für mobile Ansicht */
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 30%;
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 15%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(5),
+.streamer-table td:nth-child(5) {
+  width: 15%;
+}
+
+/* Mobile-optimierte Button-Container */
+.action-buttons {
+  width: 100%;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+/* Touch-freundliche Buttons */
+.btn-action {
+  padding: 0.5rem;  /* Größere Touch-Fläche */
+  font-size: 0.8rem;
+  white-space: nowrap;
+  width: 100%;
+  display: inline-block;
+  text-align: center;
+  background-color: #2f2f2f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  touch-action: manipulation; /* Verbessert Touch-Handling */
+}
+
+.btn-action:first-child {
+  background-color: #2f3f2f;
+}
+
+.btn-action:last-child {
+  background-color: #3f2f2f;
+}
+
+/* Touch-freundliche Formularelemente */
+.form-control-sm {
+  width: 100%;
+  height: 36px; /* Größere Touch-Fläche */
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  background: #18181b;
+  border: 1px solid #303034;
+  color: #efeff1;
+  border-radius: 4px;
+}
+
+/* Bessere Darstellung der Streamer-Info */
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.streamer-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.streamer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.streamer-name {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Für Tablets und größere Bildschirme */
+@media (min-width: 768px) {
   .streamer-table th, 
   .streamer-table td {
-    padding: 0.5rem;
-    font-size: 0.875rem;
+    padding: 0.75rem;
+    font-size: 1rem;
   }
   
-  .action-buttons {
-    max-width: 120px;
+  .streamer-avatar {
+    width: 30px;
+    height: 30px;
   }
   
-  .button-container {
-    flex-direction: column;
-    gap: 0.25rem;
+  .streamer-name {
+    font-size: 1rem;
   }
   
   .btn-action {
-    width: 100%;
-    margin: 0;
+    padding: 0.35rem 0.5rem;
   }
+  
+  /* Angepasste Spaltenbreiten für größere Bildschirme */
+  .streamer-table th:nth-child(1),
+  .streamer-table td:nth-child(1) {
+    width: 25%;
+  }
+  
+  .streamer-table th:nth-child(4),
+  .streamer-table td:nth-child(4) {
+    width: 30%;
+  }
+}
+
+/* Für Desktop und große Bildschirme */
+@media (min-width: 1200px) {
+  .streamer-table table {
+    table-layout: fixed; /* Für große Bildschirme können wir fixed layout verwenden */
+  }
+  
+  .btn-action {
+    font-size: 0.875rem;
+  }
+  
+  /* Optional: Horizontale Button-Anordnung für sehr breite Bildschirme */
+  @media (min-width: 1600px) {
+    .button-container {
+      flex-direction: row;
+    }
+  }
+}
+
+/* Stilvolle Farbanpassungen für Hover und Active-Zustände */
+.btn-action:hover {
+  background-color: #42b883;
+  transform: translateY(-1px);
+}
+
+.btn-action:active {
+  transform: translateY(1px);
+}
+
+/* Optimierungen für besseren Kontrast bei dunkleren Themen */
+@media (prefers-color-scheme: dark) {
+  .streamer-table th {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  
+  .btn-action:first-child {
+    background-color: rgba(66, 184, 131, 0.6);
+  }
+  
+  .btn-action:first-child:hover {
+    background-color: rgba(66, 184, 131, 0.8);
+  }
+  
+  .btn-action:last-child {
+    background-color: rgba(220, 53, 69, 0.6);
+  }
+  
+  .btn-action:last-child:hover {
+    background-color: rgba(220, 53, 69, 0.8);
+  }
+}
+
+/* Tabellen-Verbesserung für erhöhte Barrierefreiheit */
+.no-streamers-message {
+  padding: 1rem;
+  text-align: center;
+  color: #999;
 }
 </style>
 </template>
