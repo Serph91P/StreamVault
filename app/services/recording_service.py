@@ -197,17 +197,19 @@ class RecordingService:
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
-                adjusted_quality,
+                quality,
                 "-o", ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
                 "--stream-segment-threads", "3",
                 "--ringbuffer-size", "32M",
-                "--stream-timeout", "60",  # Use stream-timeout instead of hls-timeout
+                "--stream-segment-timeout", "10",
+                "--stream-segment-attempts", "5",
+                "--stream-timeout", "60",
                 "--retry-streams", "3",
                 "--retry-max", "5",
                 "--retry-open", "3",
-                "--twitch-disable-hosting",  # Prevent host switches during recording
+                "--hls-segment-stream-data",
                 "--force"
             ]
         
