@@ -38,6 +38,7 @@ async def get_recording_settings():
     except Exception as e:
         logger.error(f"Error fetching recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
 @router.post("/settings", response_model=RecordingSettingsSchema)
 async def update_recording_settings(settings_data: RecordingSettingsSchema):
     try:
@@ -110,35 +111,35 @@ async def get_all_streamer_recording_settings():
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
     
-async def update_streamer_recording_settings(
-    streamer_id: int, 
-    settings_data: StreamerRecordingSettingsSchema
-):
-    try:
-        with SessionLocal() as db:
-            settings = db.query(StreamerRecordingSettings).filter_by(streamer_id=streamer_id).first()
-            if not settings:
-                settings = StreamerRecordingSettings(streamer_id=streamer_id)
-                db.add(settings)
+# async def update_streamer_recording_settings(
+#     streamer_id: int, 
+#     settings_data: StreamerRecordingSettingsSchema
+# ):
+#     try:
+#         with SessionLocal() as db:
+#             settings = db.query(StreamerRecordingSettings).filter_by(streamer_id=streamer_id).first()
+#             if not settings:
+#                 settings = StreamerRecordingSettings(streamer_id=streamer_id)
+#                 db.add(settings)
             
-            settings.enabled = settings_data.enabled
-            settings.quality = settings_data.quality
-            settings.custom_filename = settings_data.custom_filename
+#             settings.enabled = settings_data.enabled
+#             settings.quality = settings_data.quality
+#             settings.custom_filename = settings_data.custom_filename
             
-            db.commit()
+#             db.commit()
             
-            streamer = db.query(Streamer).get(streamer_id)
+#             streamer = db.query(Streamer).get(streamer_id)
             
-            return StreamerRecordingSettingsSchema(
-                streamer_id=settings.streamer_id,
-                username=streamer.username if streamer else None,
-                enabled=settings.enabled,
-                quality=settings.quality,
-                custom_filename=settings.custom_filename
-            )
-    except Exception as e:
-        logger.error(f"Error updating streamer recording settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+#             return StreamerRecordingSettingsSchema(
+#                 streamer_id=settings.streamer_id,
+#                 username=streamer.username if streamer else None,
+#                 enabled=settings.enabled,
+#                 quality=settings.quality,
+#                 custom_filename=settings.custom_filename
+#             )
+#     except Exception as e:
+#         logger.error(f"Error updating streamer recording settings: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
@@ -206,4 +207,17 @@ async def update_streamer_recording_settings(
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating streamer recording settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/force/{streamer_id}")
+async def force_start_recording(streamer_id: int):
+    """Manuell eine Aufnahme für einen aktiven Stream starten"""
+    try:
+        result = await recording_service.force_start_recording(streamer_id)
+        if result:
+            return {"status": "success", "message": "Recording started successfully"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to start recording. Streamer might not be live.")
+    except Exception as e:
+        logger.error(f"Error force starting recording: {e}")
         raise HTTPException(status_code=500, detail=str(e))

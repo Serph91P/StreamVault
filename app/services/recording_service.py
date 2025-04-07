@@ -15,6 +15,7 @@ from app.database import SessionLocal
 from app.models import Streamer, RecordingSettings, StreamerRecordingSettings, Stream, StreamEvent, StreamMetadata
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
+from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
 
@@ -81,6 +82,16 @@ class RecordingService:
                             "stream_id": None  # Will be updated when we find/create the stream
                         }
                         logger.info(f"Started recording for {streamer.username} at {quality} quality to {output_path}")
+                        await websocket_manager.send_notification({
+                            "type": "recording.started",
+                            "data": {
+                                "streamer_id": streamer_id,
+                                "streamer_name": streamer.username,
+                                "started_at": datetime.now().isoformat(),
+                                "quality": quality,
+                                "output_path": output_path
+                            }
+                        })
                         
                         # Find the current stream record
                         stream = db.query(Stream).filter(
@@ -139,6 +150,14 @@ class RecordingService:
                         process.kill()
                 
                 logger.info(f"Stopped recording for {recording_info['streamer_name']}")
+
+                await websocket_manager.send_notification({
+                    "type": "recording.stopped",
+                    "data": {
+                        "streamer_id": streamer_id,
+                        "streamer_name": recording_info['streamer_name']
+                    }
+                })
                 
                 # Generate metadata after recording stops
                 stream_id = recording_info.get("stream_id")
@@ -153,6 +172,47 @@ class RecordingService:
             except Exception as e:
                 logger.error(f"Error stopping recording: {e}", exc_info=True)
                 return False
+            
+    async def force_start_recording(self, streamer_id: int) -> bool:
+        """Manuell eine Aufnahme für einen aktiven Stream starten"""
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    return False
+                
+                if not streamer.is_live:
+                    logger.error(f"Streamer {streamer.username} is not live")
+                    return False
+                
+                # Aktuellen Stream finden
+                stream = db.query(Stream).filter(
+                    Stream.streamer_id == streamer_id,
+                    Stream.ended_at.is_(None)
+                ).order_by(Stream.started_at.desc()).first()
+                
+                if not stream:
+                    logger.error(f"No active stream found for streamer {streamer.username}")
+                    return False
+                
+                # Stream-Daten für die Aufnahme vorbereiten
+                stream_data = {
+                    "id": stream.twitch_stream_id,
+                    "broadcaster_user_id": streamer.twitch_id,
+                    "broadcaster_user_name": streamer.username,
+                    "started_at": stream.started_at.isoformat() if stream.started_at else datetime.now().isoformat(),
+                    "title": stream.title,
+                    "category_name": stream.category_name,
+                    "language": stream.language
+                }
+                
+                # Aufnahme mit vorhandener Methode starten
+                return await self.start_recording(streamer_id, stream_data)
+                
+        except Exception as e:
+            logger.error(f"Error force starting recording: {e}", exc_info=True)
+            return False
     
     async def _delayed_metadata_generation(self, stream_id: int, output_path: str, delay: int = 5):
         """Wait for remuxing to complete before generating metadata"""
