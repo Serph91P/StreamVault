@@ -176,7 +176,7 @@ class MetadataService:
             cmd = [
                 "ffmpeg",
                 "-i", video_path,
-                "-vf", "select=eq(n\,0)",  # Erstes Frame auswählen
+                "-vf", r"select=eq(n\,0)",  # Erstes Frame auswählen
                 "-q:v", "2",               # Hohe Qualität
                 "-f", "image2",
                 "-vframes", "1",
