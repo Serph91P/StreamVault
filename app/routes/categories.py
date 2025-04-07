@@ -14,9 +14,15 @@ router = APIRouter(prefix="/api/categories", tags=["categories"])
 @router.get("", response_model=CategoryList)
 async def get_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all categories with favorite status"""
+    # Ändere die Abfrage, um alle Kategorien einzuschließen, auch solche ohne Streams
     categories = db.query(Category).order_by(Category.name).all()
     
-    # Find favorites for current user
+    # Debug-Ausgabe hinzufügen
+    logger.debug(f"Found {len(categories)} categories in database")
+    for category in categories:
+        logger.debug(f"Category: {category.name}, ID: {category.id}, twitch_id: {category.twitch_id}")
+    
+    # Favoriten für aktuellen Benutzer finden
     favorite_category_ids = {
         category_id for (category_id,) in 
         db.query(FavoriteCategory.category_id)
@@ -24,7 +30,7 @@ async def get_categories(db: Session = Depends(get_db), current_user: User = Dep
         .all()
     }
     
-    # Return categories with favorite status
+    # Kategorien mit Favoriten-Status zurückgeben
     result = []
     for category in categories:
         cat_dict = {
@@ -39,7 +45,6 @@ async def get_categories(db: Session = Depends(get_db), current_user: User = Dep
         result.append(cat_dict)
     
     return {"categories": result}
-
 @router.post("/favorites", response_model=CategoryResponse)
 async def add_favorite_category(
     data: FavoriteCategoryCreate, 
