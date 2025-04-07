@@ -1,7 +1,6 @@
 import logging
 from fastapi import Depends
 from app.database import SessionLocal
-from app.services.streamer_service import StreamerService
 from app.events.handler_registry import EventHandlerRegistry
 from app.config.settings import settings
 from app.services.websocket_manager import ConnectionManager
@@ -41,6 +40,7 @@ def get_streamer_service(
     db=Depends(get_db), 
     event_registry=Depends(get_event_registry)
 ):
+    from app.services.streamer_service import StreamerService
     return StreamerService(
         db=db,
         websocket_manager=websocket_manager,
