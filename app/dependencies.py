@@ -1,7 +1,6 @@
 import logging
 from fastapi import Depends
 from app.database import SessionLocal
-from app.events.handler_registry import EventHandlerRegistry
 from app.config.settings import settings
 from app.services.websocket_manager import ConnectionManager
 from app.services.auth_service import AuthService
@@ -28,6 +27,7 @@ async def get_event_registry():
     global event_registry
     if not event_registry:
         logger.debug("Initializing event registry")
+        from app.events.handler_registry import EventHandlerRegistry
         event_registry = EventHandlerRegistry(
             connection_manager=websocket_manager,
             settings=settings
