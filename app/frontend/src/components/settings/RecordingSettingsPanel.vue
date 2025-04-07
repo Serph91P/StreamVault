@@ -400,6 +400,51 @@
   text-align: center;
   color: #999;
 }
+
+.active-recordings {
+  margin-top: 2rem;
+}
+
+.recordings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.recording-card {
+  border: 1px solid #333; /* Dunkler Border */
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background-color: #1f1f23; /* Dunkler Hintergrund */
+  color: #efeff1; /* Heller Text */
+}
+
+.recording-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.recording-indicator {
+  background-color: #dc3545;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.recording-details {
+  margin-bottom: 1rem;
+}
+
+.output-path {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
 </style>
 </template>
 
@@ -635,14 +680,14 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .loading-message {
-  background-color: #f8f9fa;
-  color: #6c757d;
+  background-color: #1f1f23;
+  color: #adadb8;
 }
 
 .error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: rgba(220, 53, 69, 0.2); 
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
 .streamer-info {
@@ -672,20 +717,55 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   margin-right: 0.5rem;
 }
 
-.streamer-table table {
+.streamer-table {
   width: 100%;
-  border-collapse: collapse;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: #1f1f23;
+  border-radius: 6px;
+  border: 1px solid #303034;
 }
 
-.streamer-table th, .streamer-table td {
+.streamer-table table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.streamer-table th, 
+.streamer-table td {
   padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid #303034;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 35%;
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 15%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 30%;
 }
 
 .th-tooltip {
   font-size: 0.75rem;
   font-weight: normal;
-  color: #6c757d;
+  color: #adadb8;
   margin-top: 0.25rem;
 }
 </style>

@@ -131,6 +131,7 @@ const fetchCategories = async () => {
     isLoading.value = false;
   }
 };
+
 const addFavorite = async (categoryId: number) => {
   try {
     const response = await fetch('/api/categories/favorites', {
