@@ -219,5 +219,5 @@ async def force_start_recording(streamer_id: int):
         else:
             raise HTTPException(status_code=400, detail="Failed to start recording. Streamer might not be live.")
     except Exception as e:
-        logger.error(f"Error force starting recording: {e}")
+        logger.error(f"Error force starting recording: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

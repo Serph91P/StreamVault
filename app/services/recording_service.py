@@ -131,16 +131,16 @@ class RecordingService:
                 return False
     
     async def stop_recording(self, streamer_id: int) -> bool:
-        """Stop an active recording"""
+        """Stop an active recording and ensure metadata generation"""
         async with self.lock:
             if streamer_id not in self.active_recordings:
                 logger.debug(f"No active recording for streamer {streamer_id}")
                 return False
-                
+            
             try:
                 recording_info = self.active_recordings.pop(streamer_id)
                 process = recording_info["process"]
-                
+            
                 # Gracefully terminate the process
                 if process.returncode is None:
                     process.terminate()
@@ -148,7 +148,7 @@ class RecordingService:
                         await asyncio.wait_for(process.wait(), timeout=10)
                     except asyncio.TimeoutError:
                         process.kill()
-                
+            
                 logger.info(f"Stopped recording for {recording_info['streamer_name']}")
 
                 await websocket_manager.send_notification({
@@ -158,44 +158,87 @@ class RecordingService:
                         "streamer_name": recording_info['streamer_name']
                     }
                 })
-                
-                # Generate metadata after recording stops
+            
+                # Stream ID und "force_started" Flag abrufen
                 stream_id = recording_info.get("stream_id")
+                force_started = recording_info.get("force_started", False)
+            
+                # Stelle sicher, dass wir einen Stream haben
+                if not stream_id and force_started:
+                    with SessionLocal() as db:
+                        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                        if streamer:
+                            # Für Force-Recordings: Versuche, einen Stream zu finden
+                            stream = db.query(Stream).filter(
+                                Stream.streamer_id == streamer_id
+                            ).order_by(Stream.started_at.desc()).first()
+                        
+                            if stream:
+                                stream_id = stream.id
+            
+                # Generate metadata after recording stops
                 if stream_id:
                     # Allow some time for the remuxing process to complete
                     asyncio.create_task(self._delayed_metadata_generation(
                         stream_id, 
-                        recording_info["output_path"]
+                        recording_info["output_path"],
+                        force_started  # Parameter hinzufügen
                     ))
-                
+                else:
+                    logger.warning(f"No stream_id available for metadata generation: {recording_info}")
+            
                 return True
             except Exception as e:
                 logger.error(f"Error stopping recording: {e}", exc_info=True)
-                return False
-            
+                return False            
     async def force_start_recording(self, streamer_id: int) -> bool:
-        """Manuell eine Aufnahme für einen aktiven Stream starten"""
+        """Manuell eine Aufnahme für einen aktiven Stream starten und volle Metadatengenerierung sicherstellen"""
         try:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 if not streamer:
                     logger.error(f"Streamer not found: {streamer_id}")
                     return False
-                
+            
+                # Prüfen, ob der Streamer live ist
                 if not streamer.is_live:
                     logger.error(f"Streamer {streamer.username} is not live")
                     return False
-                
-                # Aktuellen Stream finden
+            
+                # Aktuellen Stream finden oder erstellen
                 stream = db.query(Stream).filter(
                     Stream.streamer_id == streamer_id,
                     Stream.ended_at.is_(None)
                 ).order_by(Stream.started_at.desc()).first()
-                
+            
                 if not stream:
-                    logger.error(f"No active stream found for streamer {streamer.username}")
-                    return False
+                    # Stream-Eintrag erstellen, wenn keiner existiert
+                    # (Dies ist wichtig für die Metadaten-Generierung)
+                    logger.info(f"Creating new stream record for {streamer.username}")
+                    stream = Stream(
+                        streamer_id=streamer_id,
+                        twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                        title=streamer.title or f"{streamer.username} Stream",
+                        category_name=streamer.category_name,
+                        language=streamer.language,
+                        started_at=datetime.now(timezone.utc),
+                        status="online"
+                    )
+                    db.add(stream)
+                    db.commit()
+                    db.refresh(stream)
                 
+                    # Stream-Event für den Start erstellen
+                    stream_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        timestamp=stream.started_at,
+                        title=stream.title,
+                        category_name=stream.category_name
+                    )
+                    db.add(stream_event)
+                    db.commit()
+            
                 # Stream-Daten für die Aufnahme vorbereiten
                 stream_data = {
                     "id": stream.twitch_stream_id,
@@ -206,24 +249,41 @@ class RecordingService:
                     "category_name": stream.category_name,
                     "language": stream.language
                 }
-                
+            
+                # Prüfen, ob wir bereits eine Aufnahme haben
+                if streamer_id in self.active_recordings:
+                    logger.info(f"Recording already in progress for {streamer.username}")
+                    return True
+            
                 # Aufnahme mit vorhandener Methode starten
-                return await self.start_recording(streamer_id, stream_data)
+                recording_started = await self.start_recording(streamer_id, stream_data)
+            
+                # Speichere die Stream-ID in den Aufnahme-Informationen
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                
+                    # Stelle sicher, dass Metadaten erstellt werden
+                    self.active_recordings[streamer_id]["force_started"] = True
+                
+                    logger.info(f"Force recording started for {streamer.username}, stream_id: {stream.id}")
+                
+                    return True
+                
+                return recording_started
                 
         except Exception as e:
             logger.error(f"Error force starting recording: {e}", exc_info=True)
-            return False
-    
-    async def _delayed_metadata_generation(self, stream_id: int, output_path: str, delay: int = 5):
+            return False    
+    async def _delayed_metadata_generation(self, stream_id: int, output_path: str, force_started: bool = False, delay: int = 5):
         """Wait for remuxing to complete before generating metadata"""
         try:
             await asyncio.sleep(delay)  # Short delay to ensure remuxing has started
-            
+        
             # Check if MP4 file exists (remuxing completed)
             mp4_path = output_path
             if output_path.endswith('.ts'):
                 mp4_path = output_path.replace('.ts', '.mp4')
-            
+        
             # Wait for the MP4 file to exist with a timeout
             start_time = datetime.now()
             while not os.path.exists(mp4_path):
@@ -231,10 +291,40 @@ class RecordingService:
                     logger.warning(f"Timed out waiting for MP4 file: {mp4_path}")
                     return
                 await asyncio.sleep(5)
-            
+        
+            # Stelle sicher, dass wir einen gültigen Stream haben (besonders für Force-Recordings)
+            if force_started:
+                with SessionLocal() as db:
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and not stream.ended_at:
+                        # Für Force-Recordings: Setze den Stream auf "offline", wenn noch nicht geschehen
+                        stream.ended_at = datetime.now(timezone.utc)
+                        stream.status = "offline"
+                        db.commit()
+                        logger.info(f"Force-started stream {stream_id} marked as ended for metadata generation")
+        
             # Generate metadata
+            logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
             await self.metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
-            
+        
+            # Nach der Metadatengenerierung zusätzlich Kapitel erstellen für Force-Recordings
+            if force_started:
+                with SessionLocal() as db:
+                    # Hole alle Stream-Events für diesen Stream
+                    events = db.query(StreamEvent).filter(
+                        StreamEvent.stream_id == stream_id
+                    ).order_by(StreamEvent.timestamp).all()
+                
+                    if events:
+                        # Suche Start- und Endzeit
+                        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                        if stream and stream.started_at and stream.ended_at:
+                            duration = (stream.ended_at - stream.started_at).total_seconds()
+                        
+                            # Erstelle explizit eine SRT-Datei für Kapitel
+                            await self._create_subtitle_chapters(events, duration, mp4_path)
+                            logger.info(f"Created chapter subtitle file for force-started recording {stream_id}")
+                
         except Exception as e:
             logger.error(f"Error in delayed metadata generation: {e}", exc_info=True)
     
