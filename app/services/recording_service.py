@@ -493,26 +493,18 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
-        """Remux TS file to MP4 without re-encoding to preserve quality"""
+        """Remux TS file to MP4 without re-encoding to preserve quality and embed chapters"""
         try:
             # Check if we should add chapters
             chapter_file = None
-            stream_id = None
-            stream = None
-            events = None
-            duration = 0
-            
             with SessionLocal() as db:
                 # Get global recording settings
                 settings = db.query(RecordingSettings).first()
                 
                 if settings and settings.use_chapters:
-                    logger.debug(f"Chapters enabled, attempting to find stream events")
                     # Find the stream by output path
                     streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
-                    
                     if streamer_name:
-                        logger.debug(f"Looking for events for streamer: {streamer_name}")
                         # Get the streamer
                         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                         if streamer:
@@ -522,45 +514,25 @@ class RecordingService:
                             ).order_by(Stream.started_at.desc()).first()
                             
                             if stream:
-                                stream_id = stream.id
                                 # Get stream events
                                 events = db.query(StreamEvent).filter(
                                     StreamEvent.stream_id == stream.id
                                 ).all()
                                 
-                                logger.debug(f"Found {len(events) if events else 0} events for stream {stream.id}")
-                                
                                 if events:
-                                    if stream.ended_at and stream.started_at:
-                                        duration = (stream.ended_at - stream.started_at).total_seconds()
-                                    else:
-                                        duration = (datetime.now(timezone.utc) - stream.started_at).total_seconds() if stream.started_at else 0
-                                    
-                                    chapter_file = await self._create_chapters_file(events, duration)
-                                    if chapter_file:
-                                        logger.debug(f"Created chapter file at {chapter_file}")
-                                    else:
-                                        logger.debug("Failed to create chapter file")
-            
+                                    duration = (datetime.now() - stream.started_at).total_seconds()
+                                    chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
+        
             # Build ffmpeg command
             cmd = [
                 "ffmpeg",
                 "-i", ts_path
             ]
-            
+        
             # Add chapter file if available
             if chapter_file:
-                cmd.extend([
-                    "-i", chapter_file, 
-                    "-map_chapters", "1"
-                ])
-                
-                # Add metadata if stream info is available
-                if stream:
-                    cmd.extend([
-                        "-metadata", f"title={streamer.username} - {stream.title or 'Stream'}"
-                    ])
-            
+                cmd.extend(["-i", chapter_file, "-map_metadata", "1"])
+        
             # Add the rest of the command
             cmd.extend([
                 "-c", "copy",  # Copy streams without re-encoding
@@ -584,21 +556,26 @@ class RecordingService:
         
             if process.returncode == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                
-                # Create SRT chapter file for better Plex compatibility
-                if events:
-                    await self._create_subtitle_chapters(events, duration, mp4_path)
-                
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
-                
                 # Clean up chapter file
                 if chapter_file and os.path.exists(chapter_file):
                     os.remove(chapter_file)
+                
+                # Generate metadata immediately after successful remuxing
+                # This ensures all chapter files are created
+                mp4_base_path = Path(mp4_path).parent
+                mp4_filename = Path(mp4_path).stem
+                
+                # Only if we have a stream ID
+                if 'stream' in locals() and stream:
+                    # Import MetadataService here to avoid circular imports
+                    from app.services.metadata_service import MetadataService
+                    metadata_service = MetadataService()
                     
-                # Generate metadata for the stream
-                if stream_id:
-                    await self.metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
+                    # Generate all metadata including chapter files
+                    asyncio.create_task(metadata_service.generate_metadata_for_stream(stream.id, mp4_path))
+                    logger.info(f"Triggered metadata and chapter generation for {mp4_path}")
                 
                 return True
             else:
@@ -608,7 +585,53 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
+
+    async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
+        """Create a chapters file from stream events for ffmpeg"""
+        if not stream_events or len(stream_events) < 1:  # Need at least 1 event for chapters
+            return None
+            
+        # Sort events by timestamp
+        events = sorted(stream_events, key=lambda x: x.timestamp)
         
+        # Create temp file for chapters
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            # Write FFmpeg metadata header
+            f.write(";FFMETADATA1\n")
+            
+            # Add stream metadata
+            if stream.title:
+                f.write(f"title={stream.title}\n")
+            if stream.streamer and stream.streamer.username:
+                f.write(f"artist={stream.streamer.username}\n")
+            if stream.started_at:
+                f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
+            
+            # Write chapter entries
+            for i, event in enumerate(events):
+                start_time = (event.timestamp - stream.started_at).total_seconds() * 1000 if stream.started_at else 0
+                start_time = max(0, start_time)  # Ensure non-negative
+                
+                # End time is either the next event or the end of the stream
+                if i < len(events) - 1:
+                    end_time = (events[i+1].timestamp - stream.started_at).total_seconds() * 1000 if stream.started_at else duration * 1000
+                else:
+                    end_time = duration * 1000 if duration else start_time + (3600 * 1000)  # Default 1 hour
+                
+                # Create chapter title
+                title = event.title or "Stream"
+                if event.category_name:
+                    title += f" ({event.category_name})"
+                
+                # Write chapter entry in FFmpeg format
+                f.write("\n[CHAPTER]\n")
+                f.write("TIMEBASE=1/1000\n")
+                f.write(f"START={int(start_time)}\n")
+                f.write(f"END={int(end_time)}\n")
+                f.write(f"title={title}\n")
+        
+            return f.name
+
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
         """Generate a filename from template with variables"""
         now = datetime.now()
