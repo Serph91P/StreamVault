@@ -154,6 +154,8 @@ class StreamMetadata(Base):
     
     # Kapitelmarker
     chapters_path = Column(String)
+    chapters_vtt_path = Column(String)
+    chapters_srt_path = Column(String)
     
     # Stream info stats
     avg_viewers = Column(Integer)
