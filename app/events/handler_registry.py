@@ -150,9 +150,9 @@ class EventHandlerRegistry:
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
                         twitch_stream_id=data["id"],
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language
+                        title=streamer.title or f"{streamer.username} Stream",  # Fallback title
+                        category_name=streamer.category_name or "Unknown",      # Fallback category
+                        language=streamer.language or "en"                      # Fallback language
                     )
                     db.add(stream)
                     
@@ -160,9 +160,9 @@ class EventHandlerRegistry:
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
+                        title=streamer.title or f"{streamer.username} Stream",
+                        category_name=streamer.category_name or "Unknown",
+                        language=streamer.language or "en",
                         timestamp=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00'))
                     )
                     db.add(initial_event)
@@ -179,9 +179,9 @@ class EventHandlerRegistry:
                             "twitch_id": data["broadcaster_user_id"],
                             "streamer_name": streamer.username,
                             "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language
+                            "title": streamer.title or f"{streamer.username} Stream",
+                            "category_name": streamer.category_name or "Unknown",
+                            "language": streamer.language or "en"
                         }
                     }
                     await self.manager.send_notification(notification)
@@ -193,9 +193,9 @@ class EventHandlerRegistry:
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language,
+                            "title": streamer.title or f"{streamer.username} Stream",
+                            "category_name": streamer.category_name or "Unknown",
+                            "language": streamer.language or "en",
                             "profile_image_url": streamer.profile_image_url,
                             "twitch_login": data["broadcaster_user_login"]
                         }
@@ -210,9 +210,9 @@ class EventHandlerRegistry:
                         "broadcaster_user_id": data["broadcaster_user_id"],
                         "broadcaster_user_name": data["broadcaster_user_name"],
                         "started_at": data["started_at"],
-                        "title": streamer.title,
-                        "category_name": streamer.category_name,
-                        "language": streamer.language
+                        "title": streamer.title or f"{streamer.username} Stream",
+                        "category_name": streamer.category_name or "Unknown",
+                        "language": streamer.language or "en"
                     })
             
         except Exception as e:

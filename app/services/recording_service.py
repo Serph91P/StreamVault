@@ -658,9 +658,9 @@ class RecordingService:
         """Generate a filename from template with variables"""
         now = datetime.now()
         
-        # Sanitize values for filesystem safety
-        title = self._sanitize_filename(stream_data.get("title", "untitled"))
-        game = self._sanitize_filename(stream_data.get("category_name", "unknown"))
+        # Sanitize values for filesystem safety - ensure we have strings
+        title = self._sanitize_filename(str(stream_data.get("title", "untitled") or "untitled"))
+        game = self._sanitize_filename(str(stream_data.get("category_name", "unknown") or "unknown"))
         streamer_name = self._sanitize_filename(streamer.username)
         
         # Create a dictionary of replaceable values
