@@ -289,42 +289,64 @@ class RecordingService:
             while not os.path.exists(mp4_path):
                 if (datetime.now() - start_time).total_seconds() > 300:  # 5 minute timeout
                     logger.warning(f"Timed out waiting for MP4 file: {mp4_path}")
+                    # Versuche, die TS-Datei direkt zu verwenden, wenn MP4 nicht erstellt wurde
+                    if os.path.exists(output_path) and output_path.endswith('.ts'):
+                        mp4_path = output_path
+                        logger.info(f"Using TS file directly for metadata: {mp4_path}")
+                        break
                     return
                 await asyncio.sleep(5)
         
             # Stelle sicher, dass wir einen gültigen Stream haben (besonders für Force-Recordings)
-            if force_started:
-                with SessionLocal() as db:
-                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                    if stream and not stream.ended_at:
-                        # Für Force-Recordings: Setze den Stream auf "offline", wenn noch nicht geschehen
-                        stream.ended_at = datetime.now(timezone.utc)
-                        stream.status = "offline"
-                        db.commit()
-                        logger.info(f"Force-started stream {stream_id} marked as ended for metadata generation")
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.error(f"Stream {stream_id} not found for metadata generation")
+                    return
+                
+                if force_started or not stream.ended_at:
+                    # Für Force-Recordings oder wenn der Stream noch nicht beendet ist
+                    stream.ended_at = datetime.now(timezone.utc)
+                    stream.status = "offline"
+                    db.commit()
+                    logger.info(f"Stream {stream_id} marked as ended for metadata generation")
         
             # Generate metadata
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
-            await self.metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
-            # Nach der Metadatengenerierung zusätzlich Kapitel erstellen für Force-Recordings
-            if force_started:
-                with SessionLocal() as db:
-                    # Hole alle Stream-Events für diesen Stream
-                    events = db.query(StreamEvent).filter(
-                        StreamEvent.stream_id == stream_id
-                    ).order_by(StreamEvent.timestamp).all()
-                
-                    if events:
-                        # Suche Start- und Endzeit
-                        stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                        if stream and stream.started_at and stream.ended_at:
-                            duration = (stream.ended_at - stream.started_at).total_seconds()
+            # Stelle sicher, dass wir eine neue Instanz des MetadataService verwenden
+            metadata_service = MetadataService()
+            await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
+        
+            # Stelle sicher, dass ein Thumbnail existiert
+            from app.services.thumbnail_service import ThumbnailService
+            thumbnail_service = ThumbnailService()
+            await thumbnail_service.ensure_thumbnail(stream_id, os.path.dirname(mp4_path))
+        
+            # Nach der Metadatengenerierung zusätzlich Kapitel erstellen
+            with SessionLocal() as db:
+                # Hole alle Stream-Events für diesen Stream
+                events = db.query(StreamEvent).filter(
+                    StreamEvent.stream_id == stream_id
+                ).order_by(StreamEvent.timestamp).all()
+        
+                if events:
+                    # Suche Start- und Endzeit
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.started_at and stream.ended_at:
+                        duration = (stream.ended_at - stream.started_at).total_seconds()
                         
-                            # Erstelle explizit eine SRT-Datei für Kapitel
-                            await self._create_subtitle_chapters(events, duration, mp4_path)
-                            logger.info(f"Created chapter subtitle file for force-started recording {stream_id}")
-                
+                        # Erstelle explizit eine SRT-Datei für Kapitel
+                        await self._create_subtitle_chapters(events, duration, mp4_path)
+                        logger.info(f"Created chapter subtitle file for recording {stream_id}")
+                        
+                        # Stelle sicher, dass die Kapitel auch im VTT-Format existieren
+                        await metadata_service.generate_chapters_for_stream(stream_id, mp4_path)
+                        logger.info(f"Created VTT chapter file for recording {stream_id}")
+        
+            # Schließe die Metadaten-Session
+            await metadata_service.close()
+        
         except Exception as e:
             logger.error(f"Error in delayed metadata generation: {e}", exc_info=True)
     

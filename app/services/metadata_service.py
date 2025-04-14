@@ -56,7 +56,7 @@ class MetadataService:
                     self.generate_json_metadata(stream, streamer, base_path, base_filename, metadata),
                     self.generate_nfo_file(stream, streamer, base_path, base_filename, metadata),
                     self.extract_thumbnail(mp4_path, stream_id),
-                    self.generate_chapters_for_stream(stream_id, mp4_path)
+                    self.ensure_all_chapter_formats(stream_id, mp4_path)  # Verwende die neue Methode
                 )
                 
                 db.commit()
@@ -258,8 +258,8 @@ class MetadataService:
         
         return None
     
-    async def generate_chapters_for_stream(self, stream_id: int, mp4_path: str):
-        """Erzeugt Kapitel-Dateien (VTT, SRT, ffmpeg) für einen Stream"""
+    async def ensure_all_chapter_formats(self, stream_id: int, mp4_path: str):
+        """Stellt sicher, dass Kapitel in allen gängigen Formaten erstellt werden"""
         try:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -280,17 +280,31 @@ class MetadataService:
                 base_path = Path(mp4_path).parent
                 base_filename = Path(mp4_path).stem
                 
-                # WebVTT-Kapitel erzeugen (für Plex/Browser)
+                # 1. WebVTT-Kapitel (für Plex/Browser)
                 vtt_path = os.path.join(base_path, f"{base_filename}.chapters.vtt")
                 await self._generate_vtt_chapters(stream, events, vtt_path)
                 
-                # SRT-Kapitel erzeugen (für Kodi/einige Player)
+                # 2. Exakte Dateinamen-Kopie für Plex
+                exact_vtt_path = mp4_path.replace('.mp4', '.chapters.vtt')
+                if exact_vtt_path != vtt_path:
+                    import shutil
+                    shutil.copy2(vtt_path, exact_vtt_path)
+                
+                # 3. SRT-Kapitel (für Kodi/einige Player)
                 srt_path = os.path.join(base_path, f"{base_filename}.chapters.srt")
                 await self._generate_srt_chapters(stream, events, srt_path)
                 
-                # FFmpeg Chapters-Datei für zukünftiges Remuxing
+                # 4. Normale SRT-Untertitel (für alle Player)
+                normal_srt_path = os.path.join(base_path, f"{base_filename}.srt")
+                await self._generate_srt_chapters(stream, events, normal_srt_path)
+                
+                # 5. FFmpeg Chapters-Datei
                 ffmpeg_chapters_path = os.path.join(base_path, f"{base_filename}-ffmpeg-chapters.txt")
                 await self._generate_ffmpeg_chapters(stream, events, ffmpeg_chapters_path)
+                
+                # 6. Emby/Jellyfin XML Chapters
+                xml_chapters_path = os.path.join(base_path, f"{base_filename}.chapters.xml")
+                await self._generate_xml_chapters(stream, events, xml_chapters_path)
                 
                 # Metadaten aktualisieren
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
@@ -300,9 +314,17 @@ class MetadataService:
                     metadata.chapters_ffmpeg_path = ffmpeg_chapters_path
                     db.commit()
                 
-                logger.info(f"Generated chapter files for stream {stream_id}")
+                logger.info(f"Generated all chapter formats for stream {stream_id}")
+                return {
+                    "vtt": vtt_path,
+                    "srt": srt_path,
+                    "normal_srt": normal_srt_path,
+                    "ffmpeg": ffmpeg_chapters_path,
+                    "xml": xml_chapters_path
+                }
         except Exception as e:
-            logger.error(f"Error generating chapter files: {e}", exc_info=True)
+            logger.error(f"Error generating all chapter formats: {e}", exc_info=True)
+            return None
     
     async def _generate_vtt_chapters(self, stream, events, output_path):
         """Erzeugt WebVTT-Kapitel-Datei"""
@@ -346,6 +368,13 @@ class MetadataService:
                     f.write(f"{title}\n\n")
                 
                 logger.info(f"WebVTT chapters file created at {output_path}")
+                video_path = output_path.replace('.chapters.vtt', '.mp4')
+                if os.path.exists(video_path):
+                    exact_match_path = video_path.replace('.mp4', '.chapters.vtt')
+                    if exact_match_path != output_path:
+                        import shutil
+                        shutil.copy2(output_path, exact_match_path)
+                        logger.info(f"Created exact filename match VTT for Plex at {exact_match_path}")
         except Exception as e:
             logger.error(f"Error generating WebVTT chapters: {e}", exc_info=True)
     
@@ -446,6 +475,56 @@ class MetadataService:
                 logger.info(f"ffmpeg chapters file created at {output_path}")
         except Exception as e:
             logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)
+    
+    async def _generate_xml_chapters(self, stream, events, output_path):
+        """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin"""
+        try:
+            import xml.etree.ElementTree as ET
+            
+            # XML-Struktur erstellen
+            root = ET.Element("Chapters")
+            
+            for i, event in enumerate(events):
+                # Start-Zeit des Events
+                start_time = event.timestamp
+                
+                # End-Zeit ist entweder der nächste Event oder das Stream-Ende
+                if i < len(events) - 1:
+                    end_time = events[i+1].timestamp
+                elif stream.ended_at:
+                    end_time = stream.ended_at
+                else:
+                    # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
+                    end_time = start_time + timedelta(hours=24)
+                
+                # Berechne Offset in Sekunden
+                if stream.started_at:
+                    start_offset = max(0, (start_time - stream.started_at).total_seconds())
+                    end_offset = max(0, (end_time - stream.started_at).total_seconds())
+                else:
+                    # Fallback, falls start_time nicht bekannt ist
+                    start_offset = 0
+                    end_offset = 24 * 60 * 60  # 24 Stunden
+                
+                # Kapitel-Element erstellen
+                chapter = ET.SubElement(root, "Chapter")
+                chapter_name = event.title or "Stream"
+                if event.category_name:
+                    chapter_name += f" ({event.category_name})"
+                
+                ET.SubElement(chapter, "Name").text = chapter_name
+                
+                # Start- und Endzeit in Millisekunden
+                ET.SubElement(chapter, "StartTime").text = str(int(start_offset * 1000))
+                ET.SubElement(chapter, "EndTime").text = str(int(end_offset * 1000))
+            
+            # XML schreiben
+            tree = ET.ElementTree(root)
+            tree.write(output_path, encoding="utf-8", xml_declaration=True)
+            
+            logger.info(f"XML chapters file created at {output_path}")
+        except Exception as e:
+            logger.error(f"Error generating XML chapters: {e}", exc_info=True)
     
     def _format_timestamp_vtt(self, seconds):
         """Formatiert Sekunden ins WebVTT-Format (HH:MM:SS.mmm)"""
