@@ -540,3 +540,127 @@ class MetadataService:
         secs = int(seconds % 60)
         ms = int((seconds - int(seconds)) * 1000)
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
+    
+    async def import_manual_chapters(self, stream_id: int, chapters_txt_path: str, mp4_path: str):
+        """Importiert manuell erstellte Kapitel aus einer Textdatei und erstellt alle Formate"""
+        try:
+            if not os.path.exists(chapters_txt_path):
+                logger.warning(f"Chapters text file not found: {chapters_txt_path}")
+                return False
+                
+            # Basispfade für Kapitel
+            base_path = Path(mp4_path).parent
+            base_filename = Path(mp4_path).stem
+            
+            # FFmpeg Chapters-Datei
+            ffmpeg_chapters_path = os.path.join(base_path, f"{base_filename}-ffmpeg-chapters.txt")
+            
+            # Kapitel aus der Textdatei lesen
+            chapters = []
+            with open(chapters_txt_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    # Format: 0:23:20 Start
+                    import re
+                    match = re.match(r"(\d+):(\d{2}):(\d{2}) (.*)", line.strip())
+                    if match:
+                        hrs = int(match.group(1))
+                        mins = int(match.group(2))
+                        secs = int(match.group(3))
+                        title = match.group(4)
+                        
+                        # Zeit in Millisekunden umrechnen
+                        total_seconds = (hrs * 3600) + (mins * 60) + secs
+                        timestamp_ms = total_seconds * 1000
+                        
+                        chapters.append({
+                            "title": title,
+                            "startTime": timestamp_ms
+                        })
+            
+            # Keine Kapitel gefunden
+            if not chapters:
+                logger.warning(f"No chapters found in {chapters_txt_path}")
+                return False
+                
+            # Stream-Events aus den manuellen Kapiteln erstellen
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.warning(f"Stream with ID {stream_id} not found")
+                    return False
+                    
+                # Bestehende Events löschen
+                db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
+                
+                # Neue Events aus manuellen Kapiteln erstellen
+                for i, chapter in enumerate(chapters):
+                    # Zeitstempel berechnen
+                    if stream.started_at:
+                        timestamp = stream.started_at + timedelta(milliseconds=chapter["startTime"])
+                    else:
+                        # Fallback, wenn keine Startzeit bekannt ist
+                        timestamp = datetime.now() - timedelta(seconds=chapter["startTime"]/1000)
+                    
+                    # Event erstellen
+                    event = StreamEvent(
+                        stream_id=stream_id,
+                        event_type="manual.chapter",
+                        title=chapter["title"],
+                        timestamp=timestamp
+                    )
+                    db.add(event)
+                
+                db.commit()
+                
+                # Alle Kapitelformate mit den neuen Events erstellen
+                return await self.ensure_all_chapter_formats(stream_id, mp4_path)
+        except Exception as e:
+            logger.error(f"Error importing manual chapters: {e}", exc_info=True)
+            return False
+
+    async def embed_chapters_in_mp4(self, mp4_path: str, chapters_path: str):
+        """Bettet Kapitel direkt in die MP4-Datei ein (für nachträgliche Bearbeitung)"""
+        try:
+            if not os.path.exists(mp4_path) or not os.path.exists(chapters_path):
+                logger.warning(f"MP4 or chapters file not found for embedding: {mp4_path}, {chapters_path}")
+                return False
+                
+            # Temporäre Ausgabedatei
+            output_path = mp4_path.replace('.mp4', '_chaptered.mp4')
+            
+            # FFmpeg-Befehl zum Einbetten der Kapitel
+            cmd = [
+                "ffmpeg",
+                "-i", mp4_path,
+                "-i", chapters_path,
+                "-map_metadata", "1",
+                "-codec", "copy",  # Keine Neukodierung
+                "-map", "0:v",     # Nur Video-Streams
+                "-map", "0:a",     # Nur Audio-Streams
+                "-ignore_unknown", # Ignoriere unbekannte Streams
+                "-movflags", "+faststart",  # Optimiere für Web-Streaming
+                "-y",              # Überschreiben, falls die Datei existiert
+                output_path
+            ]
+            
+            logger.debug(f"Running FFmpeg to embed chapters: {' '.join(cmd)}")
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                # Ersetze die ursprüngliche Datei mit der neuen
+                os.replace(output_path, mp4_path)
+                logger.info(f"Successfully embedded chapters into {mp4_path}")
+                return True
+            else:
+                logger.error(f"Failed to embed chapters: {stderr.decode('utf-8', errors='ignore')}")
+                return False
+        except Exception as e:
+            logger.error(f"Error embedding chapters: {e}", exc_info=True)
+            return False

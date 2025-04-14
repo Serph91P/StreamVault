@@ -624,7 +624,7 @@ class RecordingService:
             # Add stream metadata
             if stream.title:
                 f.write(f"title={stream.title}\n")
-            if stream.streamer and stream.streamer.username:
+            if hasattr(stream, 'streamer') and stream.streamer and stream.streamer.username:
                 f.write(f"artist={stream.streamer.username}\n")
             if stream.started_at:
                 f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
