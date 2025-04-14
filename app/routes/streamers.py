@@ -123,14 +123,13 @@ async def resubscribe_all(
 async def add_streamer(
     username: str,
     settings: dict = Body(...),
+    streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db)
 ):
     """Fügt einen neuen Streamer hinzu mit benutzerdefinierten Einstellungen"""
     try:
-        streamer_service = StreamerService(db=db)
-        
         # Überprüfe, ob der Streamer bereits existiert
-        existing_streamer = streamer_service.get_streamer_by_username(username)
+        existing_streamer = await streamer_service.get_streamer_by_username(username)
         if existing_streamer:
             return JSONResponse(
                 status_code=400,
@@ -185,12 +184,6 @@ async def add_streamer(
                 recording_settings.quality = recording_data["quality"]
             if "custom_filename" in recording_data:
                 recording_settings.custom_filename = recording_data["custom_filename"]
-        
-        # Qualität für Anzeige aktualisieren, falls vorhanden
-        if "quality" in settings:
-            # Hier könntest du eine Benutzereinstellung für die Anzeigequalität speichern,
-            # falls du das implementieren möchtest
-            pass
         
         db.commit()
         

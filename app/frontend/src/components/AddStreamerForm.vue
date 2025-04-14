@@ -65,29 +65,49 @@
       <div class="settings-section">
         <h4>Notification Settings</h4>
         <div class="notification-options">
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="notifications.notify_online">
-            <span>Online</span>
-            <span class="option-description">Notify when stream starts</span>
-          </label>
+          <div class="option-item">
+            <label class="checkbox-container">
+              <input type="checkbox" v-model="notifications.notify_online">
+              <span class="checkmark"></span>
+              <div class="option-text">
+                <span class="option-title">Online</span>
+                <span class="option-description">Notify when stream starts</span>
+              </div>
+            </label>
+          </div>
           
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="notifications.notify_offline">
-            <span>Offline</span>
-            <span class="option-description">Notify when stream ends</span>
-          </label>
+          <div class="option-item">
+            <label class="checkbox-container">
+              <input type="checkbox" v-model="notifications.notify_offline">
+              <span class="checkmark"></span>
+              <div class="option-text">
+                <span class="option-title">Offline</span>
+                <span class="option-description">Notify when stream ends</span>
+              </div>
+            </label>
+          </div>
           
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="notifications.notify_update">
-            <span>Updates</span>
-            <span class="option-description">Notify on title/category changes</span>
-          </label>
+          <div class="option-item">
+            <label class="checkbox-container">
+              <input type="checkbox" v-model="notifications.notify_update">
+              <span class="checkmark"></span>
+              <div class="option-text">
+                <span class="option-title">Updates</span>
+                <span class="option-description">Notify on title/category changes</span>
+              </div>
+            </label>
+          </div>
           
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="notifications.notify_favorite_category">
-            <span>Favorites</span>
-            <span class="option-description">Notify when streaming favorite games</span>
-          </label>
+          <div class="option-item">
+            <label class="checkbox-container">
+              <input type="checkbox" v-model="notifications.notify_favorite_category">
+              <span class="checkmark"></span>
+              <div class="option-text">
+                <span class="option-title">Favorites</span>
+                <span class="option-description">Notify when streaming favorite games</span>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -95,11 +115,16 @@
       <div class="settings-section">
         <h4>Recording Settings</h4>
         <div class="recording-options">
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="recording.enabled">
-            <span>Enable Recording</span>
-            <span class="option-description">Automatically record streams</span>
-          </label>
+          <div class="option-item">
+            <label class="checkbox-container">
+              <input type="checkbox" v-model="recording.enabled">
+              <span class="checkmark"></span>
+              <div class="option-text">
+                <span class="option-title">Enable Recording</span>
+                <span class="option-description">Automatically record streams</span>
+              </div>
+            </label>
+          </div>
           
           <div class="form-group" v-if="recording.enabled">
             <label for="recording-quality">Recording Quality:</label>
@@ -323,7 +348,7 @@ const emit = defineEmits(['streamer-added'])
   cursor: not-allowed;
 }
 
-.quality-select {
+.quality-select, .form-control {
   background: var(--background-dark, #18181b);
   color: var(--text-primary, #efeff1);
   border: 2px solid var(--border-color, #303034);
@@ -331,10 +356,11 @@ const emit = defineEmits(['streamer-added'])
   padding: 8px 12px;
   font-size: 16px;
   min-width: 120px;
+  width: 100%;
   transition: all 0.2s ease;
 }
 
-.quality-select:focus {
+.quality-select:focus, .form-control:focus {
   outline: none;
   border-color: var(--primary-color, #42b883);
   box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
@@ -384,6 +410,7 @@ const emit = defineEmits(['streamer-added'])
   margin-bottom: 1rem;
   color: var(--text-primary, #efeff1);
   font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .form-group {
@@ -394,27 +421,101 @@ const emit = defineEmits(['streamer-added'])
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-}
-
-.form-control {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color, #303034);
-  border-radius: 4px;
-  background-color: var(--background-darker, #0e0e10);
-  color: var(--text-primary, #efeff1);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .help-text {
   margin-top: 0.25rem;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary, #adadb8);
 }
 
+.notification-options,
+.recording-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.option-item {
+  margin-bottom: 1rem;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  padding-left: 35px;
+  cursor: pointer;
+  font-size: 16px;
+  user-select: none;
+}
+
+.checkbox-container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 24px;
+  width: 24px;
+  background-color: var(--background-darker, #0e0e10);
+  border: 2px solid var(--border-color, #303034);
+  border-radius: 4px;
+}
+
+.checkbox-container:hover input ~ .checkmark {
+  border-color: var(--primary-color, #42b883);
+}
+
+.checkbox-container input:checked ~ .checkmark {
+  background-color: var(--primary-color, #42b883);
+  border-color: var(--primary-color, #42b883);
+}
+
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.checkbox-container input:checked ~ .checkmark:after {
+  display: block;
+}
+
+.checkbox-container .checkmark:after {
+  left: 8px;
+  top: 4px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  margin-left: 10px;
+}
+
+.option-title {
+  font-weight: 500;
+  font-size: 16px;
+  margin-bottom: 2px;
+  color: var(--text-primary, #efeff1);
+}
+
 .option-description {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary, #adadb8);
+  line-height: 1.3;
 }
 
 .streamer-preview {
@@ -462,7 +563,7 @@ const emit = defineEmits(['streamer-added'])
 }
 
 .submit-button {
-  padding: 10px 20px;
+  padding: 12px 24px;
   background-color: var(--primary-color, #42b883);
   color: white;
   border: none;
@@ -513,7 +614,17 @@ const emit = defineEmits(['streamer-added'])
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
+.interactive-element {
+  transition: all 0.2s ease;
+}
+
+.interactive-element:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.4);
+}
+
+/* Responsive Anpassungen */
+@media (max-width: 768px) {
   .notification-options,
   .recording-options {
     grid-template-columns: 1fr;
@@ -525,6 +636,59 @@ const emit = defineEmits(['streamer-added'])
   
   .validate-button {
     width: 100%;
+    margin-top: 0.5rem;
+  }
+  
+  .form-actions {
+    justify-content: center;
+  }
+  
+  .submit-button {
+    width: 100%;
+  }
+  
+  .streamer-preview {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .profile-image {
+    margin-right: 0;
+    margin-bottom: 1rem;
+  }
+  
+  .checkbox-container {
+    padding-left: 30px;
+  }
+  
+  .checkmark {
+    height: 20px;
+    width: 20px;
+  }
+  
+  .checkbox-container .checkmark:after {
+    left: 6px;
+    top: 3px;
+    width: 4px;
+    height: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .streamer-form {
+    padding: 15px;
+  }
+  
+  .settings-panel {
+    padding: 0.75rem;
+  }
+  
+  .option-title {
+    font-size: 15px;
+  }
+  
+  .option-description {
+    font-size: 13px;
   }
 }
 </style>
