@@ -119,36 +119,94 @@ async def resubscribe_all(
         logger.error(f"Failed to resubscribe to all events: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{username}", response_model=StreamerResponse)
+@router.post("/{username}")
 async def add_streamer(
     username: str,
-    streamer_service: StreamerService = Depends(get_streamer_service)
+    settings: dict = Body(...),
+    db: Session = Depends(get_db)
 ):
+    """Fügt einen neuen Streamer hinzu mit benutzerdefinierten Einstellungen"""
     try:
-        streamer = await streamer_service.add_streamer(username)
-        if not streamer:
-            raise HTTPException(
+        streamer_service = StreamerService(db=db)
+        
+        # Überprüfe, ob der Streamer bereits existiert
+        existing_streamer = streamer_service.get_streamer_by_username(username)
+        if existing_streamer:
+            return JSONResponse(
                 status_code=400,
-                detail="Failed to add streamer"
+                content={"message": f"Streamer '{username}' already exists"}
             )
         
-        # Convert Streamer model to StreamerResponse
-        return StreamerResponse(
-            id=streamer.id,
-            twitch_id=streamer.twitch_id,
-            username=streamer.username,
-            is_live=streamer.is_live,
-            title=streamer.title,
-            category_name=streamer.category_name,
-            language=streamer.language,
-            last_updated=streamer.last_updated,
-            profile_image_url=streamer.profile_image_url
-        )
+        # Streamer bei Twitch überprüfen und hinzufügen
+        streamer = await streamer_service.add_streamer(username)
+        
+        if not streamer:
+            return JSONResponse(
+                status_code=404,
+                content={"message": f"Streamer '{username}' not found on Twitch"}
+            )
+        
+        # Benachrichtigungseinstellungen aktualisieren, falls vorhanden
+        if "notifications" in settings:
+            notification_settings = db.query(NotificationSettings).filter(
+                NotificationSettings.streamer_id == streamer.id
+            ).first()
+            
+            if not notification_settings:
+                notification_settings = NotificationSettings(streamer_id=streamer.id)
+                db.add(notification_settings)
+            
+            # Aktualisiere die Einstellungen
+            notification_data = settings["notifications"]
+            if "notify_online" in notification_data:
+                notification_settings.notify_online = notification_data["notify_online"]
+            if "notify_offline" in notification_data:
+                notification_settings.notify_offline = notification_data["notify_offline"]
+            if "notify_update" in notification_data:
+                notification_settings.notify_update = notification_data["notify_update"]
+            if "notify_favorite_category" in notification_data:
+                notification_settings.notify_favorite_category = notification_data["notify_favorite_category"]
+        
+        # Aufnahmeeinstellungen aktualisieren, falls vorhanden
+        if "recording" in settings:
+            recording_settings = db.query(StreamerRecordingSettings).filter(
+                StreamerRecordingSettings.streamer_id == streamer.id
+            ).first()
+            
+            if not recording_settings:
+                recording_settings = StreamerRecordingSettings(streamer_id=streamer.id)
+                db.add(recording_settings)
+            
+            # Aktualisiere die Einstellungen
+            recording_data = settings["recording"]
+            if "enabled" in recording_data:
+                recording_settings.enabled = recording_data["enabled"]
+            if "quality" in recording_data:
+                recording_settings.quality = recording_data["quality"]
+            if "custom_filename" in recording_data:
+                recording_settings.custom_filename = recording_data["custom_filename"]
+        
+        # Qualität für Anzeige aktualisieren, falls vorhanden
+        if "quality" in settings:
+            # Hier könntest du eine Benutzereinstellung für die Anzeigequalität speichern,
+            # falls du das implementieren möchtest
+            pass
+        
+        db.commit()
+        
+        return {
+            "id": streamer.id,
+            "username": streamer.username,
+            "twitch_id": streamer.twitch_id,
+            "profile_image_url": streamer.profile_image_url,
+            "message": f"Streamer '{username}' added successfully with custom settings"
+        }
     except Exception as e:
-        logger.error(f"Error adding streamer: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
+        db.rollback()
+        logger.error(f"Error adding streamer: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"Error adding streamer: {str(e)}"}
         )
 
 async def setup_eventsub_background(
@@ -280,3 +338,47 @@ async def get_streams_by_streamer_id(
     except Exception as e:
         logger.error(f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/validate/{username}")
+async def validate_streamer(username: str):
+    """Überprüft, ob ein Twitch-Benutzername gültig ist"""
+    try:
+        # Streamer-Service initialisieren
+        streamer_service = StreamerService(db=SessionLocal())
+        
+        # Überprüfe, ob der Streamer bereits in der Datenbank existiert
+        existing_streamer = streamer_service.get_streamer_by_username(username)
+        if existing_streamer:
+            return {
+                "valid": True,
+                "message": "Streamer already exists in your list",
+                "streamer_info": {
+                    "id": existing_streamer.id,
+                    "twitch_id": existing_streamer.twitch_id,
+                    "username": existing_streamer.username,
+                    "display_name": existing_streamer.username,
+                    "profile_image_url": existing_streamer.profile_image_url,
+                    "description": "This streamer is already in your list"
+                }
+            }
+        
+        # Überprüfe den Streamer bei Twitch
+        streamer_info = await streamer_service.get_twitch_user_by_login(username)
+        
+        if not streamer_info:
+            return {
+                "valid": False,
+                "message": f"Streamer '{username}' not found on Twitch"
+            }
+        
+        return {
+            "valid": True,
+            "message": "Valid Twitch username",
+            "streamer_info": streamer_info
+        }
+    except Exception as e:
+        logger.error(f"Error validating streamer: {e}", exc_info=True)
+        return {
+            "valid": False,
+            "message": f"Error validating streamer: {str(e)}"
+        }
