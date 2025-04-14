@@ -340,12 +340,12 @@ async def get_streams_by_streamer_id(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/validate/{username}")
-async def validate_streamer(username: str):
+async def validate_streamer(
+    username: str,
+    streamer_service: StreamerService = Depends(get_streamer_service)
+):
     """Überprüft, ob ein Twitch-Benutzername gültig ist"""
     try:
-        # Streamer-Service initialisieren
-        streamer_service = StreamerService(db=SessionLocal())
-        
         # Überprüfe, ob der Streamer bereits in der Datenbank existiert
         existing_streamer = streamer_service.get_streamer_by_username(username)
         if existing_streamer:
