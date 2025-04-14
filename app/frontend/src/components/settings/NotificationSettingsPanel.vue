@@ -40,13 +40,6 @@
           </div>
         </div>
       </div>
-
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.notificationsEnabled" />
-          Enable Notifications
-        </label>
-      </div>
       
       <div class="form-group">
         <label>
