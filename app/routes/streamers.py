@@ -347,7 +347,6 @@ async def validate_streamer(
     """Überprüft, ob ein Twitch-Benutzername gültig ist"""
     try:
         # Überprüfe, ob der Streamer bereits in der Datenbank existiert
-        # Füge await hinzu, um das Ergebnis der asynchronen Funktion zu erhalten
         existing_streamer = await streamer_service.get_streamer_by_username(username)
         if existing_streamer:
             return {
@@ -363,14 +362,24 @@ async def validate_streamer(
                 }
             }
         
-        # Überprüfe den Streamer bei Twitch
-        streamer_info = await streamer_service.get_twitch_user_by_login(username)
+        # Überprüfe den Streamer bei Twitch mit der vorhandenen Methode
+        user_data = await streamer_service.get_user_data(username)
         
-        if not streamer_info:
+        if not user_data:
             return {
                 "valid": False,
                 "message": f"Streamer '{username}' not found on Twitch"
             }
+        
+        # Extrahiere die relevanten Informationen aus dem Twitch-Benutzer
+        streamer_info = {
+            "id": None,  # Noch nicht in der Datenbank
+            "twitch_id": user_data.get("id"),
+            "username": user_data.get("login"),
+            "display_name": user_data.get("display_name"),
+            "profile_image_url": user_data.get("profile_image_url"),
+            "description": user_data.get("description", "")
+        }
         
         return {
             "valid": True,
