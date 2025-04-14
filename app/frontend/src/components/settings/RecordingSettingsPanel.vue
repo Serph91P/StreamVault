@@ -43,7 +43,7 @@
       <div class="form-group">
         <label>Filename Template:</label>
         <input v-model="data.filename_template"
-          placeholder="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"
+          placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
           class="form-control" />
         <div class="filename-preview" v-if="data.filename_template">
           <strong>Preview:</strong> {{ previewFilename }}
@@ -473,7 +473,7 @@ const { isLoading, error } = useRecordingSettings();
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   output_directory: props.settings?.output_directory ?? '/recordings',
-  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}',
+  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true
