@@ -470,7 +470,7 @@ class RecordingService:
                 f.write(f"{start_str} --> {end_str}\n")
                 f.write(f"{title}\n\n")
         
-        logger.info(f"Created subtitlds):
+        logger.info(f"Created subtitles")
         """Format seconds to HH:MM:SS.ms format for chapters"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
