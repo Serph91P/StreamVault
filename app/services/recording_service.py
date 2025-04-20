@@ -470,10 +470,7 @@ class RecordingService:
                 f.write(f"{start_str} --> {end_str}\n")
                 f.write(f"{title}\n\n")
         
-        logger.info(f"Created subtitle chapter file at {subtitle_path}")
-        return subtitle_path
-
-    def _format_timestamp(self, seconds):
+        logger.info(f"Created subtitlds):
         """Format seconds to HH:MM:SS.ms format for chapters"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
@@ -544,16 +541,18 @@ class RecordingService:
                                 if events:
                                     duration = (datetime.now() - stream.started_at).total_seconds()
                                     chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
-        
+                                    logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
+    
             # Build ffmpeg command
             cmd = [
                 "ffmpeg",
                 "-i", ts_path
             ]
-        
+    
             # Add chapter file if available
-            if chapter_file:
+            if chapter_file and os.path.exists(chapter_file):
                 cmd.extend(["-i", chapter_file, "-map_metadata", "1"])
+                logger.debug(f"Using chapter file: {chapter_file}")
         
             # Add the rest of the command
             cmd.extend([
@@ -565,24 +564,26 @@ class RecordingService:
                 "-y",          # Overwrite output
                 mp4_path
             ])
-        
+    
             logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
-        
+    
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-        
+    
             stdout, stderr = await process.communicate()
-        
+    
             if process.returncode == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
                 # Clean up chapter file
                 if chapter_file and os.path.exists(chapter_file):
-                    os.remove(chapter_file)
+                    # Behalte die Datei für Debugging
+                    # os.remove(chapter_file)
+                    pass
                 
                 # Generate metadata immediately after successful remuxing
                 # This ensures all chapter files are created
@@ -598,6 +599,9 @@ class RecordingService:
                     # Generate all metadata including chapter files
                     asyncio.create_task(metadata_service.generate_metadata_for_stream(stream.id, mp4_path))
                     logger.info(f"Triggered metadata and chapter generation for {mp4_path}")
+                    
+                    # Zusätzlich: Kapitel direkt in die MP4-Datei einbetten
+                    asyncio.create_task(self._embed_chapters_in_mp4(mp4_path, stream.id))
                 
                 return True
             else:
@@ -608,6 +612,76 @@ class RecordingService:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
 
+    async def _embed_chapters_in_mp4(self, mp4_path: str, stream_id: int):
+        """Bettet Kapitel direkt in die MP4-Datei ein"""
+        try:
+            with SessionLocal() as db:
+                # Stream-Events abrufen
+                events = db.query(StreamEvent).filter(
+                    StreamEvent.stream_id == stream_id
+                ).order_by(StreamEvent.timestamp).all()
+                
+                if not events or len(events) < 2:
+                    logger.warning(f"Not enough events to create chapters for stream {stream_id}")
+                    return
+                
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.warning(f"Stream {stream_id} not found for chapter embedding")
+                    return
+                
+                # Temporäre Datei für Kapitel erstellen
+                chapter_file = await self._create_ffmpeg_chapters_file(events, 
+                                                                     (stream.ended_at - stream.started_at).total_seconds() if stream.ended_at else 
+                                                                     (datetime.now(timezone.utc) - stream.started_at).total_seconds(), 
+                                                                     stream)
+                
+                if not chapter_file or not os.path.exists(chapter_file):
+                    logger.warning(f"Failed to create chapter file for stream {stream_id}")
+                    return
+                
+                # Temporäre Ausgabedatei
+                output_path = mp4_path.replace('.mp4', '_chaptered.mp4')
+                
+                # FFmpeg-Befehl zum Einbetten der Kapitel
+                cmd = [
+                    "ffmpeg",
+                    "-i", mp4_path,
+                    "-i", chapter_file,
+                    "-map_chapters", "1",  # Kapitel aus der zweiten Eingabedatei verwenden
+                    "-map", "0",           # Alle Streams aus der ersten Eingabedatei verwenden
+                    "-c", "copy",          # Keine Neukodierung
+                    "-y",                  # Überschreiben
+                    output_path
+                ]
+                
+                logger.debug(f"Embedding chapters with command: {' '.join(cmd)}")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    # Ersetze die ursprüngliche Datei
+                    os.replace(output_path, mp4_path)
+                    logger.info(f"Successfully embedded chapters in {mp4_path}")
+                    
+                    # Lösche die temporäre Kapiteldatei
+                    if os.path.exists(chapter_file):
+                        os.remove(chapter_file)
+                else:
+                    stderr_text = stderr.decode('utf-8', errors='ignore')
+                    logger.error(f"Failed to embed chapters: {stderr_text}")
+                    
+                    # Lösche die temporäre Ausgabedatei bei Fehler
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+        except Exception as e:
+            logger.error(f"Error embedding chapters in MP4: {e}", exc_info=True)
     async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
         """Create a chapters file from stream events for ffmpeg"""
         if not stream_events or len(stream_events) < 1:  # Need at least 1 event for chapters

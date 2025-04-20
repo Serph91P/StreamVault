@@ -497,14 +497,14 @@ class MetadataService:
                     # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
                     end_time = start_time + timedelta(hours=24)
                 
-                # Berechne Offset in Sekunden
+                # Berechne Offset in Millisekunden
                 if stream.started_at:
-                    start_offset = max(0, (start_time - stream.started_at).total_seconds())
-                    end_offset = max(0, (end_time - stream.started_at).total_seconds())
+                    start_offset = max(0, (start_time - stream.started_at).total_seconds() * 1000)
+                    end_offset = max(0, (end_time - stream.started_at).total_seconds() * 1000)
                 else:
                     # Fallback, falls start_time nicht bekannt ist
                     start_offset = 0
-                    end_offset = 24 * 60 * 60  # 24 Stunden
+                    end_offset = 24 * 60 * 60 * 1000  # 24 Stunden
                 
                 # Kapitel-Element erstellen
                 chapter = ET.SubElement(root, "Chapter")
@@ -515,17 +515,16 @@ class MetadataService:
                 ET.SubElement(chapter, "Name").text = chapter_name
                 
                 # Start- und Endzeit in Millisekunden
-                ET.SubElement(chapter, "StartTime").text = str(int(start_offset * 1000))
-                ET.SubElement(chapter, "EndTime").text = str(int(end_offset * 1000))
+                ET.SubElement(chapter, "StartTime").text = str(int(start_offset))
+                ET.SubElement(chapter, "EndTime").text = str(int(end_offset))
             
             # XML schreiben
             tree = ET.ElementTree(root)
             tree.write(output_path, encoding="utf-8", xml_declaration=True)
             
-            logger.info(f"XML chapters file created at {output_path}")
+            logger.info(f"XML chapters file created at {output_path} with {len(events)} chapters")
         except Exception as e:
-            logger.error(f"Error generating XML chapters: {e}", exc_info=True)
-    
+            logger.error(f"Error generating XML chapters: {e}", exc_info=True)    
     def _format_timestamp_vtt(self, seconds):
         """Formatiert Sekunden ins WebVTT-Format (HH:MM:SS.mmm)"""
         hours = int(seconds // 3600)
