@@ -452,9 +452,7 @@ class RecordingService:
                 f.write(f"{title}\n\n")
         
         logger.info(f"Created subtitle chapter file at {subtitle_path}")
-        return subtitle_path
-
-    def _format_timestamp(self, seconds):
+        return subtitle_path    def _format_timestamp(self, seconds):
         """Format seconds to HH:MM:SS.ms format for chapters"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
