@@ -29,7 +29,6 @@ async def get_recording_settings():
                     filename_template="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
                     default_quality="best",
                     use_chapters=True,
-                    max_concurrent_recordings=3
                 )
                 db.add(settings)
                 db.commit()

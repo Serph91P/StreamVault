@@ -110,9 +110,12 @@ function formatEventType(type: string): string {
 
 function getStreamerName(twitchId: string): string {
   if (!twitchId) return 'Unknown';
-    
+  
+  // Konvertiere twitchId zu String für den Vergleich
+  const twitchIdStr = String(twitchId);
+  
   const streamer = streamers.value.find(
-    s => s.twitch_id === twitchId || String(s.twitch_id) === twitchId
+    s => String(s.twitch_id) === twitchIdStr
   );
   
   if (streamer) {
@@ -124,7 +127,6 @@ function getStreamerName(twitchId: string): string {
   
   return twitchId;
 }
-
 async function loadStreamers() {
   try {
     const response = await fetch('/api/streamers')
