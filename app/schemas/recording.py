@@ -11,7 +11,9 @@ class RecordingSettingsSchema(BaseModel):
     use_category_as_chapter_title: bool = Field(default=False, description="Use category name as chapter title instead of stream title")
 
     class Config:
-        from_attributes = Trueclass StreamerRecordingSettingsSchema(BaseModel):
+        from_attributes = True
+
+class StreamerRecordingSettingsSchema(BaseModel):
     streamer_id: int
     username: Optional[str] = None
     profile_image_url: Optional[str] = None
@@ -21,6 +23,7 @@ class RecordingSettingsSchema(BaseModel):
 
     class Config:
         from_attributes = True
+        
 class ActiveRecordingSchema(BaseModel):
     streamer_id: int
     streamer_name: str
