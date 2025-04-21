@@ -429,10 +429,15 @@ class MetadataService:
                 f.write(";FFMETADATA1\n")
                 
                 # Stream-Metadaten
-                if stream.streamer and stream.streamer.username:
-                    f.write(f"artist={stream.streamer.username}\n")
                 if stream.title:
                     f.write(f"title={stream.title}\n")
+                
+                # Streamer-Informationen abrufen
+                with SessionLocal() as db:
+                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                    if streamer and streamer.username:
+                        f.write(f"artist={streamer.username}\n")
+                
                 if stream.started_at:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
                 
@@ -474,8 +479,7 @@ class MetadataService:
                 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
         except Exception as e:
-            logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)
-    
+            logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)    
     async def _generate_xml_chapters(self, stream, events, output_path):
         """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin"""
         try:

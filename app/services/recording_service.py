@@ -698,8 +698,13 @@ class RecordingService:
             # Add stream metadata
             if stream.title:
                 f.write(f"title={stream.title}\n")
-            if hasattr(stream, 'streamer') and stream.streamer and stream.streamer.username:
-                f.write(f"artist={stream.streamer.username}\n")
+            
+            # Streamer-Informationen abrufen
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if streamer and streamer.username:
+                    f.write(f"artist={streamer.username}\n")
+            
             if stream.started_at:
                 f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
             
@@ -727,7 +732,6 @@ class RecordingService:
                 f.write(f"title={title}\n")
         
             return f.name
-
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
         """Generate a filename from template with variables"""
         now = datetime.now()

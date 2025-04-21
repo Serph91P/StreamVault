@@ -6,6 +6,7 @@ import logging
 import time
 from PIL import Image
 import io
+from datetime import datetime
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
@@ -20,7 +21,7 @@ class ThumbnailService:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
         return self.session
-    d
+    
     async def close(self):
         if self.session and not self.session.closed:
             await self.session.close()
@@ -29,8 +30,7 @@ class ThumbnailService:
         """Generiert Twitch-Vorschaubild-URL für einen laufenden Stream"""
         # Füge einen Timestamp-Parameter hinzu, um Caching zu vermeiden
         timestamp = int(time.time())
-        return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"
-    
+        return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"    
     async def download_thumbnail(self, stream_id: int, output_dir: str, max_retries=3, retry_delay=2):
         """Lädt das Stream-Thumbnail herunter mit Wiederholungsversuchen"""
         with SessionLocal() as db:
