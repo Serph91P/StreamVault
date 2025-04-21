@@ -384,8 +384,16 @@ class RecordingService:
     
     async def _create_chapters_file(self, stream_events, duration):
         """Create a chapters file from stream events for ffmpeg"""
-        if not stream_events or len(stream_events) < 2:  # Need at least 2 events to make chapters
+        if not stream_events:
             return None
+            
+        # Ensure we have at least a start and end chapter, even if there's only one event
+        if len(stream_events) == 1:
+            # Create a duplicate event for the end
+            end_event = copy.copy(stream_events[0])
+            # Set the timestamp to stream duration
+            end_event.timestamp = stream_events[0].timestamp + timedelta(seconds=duration)
+            stream_events.append(end_event)
             
         # Sort events by timestamp
         events = sorted(stream_events, key=lambda x: x.timestamp)
@@ -402,16 +410,16 @@ class RecordingService:
                 end_str = self._format_timestamp(end_time)
                 
                 # Create chapter title from event
-                title = f"{event.title or 'Stream'}"
                 if event.category_name:
-                    title += f" - {event.category_name}"
+                    title = f"📌 CHAPTER: {event.category_name}"
+                else:
+                    title = f"📌 TITLE: {event.title or 'Stream'}"
                 
                 # Write chapter entry
                 f.write(f"CHAPTER{i+1:02d}={start_str}\n")
                 f.write(f"CHAPTER{i+1:02d}NAME={title}\n")
             
             return f.name
-
     async def _create_subtitle_chapters(self, stream_events, duration, output_path):
         """Create a subtitle file with chapter markers for better Plex compatibility"""
         if not stream_events:
@@ -452,13 +460,15 @@ class RecordingService:
                 f.write(f"{title}\n\n")
         
         logger.info(f"Created subtitle chapter file at {subtitle_path}")
-        return subtitle_path    def _format_timestamp(self, seconds):
+        return subtitle_path
+
+    def _format_timestamp(self, seconds):
         """Format seconds to HH:MM:SS.ms format for chapters"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         seconds = seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
-    
+        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"    
+
     def _format_srt_timestamp(self, seconds):
         """Format seconds to SRT timestamp format HH:MM:SS,mmm"""
         if seconds < 0:
