@@ -618,10 +618,10 @@ class RecordingService:
         """Create a chapters file from stream events for ffmpeg"""
         if not stream_events:  # Keine Events vorhanden
             return None
-            
+        
         # Sort events by timestamp
         events = sorted(stream_events, key=lambda x: x.timestamp)
-        
+    
         # Stelle sicher, dass wir ein Start-Kapitel haben
         if stream.started_at and (not events or (events[0].timestamp - stream.started_at).total_seconds() > 5):
             # Erstelle ein künstliches Start-Event, wenn das erste Event mehr als 5 Sekunden nach Stream-Start liegt
@@ -632,63 +632,111 @@ class RecordingService:
                 'event_type': 'stream.start'
             })
             events.insert(0, start_event)
-        
+    
+        # Check if we should use category as chapter title
+        use_category_as_title = False
+        with SessionLocal() as db:
+            settings = db.query(RecordingSettings).first()
+            if settings:
+                use_category_as_title = settings.use_category_as_chapter_title if hasattr(settings, 'use_category_as_chapter_title') else False
+    
         # Create temp file for chapters
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             # Write FFmpeg metadata header
             f.write(";FFMETADATA1\n")
-            
+        
             # Add stream metadata
             if stream.title:
                 f.write(f"title={stream.title}\n")
-            
+        
             # Streamer-Informationen abrufen
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if streamer and streamer.username:
                     f.write(f"artist={streamer.username}\n")
-            
+        
             if stream.started_at:
                 f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
-            
-            # Hole die Einstellungen für Kapitel-Titel
-            with SessionLocal() as db:
-                settings = db.query(RecordingSettings).first()
-                use_category_as_title = settings.use_category_as_chapter_title if settings and hasattr(settings, 'use_category_as_chapter_title') else False
-            
+        
             # Write chapter entries
             for i, event in enumerate(events):
                 start_time = (event.timestamp - stream.started_at).total_seconds() * 1000 if stream.started_at else 0
                 start_time = max(0, start_time)  # Ensure non-negative
-                
+            
                 # End time is either the next event or the end of the stream
                 if i < len(events) - 1:
                     end_time = (events[i+1].timestamp - stream.started_at).total_seconds() * 1000 if stream.started_at else duration * 1000
                 else:
                     end_time = duration * 1000 if duration else start_time + (3600 * 1000)  # Default 1 hour
-                
+            
                 # Create chapter title based on settings
                 if use_category_as_title and event.category_name:
                     title = event.category_name
                 else:
                     title = event.title or "Stream"
-                    if event.category_name:
+                    if event.category_name and not use_category_as_title:
                         title += f" ({event.category_name})"
-                
+            
                 # Write chapter entry in FFmpeg format
                 f.write("\n[CHAPTER]\n")
                 f.write("TIMEBASE=1/1000\n")
                 f.write(f"START={int(start_time)}\n")
                 f.write(f"END={int(end_time)}\n")
                 f.write(f"title={title}\n")
-            
-            logger.debug(f"Created ffmpeg chapters file at {f.name} with {len(events)} chapters")
-            return f.name                f.write(f"END={int(end_time)}\n")
-                f.write(f"title={title}\n")
-            
+        
             logger.debug(f"Created ffmpeg chapters file at {f.name} with {len(events)} chapters")
             return f.name
+    async def _create_subtitle_chapters(self, stream_events, duration, output_path):
+        """Create a subtitle file with chapter markers for better Plex compatibility"""
+        if not stream_events:
+            return
     
+        # Ensure we have at least a start and end chapter, even if there's only one event
+        if len(stream_events) == 1:
+            # Create a duplicate event for the end
+            end_event = copy.copy(stream_events[0])
+            # Set the timestamp to stream duration
+            end_event.timestamp = stream_events[0].timestamp + timedelta(seconds=duration)
+            stream_events.append(end_event)
+        
+        # Sort events by timestamp
+        events = sorted(stream_events, key=lambda x: x.timestamp)
+    
+        # Check if we should use category as chapter title
+        use_category_as_title = False
+        with SessionLocal() as db:
+            settings = db.query(RecordingSettings).first()
+            if settings:
+                use_category_as_title = settings.use_category_as_chapter_title
+    
+        subtitle_path = output_path.replace('.mp4', '.srt')
+    
+        with open(subtitle_path, 'w', encoding='utf-8') as f:
+            for i, event in enumerate(events):
+                start_time = event.timestamp.timestamp()
+                # End time is either the next event or the end of the stream
+                end_time = events[i+1].timestamp.timestamp() if i < len(events)-1 else duration
+            
+                # Format for SRT
+                start_str = self._format_srt_timestamp(start_time)
+                end_str = self._format_srt_timestamp(end_time)
+            
+                # Create subtitle text based on settings
+                if use_category_as_title and event.category_name:
+                    title = f"📌 CHAPTER: {event.category_name}"
+                else:
+                    if event.category_name and not use_category_as_title:
+                        title = f"📌 TITLE: {event.title or 'Stream'} ({event.category_name})"
+                    else:
+                        title = f"📌 TITLE: {event.title or 'Stream'}"
+            
+                # Write subtitle entry
+                f.write(f"{i+1}\n")
+                f.write(f"{start_str} --> {end_str}\n")
+                f.write(f"{title}\n\n")
+    
+        logger.info(f"Created subtitle chapter file at {subtitle_path}")
+        return subtitle_path    
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
         """Generate a filename from template with variables"""
         now = datetime.now()
