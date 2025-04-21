@@ -486,9 +486,9 @@ const data = ref<RecordingSettings>({
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
-  use_chapters: props.settings?.use_chapters ?? true
+  use_chapters: props.settings?.use_chapters ?? true,
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false // Neue Eigenschaft initialisieren
 });
-
 const updateFilenameTemplate = () => {
   const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
   if (preset) {
