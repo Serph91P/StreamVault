@@ -1,7 +1,6 @@
 @use 'sass:map';
 @use 'sass:color';
 @use 'variables' as v;
-
 // Navigation
 nav {
   display: flex;
@@ -758,9 +757,8 @@ img {
   transition: background-color 0.2s;
   
   &:hover {
-    background-color: darken(#9146FF, 10%);
-  }
-  
+    background-color: color.scale(#9146FF, $lightness: -10%);
+  }  
   i {
     margin-right: v.$spacing-xs;
   }

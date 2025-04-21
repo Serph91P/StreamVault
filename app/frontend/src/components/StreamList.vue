@@ -73,12 +73,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
-
 const route = useRoute()
 const router = useRouter()
 const streamerId = computed(() => route.params.id as string || route.query.id as string)
