@@ -50,9 +50,10 @@ export const FILENAME_VARIABLES = [
   { key: "timestamp", description: "Timestamp (YYYYMMDD_HHMMSS)" },
   { key: "datetime", description: "Formatted datetime (YYYY-MM-DD_HH-MM-SS)" },
   { key: "id", description: "Stream ID" },
-  { key: "season", description: "Season format (S2024-01)" }
+  { key: "season", description: "Season format (S2024-01)" },
+  { key: "episode", description: "Episode number (E01, E02, ...)" },
+  { key: "unique", description: "Unique identifier" }
 ];
-
 export const FILENAME_PRESETS = [
   { 
     value: "default", 

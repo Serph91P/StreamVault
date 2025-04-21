@@ -144,15 +144,43 @@ class EventHandlerRegistry:
                 if streamer:
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
+                
+                    # Versuche, die letzten bekannten Informationen zu finden
+                    title = streamer.title
+                    category_name = streamer.category_name
+                    language = streamer.language
                     
-                    # Create new stream with last known information
+                    # Falls keine Informationen im Streamer-Objekt vorhanden sind,
+                    # versuche, sie aus früheren Stream-Events zu erhalten
+                    if not title or not category_name:
+                        # Suche das letzte Stream-Event dieses Streamers
+                        last_stream = db.query(Stream).filter(
+                            Stream.streamer_id == streamer.id
+                        ).order_by(Stream.started_at.desc()).first()
+                        
+                        if last_stream:
+                            last_event = db.query(StreamEvent).filter(
+                                StreamEvent.stream_id == last_stream.id
+                            ).order_by(StreamEvent.timestamp.desc()).first()
+                            
+                            if last_event:
+                                title = title or last_event.title
+                                category_name = category_name or last_event.category_name
+                                language = language or last_event.language
+                    
+                    # Fallback-Werte, falls immer noch keine Informationen vorhanden sind
+                    title = title or f"{streamer.username} Stream"
+                    category_name = category_name or "Unknown"
+                    language = language or "en"
+                    
+                    # Create new stream with best available information
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
                         twitch_stream_id=data["id"],
-                        title=streamer.title or f"{streamer.username} Stream",  # Fallback title
-                        category_name=streamer.category_name or "Unknown",      # Fallback category
-                        language=streamer.language or "en"                      # Fallback language
+                        title=title,
+                        category_name=category_name,
+                        language=language
                     )
                     db.add(stream)
                     
@@ -160,9 +188,9 @@ class EventHandlerRegistry:
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
-                        title=streamer.title or f"{streamer.username} Stream",
-                        category_name=streamer.category_name or "Unknown",
-                        language=streamer.language or "en",
+                        title=title,
+                        category_name=category_name,
+                        language=language,
                         timestamp=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00'))
                     )
                     db.add(initial_event)
@@ -170,7 +198,6 @@ class EventHandlerRegistry:
                     streamer.is_live = True
                     streamer.last_updated = datetime.now(timezone.utc)
                     db.commit()
-
                     # WebSocket notification
                     notification = {
                         "type": "stream.online",

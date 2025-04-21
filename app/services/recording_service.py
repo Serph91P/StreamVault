@@ -525,113 +525,115 @@ class RecordingService:
                             stream = db.query(Stream).filter(
                                 Stream.streamer_id == streamer.id
                             ).order_by(Stream.started_at.desc()).first()
+                        
+                        if stream:
+                            stream_id = stream.id
+                            # Get stream events
+                            events = db.query(StreamEvent).filter(
+                                StreamEvent.stream_id == stream.id
+                            ).all()
                             
-                            if stream:
-                                stream_id = stream.id
-                                # Get stream events
+                            # Wenn keine Events vorhanden sind, erstelle ein Start-Event
+                            if not events and stream.started_at:
+                                start_event = StreamEvent(
+                                    stream_id=stream.id,
+                                    event_type="stream.start",
+                                    title=stream.title,
+                                    category_name=stream.category_name,
+                                    timestamp=stream.started_at
+                                )
+                                db.add(start_event)
+                                db.commit()
+                                
+                                # Events neu laden
                                 events = db.query(StreamEvent).filter(
                                     StreamEvent.stream_id == stream.id
                                 ).all()
-                                
-                                # Wenn keine Events vorhanden sind, erstelle ein Start-Event
-                                if not events and stream.started_at:
-                                    start_event = StreamEvent(
-                                        stream_id=stream.id,
-                                        event_type="stream.start",
-                                        title=stream.title,
-                                        category_name=stream.category_name,
-                                        timestamp=stream.started_at
-                                    )
-                                    db.add(start_event)
-                                    db.commit()
-                                    
-                                    # Events neu laden
-                                    events = db.query(StreamEvent).filter(
-                                        StreamEvent.stream_id == stream.id
-                                    ).all()
-                                
-                                if events:
-                                    duration = (datetime.now() - stream.started_at).total_seconds() if stream.started_at else 0
-                                    chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
-                                    logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
+                            
+                            if events:
+                                duration = (datetime.now() - stream.started_at).total_seconds() if stream.started_at else 0
+                                chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
+                                logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
+        
+        # Build ffmpeg command
+        cmd = [
+            "ffmpeg",
+            "-i", ts_path
+        ]
+        
+        # Add chapter file if available
+        if chapter_file and os.path.exists(chapter_file):
+            cmd.extend(["-i", chapter_file, "-map_chapters", "1", "-map_metadata", "1"])
+            logger.debug(f"Using chapter file for embedding: {chapter_file}")
+        
+        # Add the rest of the command
+        cmd.extend([
+            "-c", "copy",  # Copy streams without re-encoding
+            "-map", "0:v",  # Map only video streams
+            "-map", "0:a",  # Map only audio streams
+            "-ignore_unknown",  # Ignore unknown streams
+            "-movflags", "+faststart",  # Optimize for web streaming
+            "-y",          # Overwrite output
+            mp4_path
+        ])
+        
+        logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+            # Delete TS file after successful conversion
+            os.remove(ts_path)
             
-            # Build ffmpeg command
-            cmd = [
-                "ffmpeg",
-                "-i", ts_path
-            ]
-            
-            # Add chapter file if available
+            # Clean up chapter file
             if chapter_file and os.path.exists(chapter_file):
-                cmd.extend(["-i", chapter_file, "-map_chapters", "1", "-map_metadata", "1"])
-                logger.debug(f"Using chapter file for embedding: {chapter_file}")
+                # Behalte die Datei für Debugging
+                # os.remove(chapter_file)
+                pass
             
-            # Add the rest of the command
-            cmd.extend([
-                "-c", "copy",  # Copy streams without re-encoding
-                "-map", "0:v",  # Map only video streams
-                "-map", "0:a",  # Map only audio streams
-                "-ignore_unknown",  # Ignore unknown streams
-                "-movflags", "+faststart",  # Optimize for web streaming
-                "-y",          # Overwrite output
-                mp4_path
-            ])
+            # Generate metadata immediately after successful remuxing
+            # This ensures all chapter files are created
+            if stream_id:
+                # Starte die Metadaten-Generierung asynchron
+                asyncio.create_task(self._delayed_metadata_generation(stream_id, mp4_path))
+                logger.info(f"Triggered metadata generation for {mp4_path}")
             
-            logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                # Delete TS file after successful conversion
-                os.remove(ts_path)
-                
-                # Clean up chapter file
-                if chapter_file and os.path.exists(chapter_file):
-                    # Behalte die Datei für Debugging
-                    # os.remove(chapter_file)
-                    pass
-                
-                # Generate metadata immediately after successful remuxing
-                # This ensures all chapter files are created
-                if stream_id:
-                    # Starte die Metadaten-Generierung asynchron
-                    asyncio.create_task(self._delayed_metadata_generation(stream_id, mp4_path))
-                    logger.info(f"Triggered metadata generation for {mp4_path}")
-                
-                return True
-            else:
-                stderr_text = stderr.decode('utf-8', errors='ignore')
-                logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
-                return False
-        except Exception as e:
-            logger.error(f"Error during remux: {e}", exc_info=True)
+            return True
+        else:
+            stderr_text = stderr.decode('utf-8', errors='ignore')
+            logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
             return False
-    
+    except Exception as e:
+        logger.error(f"Error during remux: {e}", exc_info=True)
+        return False    
+        
     async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
         """Create a chapters file from stream events for ffmpeg"""
         if not stream_events:  # Keine Events vorhanden
             return None
-        
+            
         # Sort events by timestamp
         events = sorted(stream_events, key=lambda x: x.timestamp)
     
         # Stelle sicher, dass wir ein Start-Kapitel haben
-        if stream.started_at and (not events or (events[0].timestamp - stream.started_at).total_seconds() > 5):
-            # Erstelle ein künstliches Start-Event, wenn das erste Event mehr als 5 Sekunden nach Stream-Start liegt
-            start_event = type('Event', (), {
-                'timestamp': stream.started_at,
-                'title': stream.title or "Stream Start",
-                'category_name': stream.category_name,
-                'event_type': 'stream.start'
-            })
-            events.insert(0, start_event)
+        if stream.started_at:
+            # Prüfen, ob das erste Event nicht direkt beim Stream-Start liegt
+            if not events or (events[0].timestamp - stream.started_at).total_seconds() > 5:
+                # Erstelle ein künstliches Start-Event mit den Stream-Informationen
+                start_event = type('Event', (), {
+                    'timestamp': stream.started_at,
+                    'title': stream.title or f"{stream.streamer.username} Stream" if hasattr(stream, 'streamer') else "Stream Start",
+                    'category_name': stream.category_name or "Unknown",
+                    'event_type': 'stream.start'
+                })
+                events.insert(0, start_event)
     
         # Check if we should use category as chapter title
         use_category_as_title = False
@@ -685,7 +687,7 @@ class RecordingService:
                 f.write(f"title={title}\n")
         
             logger.debug(f"Created ffmpeg chapters file at {f.name} with {len(events)} chapters")
-            return f.name
+            return f.name        
     async def _create_subtitle_chapters(self, stream_events, duration, output_path):
         """Create a subtitle file with chapter markers for better Plex compatibility"""
         if not stream_events:
@@ -737,6 +739,7 @@ class RecordingService:
     
         logger.info(f"Created subtitle chapter file at {subtitle_path}")
         return subtitle_path    
+        
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
         """Generate a filename from template with variables"""
         now = datetime.now()
@@ -746,9 +749,8 @@ class RecordingService:
         game = self._sanitize_filename(stream_data.get("category_name", "unknown"))
         streamer_name = self._sanitize_filename(streamer.username)
         
-        # Eindeutige Stream-ID oder Zeitstempel hinzufügen
-        stream_id = stream_data.get("id", "")
-        timestamp = now.strftime("%H%M%S")  # Stunden, Minuten, Sekunden für Eindeutigkeit
+        # Get next episode number for this streamer
+        episode_number = self._get_next_episode_number(streamer.id)
         
         # Create a dictionary of replaceable values
         values = {
@@ -764,9 +766,10 @@ class RecordingService:
             "second": now.strftime("%S"),
             "timestamp": now.strftime("%Y%m%d_%H%M%S"),
             "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
-            "id": stream_id,
-            "season": f"S{now.year}-{now.month:02d}",
-            "unique": f"{timestamp}_{stream_id[-6:]}"  # Füge einen eindeutigen Identifier hinzu
+            "id": stream_data.get("id", ""),
+            "season": f"S{now.year}{now.month:02d}",
+            "episode": f"E{episode_number:02d}",
+            "unique": f"{now.strftime('%H%M%S')}_{hash(title + game + str(now.timestamp()))}"[-6:]
         }
         
         # Check if template is a preset name
@@ -783,7 +786,22 @@ class RecordingService:
             filename += '.mp4'
             
         return filename
-    
+
+    def _get_next_episode_number(self, streamer_id: int) -> int:
+        """Get the next episode number for a streamer"""
+        try:
+            with SessionLocal() as db:
+                # Get all streams for this streamer
+                streams = db.query(Stream).filter(
+                    Stream.streamer_id == streamer_id
+                ).order_by(Stream.started_at.desc()).all()
+                
+                # Return the count + 1 as the next episode number
+                return len(streams) + 1
+        except Exception as e:
+            logger.error(f"Error getting next episode number: {e}", exc_info=True)
+            # Fallback to a timestamp-based number if database query fails
+            return int(datetime.now().timestamp()) % 1000    
     def _sanitize_filename(self, name: str) -> str:
         """Remove illegal characters from filename"""
         return re.sub(r'[<>:"/\\|?*]', '_', name)
@@ -806,11 +824,10 @@ class RecordingService:
             return recordings
 
 FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}_{unique}",
-    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{day} - {title} - {unique}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title} - {unique}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title} - {unique}",
-    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title} - {unique}",
-    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}-{unique}"
+    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "{streamer}/Season {year}{month}/{streamer} - {season}{episode} - {title}",
+    "emby": "{streamer}/S{year}{month}/{streamer} - {season}{episode} - {title}",
+    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
+    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
 }
-
