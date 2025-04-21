@@ -448,25 +448,95 @@ class RecordingService:
                 f.write(f"{start_str} --> {end_str}\n")
                 f.write(f"{title}\n\n")
         
-        logger.info(f"Created subtitles")
-        """Format seconds to HH:MM:SS.ms format for chapters"""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        seconds = seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
-    
-    def _format_srt_timestamp(self, seconds):
-        """Format seconds to SRT timestamp format HH:MM:SS,mmm"""
-        if seconds < 0:
-            seconds = 0
+        def _format_timestamp(self, seconds):
+            """Format seconds to HH:MM:SS.ms format for chapters"""
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            seconds = seconds % 60
+            return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+        def _format_srt_timestamp(self, seconds):
+            """Format seconds to SRT timestamp format HH:MM:SS,mmm"""
+            if seconds < 0:
+                seconds = 0
+        
+            hours = int(seconds // 3600)
+            seconds %= 3600
+            minutes = int(seconds // 60)
+            seconds %= 60
+            milliseconds = int((seconds - int(seconds)) * 1000)
+            return f"{hours:02d}:{minutes:02d}:{int(seconds):02d},{milliseconds:03d}"
+
+        async def _embed_chapters_in_mp4(self, mp4_path: str, stream_id: int):
+            """Bettet Kapitel direkt in die MP4-Datei ein"""
+            try:
+                with SessionLocal() as db:
+                    # Stream-Events abrufen
+                    events = db.query(StreamEvent).filter(
+                        StreamEvent.stream_id == stream_id
+                    ).order_by(StreamEvent.timestamp).all()
             
-        hours = int(seconds // 3600)
-        seconds %= 3600
-        minutes = int(seconds // 60)
-        seconds %= 60
-        milliseconds = int((seconds - int(seconds)) * 1000)
-        return f"{hours:02d}:{minutes:02d}:{int(seconds):02d},{milliseconds:03d}"
-    async def _monitor_process(self, process: asyncio.subprocess.Process, streamer_name: str, ts_path: str, mp4_path: str) -> None:
+                    if not events or len(events) < 2:
+                        logger.warning(f"Not enough events to create chapters for stream {stream_id}")
+                        return
+            
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if not stream:
+                        logger.warning(f"Stream {stream_id} not found for chapter embedding")
+                        return
+            
+                    # Temporäre Datei für Kapitel erstellen
+                    chapter_file = await self._create_ffmpeg_chapters_file(events, 
+                                                                 (stream.ended_at - stream.started_at).total_seconds() if stream.ended_at else 
+                                                                 (datetime.now(timezone.utc) - stream.started_at).total_seconds(), 
+                                                                 stream)
+            
+                    if not chapter_file or not os.path.exists(chapter_file):
+                        logger.warning(f"Failed to create chapter file for stream {stream_id}")
+                        return
+            
+                    # Temporäre Ausgabedatei
+                    output_path = mp4_path.replace('.mp4', '_chaptered.mp4')
+            
+                    # FFmpeg-Befehl zum Einbetten der Kapitel
+                    cmd = [
+                        "ffmpeg",
+                        "-i", mp4_path,
+                        "-i", chapter_file,
+                        "-map_chapters", "1",  # Kapitel aus der zweiten Eingabedatei verwenden
+                        "-map", "0",           # Alle Streams aus der ersten Eingabedatei verwenden
+                        "-c", "copy",          # Keine Neukodierung
+                        "-y",                  # Überschreiben
+                        output_path
+                    ]
+            
+                    logger.debug(f"Embedding chapters with command: {' '.join(cmd)}")
+            
+                    process = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+            
+                    stdout, stderr = await process.communicate()
+            
+                    if process.returncode == 0:
+                        # Ersetze die ursprüngliche Datei
+                        os.replace(output_path, mp4_path)
+                        logger.info(f"Successfully embedded chapters in {mp4_path}")
+                
+                        # Lösche die temporäre Kapiteldatei
+                        if os.path.exists(chapter_file):
+                            os.remove(chapter_file)
+                    else:
+                        stderr_text = stderr.decode('utf-8', errors='ignore')
+                        logger.error(f"Failed to embed chapters: {stderr_text}")
+                
+                        # Lösche die temporäre Ausgabedatei bei Fehler
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+            except Exception as e:
+                logger.error(f"Error embedding chapters in MP4: {e}", exc_info=True)    async def _monitor_process(self, process: asyncio.subprocess.Process, streamer_name: str, ts_path: str, mp4_path: str) -> None:
         """Monitor recording process and convert TS to MP4 when finished"""
         try:
             stdout, stderr = await process.communicate()
