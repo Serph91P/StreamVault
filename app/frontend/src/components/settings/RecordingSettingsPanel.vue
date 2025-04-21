@@ -488,8 +488,7 @@ const data = ref<RecordingSettings>({
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
   use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false // Neue Eigenschaft initialisieren
-});
-const updateFilenameTemplate = () => {
+});const updateFilenameTemplate = () => {
   const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
   if (preset) {
     data.value.filename_template = preset.description;
@@ -547,7 +546,15 @@ const previewFilename = computed(() => {
 const saveSettings = async () => {
   try {
     isSaving.value = true;
-    emits('update', data.value);
+    emits('update', {
+      enabled: data.value.enabled,
+      output_directory: data.value.output_directory,
+      filename_template: data.value.filename_template,
+      filename_preset: data.value.filename_preset,
+      default_quality: data.value.default_quality,
+      use_chapters: data.value.use_chapters,
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+    });
   } catch (error) {
     console.error('Failed to save settings:', error);
     alert('Failed to save settings. Please try again.');
@@ -555,7 +562,6 @@ const saveSettings = async () => {
     isSaving.value = false;
   }
 };
-
 const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
   emits('updateStreamer', streamerId, settings);
 };

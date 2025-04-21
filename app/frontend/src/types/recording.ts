@@ -5,8 +5,8 @@ export interface RecordingSettings {
   filename_preset?: string;
   default_quality: string;
   use_chapters: boolean;
+  use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
 }
-
 export interface StreamerRecordingSettings {
   streamer_id: number;
   username: string;
