@@ -57,6 +57,10 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             existing_settings.default_quality = settings_data.default_quality
             existing_settings.use_chapters = settings_data.use_chapters
             
+            # Füge das neue Feld hinzu
+            if hasattr(settings_data, 'use_category_as_chapter_title'):
+                existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
+            
             # Save changes
             db.commit()
             # This refreshes the instance after commit so it's bound to the session
@@ -65,8 +69,8 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             return existing_settings
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        raise HTTPException(status_code=500, detail=str(e))    
+        
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
 async def get_all_streamer_recording_settings():
     try:

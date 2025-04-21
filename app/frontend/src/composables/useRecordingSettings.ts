@@ -79,8 +79,7 @@ export function useRecordingSettings() {
     } finally {
       isLoading.value = false;
     }
-  };
-  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
+  };  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
     try {
       isLoading.value = true;
       error.value = null;

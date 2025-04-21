@@ -675,6 +675,10 @@ class RecordingService:
                 f.write(f"title={title}\n")
             
             logger.debug(f"Created ffmpeg chapters file at {f.name} with {len(events)} chapters")
+            return f.name                f.write(f"END={int(end_time)}\n")
+                f.write(f"title={title}\n")
+            
+            logger.debug(f"Created ffmpeg chapters file at {f.name} with {len(events)} chapters")
             return f.name
     
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
