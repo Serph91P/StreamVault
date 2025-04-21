@@ -40,10 +40,12 @@ class ThumbnailService:
             
             # Verzeichnis erstellen
             os.makedirs(output_dir, exist_ok=True)
-            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_thumbnail.jpg")
             
-            # Mehrere Versuche, um das Thumbnail zu bekommen
-            for attempt in range(max_retries):
+            # Eindeutigen Dateinamen erstellen mit Stream-ID und Datum
+            date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
+            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
+            
+            # Mehrere Versuche, um das Thumbnail zu bekommen            for attempt in range(max_retries):
                 try:
                     # URL generieren mit neuem Timestamp bei jedem Versuch
                     url = await self.get_stream_thumbnail(stream.streamer.username)
@@ -142,7 +144,10 @@ class ThumbnailService:
             
             # Verzeichnis erstellen
             os.makedirs(output_dir, exist_ok=True)
-            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_thumbnail.jpg")
+            
+            # Eindeutigen Dateinamen erstellen mit Stream-ID und Datum
+            date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
+            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
             
             # Zuerst versuchen, das Twitch-Thumbnail zu laden
             twitch_thumbnail = await self.download_thumbnail(stream_id, output_dir)

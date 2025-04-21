@@ -126,9 +126,21 @@ const handleBack = () => {
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue: number): boolean => {
-  return activeRecordings.value.some(rec => rec.streamer_id === streamerIdValue)
+  // Stellen wir sicher, dass activeRecordings ein Array ist
+  if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
+    return false;
+  }
+  
+  // Debugging-Ausgabe
+  console.log("Active recordings:", activeRecordings.value);
+  console.log("Checking for streamer ID:", streamerIdValue);
+  
+  // Prüfen, ob ein Eintrag für diesen Streamer existiert
+  return activeRecordings.value.some(rec => {
+    console.log("Comparing with recording:", rec);
+    return rec.streamer_id === streamerIdValue;
+  });
 }
-
 // Aufnahme starten
 const startRecording = async (streamerIdValue: number) => {
   try {
@@ -179,15 +191,24 @@ const stopRecording = async (streamerIdValue: number) => {
 // Daten laden
 const loadStreams = async () => {
   if (streamerId.value) {
-    await fetchStreams(streamerId.value)
-    await fetchActiveRecordings()
+    await fetchStreams(streamerId.value);
+    await fetchActiveRecordings();
+    console.log("Loaded active recordings:", activeRecordings.value);
   }
 }
 
 onMounted(async () => {
-  await loadStreams()
-})
-
+  await loadStreams();
+  // Alle 10 Sekunden aktive Aufnahmen aktualisieren
+  const interval = setInterval(async () => {
+    await fetchActiveRecordings();
+  }, 10000);
+  
+  // Cleanup beim Unmount
+  onUnmounted(() => {
+    clearInterval(interval);
+  });
+});
 // WebSocket-Nachrichten überwachen
 watch(messages, (newMessages) => {
   if (newMessages.length === 0) return

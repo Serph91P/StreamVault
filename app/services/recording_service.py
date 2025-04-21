@@ -777,7 +777,7 @@ class RecordingService:
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
         """Get a list of all active recordings"""
         async with self.lock:
-            return [
+            recordings = [
                 {
                     "streamer_id": streamer_id,
                     "streamer_name": info["streamer_name"],
@@ -788,7 +788,8 @@ class RecordingService:
                 }
                 for streamer_id, info in self.active_recordings.items()
             ]
-
+            logger.debug(f"Active recordings: {recordings}")
+            return recordings
 FILENAME_PRESETS = {
     "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
     "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{day} - {title}",
