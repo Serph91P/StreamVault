@@ -63,7 +63,7 @@
         <select v-model="data.default_quality" class="form-control">
           <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
-          </option>Create Chapters From Stream Events
+          </option>
         </select>
         <div class="help-text">
           Default quality for all streamers. This can be overridden on a per-streamer basis.
@@ -185,6 +185,150 @@
       </template>
     </div>
   </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue';
+import { useRecordingSettings } from '@/composables/useRecordingSettings';
+import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
+import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+
+const props = defineProps<{
+  settings: RecordingSettings | null;
+  streamerSettings: StreamerRecordingSettings[];
+  activeRecordings: any[];
+}>();
+
+const emits = defineEmits<{
+  update: [settings: RecordingSettings];
+  updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
+  testRecording: [streamerId: number];
+  stopRecording: [streamerId: number];
+}>();
+
+const { isLoading, error } = useRecordingSettings();
+
+// Create a copy of the settings for editing
+const data = ref<RecordingSettings>({
+  enabled: props.settings?.enabled ?? false,
+  output_directory: props.settings?.output_directory ?? '/recordings',
+  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
+  filename_preset: props.settings?.filename_preset,
+  default_quality: props.settings?.default_quality ?? 'best',
+  use_chapters: props.settings?.use_chapters ?? true,
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
+});
+
+const updateFilenameTemplate = () => {
+  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
+  if (preset) {
+    data.value.filename_template = preset.description;
+  }
+};
+
+// Update local data when props change
+watch(() => props.settings, (newSettings) => {
+  if (newSettings) {
+    data.value = { ...newSettings };
+  }
+}, { deep: true });
+
+const isSaving = ref(false);
+
+// Preview filename with example data
+const previewFilename = computed(() => {
+  if (!data.value.filename_template) return '';
+
+  const now = new Date();
+  const year = now.getFullYear().toString();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  const hour = now.getHours().toString().padStart(2, '0');
+  const minute = now.getMinutes().toString().padStart(2, '0');
+  const second = now.getSeconds().toString().padStart(2, '0');
+
+  let filename = data.value.filename_template;
+
+  // Replace variables
+  filename = filename
+    .replace(/{streamer}/g, 'example_streamer')
+    .replace(/{title}/g, 'Example Stream Title')
+    .replace(/{game}/g, 'Example Game')
+    .replace(/{twitch_id}/g, '123456789')
+    .replace(/{year}/g, year)
+    .replace(/{month}/g, month)
+    .replace(/{day}/g, day)
+    .replace(/{hour}/g, hour)
+    .replace(/{minute}/g, minute)
+    .replace(/{second}/g, second)
+    .replace(/{timestamp}/g, `${year}${month}${day}_${hour}${minute}${second}`)
+    .replace(/{datetime}/g, `${year}-${month}-${day}_${hour}-${minute}-${second}`)
+    .replace(/{id}/g, 'stream_12345')
+    .replace(/{season}/g, `S${year}-${month}`);
+
+  // Add .mp4 if not present
+  if (!filename.toLowerCase().endsWith('.mp4')) {
+    filename += '.mp4';
+  }
+
+  return filename;
+});
+
+const saveSettings = async () => {
+  try {
+    isSaving.value = true;
+    emits('update', {
+      enabled: data.value.enabled,
+      output_directory: data.value.output_directory,
+      filename_template: data.value.filename_template,
+      filename_preset: data.value.filename_preset,
+      default_quality: data.value.default_quality,
+      use_chapters: data.value.use_chapters,
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+    });
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+    alert('Failed to save settings. Please try again.');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
+  emits('updateStreamer', streamerId, settings);
+};
+
+const toggleAllStreamers = async (enabled: boolean) => {
+  if (!props.streamerSettings) return;
+
+  for (const streamer of props.streamerSettings) {
+    if (!streamer?.streamer_id) continue;
+    await updateStreamerSetting(streamer.streamer_id, { enabled });
+  }
+};
+
+const testRecording = (streamerId: number) => {
+  emits('testRecording', streamerId);
+};
+
+const stopRecording = (streamerId: number) => {
+  emits('stopRecording', streamerId);
+};
+
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleString();
+};
+
+const formatDuration = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+};
+
+const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
+  updateStreamerSetting(streamerId, { enabled });
+};
+</script>
 
 <style scoped>
 /* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
@@ -455,171 +599,7 @@
   font-size: 0.9rem;
   word-break: break-all;
 }
-</style>
-</template>
 
-<script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useRecordingSettings } from '@/composables/useRecordingSettings';
-import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
-import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
-
-const props = defineProps<{
-  settings: RecordingSettings | null;
-  streamerSettings: StreamerRecordingSettings[];
-  activeRecordings: any[];
-}>();
-
-const emits = defineEmits<{
-  update: [settings: RecordingSettings];
-  updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
-  testRecording: [streamerId: number];
-  stopRecording: [streamerId: number];
-}>();
-
-const { isLoading, error } = useRecordingSettings();
-
-// Create a copy of the settings for editing
-const data = ref<RecordingSettings>({
-  enabled: props.settings?.enabled ?? false,
-  output_directory: props.settings?.output_directory ?? '/recordings',
-  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
-  filename_preset: props.settings?.filename_preset,
-  default_quality: props.settings?.default_quality ?? 'best',
-  use_chapters: props.settings?.use_chapters ?? true,
-  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false // Neue Eigenschaft initialisieren
-});
-
-const saveSettings = async () => {
-  try {
-    isSaving.value = true;
-    emits('update', {
-      enabled: data.value.enabled,
-      output_directory: data.value.output_directory,
-      filename_template: data.value.filename_template,
-      filename_preset: data.value.filename_preset,
-      default_quality: data.value.default_quality,
-      use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title
-    });
-  } catch (error) {
-    console.error('Failed to save settings:', error);
-    alert('Failed to save settings. Please try again.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const updateFilenameTemplate = () => {  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
-  if (preset) {
-    data.value.filename_template = preset.description;
-  }
-};
-
-// Update local data when props change
-watch(() => props.settings, (newSettings) => {
-  if (newSettings) {
-    data.value = { ...newSettings };
-  }
-}, { deep: true });
-
-const isSaving = ref(false);
-
-// Preview filename with example data
-const previewFilename = computed(() => {
-  if (!data.value.filename_template) return '';
-
-  const now = new Date();
-  const year = now.getFullYear().toString();
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  const day = now.getDate().toString().padStart(2, '0');
-  const hour = now.getHours().toString().padStart(2, '0');
-  const minute = now.getMinutes().toString().padStart(2, '0');
-  const second = now.getSeconds().toString().padStart(2, '0');
-
-  let filename = data.value.filename_template;
-
-  // Replace variables
-  filename = filename
-    .replace(/{streamer}/g, 'example_streamer')
-    .replace(/{title}/g, 'Example Stream Title')
-    .replace(/{game}/g, 'Example Game')
-    .replace(/{twitch_id}/g, '123456789')
-    .replace(/{year}/g, year)
-    .replace(/{month}/g, month)
-    .replace(/{day}/g, day)
-    .replace(/{hour}/g, hour)
-    .replace(/{minute}/g, minute)
-    .replace(/{second}/g, second)
-    .replace(/{timestamp}/g, `${year}${month}${day}_${hour}${minute}${second}`)
-    .replace(/{datetime}/g, `${year}-${month}-${day}_${hour}-${minute}-${second}`)
-    .replace(/{id}/g, 'stream_12345')
-    .replace(/{season}/g, `S${year}-${month}`);
-
-  // Add .mp4 if not present
-  if (!filename.toLowerCase().endsWith('.mp4')) {
-    filename += '.mp4';
-  }
-
-  return filename;
-});
-
-const saveSettings = async () => {
-  try {
-    isSaving.value = true;
-    emits('update', {
-      enabled: data.value.enabled,
-      output_directory: data.value.output_directory,
-      filename_template: data.value.filename_template,
-      filename_preset: data.value.filename_preset,
-      default_quality: data.value.default_quality,
-      use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title
-    });
-  } catch (error) {
-    console.error('Failed to save settings:', error);
-    alert('Failed to save settings. Please try again.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
-  emits('updateStreamer', streamerId, settings);
-};
-
-const toggleAllStreamers = async (enabled: boolean) => {
-  if (!props.streamerSettings) return;
-
-  for (const streamer of props.streamerSettings) {
-    if (!streamer?.streamer_id) continue;
-    await updateStreamerSetting(streamer.streamer_id, { enabled });
-  }
-};
-
-const testRecording = (streamerId: number) => {
-  emits('testRecording', streamerId);
-};
-
-const stopRecording = (streamerId: number) => {
-  emits('stopRecording', streamerId);
-};
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleString();
-};
-
-const formatDuration = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
-};
-
-const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
-  updateStreamerSetting(streamerId, { enabled });
-};
-</script>
-
-<style scoped>
 .active-recordings {
   margin-top: 2rem;
 }
@@ -678,6 +658,7 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 .variable-item {
   font-size: 0.85rem;
 }
+
 .filename-preview {
   margin-top: 0.5rem;
   padding: 0.5rem;
@@ -688,6 +669,7 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   color: #f8f9fa;
   border: 1px solid #495057;
 }
+
 .streamer-settings {
   margin-top: 2rem;
 }
@@ -804,5 +786,76 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   font-weight: normal;
   color: #adadb8;
   margin-top: 0.25rem;
+}
+
+.settings-form {
+  margin-bottom: 30px;
+  background-color: #1f1f23;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #333;
+  background-color: #18181b;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color, #42b883);
+  color: white;
+}
+
+.btn-secondary {
+  background-color: var(--background-darker, #3a3a3a);
+  color: white;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>
