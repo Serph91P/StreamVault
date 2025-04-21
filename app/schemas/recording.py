@@ -9,10 +9,10 @@ class RecordingSettingsSchema(BaseModel):
     default_quality: str = Field(default="best", description="Default recording quality")
     use_chapters: bool = Field(default=True, description="Create chapters based on stream events")
     max_concurrent_recordings: int = Field(default=3, description="Maximum concurrent recordings")
+    use_category_as_chapter_title: bool = Field(default=False, description="Use category name as chapter title instead of stream title")
 
     class Config:
         from_attributes = True
-
 class StreamerRecordingSettingsSchema(BaseModel):
     streamer_id: int
     username: Optional[str] = None

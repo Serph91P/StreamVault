@@ -80,6 +80,16 @@
         </div>
       </div>
 
+      <div class="form-group">
+        <label>
+          <input type="checkbox" v-model="data.use_category_as_chapter_title" />
+          Use Category as Chapter Title
+        </label>
+        <div class="help-text">
+          When enabled, chapter titles will use the game/category name instead of the stream title.
+        </div>
+      </div>
+
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}

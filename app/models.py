@@ -119,8 +119,8 @@ class RecordingSettings(Base):
     filename_template = Column(String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}")
     default_quality = Column(String, default="best")
     use_chapters = Column(Boolean, default=True)
-    filename_preset = Column(String, default="default")   
-     
+    filename_preset = Column(String, default="default")
+    use_category_as_chapter_title = Column(Boolean, default=False)     
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
     
