@@ -623,7 +623,9 @@ class RecordingService:
                 return False
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
-            return False    async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
+            return False    
+            
+    async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
         """Create a chapters file from stream events for ffmpeg"""
         if not stream_events:  # Keine Events vorhanden
             return None
