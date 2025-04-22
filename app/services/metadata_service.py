@@ -441,13 +441,30 @@ class MetadataService:
                 if stream.started_at:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
                 
-                for i, event in enumerate(events):
+                # Stelle sicher, dass wir ein Start-Kapitel haben
+                sorted_events = sorted(events, key=lambda x: x.timestamp)
+                
+                # Füge ein Start-Kapitel hinzu, wenn das erste Event nicht direkt am Anfang ist
+                if stream.started_at and (not sorted_events or (sorted_events[0].timestamp - stream.started_at).total_seconds() > 1):
+                    # Erstelle ein künstliches Start-Event
+                    start_event = type('Event', (), {
+                        'timestamp': stream.started_at,
+                        'title': stream.title or "Stream Start",
+                        'category_name': stream.category_name or "Unknown",
+                        'event_type': 'stream.start'
+                    })
+                    sorted_events.insert(0, start_event)
+                
+                # Verwende nur die Kategorie als Kapiteltitel
+                use_category_as_title = True
+                
+                for i, event in enumerate(sorted_events):
                     # Start-Zeit des Events
                     start_time = event.timestamp
                     
                     # End-Zeit ist entweder der nächste Event oder das Stream-Ende
-                    if i < len(events) - 1:
-                        end_time = events[i+1].timestamp
+                    if i < len(sorted_events) - 1:
+                        end_time = sorted_events[i+1].timestamp
                     elif stream.ended_at:
                         end_time = stream.ended_at
                     else:
@@ -464,11 +481,12 @@ class MetadataService:
                         end_offset_ms = 24 * 60 * 60 * 1000  # 24 Stunden
                     
                     # Kapitel-Titel erstellen
-                    title = event.title or "Stream"
-                    if event.category_name:
-                        title += f" ({event.category_name})"
+                    if use_category_as_title and hasattr(event, 'category_name') and event.category_name:
+                        title = event.category_name
                     else:
-                        title = "Stream"
+                        title = event.title or "Stream"
+                        if hasattr(event, 'category_name') and event.category_name and not use_category_as_title:
+                            title += f" ({event.category_name})"
                     
                     # Kapitel-Eintrag schreiben
                     f.write("\n[CHAPTER]\n")

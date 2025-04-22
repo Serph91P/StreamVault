@@ -45,7 +45,8 @@ class ThumbnailService:
             date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
             thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
             
-            # Mehrere Versuche, um das Thumbnail zu bekommen            for attempt in range(max_retries):
+            # Mehrere Versuche, um das Thumbnail zu bekommen
+            for attempt in range(max_retries):
                 try:
                     # URL generieren mit neuem Timestamp bei jedem Versuch
                     url = await self.get_stream_thumbnail(stream.streamer.username)
