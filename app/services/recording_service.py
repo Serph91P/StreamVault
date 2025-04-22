@@ -517,18 +517,42 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
-        """Remux TS file to MP4 without re-encoding to preserve quality and embed chapters"""
+        """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
-            # Check if we should add chapters
-            chapter_file = None
-            with SessionLocal() as db:
-                # Get global recording settings
-                settings = db.query(RecordingSettings).first()
-                
-                if settings and settings.use_chapters:
+            # Step 1: First just do a basic remux without chapters
+            cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c", "copy",          # Copy streams without re-encoding
+                "-map", "0:v",         # Map video streams
+                "-map", "0:a",         # Map audio streams
+                "-ignore_unknown",     # Ignore unknown streams
+                "-movflags", "+faststart",  # Optimize for web streaming
+                "-y",                  # Overwrite output
+                mp4_path
+            ]
+        
+            logger.debug(f"Starting basic FFmpeg remux: {' '.join(cmd)}")
+        
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+        
+            if process.returncode == 0:
+                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+            
+                # Delete TS file after successful conversion
+                os.remove(ts_path)
+            
+                # Step 2: If we have a stream, try to add chapters in a separate step
+                with SessionLocal() as db:
                     # Find the stream by output path
                     streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
-                    if streamer_name:
+                    if streamer_name and os.path.exists(mp4_path):
                         # Get the streamer
                         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                         if streamer:
@@ -543,57 +567,14 @@ class RecordingService:
                                     StreamEvent.stream_id == stream.id
                                 ).all()
                                 
-                                if events:
-                                    duration = (datetime.now() - stream.started_at).total_seconds()
-                                    chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
-        
-            # Build ffmpeg command
-            cmd = [
-                "ffmpeg",
-                "-i", ts_path
-            ]
-        
-            # Add chapter file if available
-            if chapter_file:
-                cmd.extend(["-i", chapter_file, "-map_metadata", "1"])
-        
-            # Add the rest of the command
-            cmd.extend([
-                "-c", "copy",  # Copy streams without re-encoding
-                "-map", "0:v",  # Map video streams
-                "-map", "0:a",  # Map audio streams
-                # "-map", "0",  # DON'T map ALL streams as this includes timed_id3 data
-                "-ignore_unknown",  # Ignore unknown streams
-                "-movflags", "+faststart",  # Optimize for web streaming
-                "-y",          # Overwrite output
-                mp4_path
-            ])
-        
-            logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
-        
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-        
-            stdout, stderr = await process.communicate()
-        
-            if process.returncode == 0:
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                # Delete TS file after successful conversion
-                os.remove(ts_path)
-                # Clean up chapter file
-                if chapter_file and os.path.exists(chapter_file):
-                    os.remove(chapter_file)
+                                if events and len(events) > 0:
+                                    # Try to add chapters
+                                    await self._add_chapters_to_mp4(stream, events, mp4_path)
             
-                # Generate metadata immediately after successful remuxing
-                # This ensures all chapter files are created
-                mp4_base_path = Path(mp4_path).parent
-                mp4_filename = Path(mp4_path).stem
-            
-                # Only if we have a stream ID
+                # Generate metadata after successful remuxing
+                stream_id = None
                 if 'stream' in locals() and stream:
+                    stream_id = stream.id
                     # Import MetadataService here to avoid circular imports
                     from app.services.metadata_service import MetadataService
                     metadata_service = MetadataService()
@@ -606,9 +587,111 @@ class RecordingService:
             else:
                 stderr_text = stderr.decode('utf-8', errors='ignore')
                 logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
+            
+                # Try with even more basic parameters if the first attempt failed
+                if "Could not find tag for codec timed_id3" in stderr_text:
+                    logger.info("Retrying with more restricted stream mapping due to timed_id3 error")
+                    return await self._remux_to_mp4_fallback(ts_path, mp4_path)
+            
                 return False
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
+            return False
+
+    async def _remux_to_mp4_fallback(self, ts_path: str, mp4_path: str) -> bool:
+        """Fallback method for remuxing with even more restrictive options"""
+        try:
+            cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c:v", "copy",       # Copy video codec
+                "-c:a", "copy",       # Copy audio codec
+                "-map", "0:v:0",      # Map only the first video stream
+                "-map", "0:a:0",      # Map only the first audio stream
+                "-movflags", "+faststart",
+                "-y",
+                mp4_path
+            ]
+        
+            logger.debug(f"Starting fallback FFmpeg remux: {' '.join(cmd)}")
+        
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+        
+            if process.returncode == 0:
+                logger.info(f"Successfully remuxed using fallback method: {ts_path} to {mp4_path}")
+                # Delete TS file after successful conversion
+                os.remove(ts_path)
+                return True
+            else:
+                stderr_text = stderr.decode('utf-8', errors='ignore')
+                logger.error(f"Fallback FFmpeg remux failed with code {process.returncode}: {stderr_text}")
+                return False
+        except Exception as e:
+            logger.error(f"Error during fallback remux: {e}", exc_info=True)
+            return False
+
+    async def _add_chapters_to_mp4(self, stream, events, mp4_path: str) -> bool:
+        """Add chapters to an existing MP4 file"""
+        try:
+            # Create temporary chapter file
+            chapter_file = await self._create_ffmpeg_chapters_file(events, 
+                                                             (stream.ended_at - stream.started_at).total_seconds() 
+                                                             if stream.ended_at and stream.started_at 
+                                                             else 3600, 
+                                                             stream)
+        
+            if not chapter_file:
+                logger.warning("No chapter file created, skipping chapter addition")
+                return False
+        
+            # Create a temporary output file
+            temp_output = f"{mp4_path}.temp.mp4"
+        
+            # FFmpeg command to add chapters
+            cmd = [
+                "ffmpeg",
+                "-i", mp4_path,
+                "-i", chapter_file,
+                "-map_metadata", "1",  # Apply metadata from the second input
+                "-codec", "copy",      # Don't re-encode
+                "-y",                  # Overwrite output
+                temp_output
+            ]
+        
+            logger.debug(f"Adding chapters with FFmpeg: {' '.join(cmd)}")
+        
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+        
+            # Clean up chapter file
+            if os.path.exists(chapter_file):
+                os.remove(chapter_file)
+        
+            if process.returncode == 0:
+                # Replace original with the new file that has chapters
+                os.replace(temp_output, mp4_path)
+                logger.info(f"Successfully added chapters to {mp4_path}")
+                return True
+            else:
+                stderr_text = stderr.decode('utf-8', errors='ignore')
+                logger.error(f"Failed to add chapters: {stderr_text}")
+                # Don't leave partial temp files
+                if os.path.exists(temp_output):
+                    os.remove(temp_output)
+                return False
+        except Exception as e:
+            logger.error(f"Error adding chapters to MP4: {e}", exc_info=True)
             return False
             
     async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
