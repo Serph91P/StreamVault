@@ -140,7 +140,12 @@ class ThumbnailService:
         """Stellt sicher, dass ein Thumbnail existiert - versucht zuerst Twitch, dann Video-Extraktion"""
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream or not stream.streamer:
+            if not stream:
+                return None
+            
+            # Streamer abrufen (anstatt stream.streamer zu verwenden)
+            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            if not streamer:
                 return None
             
             # Verzeichnis erstellen
@@ -148,7 +153,7 @@ class ThumbnailService:
             
             # Eindeutigen Dateinamen erstellen mit Stream-ID und Datum
             date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
-            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
+            thumbnail_path = os.path.join(output_dir, f"{streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
             
             # Zuerst versuchen, das Twitch-Thumbnail zu laden
             twitch_thumbnail = await self.download_thumbnail(stream_id, output_dir)
@@ -200,5 +205,4 @@ class ThumbnailService:
                         except Exception as e:
                             logger.error(f"Error extracting thumbnail from video: {e}", exc_info=True)
             
-            # Wenn wir hier sind, haben wir entweder ein Twitch-Thumbnail oder gar keins
-            return twitch_thumbnail
+            # Wenn wir hier sind, haben wir entweder ein Twitch-Thumbnail oder gar keins            return twitch_thumbnail
