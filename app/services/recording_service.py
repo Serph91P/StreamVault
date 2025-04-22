@@ -515,115 +515,116 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
-    async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
-        """Remux TS file to MP4 without re-encoding to preserve quality and embed chapters"""
-        try:
-            # Check if we should add chapters
-            chapter_file = None
-            stream_id = None
-            with SessionLocal() as db:
-                # Find the stream by output path
-                streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
-                if streamer_name:
-                    # Get the streamer
-                    streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
-                    if streamer:
-                        # Find the most recent stream for this streamer
-                        stream = db.query(Stream).filter(
-                            Stream.streamer_id == streamer.id
-                        ).order_by(Stream.started_at.desc()).first()
-                        
-                        if stream:
-                            stream_id = stream.id
-                            # Get stream events
-                            events = db.query(StreamEvent).filter(
-                                StreamEvent.stream_id == stream.id
-                            ).all()
+        async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
+            """Remux TS file to MP4 without re-encoding to preserve quality and embed chapters"""
+            try:
+                # Check if we should add chapters
+                chapter_file = None
+                stream_id = None
+                with SessionLocal() as db:
+                    # Find the stream by output path
+                    streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
+                    if streamer_name:
+                        # Get the streamer
+                        streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                        if streamer:
+                            # Find the most recent stream for this streamer
+                            stream = db.query(Stream).filter(
+                                Stream.streamer_id == streamer.id
+                            ).order_by(Stream.started_at.desc()).first()
                             
-                            # Wenn keine Events vorhanden sind, erstelle ein Start-Event
-                            if not events and stream.started_at:
-                                start_event = StreamEvent(
-                                    stream_id=stream.id,
-                                    event_type="stream.start",
-                                    title=stream.title,
-                                    category_name=stream.category_name,
-                                    timestamp=stream.started_at
-                                )
-                                db.add(start_event)
-                                db.commit()
-                                
-                                # Events neu laden
+                            if stream:
+                                stream_id = stream.id
+                                # Get stream events
                                 events = db.query(StreamEvent).filter(
                                     StreamEvent.stream_id == stream.id
                                 ).all()
-                            
-                            if events:
-                                duration = (datetime.now() - stream.started_at).total_seconds() if stream.started_at else 0
-                                chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
-                                logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
-            
-            # Temporäre Ausgabedatei für bessere Fehlerbehandlung
-            temp_output = mp4_path + ".temp.mp4"
-            
-            # Build ffmpeg command
-            cmd = [
-                "ffmpeg",
-                "-i", ts_path
-            ]
-            
-            # Add chapter file if available
-            if chapter_file and os.path.exists(chapter_file):
-                cmd.extend(["-i", chapter_file, "-map_chapters", "1", "-map_metadata", "1"])
-                logger.debug(f"Using chapter file for embedding: {chapter_file}")
-            
-            # Add the rest of the command
-            cmd.extend([
-                "-c", "copy",  # Copy streams without re-encoding
-                "-map", "0:v",  # Map only video streams
-                "-map", "0:a",  # Map only audio streams
-                "-ignore_unknown",  # Ignore unknown streams
-                "-movflags", "+faststart",  # Optimize for web streaming
-                "-y",          # Overwrite output
-                temp_output
-            ])
-            
-            logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                # Verschiebe die temporäre Datei zur endgültigen Datei
-                os.replace(temp_output, mp4_path)
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+                                
+                                # Wenn keine Events vorhanden sind, erstelle ein Start-Event
+                                if not events and stream.started_at:
+                                    start_event = StreamEvent(
+                                        stream_id=stream.id,
+                                        event_type="stream.start",
+                                        title=stream.title,
+                                        category_name=stream.category_name,
+                                        timestamp=stream.started_at
+                                    )
+                                    db.add(start_event)
+                                    db.commit()
+                                    
+                                    # Events neu laden
+                                    events = db.query(StreamEvent).filter(
+                                        StreamEvent.stream_id == stream.id
+                                    ).all()
+                                
+                                if events:
+                                    duration = (datetime.now() - stream.started_at).total_seconds() if stream.started_at else 0
+                                    chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
+                                    logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
                 
-                # Delete TS file after successful conversion
-                os.remove(ts_path)
+                # Temporäre Ausgabedatei für bessere Fehlerbehandlung
+                temp_output = mp4_path + ".temp.mp4"
                 
-                # Generate metadata immediately after successful remuxing
-                if stream_id:
-                    # Starte die Metadaten-Generierung asynchron
-                    asyncio.create_task(self._delayed_metadata_generation(stream_id, mp4_path))
-                    logger.info(f"Triggered metadata generation for {mp4_path}")
+                # Build ffmpeg command
+                cmd = [
+                    "ffmpeg",
+                    "-i", ts_path
+                ]
                 
-                return True
-            else:
-                stderr_text = stderr.decode('utf-8', errors='ignore')
-                logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
+                # Add chapter file if available
+                if chapter_file and os.path.exists(chapter_file):
+                    # Explicitly specify ffmetadata format for better compatibility
+                    cmd.extend(["-f", "ffmetadata", "-i", chapter_file, "-map_chapters", "1", "-map_metadata", "1"])
+                    logger.debug(f"Using chapter file for embedding: {chapter_file}")
                 
-                # Lösche die temporäre Datei bei Fehler
-                if os.path.exists(temp_output):
-                    os.remove(temp_output)
+                # Add the rest of the command
+                cmd.extend([
+                    "-c", "copy",  # Copy streams without re-encoding
+                    "-map", "0",   # Map all streams from first input
+                    "-ignore_unknown",  # Ignore unknown streams
+                    "-movflags", "+faststart+use_metadata_tags",  # Add use_metadata_tags for better compatibility
+                    "-y",          # Overwrite output
+                    temp_output
+                ])
+                
+                logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    # Verschiebe die temporäre Datei zur endgültigen Datei
+                    os.replace(temp_output, mp4_path)
+                    logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
                     
+                    # Delete TS file after successful conversion
+                    os.remove(ts_path)
+                    
+                    # Generate metadata immediately after successful remuxing
+                    if stream_id:
+                        # Starte die Metadaten-Generierung asynchron
+                        asyncio.create_task(self._delayed_metadata_generation(stream_id, mp4_path))
+                        logger.info(f"Triggered metadata generation for {mp4_path}")
+                    
+                    return True
+                else:
+                    stderr_text = stderr.decode('utf-8', errors='ignore')
+                    logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
+                    
+                    # Lösche die temporäre Datei bei Fehler
+                    if os.path.exists(temp_output):
+                        os.remove(temp_output)
+                        
+                    return False
+            except Exception as e:
+                logger.error(f"Error during remux: {e}", exc_info=True)
                 return False
-        except Exception as e:
-            logger.error(f"Error during remux: {e}", exc_info=True)
-            return False    
+
             
     async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
         """Create a chapters file from stream events for ffmpeg"""
@@ -801,8 +802,17 @@ class RecordingService:
         """Get the next episode number for a streamer"""
         try:
             with SessionLocal() as db:
-                # Get all streams for this streamer
-                streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).order_by(Stream.started_at.desc()).all()
+                # Get current month and year
+                now = datetime.now()
+                current_month = now.month
+                current_year = now.year
+                
+                # Get all streams for this streamer in the current month and year
+                streams = db.query(Stream).filter(
+                    Stream.streamer_id == streamer_id,
+                    extract('year', Stream.started_at) == current_year,
+                    extract('month', Stream.started_at) == current_month
+                ).order_by(Stream.started_at.desc()).all()
                 
                 # Return the count + 1 as the next episode number
                 return len(streams) + 1
