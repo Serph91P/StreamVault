@@ -561,11 +561,7 @@ class RecordingService:
                                     duration = (datetime.now() - stream.started_at).total_seconds() if stream.started_at else 0
                                     chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
                                     logger.debug(f"Created chapter file at {chapter_file} with {len(events)} events")
-                
-                # Temporäre Ausgabedatei für bessere Fehlerbehandlung
-                temp_output = mp4_path + ".temp.mp4"
-                
-                # Build ffmpeg command
+
                 cmd = [
                     "ffmpeg",
                     "-i", ts_path
@@ -574,17 +570,18 @@ class RecordingService:
                 # Add chapter file if available
                 if chapter_file and os.path.exists(chapter_file):
                     # Explicitly specify ffmetadata format for better compatibility
-                    cmd.extend(["-f", "ffmetadata", "-i", chapter_file, "-map_chapters", "1", "-map_metadata", "1"])
+                    cmd.extend(["-f", "ffmetadata", "-i", chapter_file, 
+                              "-map_chapters", "1", "-map_metadata", "1"])
                     logger.debug(f"Using chapter file for embedding: {chapter_file}")
                 
                 # Add the rest of the command
                 cmd.extend([
-                    "-c", "copy",  # Copy streams without re-encoding
-                    "-map", "0",   # Map all streams from first input
-                    "-ignore_unknown",  # Ignore unknown streams
-                    "-movflags", "+faststart+use_metadata_tags",  # Add use_metadata_tags for better compatibility
-                    "-y",          # Overwrite output
-                    temp_output
+                    "-c", "copy",           # Copy streams without re-encoding
+                    "-map", "0",            # Map all streams from first input
+                    "-ignore_unknown",      # Ignore unknown streams
+                    "-movflags", "+faststart+use_metadata_tags",  # Important for chapters!
+                    "-y",                   # Allow overwrite
+                    mp4_path
                 ])
                 
                 logger.debug(f"Starting FFmpeg remux: {' '.join(cmd)}")
@@ -598,16 +595,12 @@ class RecordingService:
                 stdout, stderr = await process.communicate()
                 
                 if process.returncode == 0:
-                    # Verschiebe die temporäre Datei zur endgültigen Datei
-                    os.replace(temp_output, mp4_path)
-                    logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                    
                     # Delete TS file after successful conversion
                     os.remove(ts_path)
                     
                     # Generate metadata immediately after successful remuxing
                     if stream_id:
-                        # Starte die Metadaten-Generierung asynchron
+                        # Start metadata generation asynchronously
                         asyncio.create_task(self._delayed_metadata_generation(stream_id, mp4_path))
                         logger.info(f"Triggered metadata generation for {mp4_path}")
                     
@@ -615,16 +608,11 @@ class RecordingService:
                 else:
                     stderr_text = stderr.decode('utf-8', errors='ignore')
                     logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
-                    
-                    # Lösche die temporäre Datei bei Fehler
-                    if os.path.exists(temp_output):
-                        os.remove(temp_output)
-                        
                     return False
+                    
             except Exception as e:
                 logger.error(f"Error during remux: {e}", exc_info=True)
                 return False
-
             
     async def _create_ffmpeg_chapters_file(self, stream_events, duration, stream):
         """Create a chapters file from stream events for ffmpeg"""
