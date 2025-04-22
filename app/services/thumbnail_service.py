@@ -9,7 +9,7 @@ import io
 from datetime import datetime
 
 from app.database import SessionLocal
-from app.models import Stream, StreamMetadata
+from app.models import Stream, StreamMetadata, Streamer
 
 logger = logging.getLogger("streamvault")
 
