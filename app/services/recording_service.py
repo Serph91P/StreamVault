@@ -913,8 +913,9 @@ FILENAME_PRESETS = {
     "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
     "plex": "{streamer}/Season {year}{month}/{streamer} - {season}{episode} - {title}",
     "emby": "{streamer}/S{year}{month}/{streamer} - {season}{episode} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
-    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title}",
+    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{episode} - {title}",
+    "kodi": "{streamer}/Season {year}-{month}/{streamer} - s{year}e{episode} - {title}",
     "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
 }
+
 
