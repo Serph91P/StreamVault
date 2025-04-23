@@ -199,8 +199,32 @@ const data = ref({
   notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
 })
 
+// Add these new refs for validation
+const showValidationError = ref(false)
+const inputTimeout = ref<number | null>(null)
 const showTooltip = ref(false)
 let tooltipTimeout: number | undefined = undefined
+
+// Handle input with debounce
+const handleInput = () => {
+  // Clear existing timeout
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
+  
+  // Set a new timeout to show validation after typing stops
+  inputTimeout.value = window.setTimeout(() => {
+    showValidationError.value = true
+  }, 1000) // Show validation error 1 second after typing stops
+}
+
+// Handle blur event (when user clicks outside the input)
+const handleBlur = () => {
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
+  showValidationError.value = true
+}
 
 const handleTooltipMouseEnter = () => {
   if (tooltipTimeout) {
@@ -218,6 +242,9 @@ const handleTooltipMouseLeave = () => {
 
 // Cleanup timeout on component unmount
 onUnmounted(() => {
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
   if (tooltipTimeout) {
     window.clearTimeout(tooltipTimeout)
   }

@@ -999,7 +999,7 @@ img {
   
   h4 {
     margin-bottom: v.$spacing-sm;
-    color: darken(#ffcc00, 20%);
+    color: color.adjust(#ffcc00, $lightness: -20%);;
   }
   
   .config-steps {
