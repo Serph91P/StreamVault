@@ -11,11 +11,13 @@
             v-model="data.notificationUrl" 
             placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
             class="form-control"
-            :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
+            :class="{ 'is-invalid': showValidationError && !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
+            @input="handleInput"
+            @blur="handleBlur"
           />
           <div 
-            v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
+            v-if="showValidationError && !isValidNotificationUrl && data.notificationUrl.trim()" 
             class="invalid-feedback"
           >
             Please enter a valid URL (e.g., discord://webhook_id/webhook_token)

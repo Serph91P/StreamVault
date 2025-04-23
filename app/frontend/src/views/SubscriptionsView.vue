@@ -111,45 +111,35 @@ function formatEventType(type: string): string {
 function getStreamerName(twitchId: string): string {
   if (!twitchId) return 'Unknown';
   
-  // Konvertiere twitchId zu String für den Vergleich
-  const twitchIdStr = String(twitchId);
-  
-  const streamer = streamers.value.find(
-    s => String(s.twitch_id) === twitchIdStr
-  );
+  // Try finding the streamer by exact match first
+  let streamer = streamers.value.find(s => String(s.twitch_id) === String(twitchId));
   
   if (streamer) {
     return streamer.username;
   }
   
+  // Log this issue for debugging
   console.log(`Could not find streamer for ID: ${twitchId}`);
-  console.log("Available streamers:", streamers.value.map(s => ({ id: s.id, twitch_id: s.twitch_id, username: s.username })));
+  console.log("Available streamers:", streamers.value);
   
-  return twitchId;
+  // Return a formatted version of the ID as fallback
+  return `Unknown (${twitchId})`;
 }
+
 async function loadStreamers() {
   try {
     const response = await fetch('/api/streamers')
     const data = await response.json()
     streamers.value = data.streamers || []
     
-    streamerMap.value = {}
-    streamers.value.forEach(streamer => {
-      if (!streamer || !streamer.twitch_id) return;
-      
-      // Speichere unter verschiedenen Formaten, um höhere Trefferwahrscheinlichkeit zu haben
-      streamerMap.value[streamer.twitch_id] = streamer.username;
-      streamerMap.value[String(streamer.twitch_id)] = streamer.username;
-      
-      // Versuche auch als Ganzzahl zu speichern
-      const numericId = parseInt(String(streamer.twitch_id), 10);
-      if (!isNaN(numericId)) {
-        streamerMap.value[numericId] = streamer.username;
-      }
-    })
+    // Refresh subscriptions after streamers are loaded
+    // to ensure streamer names can be displayed
+    if (subscriptions.value.length > 0) {
+      // Force a reactive update
+      subscriptions.value = [...subscriptions.value];
+    }
     
-    console.log("Loaded streamer map:", streamerMap.value)
-    console.log("Subscription broadcaster IDs:", subscriptions.value.map(s => s.condition?.broadcaster_user_id))
+    console.log("Loaded streamers:", streamers.value)
   } catch (error) {
     console.error('Failed to load streamers:', error)
   }

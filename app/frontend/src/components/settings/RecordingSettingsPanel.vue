@@ -363,7 +363,10 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 /* Optimierte Spaltenbreiten für mobile Ansicht */
 .streamer-table th:nth-child(1),
 .streamer-table td:nth-child(1) {
-  width: 30%;
+  width: 25%; /* Increase from previous value */
+  min-width: 150px; /* Ensure minimum width */
+  white-space: normal; /* Allow text to wrap */
+  word-break: break-word; /* Break long words if needed */
 }
 
 .streamer-table th:nth-child(2),
@@ -441,6 +444,7 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%; /* Ensure content doesn't overflow */
 }
 
 .streamer-avatar {
@@ -458,10 +462,10 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .streamer-name {
-  font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  white-space: normal; /* Allow text to wrap */
+  word-break: break-word; /* Break long words if needed */
+  overflow: visible; /* Remove text truncation */
 }
 
 /* Für Tablets und größere Bildschirme */
@@ -567,11 +571,11 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .recording-card {
-  border: 1px solid #333; /* Dunkler Border */
+  border: 1px solid #303034; /* Dark border matching theme */
   border-radius: 0.5rem;
   padding: 1rem;
-  background-color: #1f1f23; /* Dunkler Hintergrund */
-  color: #efeff1; /* Heller Text */
+  background-color: #1f1f23; /* Dark background matching theme */
+  color: #efeff1; /* Light text matching theme */
 }
 
 .recording-header {
@@ -592,55 +596,20 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 
 .recording-details {
   margin-bottom: 1rem;
+  color: #adadb8; /* Secondary text color matching theme */
 }
 
 .output-path {
   margin-top: 0.5rem;
   font-size: 0.9rem;
   word-break: break-all;
+  color: #adadb8; /* Secondary text color matching theme */
 }
 
-.active-recordings {
-  margin-top: 2rem;
-}
-
-.recordings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.recording-card {
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  background-color: #f8f8f8;
-}
-
-.recording-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.recording-indicator {
-  background-color: #dc3545;
-  color: white;
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.8rem;
-  font-weight: bold;
-}
-.recording-details {
-  margin-bottom: 1rem;
-}
-
-.output-path {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  word-break: break-all;
+/* Override any styles that might be causing the light background */
+.recording-card, .streamer-table {
+  background-color: #1f1f23 !important; /* Important to override any conflicting styles */
+  color: #efeff1 !important;
 }
 
 .variables-list {
