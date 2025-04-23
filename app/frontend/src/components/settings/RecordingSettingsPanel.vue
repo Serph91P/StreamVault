@@ -341,17 +341,41 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 
 .streamer-table table {
   width: 100%;
-  min-width: 600px; /* Stellt sicher, dass horizontales Scrollen auf sehr kleinen Geräten möglich ist */
+  min-width: 600px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .streamer-table th, 
 .streamer-table td {
-  padding: 0.5rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #303034;
   vertical-align: middle;
   text-align: left;
-  font-size: 0.875rem;
+}
+
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 40%;
+  min-width: 200px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 10%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 15%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 35%;
 }
 
 /* Verbesserte lesbarkeit für mobile Geräte */
@@ -462,7 +486,9 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .streamer-name {
-  font-size: 0.95rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #efeff1;
   white-space: normal; /* Allow text to wrap */
   word-break: break-word; /* Break long words if needed */
   overflow: visible; /* Remove text truncation */
