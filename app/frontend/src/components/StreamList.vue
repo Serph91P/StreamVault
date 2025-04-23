@@ -90,6 +90,7 @@ const { messages } = useWebSocket()
 // State für Aufnahmeaktionen
 const isStartingRecording = ref(false)
 const isStoppingRecording = ref(false)
+const localRecordingState = ref<Record<string, boolean>>({})
 
 // Formatierungsfunktionen
 const formatDate = (date: string | undefined | null): string => {
@@ -125,25 +126,32 @@ const handleBack = () => {
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue: number): boolean => {
-  // Stellen wir sicher, dass activeRecordings ein Array ist
+  // Überprüfe zuerst den lokalen Status für sofortige Aktualisierung
+  if (localRecordingState.value[streamerIdValue] !== undefined) {
+    return localRecordingState.value[streamerIdValue];
+  }
+  
+  // Fall zurück auf activeRecordings vom Server
   if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
     return false;
   }
   
-  // Debugging-Ausgabe
   console.log("Active recordings:", activeRecordings.value);
   console.log("Checking for streamer ID:", streamerIdValue);
   
-  // Prüfen, ob ein Eintrag für diesen Streamer existiert
   return activeRecordings.value.some(rec => {
     console.log("Comparing with recording:", rec);
     return rec.streamer_id === streamerIdValue;
   });
 }
+
 // Aufnahme starten
 const startRecording = async (streamerIdValue: number) => {
   try {
     isStartingRecording.value = true
+    
+    // Sofort Status lokal aktualisieren für bessere UX
+    localRecordingState.value[streamerIdValue] = true
     
     const response = await fetch(`/api/recording/force/${streamerIdValue}`, {
       method: 'POST',
@@ -157,13 +165,14 @@ const startRecording = async (streamerIdValue: number) => {
       throw new Error(errorData.detail || 'Failed to start recording')
     }
     
-    // Wir müssen nicht mehr aktiv abfragen, da wir WebSocket-Benachrichtigungen bekommen,
-    // aber für den Fall, dass etwas schief geht, aktualisieren wir trotzdem
+    // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
     await fetchActiveRecordings()
     
   } catch (error) {
     console.error('Failed to start recording:', error)
     alert(`Failed to start recording: ${error instanceof Error ? error.message : String(error)}`)
+    // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
+    localRecordingState.value[streamerIdValue] = false
   } finally {
     isStartingRecording.value = false
   }
@@ -174,14 +183,19 @@ const stopRecording = async (streamerIdValue: number) => {
   try {
     isStoppingRecording.value = true
     
+    // Sofort Status lokal aktualisieren für bessere UX
+    localRecordingState.value[streamerIdValue] = false
+    
     await stopStreamRecording(streamerIdValue)
     
-    // Auch hier: WebSocket wird die Änderung mitteilen, aber wir aktualisieren zur Sicherheit
+    // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
     await fetchActiveRecordings()
     
   } catch (error) {
     console.error('Failed to stop recording:', error)
     alert(`Failed to stop recording: ${error instanceof Error ? error.message : String(error)}`)
+    // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
+    localRecordingState.value[streamerIdValue] = true
   } finally {
     isStoppingRecording.value = false
   }
@@ -208,6 +222,7 @@ onMounted(async () => {
     clearInterval(interval);
   });
 });
+
 // WebSocket-Nachrichten überwachen
 watch(messages, (newMessages) => {
   if (newMessages.length === 0) return
@@ -215,9 +230,15 @@ watch(messages, (newMessages) => {
   const latestMessage = newMessages[newMessages.length - 1]
   console.log('Received WebSocket message:', latestMessage)
   
-  if (latestMessage.type === 'recording.started' || latestMessage.type === 'recording.stopped') {
-    console.log('Recording status changed, updating active recordings')
-    fetchActiveRecordings()
+  // Lokalen Status basierend auf WebSocket-Ereignissen aktualisieren
+  if (latestMessage.type === 'recording.started') {
+    console.log('Recording started for streamer:', latestMessage.data.streamer_id)
+    localRecordingState.value[latestMessage.data.streamer_id] = true
+    fetchActiveRecordings() // Synchronisiere mit dem Server
+  } else if (latestMessage.type === 'recording.stopped') {
+    console.log('Recording stopped for streamer:', latestMessage.data.streamer_id)
+    localRecordingState.value[latestMessage.data.streamer_id] = false
+    fetchActiveRecordings() // Synchronisiere mit dem Server
   }
 }, { deep: true })
 
