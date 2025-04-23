@@ -548,7 +548,10 @@ class RecordingService:
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
             
-                # Step 2: If we have a stream, try to add chapters in a separate step
+                # Expliziter Log für besseres Debugging
+                logger.info("Remux completed, now checking for chapter information...")
+            
+                # Find the stream and try to add chapters
                 with SessionLocal() as db:
                     # Find the stream by output path
                     streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
@@ -556,20 +559,27 @@ class RecordingService:
                         # Get the streamer
                         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
                         if streamer:
+                            logger.info(f"Found streamer {streamer.username} for chapter processing")
                             # Find the most recent stream for this streamer
                             stream = db.query(Stream).filter(
                                 Stream.streamer_id == streamer.id
                             ).order_by(Stream.started_at.desc()).first()
                             
                             if stream:
+                                logger.info(f"Found stream ID {stream.id} for chapter processing")
                                 # Get stream events
                                 events = db.query(StreamEvent).filter(
                                     StreamEvent.stream_id == stream.id
                                 ).all()
                                 
                                 if events and len(events) > 0:
+                                    logger.info(f"Found {len(events)} events for chapter processing")
                                     # Try to add chapters
                                     await self._add_chapters_to_mp4(stream, events, mp4_path)
+                                else:
+                                    logger.warning(f"No events found for stream {stream.id}, cannot add chapters")
+                            else:
+                                logger.warning(f"No stream found for streamer {streamer.username}, cannot add chapters")
             
                 # Generate metadata after successful remuxing
                 stream_id = None
@@ -639,12 +649,14 @@ class RecordingService:
     async def _add_chapters_to_mp4(self, stream, events, mp4_path: str) -> bool:
         """Add chapters to an existing MP4 file"""
         try:
+            logger.info(f"Attempting to add chapters to MP4 file: {mp4_path}")
+        
             # Create temporary chapter file
             chapter_file = await self._create_ffmpeg_chapters_file(events, 
-                                                             (stream.ended_at - stream.started_at).total_seconds() 
-                                                             if stream.ended_at and stream.started_at 
-                                                             else 3600, 
-                                                             stream)
+                                                            (stream.ended_at - stream.started_at).total_seconds() 
+                                                            if stream.ended_at and stream.started_at 
+                                                            else 3600, 
+                                                            stream)
         
             if not chapter_file:
                 logger.warning("No chapter file created, skipping chapter addition")
@@ -664,7 +676,7 @@ class RecordingService:
                 temp_output
             ]
         
-            logger.debug(f"Adding chapters with FFmpeg: {' '.join(cmd)}")
+            logger.info(f"Adding chapters with FFmpeg: {' '.join(cmd)}")
         
             process = await asyncio.create_subprocess_exec(
                 *cmd,
