@@ -306,7 +306,7 @@ class RecordingService:
                 if not stream:
                     logger.error(f"Stream {stream_id} not found for metadata generation")
                     return
-                
+            
                 if force_started or not stream.ended_at:
                     # Für Force-Recordings oder wenn der Stream noch nicht beendet ist
                     stream.ended_at = datetime.now(timezone.utc)
@@ -320,6 +320,27 @@ class RecordingService:
             # Stelle sicher, dass wir eine neue Instanz des MetadataService verwenden
             metadata_service = MetadataService()
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
+        
+            # WICHTIG: Erst jetzt die Kapitel zur MP4 hinzufügen, wenn der Stream definitiv beendet ist 
+            # und alle Events in der Datenbank stehen
+            logger.info(f"Stream has ended, now adding chapters to MP4 file")
+        
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.error(f"Stream {stream_id} not found for chapter embedding")
+                    return
+            
+                # Alle Stream-Events abrufen, jetzt wo der Stream beendet ist
+                events = db.query(StreamEvent).filter(
+                    StreamEvent.stream_id == stream_id
+                ).order_by(StreamEvent.timestamp).all()
+            
+                if events and len(events) > 0:
+                    logger.info(f"Found {len(events)} events to embed as chapters into MP4")
+                    await self._add_chapters_to_mp4(stream, events, mp4_path)
+                else:
+                    logger.warning(f"No events found for stream {stream_id}, cannot add chapters to MP4")
         
             # Stelle sicher, dass ein Thumbnail existiert
             from app.services.thumbnail_service import ThumbnailService
@@ -519,7 +540,7 @@ class RecordingService:
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
-            # Step 1: First just do a basic remux without chapters
+            # Vereinfachter Remux ohne Kapitel - nur Grundkonvertierung
             cmd = [
                 "ffmpeg",
                 "-i", ts_path,
@@ -547,51 +568,7 @@ class RecordingService:
             
                 # Delete TS file after successful conversion
                 os.remove(ts_path)
-            
-                # Expliziter Log für besseres Debugging
-                logger.info("Remux completed, now checking for chapter information...")
-            
-                # Find the stream and try to add chapters
-                with SessionLocal() as db:
-                    # Find the stream by output path
-                    streamer_name = Path(mp4_path).parts[-2] if len(Path(mp4_path).parts) >= 2 else None
-                    if streamer_name and os.path.exists(mp4_path):
-                        # Get the streamer
-                        streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
-                        if streamer:
-                            logger.info(f"Found streamer {streamer.username} for chapter processing")
-                            # Find the most recent stream for this streamer
-                            stream = db.query(Stream).filter(
-                                Stream.streamer_id == streamer.id
-                            ).order_by(Stream.started_at.desc()).first()
-                            
-                            if stream:
-                                logger.info(f"Found stream ID {stream.id} for chapter processing")
-                                # Get stream events
-                                events = db.query(StreamEvent).filter(
-                                    StreamEvent.stream_id == stream.id
-                                ).all()
-                                
-                                if events and len(events) > 0:
-                                    logger.info(f"Found {len(events)} events for chapter processing")
-                                    # Try to add chapters
-                                    await self._add_chapters_to_mp4(stream, events, mp4_path)
-                                else:
-                                    logger.warning(f"No events found for stream {stream.id}, cannot add chapters")
-                            else:
-                                logger.warning(f"No stream found for streamer {streamer.username}, cannot add chapters")
-            
-                # Generate metadata after successful remuxing
-                stream_id = None
-                if 'stream' in locals() and stream:
-                    stream_id = stream.id
-                    # Import MetadataService here to avoid circular imports
-                    from app.services.metadata_service import MetadataService
-                    metadata_service = MetadataService()
-                    
-                    # Generate all metadata including chapter files
-                    asyncio.create_task(metadata_service.generate_metadata_for_stream(stream.id, mp4_path))
-                    logger.info(f"Triggered metadata and chapter generation for {mp4_path}")
+                logger.info("Basic remux completed successfully. Chapters will be added after stream ends.")
             
                 return True
             else:
@@ -649,30 +626,39 @@ class RecordingService:
     async def _add_chapters_to_mp4(self, stream, events, mp4_path: str) -> bool:
         """Add chapters to an existing MP4 file"""
         try:
-            logger.info(f"Attempting to add chapters to MP4 file: {mp4_path}")
+            logger.info(f"Attempting to add chapters to MP4 file: {mp4_path} for stream {stream.id}")
         
-            # Create temporary chapter file
-            chapter_file = await self._create_ffmpeg_chapters_file(events, 
-                                                            (stream.ended_at - stream.started_at).total_seconds() 
-                                                            if stream.ended_at and stream.started_at 
-                                                            else 3600, 
-                                                            stream)
+            # Erstelle eine geeignete Kapiteldatei
+            duration = 0
+            if stream.started_at and stream.ended_at:
+                duration = (stream.ended_at - stream.started_at).total_seconds()
+            else:
+                # Fallback - versuche Dauer aus der MP4 zu bekommen
+                logger.warning("Stream start/end times not available, estimating duration")
+                duration = 3600  # Default 1 hour
+        
+            chapter_file = await self._create_ffmpeg_chapters_file(events, duration, stream)
         
             if not chapter_file:
                 logger.warning("No chapter file created, skipping chapter addition")
                 return False
         
-            # Create a temporary output file
-            temp_output = f"{mp4_path}.temp.mp4"
+            # Überprüfe den Inhalt der Kapiteldatei
+            with open(chapter_file, 'r') as f:
+                chapter_content = f.read()
+                logger.debug(f"Generated chapter file content: {chapter_content[:500]}...")
         
-            # FFmpeg command to add chapters
+            # Temporäre Ausgabedatei erstellen
+            temp_output = f"{mp4_path}.chapters.mp4"
+        
+            # FFmpeg-Befehl zum Hinzufügen von Kapiteln
             cmd = [
                 "ffmpeg",
                 "-i", mp4_path,
                 "-i", chapter_file,
-                "-map_metadata", "1",  # Apply metadata from the second input
-                "-codec", "copy",      # Don't re-encode
-                "-y",                  # Overwrite output
+                "-map_metadata", "1",  # Metadaten aus der zweiten Eingabe anwenden
+                "-codec", "copy",      # Keine Neukodierung
+                "-y",                  # Ausgabedatei überschreiben
                 temp_output
             ]
         
@@ -686,19 +672,20 @@ class RecordingService:
         
             stdout, stderr = await process.communicate()
         
-            # Clean up chapter file
+            # Kapitel-Datei aufräumen
             if os.path.exists(chapter_file):
                 os.remove(chapter_file)
         
             if process.returncode == 0:
-                # Replace original with the new file that has chapters
+                # Original durch die neue Datei mit Kapiteln ersetzen
                 os.replace(temp_output, mp4_path)
                 logger.info(f"Successfully added chapters to {mp4_path}")
                 return True
             else:
                 stderr_text = stderr.decode('utf-8', errors='ignore')
                 logger.error(f"Failed to add chapters: {stderr_text}")
-                # Don't leave partial temp files
+            
+                # Keine teilweise temporären Dateien hinterlassen
                 if os.path.exists(temp_output):
                     os.remove(temp_output)
                 return False
