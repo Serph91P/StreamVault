@@ -317,25 +317,34 @@ class EventHandlerRegistry:
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
 
-                stream = db.query(Stream)\
-                    .filter(Stream.streamer_id == streamer.id)\
-                    .filter(Stream.ended_at.is_(None))\
-                    .order_by(Stream.started_at.desc())\
-                    .first()
+                    # Finde aktiven Stream oder erstelle Update-Ereignis für spätere Verwendung
+                    stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .order_by(Stream.started_at.desc())\
+                        .first()
                 
-                if stream:
-                    stream_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="channel.update",
-                        title=data.get("title"),
-                        category_name=data.get("category_name"),
-                        language=data.get("language"),
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    db.add(stream_event)
-                    db.commit()
+                    if stream:
+                        # Erstelle StreamEvent, wenn es einen aktiven Stream gibt
+                        stream_event = StreamEvent(
+                            stream_id=stream.id,
+                            event_type="channel.update",
+                            title=data.get("title"),
+                            category_name=data.get("category_name"),
+                            language=data.get("language"),
+                            timestamp=datetime.now(timezone.utc)
+                        )
+                        db.add(stream_event)
+                        db.commit()
+                    else:
+                        # Streamer ist offline - speichere das Update als "offline_updates"
+                        # Dies wird später beim Start des Streams verwendet
+                        logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
+                    
+                        # Optional: Speichere offline Updates in einer separaten Tabelle
+                        # oder aktualisiere einfach die Streamer-Tabelle wie oben
                 
-                    # Send WebSocket notification
+                    # WebSocket-Benachrichtigung senden (zeigt den aktuellen Live-Status)
                     notification = {
                         "type": "channel.update",
                         "data": {
@@ -352,7 +361,7 @@ class EventHandlerRegistry:
                     await self.manager.send_notification(notification)
                     logger.debug(f"WebSocket notification sent for channel.update: {notification}")
                 
-                    # Enhanced Apprise notification
+                    # Verbesserte Apprise-Benachrichtigung
                     logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
@@ -363,7 +372,8 @@ class EventHandlerRegistry:
                             "category_name": data.get("category_name"),
                             "language": data.get("language"),
                             "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"]
+                            "twitch_login": data["broadcaster_user_login"],
+                            "is_live": streamer.is_live  # Status hinzufügen
                         }
                     )
                     logger.debug(f"Notification result: {notification_result}")
