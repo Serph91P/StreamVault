@@ -31,64 +31,50 @@ class ThumbnailService:
         # Füge einen Timestamp-Parameter hinzu, um Caching zu vermeiden
         timestamp = int(time.time())
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"    
-    async def download_thumbnail(self, stream_id: int, output_dir: str, max_retries=3, retry_delay=2):
-        """Lädt das Stream-Thumbnail herunter mit Wiederholungsversuchen"""
+    async def download_thumbnail(self, stream_id: int, output_dir: str):
+        """Lädt das Stream-Thumbnail herunter"""
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream or not stream.streamer:
+            if not stream:
+                logger.warning(f"Stream with ID {stream_id} not found in thumbnail_service")
+                return None
+            
+            # Streamer über streamer_id laden (der Fehler war, dass wir stream.streamer verwendet haben)
+            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            if not streamer:
+                logger.warning(f"Streamer with ID {stream.streamer_id} not found in thumbnail_service")
                 return None
             
             # Verzeichnis erstellen
             os.makedirs(output_dir, exist_ok=True)
+            thumbnail_path = os.path.join(output_dir, f"{streamer.username}_thumbnail.jpg")
             
-            # Eindeutigen Dateinamen erstellen mit Stream-ID und Datum
-            date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
-            thumbnail_path = os.path.join(output_dir, f"{stream.streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
+            # URL generieren
+            url = await self.get_stream_thumbnail(streamer.username)
             
-            # Mehrere Versuche, um das Thumbnail zu bekommen
-            for attempt in range(max_retries):
-                try:
-                    # URL generieren mit neuem Timestamp bei jedem Versuch
-                    url = await self.get_stream_thumbnail(stream.streamer.username)
-                    
-                    session = await self._get_session()
-                    async with session.get(url) as response:
-                        if response.status == 200:
-                            image_data = await response.read()
-                            
-                            # Prüfen, ob das Bild ein Platzhalter ist (graue Kamera)
-                            if await self._is_placeholder_image(image_data):
-                                logger.warning(f"Received placeholder image for {stream.streamer.username}, retrying in {retry_delay}s (attempt {attempt+1}/{max_retries})")
-                                if attempt < max_retries - 1:
-                                    await asyncio.sleep(retry_delay)
-                                    continue
-                            
-                            # Bild speichern
-                            with open(thumbnail_path, 'wb') as f:
-                                f.write(image_data)
-                            
-                            # Metadata aktualisieren
-                            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                            if not metadata:
-                                metadata = StreamMetadata(stream_id=stream_id)
-                                db.add(metadata)
-                            
-                            metadata.thumbnail_path = thumbnail_path
-                            metadata.thumbnail_url = url
-                            db.commit()
-                            
-                            logger.info(f"Downloaded thumbnail for stream {stream_id} to {thumbnail_path}")
-                            return thumbnail_path
-                        else:
-                            logger.warning(f"Failed to download thumbnail, status: {response.status}, retrying in {retry_delay}s (attempt {attempt+1}/{max_retries})")
-                except Exception as e:
-                    logger.error(f"Error downloading thumbnail: {e}")
-                
-                # Warte vor dem nächsten Versuch
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
+            try:
+                async with self.session.get(url) as response:
+                    if response.status == 200:
+                        with open(thumbnail_path, 'wb') as f:
+                            f.write(await response.read())
+                        
+                        # Metadata aktualisieren
+                        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                        if not metadata:
+                            metadata = StreamMetadata(stream_id=stream_id)
+                            db.add(metadata)
+                        
+                        metadata.thumbnail_path = thumbnail_path
+                        metadata.thumbnail_url = url
+                        db.commit()
+                        
+                        logger.info(f"Downloaded thumbnail for stream {stream_id} to {thumbnail_path}")
+                        return thumbnail_path
+                    else:
+                        logger.warning(f"Failed to download thumbnail, status: {response.status}")
+            except Exception as e:
+                logger.error(f"Error downloading thumbnail: {e}")
             
-            logger.error(f"Failed to download thumbnail after {max_retries} attempts")
             return None
     
     async def _is_placeholder_image(self, image_data):
@@ -141,19 +127,18 @@ class ThumbnailService:
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if not stream:
+                logger.warning(f"Stream with ID {stream_id} not found in ensure_thumbnail")
                 return None
             
-            # Streamer abrufen (anstatt stream.streamer zu verwenden)
+            # Streamer über streamer_id laden (fix für den Fehler)
             streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
             if not streamer:
+                logger.warning(f"Streamer with ID {stream.streamer_id} not found in ensure_thumbnail")
                 return None
             
             # Verzeichnis erstellen
             os.makedirs(output_dir, exist_ok=True)
-            
-            # Eindeutigen Dateinamen erstellen mit Stream-ID und Datum
-            date_str = stream.started_at.strftime("%Y%m%d") if stream.started_at else datetime.now().strftime("%Y%m%d")
-            thumbnail_path = os.path.join(output_dir, f"{streamer.username}_stream_{stream_id}_{date_str}_thumbnail.jpg")
+            thumbnail_path = os.path.join(output_dir, f"{streamer.username}_thumbnail.jpg")
             
             # Zuerst versuchen, das Twitch-Thumbnail zu laden
             twitch_thumbnail = await self.download_thumbnail(stream_id, output_dir)
