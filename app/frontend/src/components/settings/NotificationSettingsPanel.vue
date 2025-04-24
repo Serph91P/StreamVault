@@ -11,11 +11,13 @@
             v-model="data.notificationUrl" 
             placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
             class="form-control"
-            :class="{ 'is-invalid': !isValidNotificationUrl && data.notificationUrl.trim() }"
+            :class="{ 'is-invalid': showValidationError && !isValidNotificationUrl && data.notificationUrl.trim() }"
             @focus="showTooltip = true"
+            @input="handleInput"
+            @blur="handleBlur"
           />
           <div 
-            v-if="!isValidNotificationUrl && data.notificationUrl.trim()" 
+            v-if="showValidationError && !isValidNotificationUrl && data.notificationUrl.trim()" 
             class="invalid-feedback"
           >
             Please enter a valid URL (e.g., discord://webhook_id/webhook_token)
@@ -40,7 +42,7 @@
           </div>
         </div>
       </div>
-
+      
       <div class="form-group">
         <label>
           <input type="checkbox" v-model="data.notificationsEnabled" />
@@ -51,22 +53,7 @@
       <div class="form-group">
         <h4>Global Notification Settings</h4>
         <div class="checkbox-group">
-          <label>
-            <input type="checkbox" v-model="data.notifyOnlineGlobal" />
-            Stream Start Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyOfflineGlobal" />
-            Stream End Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyUpdateGlobal" />
-            Stream Update Notifications
-          </label>
-          <label>
-            <input type="checkbox" v-model="data.notifyFavoriteCategoryGlobal" />
-            Favorite Game Notifications
-          </label>
+          <!-- Checkboxes... -->
         </div>
       </div>
 
@@ -212,8 +199,32 @@ const data = ref({
   notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
 })
 
+// Add these new refs for validation
+const showValidationError = ref(false)
+const inputTimeout = ref<number | null>(null)
 const showTooltip = ref(false)
 let tooltipTimeout: number | undefined = undefined
+
+// Handle input with debounce
+const handleInput = () => {
+  // Clear existing timeout
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
+  
+  // Set a new timeout to show validation after typing stops
+  inputTimeout.value = window.setTimeout(() => {
+    showValidationError.value = true
+  }, 1000) // Show validation error 1 second after typing stops
+}
+
+// Handle blur event (when user clicks outside the input)
+const handleBlur = () => {
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
+  showValidationError.value = true
+}
 
 const handleTooltipMouseEnter = () => {
   if (tooltipTimeout) {
@@ -231,6 +242,9 @@ const handleTooltipMouseLeave = () => {
 
 // Cleanup timeout on component unmount
 onUnmounted(() => {
+  if (inputTimeout.value) {
+    clearTimeout(inputTimeout.value)
+  }
   if (tooltipTimeout) {
     window.clearTimeout(tooltipTimeout)
   }
@@ -426,20 +440,35 @@ const testNotification = () => {
 
 .btn {
   padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .btn-primary {
-  background-color: #9146FF;
+  background-color: var(--primary-color, #42b883);
   color: white;
 }
 
 .btn-secondary {
-  background-color: #3a3a3a;
+  background-color: var(--background-darker, #3a3a3a);
   color: white;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .btn-sm {

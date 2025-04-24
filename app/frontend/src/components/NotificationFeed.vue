@@ -39,7 +39,9 @@ function formatNotificationMessage(message) {
 }
 
 watch(messages, (newMessages) => {
-  console.log('Messages changed:', newMessages)
+  console.log('Messages changed, count:', newMessages.length);
+  console.log('All messages:', JSON.stringify(newMessages));
+  
   if (newMessages.length > 0) {
     const message = newMessages[newMessages.length - 1]
     console.log('Processing new message:', message)

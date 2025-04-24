@@ -24,6 +24,7 @@ from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
+from app.routes import categories
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -182,6 +183,7 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
+app.include_router(categories.router)
 
 # Static files for assets
 app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")

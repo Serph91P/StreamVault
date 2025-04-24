@@ -5,8 +5,8 @@ export interface RecordingSettings {
   filename_preset?: string;
   default_quality: string;
   use_chapters: boolean;
+  use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
 }
-
 export interface StreamerRecordingSettings {
   streamer_id: number;
   username: string;
@@ -50,9 +50,10 @@ export const FILENAME_VARIABLES = [
   { key: "timestamp", description: "Timestamp (YYYYMMDD_HHMMSS)" },
   { key: "datetime", description: "Formatted datetime (YYYY-MM-DD_HH-MM-SS)" },
   { key: "id", description: "Stream ID" },
-  { key: "season", description: "Season format (S2024-01)" }
+  { key: "season", description: "Season format (S2024-01)" },
+  { key: "episode", description: "Episode number (E01, E02, ...)" },
+  { key: "unique", description: "Unique identifier" }
 ];
-
 export const FILENAME_PRESETS = [
   { 
     value: "default", 

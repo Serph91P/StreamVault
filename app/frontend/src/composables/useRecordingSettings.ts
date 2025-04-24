@@ -18,14 +18,22 @@ export function useRecordingSettings() {
       error.value = null;
       
       const response = await fetch('/api/recording/settings');
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        settings.value = {
+          enabled: data.enabled,
+          output_directory: data.output_directory,
+          filename_template: data.filename_template,
+          filename_preset: data.filename_preset,
+          default_quality: data.default_quality,
+          use_chapters: data.use_chapters,
+          use_category_as_chapter_title: data.use_category_as_chapter_title
+        };
+      } else {
+        error.value = 'Failed to load settings';
       }
-      
-      settings.value = await response.json();
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Error fetching recording settings:', err);
+      error.value = err instanceof Error ? err.message : String(err);
     } finally {
       isLoading.value = false;
     }
@@ -38,25 +46,40 @@ export function useRecordingSettings() {
       
       const response = await fetch('/api/recording/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSettings)
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          enabled: newSettings.enabled,
+          output_directory: newSettings.output_directory,
+          filename_template: newSettings.filename_template,
+          filename_preset: newSettings.filename_preset,
+          default_quality: newSettings.default_quality,
+          use_chapters: newSettings.use_chapters,
+          use_category_as_chapter_title: newSettings.use_category_as_chapter_title
+        })
       });
       
-      if (!response.ok) {
+      if (response.ok) {
         const data = await response.json();
-        throw new Error(data.detail || `HTTP error! Status: ${response.status}`);
+        settings.value = {
+          enabled: data.enabled,
+          output_directory: data.output_directory,
+          filename_template: data.filename_template,
+          filename_preset: data.filename_preset,
+          default_quality: data.default_quality,
+          use_chapters: data.use_chapters,
+          use_category_as_chapter_title: data.use_category_as_chapter_title
+        };
+      } else {
+        error.value = 'Failed to update settings';
       }
-      
-      settings.value = await response.json();
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error';
-      throw err;
+      error.value = err instanceof Error ? err.message : String(err);
     } finally {
       isLoading.value = false;
     }
-  };
-
-  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
+  };  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
     try {
       isLoading.value = true;
       error.value = null;

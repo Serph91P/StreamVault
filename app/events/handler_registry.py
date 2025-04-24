@@ -144,15 +144,43 @@ class EventHandlerRegistry:
                 if streamer:
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
+                
+                    # Versuche, die letzten bekannten Informationen zu finden
+                    title = streamer.title
+                    category_name = streamer.category_name
+                    language = streamer.language
                     
-                    # Create new stream with last known information
+                    # Falls keine Informationen im Streamer-Objekt vorhanden sind,
+                    # versuche, sie aus früheren Stream-Events zu erhalten
+                    if not title or not category_name:
+                        # Suche das letzte Stream-Event dieses Streamers
+                        last_stream = db.query(Stream).filter(
+                            Stream.streamer_id == streamer.id
+                        ).order_by(Stream.started_at.desc()).first()
+                        
+                        if last_stream:
+                            last_event = db.query(StreamEvent).filter(
+                                StreamEvent.stream_id == last_stream.id
+                            ).order_by(StreamEvent.timestamp.desc()).first()
+                            
+                            if last_event:
+                                title = title or last_event.title
+                                category_name = category_name or last_event.category_name
+                                language = language or last_event.language
+                    
+                    # Fallback-Werte, falls immer noch keine Informationen vorhanden sind
+                    title = title or f"{streamer.username} Stream"
+                    category_name = category_name or "Unknown"
+                    language = language or "en"
+                    
+                    # Create new stream with best available information
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
                         twitch_stream_id=data["id"],
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language
+                        title=title,
+                        category_name=category_name,
+                        language=language
                     )
                     db.add(stream)
                     
@@ -160,9 +188,9 @@ class EventHandlerRegistry:
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
+                        title=title,
+                        category_name=category_name,
+                        language=language,
                         timestamp=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00'))
                     )
                     db.add(initial_event)
@@ -170,7 +198,6 @@ class EventHandlerRegistry:
                     streamer.is_live = True
                     streamer.last_updated = datetime.now(timezone.utc)
                     db.commit()
-
                     # WebSocket notification
                     notification = {
                         "type": "stream.online",
@@ -179,9 +206,9 @@ class EventHandlerRegistry:
                             "twitch_id": data["broadcaster_user_id"],
                             "streamer_name": streamer.username,
                             "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language
+                            "title": streamer.title or f"{streamer.username} Stream",
+                            "category_name": streamer.category_name or "Unknown",
+                            "language": streamer.language or "en"
                         }
                     }
                     await self.manager.send_notification(notification)
@@ -193,9 +220,9 @@ class EventHandlerRegistry:
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language,
+                            "title": streamer.title or f"{streamer.username} Stream",
+                            "category_name": streamer.category_name or "Unknown",
+                            "language": streamer.language or "en",
                             "profile_image_url": streamer.profile_image_url,
                             "twitch_login": data["broadcaster_user_login"]
                         }
@@ -210,9 +237,9 @@ class EventHandlerRegistry:
                         "broadcaster_user_id": data["broadcaster_user_id"],
                         "broadcaster_user_name": data["broadcaster_user_name"],
                         "started_at": data["started_at"],
-                        "title": streamer.title,
-                        "category_name": streamer.category_name,
-                        "language": streamer.language
+                        "title": streamer.title or f"{streamer.username} Stream",
+                        "category_name": streamer.category_name or "Unknown",
+                        "language": streamer.language or "en"
                     })
             
         except Exception as e:
@@ -225,19 +252,25 @@ class EventHandlerRegistry:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
-            
+        
                 if streamer:
+                    # Update the streamer's is_live status to False
+                    streamer.is_live = False
+                    streamer.last_updated = datetime.now(timezone.utc)
+                
+                    # Update the stream status
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .order_by(Stream.started_at.desc())\
                         .first()
-                
+            
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
                         stream.status = "offline"
-                        db.commit()
                 
+                    db.commit()
+            
                     # Send WebSocket notification
                     await self.manager.send_notification({
                         "type": "stream.offline",
@@ -247,7 +280,7 @@ class EventHandlerRegistry:
                             "streamer_name": streamer.username
                         }
                     })
-                    
+                
                     # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
@@ -261,10 +294,10 @@ class EventHandlerRegistry:
 
                     # Stop recording if it was active
                     await self.recording_service.stop_recording(streamer.id)
-                
+            
         except Exception as e:
-            logger.error(f"Error handling stream offline event: {e}", exc_info=True)    
-    
+            logger.error(f"Error handling stream offline event: {e}", exc_info=True)
+            
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
@@ -284,25 +317,34 @@ class EventHandlerRegistry:
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
 
-                stream = db.query(Stream)\
-                    .filter(Stream.streamer_id == streamer.id)\
-                    .filter(Stream.ended_at.is_(None))\
-                    .order_by(Stream.started_at.desc())\
-                    .first()
+                    # Finde aktiven Stream oder erstelle Update-Ereignis für spätere Verwendung
+                    stream = db.query(Stream)\
+                        .filter(Stream.streamer_id == streamer.id)\
+                        .filter(Stream.ended_at.is_(None))\
+                        .order_by(Stream.started_at.desc())\
+                        .first()
                 
-                if stream:
-                    stream_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="channel.update",
-                        title=data.get("title"),
-                        category_name=data.get("category_name"),
-                        language=data.get("language"),
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    db.add(stream_event)
-                    db.commit()
+                    if stream:
+                        # Erstelle StreamEvent, wenn es einen aktiven Stream gibt
+                        stream_event = StreamEvent(
+                            stream_id=stream.id,
+                            event_type="channel.update",
+                            title=data.get("title"),
+                            category_name=data.get("category_name"),
+                            language=data.get("language"),
+                            timestamp=datetime.now(timezone.utc)
+                        )
+                        db.add(stream_event)
+                        db.commit()
+                    else:
+                        # Streamer ist offline - speichere das Update als "offline_updates"
+                        # Dies wird später beim Start des Streams verwendet
+                        logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
+                    
+                        # Optional: Speichere offline Updates in einer separaten Tabelle
+                        # oder aktualisiere einfach die Streamer-Tabelle wie oben
                 
-                    # Send WebSocket notification
+                    # WebSocket-Benachrichtigung senden (zeigt den aktuellen Live-Status)
                     notification = {
                         "type": "channel.update",
                         "data": {
@@ -317,8 +359,10 @@ class EventHandlerRegistry:
                     }
                 
                     await self.manager.send_notification(notification)
+                    logger.debug(f"WebSocket notification sent for channel.update: {notification}")
                 
-                    # Enhanced Apprise notification
+                    # Verbesserte Apprise-Benachrichtigung
+                    logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="update",
@@ -328,7 +372,8 @@ class EventHandlerRegistry:
                             "category_name": data.get("category_name"),
                             "language": data.get("language"),
                             "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"]
+                            "twitch_login": data["broadcaster_user_login"],
+                            "is_live": streamer.is_live  # Status hinzufügen
                         }
                     )
                     logger.debug(f"Notification result: {notification_result}")

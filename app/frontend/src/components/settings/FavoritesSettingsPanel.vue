@@ -19,7 +19,15 @@
         >
           {{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}
         </button>
+        <button @click="fetchCategories" class="btn btn-secondary">
+          Refresh Categories
+        </button>
       </div>
+    </div>
+    
+    <!-- Fehleranzeige -->
+    <div v-if="error" class="error-message">
+      {{ error }}
     </div>
     
     <!-- Kategorie-Liste -->
@@ -31,7 +39,10 @@
         <div v-if="filteredCategories.length === 0" class="no-categories">
           <p v-if="showFavoritesOnly">You haven't marked any categories as favorites yet.</p>
           <p v-else-if="searchQuery">No categories found containing "{{ searchQuery }}".</p>
-          <p v-else>No categories found. When streamers use new categories, they will appear here.</p>
+          <p v-else>
+            No categories found. Categories are created when streamers change games during streams.<br>
+            This happens automatically when a streamer changes their game on Twitch.
+          </p>
         </div>
         
         <div 
@@ -81,6 +92,7 @@ const categories = ref<Category[]>([])
 const isLoading = ref(true)
 const searchQuery = ref('')
 const showFavoritesOnly = ref(false)
+const error = ref<string | null>(null)
 
 // Computed
 const filteredCategories = computed(() => {
@@ -105,21 +117,32 @@ const filteredCategories = computed(() => {
 // Methoden
 const fetchCategories = async () => {
   try {
-    isLoading.value = true
-    const response = await fetch('/api/categories')
+    isLoading.value = true;
+    error.value = null;
+    console.log("Fetching categories...");
+    
+    const response = await fetch('/api/categories');
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      const errorText = await response.text();
+      console.error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+      error.value = `Fehler beim Laden: ${response.status}`;
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const data = await response.json()
-    categories.value = data.categories || []
+    const data = await response.json();
+    console.log("Categories fetched:", data);
+    categories.value = data.categories || [];
+    
+    if (categories.value.length === 0) {
+      console.log("No categories found in the response");
+    }
   } catch (error) {
-    console.error('Error fetching categories:', error)
+    console.error('Error fetching categories:', error);
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 const addFavorite = async (categoryId: number) => {
   try {
@@ -207,6 +230,7 @@ onMounted(() => {
   border-radius: 8px;
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid #333;
 }
 
 .category-card:hover {
@@ -249,6 +273,17 @@ onMounted(() => {
   align-items: center;
   padding: 40px;
   color: #aaa;
+  text-align: center;
+  background-color: #1f1f23;
+  border-radius: 8px;
+}
+
+.error-message {
+  background-color: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
   text-align: center;
 }
 </style>

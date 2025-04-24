@@ -119,8 +119,9 @@ class RecordingSettings(Base):
     filename_template = Column(String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}")
     default_quality = Column(String, default="best")
     use_chapters = Column(Boolean, default=True)
-    filename_preset = Column(String, default="default")   
-     
+    filename_preset = Column(String, default="default")
+    use_category_as_chapter_title = Column(Boolean, default=False)   
+      
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
     
@@ -133,3 +134,38 @@ class StreamerRecordingSettings(Base):
     streamer = relationship("Streamer", back_populates="recording_settings")
 
 Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
+
+class StreamMetadata(Base):
+    __tablename__ = "stream_metadata"
+    
+    id = Column(Integer, primary_key=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    
+    # Thumbnails
+    thumbnail_path = Column(String)
+    thumbnail_url = Column(String)
+    
+    # Metadata files
+    nfo_path = Column(String)
+    json_path = Column(String)
+    
+    # Chat logs
+    chat_path = Column(String)
+    chat_srt_path = Column(String)
+    
+    # Kapitelmarker
+    chapters_path = Column(String)
+    chapters_vtt_path = Column(String)
+    chapters_srt_path = Column(String)
+    chapters_ffmpeg_path = Column(String)
+    
+    # Stream info stats
+    avg_viewers = Column(Integer)
+    max_viewers = Column(Integer)
+    follower_count = Column(Integer)
+    
+    # Beziehung zum Stream
+    stream = relationship("Stream", back_populates="metadata")
+
+# Füge die Rückbeziehung zum Stream-Modell hinzu
+Stream.metadata = relationship("StreamMetadata", back_populates="stream", uselist=False, cascade="all, delete-orphan")

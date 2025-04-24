@@ -1,7 +1,6 @@
 @use 'sass:map';
 @use 'sass:color';
 @use 'variables' as v;
-
 // Navigation
 nav {
   display: flex;
@@ -758,9 +757,8 @@ img {
   transition: background-color 0.2s;
   
   &:hover {
-    background-color: darken(#9146FF, 10%);
-  }
-  
+    background-color: color.scale(#9146FF, $lightness: -10%);
+  }  
   i {
     margin-right: v.$spacing-xs;
   }
@@ -1001,7 +999,7 @@ img {
   
   h4 {
     margin-bottom: v.$spacing-sm;
-    color: darken(#ffcc00, 20%);
+    color: color.adjust(#ffcc00, $lightness: -20%);;
   }
   
   .config-steps {

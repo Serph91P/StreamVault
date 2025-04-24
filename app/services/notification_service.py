@@ -237,6 +237,8 @@ class NotificationService:
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
+            logger.debug(f"Global settings: notifications_enabled={global_settings.notifications_enabled if global_settings else 'None'}")
+
             if not global_settings or not global_settings.notifications_enabled:
                 logger.debug("Global notifications disabled")
                 return False
@@ -245,7 +247,8 @@ class NotificationService:
             setting_map = {
                 "online": ("notify_online", "notify_online_global"),
                 "offline": ("notify_offline", "notify_offline_global"),
-                "update": ("notify_update", "notify_update_global")
+                "update": ("notify_update", "notify_update_global"),
+                "favorite_category": ("notify_favorite_category", "notify_favorite_category_global")
             }
 
             streamer_field, global_field = setting_map.get(event_type, (None, None))

@@ -43,7 +43,7 @@
       <div class="form-group">
         <label>Filename Template:</label>
         <input v-model="data.filename_template"
-          placeholder="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"
+          placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
           class="form-control" />
         <div class="filename-preview" v-if="data.filename_template">
           <strong>Preview:</strong> {{ previewFilename }}
@@ -77,6 +77,16 @@
         </label>
         <div class="help-text">
           Create chapters in the recording based on stream title and game changes.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" v-model="data.use_category_as_chapter_title" />
+          Use Category as Chapter Title
+        </label>
+        <div class="help-text">
+          When enabled, chapter titles will use the game/category name instead of the stream title.
         </div>
       </div>
 
@@ -139,7 +149,6 @@
                   Custom Filename
                   <div class="th-tooltip">Optional custom filename template for this streamer</div>
                 </th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -169,16 +178,6 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td>
-                  <button @click="testRecording(streamer.streamer_id)" class="btn btn-sm btn-secondary"
-                    :disabled="isLoading || !data.enabled || !streamer.enabled">
-                    Test Recording
-                  </button>
-                  <button @click="toggleStreamerRecording(streamer.streamer_id, true)"
-                    class="btn btn-sm btn-secondary">Enable</button>
-                  <button @click="toggleStreamerRecording(streamer.streamer_id, false)"
-                    class="btn btn-sm btn-secondary">Disable</button>
-                </td>
               </tr>
             </tbody>
           </table>
@@ -186,17 +185,6 @@
       </template>
     </div>
   </div>
-
-<style scoped>
-.no-streamers-message {
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 0.25rem;
-  color: #6c757d;
-  text-align: center;
-  margin-top: 1rem;
-}
-</style>
 </template>
 
 <script setup lang="ts">
@@ -224,10 +212,11 @@ const { isLoading, error } = useRecordingSettings();
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   output_directory: props.settings?.output_directory ?? '/recordings',
-  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}',
+  filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
-  use_chapters: props.settings?.use_chapters ?? true
+  use_chapters: props.settings?.use_chapters ?? true,
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
 });
 
 const updateFilenameTemplate = () => {
@@ -288,7 +277,15 @@ const previewFilename = computed(() => {
 const saveSettings = async () => {
   try {
     isSaving.value = true;
-    emits('update', data.value);
+    emits('update', {
+      enabled: data.value.enabled,
+      output_directory: data.value.output_directory,
+      filename_template: data.value.filename_template,
+      filename_preset: data.value.filename_preset,
+      default_quality: data.value.default_quality,
+      use_chapters: data.value.use_chapters,
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+    });
   } catch (error) {
     console.error('Failed to save settings:', error);
     alert('Failed to save settings. Please try again.');
@@ -334,6 +331,260 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 </script>
 
 <style scoped>
+/* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
+
+.streamer-table {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.streamer-table table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.streamer-table th, 
+.streamer-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #303034;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 40%;
+  min-width: 200px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 10%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 15%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 35%;
+}
+
+/* Verbesserte lesbarkeit für mobile Geräte */
+.streamer-table th {
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Optimierte Spaltenbreiten für mobile Ansicht */
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 25%; /* Increase from previous value */
+  min-width: 150px; /* Ensure minimum width */
+  white-space: normal; /* Allow text to wrap */
+  word-break: break-word; /* Break long words if needed */
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 15%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(5),
+.streamer-table td:nth-child(5) {
+  width: 15%;
+}
+
+/* Mobile-optimierte Button-Container */
+.action-buttons {
+  width: 100%;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+/* Touch-freundliche Buttons */
+.btn-action {
+  padding: 0.5rem;  /* Größere Touch-Fläche */
+  font-size: 0.8rem;
+  white-space: nowrap;
+  width: 100%;
+  display: inline-block;
+  text-align: center;
+  background-color: #2f2f2f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  touch-action: manipulation; /* Verbessert Touch-Handling */
+}
+
+.btn-action:first-child {
+  background-color: #2f3f2f;
+}
+
+.btn-action:last-child {
+  background-color: #3f2f2f;
+}
+
+/* Touch-freundliche Formularelemente */
+.form-control-sm {
+  width: 100%;
+  height: 36px; /* Größere Touch-Fläche */
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  background: #18181b;
+  border: 1px solid #303034;
+  color: #efeff1;
+  border-radius: 4px;
+}
+
+/* Bessere Darstellung der Streamer-Info */
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%; /* Ensure content doesn't overflow */
+}
+
+.streamer-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.streamer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.streamer-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #efeff1;
+  white-space: normal; /* Allow text to wrap */
+  word-break: break-word; /* Break long words if needed */
+  overflow: visible; /* Remove text truncation */
+}
+
+/* Für Tablets und größere Bildschirme */
+@media (min-width: 768px) {
+  .streamer-table th, 
+  .streamer-table td {
+    padding: 0.75rem;
+    font-size: 1rem;
+  }
+  
+  .streamer-avatar {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .streamer-name {
+    font-size: 1rem;
+  }
+  
+  .btn-action {
+    padding: 0.35rem 0.5rem;
+  }
+  
+  /* Angepasste Spaltenbreiten für größere Bildschirme */
+  .streamer-table th:nth-child(1),
+  .streamer-table td:nth-child(1) {
+    width: 25%;
+  }
+  
+  .streamer-table th:nth-child(4),
+  .streamer-table td:nth-child(4) {
+    width: 30%;
+  }
+}
+
+/* Für Desktop und große Bildschirme */
+@media (min-width: 1200px) {
+  .streamer-table table {
+    table-layout: fixed; /* Für große Bildschirme können wir fixed layout verwenden */
+  }
+  
+  .btn-action {
+    font-size: 0.875rem;
+  }
+  
+  /* Optional: Horizontale Button-Anordnung für sehr breite Bildschirme */
+  @media (min-width: 1600px) {
+    .button-container {
+      flex-direction: row;
+    }
+  }
+}
+
+/* Stilvolle Farbanpassungen für Hover und Active-Zustände */
+.btn-action:hover {
+  background-color: #42b883;
+  transform: translateY(-1px);
+}
+
+.btn-action:active {
+  transform: translateY(1px);
+}
+
+/* Optimierungen für besseren Kontrast bei dunkleren Themen */
+@media (prefers-color-scheme: dark) {
+  .streamer-table th {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  
+  .btn-action:first-child {
+    background-color: rgba(66, 184, 131, 0.6);
+  }
+  
+  .btn-action:first-child:hover {
+    background-color: rgba(66, 184, 131, 0.8);
+  }
+  
+  .btn-action:last-child {
+    background-color: rgba(220, 53, 69, 0.6);
+  }
+  
+  .btn-action:last-child:hover {
+    background-color: rgba(220, 53, 69, 0.8);
+  }
+}
+
+/* Tabellen-Verbesserung für erhöhte Barrierefreiheit */
+.no-streamers-message {
+  padding: 1rem;
+  text-align: center;
+  color: #999;
+}
+
 .active-recordings {
   margin-top: 2rem;
 }
@@ -346,10 +597,11 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .recording-card {
-  border: 1px solid #ddd;
+  border: 1px solid #303034; /* Dark border matching theme */
   border-radius: 0.5rem;
   padding: 1rem;
-  background-color: #f8f8f8;
+  background-color: #1f1f23; /* Dark background matching theme */
+  color: #efeff1; /* Light text matching theme */
 }
 
 .recording-header {
@@ -367,14 +619,23 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   font-size: 0.8rem;
   font-weight: bold;
 }
+
 .recording-details {
   margin-bottom: 1rem;
+  color: #adadb8; /* Secondary text color matching theme */
 }
 
 .output-path {
   margin-top: 0.5rem;
   font-size: 0.9rem;
   word-break: break-all;
+  color: #adadb8; /* Secondary text color matching theme */
+}
+
+/* Override any styles that might be causing the light background */
+.recording-card, .streamer-table {
+  background-color: #1f1f23 !important; /* Important to override any conflicting styles */
+  color: #efeff1 !important;
 }
 
 .variables-list {
@@ -392,6 +653,7 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 .variable-item {
   font-size: 0.85rem;
 }
+
 .filename-preview {
   margin-top: 0.5rem;
   padding: 0.5rem;
@@ -402,6 +664,7 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   color: #f8f9fa;
   border: 1px solid #495057;
 }
+
 .streamer-settings {
   margin-top: 2rem;
 }
@@ -431,14 +694,14 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 }
 
 .loading-message {
-  background-color: #f8f9fa;
-  color: #6c757d;
+  background-color: #1f1f23;
+  color: #adadb8;
 }
 
 .error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: rgba(220, 53, 69, 0.2); 
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
 .streamer-info {
@@ -468,20 +731,126 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   margin-right: 0.5rem;
 }
 
-.streamer-table table {
+.streamer-table {
   width: 100%;
-  border-collapse: collapse;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: #1f1f23;
+  border-radius: 6px;
+  border: 1px solid #303034;
 }
 
-.streamer-table th, .streamer-table td {
+.streamer-table table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.streamer-table th, 
+.streamer-table td {
   padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid #303034;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.streamer-table th:nth-child(1),
+.streamer-table td:nth-child(1) {
+  width: 35%;
+}
+
+.streamer-table th:nth-child(2),
+.streamer-table td:nth-child(2) {
+  width: 15%;
+  text-align: center;
+}
+
+.streamer-table th:nth-child(3),
+.streamer-table td:nth-child(3) {
+  width: 20%;
+}
+
+.streamer-table th:nth-child(4),
+.streamer-table td:nth-child(4) {
+  width: 30%;
 }
 
 .th-tooltip {
   font-size: 0.75rem;
   font-weight: normal;
-  color: #6c757d;
+  color: #adadb8;
   margin-top: 0.25rem;
+}
+
+.settings-form {
+  margin-bottom: 30px;
+  background-color: #1f1f23;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #333;
+  background-color: #18181b;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color, #42b883);
+  color: white;
+}
+
+.btn-secondary {
+  background-color: var(--background-darker, #3a3a3a);
+  color: white;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

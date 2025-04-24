@@ -1,8 +1,6 @@
 import logging
 from fastapi import Depends
 from app.database import SessionLocal
-from app.services.streamer_service import StreamerService
-from app.events.handler_registry import EventHandlerRegistry
 from app.config.settings import settings
 from app.services.websocket_manager import ConnectionManager
 from app.services.auth_service import AuthService
@@ -29,6 +27,7 @@ async def get_event_registry():
     global event_registry
     if not event_registry:
         logger.debug("Initializing event registry")
+        from app.events.handler_registry import EventHandlerRegistry
         event_registry = EventHandlerRegistry(
             connection_manager=websocket_manager,
             settings=settings
@@ -41,6 +40,7 @@ def get_streamer_service(
     db=Depends(get_db), 
     event_registry=Depends(get_event_registry)
 ):
+    from app.services.streamer_service import StreamerService
     return StreamerService(
         db=db,
         websocket_manager=websocket_manager,
@@ -56,3 +56,8 @@ def get_settings_service():
 
 def get_notification_service():
     return NotificationService()
+
+def get_current_user(db=Depends(get_db)):
+    from app.models import User
+    user = db.query(User).filter(User.is_admin == True).first()
+    return user

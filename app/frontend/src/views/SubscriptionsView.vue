@@ -38,10 +38,11 @@
         <tbody>
           <tr v-for="sub in subscriptions" :key="sub.id">
             <td>
-              <div v-if="streamerMap[sub.condition?.broadcaster_user_id]" class="streamer-info">
-                <span class="streamer-name">{{ streamerMap[sub.condition?.broadcaster_user_id] }}</span>
+              <div class="streamer-info">
+                <span class="streamer-name">
+                  {{ getStreamerName(sub.condition?.broadcaster_user_id) }}
+                </span>
               </div>
-              <span v-else>{{ sub.broadcaster_name || sub.condition?.broadcaster_user_id }}</span>
             </td>
             <td>{{ formatEventType(sub.type) }}</td>
             <td>
@@ -68,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 interface Subscription {
   id: string
@@ -86,13 +87,24 @@ interface Streamer {
   id: number
   twitch_id: string
   username: string
+  profile_image_url?: string
 }
 
 const subscriptions = ref<Subscription[]>([])
 const streamers = ref<Streamer[]>([])
-const streamerMap = ref<Record<string, string>>({})
+const streamerMap = ref<Record<string, Streamer>>({})
 const loadingResubscribe = ref(false)
 const loading = ref(false)
+
+// Create a computed map of twitch_id to streamer object for easier lookup
+const twitchIdToStreamerMap = computed(() => {
+  const map: Record<string, Streamer> = {}
+  streamers.value.forEach(streamer => {
+    map[streamer.twitch_id] = streamer
+  })
+  return map
+})
+
 function formatEventType(type: string): string {
   switch (type) {
     case 'stream.online':
@@ -106,18 +118,51 @@ function formatEventType(type: string): string {
   }
 }
 
+function getStreamerName(twitchId: string): string {
+  if (!twitchId) return 'Unknown'
+  
+  // Use the computed map for faster lookup
+  const streamer = twitchIdToStreamerMap.value[twitchId]
+  
+  if (streamer) {
+    return streamer.username
+  }
+  
+  // Log this issue for debugging
+  console.log(`Could not find streamer for ID: ${twitchId}`)
+  console.log("Available streamers:", streamers.value)
+  
+  // Return a formatted version of the ID as fallback
+  return `Unknown (${twitchId})`
+}
+
 async function loadStreamers() {
   try {
     const response = await fetch('/api/streamers')
     const data = await response.json()
-    streamers.value = data.streamers || []
     
-    streamerMap.value = {}
+    if (Array.isArray(data)) {
+      // If the API returns an array directly
+      streamers.value = data
+    } else if (data.streamers && Array.isArray(data.streamers)) {
+      // If the API returns {streamers: [...]}
+      streamers.value = data.streamers
+    } else {
+      console.error('Unexpected streamer data format:', data)
+      streamers.value = []
+    }
+    
+    console.log("Loaded streamers:", streamers.value)
+    
+    // Create a map for easier lookup
     streamers.value.forEach(streamer => {
-      streamerMap.value[streamer.twitch_id] = streamer.username
+      streamerMap.value[streamer.twitch_id] = streamer
     })
     
-    console.log("Loaded streamer map:", streamerMap.value)
+    // Force a reactive update if needed
+    if (subscriptions.value.length > 0) {
+      subscriptions.value = [...subscriptions.value]
+    }
   } catch (error) {
     console.error('Failed to load streamers:', error)
   }
@@ -126,11 +171,12 @@ async function loadStreamers() {
 async function loadSubscriptions() {
   loading.value = true
   try {
-    await loadStreamers()
-    
     const response = await fetch('/api/streamers/subscriptions')
     const data = await response.json()
     subscriptions.value = data.subscriptions
+    
+    // Load streamers after subscriptions
+    await loadStreamers()
   } catch (error) {
     console.error('Failed to load subscriptions:', error)
   } finally {

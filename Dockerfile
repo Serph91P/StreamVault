@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     libpq-dev \
     && pip install --no-cache-dir -r requirements.txt \
-    && pip install streamlink==7.1.3 \
+    && pip install streamlink==7.2.0 \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
