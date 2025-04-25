@@ -292,7 +292,7 @@ class RecordingService:
             while not os.path.exists(mp4_path):
                 if (datetime.now() - start_time).total_seconds() > 300:  # 5 minute timeout
                     logger.warning(f"Timed out waiting for MP4 file: {mp4_path}")
-                    # Versuche, die TS-Datei direkt zu verwenden, wenn MP4 nicht erstellt wurde
+                    # Try using TS file directly if MP4 wasn't created
                     if os.path.exists(output_path) and output_path.endswith('.ts'):
                         mp4_path = output_path
                         logger.info(f"Using TS file directly for metadata: {mp4_path}")
@@ -300,54 +300,85 @@ class RecordingService:
                     return
                 await asyncio.sleep(5)
         
-            # Stelle sicher, dass wir einen gültigen Stream haben (besonders für Force-Recordings)
+            # Make sure we have a valid stream (especially for force-started recordings)
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.error(f"Stream {stream_id} not found for metadata generation")
                     return
             
+                # Ensure stream is marked as ended
                 if force_started or not stream.ended_at:
-                    # Für Force-Recordings oder wenn der Stream noch nicht beendet ist
                     stream.ended_at = datetime.now(timezone.utc)
                     stream.status = "offline"
+                    
+                    # Check if there are any stream events
+                    events_count = db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).count()
+                    
+                    # If no events, add at least one event for the stream's category
+                    if events_count == 0 and stream.category_name:
+                        logger.info(f"No events found for stream {stream_id}, adding initial category event")
+                        
+                        # Add an event for the stream's category at stream start time
+                        category_event = StreamEvent(
+                            stream_id=stream_id,
+                            event_type="channel.update",
+                            title=stream.title,
+                            category_name=stream.category_name,
+                            language=stream.language,
+                            timestamp=stream.started_at
+                        )
+                        db.add(category_event)
+                        
+                        # And also add the stream.online event
+                        start_event = StreamEvent(
+                            stream_id=stream_id,
+                            event_type="stream.online",
+                            title=stream.title,
+                            category_name=stream.category_name,
+                            language=stream.language,
+                            timestamp=stream.started_at + timedelta(seconds=1)  # 1 second after start
+                        )
+                        db.add(start_event)
                     db.commit()
                     logger.info(f"Stream {stream_id} marked as ended for metadata generation")
         
             # Generate metadata
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
         
-            # Stelle sicher, dass wir eine neue Instanz des MetadataService verwenden
+            # Use a new MetadataService instance
             metadata_service = MetadataService()
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
-            # WICHTIG: Erst jetzt die Kapitel zur MP4 hinzufügen, wenn der Stream definitiv beendet ist 
-            # und alle Events in der Datenbank stehen
-            logger.info(f"Stream has ended, now adding chapters to MP4 file")
-        
-            with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if not stream:
-                    logger.error(f"Stream {stream_id} not found for chapter embedding")
-                    return
-            
-                # Alle Stream-Events abrufen, jetzt wo der Stream beendet ist
-                events = db.query(StreamEvent).filter(
-                    StreamEvent.stream_id == stream_id
-                ).order_by(StreamEvent.timestamp).all()
-            
-                if events and len(events) > 0:
-                    logger.info(f"Found {len(events)} events to embed as chapters into MP4")
-                    await self._add_chapters_to_mp4(stream, events, mp4_path)
-                else:
-                    logger.warning(f"No events found for stream {stream_id}, cannot add chapters to MP4")
-        
-            # Stelle sicher, dass ein Thumbnail existiert
+            # Make sure a thumbnail exists
             from app.services.thumbnail_service import ThumbnailService
             thumbnail_service = ThumbnailService()
             await thumbnail_service.ensure_thumbnail(stream_id, os.path.dirname(mp4_path))
         
-            # Schließe die Metadaten-Session
+            # After metadata generation, also create chapter files
+            with SessionLocal() as db:
+                # Get all stream events for this stream
+                events = db.query(StreamEvent).filter(
+                    StreamEvent.stream_id == stream_id
+                ).order_by(StreamEvent.timestamp).all()
+        
+                if events:
+                    # Find start and end time
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.started_at and stream.ended_at:
+                        duration = (stream.ended_at - stream.started_at).total_seconds()
+                        
+                        # Create chapter subtitle file
+                        await self._create_subtitle_chapters(events, duration, mp4_path)
+                        logger.info(f"Created chapter subtitle file for recording {stream_id}")
+                        
+                        # Ensure chapters in all formats
+                        await metadata_service.ensure_all_chapter_formats(stream_id, mp4_path)
+                        logger.info(f"Created chapter files in all formats for recording {stream_id}")
+                else:
+                    logger.warning(f"No events found for stream {stream_id} even after adding default events")
+        
+            # Close the metadata session
             await metadata_service.close()
         
         except Exception as e:
