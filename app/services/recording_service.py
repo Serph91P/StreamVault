@@ -393,6 +393,26 @@ class RecordingService:
             # Generate all metadata in one go
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
+            # NEUER CODE: Kapitel-Einbettung in die MP4-Datei
+            # Warte kurz, damit alle Kapitel-Dateien geschrieben werden können
+            await asyncio.sleep(1)
+        
+            # Finde die FFmpeg-Kapitel-Datei
+            ffmpeg_chapters_path = mp4_path.replace('.mp4', '-ffmpeg-chapters.txt')
+        
+            if os.path.exists(ffmpeg_chapters_path) and os.path.getsize(ffmpeg_chapters_path) > 0:
+                logger.info(f"Embedding FFmpeg chapters into MP4 file for stream {stream_id}")
+            
+                # Nutze die bestehende Methode des MetadataService zur Kapitel-Einbettung
+                result = await metadata_service.embed_chapters_in_mp4(mp4_path, ffmpeg_chapters_path)
+            
+                if result:
+                    logger.info(f"Successfully embedded chapters into MP4 file for better player compatibility")
+                else:
+                    logger.warning(f"Failed to embed chapters into MP4 file")
+            else:
+                logger.warning(f"FFmpeg chapters file not found or empty: {ffmpeg_chapters_path}")
+        
             # After metadata generation, DO NOT generate chapters again
             # The generate_metadata_for_stream already handles this
         
