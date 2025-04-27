@@ -660,3 +660,41 @@ class RecordingService:
     async def _remux_to_mp4_fallback(self, ts_path: str, mp4_path: str) -> bool:
         """Fallback method for remuxing with even more restrictive options"""
         try:
+            # Simpler command with explicit stream selection to avoid codec issues
+            cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c", "copy",          # Copy streams without re-encoding
+                "-map", "0:v:0",       # Map only the first video stream
+                "-map", "0:a:0",       # Map only the first audio stream
+                "-ignore_unknown",     # Ignore unknown streams
+                "-movflags", "+faststart",  # Optimize for web streaming
+                "-y",                  # Overwrite output
+                mp4_path
+            ]
+        
+            logger.debug(f"Starting fallback FFmpeg remux: {' '.join(cmd)}")
+        
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+        
+            if process.returncode == 0:
+                logger.info(f"Successfully remuxed {ts_path} to {mp4_path} using fallback method")
+                # Delete TS file after successful conversion
+                os.remove(ts_path)
+                return True
+            else:
+                stderr_text = stderr.decode('utf-8', errors='ignore')
+                logger.error(f"FFmpeg fallback remux failed with code {process.returncode}: {stderr_text}")
+            
+                # Save the TS file in case it's valuable
+                logger.warning(f"Keeping original TS file at {ts_path} for recovery")
+                return False
+        except Exception as e:
+            logger.error(f"Error during fallback remux: {e}", exc_info=True)
+            return False
