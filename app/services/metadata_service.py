@@ -492,8 +492,17 @@ class MetadataService:
                 # Stream-Metadaten
                 if stream.title:
                     f.write(f"title={stream.title}\n")
-                if stream.streamer and stream.streamer.username:
-                    f.write(f"artist={stream.streamer.username}\n")
+                
+                # Streamer-Informationen abrufen (Stream hat nur streamer_id, nicht streamer)
+                streamer_username = None
+                with SessionLocal() as db:
+                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                    if streamer:
+                        streamer_username = streamer.username
+                
+                if streamer_username:
+                    f.write(f"artist={streamer_username}\n")
+                
                 if stream.started_at:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
                 
@@ -556,7 +565,8 @@ class MetadataService:
                     f.write(f"title={title}\n")
                 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
-            return output_path
+                return output_path
+            
         except Exception as e:
             logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)
             return None
