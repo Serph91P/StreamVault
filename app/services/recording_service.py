@@ -389,35 +389,12 @@ class RecordingService:
         
             # Use a new MetadataService instance
             metadata_service = MetadataService()
+        
+            # Generate all metadata in one go
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
-            # Make sure a thumbnail exists
-            from app.services.thumbnail_service import ThumbnailService
-            thumbnail_service = ThumbnailService()
-            await thumbnail_service.ensure_thumbnail(stream_id, os.path.dirname(mp4_path))
-        
-            # After metadata generation, also create chapter files
-            with SessionLocal() as db:
-                # Get all stream events for this stream
-                events = db.query(StreamEvent).filter(
-                    StreamEvent.stream_id == stream_id
-                ).order_by(StreamEvent.timestamp).all()
-        
-                if events:
-                    # Find start and end time
-                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                    if stream and stream.started_at and stream.ended_at:
-                        duration = (stream.ended_at - stream.started_at).total_seconds()
-                        
-                        # Create chapter subtitle file
-                        await self._create_subtitle_chapters(events, duration, mp4_path)
-                        logger.info(f"Created chapter subtitle file for recording {stream_id}")
-                        
-                        # Ensure chapters in all formats
-                        await metadata_service.ensure_all_chapter_formats(stream_id, mp4_path)
-                        logger.info(f"Created chapter files in all formats for recording {stream_id}")
-                else:
-                    logger.warning(f"No events found for stream {stream_id} even after adding default events")
+            # After metadata generation, DO NOT generate chapters again
+            # The generate_metadata_for_stream already handles this
         
             # Close the metadata session
             await metadata_service.close()
@@ -708,6 +685,23 @@ class RecordingService:
         game = self._sanitize_filename(stream_data.get("category_name", "unknown"))
         streamer_name = self._sanitize_filename(streamer.username)
         
+        # Get episode number (count of streams in current month)
+        episode = "01"  # Default value
+        try:
+            with SessionLocal() as db:
+                # Count streams in the current month for this streamer
+                stream_count = db.query(Stream).filter(
+                    Stream.streamer_id == streamer.id,
+                    extract('year', Stream.started_at) == now.year,
+                    extract('month', Stream.started_at) == now.month
+                ).count()
+                
+                # Add 1 for the current stream
+                episode = f"{stream_count + 1:02d}"
+                logger.debug(f"Calculated episode number for {streamer.username}: {episode}")
+        except Exception as e:
+            logger.error(f"Error getting episode number: {e}", exc_info=True)
+        
         # Create a dictionary of replaceable values
         values = {
             "streamer": streamer_name,
@@ -723,7 +717,8 @@ class RecordingService:
             "timestamp": now.strftime("%Y%m%d_%H%M%S"),
             "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
             "id": stream_data.get("id", ""),
-            "season": f"S{now.year}-{now.month:02d}"
+            "season": f"S{now.year}-{now.month:02d}",
+            "episode": episode
         }
         
         # Check if template is a preset name

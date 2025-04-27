@@ -492,62 +492,61 @@ class MetadataService:
                 # Stream-Metadaten
                 if stream.title:
                     f.write(f"title={stream.title}\n")
-                
-                # Streamer-Informationen abrufen
-                with SessionLocal() as db:
-                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                    if streamer and streamer.username:
-                        f.write(f"artist={streamer.username}\n")
-                
+                if stream.streamer and stream.streamer.username:
+                    f.write(f"artist={stream.streamer.username}\n")
                 if stream.started_at:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
                 
-                # Stelle sicher, dass wir ein Start-Kapitel haben
+                # Sortierte Events, um Duplikate zu eliminieren
                 sorted_events = sorted(events, key=lambda x: x.timestamp)
+                filtered_events = []
                 
-                # Füge ein Start-Kapitel hinzu, wenn das erste Event nicht direkt am Anfang ist
-                if stream.started_at and (not sorted_events or (sorted_events[0].timestamp - stream.started_at).total_seconds() > 1):
-                    # Erstelle ein künstliches Start-Event
-                    start_event = type('Event', (), {
+                # Entferne Events mit gleicher Kategorie in Folge
+                last_category = None
+                for event in sorted_events:
+                    if event.category_name != last_category:
+                        filtered_events.append(event)
+                        last_category = event.category_name
+                
+                # Wenn wir keine Events haben, füge ein Standard-Kapitel hinzu
+                if not filtered_events and stream.category_name:
+                    # Create a dummy event for the entire stream
+                    dummy_event = type('Event', (), {
                         'timestamp': stream.started_at,
-                        'title': stream.title or "Stream Start",
-                        'category_name': stream.category_name or "Unknown",
-                        'event_type': 'stream.start'
+                        'title': stream.title,
+                        'category_name': stream.category_name
                     })
-                    sorted_events.insert(0, start_event)
+                    filtered_events.append(dummy_event)
                 
-                # Verwende nur die Kategorie als Kapiteltitel
-                use_category_as_title = True
-                
-                for i, event in enumerate(sorted_events):
+                for i, event in enumerate(filtered_events):
                     # Start-Zeit des Events
                     start_time = event.timestamp
                     
                     # End-Zeit ist entweder der nächste Event oder das Stream-Ende
-                    if i < len(sorted_events) - 1:
-                        end_time = sorted_events[i+1].timestamp
+                    if i < len(filtered_events) - 1:
+                        end_time = filtered_events[i+1].timestamp
                     elif stream.ended_at:
                         end_time = stream.ended_at
                     else:
                         # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
                         end_time = start_time + timedelta(hours=24)
                     
-                    # Berechne Offset in Millisekunden für ffmpeg
+                    # Berechne Offset in Millisekunden für ffmpeg (mindestens 1000 ms Dauer)
                     if stream.started_at:
                         start_offset_ms = int(max(0, (start_time - stream.started_at).total_seconds() * 1000))
-                        end_offset_ms = int(max(0, (end_time - stream.started_at).total_seconds() * 1000))
+                        end_offset_ms = int(max(start_offset_ms + 1000, (end_time - stream.started_at).total_seconds() * 1000))
                     else:
                         # Fallback, falls start_time nicht bekannt ist
                         start_offset_ms = 0
                         end_offset_ms = 24 * 60 * 60 * 1000  # 24 Stunden
                     
                     # Kapitel-Titel erstellen
-                    if use_category_as_title and hasattr(event, 'category_name') and event.category_name:
-                        title = event.category_name
+                    if event.category_name:
+                        title = f"{event.category_name}"
+                    elif event.title:
+                        title = f"{event.title}"
                     else:
-                        title = event.title or "Stream"
-                        if hasattr(event, 'category_name') and event.category_name and not use_category_as_title:
-                            title += f" ({event.category_name})"
+                        title = "Stream"
                     
                     # Kapitel-Eintrag schreiben
                     f.write("\n[CHAPTER]\n")
@@ -557,8 +556,10 @@ class MetadataService:
                     f.write(f"title={title}\n")
                 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
+            return output_path
         except Exception as e:
-            logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)    
+            logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)
+            return None
     async def _generate_xml_chapters(self, stream, events, output_path):
         """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin"""
         try:
