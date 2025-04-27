@@ -142,7 +142,7 @@ const isStreamRecording = (streamerIdValue: number): boolean => {
   
   const isRecording = activeRecordings.value.some(rec => {
     // Ensure both are treated as numbers for comparison
-    return parseInt(rec.streamer_id as any) === parseInt(streamerIdValue as any);
+    return parseInt(rec.streamer_id.toString()) === parseInt(streamerIdValue.toString());
   });
   
   console.log(`Stream ${streamerIdValue} recording status: ${isRecording}`);
@@ -221,7 +221,10 @@ const loadStreams = async () => {
 onMounted(async () => {
   await loadStreams();
   
-  // Poll active recordings more frequently (every 5 seconds)
+  // Poll active recordings immediately and then every 5 seconds
+  await fetchActiveRecordings();
+  console.log("Initial active recordings:", activeRecordings.value);
+  
   const interval = setInterval(async () => {
     try {
       await fetchActiveRecordings();
@@ -259,7 +262,7 @@ watch(messages, (newMessages) => {
     
     // Add or update the recording in our cache
     const existingIndex = activeRecordings.value.findIndex(r => 
-      parseInt(r.streamer_id as any) === streamerId
+      parseInt(r.streamer_id.toString()) === streamerId
     );
     
     if (existingIndex >= 0) {
@@ -281,7 +284,7 @@ watch(messages, (newMessages) => {
     // Remove from our local cache
     if (activeRecordings.value) {
       activeRecordings.value = activeRecordings.value.filter(r => 
-        parseInt(r.streamer_id as any) !== streamerId
+        parseInt(r.streamer_id.toString()) !== streamerId
       );
     }
     

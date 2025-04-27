@@ -22,7 +22,7 @@ logger = logging.getLogger("streamvault")
 
 class RecordingService:
     def __init__(self):
-        self.active_recordings = {}  # streamer_id: process
+        self.active_recordings = {}  # streamer_id: info
         self.lock = asyncio.Lock()
         self.metadata_service = MetadataService()
     
@@ -86,9 +86,9 @@ class RecordingService:
                             "stream_id": None  # Will be updated when we find/create the stream
                         }
                         
-                        # Add debug logging to help diagnose issues
-                        logger.debug(f"RECORDING STATUS: Added to active_recordings with key {streamer_id}")
-                        logger.debug(f"RECORDING STATUS: Current active recordings: {list(self.active_recordings.keys())}")
+                        # Add verbose logging for debugging
+                        logger.info(f"Added to active_recordings with key {streamer_id}")
+                        logger.info(f"Current active recordings: {list(self.active_recordings.keys())}")
                         
                         logger.info(f"Started recording for {streamer.username} at {quality} quality to {output_path}")
                         await websocket_manager.send_notification({
@@ -934,7 +934,7 @@ class RecordingService:
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
         """Get a list of all active recordings"""
         async with self.lock:
-            # Add verbose logging
+            # Add verbose logging for debugging
             logger.debug(f"RECORDING STATUS: get_active_recordings called, keys: {list(self.active_recordings.keys())}")
             
             result = [
