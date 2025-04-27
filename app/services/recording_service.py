@@ -29,6 +29,9 @@ class RecordingService:
     async def start_recording(self, streamer_id: int, stream_data: Dict[str, Any]) -> bool:
         """Start recording a stream"""
         async with self.lock:
+            # Convert streamer_id to integer for consistency
+            streamer_id = int(streamer_id)
+            
             if streamer_id in self.active_recordings:
                 logger.debug(f"Recording already active for streamer {streamer_id}")
                 return False
@@ -82,6 +85,11 @@ class RecordingService:
                             "quality": quality,
                             "stream_id": None  # Will be updated when we find/create the stream
                         }
+                        
+                        # Add debug logging to help diagnose issues
+                        logger.debug(f"RECORDING STATUS: Added to active_recordings with key {streamer_id}")
+                        logger.debug(f"RECORDING STATUS: Current active recordings: {list(self.active_recordings.keys())}")
+                        
                         logger.info(f"Started recording for {streamer.username} at {quality} quality to {output_path}")
                         await websocket_manager.send_notification({
                             "type": "recording.started",
@@ -926,19 +934,23 @@ class RecordingService:
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
         """Get a list of all active recordings"""
         async with self.lock:
-            recordings = [
+            # Add verbose logging
+            logger.debug(f"RECORDING STATUS: get_active_recordings called, keys: {list(self.active_recordings.keys())}")
+            
+            result = [
                 {
-                    "streamer_id": streamer_id,
+                    "streamer_id": int(streamer_id),  # Ensure integer type
                     "streamer_name": info["streamer_name"],
-                    "started_at": info["started_at"].isoformat(),
-                    "duration": (datetime.now() - info["started_at"]).total_seconds(),
+                    "started_at": info["started_at"].isoformat() if isinstance(info["started_at"], datetime) else info["started_at"],
+                    "duration": (datetime.now() - info["started_at"]).total_seconds() if isinstance(info["started_at"], datetime) else 0,
                     "output_path": info["output_path"],
                     "quality": info["quality"]
                 }
                 for streamer_id, info in self.active_recordings.items()
             ]
-            logger.debug(f"Active recordings: {recordings}")
-            return recordings
+            
+            logger.debug(f"RECORDING STATUS: Returning {len(result)} active recordings")
+            return result
 
 FILENAME_PRESETS = {
     "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",

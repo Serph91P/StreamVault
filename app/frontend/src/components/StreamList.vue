@@ -126,23 +126,27 @@ const handleBack = () => {
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue: number): boolean => {
-  // Überprüfe zuerst den lokalen Status für sofortige Aktualisierung
+  // First check local state which gets updated immediately via WebSockets
   if (localRecordingState.value[streamerIdValue] !== undefined) {
+    console.log(`Using local recording state for ${streamerIdValue}: ${localRecordingState.value[streamerIdValue]}`);
     return localRecordingState.value[streamerIdValue];
   }
   
-  // Fall zurück auf activeRecordings vom Server
+  // Then check activeRecordings from the server
   if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
+    console.log(`No active recordings available for ${streamerIdValue}`);
     return false;
   }
   
-  console.log("Active recordings:", activeRecordings.value);
-  console.log("Checking for streamer ID:", streamerIdValue);
+  console.log(`Active recordings for ${streamerIdValue}:`, activeRecordings.value);
   
-  return activeRecordings.value.some(rec => {
-    console.log("Comparing with recording:", rec);
-    return rec.streamer_id === streamerIdValue;
+  const isRecording = activeRecordings.value.some(rec => {
+    // Ensure both are treated as numbers for comparison
+    return parseInt(rec.streamer_id as any) === parseInt(streamerIdValue as any);
   });
+  
+  console.log(`Stream ${streamerIdValue} recording status: ${isRecording}`);
+  return isRecording;
 }
 
 // Aufnahme starten
@@ -150,7 +154,7 @@ const startRecording = async (streamerIdValue: number) => {
   try {
     isStartingRecording.value = true
     
-    // Sofort Status lokal aktualisieren für bessere UX
+    // Update local state immediately for better UX
     localRecordingState.value[streamerIdValue] = true
     
     const response = await fetch(`/api/recording/force/${streamerIdValue}`, {
@@ -165,13 +169,17 @@ const startRecording = async (streamerIdValue: number) => {
       throw new Error(errorData.detail || 'Failed to start recording')
     }
     
-    // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
+    // Keep local state since it was successful
+    console.log(`Successfully started recording for streamer ${streamerIdValue}`);
+    
+    // Fetch active recordings to ensure our UI is in sync
     await fetchActiveRecordings()
     
   } catch (error) {
     console.error('Failed to start recording:', error)
     alert(`Failed to start recording: ${error instanceof Error ? error.message : String(error)}`)
-    // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
+    
+    // Reset local state on failure
     localRecordingState.value[streamerIdValue] = false
   } finally {
     isStartingRecording.value = false
@@ -212,12 +220,18 @@ const loadStreams = async () => {
 
 onMounted(async () => {
   await loadStreams();
-  // Alle 10 Sekunden aktive Aufnahmen aktualisieren
-  const interval = setInterval(async () => {
-    await fetchActiveRecordings();
-  }, 10000);
   
-  // Cleanup beim Unmount
+  // Poll active recordings more frequently (every 5 seconds)
+  const interval = setInterval(async () => {
+    try {
+      await fetchActiveRecordings();
+      console.log("Updated active recordings:", activeRecordings.value);
+    } catch (err) {
+      console.error("Error fetching active recordings:", err);
+    }
+  }, 5000);
+  
+  // Cleanup on component unmount
   onUnmounted(() => {
     clearInterval(interval);
   });
@@ -230,15 +244,49 @@ watch(messages, (newMessages) => {
   const latestMessage = newMessages[newMessages.length - 1]
   console.log('Received WebSocket message:', latestMessage)
   
-  // Lokalen Status basierend auf WebSocket-Ereignissen aktualisieren
+  // Update local state based on WebSocket events
   if (latestMessage.type === 'recording.started') {
-    console.log('Recording started for streamer:', latestMessage.data.streamer_id)
-    localRecordingState.value[latestMessage.data.streamer_id] = true
-    fetchActiveRecordings() // Synchronisiere mit dem Server
+    const streamerId = parseInt(latestMessage.data.streamer_id);
+    console.log(`Recording started for streamer ${streamerId}`);
+    
+    // Update local state immediately
+    localRecordingState.value[streamerId] = true;
+    
+    // Also update our local cache of activeRecordings
+    if (!activeRecordings.value) {
+      activeRecordings.value = [];
+    }
+    
+    // Add or update the recording in our cache
+    const existingIndex = activeRecordings.value.findIndex(r => 
+      parseInt(r.streamer_id as any) === streamerId
+    );
+    
+    if (existingIndex >= 0) {
+      activeRecordings.value[existingIndex] = latestMessage.data;
+    } else {
+      activeRecordings.value.push(latestMessage.data);
+    }
+    
+    // Still fetch from server to ensure we're in sync
+    fetchActiveRecordings();
+    
   } else if (latestMessage.type === 'recording.stopped') {
-    console.log('Recording stopped for streamer:', latestMessage.data.streamer_id)
-    localRecordingState.value[latestMessage.data.streamer_id] = false
-    fetchActiveRecordings() // Synchronisiere mit dem Server
+    const streamerId = parseInt(latestMessage.data.streamer_id);
+    console.log(`Recording stopped for streamer ${streamerId}`);
+    
+    // Update local state immediately
+    localRecordingState.value[streamerId] = false;
+    
+    // Remove from our local cache
+    if (activeRecordings.value) {
+      activeRecordings.value = activeRecordings.value.filter(r => 
+        parseInt(r.streamer_id as any) !== streamerId
+      );
+    }
+    
+    // Sync with server
+    fetchActiveRecordings();
   }
 }, { deep: true })
 

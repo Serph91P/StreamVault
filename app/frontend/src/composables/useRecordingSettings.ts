@@ -144,16 +144,34 @@ export function useRecordingSettings() {
     }
   };
 
-  const fetchActiveRecordings = async (): Promise<void> => {
+  const fetchActiveRecordings = async () => {
     try {
+      isLoading.value = true;
       const response = await fetch('/api/recording/active');
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+        throw new Error(`Failed to fetch active recordings: ${response.status}`);
       }
       
-      activeRecordings.value = await response.json();
-    } catch (err) {
-      console.error('Error fetching active recordings:', err);
+      const data = await response.json();
+      console.log('Fetched active recordings:', data);
+      
+      // Ensure we validate and normalize the response
+      if (Array.isArray(data)) {
+        activeRecordings.value = data.map(rec => ({
+          ...rec,
+          streamer_id: parseInt(rec.streamer_id) // Ensure consistent type
+        }));
+      } else {
+        console.error('Invalid active recordings response:', data);
+        activeRecordings.value = [];
+      }
+    } catch (error) {
+      console.error('Error fetching active recordings:', error);
+      error.value = error.message || 'Failed to fetch active recordings';
+      activeRecordings.value = []; // Reset on error
+    } finally {
+      isLoading.value = false;
     }
   };
 
