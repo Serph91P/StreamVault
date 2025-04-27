@@ -21,9 +21,9 @@ from app.dependencies import websocket_manager
 logger = logging.getLogger("streamvault")
 
 # At the top of the file, add this to make RecordingService a singleton
-_instance = None
-
 class RecordingService:
+    _instance = None  # Make this a class attribute
+    
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(RecordingService, cls).__new__(cls)
