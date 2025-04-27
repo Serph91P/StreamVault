@@ -160,15 +160,15 @@ export function useRecordingSettings() {
       if (Array.isArray(data)) {
         activeRecordings.value = data.map(rec => ({
           ...rec,
-          streamer_id: parseInt(rec.streamer_id) // Ensure consistent type
+          streamer_id: parseInt(rec.streamer_id.toString()) // Ensure consistent type
         }));
       } else {
         console.error('Invalid active recordings response:', data);
         activeRecordings.value = [];
       }
-    } catch (error) {
-      console.error('Error fetching active recordings:', error);
-      error.value = error.message || 'Failed to fetch active recordings';
+    } catch (err: unknown) {
+      console.error('Error fetching active recordings:', err);
+      error.value = err instanceof Error ? err.message : String(err);
       activeRecordings.value = []; // Reset on error
     } finally {
       isLoading.value = false;
