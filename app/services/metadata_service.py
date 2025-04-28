@@ -3,42 +3,55 @@ import json
 import aiohttp
 import asyncio
 import logging
-import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union, Any
+
+import xml.etree.ElementTree as ET
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer
 from app.config.settings import settings
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
 
 class MetadataService:
     def __init__(self):
-        self.session = None
+        self.session: Optional[aiohttp.ClientSession] = None
     
-    async def _get_session(self):
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Liefert eine aktive HTTP-Session oder erstellt eine neue."""
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
         return self.session
     
-    async def close(self):
+    async def close(self) -> None:
+        """Schließt die HTTP-Session."""
         if self.session and not self.session.closed:
             await self.session.close()
     
-    async def generate_metadata_for_stream(self, stream_id: int, mp4_path: str):
-        """Generiert alle Metadatendateien für einen Stream"""
+    async def generate_metadata_for_stream(self, stream_id: int, mp4_path: str) -> bool:
+        """Generiert alle Metadatendateien für einen Stream.
+        
+        Args:
+            stream_id: ID des Streams
+            mp4_path: Pfad zur MP4-Datei
+            
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream with ID {stream_id} not found for metadata generation")
-                    return
+                    return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
                     logger.warning(f"Streamer not found for stream {stream_id}")
-                    return
+                    return False
                 
                 # Basispfad für Metadaten
                 base_path = Path(mp4_path).parent
@@ -52,26 +65,39 @@ class MetadataService:
                     db.commit()  # Commit here to ensure it exists for later references
                 
                 # Aufgaben parallel ausführen
-                await asyncio.gather(
-                    self.generate_json_metadata(stream, streamer, base_path, base_filename, metadata),
-                    self.generate_nfo_file(stream, streamer, base_path, base_filename, metadata),
-                    self.extract_thumbnail(mp4_path, stream_id),
-                    self.ensure_all_chapter_formats(stream_id, mp4_path)  # Verwende die neue Methode
+                results = await asyncio.gather(
+                    self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata),
+                    self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata),
+                    self.extract_thumbnail(mp4_path, stream_id, db),
+                    self.ensure_all_chapter_formats(stream_id, mp4_path, db)
                 )
                 
                 db.commit()
                 logger.info(f"Generated metadata for stream {stream_id}")
+                return all(results)
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
+            return False
     
-    async def generate_json_metadata(self, stream, streamer, base_path, base_filename, metadata):
-        """Erzeugt JSON-Metadatendatei"""
+    async def generate_json_metadata(
+        self, 
+        db: Session, 
+        stream: Stream, 
+        streamer: Streamer, 
+        base_path: Path, 
+        base_filename: str, 
+        metadata: StreamMetadata
+    ) -> bool:
+        """Erzeugt JSON-Metadatendatei.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
-            json_path = os.path.join(base_path, f"{base_filename}.info.json")
+            json_path = base_path / f"{base_filename}.info.json"
             
             # Stream-Events abrufen
-            with SessionLocal() as db:
-                events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).all()
+            events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).all()
                 
             # Metadaten erstellen
             meta_dict = {
@@ -103,15 +129,29 @@ class MetadataService:
             with open(json_path, 'w', encoding='utf-8') as f:
                 json.dump(meta_dict, f, indent=2)
             
-            metadata.json_path = json_path
+            metadata.json_path = str(json_path)
             logger.debug(f"Generated JSON metadata for stream {stream.id} at {json_path}")
+            return True
         except Exception as e:
             logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
+            return False
     
-    async def generate_nfo_file(self, stream, streamer, base_path, base_filename, metadata):
-        """Erzeugt NFO-Datei für Kodi/Plex"""
+    async def generate_nfo_file(
+        self, 
+        db: Session, 
+        stream: Stream, 
+        streamer: Streamer, 
+        base_path: Path, 
+        base_filename: str, 
+        metadata: StreamMetadata
+    ) -> bool:
+        """Erzeugt NFO-Datei für Kodi/Plex.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
-            nfo_path = os.path.join(base_path, f"{base_filename}.nfo")
+            nfo_path = base_path / f"{base_filename}.nfo"
             
             # XML-Struktur erstellen
             root = ET.Element("tvshow")
@@ -157,32 +197,49 @@ class MetadataService:
             
             # XML schreiben
             tree = ET.ElementTree(root)
-            tree.write(nfo_path, encoding="utf-8", xml_declaration=True)
+            tree.write(str(nfo_path), encoding="utf-8", xml_declaration=True)
             
-            metadata.nfo_path = nfo_path
+            metadata.nfo_path = str(nfo_path)
             logger.debug(f"Generated NFO file for stream {stream.id} at {nfo_path}")
+            return True
         except Exception as e:
             logger.error(f"Error generating NFO file: {e}", exc_info=True)
+            return False
     
-    async def extract_thumbnail(self, video_path: str, stream_id: int = None):
-        """Extrahiert das erste Frame des Videos als Thumbnail"""
-        if not os.path.exists(video_path):
+    async def extract_thumbnail(
+        self, 
+        video_path: str, 
+        stream_id: Optional[int] = None, 
+        db: Optional[Session] = None
+    ) -> Optional[str]:
+        """Extrahiert das erste Frame des Videos als Thumbnail.
+        
+        Args:
+            video_path: Pfad zur Videodatei
+            stream_id: Optional, ID des Streams für Metadaten-Update
+            db: Optional, Datenbank-Session
+            
+        Returns:
+            Optional[str]: Pfad zum Thumbnail oder None bei Fehler
+        """
+        video_path_obj = Path(video_path)
+        if not video_path_obj.exists():
             logger.warning(f"Video file not found for thumbnail extraction: {video_path}")
             return None
         
         try:
-            thumbnail_path = video_path.replace('.mp4', '_thumbnail.jpg')
+            thumbnail_path = video_path_obj.with_suffix('.jpg').with_stem(f"{video_path_obj.stem}_thumbnail")
             
             # FFmpeg-Befehl zum Extrahieren des ersten Frames
             cmd = [
                 "ffmpeg",
-                "-i", video_path,
+                "-i", str(video_path_obj),
                 "-vf", r"select=eq(n\,0)",  # Erstes Frame auswählen
                 "-q:v", "2",               # Hohe Qualität
                 "-f", "image2",
                 "-vframes", "1",
                 "-y",                      # Überschreiben bestehender Dateien
-                thumbnail_path
+                str(thumbnail_path)
             ]
             
             process = await asyncio.create_subprocess_exec(
@@ -194,21 +251,20 @@ class MetadataService:
             stdout, stderr = await process.communicate()
             
             # Prüfen, ob Thumbnail erstellt wurde
-            if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 0:
+            if thumbnail_path.exists() and thumbnail_path.stat().st_size > 0:
                 logger.info(f"Successfully extracted thumbnail to {thumbnail_path}")
                 
                 # Metadata aktualisieren, wenn Stream-ID vorhanden
-                if stream_id:
-                    with SessionLocal() as db:
-                        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                        if not metadata:
-                            metadata = StreamMetadata(stream_id=stream_id)
-                            db.add(metadata)
-                        
-                        metadata.thumbnail_path = thumbnail_path
-                        db.commit()
+                if stream_id and db:
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if not metadata:
+                        metadata = StreamMetadata(stream_id=stream_id)
+                        db.add(metadata)
+                    
+                    metadata.thumbnail_path = str(thumbnail_path)
+                    db.commit()
                 
-                return thumbnail_path
+                return str(thumbnail_path)
             else:
                 logger.warning(f"Thumbnail extraction failed or produced empty file: {thumbnail_path}")
                 if stderr:
@@ -218,16 +274,30 @@ class MetadataService:
         
         return None
     
-    async def get_stream_thumbnail_url(self, username: str, width: int = 1280, height: int = 720):
-        """Generiert Twitch-Vorschaubild-URL für einen Stream"""
+    async def get_stream_thumbnail_url(self, username: str, width: int = 1280, height: int = 720) -> str:
+        """Generiert Twitch-Vorschaubild-URL für einen Stream.
+        
+        Returns:
+            str: URL zum Twitch-Vorschaubild
+        """
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg"
     
-    async def download_twitch_thumbnail(self, streamer_username: str, stream_id: int, output_dir: str):
-        """Lädt das Twitch-Stream-Thumbnail herunter"""
+    async def download_twitch_thumbnail(
+        self, 
+        streamer_username: str, 
+        stream_id: int, 
+        output_dir: str
+    ) -> Optional[str]:
+        """Lädt das Twitch-Stream-Thumbnail herunter.
+        
+        Returns:
+            Optional[str]: Pfad zum heruntergeladenen Thumbnail oder None bei Fehler
+        """
         try:
             # Verzeichnis erstellen
-            os.makedirs(output_dir, exist_ok=True)
-            thumbnail_path = os.path.join(output_dir, f"{streamer_username}_thumbnail.jpg")
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            thumbnail_path = output_path / f"{streamer_username}_thumbnail.jpg"
             
             # URL generieren
             url = await self.get_stream_thumbnail_url(streamer_username)
@@ -245,12 +315,12 @@ class MetadataService:
                             metadata = StreamMetadata(stream_id=stream_id)
                             db.add(metadata)
                         
-                        metadata.thumbnail_path = thumbnail_path
+                        metadata.thumbnail_path = str(thumbnail_path)
                         metadata.thumbnail_url = url
                         db.commit()
                     
                     logger.info(f"Downloaded Twitch thumbnail for stream {stream_id} to {thumbnail_path}")
-                    return thumbnail_path
+                    return str(thumbnail_path)
                 else:
                     logger.warning(f"Failed to download Twitch thumbnail, status: {response.status}")
         except Exception as e:
@@ -258,14 +328,34 @@ class MetadataService:
         
         return None
     
-    async def ensure_all_chapter_formats(self, stream_id: int, mp4_path: str):
-        """Stellt sicher, dass Kapitel in allen gängigen Formaten erstellt werden"""
+    async def ensure_all_chapter_formats(
+        self, 
+        stream_id: int, 
+        mp4_path: str, 
+        db: Optional[Session] = None
+    ) -> Optional[Dict[str, str]]:
+        """Stellt sicher, dass Kapitel in allen gängigen Formaten erstellt werden.
+        
+        Args:
+            stream_id: ID des Streams
+            mp4_path: Pfad zur MP4-Datei
+            db: Optional, Datenbank-Session
+            
+        Returns:
+            Optional[Dict[str, str]]: Dictionary mit Pfaden zu allen erstellten Kapitelformaten oder None bei Fehler
+        """
         try:
-            with SessionLocal() as db:
+            # Verwende übergebene Session oder erstelle eine neue
+            close_db = False
+            if db is None:
+                db = SessionLocal()
+                close_db = True
+                
+            try:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream with ID {stream_id} not found for chapter generation")
-                    return
+                    return None
                 
                 # Stream-Events abrufen (Kategorie-Wechsel usw.)
                 events = db.query(StreamEvent).filter(
@@ -274,88 +364,69 @@ class MetadataService:
                 
                 if not events or len(events) < 1:
                     logger.warning(f"No events found for stream {stream_id}, skipping chapter generation")
-                    return
+                    return None
                 
                 # Basispfade für Kapitel
-                base_path = Path(mp4_path).parent
-                base_filename = Path(mp4_path).stem
+                mp4_path_obj = Path(mp4_path)
+                base_path = mp4_path_obj.parent
+                base_filename = mp4_path_obj.stem
                 
                 # 1. WebVTT-Kapitel (für Plex/Browser)
-                vtt_path = os.path.join(base_path, f"{base_filename}vtt")
+                vtt_path = base_path / f"{base_filename}.vtt"
                 await self._generate_vtt_chapters(stream, events, vtt_path)
                 
                 # 2. Exakte Dateinamen-Kopie für Plex
-                exact_vtt_path = mp4_path.replace('.mp4', '.vtt')
+                exact_vtt_path = mp4_path_obj.with_suffix('.vtt')
                 if exact_vtt_path != vtt_path:
                     import shutil
                     shutil.copy2(vtt_path, exact_vtt_path)
                 
                 # 3. SRT-Kapitel (für Kodi/einige Player)
-                srt_path = os.path.join(base_path, f"{base_filename}.srt")
+                srt_path = base_path / f"{base_filename}.srt"
                 await self._generate_srt_chapters(stream, events, srt_path)
                 
-                # 4. Normale SRT-Untertitel (für alle Player)
-                normal_srt_path = os.path.join(base_path, f"{base_filename}.srt")
-                await self._generate_srt_chapters(stream, events, normal_srt_path)
-                
-                # 5. FFmpeg Chapters-Datei
-                ffmpeg_chapters_path = os.path.join(base_path, f"{base_filename}-ffmpeg-chapters.txt")
+                # 4. FFmpeg Chapters-Datei
+                ffmpeg_chapters_path = base_path / f"{base_filename}-ffmpeg-chapters.txt"
                 await self._generate_ffmpeg_chapters(stream, events, ffmpeg_chapters_path)
                 
-                # 6. Emby/Jellyfin XML Chapters
-                xml_chapters_path = os.path.join(base_path, f"{base_filename}.xml")
+                # 5. Emby/Jellyfin XML Chapters
+                xml_chapters_path = base_path / f"{base_filename}.xml"
                 await self._generate_xml_chapters(stream, events, xml_chapters_path)
                 
                 # Metadaten aktualisieren
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                 if metadata:
-                    metadata.chapters_vtt_path = vtt_path
-                    metadata.chapters_srt_path = srt_path
-                    metadata.chapters_ffmpeg_path = ffmpeg_chapters_path
+                    metadata.chapters_vtt_path = str(vtt_path)
+                    metadata.chapters_srt_path = str(srt_path)
+                    metadata.chapters_ffmpeg_path = str(ffmpeg_chapters_path)
                     db.commit()
                 
                 logger.info(f"Generated all chapter formats for stream {stream_id}")
                 return {
-                    "vtt": vtt_path,
-                    "srt": srt_path,
-                    "normal_srt": normal_srt_path,
-                    "ffmpeg": ffmpeg_chapters_path,
-                    "xml": xml_chapters_path
+                    "vtt": str(vtt_path),
+                    "srt": str(srt_path),
+                    "ffmpeg": str(ffmpeg_chapters_path),
+                    "xml": str(xml_chapters_path)
                 }
+            finally:
+                if close_db:
+                    db.close()
         except Exception as e:
             logger.error(f"Error generating all chapter formats: {e}", exc_info=True)
             return None
     
-    async def _generate_vtt_chapters(self, stream, events, output_path):
-        """Erzeugt WebVTT-Kapitel-Datei"""
+    async def _generate_vtt_chapters(self, stream: Stream, events: List[StreamEvent], output_path: Path) -> bool:
+        """Erzeugt WebVTT-Kapitel-Datei.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
             # Sort events by timestamp to ensure proper order
             events = sorted(events, key=lambda x: x.timestamp)
             
-            # Add verification for events with timestamps before stream start
-            if stream.started_at:
-                # Process pre-stream events if they exist
-                has_pre_stream_events = any(event.timestamp < stream.started_at for event in events)
-                
-                # If all events are pre-stream, artificially add stream start event
-                if has_pre_stream_events and all(event.timestamp < stream.started_at for event in events):
-                    logger.info(f"All events for stream {stream.id} are pre-stream, adding stream start event")
-                    
-                    # Create an artificial stream start event
-                    start_event = type('Event', (), {
-                        'timestamp': stream.started_at,
-                        'title': stream.title or "Stream Start",
-                        'category_name': stream.category_name or "Unknown",
-                        'event_type': 'stream.start'
-                    })
-                    events.append(start_event)
-                    events = sorted(events, key=lambda x: x.timestamp)
-            
-            # Calculate stream duration
-            duration = 0
-            if stream.started_at and stream.ended_at:
-                duration = (stream.ended_at - stream.started_at).total_seconds()
-                logger.debug(f"Stream duration: {duration} seconds")
+            # Calculate stream duration and handle pre-stream events
+            stream_duration, events = self._prepare_events_and_duration(stream, events)
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write("WEBVTT - Generated by StreamVault\n\n")
@@ -363,107 +434,168 @@ class MetadataService:
                 # Always create at least one meaningful chapter
                 if len(events) <= 1:
                     # Just one event - create a chapter for the entire stream
-                    if stream.started_at and stream.ended_at:
-                        start_offset = 0
-                        end_offset = duration
-                    else:
-                        start_offset = 0
-                        end_offset = 127  # Default 2 minutes + 7 seconds if no duration info
-                
-                    start_str = self._format_timestamp_vtt(start_offset)
-                    end_str = self._format_timestamp_vtt(end_offset)
-                    
-                    title = events[0].title or "Stream" if events else "Stream"
-                    if events and events[0].category_name:
-                        title += f" ({events[0].category_name})"
-                    
-                    f.write(f"{start_str} --> {end_str}\n")
-                    f.write(f"{title}\n\n")
-                    
-                    logger.info(f"Created single chapter covering entire stream duration: {start_offset} to {end_offset} seconds")
+                    self._write_single_chapter(f, events, stream_duration)
                 else:
                     # Multiple events - create chapters for each event
-                    for i, event in enumerate(events):
-                        # Determine start time - ensure non-negative
-                        if stream.started_at:
-                            if event.timestamp < stream.started_at:
-                                # Handle pre-stream events by setting offset to 0
-                                start_offset = 0
-                            else:
-                                start_offset = max(0, (event.timestamp - stream.started_at).total_seconds())
-                        else:
-                            start_offset = 0
-                        
-                        # Determine end time (next event or stream end)
-                        if i < len(events) - 1:
-                            next_event = events[i+1]
-                            if stream.started_at:
-                                if next_event.timestamp < stream.started_at:
-                                    # Another pre-stream event
-                                    end_offset = 0
-                                else:
-                                    end_offset = max(start_offset + 1, (next_event.timestamp - stream.started_at).total_seconds())
-                            else:
-                                end_offset = start_offset + 60  # Default 1 minute if no timestamps
-                        elif stream.ended_at and stream.started_at:
-                            end_offset = duration
-                        else:
-                            end_offset = start_offset + 127  # Default 2 minutes + 7 seconds
-                        
-                        # Ensure valid chapter duration (minimum 1 second)
-                        if end_offset <= start_offset:
-                            end_offset = start_offset + 1
-                        
-                        start_str = self._format_timestamp_vtt(start_offset)
-                        end_str = self._format_timestamp_vtt(end_offset)
-                        
-                        title = event.title or "Stream"
-                        if event.category_name:
-                            title += f" ({event.category_name})"
-                        
-                        f.write(f"{start_str} --> {end_str}\n")
-                        f.write(f"{title}\n\n")
-                        
-                        logger.debug(f"Created chapter from {start_offset} to {end_offset} seconds: {title}")
+                    self._write_multiple_chapters(f, events, stream)
                 
                 logger.info(f"WebVTT chapters file created at {output_path}")
+            return True
         except Exception as e:
             logger.error(f"Error generating WebVTT chapters: {e}", exc_info=True)
+            return False
     
-    async def _generate_srt_chapters(self, stream, events, output_path):
-        """Erzeugt SRT-Kapitel-Datei"""
+    def _prepare_events_and_duration(
+        self, 
+        stream: Stream, 
+        events: List[StreamEvent]
+    ) -> Tuple[float, List[StreamEvent]]:
+        """Bereitet Events vor und berechnet die Stream-Dauer.
+        
+        Returns:
+            Tuple[float, List[StreamEvent]]: Stream-Dauer in Sekunden und vorbereitete Events
+        """
+        # Calculate stream duration
+        duration = 0
+        if stream.started_at and stream.ended_at:
+            duration = (stream.ended_at - stream.started_at).total_seconds()
+            logger.debug(f"Stream duration: {duration} seconds")
+        
+        # Add verification for events with timestamps before stream start
+        if stream.started_at:
+            # Process pre-stream events if they exist
+            has_pre_stream_events = any(event.timestamp < stream.started_at for event in events)
+            
+            # If all events are pre-stream, artificially add stream start event
+            if has_pre_stream_events and all(event.timestamp < stream.started_at for event in events):
+                logger.info(f"All events for stream {stream.id} are pre-stream, adding stream start event")
+                
+                # Create an artificial stream start event
+                start_event = type('Event', (), {
+                    'timestamp': stream.started_at,
+                    'title': stream.title or "Stream Start",
+                    'category_name': stream.category_name or "Unknown",
+                    'event_type': 'stream.start'
+                })
+                events.append(start_event)
+                events = sorted(events, key=lambda x: x.timestamp)
+        
+        return duration, events
+    
+    def _write_single_chapter(self, file_obj: Any, events: List[StreamEvent], duration: float) -> None:
+        """Schreibt ein einzelnes Kapitel für den gesamten Stream.
+        
+        Args:
+            file_obj: Geöffnetes Datei-Objekt
+            events: Liste der Events
+            duration: Stream-Dauer in Sekunden
+        """
+        start_offset = 0
+        end_offset = duration if duration > 0 else 127  # Default 2 minutes + 7 seconds if no duration info
+    
+        start_str = self._format_timestamp_vtt(start_offset)
+        end_str = self._format_timestamp_vtt(end_offset)
+        
+        title = events[0].title or "Stream" if events else "Stream"
+        if events and events[0].category_name:
+            title += f" ({events[0].category_name})"
+        
+        file_obj.write(f"{start_str} --> {end_str}\n")
+        file_obj.write(f"{title}\n\n")
+        
+        logger.info(f"Created single chapter covering entire stream duration: {start_offset} to {end_offset} seconds")
+    
+    def _write_multiple_chapters(self, file_obj: Any, events: List[StreamEvent], stream: Stream) -> None:
+        """Schreibt mehrere Kapitel für verschiedene Events.
+        
+        Args:
+            file_obj: Geöffnetes Datei-Objekt
+            events: Liste der Events
+            stream: Stream-Objekt
+        """
+        for i, event in enumerate(events):
+            # Determine start and end times
+            start_offset, end_offset = self._calculate_chapter_timestamps(i, event, events, stream)
+            
+            # Format timestamps
+            start_str = self._format_timestamp_vtt(start_offset)
+            end_str = self._format_timestamp_vtt(end_offset)
+            
+            # Create title
+            title = event.title or "Stream"
+            if event.category_name:
+                title += f" ({event.category_name})"
+            
+            # Write chapter
+            file_obj.write(f"{start_str} --> {end_str}\n")
+            file_obj.write(f"{title}\n\n")
+            
+            logger.debug(f"Created chapter from {start_offset} to {end_offset} seconds: {title}")
+    
+    def _calculate_chapter_timestamps(
+        self, 
+        index: int, 
+        event: StreamEvent, 
+        events: List[StreamEvent], 
+        stream: Stream
+    ) -> Tuple[float, float]:
+        """Berechnet Start- und Endzeit eines Kapitels.
+        
+        Args:
+            index: Index des aktuellen Events
+            event: Aktuelles Event
+            events: Liste aller Events
+            stream: Stream-Objekt
+            
+        Returns:
+            Tuple[float, float]: Start- und Endzeit in Sekunden
+        """
+        # Determine start time - ensure non-negative
+        if stream.started_at:
+            if event.timestamp < stream.started_at:
+                # Handle pre-stream events by setting offset to 0
+                start_offset = 0
+            else:
+                start_offset = max(0, (event.timestamp - stream.started_at).total_seconds())
+        else:
+            start_offset = 0
+        
+        # Determine end time (next event or stream end)
+        if index < len(events) - 1:
+            next_event = events[index+1]
+            if stream.started_at:
+                if next_event.timestamp < stream.started_at:
+                    # Another pre-stream event
+                    end_offset = 0
+                else:
+                    end_offset = max(start_offset + 1, (next_event.timestamp - stream.started_at).total_seconds())
+            else:
+                end_offset = start_offset + 60  # Default 1 minute if no timestamps
+        elif stream.ended_at and stream.started_at:
+            end_offset = (stream.ended_at - stream.started_at).total_seconds()
+        else:
+            end_offset = start_offset + 127  # Default 2 minutes + 7 seconds
+        
+        # Ensure valid chapter duration (minimum 1 second)
+        if end_offset <= start_offset:
+            end_offset = start_offset + 1
+            
+        return start_offset, end_offset
+    
+    async def _generate_srt_chapters(self, stream: Stream, events: List[StreamEvent], output_path: Path) -> bool:
+        """Erzeugt SRT-Kapitel-Datei.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
             # Sort events by timestamp
             events = sorted(events, key=lambda x: x.timestamp)
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 for i, event in enumerate(events):
-                    # Start-Zeit des Events
-                    start_time = event.timestamp
-                    
-                    # End-Zeit ist entweder der nächste Event oder das Stream-Ende
-                    if i < len(events) - 1:
-                        end_time = events[i+1].timestamp
-                    elif stream.ended_at:
-                        end_time = stream.ended_at
-                    else:
-                        # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
-                        end_time = start_time + timedelta(hours=24)
-                    
-                    # Berechne Offset in Sekunden - ensure non-negative values
-                    if stream.started_at:
-                        # For pre-stream events, set their start time to 0 but keep their original duration
-                        if start_time < stream.started_at:
-                            start_offset = 0
-                        else:
-                            start_offset = max(0, (start_time - stream.started_at).total_seconds())
-                        
-                        # Always ensure end offset is after start offset and at least 1 second duration
-                        end_offset = max(start_offset + 1, (end_time - stream.started_at).total_seconds())
-                    else:
-                        # Fallback, falls start_time nicht bekannt ist
-                        start_offset = 0
-                        end_offset = 24 * 60 * 60  # 24 Stunden
+                    # Berechne Start- und Endzeit
+                    start_offset, end_offset = self._calculate_srt_timestamps(i, event, events, stream)
                     
                     # SRT-Format: HH:MM:SS,mmm
                     start_str = self._format_timestamp_srt(start_offset)
@@ -480,11 +612,58 @@ class MetadataService:
                     f.write(f"{title}\n\n")
                 
                 logger.info(f"SRT chapters file created at {output_path}")
+            return True
         except Exception as e:
             logger.error(f"Error generating SRT chapters: {e}", exc_info=True)
+            return False
     
-    async def _generate_ffmpeg_chapters(self, stream, events, output_path):
-        """Erzeugt ffmpeg-kompatible Kapitel-Datei"""
+    def _calculate_srt_timestamps(
+        self, 
+        index: int, 
+        event: StreamEvent, 
+        events: List[StreamEvent], 
+        stream: Stream
+    ) -> Tuple[float, float]:
+        """Berechnet Start- und Endzeit eines SRT-Kapitels.
+        
+        Returns:
+            Tuple[float, float]: Start- und Endzeit in Sekunden
+        """
+        # Start-Zeit des Events
+        start_time = event.timestamp
+        
+        # End-Zeit ist entweder der nächste Event oder das Stream-Ende
+        if index < len(events) - 1:
+            end_time = events[index+1].timestamp
+        elif stream.ended_at:
+            end_time = stream.ended_at
+        else:
+            # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
+            end_time = start_time + timedelta(hours=24)
+        
+        # Berechne Offset in Sekunden - ensure non-negative values
+        if stream.started_at:
+            # For pre-stream events, set their start time to 0 but keep their original duration
+            if start_time < stream.started_at:
+                start_offset = 0
+            else:
+                start_offset = max(0, (start_time - stream.started_at).total_seconds())
+            
+            # Always ensure end offset is after start offset and at least 1 second duration
+            end_offset = max(start_offset + 1, (end_time - stream.started_at).total_seconds())
+        else:
+            # Fallback, falls start_time nicht bekannt ist
+            start_offset = 0
+            end_offset = 24 * 60 * 60  # 24 Stunden
+            
+        return start_offset, end_offset
+    
+    async def _generate_ffmpeg_chapters(self, stream: Stream, events: List[StreamEvent], output_path: Path) -> bool:
+        """Erzeugt ffmpeg-kompatible Kapitel-Datei.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(";FFMETADATA1\n")
@@ -528,26 +707,8 @@ class MetadataService:
                     filtered_events.append(dummy_event)
                 
                 for i, event in enumerate(filtered_events):
-                    # Start-Zeit des Events
-                    start_time = event.timestamp
-                    
-                    # End-Zeit ist entweder der nächste Event oder das Stream-Ende
-                    if i < len(filtered_events) - 1:
-                        end_time = filtered_events[i+1].timestamp
-                    elif stream.ended_at:
-                        end_time = stream.ended_at
-                    else:
-                        # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
-                        end_time = start_time + timedelta(hours=24)
-                    
-                    # Berechne Offset in Millisekunden für ffmpeg (mindestens 1000 ms Dauer)
-                    if stream.started_at:
-                        start_offset_ms = int(max(0, (start_time - stream.started_at).total_seconds() * 1000))
-                        end_offset_ms = int(max(start_offset_ms + 1000, (end_time - stream.started_at).total_seconds() * 1000))
-                    else:
-                        # Fallback, falls start_time nicht bekannt ist
-                        start_offset_ms = 0
-                        end_offset_ms = 24 * 60 * 60 * 1000  # 24 Stunden
+                    # Berechne Start- und Endzeit
+                    start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(i, event, filtered_events, stream)
                     
                     # Kapitel-Titel erstellen
                     if event.category_name:
@@ -565,40 +726,60 @@ class MetadataService:
                     f.write(f"title={title}\n")
                 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
-                return output_path
+                return True
             
         except Exception as e:
             logger.error(f"Error generating ffmpeg chapters: {e}", exc_info=True)
-            return None
-    async def _generate_xml_chapters(self, stream, events, output_path):
-        """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin"""
-        try:
-            import xml.etree.ElementTree as ET
+            return False
+    
+    def _calculate_ffmpeg_timestamps(
+        self, 
+        index: int, 
+        event: Any, 
+        events: List[Any], 
+        stream: Stream
+    ) -> Tuple[int, int]:
+        """Berechnet Start- und Endzeit eines FFmpeg-Kapitels in Millisekunden.
+        
+        Returns:
+            Tuple[int, int]: Start- und Endzeit in Millisekunden
+        """
+        # Start-Zeit des Events
+        start_time = event.timestamp
+        
+        # End-Zeit ist entweder der nächste Event oder das Stream-Ende
+        if index < len(events) - 1:
+            end_time = events[index+1].timestamp
+        elif stream.ended_at:
+            end_time = stream.ended_at
+        else:
+            # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
+            end_time = start_time + timedelta(hours=24)
+        
+        # Berechne Offset in Millisekunden für ffmpeg (mindestens 1000 ms Dauer)
+        if stream.started_at:
+            start_offset_ms = int(max(0, (start_time - stream.started_at).total_seconds() * 1000))
+            end_offset_ms = int(max(start_offset_ms + 1000, (end_time - stream.started_at).total_seconds() * 1000))
+        else:
+            # Fallback, falls start_time nicht bekannt ist
+            start_offset_ms = 0
+            end_offset_ms = 24 * 60 * 60 * 1000  # 24 Stunden
             
+        return start_offset_ms, end_offset_ms
+    
+    async def _generate_xml_chapters(self, stream: Stream, events: List[StreamEvent], output_path: Path) -> bool:
+        """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        try:
             # XML-Struktur erstellen
             root = ET.Element("Chapters")
             
             for i, event in enumerate(events):
-                # Start-Zeit des Events
-                start_time = event.timestamp
-                
-                # End-Zeit ist entweder der nächste Event oder das Stream-Ende
-                if i < len(events) - 1:
-                    end_time = events[i+1].timestamp
-                elif stream.ended_at:
-                    end_time = stream.ended_at
-                else:
-                    # Falls kein Ende bekannt ist, nehmen wir 24h nach Start
-                    end_time = start_time + timedelta(hours=24)
-                
-                # Berechne Offset in Millisekunden
-                if stream.started_at:
-                    start_offset = max(0, (start_time - stream.started_at).total_seconds() * 1000)
-                    end_offset = max(0, (end_time - stream.started_at).total_seconds() * 1000)
-                else:
-                    # Fallback, falls start_time nicht bekannt ist
-                    start_offset = 0
-                    end_offset = 24 * 60 * 60 * 1000  # 24 Stunden
+                # Berechne Start- und Endzeit
+                start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(i, event, events, stream)
                 
                 # Kapitel-Element erstellen
                 chapter = ET.SubElement(root, "Chapter")
@@ -609,48 +790,70 @@ class MetadataService:
                 ET.SubElement(chapter, "Name").text = chapter_name
                 
                 # Start- und Endzeit in Millisekunden
-                ET.SubElement(chapter, "StartTime").text = str(int(start_offset))
-                ET.SubElement(chapter, "EndTime").text = str(int(end_offset))
+                ET.SubElement(chapter, "StartTime").text = str(int(start_offset_ms))
+                ET.SubElement(chapter, "EndTime").text = str(int(end_offset_ms))
             
             # XML schreiben
             tree = ET.ElementTree(root)
-            tree.write(output_path, encoding="utf-8", xml_declaration=True)
+            tree.write(str(output_path), encoding="utf-8", xml_declaration=True)
             
             logger.info(f"XML chapters file created at {output_path} with {len(events)} chapters")
+            return True
         except Exception as e:
-            logger.error(f"Error generating XML chapters: {e}", exc_info=True)    
-    def _format_timestamp_vtt(self, seconds):
-        """Formatiert Sekunden ins WebVTT-Format (HH:MM:SS.mmm)"""
+            logger.error(f"Error generating XML chapters: {e}", exc_info=True)
+            return False
+    
+    def _format_timestamp_vtt(self, seconds: float) -> str:
+        """Formatiert Sekunden ins WebVTT-Format (HH:MM:SS.mmm).
+        
+        Returns:
+            str: Formatierter Zeitstempel
+        """
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
     
-    def _format_timestamp_srt(self, seconds):
-        """Formatiert Sekunden ins SRT-Format (HH:MM:SS,mmm)"""
+    def _format_timestamp_srt(self, seconds: float) -> str:
+        """Formatiert Sekunden ins SRT-Format (HH:MM:SS,mmm).
+        
+        Returns:
+            str: Formatierter Zeitstempel
+        """
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
         ms = int((seconds - int(seconds)) * 1000)
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
     
-    async def import_manual_chapters(self, stream_id: int, chapters_txt_path: str, mp4_path: str):
-        """Importiert manuell erstellte Kapitel aus einer Textdatei und erstellt alle Formate"""
+    async def import_manual_chapters(
+        self, 
+        stream_id: int, 
+        chapters_txt_path: str, 
+        mp4_path: str
+    ) -> Optional[Dict[str, str]]:
+        """Importiert manuell erstellte Kapitel aus einer Textdatei und erstellt alle Formate.
+        
+        Returns:
+            Optional[Dict[str, str]]: Dictionary mit Pfaden zu allen erstellten Kapitelformaten oder None bei Fehler
+        """
         try:
-            if not os.path.exists(chapters_txt_path):
+            chapters_path = Path(chapters_txt_path)
+            if not chapters_path.exists():
                 logger.warning(f"Chapters text file not found: {chapters_txt_path}")
-                return False
+                return None
                 
             # Basispfade für Kapitel
-            base_path = Path(mp4_path).parent
-            base_filename = Path(mp4_path).stem
+            mp4_path_obj = Path(mp4_path)
+            base_path = mp4_path_obj.parent
+            base_filename = mp4_path_obj.stem
             
             # FFmpeg Chapters-Datei
-            ffmpeg_chapters_path = os.path.join(base_path, f"{base_filename}-ffmpeg-chapters.txt")
+            ffmpeg_chapters_path = base_path / f"{base_filename}-ffmpeg-chapters.txt"
             
             # Kapitel aus der Textdatei lesen
             chapters = []
-            with open(chapters_txt_path, 'r', encoding='utf-8') as f:
+            with open(chapters_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     # Format: 0:23:20 Start
                     import re
@@ -672,15 +875,15 @@ class MetadataService:
             
             # Keine Kapitel gefunden
             if not chapters:
-                logger.warning(f"No chapters found in {chapters_txt_path}")
-                return False
+                logger.warning(f"No chapters found in {chapters_path}")
+                return None
                 
             # Stream-Events aus den manuellen Kapiteln erstellen
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream with ID {stream_id} not found")
-                    return False
+                    return None
                     
                 # Bestehende Events löschen
                 db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
@@ -706,26 +909,33 @@ class MetadataService:
                 db.commit()
                 
                 # Alle Kapitelformate mit den neuen Events erstellen
-                return await self.ensure_all_chapter_formats(stream_id, mp4_path)
+                return await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
         except Exception as e:
             logger.error(f"Error importing manual chapters: {e}", exc_info=True)
-            return False
+            return None
 
-    async def embed_chapters_in_mp4(self, mp4_path: str, chapters_path: str):
-        """Bettet Kapitel direkt in die MP4-Datei ein (für nachträgliche Bearbeitung)"""
+    async def embed_chapters_in_mp4(self, mp4_path: str, chapters_path: str) -> bool:
+        """Bettet Kapitel direkt in die MP4-Datei ein (für nachträgliche Bearbeitung).
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
-            if not os.path.exists(mp4_path) or not os.path.exists(chapters_path):
+            mp4_path_obj = Path(mp4_path)
+            chapters_path_obj = Path(chapters_path)
+            
+            if not mp4_path_obj.exists() or not chapters_path_obj.exists():
                 logger.warning(f"MP4 or chapters file not found for embedding: {mp4_path}, {chapters_path}")
                 return False
                 
             # Temporäre Ausgabedatei
-            output_path = mp4_path.replace('.mp4', '_chaptered.mp4')
+            output_path = mp4_path_obj.with_stem(f"{mp4_path_obj.stem}_chaptered")
             
             # Verbesserte FFmpeg-Befehl zum Einbetten der Kapitel
             cmd = [
                 "ffmpeg",
-                "-i", mp4_path,
-                "-i", chapters_path,
+                "-i", str(mp4_path_obj),
+                "-i", str(chapters_path_obj),
                 "-map_metadata", "1",  # Metadaten aus der zweiten Eingabedatei
                 "-map_chapters", "1",  # Kapitel aus der zweiten Eingabedatei
                 "-codec", "copy",      # Keine Neukodierung
@@ -736,7 +946,7 @@ class MetadataService:
                 "-metadata", f"encoded_by=StreamVault",
                 "-metadata", f"encoding_tool=StreamVault",
                 "-y",                  # Überschreiben, falls die Datei existiert
-                output_path
+                str(output_path)
             ]
             
             logger.debug(f"Running enhanced FFmpeg to embed chapters: {' '.join(cmd)}")
@@ -749,7 +959,7 @@ class MetadataService:
             
             stdout, stderr = await process.communicate()
             
-            if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
                 # Überprüfen, ob die Ausgabedatei gültig ist
                 check_cmd = [
                     "ffprobe", 
@@ -757,7 +967,7 @@ class MetadataService:
                     "-show_entries", 
                     "format=duration", 
                     "-of", "default=noprint_wrappers=1:nokey=1", 
-                    output_path
+                    str(output_path)
                 ]
                 
                 check_process = await asyncio.create_subprocess_exec(
@@ -770,7 +980,7 @@ class MetadataService:
                 
                 if check_process.returncode == 0 and check_stdout:
                     # Ersetze die ursprüngliche Datei mit der neuen
-                    os.replace(output_path, mp4_path)
+                    output_path.replace(mp4_path_obj)
                     logger.info(f"Successfully embedded chapters into {mp4_path}")
                     return True
                 else:
@@ -783,19 +993,26 @@ class MetadataService:
             logger.error(f"Error embedding chapters: {e}", exc_info=True)
             return False
 
-    async def embed_chapters_alternative(self, mp4_path: str, chapters_path: str):
-        """Alternative Methode zur Kapiteleinbettung mit MP4Box"""
+    async def embed_chapters_alternative(self, mp4_path: str, chapters_path: str) -> bool:
+        """Alternative Methode zur Kapiteleinbettung mit MP4Box.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
         try:
-            if not os.path.exists(mp4_path) or not os.path.exists(chapters_path):
+            mp4_path_obj = Path(mp4_path)
+            chapters_path_obj = Path(chapters_path)
+            
+            if not mp4_path_obj.exists() or not chapters_path_obj.exists():
                 logger.warning(f"MP4 or chapters file not found for alternative embedding: {mp4_path}, {chapters_path}")
                 return False
             
             # Konvertiere das FFmpeg-Kapitelformat in ein XML-Format für MP4Box
-            xml_chapters_path = chapters_path.replace('-ffmpeg-chapters.txt', '-mp4box-chapters.xml')
+            xml_chapters_path = chapters_path_obj.with_name(f"{mp4_path_obj.stem}-mp4box-chapters.xml")
             
             # Lese die FFmpeg-Kapitel
             chapters = []
-            with open(chapters_path, 'r', encoding='utf-8') as f:
+            with open(chapters_path_obj, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
             i = 0
@@ -863,8 +1080,8 @@ class MetadataService:
                 # Verwende MP4Box zum Einbetten der Kapitel
                 cmd = [
                     "MP4Box",
-                    "-add-chap", xml_chapters_path,
-                    mp4_path
+                    "-add-chap", str(xml_chapters_path),
+                    str(mp4_path_obj)
                 ]
                 
                 logger.debug(f"Running MP4Box to embed chapters: {' '.join(cmd)}")
@@ -890,165 +1107,86 @@ class MetadataService:
             logger.error(f"Error in alternative chapter embedding: {e}", exc_info=True)
             return False
 
-async def _check_command_exists(self, command):
-    """Prüft, ob ein Befehl auf dem System verfügbar ist"""
-    try:
-        process = await asyncio.create_subprocess_exec(
-            "which", command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+    async def _check_command_exists(self, command: str) -> bool:
+        """Prüft, ob ein Befehl auf dem System verfügbar ist.
         
-        stdout, stderr = await process.communicate()
-        return process.returncode == 0
-    except:
-        return False
-
-def _format_xml_time(self, seconds):
-    """Formatiert Sekunden in das XML-Format für MP4Box/Matroska: HH:MM:SS.nnnnnnnnn"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    return f"{hours:02d}:{minutes:02d}:{secs:09.6f}"
-
-async def _embed_chapters_with_ffmpeg_alt(self, mp4_path, chapters):
-    """Bette Kapitel mit einer alternativen FFmpeg-Methode ein"""
-    try:
-        # Erstelle temporäre Metadaten-Datei mit Kapitelinformationen
-        meta_path = mp4_path.replace('.mp4', '-alt-metadata.txt')
-        
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            f.write(";FFMETADATA1\n")
+        Returns:
+            bool: True wenn der Befehl verfügbar ist, sonst False
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "which", command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
             
-            # Stream-Metadaten
-            f.write(f"title=Stream recorded by StreamVault\n")
-            f.write(f"encoded_by=StreamVault\n")
-            
-            # Kapitel
-            for i, chapter in enumerate(chapters):
-                # Ende-Zeit ist der Anfang des nächsten Kapitels oder Dateiende
-                if i < len(chapters) - 1:
-                    end_time = chapters[i+1]["time"]
-                else:
-                    # Für das letzte Kapitel, setze Ende auf 1 Stunde nach Beginn
-                    end_time = chapter["time"] + 3600
-                
-                f.write("\n[CHAPTER]\n")
-                f.write(f"TIMEBASE=1/1000\n")
-                f.write(f"START={int(chapter['time'] * 1000)}\n")
-                f.write(f"END={int(end_time * 1000)}\n")
-                f.write(f"title={chapter['name']}\n")
-        
-        # Temporäre Ausgabedatei
-        output_path = mp4_path.replace('.mp4', '_alt_chaptered.mp4')
-        
-        # FFmpeg-Befehl zum Einbetten der Metadaten
-        cmd = [
-            "ffmpeg",
-            "-i", mp4_path,
-            "-i", meta_path,
-            "-map_metadata", "1",
-            "-codec", "copy",
-            "-map", "0",
-            "-movflags", "+faststart+write_colr",
-            "-y",
-            output_path
-        ]
-        
-        logger.debug(f"Running alternative FFmpeg chapter embedding: {' '.join(cmd)}")
-        
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-            # Ersetze die ursprüngliche Datei mit der neuen
-            os.replace(output_path, mp4_path)
-            logger.info(f"Successfully embedded chapters with alternative FFmpeg method into {mp4_path}")
-            
-            # Lösche temporäre Dateien
-            if os.path.exists(meta_path):
-                os.remove(meta_path)
-                
-            return True
-        else:
-            logger.error(f"Alternative FFmpeg chapter embedding failed: {stderr.decode('utf-8', errors='ignore')}")
+            stdout, stderr = await process.communicate()
+            return process.returncode == 0
+        except:
             return False
-    except Exception as e:
-        logger.error(f"Error in alternative FFmpeg chapter embedding: {e}", exc_info=True)
-        return False
 
-async def embed_additional_metadata(self, mp4_path: str, stream_id: int):
-    """Fügt zusätzliche Metadaten für bessere Kompatibilität mit Media-Servern ein"""
-    try:
-        with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream:
-                logger.warning(f"Stream {stream_id} not found for metadata embedding")
-                return False
-                
-            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-            if not streamer:
-                logger.warning(f"Streamer not found for stream {stream_id}")
-                return False
-                
-            # Zusätzliche Metadaten
-            metadata = {
-                "title": stream.title or f"{streamer.username} Stream",
-                "artist": streamer.username,
-                "album_artist": streamer.username,
-                "album": f"{streamer.username} Streams",
-                "genre": stream.category_name or "Livestream",
-                "date": stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d"),
-                "comment": f"Stream recorded by StreamVault | Category: {stream.category_name or 'Unknown'}",
-                "show": f"{streamer.username} Streams",
-                "network": "Twitch",
-                "language": stream.language or "en",
-                # Plex-spezifische Tags
-                "media_type": "tvshow",
-                "year": stream.started_at.strftime("%Y") if stream.started_at else datetime.now().strftime("%Y"),
-                "episode_id": f"S{stream.started_at.strftime('%Y%m%d') if stream.started_at else datetime.now().strftime('%Y%m%d')}",
-                "season_number": stream.started_at.strftime("%Y%m") if stream.started_at else datetime.now().strftime("%Y%m"),
-                "episode_sort": stream.started_at.strftime("%d") if stream.started_at else datetime.now().strftime("%d"),
-                "encoder": "StreamVault"
-            }
+    def _format_xml_time(self, seconds: float) -> str:
+        """Formatiert Sekunden in das XML-Format für MP4Box/Matroska: HH:MM:SS.nnnnnnnnn.
+        
+        Returns:
+            str: Formatierter Zeitstempel
+        """
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:09.6f}"
+
+    async def _embed_chapters_with_ffmpeg_alt(self, mp4_path: str, chapters: List[Dict[str, Any]]) -> bool:
+        """Bette Kapitel mit einer alternativen FFmpeg-Methode ein.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        try:
+            mp4_path_obj = Path(mp4_path)
             
-            # Erstelle temporäre Metadaten-Datei
-            meta_path = mp4_path.replace('.mp4', '-additional-metadata.txt')
+            # Erstelle temporäre Metadaten-Datei mit Kapitelinformationen
+            meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-alt-metadata.txt")
             
             with open(meta_path, 'w', encoding='utf-8') as f:
                 f.write(";FFMETADATA1\n")
                 
-                # Stream-Metadaten schreiben
-                for key, value in metadata.items():
-                    if value:  # Nur schreiben, wenn ein Wert vorhanden ist
-                        # Escape special characters
-                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
-                        f.write(f"{key}={value_escaped}\n")
+                # Stream-Metadaten
+                f.write(f"title=Stream recorded by StreamVault\n")
+                f.write(f"encoded_by=StreamVault\n")
+                
+                # Kapitel
+                for i, chapter in enumerate(chapters):
+                    # Ende-Zeit ist der Anfang des nächsten Kapitels oder Dateiende
+                    if i < len(chapters) - 1:
+                        end_time = chapters[i+1]["time"]
+                    else:
+                        # Für das letzte Kapitel, setze Ende auf 1 Stunde nach Beginn
+                        end_time = chapter["time"] + 3600
+                    
+                    f.write("\n[CHAPTER]\n")
+                    f.write(f"TIMEBASE=1/1000\n")
+                    f.write(f"START={int(chapter['time'] * 1000)}\n")
+                    f.write(f"END={int(end_time * 1000)}\n")
+                    f.write(f"title={chapter['name']}\n")
             
             # Temporäre Ausgabedatei
-            output_path = mp4_path.replace('.mp4', '_metadata.mp4')
+            output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_alt_chaptered{mp4_path_obj.suffix}")
             
-            # FFmpeg-Befehl zum Einbetten zusätzlicher Metadaten
+            # FFmpeg-Befehl zum Einbetten der Metadaten
             cmd = [
                 "ffmpeg",
-                "-i", mp4_path,
-                "-i", meta_path,
-                "-map_metadata", "1",  # Metadaten aus der zweiten Eingabedatei
-                "-codec", "copy",      # Keine Neukodierung
-                "-map", "0",           # Alle Streams aus erster Eingabedatei
-                "-movflags", "+faststart+write_colr",  # Optimiere für Web-Streaming
-                "-metadata:s:v:0", f"title=Video",
-                "-metadata:s:a:0", f"title=Audio",
-                "-y",                  # Überschreiben, falls die Datei existiert
-                output_path
+                "-i", str(mp4_path_obj),
+                "-i", str(meta_path),
+                "-map_metadata", "1",
+                "-codec", "copy",
+                "-map", "0",
+                "-movflags", "+faststart+write_colr",
+                "-y",
+                str(output_path)
             ]
             
-            logger.debug(f"Running FFmpeg to embed additional metadata: {' '.join(cmd)}")
+            logger.debug(f"Running alternative FFmpeg chapter embedding: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -1058,19 +1196,118 @@ async def embed_additional_metadata(self, mp4_path: str, stream_id: int):
             
             stdout, stderr = await process.communicate()
             
-            if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
                 # Ersetze die ursprüngliche Datei mit der neuen
-                os.replace(output_path, mp4_path)
-                logger.info(f"Successfully embedded additional metadata into {mp4_path}")
+                output_path.replace(mp4_path_obj)
+                logger.info(f"Successfully embedded chapters with alternative FFmpeg method into {mp4_path}")
                 
                 # Lösche temporäre Dateien
-                if os.path.exists(meta_path):
-                    os.remove(meta_path)
+                if meta_path.exists():
+                    meta_path.unlink()
                     
                 return True
             else:
-                logger.error(f"Failed to embed additional metadata: {stderr.decode('utf-8', errors='ignore')}")
+                logger.error(f"Alternative FFmpeg chapter embedding failed: {stderr.decode('utf-8', errors='ignore')}")
                 return False
-    except Exception as e:
-        logger.error(f"Error embedding additional metadata: {e}", exc_info=True)
-        return False
+        except Exception as e:
+            logger.error(f"Error in alternative FFmpeg chapter embedding: {e}", exc_info=True)
+            return False
+
+    async def embed_additional_metadata(self, mp4_path: str, stream_id: int) -> bool:
+        """Fügt zusätzliche Metadaten für bessere Kompatibilität mit Media-Servern ein.
+        
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        try:
+            mp4_path_obj = Path(mp4_path)
+            
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.warning(f"Stream {stream_id} not found for metadata embedding")
+                    return False
+                    
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if not streamer:
+                    logger.warning(f"Streamer not found for stream {stream_id}")
+                    return False
+                    
+                # Zusätzliche Metadaten
+                metadata = {
+                    "title": stream.title or f"{streamer.username} Stream",
+                    "artist": streamer.username,
+                    "album_artist": streamer.username,
+                    "album": f"{streamer.username} Streams",
+                    "genre": stream.category_name or "Livestream",
+                    "date": stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d"),
+                    "comment": f"Stream recorded by StreamVault | Category: {stream.category_name or 'Unknown'}",
+                    "show": f"{streamer.username} Streams",
+                    "network": "Twitch",
+                    "language": stream.language or "en",
+                    # Plex-spezifische Tags
+                    "media_type": "tvshow",
+                    "year": stream.started_at.strftime("%Y") if stream.started_at else datetime.now().strftime("%Y"),
+                    "episode_id": f"S{stream.started_at.strftime('%Y%m%d') if stream.started_at else datetime.now().strftime('%Y%m%d')}",
+                    "season_number": stream.started_at.strftime("%Y%m") if stream.started_at else datetime.now().strftime("%Y%m"),
+                    "episode_sort": stream.started_at.strftime("%d") if stream.started_at else datetime.now().strftime("%d"),
+                    "encoder": "StreamVault"
+                }
+                
+                # Erstelle temporäre Metadaten-Datei
+                meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-additional-metadata.txt")
+                
+                with open(meta_path, 'w', encoding='utf-8') as f:
+                    f.write(";FFMETADATA1\n")
+                    
+                    # Stream-Metadaten schreiben
+                    for key, value in metadata.items():
+                        if value:  # Nur schreiben, wenn ein Wert vorhanden ist
+                            # Escape special characters
+                            value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
+                            f.write(f"{key}={value_escaped}\n")
+                
+                # Temporäre Ausgabedatei
+                output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_metadata{mp4_path_obj.suffix}")
+                
+                # FFmpeg-Befehl zum Einbetten zusätzlicher Metadaten
+                cmd = [
+                    "ffmpeg",
+                    "-i", str(mp4_path_obj),
+                    "-i", str(meta_path),
+                    "-map_metadata", "1",  # Metadaten aus der zweiten Eingabedatei
+                    "-codec", "copy",      # Keine Neukodierung
+                    "-map", "0",           # Alle Streams aus erster Eingabedatei
+                    "-movflags", "+faststart+write_colr",  # Optimiere für Web-Streaming
+                    "-metadata:s:v:0", f"title=Video",
+                    "-metadata:s:a:0", f"title=Audio",
+                    "-y",                  # Überschreiben, falls die Datei existiert
+                    str(output_path)
+                ]
+                
+                logger.debug(f"Running FFmpeg to embed additional metadata: {' '.join(cmd)}")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                    # Ersetze die ursprüngliche Datei mit der neuen
+                    output_path.replace(mp4_path_obj)
+                    logger.info(f"Successfully embedded additional metadata into {mp4_path}")
+                    
+                    # Lösche temporäre Dateien
+                    if meta_path.exists():
+                        meta_path.unlink()
+                        
+                    return True
+                else:
+                    logger.error(f"Failed to embed additional metadata: {stderr.decode('utf-8', errors='ignore')}")
+                    return False
+        except Exception as e:
+            logger.error(f"Error embedding additional metadata: {e}", exc_info=True)
+            return False
