@@ -318,6 +318,203 @@ class RecordingService:
             logger.error(f"Error force starting recording: {e}", exc_info=True)
             return False    
     
+    async def force_start_recording_offline(self, streamer_id: int, stream_data: dict = None) -> bool:
+        """
+        Startet eine Aufnahme für einen Stream, auch wenn das online Event nicht erkannt wurde.
+        Erstellt alle notwendigen Datenbankeinträge, als ob die Anwendung das Event mitbekommen hätte.
+        
+        Args:
+            streamer_id: ID des Streamers
+            stream_data: Optionale Stream-Daten, falls bereits bekannt
+            
+        Returns:
+            bool: True wenn erfolgreich, False wenn nicht
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    return False
+            
+                # Prüfen, ob der Streamer tatsächlich live ist (API-Abfrage)
+                is_actually_live = False
+                twitch_stream_id = None
+                title = streamer.title
+                category_name = streamer.category_name
+                language = streamer.language
+            
+                # Wenn keine Stream-Daten übergeben wurden, versuchen wir sie von Twitch zu holen
+                if not stream_data:
+                    try:
+                        # Import hier, um zirkuläre Abhängigkeiten zu vermeiden
+                        from app.services.streamer_service import StreamerService
+                    
+                        # Temporäre Session für API-Abfrage
+                        streamer_service = StreamerService(db=db, websocket_manager=websocket_manager)
+                    
+                        # Twitch-API abfragen, um zu prüfen, ob der Streamer tatsächlich live ist
+                        stream_info = await streamer_service.get_stream_info(streamer.twitch_id)
+                    
+                        if stream_info:
+                            is_actually_live = True
+                            twitch_stream_id = stream_info.get("id")
+                            title = stream_info.get("title") or streamer.title
+                            category_name = stream_info.get("game_name") or streamer.category_name
+                            language = stream_info.get("language") or streamer.language
+                            
+                            # Stream-Daten für die Aufnahme vorbereiten
+                            stream_data = {
+                                "id": twitch_stream_id,
+                                "broadcaster_user_id": streamer.twitch_id,
+                                "broadcaster_user_name": streamer.username,
+                                "started_at": stream_info.get("started_at") or datetime.now(timezone.utc).isoformat(),
+                                "title": title,
+                                "category_name": category_name,
+                                "language": language
+                            }
+                    except Exception as e:
+                        logger.warning(f"Failed to get stream info from Twitch API: {e}")
+                        # Wir setzen is_actually_live auf True, da der Benutzer explizit eine Aufnahme erzwingen möchte
+                        is_actually_live = True
+                else:
+                    # Wenn Stream-Daten übergeben wurden, nehmen wir an, dass der Stream live ist
+                    is_actually_live = True
+                    twitch_stream_id = stream_data.get("id", f"manual_{int(datetime.now().timestamp())}")
+            
+                # Wenn der Stream nicht live ist, aber der Benutzer trotzdem eine Aufnahme erzwingen möchte
+                if not is_actually_live:
+                    logger.warning(f"Streamer {streamer.username} appears to be offline, but forcing recording anyway")
+                
+                    # Generiere eine eindeutige Stream-ID
+                    twitch_stream_id = f"manual_{int(datetime.now().timestamp())}"
+                
+                    # Erstelle minimale Stream-Daten
+                    if not stream_data:
+                        stream_data = {
+                            "id": twitch_stream_id,
+                            "broadcaster_user_id": streamer.twitch_id,
+                            "broadcaster_user_name": streamer.username,
+                            "started_at": datetime.now(timezone.utc).isoformat(),
+                            "title": title or f"{streamer.username} Stream",
+                            "category_name": category_name or "Unknown",
+                            "language": language or "en"
+                        }
+            
+                # Aktualisiere den Streamer-Status auf "live"
+                streamer.is_live = True
+                streamer.last_updated = datetime.now(timezone.utc)
+            
+                # Aktualisiere Streamer-Informationen, falls vorhanden
+                if title:
+                    streamer.title = title
+                if category_name:
+                    streamer.category_name = category_name
+                if language:
+                    streamer.language = language
+            
+                # Prüfe, ob bereits ein aktiver Stream existiert
+                existing_stream = db.query(Stream).filter(
+                    Stream.streamer_id == streamer_id,
+                    Stream.ended_at.is_(None)
+                ).order_by(Stream.started_at.desc()).first()
+            
+                if existing_stream:
+                    logger.info(f"Found existing active stream for {streamer.username}, using it")
+                    stream = existing_stream
+                else:
+                    # Erstelle einen neuen Stream-Eintrag
+                    started_at = datetime.fromisoformat(stream_data["started_at"].replace('Z', '+00:00')) if "started_at" in stream_data else datetime.now(timezone.utc)
+                
+                    stream = Stream(
+                        streamer_id=streamer_id,
+                        twitch_stream_id=twitch_stream_id,
+                        title=title or f"{streamer.username} Stream",
+                        category_name=category_name,
+                        language=language,
+                        started_at=started_at,
+                        status="online"
+                    )
+                    db.add(stream)
+                    db.flush()  # Um die Stream-ID zu erhalten
+                
+                    # Erstelle Stream-Events
+                    # 1. Stream-Online-Event
+                    stream_online_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        title=title,
+                        category_name=category_name,
+                        language=language,
+                        timestamp=started_at
+                    )
+                    db.add(stream_online_event)
+                
+                    # 2. Kategorie-Event (1 Sekunde vor Stream-Start)
+                    if category_name:
+                        category_event = StreamEvent(
+                            stream_id=stream.id,
+                            event_type="channel.update",
+                            title=title,
+                            category_name=category_name,
+                            language=language,
+                            timestamp=started_at - timedelta(seconds=1)
+                        )
+                        db.add(category_event)
+            
+                db.commit()
+            
+                # Erstelle Metadaten-Eintrag, falls noch nicht vorhanden
+                metadata = db.query(StreamMetadata).filter(
+                    StreamMetadata.stream_id == stream.id
+                ).first()
+            
+                if not metadata:
+                    metadata = StreamMetadata(stream_id=stream.id)
+                    db.add(metadata)
+                    db.commit()
+            
+                # WebSocket-Benachrichtigung senden
+                await websocket_manager.send_notification({
+                    "type": "stream.online",
+                    "data": {
+                        "streamer_id": streamer.id,
+                        "twitch_id": streamer.twitch_id,
+                        "streamer_name": streamer.username,
+                        "started_at": stream_data.get("started_at", datetime.now(timezone.utc).isoformat()),
+                        "title": title,
+                        "category_name": category_name,
+                        "language": language
+                    }
+                })
+            
+                # Starte die Aufnahme mit der vorhandenen Methode
+                recording_started = await self.start_recording(streamer_id, stream_data)
+            
+                # Speichere die Stream-ID in den Aufnahme-Informationen
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                
+                    # Versuche, ein Twitch-Thumbnail herunterzuladen
+                    output_dir = os.path.dirname(self.active_recordings[streamer_id]["output_path"])
+                    asyncio.create_task(
+                        self.metadata_service.download_twitch_thumbnail(
+                            streamer.username, 
+                            stream.id, 
+                            output_dir
+                        )
+                    )
+                
+                    logger.info(f"Force offline recording started for {streamer.username}, stream_id: {stream.id}")
+                    return True
+            
+                return recording_started
+            
+        except Exception as e:
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+    
     async def _delayed_metadata_generation(self, stream_id: int, output_path: str, force_started: bool = False, delay: int = 5):
         """Wait for remuxing to complete before generating metadata"""
         try:
@@ -340,6 +537,22 @@ class RecordingService:
                         break
                     return
                 await asyncio.sleep(5)
+        
+            # Zusätzliche Wartezeit, um sicherzustellen, dass die Datei vollständig geschrieben wurde
+            await asyncio.sleep(10)
+        
+            # Überprüfen, ob die MP4-Datei gültig ist
+            if mp4_path.endswith('.mp4'):
+                is_valid = await self._validate_mp4(mp4_path)
+                if not is_valid:
+                    logger.warning(f"MP4 file is not valid, attempting repair: {mp4_path}")
+                    repaired = await self._repair_mp4(output_path.replace('.mp4', '.ts') if os.path.exists(output_path.replace('.mp4', '.ts')) else output_path, mp4_path)
+                    if not repaired:
+                        logger.error(f"Could not repair MP4 file: {mp4_path}")
+                        return
+                
+                    # Warte nach der Reparatur
+                    await asyncio.sleep(5)
         
             # Make sure we have a valid stream (especially for force-started recordings)
             with SessionLocal() as db:
@@ -393,9 +606,8 @@ class RecordingService:
             # Generate all metadata in one go
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
-            # NEUER CODE: Kapitel-Einbettung in die MP4-Datei
             # Warte kurz, damit alle Kapitel-Dateien geschrieben werden können
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
         
             # Finde die FFmpeg-Kapitel-Datei
             ffmpeg_chapters_path = mp4_path.replace('.mp4', '-ffmpeg-chapters.txt')
@@ -403,18 +615,25 @@ class RecordingService:
             if os.path.exists(ffmpeg_chapters_path) and os.path.getsize(ffmpeg_chapters_path) > 0:
                 logger.info(f"Embedding FFmpeg chapters into MP4 file for stream {stream_id}")
             
-                # Nutze die bestehende Methode des MetadataService zur Kapitel-Einbettung
+                # Nutze die verbesserte Methode des MetadataService zur Kapitel-Einbettung
                 result = await metadata_service.embed_chapters_in_mp4(mp4_path, ffmpeg_chapters_path)
             
                 if result:
                     logger.info(f"Successfully embedded chapters into MP4 file for better player compatibility")
                 else:
-                    logger.warning(f"Failed to embed chapters into MP4 file")
+                    logger.warning(f"Failed to embed chapters into MP4 file, trying alternative method")
+                
+                    # Versuche alternative Methode zur Kapiteleinbettung
+                    alt_result = await metadata_service.embed_chapters_alternative(mp4_path, ffmpeg_chapters_path)
+                    if alt_result:
+                        logger.info(f"Successfully embedded chapters using alternative method")
+                    else:
+                        logger.warning(f"All chapter embedding methods failed")
             else:
                 logger.warning(f"FFmpeg chapters file not found or empty: {ffmpeg_chapters_path}")
         
-            # After metadata generation, DO NOT generate chapters again
-            # The generate_metadata_for_stream already handles this
+            # Embed additional metadata for better media server compatibility
+            await metadata_service.embed_additional_metadata(mp4_path, stream_id)
         
             # Close the metadata session
             await metadata_service.close()
@@ -609,7 +828,7 @@ class RecordingService:
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
-            # Vereinfachter Remux ohne Kapitel - nur Grundkonvertierung
+            # Verbesserte Remux-Einstellungen für bessere Kompatibilität
             cmd = [
                 "ffmpeg",
                 "-i", ts_path,
@@ -617,12 +836,14 @@ class RecordingService:
                 "-map", "0:v",         # Map video streams
                 "-map", "0:a",         # Map audio streams
                 "-ignore_unknown",     # Ignore unknown streams
-                "-movflags", "+faststart",  # Optimize for web streaming
+                "-movflags", "+faststart+write_colr",  # Optimize for web streaming and color metadata
+                "-metadata", f"encoded_by=StreamVault",
+                "-metadata", f"encoding_tool=StreamVault",
                 "-y",                  # Overwrite output
                 mp4_path
             ]
         
-            logger.debug(f"Starting basic FFmpeg remux: {' '.join(cmd)}")
+            logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
         
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -635,13 +856,40 @@ class RecordingService:
             if process.returncode == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
             
-                # Delete TS file after successful conversion
-                os.remove(ts_path)
-                logger.info("Basic remux completed successfully. Chapters will be added after stream ends.")
-            
-                return True
+                # Überprüfen, ob die MP4-Datei korrekt erstellt wurde
+                if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                    # Überprüfen, ob die moov-Atom vorhanden ist
+                    moov_check_cmd = [
+                        "ffprobe", 
+                        "-v", "error", 
+                        "-show_entries", 
+                        "format=duration", 
+                        "-of", "default=noprint_wrappers=1:nokey=1", 
+                        mp4_path
+                    ]
+                
+                    moov_check = await asyncio.create_subprocess_exec(
+                        *moov_check_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                
+                    moov_stdout, moov_stderr = await moov_check.communicate()
+                
+                    if moov_check.returncode == 0 and moov_stdout:
+                        # MP4 ist gültig, löschen der TS-Datei
+                        os.remove(ts_path)
+                        logger.info("Enhanced remux completed successfully. Chapters will be added after stream ends.")
+                        return True
+                    else:
+                        logger.warning(f"MP4 file may not be properly finalized. Will try repair: {moov_stderr.decode('utf-8', errors='ignore')}")
+                        # Versuchen, die MP4-Datei zu reparieren
+                        return await self._repair_mp4(ts_path, mp4_path)
+                else:
+                    logger.error(f"MP4 file not created or empty: {mp4_path}")
+                    return False
             else:
-                stderr_text = stderr.decode('utf-8', errors='ignore')
+                stderr_text = stderr.decode('utf-4', errors='ignore')
                 logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
             
                 # Try with even more basic parameters if the first attempt failed
@@ -694,6 +942,51 @@ class RecordingService:
                 return False
         except Exception as e:
             logger.error(f"Error during fallback remux: {e}", exc_info=True)
+            return False
+
+    async def _repair_mp4(self, ts_path: str, mp4_path: str) -> bool:
+        """Versucht, eine beschädigte MP4-Datei zu reparieren"""
+        try:
+            # Temporäre Datei für die reparierte Version
+            repaired_path = mp4_path + ".repaired.mp4"
+        
+            # Verwende qt-faststart oder MP4Box zur Reparatur
+            cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c", "copy",
+                "-movflags", "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-f", "mp4",
+                "-y",
+                repaired_path
+            ]
+        
+            logger.debug(f"Attempting to repair MP4: {' '.join(cmd)}")
+        
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+        
+            if process.returncode == 0 and os.path.exists(repaired_path) and os.path.getsize(repaired_path) > 0:
+                # Ersetze die ursprüngliche Datei mit der reparierten Version
+                os.replace(repaired_path, mp4_path)
+                logger.info(f"Successfully repaired MP4 file: {mp4_path}")
+            
+                # Lösche die TS-Datei, wenn die Reparatur erfolgreich war
+                os.remove(ts_path)
+                return True
+            else:
+                logger.error(f"Failed to repair MP4 file: {stderr.decode('utf-8', errors='ignore')}")
+            
+                # Behalte die TS-Datei für die manuelle Wiederherstellung
+                logger.warning(f"Keeping original TS file at {ts_path} for recovery")
+                return False
+        except Exception as e:
+            logger.error(f"Error repairing MP4: {e}", exc_info=True)
             return False
 
     def _generate_filename(self, streamer: Streamer, stream_data: Dict[str, Any], template: str) -> str:
