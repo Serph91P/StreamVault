@@ -1213,8 +1213,13 @@ class MetadataService:
             logger.error(f"Error in alternative FFmpeg chapter embedding: {e}", exc_info=True)
             return False
 
-    async def embed_additional_metadata(self, mp4_path: str, stream_id: int) -> bool:
-        """Fügt zusätzliche Metadaten für bessere Kompatibilität mit Media-Servern ein.
+    async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
+        """Bettet sowohl Kapitel als auch alle anderen Metadaten in einem Durchgang ein.
+        
+        Args:
+            mp4_path: Pfad zur MP4-Datei
+            chapters_path: Pfad zur FFmpeg-Kapitel-Datei
+            stream_id: Stream-ID für zusätzliche Metadaten
         
         Returns:
             bool: True bei Erfolg, False bei Fehler
@@ -1222,6 +1227,19 @@ class MetadataService:
         try:
             mp4_path_obj = Path(mp4_path)
             
+            if not mp4_path_obj.exists():
+                logger.warning(f"MP4 file not found for metadata embedding: {mp4_path}")
+                return False
+            
+            # Überprüfe die Kapitel-Datei, wenn angegeben
+            chapters_path_obj = None
+            if chapters_path:
+                chapters_path_obj = Path(chapters_path)
+                if not chapters_path_obj.exists():
+                    logger.warning(f"Chapters file not found: {chapters_path}")
+                    # Wir setzen fort ohne Kapitel
+            
+            # Stream und Streamer Informationen abrufen
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
@@ -1232,8 +1250,14 @@ class MetadataService:
                 if not streamer:
                     logger.warning(f"Streamer not found for stream {stream_id}")
                     return False
-                    
-                # Zusätzliche Metadaten
+            
+            # Erstelle temporäre Metadaten-Datei mit allen Metadaten
+            meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata.txt")
+            
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                f.write(";FFMETADATA1\n")
+            
+                # Grundlegende Metadaten
                 metadata = {
                     "title": stream.title or f"{streamer.username} Stream",
                     "artist": streamer.username,
@@ -1251,63 +1275,98 @@ class MetadataService:
                     "episode_id": f"S{stream.started_at.strftime('%Y%m%d') if stream.started_at else datetime.now().strftime('%Y%m%d')}",
                     "season_number": stream.started_at.strftime("%Y%m") if stream.started_at else datetime.now().strftime("%Y%m"),
                     "episode_sort": stream.started_at.strftime("%d") if stream.started_at else datetime.now().strftime("%d"),
-                    "encoder": "StreamVault"
+                    "encoded_by": "StreamVault",
+                    "encoding_tool": "StreamVault"
                 }
-                
-                # Erstelle temporäre Metadaten-Datei
-                meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-additional-metadata.txt")
-                
-                with open(meta_path, 'w', encoding='utf-8') as f:
-                    f.write(";FFMETADATA1\n")
+            
+                # Metadaten schreiben
+                for key, value in metadata.items():
+                    if value:  # Nur schreiben, wenn ein Wert vorhanden ist
+                        # Escape special characters
+                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
+                        f.write(f"{key}={value_escaped}\n")
+            
+                # Kapitel hinzufügen, wenn Kapitel-Datei existiert
+                if chapters_path_obj and chapters_path_obj.exists() and chapters_path_obj.stat().st_size > 0:
+                    with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
+                        chapter_lines = cf.readlines()
                     
-                    # Stream-Metadaten schreiben
-                    for key, value in metadata.items():
-                        if value:  # Nur schreiben, wenn ein Wert vorhanden ist
-                            # Escape special characters
-                            value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
-                            f.write(f"{key}={value_escaped}\n")
-                
-                # Temporäre Ausgabedatei
-                output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_metadata{mp4_path_obj.suffix}")
-                
-                # FFmpeg-Befehl zum Einbetten zusätzlicher Metadaten
-                cmd = [
-                    "ffmpeg",
-                    "-i", str(mp4_path_obj),
-                    "-i", str(meta_path),
-                    "-map_metadata", "1",  # Metadaten aus der zweiten Eingabedatei
-                    "-codec", "copy",      # Keine Neukodierung
-                    "-map", "0",           # Alle Streams aus erster Eingabedatei
-                    "-movflags", "+faststart+write_colr",  # Optimiere für Web-Streaming
-                    "-metadata:s:v:0", f"title=Video",
-                    "-metadata:s:a:0", f"title=Audio",
-                    "-y",                  # Überschreiben, falls die Datei existiert
+                    # Nur die [CHAPTER] Abschnitte hinzufügen, Header überspringen
+                    in_header = True
+                    for line in chapter_lines:
+                        if line.strip() == "" and in_header:
+                            in_header = False
+                        elif not in_header:
+                            f.write(line)
+                else:
+                    logger.warning(f"No valid chapters file available: {chapters_path}")
+            
+            # Temporäre Ausgabedatei
+            output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_metadata_complete{mp4_path_obj.suffix}")
+            
+            # FFmpeg-Befehl zum Einbetten aller Metadaten
+            cmd = [
+                "ffmpeg",
+                "-i", str(mp4_path_obj),
+                "-i", str(meta_path),
+                "-map_metadata", "1",   # Metadaten aus der zweiten Datei
+                "-map_chapters", "1",   # Kapitel aus der zweiten Datei
+                "-codec", "copy",       # Keine Neukodierung
+                "-map", "0",            # Alle Streams beibehalten
+                "-movflags", "+faststart+write_colr",  # Optimierung für Web-Streaming
+                "-metadata:s:v:0", "title=Video",
+                "-metadata:s:a:0", "title=Audio",
+                "-y",                   # Überschreiben falls die Datei existiert
+                str(output_path)
+            ]
+            
+            logger.debug(f"Running FFmpeg to embed all metadata: {' '.join(cmd)}")
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                # Validiere die Ausgabedatei
+                check_cmd = [
+                    "ffprobe",
+                    "-v", "error", 
+                    "-show_entries",
+                    "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
                     str(output_path)
                 ]
                 
-                logger.debug(f"Running FFmpeg to embed additional metadata: {' '.join(cmd)}")
-                
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
+                check_process = await asyncio.create_subprocess_exec(
+                    *check_cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
                 
-                stdout, stderr = await process.communicate()
+                check_stdout, check_stderr = await check_process.communicate()
                 
-                if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                if check_process.returncode == 0 and check_stdout:
                     # Ersetze die ursprüngliche Datei mit der neuen
                     output_path.replace(mp4_path_obj)
-                    logger.info(f"Successfully embedded additional metadata into {mp4_path}")
+                    logger.info(f"Successfully embedded all metadata into {mp4_path}")
                     
                     # Lösche temporäre Dateien
                     if meta_path.exists():
                         meta_path.unlink()
-                        
+                    
                     return True
                 else:
-                    logger.error(f"Failed to embed additional metadata: {stderr.decode('utf-8', errors='ignore')}")
+                    stderr_text = check_stderr.decode('utf-8', errors='ignore') if check_stderr else "No error output"
+                    logger.error(f"Output file validation failed: {stderr_text}")
                     return False
+            else:
+                stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
+                logger.error(f"Failed to embed metadata: {stderr_text}")
+                return False
         except Exception as e:
-            logger.error(f"Error embedding additional metadata: {e}", exc_info=True)
+            logger.error(f"Error embedding all metadata: {e}", exc_info=True)
             return False
