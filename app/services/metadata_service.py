@@ -829,66 +829,66 @@ class MetadataService:
                         i += 1
                 else:
                     i += 1
-        
-        # Erstelle XML-Datei für MP4Box
-        with open(xml_chapters_path, 'w', encoding='utf-8') as f:
-            f.write('<?xml version="1.0"?>\n')
-            f.write('<Chapters>\n')
             
-            for i, chapter in enumerate(chapters):
-                f.write(f'  <ChapterAtom>\n')
-                f.write(f'    <ChapterUID>{i+1}</ChapterUID>\n')
-                f.write(f'    <ChapterTimeStart>{self._format_xml_time(chapter["time"])}</ChapterTimeStart>\n')
+            # Erstelle XML-Datei für MP4Box
+            with open(xml_chapters_path, 'w', encoding='utf-8') as f:
+                f.write('<?xml version="1.0"?>\n')
+                f.write('<Chapters>\n')
                 
-                # Ende-Zeit ist der Anfang des nächsten Kapitels oder Dateiende
-                if i < len(chapters) - 1:
-                    end_time = chapters[i+1]["time"]
+                for i, chapter in enumerate(chapters):
+                    f.write(f'  <ChapterAtom>\n')
+                    f.write(f'    <ChapterUID>{i+1}</ChapterUID>\n')
+                    f.write(f'    <ChapterTimeStart>{self._format_xml_time(chapter["time"])}</ChapterTimeStart>\n')
+                    
+                    # Ende-Zeit ist der Anfang des nächsten Kapitels oder Dateiende
+                    if i < len(chapters) - 1:
+                        end_time = chapters[i+1]["time"]
+                    else:
+                        # Für das letzte Kapitel, setze Ende auf 1 Stunde nach Beginn (wird später angepasst)
+                        end_time = chapter["time"] + 3600
+                    
+                    f.write(f'    <ChapterTimeEnd>{self._format_xml_time(end_time)}</ChapterTimeEnd>\n')
+                    f.write(f'    <ChapterDisplay>\n')
+                    f.write(f'      <ChapterString>{chapter["name"]}</ChapterString>\n')
+                    f.write(f'      <ChapterLanguage>eng</ChapterLanguage>\n')
+                    f.write(f'    </ChapterDisplay>\n')
+                    f.write(f'  </ChapterAtom>\n')
+                
+                f.write('</Chapters>\n')
+            
+            # Prüfe, ob MP4Box verfügbar ist
+            mp4box_available = await self._check_command_exists("MP4Box")
+            
+            if mp4box_available:
+                # Verwende MP4Box zum Einbetten der Kapitel
+                cmd = [
+                    "MP4Box",
+                    "-add-chap", xml_chapters_path,
+                    mp4_path
+                ]
+                
+                logger.debug(f"Running MP4Box to embed chapters: {' '.join(cmd)}")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    logger.info(f"Successfully embedded chapters with MP4Box into {mp4_path}")
+                    return True
                 else:
-                    # Für das letzte Kapitel, setze Ende auf 1 Stunde nach Beginn (wird später angepasst)
-                    end_time = chapter["time"] + 3600
-                
-                f.write(f'    <ChapterTimeEnd>{self._format_xml_time(end_time)}</ChapterTimeEnd>\n')
-                f.write(f'    <ChapterDisplay>\n')
-                f.write(f'      <ChapterString>{chapter["name"]}</ChapterString>\n')
-                f.write(f'      <ChapterLanguage>eng</ChapterLanguage>\n')
-                f.write(f'    </ChapterDisplay>\n')
-                f.write(f'  </ChapterAtom>\n')
-            
-            f.write('</Chapters>\n')
-        
-        # Prüfe, ob MP4Box verfügbar ist
-        mp4box_available = await self._check_command_exists("MP4Box")
-        
-        if mp4box_available:
-            # Verwende MP4Box zum Einbetten der Kapitel
-            cmd = [
-                "MP4Box",
-                "-add-chap", xml_chapters_path,
-                mp4_path
-            ]
-            
-            logger.debug(f"Running MP4Box to embed chapters: {' '.join(cmd)}")
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                logger.info(f"Successfully embedded chapters with MP4Box into {mp4_path}")
-                return True
+                    logger.error(f"MP4Box chapter embedding failed: {stderr.decode('utf-8', errors='ignore')}")
+                    return False
             else:
-                logger.error(f"MP4Box chapter embedding failed: {stderr.decode('utf-8', errors='ignore')}")
-                return False
-        else:
-            # Versuche es mit FFmpeg als Alternative
-            return await self._embed_chapters_with_ffmpeg_alt(mp4_path, chapters)
-    except Exception as e:
-        logger.error(f"Error in alternative chapter embedding: {e}", exc_info=True)
-        return False
+                # Versuche es mit FFmpeg als Alternative
+                return await self._embed_chapters_with_ffmpeg_alt(mp4_path, chapters)
+        except Exception as e:
+            logger.error(f"Error in alternative chapter embedding: {e}", exc_info=True)
+            return False
 
 async def _check_command_exists(self, command):
     """Prüft, ob ein Befehl auf dem System verfügbar ist"""
