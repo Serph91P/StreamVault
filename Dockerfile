@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13.3-slim
 
 # Create non-root user and set up directories
 RUN groupadd -g 1000 appuser && \
@@ -15,7 +15,6 @@ COPY requirements.txt ./
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
-    gpac \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y \
     nodejs \
