@@ -9,6 +9,11 @@
       <button @click="handleBack" class="btn btn-primary back-btn">
         Back to streamers
       </button>
+      
+      <!-- Neue Schaltfläche für Force-Recording, auch wenn keine Streams gefunden wurden -->
+      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning mt-3">
+        Force Recording (Offline Mode)
+      </button>
     </div>
     <div v-else>
       <div class="back-btn-container">
@@ -68,6 +73,16 @@
           </div>
         </div>
       </div>
+      
+      <!-- Neue Schaltfläche für Force-Offline-Recording, wenn keine Live-Streams gefunden wurden -->
+      <div v-if="!hasLiveStreams" class="mt-4">
+        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+          {{ isStartingOfflineRecording ? 'Starting Offline Recording...' : 'Force Recording (Offline Mode)' }}
+        </button>
+        <p class="text-muted mt-2">
+          Use this option if the streamer is live but StreamVault didn't detect it automatically.
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -90,7 +105,13 @@ const { messages } = useWebSocket()
 // State für Aufnahmeaktionen
 const isStartingRecording = ref(false)
 const isStoppingRecording = ref(false)
+const isStartingOfflineRecording = ref(false)
 const localRecordingState = ref<Record<string, boolean>>({})
+
+// Computed property um zu prüfen, ob es Live-Streams gibt
+const hasLiveStreams = computed(() => {
+  return streams.value.some(stream => !stream.ended_at)
+})
 
 // Formatierungsfunktionen
 const formatDate = (date: string | undefined | null): string => {
@@ -183,6 +204,46 @@ const startRecording = async (streamerIdValue: number) => {
     localRecordingState.value[streamerIdValue] = false
   } finally {
     isStartingRecording.value = false
+  }
+}
+
+// Neue Methode: Force-Offline-Recording starten
+const forceOfflineRecording = async (streamerIdValue: number) => {
+  try {
+    isStartingOfflineRecording.value = true
+    
+    // Update local state immediately for better UX
+    localRecordingState.value[streamerIdValue] = true
+    
+    const response = await fetch(`/api/recording/force-offline/${streamerIdValue}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Failed to start offline recording')
+    }
+    
+    // Keep local state since it was successful
+    console.log(`Successfully started offline recording for streamer ${streamerIdValue}`);
+    
+    // Fetch active recordings to ensure our UI is in sync
+    await fetchActiveRecordings()
+    
+    // Reload streams to show the newly created stream
+    await fetchStreams(streamerId.value)
+    
+  } catch (error) {
+    console.error('Failed to start offline recording:', error)
+    alert(`Failed to start offline recording: ${error instanceof Error ? error.message : String(error)}`)
+    
+    // Reset local state on failure
+    localRecordingState.value[streamerIdValue] = false
+  } finally {
+    isStartingOfflineRecording.value = false
   }
 }
 
@@ -290,6 +351,11 @@ watch(messages, (newMessages) => {
     
     // Sync with server
     fetchActiveRecordings();
+  } else if (latestMessage.type === 'stream.online') {
+    // Wenn ein neuer Stream erkannt wird, aktualisieren wir die Stream-Liste
+    if (parseInt(latestMessage.data.streamer_id) === parseInt(streamerId.value)) {
+      fetchStreams(streamerId.value);
+    }
   }
 }, { deep: true })
 
