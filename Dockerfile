@@ -11,34 +11,24 @@ WORKDIR /app
 # Copy Python requirements first
 COPY requirements.txt ./
 
-# Install Node.js, npm, and required packages including FFmpeg and GPAC (MP4Box)
+# Install Node.js, npm, and required packages including FFmpeg
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
     wget \
-    build-essential \
-    pkg-config \
-    zlib1g-dev \
-    libssl-dev \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y \
     nodejs \
     gcc \
     python3-dev \
     libpq-dev \
-    # Install GPAC from source for MP4Box
-    && cd /tmp \
-    && wget https://github.com/gpac/gpac/archive/refs/tags/v2.2.1.tar.gz \
-    && tar -xzf v2.2.1.tar.gz \
-    && cd gpac-2.2.1 \
-    && ./configure --static-bin --use-zlib=no --use-ogg=no --use-vorbis=no --use-theora=no --use-openjpeg=no --use-a52=no --use-mad=no --use-faad=no --use-png=no --use-jpeg=no --use-ft=no --use-js=no --use-opengl=no \
-    && make -j$(nproc) \
-    && make install \
-    && cd / \
-    && rm -rf /tmp/gpac-2.2.1 \
+    # Install GPAC from pre-built package
+    && wget -O /tmp/gpac.deb https://download.tsi.telecom-paristech.fr/gpac/release/2.4/gpac_2.4-rev0-g5d70253a-master_amd64.deb \
+    && apt-get install -y /tmp/gpac.deb \
+    && rm /tmp/gpac.deb \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install streamlink==7.2.0 \
-    && apt-get remove -y gcc python3-dev build-essential pkg-config \
+    && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -63,9 +53,6 @@ RUN chown -R appuser:appuser /app
 RUN mkdir -p /recordings && \
     chown -R appuser:appuser /recordings && \
     chmod 775 /recordings
-
-# Update library cache to find newly installed libraries
-RUN ldconfig
 
 USER appuser
 
