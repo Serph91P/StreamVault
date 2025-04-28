@@ -15,17 +15,12 @@ COPY requirements.txt ./
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
-    wget \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y \
     nodejs \
     gcc \
     python3-dev \
     libpq-dev \
-    # Install GPAC from pre-built package
-    && wget -O /tmp/gpac.deb https://download.tsi.telecom-paristech.fr/gpac/release/2.4/gpac_2.4-rev0-g5d70253a-master_amd64.deb \
-    && apt-get install -y /tmp/gpac.deb \
-    && rm /tmp/gpac.deb \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install streamlink==7.2.0 \
     && apt-get remove -y gcc python3-dev \

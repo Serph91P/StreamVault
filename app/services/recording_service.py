@@ -606,34 +606,20 @@ class RecordingService:
             # Generate all metadata in one go
             await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
         
-            # Warte kurz, damit alle Kapitel-Dateien geschrieben werden können
+            # Wait briefly to allow all chapter files to be written
             await asyncio.sleep(2)
         
-            # Finde die FFmpeg-Kapitel-Datei
+            # Find the FFmpeg chapters file
             ffmpeg_chapters_path = mp4_path.replace('.mp4', '-ffmpeg-chapters.txt')
         
+            # Embed all metadata and chapters in a single operation
             if os.path.exists(ffmpeg_chapters_path) and os.path.getsize(ffmpeg_chapters_path) > 0:
-                logger.info(f"Embedding FFmpeg chapters into MP4 file for stream {stream_id}")
-            
-                # Nutze die verbesserte Methode des MetadataService zur Kapitel-Einbettung
-                result = await metadata_service.embed_chapters_in_mp4(mp4_path, ffmpeg_chapters_path)
-            
-                if result:
-                    logger.info(f"Successfully embedded chapters into MP4 file for better player compatibility")
-                else:
-                    logger.warning(f"Failed to embed chapters into MP4 file, trying alternative method")
-                
-                    # Versuche alternative Methode zur Kapiteleinbettung
-                    alt_result = await metadata_service.embed_chapters_alternative(mp4_path, ffmpeg_chapters_path)
-                    if alt_result:
-                        logger.info(f"Successfully embedded chapters using alternative method")
-                    else:
-                        logger.warning(f"All chapter embedding methods failed")
+                logger.info(f"Embedding all metadata and chapters into MP4 file for stream {stream_id}")
+                await metadata_service.embed_all_metadata(mp4_path, ffmpeg_chapters_path, stream_id)
             else:
                 logger.warning(f"FFmpeg chapters file not found or empty: {ffmpeg_chapters_path}")
-        
-            # Embed additional metadata for better media server compatibility
-            await metadata_service.embed_additional_metadata(mp4_path, stream_id)
+                logger.info(f"Embedding basic metadata without chapters")
+                await metadata_service.embed_all_metadata(mp4_path, "", stream_id)
         
             # Close the metadata session
             await metadata_service.close()
