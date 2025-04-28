@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
     && wget https://github.com/gpac/gpac/archive/refs/tags/v2.2.1.tar.gz \
     && tar -xzf v2.2.1.tar.gz \
     && cd gpac-2.2.1 \
-    && ./configure --disable-opengl --use-js=no --use-ft=no --use-jpeg=no --use-png=no \
+    && ./configure --static-bin --use-zlib=no --use-ogg=no --use-vorbis=no --use-theora=no --use-openjpeg=no --use-a52=no --use-mad=no --use-faad=no --use-png=no --use-jpeg=no --use-ft=no --use-js=no --use-opengl=no \
     && make -j$(nproc) \
     && make install \
     && cd / \
