@@ -34,6 +34,8 @@ class EventHandlerRegistry:
         self.notification_service = NotificationService()
         self._access_token = None
         self.eventsub = None
+        self._processed_events = {}
+        self._event_cache_timeout = 60
 
     async def get_access_token(self) -> str:
         if not self._access_token:
@@ -132,7 +134,46 @@ class EventHandlerRegistry:
                 await asyncio.sleep(1)
         return False
 
+    def _is_duplicate_event(self, data: dict) -> bool:
+        try:
+            message_id = data.get("id")
+            if not message_id:
+                return False
+                
+            event_data = data.get("event", {})
+            broadcaster_id = event_data.get("broadcaster_user_id")
+            event_type = data.get("subscription", {}).get("type")
+            
+            if not broadcaster_id or not event_type:
+                return False
+                
+            event_key = f"{broadcaster_id}:{event_type}"
+            event_fingerprint = f"{message_id}:{event_key}"
+            now = datetime.now()
+            
+            expired_keys = []
+            for key, timestamp in self._processed_events.items():
+                if (now - timestamp).total_seconds() > self._event_cache_timeout:
+                    expired_keys.append(key)
+            
+            for key in expired_keys:
+                del self._processed_events[key]
+            
+            if event_fingerprint in self._processed_events:
+                logger.info(f"Ignoring duplicate event: {event_type} for broadcaster {broadcaster_id}")
+                return True
+            
+            self._processed_events[event_fingerprint] = now
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking for duplicate event: {e}", exc_info=True)
+            return False
+
     async def handle_stream_online(self, data: dict):
+        if self._is_duplicate_event(data):
+            return
+            
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
             
@@ -145,7 +186,6 @@ class EventHandlerRegistry:
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
                 
-                    # Create new stream with last known information
                     stream = Stream(
                         streamer_id=streamer.id,
                         started_at=datetime.fromisoformat(data["started_at"].replace('Z', '+00:00')),
@@ -155,9 +195,8 @@ class EventHandlerRegistry:
                         language=streamer.language
                     )
                     db.add(stream)
-                    db.flush()  # Get the stream ID without committing yet
+                    db.flush()
                     
-                    # Create initial stream event
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
@@ -168,11 +207,7 @@ class EventHandlerRegistry:
                     )
                     db.add(initial_event)
                     
-                    # Check for any cached offline category changes and add them as pre-stream events
-                    # This ensures streams that start with a specific game category have at least that initial category as an event
                     if streamer.category_name:
-                        # Add an event for the initial category with a timestamp 1 second before stream started
-                        # This ensures streams that never change category still get at least one chapter
                         pre_stream_event = StreamEvent(
                             stream_id=stream.id,
                             event_type="channel.update",
@@ -188,7 +223,6 @@ class EventHandlerRegistry:
                     streamer.last_updated = datetime.now(timezone.utc)
                     db.commit()
 
-                    # WebSocket notification
                     notification = {
                         "type": "stream.online",
                         "data": {
@@ -203,7 +237,6 @@ class EventHandlerRegistry:
                     }
                     await self.manager.send_notification(notification)
 
-                    # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="online",
@@ -220,7 +253,6 @@ class EventHandlerRegistry:
                     
                     logger.debug("Notifications sent successfully")
 
-                    # After successful notification, start recording if enabled
                     streamer_id = streamer.id
                     await self.recording_service.start_recording(streamer_id, {
                         "id": data["id"],
@@ -236,6 +268,10 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
             
     async def handle_stream_offline(self, data: dict):
+        # Event-Deduplizierung
+        if self._is_duplicate_event(data):
+            return
+            
         try:
             logger.info(f"Stream offline event received: {data}")
             with SessionLocal() as db:
@@ -244,11 +280,9 @@ class EventHandlerRegistry:
                 ).first()
         
                 if streamer:
-                    # Update the streamer's is_live status to False
                     streamer.is_live = False
                     streamer.last_updated = datetime.now(timezone.utc)
                 
-                    # Update the stream status
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
@@ -261,7 +295,6 @@ class EventHandlerRegistry:
                 
                     db.commit()
             
-                    # Send WebSocket notification
                     await self.manager.send_notification({
                         "type": "stream.offline",
                         "data": {
@@ -271,24 +304,26 @@ class EventHandlerRegistry:
                         }
                     })
                 
-                    # Enhanced Apprise notification
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="offline",
                         details={
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"]
+                            "twitch_login": data['broadcaster_user_login']
                         }
                     )
 
-                    # Stop recording if it was active
                     await self.recording_service.stop_recording(streamer.id)
             
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
             
     async def handle_stream_update(self, data: dict):
+        # Event-Deduplizierung
+        if self._is_duplicate_event(data):
+            return
+            
         try:
             logger.debug(f"Processing stream update event: {data}")
             with SessionLocal() as db:
@@ -298,7 +333,6 @@ class EventHandlerRegistry:
             
                 if streamer:
                     logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
-                    # Update streamer info directly
                     streamer.title = data.get("title")
                     streamer.category_name = data.get("category_name")
                     streamer.language = data.get("language")
@@ -307,7 +341,6 @@ class EventHandlerRegistry:
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
 
-                    # Finde aktiven Stream oder erstelle Update-Ereignis für spätere Verwendung
                     stream = db.query(Stream)\
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
@@ -315,7 +348,6 @@ class EventHandlerRegistry:
                         .first()
                 
                     if stream:
-                        # Erstelle StreamEvent, wenn es einen aktiven Stream gibt
                         stream_event = StreamEvent(
                             stream_id=stream.id,
                             event_type="channel.update",
@@ -327,14 +359,8 @@ class EventHandlerRegistry:
                         db.add(stream_event)
                         db.commit()
                     else:
-                        # Streamer ist offline - speichere das Update als "offline_updates"
-                        # Dies wird später beim Start des Streams verwendet
                         logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
-                    
-                        # Optional: Speichere offline Updates in einer separaten Tabelle
-                        # oder aktualisiere einfach die Streamer-Tabelle wie oben
                 
-                    # WebSocket-Benachrichtigung senden (zeigt den aktuellen Live-Status)
                     notification = {
                         "type": "channel.update",
                         "data": {
@@ -351,7 +377,6 @@ class EventHandlerRegistry:
                     await self.manager.send_notification(notification)
                     logger.debug(f"WebSocket notification sent for channel.update: {notification}")
                 
-                    # Verbesserte Apprise-Benachrichtigung
                     logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
@@ -363,7 +388,7 @@ class EventHandlerRegistry:
                             "language": data.get("language"),
                             "profile_image_url": streamer.profile_image_url,
                             "twitch_login": data["broadcaster_user_login"],
-                            "is_live": streamer.is_live  # Status hinzufügen
+                            "is_live": streamer.is_live
                         }
                     )
                     logger.debug(f"Notification result: {notification_result}")
@@ -373,10 +398,8 @@ class EventHandlerRegistry:
                     category_id = data.get("category_id")
                     
                     if category_name and category_id:
-                        # Import here to avoid circular dependency
                         from app.services.streamer_service import StreamerService
                         
-                        # Find or create category
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
@@ -399,7 +422,6 @@ class EventHandlerRegistry:
                         
                         db.commit()
 
-                        # Check for users with this category as favorite
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
                         ).all()
@@ -420,7 +442,7 @@ class EventHandlerRegistry:
                                             "category_name": category_name,
                                             "language": data.get("language"),
                                             "profile_image_url": streamer.profile_image_url,
-                                            "twitch_login": data["broadcaster_user_login"]
+                                            "twitch_login": data['broadcaster_user_login']
                                         }
                                     )
         except Exception as e:
