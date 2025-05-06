@@ -346,7 +346,7 @@ class RecordingService:
                         )
                     )
         except Exception as e:
-            logger.error(f"Error setting up stream metadata: {e}", exc_info=True)
+            logger.error(f"Error setting up stream metadata: {e}")
     
     async def stop_recording(self, streamer_id: int) -> bool:
         """Stop an active recording and ensure metadata generation"""
@@ -885,7 +885,7 @@ class RecordingService:
             
             if process:
                 # Start monitoring the process output in the background
-                asyncio.create_task(self._monitor_process(process, process_id, streamer_name, ts_path, output_path))
+                asyncio.create_task(self._monitor_process(process, process_id, streamer_name, ts_output_path, output_path))
             
             return process
         except Exception as e:
