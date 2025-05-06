@@ -8,8 +8,8 @@ const handleStreamerDeleted = async () => {
 </script>
 
 <template>
-  <main>
+  <div class="home-view">
     <TheWelcome />
     <StreamerList @streamerDeleted="handleStreamerDeleted" />
-  </main>
+  </div>
 </template>
