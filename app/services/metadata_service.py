@@ -461,26 +461,44 @@ class MetadataService:
             duration = (stream.ended_at - stream.started_at).total_seconds()
             logger.debug(f"Stream duration: {duration} seconds")
         
-        # Add verification for events with timestamps before stream start
-        if stream.started_at:
-            # Process pre-stream events if they exist
-            has_pre_stream_events = any(event.timestamp < stream.started_at for event in events)
-            
-            # If all events are pre-stream, artificially add stream start event
-            if has_pre_stream_events and all(event.timestamp < stream.started_at for event in events):
-                logger.info(f"All events for stream {stream.id} are pre-stream, adding stream start event")
-                
-                # Create an artificial stream start event
-                start_event = type('Event', (), {
-                    'timestamp': stream.started_at,
-                    'title': stream.title or "Stream Start",
-                    'category_name': stream.category_name or "Unknown",
-                    'event_type': 'stream.start'
-                })
-                events.append(start_event)
-                events = sorted(events, key=lambda x: x.timestamp)
+        # Sort events by timestamp to ensure proper processing
+        sorted_events = sorted(events, key=lambda x: x.timestamp)
         
-        return duration, events
+        # Process pre-stream events if they exist
+        if stream.started_at:
+            # Check for pre-stream events
+            pre_stream_events = [event for event in sorted_events if event.timestamp < stream.started_at]
+            
+            if pre_stream_events:
+                # If we have pre-stream events, use the latest one as the first chapter starting at time 0
+                latest_pre_stream = max(pre_stream_events, key=lambda x: x.timestamp)
+                
+                # Create a copy of this event but set timestamp to stream start
+                adjusted_event = copy.deepcopy(latest_pre_stream)
+                adjusted_event.timestamp = stream.started_at
+                
+                # Filter out all pre-stream events from the original list
+                post_stream_events = [event for event in sorted_events if event.timestamp >= stream.started_at]
+                
+                # Combine the adjusted event with post-stream events
+                processed_events = [adjusted_event] + post_stream_events
+                
+                logger.info(f"Using pre-stream event '{latest_pre_stream.title or 'Unknown'}' as first chapter")
+                return duration, processed_events
+        
+        # If there are no events at all, create a single event for the entire stream
+        if not sorted_events and stream.started_at:
+            logger.info("No events found, creating a single chapter for entire stream")
+            default_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                title=stream.title or "Stream",
+                category_name=stream.category_name,
+                timestamp=stream.started_at
+            )
+            return duration, [default_event]
+        
+        return duration, sorted_events
     
     def _write_single_chapter(self, file_obj: Any, events: List[StreamEvent], duration: float) -> None:
         """Schreibt ein einzelnes Kapitel für den gesamten Stream.
