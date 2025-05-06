@@ -95,7 +95,7 @@ nav {
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    background: darken(v.$background-dark, 3%);
+    background: color.adjust(v.$background-dark, $lightness: -3%);
   }
 }
 

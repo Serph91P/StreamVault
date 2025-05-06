@@ -19,7 +19,7 @@
   background: linear-gradient(
     to bottom,
     v.$background-darker,
-    darken(v.$background-darker, 2%)
+    color.adjust(v.$background-darker, $lightness: -2%)
   );
   position: sticky;
   top: 0;

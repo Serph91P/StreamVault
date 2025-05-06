@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 interface NotificationData {
@@ -238,12 +238,9 @@ const loadNotifications = (): void => {
   }
 }
 
-// Watch for WebSocket messages
-const messageWatcher = (newMessages: any[]) => {
-  if (newMessages.length === 0) return
-  
-  const latestMessage = newMessages[newMessages.length - 1]
-  console.log('NotificationFeed: New WebSocket message:', latestMessage)
+// Process new WebSocket messages
+const processNewMessage = (message: any) => {
+  console.log('NotificationFeed: New WebSocket message:', message)
   
   // Only process certain notification types
   const notificationTypes = [
@@ -255,8 +252,8 @@ const messageWatcher = (newMessages: any[]) => {
     'recording.failed'
   ]
   
-  if (notificationTypes.includes(latestMessage.type)) {
-    addNotification(latestMessage)
+  if (notificationTypes.includes(message.type)) {
+    addNotification(message)
   }
 }
 
@@ -264,16 +261,16 @@ const messageWatcher = (newMessages: any[]) => {
 onMounted(() => {
   loadNotifications()
   
-  // Watch for new messages
-  const unwatch = messages.value ? messages.value.$subscribe(messageWatcher) : null;
-  
-  if (messages.value) {
-    messages.value.$subscribe(messageWatcher)
-  }
-})
-
-onBeforeUnmount(() => {
-  // Cleanup if needed
+  // Watch for new messages being added to the array
+  watch(messages, (newMessages, oldMessages) => {
+    if (!newMessages || newMessages.length === 0) return
+    
+    // If there are more messages than before, process only the new ones
+    if (oldMessages && newMessages.length > oldMessages.length) {
+      const newMessage = newMessages[newMessages.length - 1]
+      processNewMessage(newMessage)
+    }
+  }, { deep: true })
 })
 </script>
 

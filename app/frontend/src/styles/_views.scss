@@ -41,7 +41,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle at center, darken(v.$background-dark, 5%), darken(v.$background-darker, 3%));
+  background: radial-gradient(circle at center, color.adjust(v.$background-dark, $lightness: -5%), color.adjust(v.$background-darker, $lightness: -3%));
   z-index: map.get(v.$z-layers, 'modal');
   padding: v.$spacing-md;
   overflow-y: auto;
