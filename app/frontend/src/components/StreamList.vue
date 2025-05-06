@@ -1,8 +1,8 @@
 <template>
   <div class="streams-container">
-    <!-- Bestehendes Template -->
     <div v-if="isLoading" class="loading-container">
-      <span>Loading streams...</span>
+      <div class="spinner"></div>
+      <p>Loading streams...</p>
     </div>
     <div v-else-if="streams.length === 0" class="no-data-container">
       <p>No streams found for this streamer.</p>
@@ -10,8 +10,7 @@
         Back to streamers
       </button>
       
-      <!-- Neue Schaltfläche für Force-Recording, auch wenn keine Streams gefunden wurden -->
-      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning mt-3">
+      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
         Force Recording (Offline Mode)
       </button>
     </div>
@@ -35,7 +34,6 @@
               <span class="status-badge" :class="{ 'live': !stream.ended_at }">
                 {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
               </span>
-              <!-- Recording-Status anzeigen, wenn live -->
               <span 
                 v-if="!stream.ended_at" 
                 class="recording-badge" 
@@ -52,7 +50,6 @@
             <p><strong>Duration:</strong> {{ calculateDuration(stream.started_at, stream.ended_at) }}</p>
             <p v-if="stream.ended_at"><strong>Ended:</strong> {{ formatDate(stream.ended_at) }}</p>
           </div>
-          <!-- Aktionsbuttons nur für Live-Streams anzeigen -->
           <div class="stream-actions" v-if="!stream.ended_at">
             <button 
               v-if="!isStreamRecording(parseInt(streamerId))" 
@@ -74,12 +71,11 @@
         </div>
       </div>
       
-      <!-- Neue Schaltfläche für Force-Offline-Recording, wenn keine Live-Streams gefunden wurden -->
-      <div v-if="!hasLiveStreams" class="mt-4">
+      <div v-if="!hasLiveStreams" class="offline-recording-section">
         <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
           {{ isStartingOfflineRecording ? 'Starting Offline Recording...' : 'Force Recording (Offline Mode)' }}
         </button>
-        <p class="text-muted mt-2">
+        <p class="help-text">
           Use this option if the streamer is live but StreamVault didn't detect it automatically.
         </p>
       </div>
@@ -443,21 +439,22 @@ watch(streamerId, (newId, oldId) => {
 }
 
 .recording-badge {
-  background-color: #444;
-  color: white;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 12px;
   font-size: 0.8rem;
   font-weight: bold;
+  margin-right: 0.5rem;
 }
 
 .recording-badge.recording {
-  background-color: #2ecc71;
+  background-color: var(--success-color);
+  color: white;
   animation: pulse 2s infinite;
 }
 
 .recording-badge.not-recording {
-  background-color: #e74c3c;
+  background-color: var(--danger-color);
+  color: white;
 }
 
 .stream-content {
@@ -470,6 +467,18 @@ watch(streamerId, (newId, oldId) => {
 
 .stream-actions {
   padding: 0 15px 15px;
+}
+
+.offline-recording-section {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--border-radius);
+}
+
+.help-text {
+  margin-top: var(--spacing-sm);
+  color: var(--text-muted-color);
 }
 
 @keyframes pulse {
