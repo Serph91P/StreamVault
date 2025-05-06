@@ -10,18 +10,30 @@
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   font-size: 16px;
   color-scheme: dark;
+  --vue-green: #{v.$primary-color};
+  --vue-green-light: #{v.$primary-color-light};
+  --vue-green-dark: #{v.$primary-color-dark};
+  --content-transition: transform 0.3s v.$vue-ease, opacity 0.3s v.$vue-ease;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* These are core fixes that belong in main.scss */
+/* Core fixes with better mobile optimization */
 html, body {
-  overflow-x: hidden; /* Prevent horizontal scrolling at root level */
+  overflow-x: hidden;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  height: 100%;
+  -webkit-overflow-scrolling: touch; // Smoother scrolling on iOS
+  scroll-behavior: smooth;
 }
 
 *, *:before, *:after {
-  box-sizing: inherit; /* Ensure all elements inherit box-sizing */
+  box-sizing: inherit;
+  margin: 0;
+  padding: 0;
 }
 
 body {
@@ -29,32 +41,77 @@ body {
   color: v.$text-primary;
   margin: 0;
   min-height: 100vh;
-  line-height: 1.5;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
 }
+
+a {
+  color: v.$primary-color;
+  text-decoration: none;
+  transition: color v.$transition-fast;
+  
+  &:hover {
+    color: v.$primary-color-light;
+  }
+}
+
+// Focus outline for accessibility
+:focus {
+  outline: 2px solid v.$primary-color;
+  outline-offset: 2px;
+}
+
+// Improved headings
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.2;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+h1 { font-size: map.get(v.$font-scale, '2xl'); }
+h2 { font-size: map.get(v.$font-scale, 'xl'); }
+h3 { font-size: map.get(v.$font-scale, 'lg'); }
+h4 { font-size: map.get(v.$font-scale, 'base'); }
+h5, h6 { font-size: map.get(v.$font-scale, 'sm'); }
 
 // Responsive images
 img {
   max-width: 100%;
   height: auto;
+  display: block;
 }
 
-/* Base container - keep max-width under control */
+// Vue-style fade transitions
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s v.$vue-ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+// Base container with improved responsiveness
 .container {
   width: 100%;
   max-width: 100%;
-  padding-right: v.$spacing-sm;
-  padding-left: v.$spacing-sm;
-  margin-right: auto;
-  margin-left: auto;
+  padding-inline: v.$spacing-sm;
+  margin-inline: auto;
   box-sizing: border-box;
 
   @media (min-width: map.get(v.$breakpoints, 'sm')) {
-    padding-right: v.$spacing-md;
-    padding-left: v.$spacing-md;
+    padding-inline: v.$spacing-md;
   }
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     max-width: v.$container-md;
+    padding-inline: v.$spacing-lg;
   }
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
@@ -63,5 +120,63 @@ img {
 
   @media (min-width: map.get(v.$breakpoints, 'xl')) {
     max-width: v.$container-xl;
+  }
+}
+
+// Screen reader only class for accessibility
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+// Improved scrollbars
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: v.$background-darker;
+}
+
+::-webkit-scrollbar-thumb {
+  background: v.$border-color;
+  border-radius: 4px;
+  
+  &:hover {
+    background: lighten(v.$border-color, 10%);
+  }
+}
+
+// Vue-style content section transitions
+.content-section {
+  transition: var(--content-transition);
+}
+
+// Fix tap highlight on mobile
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+// Better table responsiveness
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+// Fix for safe areas on mobile devices
+@supports (padding: max(0px)) {
+  body {
+    padding-left: min(0vmin, env(safe-area-inset-left));
+    padding-right: min(0vmin, env(safe-area-inset-right));
+    padding-bottom: min(0vmin, env(safe-area-inset-bottom));
   }
 }

@@ -2,31 +2,87 @@
 @use 'sass:color';
 @use 'variables' as v;
 
-// Common view styles
+// Common view styles with Vue.js theme
 .view-title {
   font-size: map.get(v.$font-scale, 'xl');
   margin-bottom: v.$spacing-md;
   color: v.$text-primary;
+  position: relative;
+  display: inline-block;
+
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: 0;
+    height: 2px;
+    width: 40px;
+    background: linear-gradient(to right, v.$primary-color, v.$primary-color-light);
+    border-radius: v.$border-radius-pill;
+  }
 }
 
-// Auth views (Login, Setup)
+// Vue-style page transitions
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.3s v.$vue-ease, transform 0.3s v.$vue-ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(15px);
+}
+
+// Auth views (Login, Setup) with Vue.js styling
 .auth-view {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: v.$background-dark;
+  background: radial-gradient(circle at center, darken(v.$background-dark, 5%), darken(v.$background-darker, 3%));
   z-index: map.get(v.$z-layers, 'modal');
   padding: v.$spacing-md;
+  overflow-y: auto;
 
   .auth-form {
-    background: v.$background-darker;
+    background: v.$background-card;
     padding: v.$spacing-xl;
-    border-radius: v.$border-radius;
+    border-radius: v.$border-radius-lg;
     width: 100%;
-    max-width: 320px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 350px;
+    box-shadow: v.$shadow-lg;
+    border: 1px solid rgba(v.$border-color, 0.5);
+    animation: formAppear 0.5s v.$vue-ease-out forwards;
+    position: relative;
+    overflow: hidden;
+
+    // Vue-style glow on hover
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(45deg, rgba(v.$primary-color, 0.1), rgba(v.$primary-color, 0) 70%);
+      opacity: 0;
+      transition: opacity 0.3s v.$vue-ease;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+
+    @keyframes formAppear {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
     .form-group {
       margin-bottom: v.$spacing-md;
@@ -42,28 +98,75 @@
         padding: v.$spacing-sm v.$spacing-md;
         border-radius: v.$border-radius;
         font-size: map.get(v.$font-scale, 'base');
-        
+        transition: all 0.25s v.$vue-ease;
+
         &:focus {
           border-color: v.$primary-color;
           outline: none;
+          box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
+        }
+
+        // Better touch target for mobile
+        @media (max-width: map.get(v.$breakpoints, 'sm')) {
+          padding: v.$spacing-md v.$spacing-md;
         }
       }
     }
 
     .auth-submit-btn {
       width: 100%;
-      margin-top: v.$spacing-md;
-      padding: v.$spacing-sm v.$spacing-md;
+      margin-top: v.$spacing-lg;
+      padding: v.$spacing-md;
       background: v.$primary-color;
       color: white;
       border: none;
       border-radius: v.$border-radius;
       font-weight: 600;
+      font-size: map.get(v.$font-scale, 'base');
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s v.$vue-ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(v.$primary-color, 0.2);
+
+      // Cool ripple effect on button click
+      &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 5px;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.5);
+        opacity: 0;
+        border-radius: 100%;
+        transform-origin: 50% 50%;
+      }
+
+      &:focus:not(:active)::after {
+        animation: ripple 0.6s v.$vue-ease-out;
+      }
+
+      @keyframes ripple {
+        0% {
+          transform: scale(0, 0);
+          opacity: 0.7;
+        }
+        100% {
+          transform: scale(40, 40);
+          opacity: 0;
+        }
+      }
 
       &:hover:not(:disabled) {
-        background: color.scale(v.$primary-color, $lightness: -10%);
+        background: v.$primary-color-light;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px rgba(v.$primary-color, 0.25);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: 0 2px 4px rgba(v.$primary-color, 0.2);
       }
 
       &:disabled {
@@ -76,65 +179,200 @@
       margin-bottom: v.$spacing-lg;
       color: v.$text-primary;
       text-align: center;
+      font-weight: 600;
+      position: relative;
+      padding-bottom: v.$spacing-sm;
+
+      &::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 3px;
+        background: v.$primary-color;
+        border-radius: v.$border-radius-pill;
+      }
     }
 
     .description {
       color: v.$text-secondary;
       margin-bottom: v.$spacing-lg;
       text-align: center;
+      line-height: 1.6;
+    }
+
+    // Vue-style error messages
+    .error-msg {
+      color: v.$danger-color;
+      font-size: map.get(v.$font-scale, 'sm');
+      margin-top: v.$spacing-xs;
+      animation: shake 0.4s v.$vue-ease-out;
+      padding-left: v.$spacing-xs;
+
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+      }
     }
   }
 }
 
 .login-page, .setup-page {
   @extend .auth-view;
-  
+
   .login-form, .setup-form {
     @extend .auth-form;
   }
-  
+
   .input-field {
     @extend .auth-input;
   }
-  
+
   .submit-button {
     @extend .auth-submit-btn;
   }
 }
 
-// Content Views
+// Content Views with Vue styling
 .content-view {
   width: 100%;
   padding: v.$spacing-md 0;
   box-sizing: border-box;
+  animation: fadeInContent 0.4s v.$vue-ease-out forwards;
+
+  @keyframes fadeInContent {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg 0;
   }
 }
 
-// Add Streamer View
+// Add Streamer View with improved mobile layout
 .add-streamer-view {
   @extend .content-view;
-  
+
   .add-streamer-container {
-    @extend .page-container !optional;
-    @extend .medium !optional;
+    background: v.$background-card;
+    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-md;
+    box-shadow: v.$shadow-md;
+    border: 1px solid v.$border-color;
+    max-width: 800px;
+    margin: 0 auto;
+    transition: box-shadow 0.2s v.$vue-ease;
+
+    &:focus-within {
+      box-shadow: v.$shadow-lg;
+      border-color: rgba(v.$primary-color, 0.3);
+    }
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-lg;
+    }
+
+    h1 {
+      font-size: map.get(v.$font-scale, 'xl');
+      margin-bottom: v.$spacing-md;
+      color: v.$text-primary;
+      position: relative;
+      display: inline-block;
+
+      &::after {
+        content: "";
+        position: absolute;
+        bottom: -6px;
+        left: 0;
+        height: 2px;
+        width: 40px;
+        background: v.$primary-color;
+        border-radius: v.$border-radius-pill;
+      }
+    }
   }
-  
+
   .import-section {
     margin-top: v.$spacing-xl;
     padding-top: v.$spacing-lg;
     border-top: 1px solid v.$border-color;
-    
+    animation: fadeIn 0.6s v.$vue-ease-out;
+    animation-fill-mode: both;
+    animation-delay: 0.2s;
+
     h3 {
       margin-bottom: v.$spacing-sm;
-      font-size: map.get(v.$font-scale, 'base');
+      font-size: map.get(v.$font-scale, 'lg');
+      color: v.$text-primary;
+      font-weight: 600;
     }
-    
+
     .import-description {
       margin-bottom: v.$spacing-lg;
       color: v.$text-secondary;
+      line-height: 1.6;
+      max-width: 600px;
+    }
+
+    .twitch-import {
+      background: rgba(#9146FF, 0.1);
+      border-radius: v.$border-radius;
+      padding: v.$spacing-md;
+      border: 1px solid rgba(#9146FF, 0.3);
+
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        padding: v.$spacing-lg;
+      }
+    }
+  }
+
+  form {
+    .form-section {
+      margin-bottom: v.$spacing-lg;
+
+      h3 {
+        margin-bottom: v.$spacing-sm;
+        color: v.$text-primary;
+        font-size: map.get(v.$font-scale, 'lg');
+      }
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: v.$spacing-md;
+      margin-bottom: v.$spacing-lg;
+
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        flex-direction: row;
+        align-items: stretch;
+      }
+
+      .form-group {
+        flex: 1;
+      }
+    }
+
+    .form-actions {
+      display: flex;
+      flex-direction: column;
+      gap: v.$spacing-md;
+      margin-top: v.$spacing-lg;
+
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        flex-direction: row;
+        justify-content: flex-end;
+      }
     }
   }
 }
@@ -143,27 +381,64 @@
   @extend .add-streamer-view;
 }
 
-// Settings View
+// Settings View with Vue.js tab design
 .settings-view {
   @extend .content-view;
-  
+
   .settings-container {
-    @extend .page-container !optional;
-    @extend .wide !optional;
+    background: v.$background-card;
+    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-md;
+    box-shadow: v.$shadow-md;
+    border: 1px solid v.$border-color;
+    max-width: 1200px;
+    margin: 0 auto;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-lg;
+    }
   }
-  
+
   .loading-indicator {
     text-align: center;
     padding: v.$spacing-xl;
     color: v.$text-secondary;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 300px;
+    justify-content: center;
+
+    .spinner {
+      margin-bottom: v.$spacing-md;
+    }
+
+    p {
+      color: v.$text-secondary;
+    }
   }
-  
+
   .settings-tabs {
     display: flex;
     flex-wrap: wrap;
+    gap: v.$spacing-xs;
     border-bottom: 1px solid v.$border-color;
     margin-bottom: v.$spacing-lg;
-    
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: v.$border-color;
+      z-index: 0;
+    }
+
     .tab-button {
       padding: v.$spacing-sm v.$spacing-md;
       background: none;
@@ -171,46 +446,238 @@
       cursor: pointer;
       color: v.$text-secondary;
       font-size: map.get(v.$font-scale, 'base');
-      border-bottom: 3px solid transparent;
-      transition: color 0.2s, border-color 0.2s;
-      margin-bottom: -1px;
-      
+      position: relative;
+      transition: all 0.3s v.$vue-ease;
+      overflow: hidden;
+      white-space: nowrap;
+      z-index: 1;
+
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background-color: v.$primary-color;
+        transform: scaleX(0);
+        transition: transform 0.3s v.$vue-ease;
+        transform-origin: center;
+      }
+
       &.active {
         color: v.$primary-color;
-        border-bottom-color: v.$primary-color;
+        font-weight: 500;
+
+        &::after {
+          transform: scaleX(1);
+        }
       }
-      
+
       &:hover:not(.active) {
         color: v.$text-primary;
-        border-bottom-color: v.$border-color;
+
+        &::after {
+          transform: scaleX(0.4);
+        }
+      }
+
+      // Mobile optimization
+      @media (max-width: map.get(v.$breakpoints, 'sm')) {
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
       }
     }
   }
-  
+
   .tab-content {
     min-height: 400px;
+    animation: fadeTab 0.3s v.$vue-ease-out;
+
+    @keyframes fadeTab {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .settings-section {
+      margin-bottom: v.$spacing-lg;
+      padding-bottom: v.$spacing-lg;
+      border-bottom: 1px solid v.$border-color;
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      h3 {
+        font-size: map.get(v.$font-scale, 'lg');
+        margin-bottom: v.$spacing-md;
+        color: v.$text-primary;
+      }
+
+      p {
+        margin-bottom: v.$spacing-md;
+        color: v.$text-secondary;
+        line-height: 1.6;
+        max-width: 700px;
+      }
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: v.$spacing-md;
+      margin-bottom: v.$spacing-lg;
+
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+
+      .form-group {
+        flex: 1;
+      }
+
+      label {
+        display: block;
+        margin-bottom: v.$spacing-xs;
+        color: v.$text-primary;
+        font-weight: 500;
+      }
+    }
+  }
+
+  .save-button-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: v.$spacing-lg;
+
+    .btn {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .saving-indicator {
+      display: flex;
+      align-items: center;
+      gap: v.$spacing-xs;
+
+      .loader {
+        margin-right: v.$spacing-xs;
+      }
+    }
   }
 }
 
-// Streamer Detail View
+// Streamer Detail View with Vue animations
 .streamer-detail-view {
   @extend .content-view;
-  
+
   .streamer-detail-container {
-    @extend .page-container !optional;
-    @extend .wide !optional;
+    background: v.$background-card;
+    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-md;
+    box-shadow: v.$shadow-md;
+    border: 1px solid v.$border-color;
+    max-width: 1200px;
+    margin: 0 auto;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-lg;
+    }
   }
 
   .streamer-header {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-sm;
     margin-bottom: v.$spacing-lg;
-    
+    border-bottom: 1px solid v.$border-color;
+    padding-bottom: v.$spacing-md;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: v.$spacing-lg;
+    }
+
     h1 {
-      font-size: map.get(v.$font-scale, 'lg');
+      font-size: map.get(v.$font-scale, 'xl');
       margin: 0;
-      
-      @media (min-width: map.get(v.$breakpoints, 'md')) {
-        font-size: map.get(v.$font-scale, 'xl');
+      display: flex;
+      align-items: center;
+      gap: v.$spacing-sm;
+
+      img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid v.$border-color;
       }
+
+      @media (min-width: map.get(v.$breakpoints, 'md')) {
+        font-size: map.get(v.$font-scale, '2xl');
+
+        img {
+          width: 50px;
+          height: 50px;
+        }
+      }
+    }
+
+    .streamer-actions {
+      display: flex;
+      gap: v.$spacing-sm;
+      flex-wrap: wrap;
+
+      @media (max-width: map.get(v.$breakpoints, 'sm')) {
+        width: 100%;
+
+        .btn {
+          flex: 1;
+        }
+      }
+    }
+  }
+
+  .streamer-content {
+    .streamer-section {
+      margin-bottom: v.$spacing-lg;
+
+      h2 {
+        font-size: map.get(v.$font-scale, 'lg');
+        margin-bottom: v.$spacing-md;
+        color: v.$text-primary;
+        position: relative;
+        display: inline-block;
+        padding-bottom: v.$spacing-xs;
+
+        &::after {
+          content: "";
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          height: 2px;
+          width: 30px;
+          background: v.$primary-color;
+          border-radius: v.$border-radius-pill;
+        }
+      }
+    }
+
+    .stream-grid {
+      margin-top: v.$spacing-md;
+    }
+
+    .empty-state {
+      padding: v.$spacing-lg;
+      text-align: center;
+      color: v.$text-secondary;
+      background: rgba(v.$background-darker, 0.5);
+      border-radius: v.$border-radius;
+      margin: v.$spacing-md 0;
     }
   }
 }
@@ -219,13 +686,39 @@
   @extend .streamer-detail-view;
 }
 
-// Subscriptions View
+// Subscriptions View with Vue grid animations
 .subscriptions-view {
   @extend .content-view;
-  
+
   .subscriptions-container {
-    @extend .page-container !optional;
-    @extend .wide !optional;
+    background: v.$background-card;
+    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-md;
+    box-shadow: v.$shadow-md;
+    border: 1px solid v.$border-color;
+    max-width: 1200px;
+    margin: 0 auto;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-lg;
+    }
+
+    .page-header {
+      margin-bottom: v.$spacing-lg;
+
+      h1 {
+        font-size: map.get(v.$font-scale, 'xl');
+        margin-bottom: v.$spacing-sm;
+        color: v.$text-primary;
+      }
+
+      p {
+        color: v.$text-secondary;
+        margin: 0;
+        max-width: 700px;
+        line-height: 1.6;
+      }
+    }
   }
 
   .controls {
@@ -233,28 +726,93 @@
     flex-direction: column;
     gap: v.$spacing-sm;
     margin-bottom: v.$spacing-lg;
+    background: rgba(v.$background-darker, 0.5);
+    padding: v.$spacing-md;
+    border-radius: v.$border-radius;
+    border: 1px solid v.$border-color;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       flex-direction: row;
+      align-items: center;
       gap: v.$spacing-md;
       flex-wrap: wrap;
+      padding: v.$spacing-md v.$spacing-lg;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .filter-select {
+      min-width: 150px;
+
+      @media (max-width: map.get(v.$breakpoints, 'sm')) {
+        width: 100%;
+      }
     }
   }
-  
+
   .loading-state {
     text-align: center;
     padding: v.$spacing-xl;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 
     .spinner {
       margin: 0 auto v.$spacing-md;
     }
+
+    p {
+      color: v.$text-secondary;
+    }
   }
-  
+
   .empty-state {
     text-align: center;
     padding: v.$spacing-xl;
     color: v.$text-secondary;
     font-size: map.get(v.$font-scale, 'base');
+    background: rgba(v.$background-darker, 0.5);
+    border-radius: v.$border-radius;
+    margin: v.$spacing-lg 0;
+
+    .btn {
+      margin-top: v.$spacing-md;
+    }
+  }
+
+  .streamer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: v.$spacing-md;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: v.$spacing-lg;
+    }
+
+    .streamer-card {
+      animation: cardAppear 0.4s v.$vue-ease-out forwards;
+      opacity: 0;
+      transform: translateY(15px);
+
+      @for $i from 1 through 20 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{$i * 0.05}s;
+        }
+      }
+
+      @keyframes cardAppear {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    }
   }
 }
 
@@ -262,12 +820,159 @@
   @extend .subscriptions-view;
 }
 
-// Home View
+// Home View with Vue welcome animation
 .home-view {
   @extend .content-view;
-  
+
   .welcome {
     text-align: center;
     margin-bottom: v.$spacing-xl;
+    animation: welcomeIn 0.6s v.$vue-ease-out forwards;
+
+    @keyframes welcomeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    h1 {
+      font-size: map.get(v.$font-scale, '2xl');
+      margin-bottom: v.$spacing-sm;
+      color: v.$text-primary;
+      background: linear-gradient(45deg, v.$primary-color, v.$primary-color-light);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: inline-block;
+    }
+
+    p {
+      color: v.$text-secondary;
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+  }
+
+  .home-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: v.$spacing-lg;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: map.get(v.$breakpoints, 'lg')) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .quick-stat {
+      background: v.$background-card;
+      border-radius: v.$border-radius;
+      padding: v.$spacing-md;
+      box-shadow: v.$shadow-sm;
+      border: 1px solid v.$border-color;
+      text-align: center;
+      transition: all 0.3s v.$vue-ease;
+      animation: fadeInUp 0.4s v.$vue-ease-out forwards;
+      opacity: 0;
+      transform: translateY(20px);
+
+      @for $i from 1 through 4 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{$i * 0.1}s;
+        }
+      }
+
+      @keyframes fadeInUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      &:hover {
+        transform: translateY(-5px);
+        box-shadow: v.$shadow-md;
+        border-color: v.$primary-color;
+      }
+
+      h3 {
+        font-size: map.get(v.$font-scale, 'sm');
+        color: v.$text-secondary;
+        margin-bottom: v.$spacing-xs;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .stat-value {
+        font-size: map.get(v.$font-scale, 'xl');
+        font-weight: 700;
+        color: v.$text-primary;
+        margin-bottom: v.$spacing-xs;
+      }
+
+      .stat-description {
+        font-size: map.get(v.$font-scale, 'sm');
+        color: v.$text-secondary;
+      }
+    }
+  }
+
+  .recent-section {
+    margin-top: v.$spacing-xl;
+
+    h2 {
+      font-size: map.get(v.$font-scale, 'lg');
+      margin-bottom: v.$spacing-md;
+      color: v.$text-primary;
+      position: relative;
+      display: inline-block;
+      padding-bottom: v.$spacing-xs;
+
+      &::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 2px;
+        width: 30px;
+        background: v.$primary-color;
+        border-radius: v.$border-radius-pill;
+      }
+    }
+
+    .see-all {
+      display: inline-flex;
+      align-items: center;
+      color: v.$primary-color;
+      text-decoration: none;
+      font-weight: 500;
+      margin-top: v.$spacing-xs;
+      padding: v.$spacing-xs v.$spacing-sm;
+      border-radius: v.$border-radius-sm;
+      transition: all 0.2s v.$vue-ease;
+
+      &::after {
+        content: "→";
+        margin-left: v.$spacing-xs;
+        display: inline-block;
+        transition: transform 0.2s v.$vue-ease;
+      }
+
+      &:hover {
+        background: rgba(v.$primary-color, 0.05);
+
+        &::after {
+          transform: translateX(3px);
+        }
+      }
+    }
   }
 }
