@@ -724,24 +724,68 @@ class MetadataService:
                     })
                     filtered_events.append(dummy_event)
                 
-                for i, event in enumerate(filtered_events):
-                    # Berechne Start- und Endzeit
-                    start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(i, event, filtered_events, stream)
+                # Log how many chapters we're creating
+                logger.info(f"Generating {len(filtered_events)} chapters for stream {stream.id}")
+                
+                # When we have only one chapter, we need special handling for VLC compatibility
+                if len(filtered_events) == 1:
+                    # Add a special marker that this is a single chapter file
+                    f.write("\n# Single-chapter file, VLC may need special handling\n")
                     
-                    # Kapitel-Titel erstellen
+                    # For single chapter, explicitly set TIMEBASE to 1/1 instead of 1/1000 for better compatibility
+                    f.write("\n[CHAPTER]\n")
+                    f.write("TIMEBASE=1/1\n")
+                    
+                    # Always use 0 as start time for single chapter
+                    f.write(f"START=0\n")
+                    
+                    # Use the actual duration in seconds, not milliseconds
+                    duration = 0
+                    if stream.started_at and stream.ended_at:
+                        duration = int((stream.ended_at - stream.started_at).total_seconds())
+                    else:
+                        duration = 3600  # Default 1 hour if no duration available
+                        
+                    f.write(f"END={duration}\n")
+                    
+                    # Chapter title
+                    event = filtered_events[0]
                     if event.category_name:
                         title = f"{event.category_name}"
-                    elif event.title:
+                    elif hasattr(event, 'title') and event.title:
                         title = f"{event.title}"
                     else:
                         title = "Stream"
                     
-                    # Kapitel-Eintrag schreiben
-                    f.write("\n[CHAPTER]\n")
-                    f.write("TIMEBASE=1/1000\n")
-                    f.write(f"START={start_offset_ms}\n")
-                    f.write(f"END={end_offset_ms}\n")
+                    # Escape special characters for FFmpeg
+                    title = self._escape_ffmpeg_metadata(title)
                     f.write(f"title={title}\n")
+                    logger.info(f"Created single chapter with title: {title}")
+                else:
+                    # Multiple chapters - standard handling
+                    for i, event in enumerate(filtered_events):
+                        # Berechne Start- und Endzeit
+                        start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(i, event, filtered_events, stream)
+                        
+                        # Kapitel-Titel erstellen
+                        if event.category_name:
+                            title = f"{event.category_name}"
+                        elif hasattr(event, 'title') and event.title:
+                            title = f"{event.title}"
+                        else:
+                            title = "Stream"
+                        
+                        # Escape special characters for FFmpeg
+                        title = self._escape_ffmpeg_metadata(title)
+                        
+                        # Kapitel-Eintrag schreiben
+                        f.write("\n[CHAPTER]\n")
+                        f.write("TIMEBASE=1/1000\n")
+                        f.write(f"START={start_offset_ms}\n")
+                        f.write(f"END={end_offset_ms}\n")
+                        f.write(f"title={title}\n")
+                        
+                        logger.debug(f"Created chapter {i+1}/{len(filtered_events)}: {title}, {start_offset_ms}ms to {end_offset_ms}ms")
                 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
                 return True
@@ -944,6 +988,7 @@ class MetadataService:
             bool: True bei Erfolg, False bei Fehler
         """
         try:
+            import copy
             mp4_path_obj = Path(mp4_path)
             
             if not mp4_path_obj.exists():
@@ -964,6 +1009,17 @@ class MetadataService:
                 if not streamer:
                     logger.warning(f"Streamer not found for stream {stream_id}")
                     return False
+            
+            # Überprüfe, ob die Kapitel-Datei existiert und gültig ist
+            has_chapters = False
+            if chapters_path_obj and chapters_path_obj.exists() and chapters_path_obj.stat().st_size > 0:
+                with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
+                    chapter_content = cf.read()
+                    # Prüfe, ob tatsächlich Kapitel in der Datei sind
+                    has_chapters = "[CHAPTER]" in chapter_content
+                
+                if not has_chapters:
+                    logger.warning(f"Chapters file exists but contains no chapters: {chapters_path}")
             
             # Erstelle temporäre Metadaten-Datei mit allen Metadaten
             meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata.txt")
@@ -1000,17 +1056,19 @@ class MetadataService:
                         value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
                         f.write(f"{key}={value_escaped}\n")
             
-                # Kapitel hinzufügen, wenn Kapitel-Datei existiert
-                if chapters_path_obj and chapters_path_obj.exists() and chapters_path_obj.stat().st_size > 0:
+                # Kapitel hinzufügen, wenn Kapitel-Datei existiert und gültig ist
+                if has_chapters:
+                    logger.info(f"Adding chapters from {chapters_path} to the metadata file")
                     with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
                         chapter_lines = cf.readlines()
                     
                     # Nur die [CHAPTER] Abschnitte hinzufügen, Header überspringen
                     in_header = True
                     for line in chapter_lines:
-                        if line.strip() == "" and in_header:
+                        if line.strip() == "[CHAPTER]":  # Neues Kapitel beginnt
                             in_header = False
-                        elif not in_header:
+                        
+                        if not in_header or line.strip() == "":  # Leere Zeilen oder Kapitel-Inhalt
                             f.write(line)
                 else:
                     logger.warning(f"No valid chapters file available: {chapters_path}")
@@ -1030,11 +1088,12 @@ class MetadataService:
                 "-movflags", "+faststart+write_colr",  # Optimierung für Web-Streaming
                 "-metadata:s:v:0", "title=Video",
                 "-metadata:s:a:0", "title=Audio",
+                "-f", "mp4",            # Explizit MP4-Format erzwingen
                 "-y",                   # Überschreiben falls die Datei existiert
                 str(output_path)
             ]
             
-            logger.debug(f"Running FFmpeg to embed all metadata: {' '.join(cmd)}")
+            logger.info(f"Running FFmpeg to embed all metadata: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -1043,42 +1102,54 @@ class MetadataService:
             )
             
             stdout, stderr = await process.communicate()
+            stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else ""
             
             if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
-                # Validiere die Ausgabedatei
-                check_cmd = [
-                    "ffprobe",
-                    "-v", "error", 
-                    "-show_entries",
-                    "format=duration",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    str(output_path)
-                ]
-                
-                check_process = await asyncio.create_subprocess_exec(
-                    *check_cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                
-                check_stdout, check_stderr = await check_process.communicate()
-                
-                if check_process.returncode == 0 and check_stdout:
-                    # Ersetze die ursprüngliche Datei mit der neuen
-                    output_path.replace(mp4_path_obj)
-                    logger.info(f"Successfully embedded all metadata into {mp4_path}")
+                # Validiere die Ausgabedatei und prüfe, ob Kapitel enthalten sind
+                if has_chapters:
+                    chapter_check_cmd = [
+                        "ffprobe",
+                        "-v", "error",
+                        "-show_chapters",
+                        "-print_format", "json",
+                        str(output_path)
+                    ]
                     
-                    # Lösche temporäre Dateien
-                    if meta_path.exists():
-                        meta_path.unlink()
+                    chapter_check = await asyncio.create_subprocess_exec(
+                        *chapter_check_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
                     
-                    return True
-                else:
-                    stderr_text = check_stderr.decode('utf-8', errors='ignore') if check_stderr else "No error output"
-                    logger.error(f"Output file validation failed: {stderr_text}")
-                    return False
+                    check_stdout, check_stderr = await chapter_check.communicate()
+                    
+                    if chapter_check.returncode == 0 and check_stdout:
+                        try:
+                            chapter_info = json.loads(check_stdout)
+                            if "chapters" in chapter_info and len(chapter_info["chapters"]) > 0:
+                                logger.info(f"Successfully embedded {len(chapter_info['chapters'])} chapters into {mp4_path}")
+                            else:
+                                logger.warning(f"No chapters found in the output file despite valid chapter file")
+                        except json.JSONDecodeError:
+                            logger.warning("Could not parse chapter info JSON")
+                
+                # Ersetze die ursprüngliche Datei mit der neuen
+                output_path.replace(mp4_path_obj)
+                logger.info(f"Successfully embedded all metadata into {mp4_path}")
+                
+                # Lösche temporäre Dateien
+                if meta_path.exists():
+                    meta_path.unlink()
+                
+                # Aktualisiere die Datenbank
+                with SessionLocal() as db:
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if metadata:
+                        metadata.metadata_embedded = True
+                        db.commit()
+                
+                return True
             else:
-                stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
                 logger.error(f"Failed to embed metadata: {stderr_text}")
                 return False
         except Exception as e:
