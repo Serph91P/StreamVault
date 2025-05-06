@@ -3,7 +3,7 @@
     <TransitionGroup name="notification">
       <div v-for="notification in notifications" 
            :key="notification.id" 
-           class="notification-item interactive-element"
+           class="notification-item"
            :class="notification.type">
         <div class="notification-content">
           {{ notification.message }}
