@@ -31,7 +31,7 @@
       </div>
       
       <button @click="startTwitchAuth" class="btn btn-twitch">
-        <i class="fa fa-twitch"></i> Connect with Twitch
+        Connect with Twitch
       </button>
     </div>
     
@@ -41,17 +41,17 @@
     </div>
     
     <div v-if="isAuthenticated && !importing" class="selection-section">
-      <div class="controls">
+      <div class="filter-container">
         <div class="search-box">
           <input 
             type="text" 
             v-model="searchQuery" 
             placeholder="Search streamers..." 
-            class="search-input"
+            class="form-control"
           />
         </div>
         
-        <div class="selection-actions">
+        <div class="filter-buttons">
           <button 
             @click="selectAll" 
             class="btn btn-secondary" 
@@ -76,11 +76,11 @@
         </div>
       </div>
       
-      <div v-if="channels.length === 0" class="no-channels">
+      <div v-if="channels.length === 0" class="no-data-container">
         You don't follow any channels on Twitch.
       </div>
       
-      <div v-else-if="filteredChannels.length === 0" class="no-results">
+      <div v-else-if="filteredChannels.length === 0" class="no-data-container">
         No channels match your search.
       </div>
       
@@ -97,13 +97,13 @@
             <div class="channel-login">{{ channel.login }}</div>
           </div>
           <div class="selection-indicator">
-            <i class="fa" :class="isSelected(channel) ? 'fa-check-circle' : 'fa-circle-o'"></i>
+            ✓
           </div>
         </div>
       </div>
     </div>
     
-    <div v-if="importResults" class="import-results">
+    <div v-if="importResults" class="import-results content-section">
       <h3>Import Results</h3>
       <div class="results-summary">
         <div class="result-item">
@@ -334,7 +334,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Styles for the component */
+/* Diese speziellen Styles sind spezifisch für dieses Komponente und ergänzen das Design-System */
 .callback-url-hint {
   margin-top: 15px;
   padding: 10px;
@@ -343,26 +343,72 @@ onMounted(async () => {
   border-left: 3px solid #ff9800;
 }
 
-.setup-hint {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: rgba(33, 150, 243, 0.1);
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.callback-url {
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  margin-bottom: 1.5rem;
   background-color: rgba(0, 0, 0, 0.2);
-  padding: 8px;
-  border-radius: 4px;
-  margin-top: 8px;
-  word-break: break-all;
+  padding: 1rem;
+  border-radius: 6px;
 }
 
-code {
-  background-color: rgba(0, 0, 0, 0.3);
-  padding: 3px 5px;
-  border-radius: 3px;
-  font-family: monospace;
+.result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.result-label {
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.result-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.result-value.success {
+  color: var(--success-color);
+}
+
+.result-value.error {
+  color: var(--danger-color);
+}
+
+.result-value.info {
+  color: #17a2b8;
+}
+
+.failure-list {
+  background-color: rgba(220, 53, 69, 0.1);
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.failure-list h4 {
+  margin-top: 0;
+  color: var(--danger-color);
+}
+
+.failure-list ul {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.failure-list li {
+  margin-bottom: 0.5rem;
+}
+
+.import-results {
+  padding: 1.5rem;
+  background-color: var(--background-darker);
+  border-radius: 6px;
+  margin-top: 2rem;
 }
 </style>
+</template>
