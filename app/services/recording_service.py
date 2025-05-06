@@ -7,19 +7,81 @@ import signal
 import json
 import tempfile
 import copy
+import uuid
+import time
+import functools
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, Optional, List, Any, Tuple
+from typing import Dict, Optional, List, Any, Tuple, Callable
 from sqlalchemy import extract
 from functools import lru_cache
+from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.database import SessionLocal, get_db
 from app.models import Streamer, RecordingSettings, StreamerRecordingSettings, Stream, StreamEvent, StreamMetadata
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
 from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
+
+# Define performance monitoring decorators
+def timing_decorator(func):
+    """Decorator to log execution time of functions"""
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        operation_id = kwargs.pop('operation_id', str(uuid.uuid4())[:8])
+        method_name = func.__name__
+        start_time = time.time()
+        logger.debug(f"[{operation_id}] Starting {method_name}")
+        
+        try:
+            result = await func(*args, **kwargs, operation_id=operation_id)
+            elapsed = time.time() - start_time
+            logger.info(f"[{operation_id}] {method_name} completed in {elapsed:.2f}s")
+            return result
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"[{operation_id}] {method_name} failed after {elapsed:.2f}s: {e}")
+            raise
+            
+    return wrapper
+
+def sync_timing_decorator(func):
+    """Decorator to log execution time of synchronous functions"""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        operation_id = kwargs.pop('operation_id', str(uuid.uuid4())[:8])
+        method_name = func.__name__
+        start_time = time.time()
+        logger.debug(f"[{operation_id}] Starting {method_name}")
+        
+        try:
+            result = func(*args, **kwargs)
+            elapsed = time.time() - start_time
+            logger.info(f"[{operation_id}] {method_name} completed in {elapsed:.2f}s")
+            return result
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"[{operation_id}] {method_name} failed after {elapsed:.2f}s: {e}")
+            raise
+            
+    return wrapper
+
+# ContextManager for database sessions with automatic cleanup
+@asynccontextmanager
+async def get_db_session():
+    """Context manager for database sessions with automatic commit/rollback"""
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 # Custom exceptions for domain-specific error cases
 class RecordingError(Exception):
@@ -131,7 +193,7 @@ class SubprocessManager:
     def __init__(self):
         self.active_processes = {}
         self.lock = asyncio.Lock()
-    
+        
     async def start_process(self, cmd: List[str], process_id: str) -> Optional[asyncio.subprocess.Process]:
         """Start a subprocess and track it"""
         async with self.lock:
