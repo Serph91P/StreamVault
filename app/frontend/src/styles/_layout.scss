@@ -2,6 +2,7 @@
 @use 'sass:color';
 @use 'variables' as v;
 
+// Base layout structure
 .app {
   min-height: 100vh;
   display: flex;
@@ -11,13 +12,15 @@
   overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
-.header {
+// Header
+.header,
+.app-header {
   background: v.$background-darker;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: map.get(v.$z-layers, 'overlay');
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: v.$spacing-sm;
   width: 100%;
@@ -27,7 +30,8 @@
     padding: v.$spacing-md;
   }
 
-  .container {
+  .container,
+  .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -35,8 +39,98 @@
     max-width: 100%;
     box-sizing: border-box;
   }
+  
+  h1 {
+    font-size: map.get(v.$font-scale, 'lg');
+    margin: 0;
+    color: v.$text-primary;
+  }
 }
 
+// Main content area
+.main-content {
+  flex: 1;
+  padding: v.$spacing-md;
+  margin-top: 56px; /* Account for fixed header height */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+    margin-top: 64px; /* Adjust for larger header on md+ screens */
+  }
+
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    padding: v.$spacing-xl;
+    max-width: v.$container-xl;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+// Standard page container
+.page-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: v.$spacing-md;
+  background: v.$background-darker;
+  border-radius: v.$border-radius;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  &.narrow {
+    max-width: 600px;
+  }
+
+  &.medium {
+    max-width: 800px; 
+  }
+
+  &.wide {
+    max-width: 1200px;
+  }
+}
+
+// Content sections
+.content-section {
+  margin-bottom: v.$spacing-lg;
+  padding-bottom: v.$spacing-md;
+  border-bottom: 1px solid v.$border-color;
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  h2, h3, h4 {
+    margin-top: 0;
+    margin-bottom: v.$spacing-md;
+  }
+}
+
+// Page headers
+.page-header {
+  margin-bottom: v.$spacing-lg;
+  
+  h1, h2 {
+    margin: 0 0 v.$spacing-sm 0;
+    font-size: map.get(v.$font-scale, 'xl');
+  }
+  
+  .description {
+    color: v.$text-secondary;
+    margin: 0;
+  }
+}
+
+// Navigation container
 .nav-container {
   display: flex;
   flex-wrap: wrap;
@@ -50,22 +144,25 @@
   }
 }
 
-.main-content {
-  flex: 1;
-  padding: v.$spacing-md;
-  margin-top: 56px; /* Account for fixed header */
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-
+// Two-column layout
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: v.$spacing-lg;
+  
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-lg;
+    grid-template-columns: 2fr 1fr;
   }
-
+  
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
-    padding: v.$spacing-xl;
-    max-width: v.$container-xl;
-    margin-left: auto;
-    margin-right: auto;
+    grid-template-columns: 3fr 1fr;
+  }
+  
+  .main-column {
+    min-width: 0; // Fix for overflow issues
+  }
+  
+  .side-column {
+    min-width: 0; // Fix for overflow issues
   }
 }
