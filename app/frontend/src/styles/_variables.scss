@@ -5,19 +5,19 @@ $background-card: #1f1f23;
 $text-primary: #f1f1f3;
 $text-secondary: #b1b1b9;
 $border-color: #2d2d35;
-$primary-color: #7c4dff; // Changed to purple for a more modern streaming app feel
-$primary-color-light: #9e7bff;
-$primary-color-dark: #6039cc;
-$accent-color: #42b883; // Keep Vue's green as accent
+$primary-color: #42b883; // Vue.js green as primary color
+$primary-color-light: #63d5a4;
+$primary-color-dark: #2f9c6a;
+$accent-color: #7c4dff; // Purple as accent color
 $danger-color: #ff4757;
 $success-color: #2ed573;
 $warning-color: #ffa502;
 $info-color: #70a1ff;
 
 // Shadows
-$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-$shadow-md: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
-$shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.16);
+$shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.20);
 
 // Spacing (using rem for better scaling)
 $spacing-xxs: 0.125rem;
@@ -74,6 +74,11 @@ $border-radius-xl: 16px;
 $border-radius-pill: 9999px;
 
 // Transitions
-$transition-fast: 150ms ease;
-$transition-base: 250ms ease;
-$transition-slow: 400ms ease;
+$transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+// Vue.js theme animation curves
+$vue-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+$vue-ease-out: cubic-bezier(0, 0, 0.2, 1);
+$vue-ease-in: cubic-bezier(0.4, 0, 1, 1);
