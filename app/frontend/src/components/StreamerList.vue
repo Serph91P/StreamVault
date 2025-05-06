@@ -12,7 +12,7 @@
             :alt="streamer.username"
           />
           <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-          <!-- Make the username clickable to Twitch -->
+          <!-- Mache den Benutzernamen auf Twitch klickbar -->
           <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.username)">{{ streamer.username }}</h3>
         </div>
         <span class="status-badge" :class="{ 'live': streamer.is_live }">
@@ -28,14 +28,14 @@
       <div class="streamer-footer">
         <button 
           @click="handleDelete(streamer.id)" 
-          class="delete-btn"
+          class="btn btn-danger"
           :disabled="isDeleting"
         >
           {{ isDeleting ? 'Deleting...' : 'Delete' }}
         </button>
         <button 
           @click="navigateToStreamerDetail(streamer.id, streamer.username)" 
-          class="view-btn"
+          class="btn btn-success"
         >
           View Streams
         </button>
@@ -132,7 +132,7 @@ watch(messages, (newMessages) => {
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
-        // Maintain the current live status
+        // Behalte den aktuellen Live-Status bei
         // is_live: streamer ? streamer.is_live : false
       }
       console.log('StreamerList: Updating streamer with data:', updateData)
@@ -163,21 +163,39 @@ watch(messages, (newMessages) => {
   }
 }, { deep: true })
 
-// Improved connection handling
+// Verbesserte Verbindungsbehandlung
 watch(connectionStatus, (status) => {
   if (status === 'connected') {
     void fetchStreamers()
   }
 }, { immediate: true })
 
-// Better lifecycle management with proper event type
 onMounted(() => {
   console.log('StreamerList mounted')
   void fetchStreamers()
 })
 
-// Remove the socket.value references since we're using useWebSocket()
 onUnmounted(() => {
-  // The cleanup is handled by useWebSocket's onUnmounted
+  // Die Bereinigung wird von useWebSocket's onUnmounted übernommen
 })
 </script>
+
+<style scoped>
+.streamer-name-link {
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: color 0.2s;
+}
+
+.streamer-name-link:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.streamer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+</style>
