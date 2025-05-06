@@ -2,7 +2,7 @@
 @use 'sass:color';
 @use 'variables' as v;
 
-// Navigation
+// Navigation with Vue-style animations
 nav {
   display: flex;
   flex-wrap: wrap;
@@ -20,30 +20,52 @@ nav {
     text-decoration: none;
     font-weight: 500;
     padding: v.$spacing-sm;
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    border-radius: v.$border-radius-sm;
+    transition: all v.$vue-ease 0.2s;
     font-size: map.get(v.$font-scale, 'sm');
+    position: relative;
+    overflow: hidden;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-sm v.$spacing-md;
       font-size: map.get(v.$font-scale, 'base');
     }
 
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 2px;
+      background-color: v.$primary-color;
+      transition: width 0.2s v.$vue-ease;
+    }
+
     &:hover {
-      color: v.$text-primary;
-      background: rgba(255, 255, 255, 0.1);
+      color: v.$primary-color;
+
+      &::after {
+        width: 70%;
+      }
     }
 
     &.router-link-active {
       color: v.$primary-color;
-      background: rgba(145, 71, 255, 0.1);
+      background: rgba(v.$primary-color, 0.1);
+
+      &::after {
+        width: 90%;
+      }
     }
   }
 }
 
-// Forms
+// Forms with Vue.js styling
 .form-group {
   margin-bottom: v.$spacing-md;
+  position: relative;
 }
 
 .input-field {
@@ -53,18 +75,27 @@ nav {
   border: 2px solid v.$border-color;
   color: v.$text-primary;
   padding: v.$spacing-sm v.$spacing-md;
-  border-radius: 6px;
+  border-radius: v.$border-radius;
   font-size: map.get(v.$font-scale, 'base');
-  transition: all 0.2s ease;
+  transition: all v.$vue-ease 0.2s;
+  position: relative;
+  z-index: 1;
 
   &:focus {
     outline: none;
     border-color: v.$primary-color;
-    box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
+    box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
   }
 
   &::placeholder {
     color: v.$text-secondary;
+    opacity: 0.7;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: darken(v.$background-dark, 3%);
   }
 }
 
@@ -72,7 +103,7 @@ nav {
   @extend .input-field;
 }
 
-// Input with tooltip
+// Input with tooltip - improved for mobile
 .input-with-tooltip {
   position: relative;
   width: 100%;
@@ -81,36 +112,58 @@ nav {
     position: absolute;
     top: 100%;
     left: 0;
-    z-index: 1000;
+    z-index: map.get(v.$z-layers, 'overlay');
     margin-top: v.$spacing-sm;
+    background: v.$background-darker;
+    border: 1px solid v.$border-color;
+    border-radius: v.$border-radius;
+    padding: v.$spacing-sm;
+    max-width: 100%;
+    box-shadow: v.$shadow-md;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      max-width: 300px;
+    }
 
     .tooltip-link {
       color: v.$primary-color;
       text-decoration: none;
       cursor: pointer;
-      
+      display: inline-block;
+      padding: v.$spacing-xxs v.$spacing-xs;
+      border-radius: v.$border-radius-sm;
+      transition: all v.$vue-ease 0.2s;
+
       &:hover {
-        text-decoration: underline;
-        color: color.scale(v.$primary-color, $lightness: -10%);
+        text-decoration: none;
+        color: v.$primary-color-light;
+        background: rgba(v.$primary-color, 0.1);
       }
     }
   }
 }
 
-// Form fields
+// Form fields with better mobile touch areas
 .form-control-sm {
   width: 100%;
   height: 36px;
-  font-size: 0.875rem;
+  font-size: map.get(v.$font-scale, 'sm');
   padding: 0.5rem;
   background: v.$background-dark;
   border: 1px solid v.$border-color;
   color: v.$text-primary;
-  border-radius: 4px;
-  
+  border-radius: v.$border-radius-sm;
+  transition: all v.$vue-ease 0.2s;
+
+  @media (max-width: map.get(v.$breakpoints, 'sm')) {
+    height: 42px; // Larger touch area on mobile
+    font-size: 1rem;
+  }
+
   &:focus {
     outline: none;
     border-color: v.$primary-color;
+    box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
   }
 }
 
@@ -118,31 +171,83 @@ nav {
   font-size: 0.85rem;
   color: v.$text-secondary;
   margin-top: 0.25rem;
+  line-height: 1.4;
 }
 
-// Form structures
+// Form structures with animation
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 20px;
+
+  @media (max-width: map.get(v.$breakpoints, 'sm')) {
+    flex-direction: column;
+
+    button, .btn {
+      width: 100%;
+    }
+  }
 }
 
-// Checkbox groups
+// Checkbox groups with Vue styling
 .checkbox-group {
   label {
     display: flex;
     align-items: flex-start;
     font-weight: normal;
     text-align: left;
+    padding: v.$spacing-xs 0;
+    cursor: pointer;
+    transition: color v.$transition-fast;
+
+    &:hover {
+      color: v.$primary-color-light;
+    }
   }
 
   input[type="checkbox"] {
-    margin-right: 8px;
-    margin-top: 4px;
+    position: relative;
+    margin-right: v.$spacing-sm;
+    margin-top: 0.3em;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid v.$border-color;
+    border-radius: 4px;
+    background: v.$background-dark;
+    cursor: pointer;
+    transition: all v.$vue-ease 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    &:checked {
+      background-color: v.$primary-color;
+      border-color: v.$primary-color;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 6px;
+        width: 4px;
+        height: 8px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+    }
+
+    &:focus {
+      outline: none;
+      border-color: v.$primary-color;
+      box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
+    }
   }
 }
 
-// Grids and Cards
+// Grids and Cards with smooth animations
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -151,7 +256,7 @@ nav {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  
+
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     grid-template-columns: repeat(2, 1fr);
     column-gap: v.$spacing-lg;
@@ -160,38 +265,47 @@ nav {
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
     grid-template-columns: repeat(3, 1fr);
-    column-gap: v.$spacing-lg;
-    row-gap: v.$spacing-xl;
   }
 }
 
-.streamer-grid {
-  @extend .card-grid;
-}
-
-.stream-grid, .stream-list {
-  @extend .card-grid;
-}
-
-.channels-grid {
-  @extend .card-grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-}
-
+.streamer-grid, 
+.stream-grid, 
+.stream-list,
+.channels-grid, 
 .categories-grid {
   @extend .card-grid;
 }
 
-// Cards
+.channels-grid {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+
+// Vue-styled cards with hover effects
 .card {
-  background: v.$background-darker;
-  border-radius: 8px;
+  background: v.$background-card;
+  border-radius: v.$border-radius;
   padding: v.$spacing-md;
   margin-bottom: v.$spacing-md;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: v.$shadow-sm;
+  border: 1px solid rgba(v.$border-color, 0.5);
+  transition: all v.$vue-ease 0.25s;
+  transform-origin: center center;
+  overflow: hidden;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
+    border-radius: v.$border-radius-lg;
+  }
+
+  &:hover {
+    box-shadow: v.$shadow-md;
+    transform: translateY(-2px);
+    border-color: rgba(v.$primary-color, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: v.$shadow-sm;
   }
 }
 
@@ -202,9 +316,8 @@ nav {
   min-height: 200px;
   width: 100%;
   box-sizing: border-box;
-  transition: transform 0.2s ease;
   word-break: break-word;
-  
+
   .streamer-header {
     display: flex;
     justify-content: space-between;
@@ -224,48 +337,90 @@ nav {
       margin: 0;
       line-height: 1.4;
       overflow-wrap: break-word;
+      color: v.$text-secondary;
     }
-  }
-
-  &:hover {
-    transform: translateY(-2px);
   }
 }
 
 .stream-card {
   @extend .card;
-  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  }
-  
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
   .stream-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: v.$spacing-sm v.$spacing-md;
-    background-color: v.$background-darker;
+    background-color: rgba(v.$background-darker, 0.6);
     border-bottom: 1px solid v.$border-color;
+    margin: -#{v.$spacing-md} -#{v.$spacing-md} v.$spacing-md -#{v.$spacing-md};
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      margin: -#{v.$spacing-lg} -#{v.$spacing-lg} v.$spacing-lg -#{v.$spacing-lg};
+    }
   }
-  
+
   .stream-info {
     display: flex;
     align-items: center;
     gap: v.$spacing-sm;
-    
+
     h3 {
       margin: 0;
-      font-size: 1rem;
+      font-size: map.get(v.$font-scale, 'base');
+      font-weight: 600;
     }
   }
-  
+
   .stream-content {
-    padding: v.$spacing-md;
-    
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-xs;
+
     p {
-      margin: v.$spacing-xs 0;
+      margin: 0;
+      color: v.$text-secondary;
+      line-height: 1.5;
+    }
+  }
+
+  .stream-thumbnail {
+    position: relative;
+    width: 100%;
+    height: 0;
+    padding-bottom: 56.25%; // 16:9 aspect ratio
+    margin-bottom: v.$spacing-sm;
+    overflow: hidden;
+    border-radius: v.$border-radius-sm;
+    background: v.$background-darker;
+
+    img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s v.$vue-ease;
+    }
+
+    &:hover img {
+      transform: scale(1.05);
+    }
+
+    .duration {
+      position: absolute;
+      bottom: v.$spacing-xs;
+      right: v.$spacing-xs;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: map.get(v.$font-scale, 'xs');
+      padding: v.$spacing-xxs v.$spacing-xs;
+      border-radius: v.$border-radius-sm;
+      font-weight: 500;
     }
   }
 }
@@ -276,77 +431,115 @@ nav {
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  transition: all 0.2s ease;
   border-left: 3px solid transparent;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: v.$spacing-sm v.$spacing-md;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md v.$spacing-lg;
   }
-  
+
   &.selected {
     background-color: rgba(v.$primary-color, 0.1);
-    border-left: 3px solid v.$primary-color;
+    border-left-color: v.$primary-color;
   }
-  
+
   .channel-content {
     .channel-name {
       font-weight: bold;
       margin-bottom: v.$spacing-xs;
+      transition: color 0.2s v.$vue-ease;
     }
-    
+
     .channel-login {
       font-size: map.get(v.$font-scale, 'sm');
       color: v.$text-secondary;
     }
   }
-  
+
   .selection-indicator {
     font-size: 1.5rem;
     color: v.$primary-color;
+    opacity: 0;
+    transform: translateX(10px);
+    transition: all 0.2s v.$vue-ease;
+  }
+
+  &.selected .selection-indicator,
+  &:hover .selection-indicator {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
 .category-card {
   @extend .card;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  }
+  position: relative;
+  padding: 0;
 
   &.is-favorite {
-    border: 2px solid #9146FF;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 40px 40px 0;
+      border-color: transparent v.$primary-color transparent transparent;
+      z-index: 1;
+    }
   }
 
   .category-image {
     height: 180px;
+    width: 100%;
     overflow: hidden;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.5) 100%);
+    }
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: transform 0.3s v.$vue-ease;
     }
   }
 
+  &:hover .category-image img {
+    transform: scale(1.05);
+  }
+
   .category-details {
-    padding: 15px;
+    padding: v.$spacing-sm v.$spacing-md;
+
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-md;
+    }
 
     h4 {
-      margin: 0 0 10px 0;
-      font-size: 1rem;
+      margin: 0 0 v.$spacing-xs 0;
+      font-size: map.get(v.$font-scale, 'base');
+      font-weight: 600;
     }
   }
 
   .category-actions {
-    margin-top: 10px;
+    margin-top: v.$spacing-sm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 
-// Streamer info
+// Streamer info with animations
 .streamer-info {
   display: flex;
   align-items: center;
@@ -357,60 +550,122 @@ nav {
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
+    border: 2px solid rgba(v.$border-color, 0.5);
+    transition: border-color 0.2s v.$vue-ease;
+
+    &:hover {
+      border-color: v.$primary-color;
+    }
+  }
+
+  .streamer-name {
+    font-weight: 600;
+    font-size: map.get(v.$font-scale, 'base');
+    transition: color 0.2s v.$vue-ease;
+
+    &:hover {
+      color: v.$primary-color;
+    }
   }
 }
 
-// Status indicators
+// Status indicators with animations
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ff4444;
-  transition: background-color 0.3s;
+  background: v.$danger-color;
+  transition: background-color 0.3s v.$vue-ease;
+  display: inline-block;
+  margin-right: v.$spacing-xs;
+  position: relative;
 
   &.live {
-    background: #44ff44;
+    background: v.$success-color;
+    box-shadow: 0 0 0 rgba(v.$success-color, 0.5);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(v.$success-color, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 6px rgba(v.$success-color, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(v.$success-color, 0);
+    }
   }
 }
 
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
+  padding: 0.2em 0.6em;
+  border-radius: v.$border-radius-pill;
   font-size: map.get(v.$font-scale, 'xs');
-  font-weight: bold;
+  font-weight: 600;
   min-width: 60px;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  height: 22px;
 
   &.live {
     background: v.$success-color;
     color: white;
+    box-shadow: 0 2px 4px rgba(v.$success-color, 0.4);
   }
 
   &.offline {
     background: v.$danger-color;
     color: white;
+    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.4);
   }
 }
 
-// Buttons
+// Buttons with Vue-style design
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: v.$spacing-sm v.$spacing-md;
-  border-radius: 6px;
+  padding: v.$spacing-sm v.$spacing-lg;
+  border-radius: v.$border-radius;
   font-size: map.get(v.$font-scale, 'base');
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all v.$vue-ease 0.2s;
   border: none;
-  background-image: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
   width: auto;
 
+  // Improved touch target for mobile
+  @media (max-width: map.get(v.$breakpoints, 'sm')) {
+    min-height: 44px; // iOS recommended minimum
+  }
+
+  // Subtle top highlight
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+    opacity: 0;
+    transition: opacity 0.3s v.$vue-ease;
+  }
+
   &:hover:not(:disabled) {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+
+    &::before {
+      opacity: 1;
+    }
   }
 
   &:active:not(:disabled) {
@@ -423,36 +678,49 @@ nav {
     cursor: not-allowed;
   }
 
-  // Button variants
+  // Clean up button variants with Vue-like styling
   &-primary {
     background: v.$primary-color;
     color: white;
+    box-shadow: 0 2px 4px rgba(v.$primary-color, 0.3);
+
     &:hover:not(:disabled) {
-      background: color.scale(v.$primary-color, $lightness: -10%);
+      background: v.$primary-color-light;
+    }
+
+    &:active:not(:disabled) {
+      background: v.$primary-color-dark;
     }
   }
 
   &-danger, &-delete {
     background: v.$danger-color;
     color: white;
+    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.3);
+
     &:hover:not(:disabled) {
       background: color.scale(v.$danger-color, $lightness: -10%);
     }
   }
 
   &-secondary {
-    background: v.$background-darker;
+    background: v.$background-card;
     color: v.$text-primary;
     border: 1px solid v.$border-color;
-    
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
     &:hover:not(:disabled) {
-      background: color.scale(v.$background-darker, $lightness: 5%);
+      color: v.$primary-color;
+      border-color: v.$primary-color;
+      background: rgba(v.$primary-color, 0.05);
     }
   }
 
   &-success {
     background: v.$success-color;
     color: white;
+    box-shadow: 0 2px 4px rgba(v.$success-color, 0.3);
+
     &:hover:not(:disabled) {
       background: color.scale(v.$success-color, $lightness: -10%);
     }
@@ -461,23 +729,24 @@ nav {
   &-twitch {
     background-color: #9146FF;
     color: white;
-    
+    box-shadow: 0 2px 4px rgba(145, 70, 255, 0.3);
+
     &:hover:not(:disabled) {
       background-color: color.scale(#9146FF, $lightness: -10%);
     }
   }
 }
 
-// Legacy button styles for compatibility
+// Legacy button styles mapped to new design
 .submit-button {
   @extend .btn;
   @extend .btn-primary;
   width: 100%;
   position: relative;
-  overflow: hidden;
-  
+
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     width: auto;
+    min-width: 120px;
   }
 }
 
@@ -493,33 +762,35 @@ nav {
   font-size: map.get(v.$font-scale, 'sm');
 }
 
-// Button ripple effect
-.btn::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: rgba(255,255,255,0.5);
-  opacity: 0;
-  border-radius: 100%;
-  transform: scale(1, 1) translate(-50%);
-  transform-origin: 50% 50%;
-}
+// Improved button ripple effect
+.btn {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255,255,255,0.7);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+  }
 
-.btn:focus:not(:active)::after {
-  animation: ripple 1s ease-out;
+  &:focus:not(:active)::after {
+    animation: ripple 0.7s v.$vue-ease-out;
+  }
 }
 
 @keyframes ripple {
   0% {
     transform: scale(0, 0);
-    opacity: 0.5;
+    opacity: 0.7;
   }
   20% {
     transform: scale(25, 25);
-    opacity: 0.3;
+    opacity: 0.5;
   }
   100% {
     opacity: 0;
@@ -527,81 +798,141 @@ nav {
   }
 }
 
-// Tables
+// Tables with better mobile behavior
 .table-container, .streamer-table-container {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: v.$spacing-md;
-  
+  border-radius: v.$border-radius;
+  background-color: v.$background-card;
+  border: 1px solid v.$border-color;
+  margin-bottom: v.$spacing-lg;
+
   table {
     width: 100%;
-    border-collapse: collapse;
-    
+    border-collapse: separate;
+    border-spacing: 0;
+
     th, td {
-      padding: v.$spacing-md;
+      padding: v.$spacing-sm;
       text-align: left;
       vertical-align: middle;
-      border-bottom: 1px solid v.$border-color;
-      
+      border-bottom: 1px solid rgba(v.$border-color, 0.5);
+
       @media (min-width: map.get(v.$breakpoints, 'md')) {
-        padding: v.$spacing-lg;
+        padding: v.$spacing-md;
       }
     }
-    
+
     th {
       font-weight: 600;
-      background-color: rgba(0, 0, 0, 0.2);
       color: v.$text-primary;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: v.$background-darker;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
-    
-    tbody tr:hover {
-      background-color: rgba(255, 255, 255, 0.05);
-    }
-    
-    @media (max-width: map.get(v.$breakpoints, 'md')) {
-      display: block;
-      
-      th, td {
-        min-width: 120px;
+
+    tbody tr {
+      transition: background-color 0.2s v.$vue-ease;
+
+      &:hover {
+        background-color: rgba(v.$primary-color, 0.05);
       }
-      
-      td:before {
+    }
+  }
+
+  // Responsive tables for mobile
+  @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+    table, thead, tbody, tr, th, td {
+      display: block;
+    }
+
+    thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+    }
+
+    tr {
+      margin-bottom: v.$spacing-md;
+      border: 1px solid v.$border-color;
+      border-radius: v.$border-radius-sm;
+      padding: v.$spacing-xs;
+    }
+
+    td {
+      position: relative;
+      padding-left: 40%;
+      border: none;
+      border-bottom: 1px solid rgba(v.$border-color, 0.3);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &:before {
         content: attr(data-label);
-        float: left;
-        font-weight: bold;
-        text-transform: uppercase;
+        position: absolute;
+        top: v.$spacing-sm;
+        left: v.$spacing-sm;
+        width: 35%;
+        font-weight: 600;
+        white-space: nowrap;
+        color: v.$primary-color;
       }
     }
   }
 }
 
-// Loading indicators
+// Loading indicators with Vue animation
 .spinner {
-  border: 4px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  border-top: 4px solid v.$primary-color;
+  display: inline-block;
   width: 40px;
   height: 40px;
-  animation: spin 1s linear infinite;
+  position: relative;
   margin: 0 auto v.$spacing-md;
+
+  &:before {
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid rgba(v.$primary-color, 0.2);
+    border-top-color: v.$primary-color;
+    animation: spinner 0.8s linear infinite;
+  }
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@keyframes spinner {
+  to { transform: rotate(360deg); }
 }
 
 .loader {
+  display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid #fff;
-  border-top: 2px solid transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+  position: relative;
+
+  &:before {
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid rgba(v.$primary-color, 0.2);
+    border-top-color: v.$primary-color;
+    animation: spinner 0.6s linear infinite;
+  }
 }
 
-// Loading and empty states
+// Loading and empty states with animations
 .loading-container, .no-data-container {
   display: flex;
   flex-direction: column;
@@ -610,64 +941,137 @@ nav {
   min-height: 200px;
   text-align: center;
   padding: v.$spacing-xl;
-  
+  animation: fadeIn 0.4s v.$vue-ease-out;
+
   p {
     color: v.$text-secondary;
-    margin-bottom: v.$spacing-md;
+    margin: v.$spacing-md 0;
+    max-width: 400px;
+    line-height: 1.6;
   }
-  
+
   .btn {
     margin-top: v.$spacing-md;
   }
 }
 
-// Notification Feed
+// Vue-styled notification feed
 .notification-feed {
   position: fixed;
   bottom: v.$spacing-md;
   left: v.$spacing-md;
   right: v.$spacing-md;
   z-index: map.get(v.$z-layers, 'toast');
+  pointer-events: none; // Allow clicking through the container
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     bottom: auto;
     top: 80px;
     right: v.$spacing-md;
     left: auto;
-    width: 300px;
+    max-width: 350px;
+    width: 100%;
   }
 }
 
 .notification-item {
-  background: #2f2f2f;
+  pointer-events: auto; // Make the notification itself clickable
+  background: v.$background-darker;
   color: white;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  padding: v.$spacing-sm v.$spacing-md;
+  margin-bottom: v.$spacing-sm;
+  border-radius: v.$border-radius;
+  box-shadow: v.$shadow-md;
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-sm;
+  position: relative;
+  overflow: hidden;
+  border-left: 3px solid v.$primary-color;
+
+  // Progress bar animation
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: v.$primary-color;
+    width: 100%;
+    animation: progress 5s linear forwards;
+  }
+
+  @keyframes progress {
+    0% { width: 100%; }
+    100% { width: 0%; }
+  }
 
   &.success {
-    background: v.$success-color;
+    border-left-color: v.$success-color;
+
+    &::after {
+      background: v.$success-color;
+    }
   }
 
   &.error {
-    background: v.$danger-color;
+    border-left-color: v.$danger-color;
+
+    &::after {
+      background: v.$danger-color;
+    }
+  }
+
+  .notification-close {
+    position: absolute;
+    top: v.$spacing-xs;
+    right: v.$spacing-xs;
+    background: none;
+    border: none;
+    color: v.$text-secondary;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px;
+    line-height: 1;
+
+    &:hover {
+      color: white;
+    }
   }
 }
 
-// Animations
-.notification-enter-active,
+// Improved animations with Vue transitions
+.notification-enter-active {
+  animation: slideIn 0.3s v.$vue-ease-out forwards;
+}
+
 .notification-leave-active {
-  transition: all 0.3s ease;
+  animation: slideOut 0.3s v.$vue-ease forwards;
 }
 
-.notification-enter-from,
-.notification-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1; 
+    transform: translateX(0);
+  }
 }
 
-// Back button
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+}
+
+// Back button with animation
 .back-btn-container {
   margin-bottom: v.$spacing-md;
 }
@@ -675,83 +1079,174 @@ nav {
 .back-btn {
   display: inline-flex;
   align-items: center;
-  
+  color: v.$text-secondary;
+  text-decoration: none;
+  font-weight: 500;
+  padding: v.$spacing-xs v.$spacing-sm;
+  border-radius: v.$border-radius-sm;
+  transition: all 0.2s v.$vue-ease;
+
   &::before {
     content: "←";
     margin-right: v.$spacing-xs;
+    display: inline-block;
+    transition: transform 0.2s v.$vue-ease;
+  }
+
+  &:hover {
+    color: v.$primary-color;
+    background: rgba(v.$primary-color, 0.05);
+
+    &::before {
+      transform: translateX(-3px);
+    }
   }
 }
 
-// Notice boxes
+// Notice boxes with Vue styling
 .error-message {
   padding: v.$spacing-md;
   background: rgba(v.$danger-color, 0.1);
   border-left: 4px solid v.$danger-color;
-  color: v.$danger-color;
+  color: lighten(v.$danger-color, 10%);
   margin-bottom: v.$spacing-lg;
-  border-radius: 4px;
+  border-radius: v.$border-radius-sm;
+  box-shadow: 0 1px 2px rgba(v.$danger-color, 0.1);
+  animation: fadeIn 0.3s v.$vue-ease-out;
 }
 
 .admin-notice {
   margin: v.$spacing-md 0;
   padding: v.$spacing-md;
-  background-color: rgba(255, 200, 0, 0.1);
-  border-left: 4px solid #ffcc00;
-  border-radius: 4px;
-  
+  background-color: rgba(v.$warning-color, 0.08);
+  border-left: 4px solid v.$warning-color;
+  border-radius: v.$border-radius-sm;
+  color: lighten(v.$warning-color, 10%);
+  position: relative;
+  animation: fadeIn 0.3s v.$vue-ease-out;
+
   h4 {
     margin-bottom: v.$spacing-sm;
-    color: color.adjust(#ffcc00, $lightness: -20%);;
+    color: v.$warning-color;
   }
-  
+
   .config-steps {
     margin: v.$spacing-md 0;
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 0, 0, 0.15);
     padding: v.$spacing-md;
-    border-radius: 4px;
-    
+    border-radius: v.$border-radius-sm;
+
     pre {
-      padding: v.$spacing-sm;
-      background-color: rgba(0, 0, 0, 0.3);
-      border-radius: 4px;
+      padding: v.$spacing-md;
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: v.$border-radius-sm;
       overflow-x: auto;
       margin: v.$spacing-xs 0 v.$spacing-md;
-      font-family: monospace;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      position: relative;
+
+      &::before {
+        content: 'code';
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 8px;
+        border-bottom-left-radius: 4px;
+        font-size: 0.7rem;
+        color: v.$text-secondary;
+        font-family: sans-serif;
+      }
     }
   }
 }
 
-// Search and filter elements
+// Search and filter elements with Vue transitions
 .filter-container {
   display: flex;
   flex-wrap: wrap;
   gap: v.$spacing-md;
   margin-bottom: v.$spacing-lg;
   align-items: center;
-  
+  background: v.$background-card;
+  border-radius: v.$border-radius;
+  padding: v.$spacing-md;
+  border: 1px solid v.$border-color;
+  transition: border-color 0.2s v.$vue-ease;
+
+  &:focus-within {
+    border-color: v.$primary-color;
+  }
+
   .search-box {
     flex: 1;
     min-width: 200px;
-    
+
     input {
       width: 100%;
+      box-sizing: border-box;
+      padding: v.$spacing-sm v.$spacing-md;
+      border-radius: v.$border-radius;
+      border: 1px solid v.$border-color;
+      background: v.$background-dark;
+      color: v.$text-primary;
+      transition: all 0.2s v.$vue-ease;
+      font-size: map.get(v.$font-scale, 'base');
+
+      &:focus {
+        outline: none;
+        border-color: v.$primary-color;
+        box-shadow: 0 0 0 2px rgba(v.$primary-color, 0.1);
+      }
+
+      &::placeholder {
+        color: v.$text-secondary;
+        opacity: 0.7;
+      }
     }
   }
-  
+
   .filter-buttons {
     display: flex;
     gap: v.$spacing-sm;
     flex-wrap: wrap;
+
+    @media (max-width: map.get(v.$breakpoints, 'sm')) {
+      margin-top: v.$spacing-xs;
+      width: 100%;
+    }
+
+    button, .btn {
+      padding: v.$spacing-xs v.$spacing-sm;
+      font-size: map.get(v.$font-scale, 'sm');
+    }
   }
 }
 
-// Tabs
+// Vue-style animated tabs
 .tabs {
   display: flex;
   flex-wrap: wrap;
   border-bottom: 1px solid v.$border-color;
   margin-bottom: v.$spacing-lg;
-  
+  gap: v.$spacing-xs;
+  position: relative;
+
+  // Active tab indicator
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    width: 0;
+    background-color: v.$primary-color;
+    transition: all 0.3s v.$vue-ease;
+    opacity: 0;
+  }
+
   .tab {
     padding: v.$spacing-sm v.$spacing-md;
     background: none;
@@ -759,18 +1254,39 @@ nav {
     cursor: pointer;
     color: v.$text-secondary;
     font-size: map.get(v.$font-scale, 'base');
-    border-bottom: 3px solid transparent;
-    transition: color 0.2s, border-color 0.2s;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s v.$vue-ease;
     margin-bottom: -1px;
-    
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 2px;
+      background-color: v.$primary-color;
+      transition: width 0.3s v.$vue-ease;
+    }
+
     &.active {
       color: v.$primary-color;
-      border-bottom-color: v.$primary-color;
+      font-weight: 500;
+
+      &::after {
+        width: 100%;
+      }
     }
-    
+
     &:hover:not(.active) {
       color: v.$text-primary;
-      border-bottom-color: v.$border-color;
+
+      &::after {
+        width: 40%;
+      }
     }
   }
 }
