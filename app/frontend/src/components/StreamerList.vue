@@ -1,44 +1,61 @@
 <template>
   <div class="streamer-grid">
-    <div v-for="streamer in sortedStreamers" 
-         :key="streamer.id"
-         class="streamer-card">
-      <div class="streamer-header">
-        <div class="streamer-info">
-          <img 
-            v-if="streamer.profile_image_url" 
-            :src="streamer.profile_image_url" 
-            class="profile-image" 
-            :alt="streamer.username"
-          />
-          <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
-          <!-- Mache den Benutzernamen auf Twitch klickbar -->
-          <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.username)">{{ streamer.username }}</h3>
+    <TransitionGroup name="streamer-card">
+      <div v-for="streamer in sortedStreamers" 
+           :key="streamer.id"
+           class="streamer-card"
+           :class="{ 'live': streamer.is_live }">
+        <div class="streamer-header">
+          <div class="streamer-info">
+            <div class="profile-image-wrapper">
+              <img 
+                v-if="streamer.profile_image_url" 
+                :src="streamer.profile_image_url" 
+                class="profile-image" 
+                :alt="streamer.username"
+                loading="lazy"
+              />
+              <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
+            </div>
+            <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.username)">
+              {{ streamer.username }}
+            </h3>
+          </div>
+          <span class="status-badge" :class="{ 'live': streamer.is_live }">
+            {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+          </span>
         </div>
-        <span class="status-badge" :class="{ 'live': streamer.is_live }">
-          {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
-        </span>
+        <div class="streamer-content">
+          <p v-if="streamer.title"><strong>Title:</strong> {{ streamer.title || '-' }}</p>
+          <p v-if="streamer.category_name"><strong>Category:</strong> {{ streamer.category_name || '-' }}</p>
+          <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
+          <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_updated) }}</p>
+        </div>
+        <div class="streamer-footer">
+          <button 
+            @click="handleDelete(streamer.id)" 
+            class="btn btn-danger"
+            :disabled="isDeleting === streamer.id"
+          >
+            <span v-if="isDeleting === streamer.id" class="loader"></span>
+            {{ isDeleting === streamer.id ? '' : 'Remove' }}
+          </button>
+          <button 
+            @click="navigateToStreamerDetail(streamer.id, streamer.username)" 
+            class="btn btn-primary"
+          >
+            View Streams
+          </button>
+        </div>
       </div>
-      <div class="streamer-content">
-        <p><strong>Title:</strong> {{ streamer.title || '-' }}</p>
-        <p><strong>Category:</strong> {{ streamer.category_name || '-' }}</p>
-        <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
-        <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_updated) }}</p>
-      </div>
-      <div class="streamer-footer">
-        <button 
-          @click="handleDelete(streamer.id)" 
-          class="btn btn-danger"
-          :disabled="isDeleting"
-        >
-          {{ isDeleting ? 'Deleting...' : 'Delete' }}
-        </button>
-        <button 
-          @click="navigateToStreamerDetail(streamer.id, streamer.username)" 
-          class="btn btn-success"
-        >
-          View Streams
-        </button>
+    </TransitionGroup>
+    
+    <div v-if="!sortedStreamers.length" class="empty-state">
+      <div class="empty-state-content">
+        <div class="empty-state-icon">🎬</div>
+        <h3>No Streamers Yet</h3>
+        <p>Add your favorite Twitch streamers to get started</p>
+        <router-link to="/add-streamer" class="btn btn-primary">Add Streamer</router-link>
       </div>
     </div>
   </div>
@@ -73,7 +90,7 @@ interface StreamerUpdateData {
 const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
 const { messages, connectionStatus } = useWebSocket()
 const router = useRouter()
-const isDeleting = ref(false)
+const isDeleting = ref<string | null>(null)
 
 const emit = defineEmits<{
   streamerDeleted: []
@@ -81,29 +98,57 @@ const emit = defineEmits<{
 
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
+    // Sort by live status first (live streamers at top)
+    if (a.is_live && !b.is_live) return -1
+    if (!a.is_live && b.is_live) return 1
+    
+    // Then sort by username alphabetically
     return a.username.localeCompare(b.username)
   })
 })
 
 const formatDate = (date: string | undefined): string => {
   if (!date) return 'Never'
-  return new Date(date).toLocaleString()
+  
+  const now = new Date()
+  const updated = new Date(date)
+  const diff = now.getTime() - updated.getTime()
+  
+  // Less than a minute ago
+  if (diff < 60 * 1000) {
+    return 'Just now'
+  }
+  
+  // Less than an hour ago
+  if (diff < 60 * 60 * 1000) {
+    const minutes = Math.floor(diff / (60 * 1000))
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
+  }
+  
+  // Less than a day ago
+  if (diff < 24 * 60 * 60 * 1000) {
+    const hours = Math.floor(diff / (60 * 60 * 1000))
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  }
+  
+  // Show full date for older updates
+  return updated.toLocaleString()
 }
 
 const navigateToTwitch = (username: string) => {
-  window.open(`https://twitch.tv/${username}`, '_blank');
+  window.open(`https://twitch.tv/${username}`, '_blank')
 }
 
 const handleDelete = async (streamerId: string) => {
   if (!confirm('Are you sure you want to delete this streamer?')) return
   
-  isDeleting.value = true
+  isDeleting.value = streamerId
   try {
     if (await deleteStreamer(streamerId)) {
       emit('streamerDeleted')
     }
   } finally {
-    isDeleting.value = false
+    isDeleting.value = null
   }
 }
 
@@ -132,8 +177,7 @@ watch(messages, (newMessages) => {
         category_name: message.data.category_name || '',
         language: message.data.language || '',
         last_updated: new Date().toISOString()
-        // Behalte den aktuellen Live-Status bei
-        // is_live: streamer ? streamer.is_live : false
+        // Keep current live status
       }
       console.log('StreamerList: Updating streamer with data:', updateData)
       updateStreamer(streamerId, updateData)
@@ -163,7 +207,7 @@ watch(messages, (newMessages) => {
   }
 }, { deep: true })
 
-// Verbesserte Verbindungsbehandlung
+// Improved connection handling
 watch(connectionStatus, (status) => {
   if (status === 'connected') {
     void fetchStreamers()
@@ -174,17 +218,100 @@ onMounted(() => {
   console.log('StreamerList mounted')
   void fetchStreamers()
 })
-
-onUnmounted(() => {
-  // Die Bereinigung wird von useWebSocket's onUnmounted übernommen
-})
 </script>
 
 <style scoped>
+.streamer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+}
+
+.streamer-card {
+  background-color: var(--background-card);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s var(--vue-ease);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+}
+
+.streamer-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color-muted);
+}
+
+.streamer-card.live {
+  border-color: var(--danger-color-muted);
+  box-shadow: 0 0 15px rgba(220, 53, 69, 0.15);
+}
+
+.streamer-card.live:hover {
+  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.25);
+}
+
+.streamer-header {
+  background-color: var(--background-darker);
+  padding: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.streamer-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  overflow: hidden;
+}
+
+.profile-image-wrapper {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.profile-image {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--text-muted-color);
+  border: 2px solid var(--background-darker);
+}
+
+.status-dot.live {
+  background-color: var(--danger-color);
+  animation: pulse 2s infinite;
+}
+
 .streamer-name-link {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   color: var(--text-primary);
-  transition: color 0.2s;
+  transition: color 0.2s var(--vue-ease);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .streamer-name-link:hover {
@@ -192,10 +319,197 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
+.streamer-content {
+  flex: 1;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.streamer-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.streamer-content p strong {
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+
 .streamer-footer {
+  padding: var(--spacing-sm);
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  gap: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+  background-color: var(--background-darker);
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background-color: var(--background-dark);
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.status-badge.live {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+/* Button styling */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s var(--vue-ease);
+  border: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  height: 32px;
+  min-width: 80px;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-color-hover);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--danger-color-hover);
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loader {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+/* Empty state styling */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-xl) var(--spacing-md);
+  background-color: var(--background-card);
+  border-radius: var(--border-radius);
+  border: 1px dashed var(--border-color);
+  margin: var(--spacing-md) 0;
+}
+
+.empty-state-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.empty-state h3 {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  margin: 0 0 var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Card transition animations */
+.streamer-card-enter-active,
+.streamer-card-leave-active {
+  transition: all 0.3s var(--vue-ease);
+}
+
+.streamer-card-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.streamer-card-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.streamer-card-move {
+  transition: transform 0.5s var(--vue-ease);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .streamer-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .streamer-card {
+    margin: 0;
+  }
+  
+  .streamer-footer {
+    padding: var(--spacing-xs);
+  }
+  
+  .btn {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+  }
 }
 </style>

@@ -2,12 +2,14 @@
   <div class="subscriptions-view">
     <div class="subscriptions-container">
       <div class="page-header">
-        <h2>Subscription Management</h2>
+        <h1>Subscription Management</h1>
+        <p class="description">Manage your Twitch EventSub subscriptions for tracked streamers</p>
       </div>
       
       <div class="content-section">
         <div class="controls">
           <button @click="loadSubscriptions" :disabled="loading" class="btn btn-primary">
+            <span v-if="loading" class="loader"></span>
             {{ loading ? 'Loading...' : 'Refresh Subscriptions' }}
           </button>
           <button @click="deleteAllSubscriptions" :disabled="loading || !subscriptions.length" class="btn btn-danger">
@@ -19,6 +21,7 @@
               class="btn btn-success" 
               :disabled="loadingResubscribe"
             >
+              <span v-if="loadingResubscribe" class="loader"></span>
               {{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All Streamers' }}
           </button>
         </div>
@@ -41,21 +44,21 @@
             </thead>
             <tbody>
               <tr v-for="sub in subscriptions" :key="sub.id">
-                <td>
+                <td data-label="Streamer">
                   <div class="streamer-info">
                     <span class="streamer-name">
                       {{ getStreamerName(sub.condition?.broadcaster_user_id) }}
                     </span>
                   </div>
                 </td>
-                <td>{{ formatEventType(sub.type) }}</td>
-                <td>
+                <td data-label="Type">{{ formatEventType(sub.type) }}</td>
+                <td data-label="Status">
                   <span class="status-badge" :class="sub.status">
                     {{ sub.status }}
                   </span>
                 </td>
-                <td>{{ new Date(sub.created_at).toLocaleString() }}</td>
-                <td>
+                <td data-label="Created At">{{ new Date(sub.created_at).toLocaleString() }}</td>
+                <td data-label="Actions">
                   <button @click="deleteSubscription(sub.id)" 
                           class="btn btn-danger" 
                           :disabled="loading">
@@ -68,6 +71,9 @@
         </div>
         <div v-else class="empty-state">
           <p>No subscriptions found</p>
+          <button @click="loadSubscriptions" class="btn btn-primary">
+            Refresh
+          </button>
         </div>
       </div>
     </div>

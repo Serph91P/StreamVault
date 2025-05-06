@@ -202,6 +202,7 @@ const confirmDelete = () => {
   padding: var(--spacing-md);
   border-radius: var(--border-radius);
   margin-bottom: var(--spacing-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .form {
@@ -226,6 +227,7 @@ const confirmDelete = () => {
   align-items: center;
   gap: var(--spacing-xs);
   font-weight: normal;
+  cursor: pointer;
 }
 
 .form-control {
@@ -234,23 +236,35 @@ const confirmDelete = () => {
   font-size: 1rem;
   line-height: 1.5;
   color: var(--text-primary);
-  background-color: var(--background-dark);
+  background-color: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  transition: border-color 0.15s ease-in-out;
+  transition: all 0.2s var(--vue-ease);
 }
 
 .form-control:focus {
   border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.25);
   outline: none;
 }
 
 .form-control::placeholder {
   color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.form-control:disabled {
+  background-color: var(--background-darker);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .is-invalid {
   border-color: var(--danger-color);
+}
+
+.is-invalid:focus {
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25);
 }
 
 .invalid-feedback {
@@ -276,9 +290,40 @@ const confirmDelete = () => {
   font-size: 1rem;
   line-height: 1.5;
   border-radius: var(--border-radius);
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s var(--vue-ease);
   cursor: pointer;
   border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn:focus:not(:active)::after {
+  animation: ripple 0.5s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(100, 100);
+    opacity: 0;
+  }
 }
 
 .btn-primary {
@@ -287,8 +332,12 @@ const confirmDelete = () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: darken(var(--primary-color), 10%);
+  background-color: var(--primary-color-hover);
   transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0px);
 }
 
 .btn-secondary {
@@ -298,7 +347,7 @@ const confirmDelete = () => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: lighten(var(--background-dark), 5%);
+  background-color: var(--background-darker);
   transform: translateY(-1px);
 }
 
@@ -308,13 +357,46 @@ const confirmDelete = () => {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: darken(var(--danger-color), 10%);
+  background-color: var(--danger-color-hover);
   transform: translateY(-1px);
 }
 
 .btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background-color: var(--background-darker);
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 8px;
+  position: relative;
+  vertical-align: middle;
+  transition: all 0.2s var(--vue-ease);
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 /* Responsive adjustments for mobile */
@@ -325,6 +407,10 @@ const confirmDelete = () => {
   
   .form-actions .btn {
     width: 100%;
+  }
+  
+  .form-group label:has(input[type="checkbox"]) {
+    padding: 8px 0;
   }
 }
 </style>

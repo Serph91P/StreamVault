@@ -12,7 +12,11 @@
           placeholder="Admin Username" 
           required
         >
+        <div v-if="username && username.length < 3" class="error-msg">
+          Username must be at least 3 characters
+        </div>
       </div>
+      
       <div class="form-group">
         <input 
           class="input-field"
@@ -21,7 +25,11 @@
           placeholder="Password" 
           required
         >
+        <div v-if="password && password.length < 6" class="error-msg">
+          Password must be at least 6 characters
+        </div>
       </div>
+      
       <div class="form-group">
         <input 
           class="input-field"
@@ -30,6 +38,9 @@
           placeholder="Confirm Password" 
           required
         >
+        <div v-if="confirmPassword && password !== confirmPassword" class="error-msg">
+          Passwords do not match
+        </div>
       </div>
 
       <button 
@@ -37,11 +48,11 @@
         class="submit-button" 
         :disabled="isLoading || !isValid"
       >
-        <span class="loader" v-if="isLoading"></span>
+        <span v-if="isLoading" class="loader"></span>
         <span>{{ isLoading ? 'Creating Account...' : 'Create Admin Account' }}</span>
       </button>
 
-      <div v-if="error" class="notification-item error">{{ error }}</div>
+      <div v-if="error" class="error-msg">{{ error }}</div>
     </form>
   </div>
 </template>

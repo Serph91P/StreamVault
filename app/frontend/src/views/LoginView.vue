@@ -1,10 +1,10 @@
 <template>
-  <div class="login-page">
-    <form @submit.prevent="handleLogin" class="login-form">
+  <div class="auth-view login-page">
+    <form @submit.prevent="handleLogin" class="auth-form login-form">
       <h2>Login</h2>
       <div class="form-group">
         <input 
-          class="input-field"
+          class="auth-input"
           type="text" 
           v-model="username" 
           placeholder="Username" 
@@ -13,7 +13,7 @@
       </div>
       <div class="form-group">
         <input 
-          class="input-field"
+          class="auth-input"
           type="password" 
           v-model="password" 
           placeholder="Password" 
@@ -22,13 +22,14 @@
       </div>
       <button 
         type="submit" 
-        class="submit-button" 
+        class="auth-submit-btn" 
         :disabled="isLoading"
       >
-        <span class="loader" v-if="isLoading"></span>
+        <span v-if="isLoading" class="loader"></span>
         <span>{{ isLoading ? 'Logging in...' : 'Login' }}</span>
       </button>
-      <div v-if="error" class="notification-item error">{{ error }}</div>
+      
+      <div v-if="error" class="error-msg">{{ error }}</div>
     </form>
   </div>
 </template>

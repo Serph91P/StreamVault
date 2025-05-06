@@ -1,5 +1,5 @@
 <template>
-  <div class="add-streamer-page">
+  <div class="add-streamer-view">
     <div class="add-streamer-container">
       <div class="page-header">
         <h2>Add New Streamer</h2>

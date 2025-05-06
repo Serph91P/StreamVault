@@ -1,13 +1,23 @@
 <script setup lang="ts">
 defineProps<{
-  position?: 'top' | 'right' | 'bottom' | 'left'
+  position?: 'top' | 'right' | 'bottom' | 'left',
+  icon?: string,
+  size?: 'small' | 'medium' | 'large',
+  delay?: number,
+  persistent?: boolean,
+  customClass?: string
 }>()
 </script>
 
 <template>
-  <div class="tooltip-container">
-    <span class="tooltip-icon">?</span>
-    <div class="tooltip-content" :class="position || 'top'">
+  <div class="tooltip-container" :class="[size || 'medium', customClass]">
+    <span class="tooltip-icon" role="button" tabindex="0" aria-label="Show tooltip information">
+      {{ icon || '?' }}
+    </span>
+    <div class="tooltip-content" 
+         :class="[position || 'top', {'persistent': persistent}]"
+         :style="{'transition-delay': `${delay || 0}ms`}"
+         role="tooltip">
       <slot></slot>
     </div>
   </div>
@@ -24,13 +34,30 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
   background-color: rgba(255, 255, 255, 0.15);
   color: #ffffff;
   border-radius: 50%;
   font-size: 12px;
   font-weight: bold;
+}
+
+/* Size variations */
+.small .tooltip-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.medium .tooltip-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+}
+
+.large .tooltip-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
 }
 
 .tooltip-content {
@@ -50,7 +77,14 @@ defineProps<{
   font-size: 0.85rem;
 }
 
-.tooltip-container:hover .tooltip-content {
+.tooltip-container:hover .tooltip-content,
+.tooltip-container:focus-within .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Persistent tooltip will stay visible when hovering on tooltip content */
+.tooltip-content.persistent:hover {
   visibility: visible;
   opacity: 1;
 }
