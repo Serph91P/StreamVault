@@ -1,13 +1,99 @@
-name: Docker Build and Push
+name: Docker Build and Push with Auto-Versioning
 
 on:
   push:
     branches:
       - develop
       - main
+      - rebase
+    paths:
+      - 'app/**'
+      - 'Dockerfile'
+      - 'requirements.txt'
+      - '.github/workflows/docker-build.yml'
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.semver.outputs.new_version }}
+      release_type: ${{ steps.semver.outputs.release_type }}
+      tag_created: ${{ steps.create_tag.outputs.tag_created }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Determine version bump
+        id: semver
+        run: |
+          # Bestimme die aktuelle Version
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Entferne das 'v' Präfix, wenn vorhanden
+          CURRENT_VERSION=${CURRENT_VERSION#v}
+          
+          # Extrahiere die Hauptversion, Nebenversion und Patch
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+          
+          # Bestimme Versionsänderung basierend auf Commit-Nachrichten seit dem letzten Tag
+          COMMITS=$(git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD --pretty=format:"%s")
+          
+          # Setze Standard-Release-Typ
+          RELEASE_TYPE="patch"
+          
+          # Durchsuche Commit-Nachrichten nach Schlüsselwörtern
+          if echo "$COMMITS" | grep -iE '(feat|feature)(\([^)]*\))?: ' > /dev/null; then
+            RELEASE_TYPE="minor"
+          fi
+          
+          if echo "$COMMITS" | grep -iE '(BREAKING CHANGE|breaking change)' > /dev/null; then
+            RELEASE_TYPE="major"
+          fi
+          
+          # Erhöhe die entsprechende Versionsnummer
+          if [ "$RELEASE_TYPE" = "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "$RELEASE_TYPE" = "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          
+          # Setze die neue Version zusammen
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: v$NEW_VERSION (${RELEASE_TYPE} bump)"
+          
+          # Setze die Outputs für die nächsten Steps
+          echo "new_version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+      
+      - name: Create Tag
+        id: create_tag
+        if: github.ref == 'refs/heads/main' # Nur auf dem main Branch Tags erstellen
+        run: |
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a ${NEW_VERSION} -m "Release ${NEW_VERSION}"
+          
+          # Überprüfe, ob der Tag bereits existiert
+          if git push origin ${NEW_VERSION}; then
+            echo "tag_created=true" >> $GITHUB_OUTPUT
+            echo "Tag ${NEW_VERSION} created and pushed"
+          else
+            echo "tag_created=false" >> $GITHUB_OUTPUT
+            echo "Failed to push tag ${NEW_VERSION}, it may already exist"
+          fi
+  
   build:
+    needs: version
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -18,7 +104,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22.12.0'
+        node-version: '22.15.0'
         cache: 'npm'
         cache-dependency-path: './app/frontend/package-lock.json'
         
@@ -28,19 +114,126 @@ jobs:
         npm ci
         npm run build
     
+    - name: Prepare metadata
+      id: prep
+      run: |
+        echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+        echo "version=${{ needs.version.outputs.new_version }}" >> $GITHUB_OUTPUT
+    
     - name: Login to DockerHub
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     
+    - name: Determine Docker tag
+      id: docker_tag
+      run: |
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "tag=latest" >> $GITHUB_OUTPUT
+        elif [ "${{ github.ref }}" = "refs/heads/rebase" ]; then
+          echo "tag=experimental" >> $GITHUB_OUTPUT
+        else
+          echo "tag=develop" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
         push: true
+        platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: |
-          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-        tags: frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
+          BUILD_DATE=${{ steps.prep.outputs.created }}
+          VERSION=${{ needs.version.outputs.new_version }}
+        tags: |
+          frequency2098/streamvault:${{ steps.docker_tag.outputs.tag }}
+          frequency2098/streamvault:${{ github.sha }}
+          frequency2098/streamvault:${{ needs.version.outputs.new_version }}
+        labels: |
+          org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+          org.opencontainers.image.source=${{ github.event.repository.html_url }}
+          org.opencontainers.image.version=${{ needs.version.outputs.new_version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+    
+    - name: Scan Docker image for vulnerabilities
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        image-ref: "frequency2098/streamvault:${{ steps.docker_tag.outputs.tag }}"
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+  create-release:
+    needs: [version, build]
+    if: github.ref == 'refs/heads/main' && needs.version.outputs.tag_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Generate Release Notes
+        id: generate_notes
+        run: |
+          # Finde das vorherige Tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ needs.version.outputs.new_version }}^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # Wenn kein vorheriges Tag vorhanden ist, benutze alle Commits
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # Sonst nur die Commits seit dem letzten Tag
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${{ needs.version.outputs.new_version }} --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          # Kategorisiere Änderungen
+          FEATURES=$(echo "$CHANGELOG" | grep -i "feat\|feature")
+          FIXES=$(echo "$CHANGELOG" | grep -i "fix\|bug")
+          REFACTORS=$(echo "$CHANGELOG" | grep -i "refactor")
+          OTHER=$(echo "$CHANGELOG" | grep -v -i "feat\|feature\|fix\|bug\|refactor")
+          
+          # Erstelle Release Notes
+          RELEASE_NOTES="## Änderungen in ${{ needs.version.outputs.new_version }}\n\n"
+          
+          if [ ! -z "$FEATURES" ]; then
+            RELEASE_NOTES="${RELEASE_NOTES}### Neue Features\n\n${FEATURES}\n\n"
+          fi
+          
+          if [ ! -z "$FIXES" ]; then
+            RELEASE_NOTES="${RELEASE_NOTES}### Fehlerbehebungen\n\n${FIXES}\n\n"
+          fi
+          
+          if [ ! -z "$REFACTORS" ]; then
+            RELEASE_NOTES="${RELEASE_NOTES}### Code-Verbesserungen\n\n${REFACTORS}\n\n"
+          fi
+          
+          if [ ! -z "$OTHER" ]; then
+            RELEASE_NOTES="${RELEASE_NOTES}### Sonstige Änderungen\n\n${OTHER}\n\n"
+          fi
+          
+          # Speichere Release Notes in einer Datei für die GitHub Release Action
+          echo -e "${RELEASE_NOTES}" > release_notes.md
+          echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: elgohr/Github-Release-Action@v5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          title: Release ${{ needs.version.outputs.new_version }}
+          tag: ${{ needs.version.outputs.new_version }}
+          body: |
+            ${{ steps.generate_notes.outputs.release_notes }}
+            
+            Automatisch generierter Release basierend auf ${{ needs.version.outputs.release_type }} Änderungen.
+            
+            Docker Image: `frequency2098/streamvault:${{ needs.version.outputs.new_version }}`
+          draft: false
+          prerelease: false
