@@ -1,9 +1,11 @@
 <template>
   <div class="streamer-detail">
-    <div class="streamer-header" v-if="streamerName">
+    <div class="page-header" v-if="streamerName">
       <h1>Streams von {{ streamerName }}</h1>
     </div>
-    <StreamList />
+    <div class="content-section">
+      <StreamList />
+    </div>
   </div>
 </template>
 
