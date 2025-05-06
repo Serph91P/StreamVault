@@ -411,4 +411,3 @@ onMounted(async () => {
   margin-top: 2rem;
 }
 </style>
-</template>
