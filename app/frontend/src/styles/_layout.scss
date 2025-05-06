@@ -15,19 +15,26 @@
 // Header
 .header,
 .app-header {
-  background: v.$background-darker;
-  position: fixed;
+  background: linear-gradient(to right, v.$background-darker, darken(v.$background-darker, 3%));
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: map.get(v.$z-layers, 'overlay');
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: v.$spacing-sm;
+  box-shadow: v.$shadow-md;
+  padding: v.$spacing-sm v.$spacing-md;
   width: 100%;
   box-sizing: border-box;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all v.$transition-base;
+  height: 60px;
+  display: flex;
+  align-items: center;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-md;
+    padding: v.$spacing-sm v.$spacing-lg;
+    height: 70px;
   }
 
   .container,
@@ -44,6 +51,37 @@
     font-size: map.get(v.$font-scale, 'lg');
     margin: 0;
     color: v.$text-primary;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-sm;
+    
+    img, svg {
+      height: 24px;
+      width: auto;
+    }
+  }
+
+  nav {
+    display: flex;
+    gap: v.$spacing-md;
+    
+    a {
+      color: v.$text-secondary;
+      text-decoration: none;
+      font-weight: 500;
+      padding: v.$spacing-xs v.$spacing-sm;
+      border-radius: v.$border-radius;
+      transition: all v.$transition-fast;
+      
+      &:hover, &.active {
+        color: v.$primary-color-light;
+      }
+      
+      &.active {
+        background-color: rgba(v.$primary-color, 0.1);
+      }
+    }
   }
 }
 
@@ -51,14 +89,15 @@
 .main-content {
   flex: 1;
   padding: v.$spacing-md;
-  margin-top: 56px; /* Account for fixed header height */
+  padding-top: v.$spacing-lg;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  animation: fadeIn 0.3s ease;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
-    margin-top: 64px; /* Adjust for larger header on md+ screens */
+    padding-top: v.$spacing-xl;
   }
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
@@ -75,10 +114,15 @@
   max-width: 100%;
   margin: 0 auto;
   padding: v.$spacing-md;
-  background: v.$background-darker;
-  border-radius: v.$border-radius;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: v.$background-card;
+  border-radius: v.$border-radius-lg;
+  box-shadow: v.$shadow-md;
   box-sizing: border-box;
+  transition: transform v.$transition-base, box-shadow v.$transition-base;
+  
+  &:hover {
+    box-shadow: v.$shadow-lg;
+  }
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
@@ -102,6 +146,12 @@
   margin-bottom: v.$spacing-lg;
   padding-bottom: v.$spacing-md;
   border-bottom: 1px solid v.$border-color;
+  animation: fadeIn 0.3s ease;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   &:last-child {
     border-bottom: none;
@@ -112,6 +162,8 @@
   h2, h3, h4 {
     margin-top: 0;
     margin-bottom: v.$spacing-md;
+    color: v.$text-primary;
+    font-weight: 600;
   }
 }
 
@@ -122,11 +174,18 @@
   h1, h2 {
     margin: 0 0 v.$spacing-sm 0;
     font-size: map.get(v.$font-scale, 'xl');
+    background: linear-gradient(90deg, v.$primary-color, v.$primary-color-light);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
   }
   
   .description {
     color: v.$text-secondary;
     margin: 0;
+    max-width: 700px;
+    line-height: 1.6;
   }
 }
 
@@ -136,11 +195,66 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: v.$spacing-md;
+  margin-bottom: v.$spacing-lg;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     justify-content: flex-start;
-    margin: 0 auto;
     gap: v.$spacing-md;
+  }
+
+  a, button {
+    padding: v.$spacing-xs v.$spacing-md;
+    border-radius: v.$border-radius-pill;
+    background: transparent;
+    color: v.$text-primary;
+    border: 1px solid v.$border-color;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all v.$transition-base;
+    
+    &:hover, &.active {
+      background: rgba(v.$primary-color, 0.1);
+      border-color: v.$primary-color-light;
+      color: v.$primary-color-light;
+    }
+    
+    &.active {
+      background: rgba(v.$primary-color, 0.15);
+      border-color: v.$primary-color;
+    }
+  }
+}
+
+// Mobile-friendly responsive grid system
+.grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: v.$spacing-md;
+  width: 100%;
+  
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: repeat(3, 1fr);
+    gap: v.$spacing-lg;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  &.grid-2 {
+    @media (min-width: map.get(v.$breakpoints, 'sm')) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  &.grid-3 {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 }
 
@@ -151,18 +265,83 @@
   gap: v.$spacing-lg;
   
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 1fr;
   }
   
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
-    grid-template-columns: 3fr 1fr;
+    grid-template-columns: 2fr 3fr;
   }
   
-  .main-column {
-    min-width: 0; // Fix for overflow issues
+  // Reverse on mobile
+  &.reverse-mobile {
+    @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+      display: flex;
+      flex-direction: column-reverse;
+    }
+  }
+}
+
+// Sidebar layout
+.sidebar-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: v.$spacing-lg;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: 300px 1fr;
   }
   
-  .side-column {
-    min-width: 0; // Fix for overflow issues
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    grid-template-columns: 320px 1fr;
+  }
+  
+  .sidebar {
+    position: sticky;
+    top: 90px; // Account for header + some spacing
+    height: fit-content;
+    
+    @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+      position: relative;
+      top: 0;
+    }
+  }
+}
+
+// Bottom navigation for mobile
+.mobile-nav-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: v.$background-darker;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: map.get(v.$z-layers, 'overlay');
+  display: flex;
+  justify-content: space-around;
+  padding: v.$spacing-xs;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    display: none; // Hide on larger screens
+  }
+  
+  a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: v.$spacing-xs;
+    color: v.$text-secondary;
+    text-decoration: none;
+    font-size: map.get(v.$font-scale, 'xs');
+    width: 100%;
+    transition: all v.$transition-fast;
+    
+    svg {
+      margin-bottom: v.$spacing-xxs;
+      font-size: 1.2rem;
+    }
+    
+    &.active {
+      color: v.$primary-color;
+    }
   }
 }
