@@ -118,8 +118,8 @@
   @extend .content-view;
   
   .add-streamer-container {
-    @extend .page-container;
-    @extend .medium;
+    @extend .page-container !optional;
+    @extend .medium !optional;
   }
   
   .import-section {
@@ -148,8 +148,8 @@
   @extend .content-view;
   
   .settings-container {
-    @extend .page-container;
-    @extend .wide;
+    @extend .page-container !optional;
+    @extend .wide !optional;
   }
   
   .loading-indicator {
@@ -197,8 +197,8 @@
   @extend .content-view;
   
   .streamer-detail-container {
-    @extend .page-container;
-    @extend .wide;
+    @extend .page-container !optional;
+    @extend .wide !optional;
   }
 
   .streamer-header {
@@ -224,8 +224,8 @@
   @extend .content-view;
   
   .subscriptions-container {
-    @extend .page-container;
-    @extend .wide;
+    @extend .page-container !optional;
+    @extend .wide !optional;
   }
 
   .controls {
