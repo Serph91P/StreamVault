@@ -977,15 +977,15 @@ class MetadataService:
             return None
 
     async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
-        """Bettet sowohl Kapitel als auch alle anderen Metadaten in einem Durchgang ein.
+        """Embed both chapters and all other metadata in one pass.
         
         Args:
-            mp4_path: Pfad zur MP4-Datei
-            chapters_path: Pfad zur FFmpeg-Kapitel-Datei
-            stream_id: Stream-ID für zusätzliche Metadaten
+            mp4_path: Path to the MP4 file
+            chapters_path: Path to the FFmpeg chapters file
+            stream_id: Stream ID for additional metadata
         
         Returns:
-            bool: True bei Erfolg, False bei Fehler
+            bool: True on success, False on failure
         """
         try:
             import copy
@@ -995,10 +995,10 @@ class MetadataService:
                 logger.warning(f"MP4 file not found for metadata embedding: {mp4_path}")
                 return False
             
-            # Initialisiere chapters_path_obj
+            # Initialize chapters_path_obj
             chapters_path_obj = Path(chapters_path) if chapters_path else None
             
-            # Stream und Streamer Informationen abrufen
+            # Get stream and streamer information
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
@@ -1009,25 +1009,32 @@ class MetadataService:
                 if not streamer:
                     logger.warning(f"Streamer not found for stream {stream_id}")
                     return False
+                
+                # Get global settings to check if use_category_as_chapter_title is enabled
+                recording_settings = db.query(RecordingSettings).first()
+                use_category_as_chapter_title = False
+                if recording_settings and hasattr(recording_settings, 'use_category_as_chapter_title'):
+                    use_category_as_chapter_title = recording_settings.use_category_as_chapter_title
+                    logger.debug(f"Using category as chapter title: {use_category_as_chapter_title}")
             
-            # Überprüfe, ob die Kapitel-Datei existiert und gültig ist
+            # Check if the chapters file exists and is valid
             has_chapters = False
             if chapters_path_obj and chapters_path_obj.exists() and chapters_path_obj.stat().st_size > 0:
                 with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
                     chapter_content = cf.read()
-                    # Prüfe, ob tatsächlich Kapitel in der Datei sind
+                    # Check if the file actually contains chapters
                     has_chapters = "[CHAPTER]" in chapter_content
                 
                 if not has_chapters:
                     logger.warning(f"Chapters file exists but contains no chapters: {chapters_path}")
             
-            # Erstelle temporäre Metadaten-Datei mit allen Metadaten
+            # Create temporary metadata file with all metadata
             meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata.txt")
             
             with open(meta_path, 'w', encoding='utf-8') as f:
                 f.write(";FFMETADATA1\n")
             
-                # Grundlegende Metadaten
+                # Basic metadata
                 metadata = {
                     "title": stream.title or f"{streamer.username} Stream",
                     "artist": streamer.username,
@@ -1039,7 +1046,7 @@ class MetadataService:
                     "show": f"{streamer.username} Streams",
                     "network": "Twitch",
                     "language": stream.language or "en",
-                    # Plex-spezifische Tags
+                    # Plex-specific tags
                     "media_type": "tvshow",
                     "year": stream.started_at.strftime("%Y") if stream.started_at else datetime.now().strftime("%Y"),
                     "episode_id": f"S{stream.started_at.strftime('%Y%m%d') if stream.started_at else datetime.now().strftime('%Y%m%d')}",
@@ -1049,47 +1056,47 @@ class MetadataService:
                     "encoding_tool": "StreamVault"
                 }
             
-                # Metadaten schreiben
+                # Write metadata
                 for key, value in metadata.items():
-                    if value:  # Nur schreiben, wenn ein Wert vorhanden ist
+                    if value:  # Only write if a value exists
                         # Escape special characters
                         value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
                         f.write(f"{key}={value_escaped}\n")
             
-                # Kapitel hinzufügen, wenn Kapitel-Datei existiert und gültig ist
+                # Add chapters if the chapters file exists and is valid
                 if has_chapters:
                     logger.info(f"Adding chapters from {chapters_path} to the metadata file")
                     with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
                         chapter_lines = cf.readlines()
                     
-                    # Nur die [CHAPTER] Abschnitte hinzufügen, Header überspringen
+                    # Only add [CHAPTER] sections, skip header
                     in_header = True
                     for line in chapter_lines:
-                        if line.strip() == "[CHAPTER]":  # Neues Kapitel beginnt
+                        if line.strip() == "[CHAPTER]":  # New chapter begins
                             in_header = False
                         
-                        if not in_header or line.strip() == "":  # Leere Zeilen oder Kapitel-Inhalt
+                        if not in_header or line.strip() == "":  # Empty lines or chapter content
                             f.write(line)
                 else:
                     logger.warning(f"No valid chapters file available: {chapters_path}")
             
-            # Temporäre Ausgabedatei
+            # Temporary output file
             output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_metadata_complete{mp4_path_obj.suffix}")
             
-            # FFmpeg-Befehl zum Einbetten aller Metadaten
+            # FFmpeg command to embed all metadata
             cmd = [
                 "ffmpeg",
                 "-i", str(mp4_path_obj),
                 "-i", str(meta_path),
-                "-map_metadata", "1",   # Metadaten aus der zweiten Datei
-                "-map_chapters", "1",   # Kapitel aus der zweiten Datei
-                "-codec", "copy",       # Keine Neukodierung
-                "-map", "0",            # Alle Streams beibehalten
-                "-movflags", "+faststart+write_colr",  # Optimierung für Web-Streaming
+                "-map_metadata", "1",   # Metadata from second file
+                "-map_chapters", "1",   # Chapters from second file
+                "-codec", "copy",       # No re-encoding
+                "-map", "0",            # Keep all streams
+                "-movflags", "+faststart+write_colr",  # Optimize for web streaming
                 "-metadata:s:v:0", "title=Video",
                 "-metadata:s:a:0", "title=Audio",
-                "-f", "mp4",            # Explizit MP4-Format erzwingen
-                "-y",                   # Überschreiben falls die Datei existiert
+                "-f", "mp4",            # Force MP4 format
+                "-y",                   # Overwrite if file exists
                 str(output_path)
             ]
             
@@ -1105,7 +1112,7 @@ class MetadataService:
             stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else ""
             
             if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
-                # Validiere die Ausgabedatei und prüfe, ob Kapitel enthalten sind
+                # Validate the output file and check if it contains chapters
                 if has_chapters:
                     chapter_check_cmd = [
                         "ffprobe",
@@ -1128,20 +1135,23 @@ class MetadataService:
                             chapter_info = json.loads(check_stdout)
                             if "chapters" in chapter_info and len(chapter_info["chapters"]) > 0:
                                 logger.info(f"Successfully embedded {len(chapter_info['chapters'])} chapters into {mp4_path}")
+                                
+                                # Create additional chapter files for various media servers
+                                await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title)
                             else:
                                 logger.warning(f"No chapters found in the output file despite valid chapter file")
                         except json.JSONDecodeError:
                             logger.warning("Could not parse chapter info JSON")
                 
-                # Ersetze die ursprüngliche Datei mit der neuen
+                # Replace original file with new one
                 output_path.replace(mp4_path_obj)
                 logger.info(f"Successfully embedded all metadata into {mp4_path}")
                 
-                # Lösche temporäre Dateien
+                # Delete temporary files
                 if meta_path.exists():
                     meta_path.unlink()
                 
-                # Aktualisiere die Datenbank
+                # Update database
                 with SessionLocal() as db:
                     metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                     if metadata:
@@ -1155,8 +1165,144 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
             return False
-
-
+            
+    async def _create_media_server_chapters(self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False) -> None:
+        """Create additional chapter files for better media server compatibility
+        
+        Args:
+            stream_id: ID of the stream
+            mp4_path: Path to the MP4 file
+            use_category_as_chapter_title: Whether to use category as chapter title
+        """
+        try:
+            mp4_path_obj = Path(mp4_path)
+            base_path = mp4_path_obj.with_suffix('')
+            
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.warning(f"Stream {stream_id} not found for media server chapter creation")
+                    return
+                
+                events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).order_by(StreamEvent.timestamp).all()
+                if not events:
+                    logger.warning(f"No events found for stream {stream_id}, cannot create media server chapters")
+                    return
+                
+                # 1. Create Plex-compatible chapters.txt file
+                plex_chapters_path = f"{base_path}.chapters.txt"
+                await self._create_plex_chapters_file(stream, events, plex_chapters_path, use_category_as_chapter_title)
+                
+                # 2. Create standard WebVTT file with exact filename for maximum compatibility
+                vtt_path = f"{base_path}.vtt"
+                if os.path.exists(f"{base_path}.vtt") and not os.path.samefile(f"{base_path}.vtt", vtt_path):
+                    import shutil
+                    shutil.copy2(f"{base_path}.vtt", vtt_path)
+                    
+                logger.info(f"Created additional chapter files for media server compatibility")
+                
+        except Exception as e:
+            logger.error(f"Error creating media server chapters: {e}")
+    
+    async def _create_plex_chapters_file(
+        self, 
+        stream: Stream, 
+        events: List[StreamEvent], 
+        output_path: str,
+        use_category_as_chapter_title: bool = False
+    ) -> bool:
+        """Create a chapter file in Plex-compatible format
+        
+        Args:
+            stream: Stream object
+            events: List of stream events
+            output_path: Output path for the chapters file
+            use_category_as_chapter_title: Whether to use category as chapter title
+            
+        Returns:
+            bool: True on success, False on failure
+        """
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                # Format: CHAPTER01=00:00:00.000
+                #         CHAPTER01NAME=Chapter Title
+                
+                # Sort events and filter duplicates
+                sorted_events = sorted(events, key=lambda x: x.timestamp)
+                last_category = None
+                chapter_events = []
+                
+                for event in sorted_events:
+                    # Skip consecutive events with same category if we're using category as title
+                    if use_category_as_chapter_title:
+                        if event.category_name != last_category:
+                            chapter_events.append(event)
+                            last_category = event.category_name
+                    else:
+                        # When using stream title, include all events
+                        chapter_events.append(event)
+                
+                # Always ensure at least one chapter
+                if not chapter_events and stream.started_at:
+                    # Add a single chapter for the whole stream
+                    dummy_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        title=stream.title,
+                        category_name=stream.category_name,
+                        timestamp=stream.started_at
+                    )
+                    chapter_events = [dummy_event]
+                
+                # Write chapters
+                for i, event in enumerate(chapter_events):
+                    # Calculate offset in seconds
+                    if stream.started_at:
+                        offset_seconds = max(0, (event.timestamp - stream.started_at).total_seconds())
+                    else:
+                        offset_seconds = 0
+                    
+                    # Format time as HH:MM:SS.mmm
+                    hours = int(offset_seconds // 3600)
+                    minutes = int((offset_seconds % 3600) // 60)
+                    seconds = offset_seconds % 60
+                    time_str = f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+                    
+                    # Format chapter number (CHAPTER01, CHAPTER02, etc.)
+                    chapter_num = f"CHAPTER{i+1:02d}"
+                    
+                    # Get chapter title based on settings
+                    if use_category_as_chapter_title and event.category_name:
+                        title = event.category_name
+                    elif event.title:
+                        title = event.title
+                    else:
+                        title = f"Chapter {i+1}"
+                    
+                    # Write entry
+                    f.write(f"{chapter_num}={time_str}\n")
+                    f.write(f"{chapter_num}NAME={title}\n")
+                
+                logger.info(f"Created Plex-compatible chapters file with {len(chapter_events)} chapters")
+                return True
+        except Exception as e:
+            logger.error(f"Error creating Plex chapters file: {e}")
+            return False
+            
+    def _escape_ffmpeg_metadata(self, text: str) -> str:
+        """Escape special characters for FFmpeg metadata format
+        
+        Args:
+            text: Text to escape
+            
+        Returns:
+            str: Escaped text
+        """
+        if not text:
+            return "Untitled"
+        # Escape =, ;, # and \ characters as they have special meaning in FFmpeg metadata
+        return text.replace('=', '\\=').replace(';', '\\;').replace('#', '\\#').replace('\\', '\\\\')
+    
     def _format_xml_time(self, seconds: float) -> str:
         """Formatiert Sekunden in das XML-Format für MP4Box/Matroska: HH:MM:SS.nnnnnnnnn.
         
