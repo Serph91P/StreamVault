@@ -32,42 +32,43 @@
     </form>
   </div>
 </template>
+
 <script setup>
 import { ref } from 'vue'
-  import { useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 
-  const router = useRouter()
-  const username = ref('')
-  const password = ref('')
-  const isLoading = ref(false)
-  const error = ref('')
+const router = useRouter()
+const username = ref('')
+const password = ref('')
+const isLoading = ref(false)
+const error = ref('')
 
-  const handleLogin = async () => {
-    isLoading.value = true
-    error.value = ''
-  
-    try {
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: username.value,
-          password: password.value
-        })
+const handleLogin = async () => {
+  isLoading.value = true
+  error.value = ''
+
+  try {
+    const response = await fetch('/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username.value,
+        password: password.value
       })
-    
-      if (response.ok) {
-        router.push('/')
-      } else {
-        const data = await response.json()
-        error.value = data.detail || 'Login failed'
-      }
-    } catch (e) {
-      error.value = 'An error occurred'
-    } finally {
-      isLoading.value = false
+    })
+  
+    if (response.ok) {
+      router.push('/')
+    } else {
+      const data = await response.json()
+      error.value = data.detail || 'Login failed'
     }
+  } catch (e) {
+    error.value = 'An error occurred'
+  } finally {
+    isLoading.value = false
   }
-  </script>
+}
+</script>
