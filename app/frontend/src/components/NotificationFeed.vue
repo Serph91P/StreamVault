@@ -1,13 +1,14 @@
 <template>
-  <div class="notification-feed">
-    <h2 class="section-title">Recent Notifications</h2>
+  <!-- Feed wird nur angezeigt, wenn tatsächlich Benachrichtigungen existieren -->
+  <div v-if="notifications.length > 0" class="notification-feed">
+    <h2 class="section-title">
+      Recent Notifications
+      <button @click="clearAllNotifications" class="clear-all-btn" aria-label="Clear all notifications">
+        <span class="clear-all-text">Clear All</span>
+      </button>
+    </h2>
     
-    <div v-if="notifications.length === 0" class="empty-state">
-      <div class="empty-icon">📬</div>
-      <p>No notifications yet</p>
-    </div>
-    
-    <TransitionGroup name="notification" tag="ul" class="notification-list" v-else>
+    <TransitionGroup name="notification" tag="ul" class="notification-list">
       <li v-for="notification in sortedNotifications" 
           :key="notification.id" 
           class="notification-item"
@@ -46,12 +47,6 @@
         </button>
       </li>
     </TransitionGroup>
-    
-    <div class="notification-actions" v-if="notifications.length > 0">
-      <button @click="clearAllNotifications" class="btn btn-secondary">
-        Clear All
-      </button>
-    </div>
   </div>
 </template>
 
@@ -196,7 +191,7 @@ const addNotification = (message: any): void => {
     id,
     type: message.type,
     timestamp: new Date().toISOString(),
-    streamer_username: message.data?.username,
+    streamer_username: message.data?.username || message.data?.streamer_name,
     data: message.data
   })
   
@@ -277,45 +272,72 @@ onMounted(() => {
 <style scoped>
 .notification-feed {
   padding: var(--spacing-md);
-  background-color: var(--background-darker);
+  background-color: rgba(var(--background-darker-rgb, 31, 31, 35), 0.95);
   border-radius: var(--border-radius);
-  box-shadow: var(--shadow-sm);
-  max-width: 100%;
+  box-shadow: var(--shadow-md);
+  max-width: 400px;
+  width: 100%;
   overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.7);
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  z-index: 1000;
 }
 
 .section-title {
   margin-top: 0;
   margin-bottom: var(--spacing-md);
   color: var(--text-primary);
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.7);
   padding-bottom: var(--spacing-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.clear-all-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s var(--vue-ease);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+}
+
+.clear-all-btn:hover {
+  opacity: 1;
+  background-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
 }
 
 .notification-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 500px;
+  max-height: 400px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--primary-color) var(--background-dark);
+  scrollbar-color: var(--primary-color-muted) transparent;
 }
 
 .notification-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .notification-list::-webkit-scrollbar-track {
-  background: var(--background-dark);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .notification-list::-webkit-scrollbar-thumb {
   background-color: var(--primary-color-muted);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .notification-item {
@@ -323,10 +345,10 @@ onMounted(() => {
   align-items: flex-start;
   padding: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
-  background-color: var(--background-card);
+  background-color: rgba(var(--background-card-rgb, 37, 37, 42), 0.7);
   border-radius: var(--border-radius-sm);
   position: relative;
-  transition: all 0.3s var(--vue-ease);
+  transition: all 0.2s var(--vue-ease);
   border-left: 3px solid transparent;
 }
 
@@ -335,7 +357,7 @@ onMounted(() => {
 }
 
 .notification-item:hover {
-  box-shadow: var(--shadow-sm);
+  background-color: var(--background-card);
   transform: translateX(2px);
 }
 
@@ -369,38 +391,38 @@ onMounted(() => {
 }
 
 .icon-wrapper {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: var(--background-dark);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .icon-wrapper.online {
-  background-color: rgba(220, 53, 69, 0.15);
+  background-color: rgba(220, 53, 69, 0.2);
 }
 
 .icon-wrapper.offline {
-  background-color: rgba(108, 117, 125, 0.15);
+  background-color: rgba(108, 117, 125, 0.2);
 }
 
 .icon-wrapper.update {
-  background-color: rgba(66, 184, 131, 0.15);
+  background-color: rgba(66, 184, 131, 0.2);
 }
 
 .icon-wrapper.recording {
-  background-color: rgba(255, 193, 7, 0.15);
+  background-color: rgba(255, 193, 7, 0.2);
 }
 
 .icon-wrapper.success {
-  background-color: rgba(40, 167, 69, 0.15);
+  background-color: rgba(40, 167, 69, 0.2);
 }
 
 .icon-wrapper.error {
-  background-color: rgba(220, 53, 69, 0.15);
+  background-color: rgba(220, 53, 69, 0.2);
 }
 
 .notification-content {
@@ -412,77 +434,58 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 2px;
 }
 
 .notification-title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notification-time {
-  font-size: 0.8rem;
-  color: var(--text-muted-color);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   white-space: nowrap;
   margin-left: var(--spacing-xs);
+  flex-shrink: 0;
 }
 
 .notification-message {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 2px;
   line-height: 1.4;
 }
 
 .notification-category {
   display: inline-block;
-  font-size: 0.8rem;
-  padding: 2px 6px;
-  background-color: var(--background-dark);
-  color: var(--text-muted-color);
-  border-radius: 4px;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  background-color: var(--background-darker);
+  color: var(--text-secondary);
+  border-radius: 3px;
 }
 
 .notification-dismiss {
   background: none;
   border: none;
-  color: var(--text-muted-color);
-  font-size: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
   line-height: 1;
-  padding: 0;
+  padding: 0 0 0 5px;
   cursor: pointer;
   opacity: 0.5;
-  margin-left: var(--spacing-xs);
   transition: opacity 0.2s var(--vue-ease);
 }
 
 .notification-dismiss:hover {
   opacity: 1;
   color: var(--danger-color);
-}
-
-.notification-actions {
-  display: flex;
-  justify-content: center;
-  margin-top: var(--spacing-md);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-lg);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 2rem;
-  margin-bottom: var(--spacing-sm);
-  opacity: 0.7;
 }
 
 /* Animation transitions */
@@ -493,12 +496,12 @@ onMounted(() => {
 
 .notification-enter-from {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateY(-10px);
 }
 
 .notification-leave-to {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateX(30px);
 }
 
 .notification-move {
@@ -507,14 +510,15 @@ onMounted(() => {
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
-  .notification-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .notification-feed {
+    max-width: calc(100% - 40px);
+    top: 50px;
+    right: 10px;
+    left: 10px;
   }
   
-  .notification-time {
-    margin-left: 0;
-    margin-top: 2px;
+  .notification-header {
+    flex-wrap: wrap;
   }
 }
 </style>
