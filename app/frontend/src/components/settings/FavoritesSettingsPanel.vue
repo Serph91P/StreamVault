@@ -33,7 +33,8 @@
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
       <div v-if="isLoading" class="loading">
-        Lade Kategorien...
+        <div class="spinner"></div>
+        <p>Loading categories...</p>
       </div>
       <template v-else>
         <div v-if="filteredCategories.length === 0" class="no-categories">
@@ -59,19 +60,19 @@
             />
           </div>
           <div class="category-details">
-            <h4>{{ category.name }}</h4>
+            <h4 class="category-title">{{ category.name }}</h4>
             <div class="category-actions">
               <button 
                 v-if="!category.is_favorite" 
                 @click="addFavorite(category.id)"
-                class="btn btn-sm btn-outline-primary"
+                class="btn btn-sm btn-outline-primary favorite-btn"
               >
                 Mark as Favorite
               </button>
               <button 
                 v-else 
                 @click="removeFavorite(category.id)"
-                class="btn btn-sm btn-outline-danger"
+                class="btn btn-sm btn-outline-danger favorite-btn"
               >
                 Remove Favorite
               </button>
@@ -241,65 +242,117 @@ onMounted(() => {
   gap: var(--spacing-sm);
 }
 
+/* Optimized grid with more appropriate columns and better responsiveness */
 .categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-md);
-  margin-top: var(--spacing-md);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 576px) {
   .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 992px) {
   .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
 }
 
+@media (min-width: 1400px) {
+  .categories-grid {
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  }
+}
+
+/* Improved category card styling */
 .category-card {
   background-color: var(--background-darker);
   border-radius: var(--border-radius);
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s var(--vue-ease);
   border: 1px solid var(--border-color);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .category-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.4);
 }
 
 .category-card.is-favorite {
   border: 2px solid var(--primary-color);
 }
 
+.category-card.is-favorite::after {
+  content: "★";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--primary-color);
+  font-size: 1.25rem;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+}
+
+/* Optimized image container for Twitch's 285x380 box art */
 .category-image {
-  height: 180px;
+  width: 100%;
+  height: 0;
+  padding-bottom: 133.33%; /* Maintains 3:4 aspect ratio (285:380) */
+  position: relative;
   overflow: hidden;
 }
 
 .category-image img {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.category-card:hover .category-image img {
+  transform: scale(1.05);
 }
 
 .category-details {
   padding: var(--spacing-md);
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.category-details h4 {
+.category-title {
   margin: 0 0 var(--spacing-sm) 0;
   font-size: 1rem;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  height: 2.5rem;
 }
 
 .category-actions {
-  margin-top: var(--spacing-sm);
+  margin-top: auto;
+  padding-top: var(--spacing-md);
+  width: 100%;
+}
+
+.favorite-btn {
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  white-space: nowrap;
 }
 
 .loading, .no-categories {
@@ -316,6 +369,10 @@ onMounted(() => {
   min-height: 200px;
 }
 
+.loading .spinner {
+  margin-bottom: var(--spacing-md);
+}
+
 .error-message {
   background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.2);
   color: var(--danger-color);
@@ -329,6 +386,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid var(--primary-color);
   color: var(--primary-color);
+  transition: all 0.2s var(--vue-ease);
 }
 
 .btn-outline-primary:hover {
@@ -340,15 +398,11 @@ onMounted(() => {
   background: transparent;
   border: 1px solid var(--danger-color);
   color: var(--danger-color);
+  transition: all 0.2s var(--vue-ease);
 }
 
 .btn-outline-danger:hover {
   background-color: var(--danger-color);
   color: white;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
 }
 </style>
