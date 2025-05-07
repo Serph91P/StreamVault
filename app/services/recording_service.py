@@ -501,15 +501,48 @@ class RecordingService:
                     logger.info(f"Recording already in progress for {streamer.username}")
                     return True
                 
-                # Start recording with existing method
+                # Get recording settings to check if this streamer has recordings enabled
+                recording_enabled = self.config_manager.is_recording_enabled(streamer_id)
+                
+                if not recording_enabled:
+                    # If recordings are disabled for this streamer, temporarily enable it just for this session
+                    logger.info(f"Recordings are disabled for {streamer.username}, but force recording was requested. Proceeding with recording.")
+                    
+                    # Create a temporary copy of the actual settings for this recording session
+                    streamer_settings = self.config_manager.get_streamer_settings(streamer_id)
+                    
+                    # We'll store the original 'enabled' value to restore it later if needed
+                    original_setting = False
+                    if streamer_settings:
+                        original_setting = streamer_settings.enabled
+                    
+                    # Override recording settings for this particular session
+                    with db:
+                        temp_settings = db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
+                        if not temp_settings:
+                            temp_settings = StreamerRecordingSettings(streamer_id=streamer_id)
+                            db.add(temp_settings)
+                        
+                        # Store the original setting for later reference
+                        temp_settings.original_enabled = original_setting
+                        
+                        # Temporarily enable recording for this streamer
+                        temp_settings.enabled = True
+                        db.commit()
+                    
+                    # Invalidate the cache to ensure settings are reloaded
+                    self.config_manager.invalidate_cache()
+                
+                # Start recording with existing method (which will now use the temporarily enabled setting)
                 recording_started = await self.start_recording(streamer_id, stream_data)
                 
-                # Save the stream ID in the recording information
+                # Save the stream ID and force started flag in the recording information
                 if recording_started and streamer_id in self.active_recordings:
                     self.active_recordings[streamer_id]["stream_id"] = stream.id
-                    
-                    # Ensure metadata is created
                     self.active_recordings[streamer_id]["force_started"] = True
+                    
+                    # Record that this was a forced recording (to handle special case on stop)
+                    self.active_recordings[streamer_id]["forced_recording"] = True
                     
                     logger.info(f"Force recording started for {streamer.username}, stream_id: {stream.id}")
                     
