@@ -46,36 +46,46 @@
           </p>
         </div>
         
-        <div 
-          v-for="category in filteredCategories" 
-          :key="category.id" 
-          class="category-card"
-          :class="{ 'is-favorite': category.is_favorite }"
-        >
-          <div class="category-image">
-            <img 
-              :src="category.box_art_url ?? ''" 
-              :alt="category.name"
-              @error="setDefaultImage($event)"
-            />
-          </div>
-          <div class="category-details">
-            <h4 class="category-title">{{ category.name }}</h4>
-            <div class="category-actions">
-              <button 
-                v-if="!category.is_favorite" 
-                @click="addFavorite(category.id)"
-                class="btn btn-sm btn-outline-primary favorite-btn"
-              >
-                Mark as Favorite
-              </button>
-              <button 
-                v-else 
-                @click="removeFavorite(category.id)"
-                class="btn btn-sm btn-outline-danger favorite-btn"
-              >
-                Remove Favorite
-              </button>
+        <!-- Category Cards Grid -->
+        <div v-else class="category-cards">
+          <div 
+            v-for="category in filteredCategories" 
+            :key="category.id"
+            class="category-card"
+            :class="{ 'is-favorite': category.is_favorite }"
+          >
+            <div class="category-image-wrapper">
+              <img 
+                v-if="category.box_art_url" 
+                :src="formatImageUrl(category.box_art_url, 144, 192)" 
+                alt="Game box art"
+                class="category-image"
+                loading="lazy"
+              />
+              <div v-else class="category-image-placeholder">
+                <span>No image</span>
+              </div>
+            </div>
+            <div class="category-content">
+              <h4 class="category-name">{{ category.name }}</h4>
+              <div class="category-meta">
+                <span>{{ category.stream_count || 0 }} recorded streams</span>
+              </div>
+              <div class="category-actions">
+                <button 
+                  @click="toggleFavorite(category)"
+                  class="btn-icon"
+                  :title="category.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" class="star-icon">
+                    <path 
+                      :fill="category.is_favorite ? '#FFD700' : 'currentColor'" 
+                      d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                    />
+                  </svg>
+                  {{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -85,154 +95,113 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import type { Category } from '@/types/settings'
+import { ref, computed, onMounted } from 'vue';
 
-// State
-const categories = ref<Category[]>([])
-const isLoading = ref(true)
-const searchQuery = ref('')
-const showFavoritesOnly = ref(false)
-const error = ref<string | null>(null)
+interface Category {
+  id: string;
+  name: string;
+  box_art_url: string | null;
+  is_favorite: boolean;
+  stream_count?: number;
+}
 
-// Computed
+// State variables
+const searchQuery = ref('');
+const showFavoritesOnly = ref(false);
+const categories = ref<Category[]>([]);
+const isLoading = ref(true);
+const error = ref<string | null>(null);
+
+// Computed properties
 const filteredCategories = computed(() => {
-  let result = categories.value
-
-  // Filter nach Favoriten, falls aktiviert
+  let result = categories.value;
+  
+  // Filter by favorites if enabled
   if (showFavoritesOnly.value) {
-    result = result.filter(cat => cat.is_favorite)
+    result = result.filter(category => category.is_favorite);
   }
-
-  // Filter nach Suchtext
+  
+  // Filter by search query
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase().trim()
-    result = result.filter(cat => 
-      cat.name.toLowerCase().includes(query)
-    )
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(category => 
+      category.name.toLowerCase().includes(query)
+    );
   }
+  
+  return result;
+});
 
-  return result
-})
-
-// Methoden
+// Methods
 const fetchCategories = async () => {
+  isLoading.value = true;
+  error.value = null;
+  
   try {
-    isLoading.value = true;
-    error.value = null;
-    console.log("Fetching categories...");
-    
     const response = await fetch('/api/categories');
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      error.value = `Fehler beim Laden: ${response.status}`;
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to fetch categories');
     }
     
     const data = await response.json();
-    console.log("Categories fetched:", data);
-    categories.value = data.categories || [];
-    
-    if (categories.value.length === 0) {
-      console.log("No categories found in the response");
-    }
-  } catch (error) {
-    console.error('Error fetching categories:', error);
+    categories.value = data;
+  } catch (err: any) {
+    error.value = err.message || 'An error occurred while fetching categories';
+    console.error('Error fetching categories:', err);
   } finally {
     isLoading.value = false;
   }
 };
 
-const addFavorite = async (categoryId: number) => {
+const toggleFavorite = async (category: Category) => {
   try {
-    const response = await fetch('/api/categories/favorites', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ category_id: categoryId }),
-    })
+    const response = await fetch(`/api/categories/${category.id}/favorite`, {
+      method: category.is_favorite ? 'DELETE' : 'PUT',
+    });
     
     if (!response.ok) {
-      throw new Error('Failed to add favorite')
+      throw new Error(`Failed to ${category.is_favorite ? 'remove from' : 'add to'} favorites`);
     }
     
-    const updatedCategory = await response.json()
-    
-    // Update local state
-    const index = categories.value.findIndex(cat => cat.id === categoryId)
-    if (index !== -1) {
-      categories.value[index].is_favorite = true
-    }
-  } catch (error) {
-    console.error('Error adding favorite:', error)
+    // Update the local state
+    category.is_favorite = !category.is_favorite;
+  } catch (err: any) {
+    error.value = err.message;
+    console.error('Error toggling favorite status:', err);
   }
-}
+};
 
-const removeFavorite = async (categoryId: number) => {
-  try {
-    const response = await fetch(`/api/categories/favorites/${categoryId}`, {
-      method: 'DELETE',
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to remove favorite')
-    }
-    
-    // Update local state
-    const index = categories.value.findIndex(cat => cat.id === categoryId)
-    if (index !== -1) {
-      categories.value[index].is_favorite = false
-    }
-  } catch (error) {
-    console.error('Error removing favorite:', error)
-  }
-}
+const formatImageUrl = (url: string, width: number, height: number): string => {
+  return url
+    .replace('{width}', width.toString())
+    .replace('{height}', height.toString());
+};
 
-const setDefaultImage = (event: Event) => {
-  const target = event.target as HTMLImageElement
-  target.src = '/assets/default-game-box.png'
-}
-
-// Lifecycle
+// Initialize component
 onMounted(() => {
-  fetchCategories()
-})
+  fetchCategories();
+});
 </script>
 
 <style scoped>
 .filter-container {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-md);
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 6px);
+  border: 1px solid var(--border-color, #2a2a2d);
 }
 
-.search-box {
-  flex: 1;
-  max-width: 300px;
-}
-
-@media (max-width: 768px) {
+@media (min-width: 768px) {
   .filter-container {
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
   }
   
   .search-box {
-    max-width: 100%;
-    margin-bottom: var(--spacing-sm);
-  }
-  
-  .filter-buttons {
-    display: flex;
-    gap: var(--spacing-sm);
-    width: 100%;
-  }
-  
-  .filter-buttons button {
     flex: 1;
   }
 }
@@ -240,207 +209,192 @@ onMounted(() => {
 .filter-buttons {
   display: flex;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
-/* Optimiertes Grid mit besserer Responsivität für Twitch-Kategorie-Karten */
 .categories-grid {
+  position: relative;
+  min-height: 200px;
+}
+
+.loading, .no-categories {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-secondary, #9e9e9e);
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 6px);
+  min-height: 200px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+  border-top-color: var(--primary-color, #42b883);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
+  color: var(--danger-color, #ef4444);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius, 6px);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Category grid with improved responsiveness */
+.category-cards {
   display: grid;
-  /* Setze autofit für automatische Spalten-Berechnung und Responsivität */
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px; /* Kleinerer Abstand für mehr Karten pro Zeile */
-  margin-top: var(--spacing-md);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-md);
 }
 
-/* Progressive bessere Größen für größere Bildschirme */
-@media (min-width: 450px) {
-  .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+/* Small screens: 1-2 cards per row */
+@media (min-width: 480px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
 
-@media (min-width: 576px) {
-  .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-}
-
+/* Medium screens: 3-4 cards per row */
 @media (min-width: 768px) {
-  .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 16px;
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }
 
-@media (min-width: 992px) {
-  .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-}
-
+/* Large screens: 5-6 cards per row */
 @media (min-width: 1200px) {
-  .categories-grid {
-    gap: 20px;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Extra large screens */
+@media (min-width: 1600px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }
 
 .category-card {
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius);
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 6px);
   overflow: hidden;
-  transition: transform 0.2s var(--vue-ease), box-shadow 0.2s var(--vue-ease), border-color 0.2s var(--vue-ease);
-  border: 1px solid var(--border-color);
-  position: relative;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  border: 1px solid var(--border-color, #2a2a2d);
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .category-card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
-  border-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.4);
+  box-shadow: var(--shadow-md, 0 4px 6px rgba(0, 0, 0, 0.1));
+  border-color: var(--primary-color-muted, rgba(66, 184, 131, 0.5));
 }
 
 .category-card.is-favorite {
-  border: 2px solid var(--primary-color);
+  border-color: rgba(255, 215, 0, 0.5);
 }
 
-.category-card.is-favorite::after {
-  content: "★";
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  color: var(--primary-color);
-  font-size: 1rem;
-  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
-  z-index: 1;
-}
-
-/* Korrektes Bildverhältnis für Twitch-Kategorie-Box-Art (285:380 = 3:4) */
-.category-image {
+.category-image-wrapper {
   width: 100%;
-  height: 0;
-  padding-bottom: 133.33%; /* Exaktes 3:4 Verhältnis (380/285 * 100) */
-  position: relative;
-  overflow: hidden;
+  aspect-ratio: 3/4;
+  background-color: var(--background-darker);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.category-image img {
-  position: absolute;
-  top: 0;
-  left: 0;
+.category-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
 }
 
-.category-card:hover .category-image img {
-  transform: scale(1.05);
+.category-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--background-darker);
+  color: var(--text-secondary);
 }
 
-.category-details {
-  padding: var(--spacing-xs);
-  flex-grow: 1;
+.category-content {
+  padding: var(--spacing-sm);
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.category-title {
-  margin: 0 0 var(--spacing-xs) 0;
-  font-size: 0.85rem;
-  color: var(--text-primary);
+.category-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #efeff1);
+  line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  line-height: 1.2;
-  height: 2rem;
+}
+
+.category-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #9e9e9e);
+  margin: var(--spacing-xs) 0;
 }
 
 .category-actions {
   margin-top: auto;
-  padding-top: var(--spacing-xs);
-  width: 100%;
-}
-
-.favorite-btn {
-  width: 100%;
-  padding: 0.3rem 0.4rem;
-  white-space: nowrap;
-  font-size: 0.75rem;
-}
-
-.loading, .no-categories {
-  grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  padding-top: var(--spacing-sm);
+}
+
+.btn-icon {
+  display: inline-flex;
   align-items: center;
-  padding: var(--spacing-lg);
-  color: var(--text-secondary);
-  text-align: center;
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius);
-  min-height: 150px;
-}
-
-.loading .spinner {
-  margin-bottom: var(--spacing-md);
-}
-
-.error-message {
-  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.2);
-  color: var(--danger-color);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
-  margin-bottom: var(--spacing-md);
-  text-align: center;
-}
-
-.btn-outline-primary {
-  background: transparent;
-  border: 1px solid var(--primary-color);
-  color: var(--primary-color);
-  transition: all 0.2s var(--vue-ease);
-}
-
-.btn-outline-primary:hover {
-  background-color: var(--primary-color);
-  color: white;
-}
-
-.btn-outline-danger {
-  background: transparent;
-  border: 1px solid var(--danger-color);
-  color: var(--danger-color);
-  transition: all 0.2s var(--vue-ease);
-}
-
-.btn-outline-danger:hover {
-  background-color: var(--danger-color);
-  color: white;
-}
-
-/* Verbesserte Button-Klassen für kleinere Karten */
-.btn-sm {
-  padding: 0.25rem 0.5rem;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
   font-size: 0.8rem;
-  line-height: 1.2;
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm, 4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Verbessertes Styling für kleine Bildschirme (unter 400px) */
-@media (max-width: 400px) {
-  .category-title {
-    font-size: 0.8rem;
-    height: 1.9rem;
-  }
-  
-  .favorite-btn {
-    padding: 0.25rem 0.3rem;
-    font-size: 0.7rem;
-  }
+.btn-icon:hover {
+  background-color: var(--background-darker);
+  color: var(--text-primary);
+}
+
+.category-card.is-favorite .btn-icon {
+  color: #FFD700;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.star-icon {
+  transition: transform 0.2s ease;
+}
+
+.btn-icon:hover .star-icon {
+  transform: scale(1.2);
 }
 </style>

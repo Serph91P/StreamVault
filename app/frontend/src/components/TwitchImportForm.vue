@@ -341,10 +341,10 @@ onMounted(async () => {
 <style scoped>
 /* Twitch Import Form Styling */
 .twitch-import-container {
-  background-color: var(--background-card);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-lg);
-  border: 1px solid var(--border-color);
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  padding: var(--spacing-lg, 1.5rem);
+  border: 1px solid var(--border-color, #2d2d35);
 }
 
 /* Auth Section */
@@ -352,56 +352,98 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--spacing-lg) 0;
+  padding: var(--spacing-md, 1rem) 0;
 }
 
+/* Vue-styled Twitch button */
 .btn-twitch {
   background-color: #9146FF;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--border-radius);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius, 8px);
   border: none;
   font-weight: 600;
-  transition: all 0.3s var(--vue-ease);
-  margin-top: var(--spacing-lg);
+  font-size: 0.95rem;
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  cursor: pointer;
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+  margin-top: var(--spacing-md, 1rem);
 }
 
 .btn-twitch:hover {
-  background-color: #7f3edd;
+  background-color: #7d5bbe;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(145, 70, 255, 0.3);
+  box-shadow: 0 4px 8px rgba(145, 70, 255, 0.25);
 }
 
 .btn-twitch:active {
   transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(145, 70, 255, 0.2);
+}
+
+/* Vue-style ripple effect */
+.btn-twitch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn-twitch:focus:not(:active)::after {
+  animation: ripple 0.8s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(20, 20);
+    opacity: 0;
+  }
 }
 
 .setup-hint {
-  background-color: var(--background-darker);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
-  border-left: 3px solid var(--primary-color);
+  background-color: var(--background-darker, #18181b);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  border-left: 3px solid var(--primary-color, #42b883);
   width: 100%;
   max-width: 800px;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md, 1rem);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #adadb8);
 }
 
 .callback-url {
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-sm);
+  margin-top: var(--spacing-sm, 0.5rem);
+  padding: var(--spacing-sm, 0.5rem);
   background-color: rgba(0, 0, 0, 0.2);
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--border-radius-sm, 4px);
   overflow-x: auto;
+  font-size: 0.9rem;
 }
 
 code {
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   background-color: rgba(255, 255, 255, 0.1);
   padding: 2px 4px;
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--border-radius-sm, 4px);
+  font-size: 0.9em;
 }
 
 /* Loading */
@@ -411,16 +453,17 @@ code {
   align-items: center;
   justify-content: center;
   min-height: 200px;
+  color: var(--text-secondary, #adadb8);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
-  border-top-color: var(--primary-color);
+  border: 3px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+  border-top-color: var(--primary-color, #42b883);
   border-radius: 50%;
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: var(--spacing-md);
+  animation: spin 0.8s linear infinite;
+  margin-bottom: var(--spacing-md, 1rem);
 }
 
 @keyframes spin {
@@ -431,8 +474,8 @@ code {
 .filter-container {
   display: flex;
   justify-content: space-between;
-  margin-bottom: var(--spacing-lg);
-  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  gap: var(--spacing-md, 1rem);
   flex-wrap: wrap;
 }
 
@@ -443,7 +486,7 @@ code {
 
 .filter-buttons {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-sm, 0.5rem);
 }
 
 @media (max-width: 768px) {
@@ -454,14 +497,14 @@ code {
   .filter-buttons {
     width: 100%;
     flex-wrap: wrap;
-    margin-top: var(--spacing-sm);
+    margin-top: var(--spacing-sm, 0.5rem);
   }
   
   .filter-buttons button {
     flex: 1;
     white-space: nowrap;
-    padding-left: var(--spacing-sm);
-    padding-right: var(--spacing-sm);
+    padding-left: var(--spacing-sm, 0.5rem);
+    padding-right: var(--spacing-sm, 0.5rem);
     font-size: 0.9rem;
   }
 }
@@ -470,29 +513,30 @@ code {
 .channels-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-md);
+  gap: var(--spacing-md, 1rem);
 }
 
 .channel-card {
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 8px);
+  padding: var(--spacing-md, 1rem);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s var(--vue-ease);
+  border: 1px solid var(--border-color, #2d2d35);
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
 }
 
 .channel-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--primary-color-muted);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.1));
+  border-color: var(--primary-color-muted, rgba(66, 184, 131, 0.5));
+  background-color: rgba(var(--background-darker-rgb, 24, 24, 27), 0.8);
 }
 
 .channel-card.selected {
-  border-color: var(--primary-color);
+  border-color: var(--primary-color, #42b883);
   background-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
 }
 
@@ -503,7 +547,7 @@ code {
 
 .channel-name {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-primary, #efeff1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -511,48 +555,50 @@ code {
 
 .channel-login {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #adadb8);
 }
 
 .selection-indicator {
   opacity: 0;
-  color: var(--primary-color);
-  font-size: 1.2rem;
-  margin-left: var(--spacing-sm);
+  color: var(--primary-color, #42b883);
+  margin-left: var(--spacing-sm, 0.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .channel-card.selected .selection-indicator {
   opacity: 1;
+  transform: scale(1.2);
 }
 
 /* No Data State */
 .no-data-container {
   text-align: center;
-  padding: var(--spacing-xl);
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius);
-  color: var(--text-secondary);
+  padding: var(--spacing-xl, 2rem);
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 8px);
+  color: var(--text-secondary, #adadb8);
+  border: 1px dashed var(--border-color, #2d2d35);
 }
 
 /* Error Message */
 .error-message {
   background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
-  color: var(--danger-color);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
-  margin-bottom: var(--spacing-lg);
+  color: var(--danger-color, #ef4444);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  margin-bottom: var(--spacing-lg, 1.5rem);
 }
 
 .callback-url-hint {
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-md);
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-md, 1rem);
   background-color: rgba(255, 255, 255, 0.05);
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius, 8px);
   border-left: 3px solid #ff9800;
 }
 
@@ -560,11 +606,11 @@ code {
 .results-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  background-color: var(--background-darker);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
+  gap: var(--spacing-md, 1rem);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  background-color: var(--background-darker, #18181b);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
 }
 
 .result-item {
@@ -576,9 +622,9 @@ code {
 
 .result-label {
   font-weight: 600;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs, 0.25rem);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #adadb8);
 }
 
 .result-value {
@@ -600,30 +646,81 @@ code {
 
 .failure-list {
   background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
-  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  margin-bottom: var(--spacing-lg, 1.5rem);
 }
 
 .failure-list h4 {
   margin-top: 0;
-  color: var(--danger-color);
+  color: var(--danger-color, #ef4444);
 }
 
 .failure-list ul {
-  padding-left: var(--spacing-lg);
-  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-lg, 1.5rem);
+  margin: var(--spacing-sm, 0.5rem) 0 0;
 }
 
 .failure-list li {
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm, 0.5rem);
 }
 
 .import-results {
-  padding: var(--spacing-lg);
-  background-color: var(--background-card);
-  border-radius: var(--border-radius);
-  margin-top: var(--spacing-xl);
-  border: 1px solid var(--border-color);
+  padding: var(--spacing-lg, 1.5rem);
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  margin-top: var(--spacing-xl, 2rem);
+  border: 1px solid var(--border-color, #2d2d35);
+}
+
+/* Standard buttons - match Vue.js style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: var(--border-radius-sm, 6px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  border: none;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color, #42b883);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-color-hover, #3ca978);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
+}
+
+.btn-secondary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #efeff1);
+  border: 1px solid var(--border-color, #2d2d35);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 </style>

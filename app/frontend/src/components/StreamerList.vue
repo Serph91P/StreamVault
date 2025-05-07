@@ -223,8 +223,8 @@ onMounted(() => {
 <style scoped>
 .streamer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-md);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg); /* Increased gap between cards */
   padding: var(--spacing-sm);
 }
 
@@ -232,45 +232,46 @@ onMounted(() => {
   background-color: var(--background-card, #1f1f23);
   border-radius: var(--border-radius, 8px);
   overflow: hidden;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
   position: relative;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color, #2d2d35);
-  margin-bottom: 16px;
+  margin-bottom: 0; /* Remove bottom margin as we're using grid gap */
+  /* Remove the shadow to match modern Vue style */
+  box-shadow: none;
 }
 
 .streamer-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-  border-color: rgba(66, 184, 131, 0.5); /* Using Vue green with opacity */
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.12));
+  border-color: var(--primary-color-muted, rgba(66, 184, 131, 0.5));
 }
 
 .streamer-card.live {
-  border-color: rgba(239, 68, 68, 0.7); /* Red border for live streamers */
-  box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5); /* More subtle red border */
+  box-shadow: none;
 }
 
 .streamer-card.live:hover {
-  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.25);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(239, 68, 68, 0.15));
 }
 
-/* Add clear visual separation between cards */
+/* Remove clear visual separation between cards as we're using grid gap */
 .streamer-card:not(:last-child) {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
-/* Add a distinctive left border indicator */
+/* Left border indicator with more subtle styling */
 .streamer-card::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background-color: var(--border-color, #2d2d35);
-  transition: background-color 0.3s ease;
+  width: 3px; /* Slightly narrower */
+  background-color: transparent;
+  transition: background-color 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
 }
 
 .streamer-card:hover::before {
@@ -279,24 +280,24 @@ onMounted(() => {
 
 .streamer-card.live::before {
   background-color: var(--danger-color, #ef4444);
-  animation: pulse 2s infinite;
+  animation: subtle-pulse 2s infinite;
 }
 
-@keyframes pulse {
+@keyframes subtle-pulse {
   0% {
-    opacity: 0.6;
+    opacity: 0.7;
   }
   50% {
     opacity: 1;
   }
   100% {
-    opacity: 0.6;
+    opacity: 0.7;
   }
 }
 
 .streamer-header {
   background-color: var(--background-darker);
-  padding: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -411,11 +412,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 12px;
-  border-radius: var(--border-radius);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--border-radius-sm, 4px);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s var(--vue-ease);
+  transition: all 0.2s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
   border: none;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -423,26 +424,37 @@ onMounted(() => {
   overflow: hidden;
   height: 32px;
   min-width: 80px;
+  /* Remove default box-shadow for cleaner look */
+  box-shadow: none;
 }
 
 .btn-primary {
-  background-color: var(--primary-color);
+  background-color: var(--primary-color, #42b883);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--primary-color-hover);
+  background-color: var(--primary-color-hover, #3ca978);
+  /* Reduce transform amount for subtler effect */
   transform: translateY(-1px);
+  box-shadow: var(--shadow-sm, 0 2px 5px rgba(66, 184, 131, 0.25));
 }
 
 .btn-danger {
-  background-color: var(--danger-color);
+  background-color: var(--danger-color, #ef4444);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: var(--danger-color-hover);
+  background-color: var(--danger-color-hover, #dc2626);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-sm, 0 2px 5px rgba(239, 68, 68, 0.25));
+}
+
+.btn-primary:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn:disabled {
