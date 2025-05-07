@@ -1021,15 +1021,16 @@ class RecordingService:
             cmd = [
                 "ffmpeg",
                 "-i", ts_path,
-                "-c", "copy",          # Copy streams without re-encoding
-                "-map", "0:v",         # Map video streams
-                "-map", "0:a",         # Map audio streams
+                "-c:v", "copy",         # Copy video stream without re-encoding
+                "-c:a", "copy",         # Copy audio stream without re-encoding
+                "-map", "0:v:0",        # Map only the first video stream
+                "-map", "0:a:0",        # Map only the first audio stream
                 "-bsf:a", "aac_adtstoasc",  # Fix for AAC bitstream from ADTS to ASC
-                "-ignore_unknown",     # Ignore unknown streams
+                "-ignore_unknown",      # Ignore unknown streams
                 "-movflags", "+faststart+write_colr",  # Optimize for web streaming and color metadata
-                "-metadata", f"encoded_by=StreamVault",
-                "-metadata", f"encoding_tool=StreamVault",
-                "-y",                  # Overwrite output
+                "-metadata", "encoded_by=StreamVault",
+                "-metadata", "encoding_tool=StreamVault",
+                "-y",                   # Overwrite output
                 mp4_path
             ]
         
@@ -1050,13 +1051,12 @@ class RecordingService:
                     is_valid = await self._validate_mp4(mp4_path)
                     
                     if is_valid:
-                        # MP4 is valid, delete the TS file
-                        os.remove(ts_path)
-                        logger.info("Enhanced remux completed successfully. Chapters will be added after stream ends.")
+                        # Delete TS file after successful conversion to save space
+                        if os.path.exists(ts_path):
+                            os.remove(ts_path)
                         return True
                     else:
-                        logger.warning(f"MP4 file may not be properly finalized. Will try repair.")
-                        # Try to repair the MP4 file
+                        logger.warning(f"MP4 validation failed, attempting repair")
                         return await self._repair_mp4(ts_path, mp4_path)
                 else:
                     logger.error(f"MP4 file not created or empty: {mp4_path}")
@@ -1065,9 +1065,9 @@ class RecordingService:
                 stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
                 logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
             
-                # Try with more basic parameters if the first attempt failed
-                if stderr_text and "Could not find tag for codec timed_id3" in stderr_text:
-                    logger.info("Retrying with more restricted stream mapping due to timed_id3 error")
+                # Try with fallback method if the first attempt failed
+                if stderr_text and ("aac_adtstoasc" in stderr_text or "Malformed AAC bitstream" in stderr_text):
+                    logger.info("Retrying with aac_adtstoasc fix")
                     return await self._remux_to_mp4_fallback(ts_path, mp4_path)
             
                 return False
