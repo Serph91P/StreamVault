@@ -3,6 +3,7 @@ import json
 import aiohttp
 import asyncio
 import logging
+import copy  # Add missing import for copy module
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
@@ -10,7 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 import xml.etree.ElementTree as ET
 
 from app.database import SessionLocal
-from app.models import Stream, StreamMetadata, StreamEvent, Streamer
+from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.config.settings import settings
 from sqlalchemy.orm import Session
 
