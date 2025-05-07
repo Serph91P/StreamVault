@@ -224,8 +224,9 @@ onMounted(() => {
 .streamer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--spacing-lg); /* Increased gap between cards */
-  padding: var(--spacing-sm);
+  gap: 24px;
+  padding: 8px;
+  width: 100%;
 }
 
 .streamer-card {
@@ -237,29 +238,23 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color, #2d2d35);
-  margin-bottom: 0; /* Remove bottom margin as we're using grid gap */
-  /* Remove the shadow to match modern Vue style */
+  margin-bottom: 0;
   box-shadow: none;
 }
 
 .streamer-card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.12));
-  border-color: var(--primary-color-muted, rgba(66, 184, 131, 0.5));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-color: rgba(66, 184, 131, 0.5);
 }
 
 .streamer-card.live {
-  border-color: rgba(239, 68, 68, 0.5); /* More subtle red border */
+  border-color: rgba(239, 68, 68, 0.5);
   box-shadow: none;
 }
 
 .streamer-card.live:hover {
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(239, 68, 68, 0.15));
-}
-
-/* Remove clear visual separation between cards as we're using grid gap */
-.streamer-card:not(:last-child) {
-  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
 }
 
 /* Left border indicator with more subtle styling */
@@ -269,7 +264,7 @@ onMounted(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px; /* Slightly narrower */
+  width: 3px;
   background-color: transparent;
   transition: background-color 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
 }
@@ -296,18 +291,18 @@ onMounted(() => {
 }
 
 .streamer-header {
-  background-color: var(--background-darker);
-  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--background-darker, #18181b);
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color, #2d2d35);
 }
 
 .streamer-info {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -323,7 +318,7 @@ onMounted(() => {
   height: 38px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border-color);
+  border: 2px solid var(--border-color, #2d2d35);
 }
 
 .status-dot {
@@ -333,13 +328,25 @@ onMounted(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: var(--text-muted-color);
-  border: 2px solid var(--background-darker);
+  background-color: var(--text-muted-color, #6d6d6d);
+  border: 2px solid var(--background-darker, #18181b);
 }
 
 .status-dot.live {
-  background-color: var(--danger-color);
+  background-color: var(--danger-color, #ef4444);
   animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }
 
 .streamer-name-link {
@@ -347,31 +354,31 @@ onMounted(() => {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  color: var(--text-primary);
-  transition: color 0.2s var(--vue-ease);
+  color: var(--text-primary, #efeff1);
+  transition: color 0.2s ease;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .streamer-name-link:hover {
-  color: var(--primary-color);
+  color: var(--primary-color, #42b883);
   text-decoration: underline;
 }
 
 .streamer-content {
   flex: 1;
-  padding: var(--spacing-md);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 4px;
 }
 
 .streamer-content p {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.4;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #adadb8);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -379,17 +386,17 @@ onMounted(() => {
 }
 
 .streamer-content p strong {
-  color: var(--text-primary);
+  color: var(--text-primary, #efeff1);
   margin-right: 4px;
 }
 
 .streamer-footer {
-  padding: var(--spacing-sm);
+  padding: 8px;
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-sm);
-  border-top: 1px solid var(--border-color);
-  background-color: var(--background-darker);
+  gap: 8px;
+  border-top: 1px solid var(--border-color, #2d2d35);
+  background-color: var(--background-darker, #18181b);
 }
 
 .status-badge {
@@ -397,13 +404,13 @@ onMounted(() => {
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 12px;
-  background-color: var(--background-dark);
-  color: var(--text-secondary);
+  background-color: var(--background-dark, #121214);
+  color: var(--text-secondary, #adadb8);
   letter-spacing: 0.5px;
 }
 
 .status-badge.live {
-  background-color: var(--danger-color);
+  background-color: var(--danger-color, #ef4444);
   color: white;
 }
 
@@ -412,11 +419,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-xs) var(--spacing-md);
-  border-radius: var(--border-radius-sm, 4px);
+  padding: 4px 16px;
+  border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all 0.2s ease;
   border: none;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -424,7 +431,6 @@ onMounted(() => {
   overflow: hidden;
   height: 32px;
   min-width: 80px;
-  /* Remove default box-shadow for cleaner look */
   box-shadow: none;
 }
 
@@ -435,9 +441,8 @@ onMounted(() => {
 
 .btn-primary:hover:not(:disabled) {
   background-color: var(--primary-color-hover, #3ca978);
-  /* Reduce transform amount for subtler effect */
   transform: translateY(-1px);
-  box-shadow: var(--shadow-sm, 0 2px 5px rgba(66, 184, 131, 0.25));
+  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
 }
 
 .btn-danger {
@@ -448,7 +453,7 @@ onMounted(() => {
 .btn-danger:hover:not(:disabled) {
   background-color: var(--danger-color-hover, #dc2626);
   transform: translateY(-1px);
-  box-shadow: var(--shadow-sm, 0 2px 5px rgba(239, 68, 68, 0.25));
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.25);
 }
 
 .btn-primary:active:not(:disabled),
@@ -472,17 +477,21 @@ onMounted(() => {
   animation: spin 1s linear infinite;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Empty state styling */
 .empty-state {
   grid-column: 1 / -1;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: var(--spacing-xl) var(--spacing-md);
-  background-color: var(--background-card);
-  border-radius: var(--border-radius);
-  border: 1px dashed var(--border-color);
-  margin: var(--spacing-md) 0;
+  padding: 32px 16px;
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  border: 1px dashed var(--border-color, #2d2d35);
+  margin: 16px 0;
 }
 
 .empty-state-content {
@@ -492,30 +501,23 @@ onMounted(() => {
 
 .empty-state-icon {
   font-size: 3rem;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: 16px;
 }
 
 .empty-state h3 {
-  margin: 0 0 var(--spacing-sm);
-  color: var(--text-primary);
+  margin: 0 0 8px;
+  color: var(--text-primary, #efeff1);
 }
 
 .empty-state p {
-  margin: 0 0 var(--spacing-md);
-  color: var(--text-secondary);
-}
-
-/* Animations */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  margin: 0 0 16px;
+  color: var(--text-secondary, #adadb8);
 }
 
 /* Card transition animations */
 .streamer-card-enter-active,
 .streamer-card-leave-active {
-  transition: all 0.3s var(--vue-ease);
+  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
 }
 
 .streamer-card-enter-from {
@@ -529,21 +531,18 @@ onMounted(() => {
 }
 
 .streamer-card-move {
-  transition: transform 0.5s var(--vue-ease);
+  transition: transform 0.5s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
 }
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .streamer-grid {
     grid-template-columns: 1fr;
-  }
-  
-  .streamer-card {
-    margin: 0;
+    gap: 16px;
   }
   
   .streamer-footer {
-    padding: var(--spacing-xs);
+    padding: 4px;
   }
   
   .btn {
