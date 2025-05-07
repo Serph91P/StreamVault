@@ -6,11 +6,12 @@ from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.database import SessionLocal, get_db
-from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings
+from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent
 from app.schemas.streams import StreamList, StreamResponse
 from sqlalchemy.orm import Session
 import logging
 import asyncio
+from pathlib import Path
 
 logger = logging.getLogger("streamvault")
 
@@ -330,6 +331,85 @@ async def get_streams_by_streamer_id(
         raise
     except Exception as e:
         logger.error(f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{streamer_id}/streams/{stream_id}")
+async def delete_stream(
+    streamer_id: int,
+    stream_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a stream and all associated metadata files for a streamer"""
+    try:
+        # Check if the streamer exists
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+        
+        # Check if the stream exists and belongs to the streamer
+        stream = db.query(Stream).filter(
+            Stream.id == stream_id, 
+            Stream.streamer_id == streamer_id
+        ).first()
+        
+        if not stream:
+            raise HTTPException(status_code=404, detail=f"Stream with ID {stream_id} not found for this streamer")
+        
+        # Get metadata to find associated files
+        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        files_to_delete = []
+        
+        if metadata:
+            # Collect all metadata files that need to be deleted
+            for attr in [
+                'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
+                'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
+                'chapters_srt_path', 'chapters_ffmpeg_path'
+            ]:
+                path = getattr(metadata, attr, None)
+                if path:
+                    files_to_delete.append(path)
+                    
+            # Delete metadata record first (foreign key constraint)
+            db.delete(metadata)
+        
+        # Delete all stream events
+        db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
+        
+        # Delete the stream record itself
+        db.delete(stream)
+        db.commit()
+        
+        # Now delete all the files
+        deleted_files = []
+        for file_path in files_to_delete:
+            try:
+                path_obj = Path(file_path)
+                if path_obj.exists():
+                    path_obj.unlink()
+                    deleted_files.append(str(path_obj))
+                    
+                    # Also try to delete companion files (like .vtt alongside .mp4, etc.)
+                    base_path = path_obj.with_suffix('')
+                    for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
+                        companion = base_path.with_suffix(ext)
+                        if companion.exists() and companion != path_obj:
+                            companion.unlink()
+                            deleted_files.append(str(companion))
+            except Exception as file_error:
+                logger.warning(f"Failed to delete file {file_path}: {file_error}")
+        
+        return {
+            "success": True, 
+            "message": f"Stream {stream_id} deleted successfully",
+            "deleted_files": deleted_files,
+            "deleted_files_count": len(deleted_files)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting stream {stream_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/validate/{username}")
