@@ -991,6 +991,7 @@ class RecordingService:
                 "-c", "copy",          # Copy streams without re-encoding
                 "-map", "0:v",         # Map video streams
                 "-map", "0:a",         # Map audio streams
+                "-bsf:a", "aac_adtstoasc",  # Fix for AAC bitstream from ADTS to ASC
                 "-ignore_unknown",     # Ignore unknown streams
                 "-movflags", "+faststart+write_colr",  # Optimize for web streaming and color metadata
                 "-metadata", f"encoded_by=StreamVault",
