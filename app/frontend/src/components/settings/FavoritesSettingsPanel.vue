@@ -242,38 +242,53 @@ onMounted(() => {
   gap: var(--spacing-sm);
 }
 
-/* Optimized grid with more appropriate columns and better responsiveness */
+/* Optimiertes Grid mit besserer Responsivität für Twitch-Kategorie-Karten */
 .categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-lg);
-  margin-top: var(--spacing-lg);
+  /* Setze autofit für automatische Spalten-Berechnung und Responsivität */
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px; /* Kleinerer Abstand für mehr Karten pro Zeile */
+  margin-top: var(--spacing-md);
+}
+
+/* Progressive bessere Größen für größere Bildschirme */
+@media (min-width: 450px) {
+  .categories-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
 }
 
 @media (min-width: 576px) {
   .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .categories-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
   }
 }
 
 @media (min-width: 992px) {
   .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
-@media (min-width: 1400px) {
+@media (min-width: 1200px) {
   .categories-grid {
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   }
 }
 
-/* Improved category card styling */
 .category-card {
   background-color: var(--background-darker);
   border-radius: var(--border-radius);
   overflow: hidden;
-  transition: all 0.3s var(--vue-ease);
+  transition: transform 0.2s var(--vue-ease), box-shadow 0.2s var(--vue-ease), border-color 0.2s var(--vue-ease);
   border: 1px solid var(--border-color);
   position: relative;
   display: flex;
@@ -282,7 +297,7 @@ onMounted(() => {
 }
 
 .category-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-md);
   border-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.4);
 }
@@ -294,18 +309,19 @@ onMounted(() => {
 .category-card.is-favorite::after {
   content: "★";
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 4px;
+  right: 4px;
   color: var(--primary-color);
-  font-size: 1.25rem;
+  font-size: 1rem;
   filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+  z-index: 1;
 }
 
-/* Optimized image container for Twitch's 285x380 box art */
+/* Korrektes Bildverhältnis für Twitch-Kategorie-Box-Art (285:380 = 3:4) */
 .category-image {
   width: 100%;
   height: 0;
-  padding-bottom: 133.33%; /* Maintains 3:4 aspect ratio (285:380) */
+  padding-bottom: 133.33%; /* Exaktes 3:4 Verhältnis (380/285 * 100) */
   position: relative;
   overflow: hidden;
 }
@@ -325,34 +341,36 @@ onMounted(() => {
 }
 
 .category-details {
-  padding: var(--spacing-md);
+  padding: var(--spacing-xs);
   flex-grow: 1;
   display: flex;
   flex-direction: column;
 }
 
 .category-title {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: 1rem;
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: 0.85rem;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  height: 2.5rem;
+  line-height: 1.2;
+  height: 2rem;
 }
 
 .category-actions {
   margin-top: auto;
-  padding-top: var(--spacing-md);
+  padding-top: var(--spacing-xs);
   width: 100%;
 }
 
 .favorite-btn {
   width: 100%;
-  padding: 0.4rem 0.75rem;
+  padding: 0.3rem 0.4rem;
   white-space: nowrap;
+  font-size: 0.75rem;
 }
 
 .loading, .no-categories {
@@ -361,12 +379,12 @@ onMounted(() => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-lg);
   color: var(--text-secondary);
   text-align: center;
   background-color: var(--background-darker);
   border-radius: var(--border-radius);
-  min-height: 200px;
+  min-height: 150px;
 }
 
 .loading .spinner {
@@ -404,5 +422,25 @@ onMounted(() => {
 .btn-outline-danger:hover {
   background-color: var(--danger-color);
   color: white;
+}
+
+/* Verbesserte Button-Klassen für kleinere Karten */
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+/* Verbessertes Styling für kleine Bildschirme (unter 400px) */
+@media (max-width: 400px) {
+  .category-title {
+    font-size: 0.8rem;
+    height: 1.9rem;
+  }
+  
+  .favorite-btn {
+    padding: 0.25rem 0.3rem;
+    font-size: 0.7rem;
+  }
 }
 </style>
