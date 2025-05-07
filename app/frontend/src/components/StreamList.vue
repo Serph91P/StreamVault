@@ -50,22 +50,37 @@
             <p><strong>Duration:</strong> {{ calculateDuration(stream.started_at, stream.ended_at) }}</p>
             <p v-if="stream.ended_at"><strong>Ended:</strong> {{ formatDate(stream.ended_at) }}</p>
           </div>
-          <div class="stream-actions" v-if="!stream.ended_at">
+          <div class="stream-actions">
+            <div v-if="!stream.ended_at">
+              <button 
+                v-if="!isStreamRecording(parseInt(streamerId))" 
+                @click="startRecording(parseInt(streamerId))" 
+                class="btn btn-success" 
+                :disabled="isStartingRecording"
+              >
+                {{ isStartingRecording ? 'Starting Recording...' : 'Force Record' }}
+              </button>
+              <button 
+                v-else 
+                @click="stopRecording(parseInt(streamerId))" 
+                class="btn btn-danger" 
+                :disabled="isStoppingRecording"
+              >
+                {{ isStoppingRecording ? 'Stopping Recording...' : 'Stop Recording' }}
+              </button>
+            </div>
+            
+            <!-- Delete Stream button - disabled while stream is recording -->
             <button 
-              v-if="!isStreamRecording(parseInt(streamerId))" 
-              @click="startRecording(parseInt(streamerId))" 
-              class="btn btn-success" 
-              :disabled="isStartingRecording"
+              @click="confirmDeleteStream(stream)" 
+              class="btn btn-danger delete-btn" 
+              :disabled="
+                deletingStreamId === stream.id || 
+                (!stream.ended_at && isStreamRecording(parseInt(streamerId)))
+              "
             >
-              {{ isStartingRecording ? 'Starting Recording...' : 'Force Record' }}
-            </button>
-            <button 
-              v-else 
-              @click="stopRecording(parseInt(streamerId))" 
-              class="btn btn-danger" 
-              :disabled="isStoppingRecording"
-            >
-              {{ isStoppingRecording ? 'Stopping Recording...' : 'Stop Recording' }}
+              <span v-if="deletingStreamId === stream.id" class="loader"></span>
+              <span v-else>Delete Stream</span>
             </button>
           </div>
         </div>
@@ -78,6 +93,29 @@
         <p class="help-text">
           Use this option if the streamer is live but StreamVault didn't detect it automatically.
         </p>
+      </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="cancelDelete">
+      <div class="modal-content">
+        <h3>Delete Stream</h3>
+        <p>Are you sure you want to delete this stream?</p>
+        <p class="warning-text">This will permanently delete the stream record and all associated metadata files.</p>
+        
+        <div class="stream-details" v-if="streamToDelete">
+          <p><strong>Date:</strong> {{ formatDate(streamToDelete.started_at) }}</p>
+          <p><strong>Title:</strong> {{ streamToDelete.title || '-' }}</p>
+          <p><strong>Category:</strong> {{ streamToDelete.category_name || '-' }}</p>
+        </div>
+        
+        <div class="modal-actions">
+          <button @click="cancelDelete" class="btn btn-secondary">Cancel</button>
+          <button @click="deleteStream" class="btn btn-danger" :disabled="deletingStreamId !== null">
+            <span v-if="deletingStreamId !== null" class="loader"></span>
+            <span v-else>Delete</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -98,11 +136,17 @@ const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings, fetchActiveRecordings, stopRecording: stopStreamRecording } = useRecordingSettings()
 const { messages } = useWebSocket()
 
-// State für Aufnahmeaktionen
+// State for recording actions
 const isStartingRecording = ref(false)
 const isStoppingRecording = ref(false)
 const isStartingOfflineRecording = ref(false)
 const localRecordingState = ref<Record<string, boolean>>({})
+
+// State for stream deletion
+const showDeleteModal = ref(false)
+const streamToDelete = ref<any>(null)
+const deletingStreamId = ref<number | null>(null)
+const deleteResults = ref<any>(null)
 
 // Computed property um zu prüfen, ob es Live-Streams gibt
 const hasLiveStreams = computed(() => {
@@ -263,6 +307,57 @@ const stopRecording = async (streamerIdValue: number) => {
     localRecordingState.value[streamerIdValue] = true
   } finally {
     isStoppingRecording.value = false
+  }
+}
+
+// Stream deletion functions
+const confirmDeleteStream = (stream: any) => {
+  streamToDelete.value = stream
+  showDeleteModal.value = true
+}
+
+const cancelDelete = () => {
+  showDeleteModal.value = false
+  streamToDelete.value = null
+}
+
+const deleteStream = async () => {
+  if (!streamToDelete.value || !streamerId.value) return
+  
+  try {
+    deletingStreamId.value = streamToDelete.value.id
+    
+    const response = await fetch(`/api/streamers/${streamerId.value}/streams/${streamToDelete.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Failed to delete stream')
+    }
+    
+    const result = await response.json()
+    deleteResults.value = result
+    console.log('Delete stream result:', result)
+    
+    // Remove stream from the UI
+    streams.value = streams.value.filter(s => s.id !== streamToDelete.value.id)
+    
+    // Close the modal
+    showDeleteModal.value = false
+    streamToDelete.value = null
+    
+    // Show success message
+    alert(`Stream deleted successfully. Removed ${result.deleted_files_count} associated files.`)
+    
+  } catch (error) {
+    console.error('Failed to delete stream:', error)
+    alert(`Failed to delete stream: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    deletingStreamId.value = null
   }
 }
 
@@ -466,7 +561,14 @@ watch(streamerId, (newId, oldId) => {
 }
 
 .stream-actions {
-  padding: 0 15px 15px;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.delete-btn {
+  margin-left: auto;
 }
 
 .offline-recording-section {
@@ -479,6 +581,68 @@ watch(streamerId, (newId, oldId) => {
 .help-text {
   margin-top: var(--spacing-sm);
   color: var(--text-muted-color);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #1f1f23;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 400px;
+  max-width: 90%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h3 {
+  color: #fff;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.warning-text {
+  color: #ff5252;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.stream-details {
+  background-color: #18181b;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.stream-details p {
+  margin: 5px 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-secondary {
+  background-color: #444;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #555;
 }
 
 @keyframes pulse {
@@ -497,6 +661,20 @@ watch(streamerId, (newId, oldId) => {
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
+  }
+  
+  .stream-actions {
+    flex-direction: column;
+  }
+  
+  .delete-btn {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .modal-content {
+    min-width: 320px;
+    padding: 15px;
   }
 }
 </style>
