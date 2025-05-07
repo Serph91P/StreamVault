@@ -333,11 +333,15 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 <style scoped>
 /* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
 
-.settings-form {
+.settings-form,
+.active-recordings,
+.streamer-settings {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
   padding: 20px;
   border-radius: var(--border-radius, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
 }
 
 .form-group {
@@ -350,13 +354,15 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   font-weight: 500;
 }
 
+/* Ensure form controls are properly styled */
 .form-control {
   width: 100%;
   padding: 10px;
-  border: 1px solid var(--border-color, #303034);
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #fff);
-  border-radius: var(--border-radius, 4px);
+  border: 1px solid var(--border-color);
+  background-color: var(--background-dark);
+  color: var(--text-primary);
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
 }
 
 .help-text {
@@ -392,6 +398,15 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   background-color: rgba(220, 53, 69, 0.2); 
   color: var(--danger-color, #dc3545);
   border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+/* Remove horizontal stripes */
+.streamer-table table tr:nth-child(odd) {
+  background-color: transparent;
+}
+
+.streamer-table table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.15);
 }
 
 .streamer-table {

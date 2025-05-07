@@ -504,6 +504,31 @@ const testNotification = () => {
   overflow: hidden;
 }
 
+/* Fix table striping */
+.streamer-table table tr {
+  background-color: transparent;
+}
+
+.streamer-table table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+.streamer-table th {
+  background-color: rgba(0, 0, 0, 0.2);
+  font-weight: 500;
+  color: var(--text-secondary, #ccc);
+  position: relative;
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.streamer-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
 .streamer-info {
   display: flex;
   align-items: center;
@@ -521,19 +546,6 @@ const testNotification = () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.streamer-table th,
-.streamer-table td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.streamer-table th {
-  background-color: rgba(0, 0, 0, 0.2);
-  font-weight: 500;
-  color: var(--text-secondary, #ccc);
 }
 
 .streamer-table tr:last-child td {

@@ -229,30 +229,69 @@ onMounted(() => {
 }
 
 .streamer-card {
-  background-color: var(--background-card);
-  border-radius: var(--border-radius);
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s var(--vue-ease);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color, #2d2d35);
+  margin-bottom: 16px;
 }
 
 .streamer-card:hover {
   transform: translateY(-5px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary-color-muted);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  border-color: rgba(66, 184, 131, 0.5); /* Using Vue green with opacity */
 }
 
 .streamer-card.live {
-  border-color: var(--danger-color-muted);
-  box-shadow: 0 0 15px rgba(220, 53, 69, 0.15);
+  border-color: rgba(239, 68, 68, 0.7); /* Red border for live streamers */
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
 }
 
 .streamer-card.live:hover {
-  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.25);
+  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.25);
+}
+
+/* Add clear visual separation between cards */
+.streamer-card:not(:last-child) {
+  margin-bottom: 16px;
+}
+
+/* Add a distinctive left border indicator */
+.streamer-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--border-color, #2d2d35);
+  transition: background-color 0.3s ease;
+}
+
+.streamer-card:hover::before {
+  background-color: var(--primary-color, #42b883);
+}
+
+.streamer-card.live::before {
+  background-color: var(--danger-color, #ef4444);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
 
 .streamer-header {
@@ -455,18 +494,6 @@ onMounted(() => {
 }
 
 /* Animations */
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-  }
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);

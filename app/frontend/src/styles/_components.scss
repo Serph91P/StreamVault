@@ -889,47 +889,31 @@ nav {
 }
 
 // Loading indicators with Vue animation
-.spinner {
+.spinner, .loader {
   display: inline-block;
-  width: 40px;
-  height: 40px;
-  position: relative;
-  margin: 0 auto v.$spacing-md;
-
-  &:before {
-    content: '';
-    box-sizing: border-box;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 3px solid rgba(v.$primary-color, 0.2);
-    border-top-color: v.$primary-color;
-    animation: spinner 0.8s linear infinite;
-  }
+  border-radius: 50%;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.15);
+  border-top-color: #ffffff;
+  animation: spin 1s linear infinite;
+  box-sizing: border-box;
 }
 
-@keyframes spinner {
-  to { transform: rotate(360deg); }
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
 }
 
 .loader {
-  display: inline-block;
   width: 16px;
   height: 16px;
-  position: relative;
+  border-width: 2px;
+  vertical-align: middle;
+}
 
-  &:before {
-    content: '';
-    box-sizing: border-box;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 2px solid rgba(v.$primary-color, 0.2);
-    border-top-color: v.$primary-color;
-    animation: spinner 0.6s linear infinite;
-  }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 // Loading and empty states with animations
