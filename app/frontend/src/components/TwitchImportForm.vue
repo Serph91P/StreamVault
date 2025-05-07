@@ -31,6 +31,9 @@
       </div>
       
       <button @click="startTwitchAuth" class="btn btn-twitch">
+        <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right: 8px;">
+          <path fill="white" d="M11.64 5.93H13.07V10.21H11.64M15.57 5.93H17V10.21H15.57M7 2L3.43 5.57V18.43H7.71V22L11.29 18.43H14.14L20.57 12V2M19.14 11.29L16.29 14.14H13.43L10.93 16.64V14.14H7.71V3.43H19.14Z"/>
+        </svg>
         Connect with Twitch
       </button>
     </div>
@@ -97,7 +100,9 @@
             <div class="channel-login">{{ channel.login }}</div>
           </div>
           <div class="selection-indicator">
-            ✓
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+            </svg>
           </div>
         </div>
       </div>
@@ -334,23 +339,232 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Diese speziellen Styles sind spezifisch für dieses Komponente und ergänzen das Design-System */
+/* Twitch Import Form Styling */
+.twitch-import-container {
+  background-color: var(--background-card);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+}
+
+/* Auth Section */
+.auth-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-lg) 0;
+}
+
+.btn-twitch {
+  background-color: #9146FF;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius);
+  border: none;
+  font-weight: 600;
+  transition: all 0.3s var(--vue-ease);
+  margin-top: var(--spacing-lg);
+}
+
+.btn-twitch:hover {
+  background-color: #7f3edd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(145, 70, 255, 0.3);
+}
+
+.btn-twitch:active {
+  transform: translateY(0);
+}
+
+.setup-hint {
+  background-color: var(--background-darker);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  border-left: 3px solid var(--primary-color);
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: var(--spacing-md);
+}
+
+.callback-url {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--border-radius-sm);
+  overflow-x: auto;
+}
+
+code {
+  font-family: monospace;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 2px 4px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Loading */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Filter Container */
+.filter-container {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+  }
+  
+  .filter-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-top: var(--spacing-sm);
+  }
+  
+  .filter-buttons button {
+    flex: 1;
+    white-space: nowrap;
+    padding-left: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
+    font-size: 0.9rem;
+  }
+}
+
+/* Channels Grid */
+.channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.channel-card {
+  background-color: var(--background-darker);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s var(--vue-ease);
+}
+
+.channel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary-color-muted);
+}
+
+.channel-card.selected {
+  border-color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+}
+
+.channel-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.channel-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-login {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.selection-indicator {
+  opacity: 0;
+  color: var(--primary-color);
+  font-size: 1.2rem;
+  margin-left: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.channel-card.selected .selection-indicator {
+  opacity: 1;
+}
+
+/* No Data State */
+.no-data-container {
+  text-align: center;
+  padding: var(--spacing-xl);
+  background-color: var(--background-darker);
+  border-radius: var(--border-radius);
+  color: var(--text-secondary);
+}
+
+/* Error Message */
+.error-message {
+  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
+  color: var(--danger-color);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-lg);
+}
+
 .callback-url-hint {
-  margin-top: 15px;
-  padding: 10px;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
   background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  border-radius: var(--border-radius);
   border-left: 3px solid #ff9800;
 }
 
+/* Import Results */
 .results-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 10px;
-  margin-bottom: 1.5rem;
-  background-color: rgba(0, 0, 0, 0.2);
-  padding: 1rem;
-  border-radius: 6px;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  background-color: var(--background-darker);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
 }
 
 .result-item {
@@ -361,9 +575,10 @@ onMounted(async () => {
 }
 
 .result-label {
-  font-weight: bold;
-  margin-bottom: 0.25rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
   font-size: 0.9rem;
+  color: var(--text-secondary);
 }
 
 .result-value {
@@ -372,22 +587,22 @@ onMounted(async () => {
 }
 
 .result-value.success {
-  color: var(--success-color);
+  color: var(--success-color, #42b883);
 }
 
 .result-value.error {
-  color: var(--danger-color);
+  color: var(--danger-color, #ef4444);
 }
 
 .result-value.info {
-  color: #17a2b8;
+  color: var(--info-color, #3b82f6);
 }
 
 .failure-list {
-  background-color: rgba(220, 53, 69, 0.1);
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1.5rem;
+  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-lg);
 }
 
 .failure-list h4 {
@@ -396,18 +611,19 @@ onMounted(async () => {
 }
 
 .failure-list ul {
-  padding-left: 1.5rem;
-  margin: 0.5rem 0 0;
+  padding-left: var(--spacing-lg);
+  margin: var(--spacing-sm) 0 0;
 }
 
 .failure-list li {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-sm);
 }
 
 .import-results {
-  padding: 1.5rem;
-  background-color: var(--background-darker);
-  border-radius: 6px;
-  margin-top: 2rem;
+  padding: var(--spacing-lg);
+  background-color: var(--background-card);
+  border-radius: var(--border-radius);
+  margin-top: var(--spacing-xl);
+  border: 1px solid var(--border-color);
 }
 </style>
