@@ -12,14 +12,14 @@ const handleStreamerDeleted = async () => {
     <div class="container">
       <TheWelcome />
       
-      <div class="content-section">
+      <section class="content-section">
         <div class="page-header">
           <h2>Your Streamers</h2>
           <p class="description">Manage your tracked streamers and their recordings</p>
         </div>
         
-        <StreamerList @streamerDeleted="handleStreamerDeleted" />
-      </div>
+        <StreamerList @streamer-deleted="handleStreamerDeleted" />
+      </section>
     </div>
   </div>
 </template>

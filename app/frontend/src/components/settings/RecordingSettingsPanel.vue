@@ -400,6 +400,89 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
+/* Verbesserte Mobile-Ansicht für Tabellen */
+.streamer-table {
+  width: 100%;
+  overflow-x: auto;
+  background-color: var(--background-darker, #1f1f23);
+  border-radius: var(--border-radius, 6px);
+  border: 1px solid var(--border-color, #303034);
+}
+
+/* Card-basierte Layout für kleine Bildschirme */
+@media (max-width: 767px) {
+  .streamer-table table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .streamer-table thead {
+    display: none; /* Header auf Mobilgeräten ausblenden */
+  }
+  
+  .streamer-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    margin-bottom: 16px;
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  
+  .streamer-table td {
+    display: flex;
+    padding: 8px 0;
+    border: none;
+    position: relative;
+  }
+  
+  .streamer-table td:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .streamer-table td::before {
+    content: attr(data-label);
+    width: 40%;
+    font-weight: bold;
+    margin-right: 12px;
+  }
+  
+  .streamer-table td:first-child {
+    padding-top: 0;
+  }
+  
+  .streamer-table .form-control-sm {
+    width: 100%;
+  }
+}
+
+/* Verbesserte Tooltips, die nicht den Fluss stören */
+.th-tooltip {
+  position: relative;
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--text-secondary, #ccc);
+  font-size: 0.75rem;
+}
+
+/* Aktionsbuttons besser anpassen */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 767px) {
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .form-actions button {
+    width: 100%;
+  }
+}
+
 /* Remove horizontal stripes */
 .streamer-table table tr:nth-child(odd) {
   background-color: transparent;

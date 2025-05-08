@@ -13,6 +13,9 @@ $danger-color: #ff4757;
 $success-color: #2ed573;
 $warning-color: #ffa502;
 $info-color: #70a1ff;
+$secondary-color: #7c4dff; // Verwende den bereits definierten Accent-Color
+// oder
+$secondary-color: #6d6d6d; // Oder definiere eine andere sekundäre Farbe
 
 // Shadows
 $shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
@@ -36,11 +39,19 @@ $breakpoints: (
   'xl': 1200px
 );
 
-// Container max-widths
+// Container max-widths - beibehalten für Rückwärtskompatibilität
 $container-sm: 100%;
 $container-md: 720px;
 $container-lg: 960px;
 $container-xl: 1140px;
+
+// Container-Größen als Map für modernere Nutzung
+$container-sizes: (
+  'sm': $container-sm,
+  'md': $container-md,
+  'lg': $container-lg,
+  'xl': $container-xl
+);
 
 // Z-index layers
 $z-layers: (
@@ -82,3 +93,23 @@ $transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 $vue-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
 $vue-ease-out: cubic-bezier(0, 0, 0.2, 1);
 $vue-ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+// CSS Variablen für bessere Runtime-Anpassungen
+:root {
+  --primary-color: #{$primary-color};
+  --primary-color-light: #{$primary-color-light};
+  --primary-color-dark: #{$primary-color-dark};
+  
+  // Farbwerte als RGB für alpha-Operationen
+  --primary-color-rgb: 66, 184, 131;
+  --background-darker-rgb: 24, 24, 27;
+  --border-color-rgb: 45, 45, 53;
+  --danger-color-rgb: 239, 68, 68;
+  
+  // Animation und Timing
+  --transition-fast: #{$transition-fast};
+  --transition-base: #{$transition-base};
+  --transition-slow: #{$transition-slow};
+  --vue-ease: #{$vue-ease};
+  --vue-ease-out: #{$vue-ease-out};
+}
