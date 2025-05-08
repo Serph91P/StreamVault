@@ -2,26 +2,30 @@
   <div>
     <h3>Favorite Categories</h3>
     
-    <!-- Filter und Suche -->
+    <!-- Filter und Suche - Verbessert für Mobile -->
     <div class="filter-container">
-      <div class="search-box">
-        <input 
-          v-model="searchQuery" 
-          placeholder="Search for game..." 
-          class="form-control"
-        />
-      </div>
-      <div class="filter-buttons">
-        <button 
-          @click="showFavoritesOnly = !showFavoritesOnly" 
-          class="btn" 
-          :class="{ 'btn-primary': showFavoritesOnly, 'btn-secondary': !showFavoritesOnly }"
-        >
-          {{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}
-        </button>
-        <button @click="fetchCategories" class="btn btn-secondary">
-          Refresh Categories
-        </button>
+      <div class="filter-row">
+        <div class="search-box">
+          <input 
+            v-model="searchQuery" 
+            placeholder="Search for game..." 
+            class="form-control"
+          />
+        </div>
+        <div class="filter-buttons">
+          <button 
+            @click="showFavoritesOnly = !showFavoritesOnly" 
+            class="btn" 
+            :class="{ 'btn-primary': showFavoritesOnly, 'btn-secondary': !showFavoritesOnly }"
+          >
+            <span class="button-icon">{{ showFavoritesOnly ? '★' : '☆' }}</span>
+            <span class="button-text">{{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}</span>
+          </button>
+          <button @click="fetchCategories" class="btn btn-secondary">
+            <span class="button-icon">↻</span>
+            <span class="button-text">Refresh</span>
+          </button>
+        </div>
       </div>
     </div>
     
@@ -188,25 +192,23 @@ onMounted(() => {
 
 <style scoped>
 .filter-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 16px;
   background-color: #18181b;
   border-radius: 6px;
   border: 1px solid #2a2a2d;
+  margin-bottom: 24px;
+  overflow: hidden;
 }
 
-@media (min-width: 768px) {
-  .filter-container {
-    flex-direction: row;
-    align-items: center;
-  }
-  
-  .search-box {
-    flex: 1;
-  }
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 200px;
 }
 
 .filter-buttons {
@@ -215,9 +217,40 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.categories-grid {
-  position: relative;
-  min-height: 200px;
+/* Responsive Anpassungen */
+@media (max-width: 640px) {
+  .filter-row {
+    flex-direction: column;
+  }
+  
+  .search-box, .filter-buttons {
+    width: 100%;
+  }
+  
+  .filter-buttons {
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+  
+  .filter-buttons .btn {
+    flex: 1;
+    padding: 10px 8px;
+  }
+  
+  .button-text {
+    display: none; /* Nur Icons auf Mobilgeräten */
+  }
+  
+  .button-icon {
+    margin-right: 0;
+    font-size: 1.2rem;
+  }
+}
+
+@media (min-width: 641px) {
+  .button-icon {
+    margin-right: 6px;
+  }
 }
 
 .loading, .no-categories {

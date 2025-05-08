@@ -7,35 +7,27 @@
       </div>
       
       <div v-else>
-        <!-- Tab Navigation -->
-        <div class="settings-tabs">
-          <button 
-            @click="activeTab = 'notifications'" 
-            :class="{ active: activeTab === 'notifications' }"
-            class="tab-button"
-          >
-            Notifications
-          </button>
-          <button 
-            @click="activeTab = 'recording'" 
-            :class="{ active: activeTab === 'recording' }"
-            class="tab-button"
-          >
-            Recording
-          </button>
-          <button 
-            @click="activeTab = 'favorites'" 
-            :class="{ active: activeTab === 'favorites' }"
-            class="tab-button"
-          >
-            Favorite Games
-          </button>
+        <!-- Verbesserte Tab-Navigation -->
+        <div class="settings-tabs-wrapper">
+          <div class="settings-tabs">
+            <button 
+              v-for="tab in availableTabs" 
+              :key="tab.id"
+              @click="activeTab = tab.id" 
+              :class="{ active: activeTab === tab.id }"
+              class="tab-button"
+              :aria-selected="activeTab === tab.id"
+              role="tab"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
         </div>
         
         <!-- Tab Content -->
         <div class="tab-content">
           <!-- Notifications Tab -->
-          <div v-if="activeTab === 'notifications'" class="tab-pane">
+          <div v-if="activeTab === 'notifications'" class="tab-pane" role="tabpanel">
             <NotificationSettingsPanel 
               :settings="notificationSettings || {
                 notification_url: '',
@@ -54,7 +46,7 @@
           </div>
           
           <!-- Recording Tab -->
-          <div v-if="activeTab === 'recording'" class="tab-pane">
+          <div v-if="activeTab === 'recording'" class="tab-pane" role="tabpanel">
             <RecordingSettingsPanel
               :settings="recordingSettings"
               :streamer-settings="recordingStreamerSettings"
@@ -67,7 +59,7 @@
           </div>
           
           <!-- Favorites Tab -->
-          <div v-if="activeTab === 'favorites'" class="tab-pane">
+          <div v-if="activeTab === 'favorites'" class="tab-pane" role="tabpanel">
             <FavoritesSettingsPanel />
           </div>
         </div>
@@ -77,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
@@ -85,6 +77,13 @@ import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings, StreamerRecordingSettings, ActiveRecording } from '@/types/recording'
+
+// Verfügbare Tabs als Array für einfachere Verwaltung
+const availableTabs = computed(() => [
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'recording', label: 'Recording' },
+  { id: 'favorites', label: 'Favorite Games' }
+])
 
 const { 
   settings: notificationSettings, 
@@ -298,10 +297,56 @@ const handleStopRecording = async (streamerId: number) => {
   }
 }
 
+/* Verbesserte Tab-Navigation mit Scroll-Schatten für kleine Bildschirme */
+.settings-tabs-wrapper {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.settings-tabs-wrapper::before,
+.settings-tabs-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.settings-tabs-wrapper::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(24, 24, 27, 0.95), transparent);
+}
+
+.settings-tabs-wrapper::after {
+  right: 0;
+  background: linear-gradient(-90deg, rgba(24, 24, 27, 0.95), transparent);
+}
+
+.settings-tabs-wrapper.scroll-start::before {
+  opacity: 1;
+}
+
+.settings-tabs-wrapper.scroll-end::after {
+  opacity: 1;
+}
+
 .settings-tabs {
   display: flex;
   border-bottom: 1px solid #333;
-  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  position: relative;
+  padding-bottom: 1px;
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
 }
 
 .tab-button {
@@ -313,6 +358,8 @@ const handleStopRecording = async (streamerId: number) => {
   font-size: 1rem;
   border-bottom: 3px solid transparent;
   transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-button.active {
@@ -327,6 +374,22 @@ const handleStopRecording = async (streamerId: number) => {
 
 .tab-content {
   min-height: 400px;
+}
+
+/* Mobile-optimierung */
+@media (max-width: 640px) {
+  .settings-tabs {
+    justify-content: flex-start;
+  }
+  
+  .tab-button {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+  
+  .settings-container {
+    padding: 12px;
+  }
 }
 
 .checkbox-group label {
