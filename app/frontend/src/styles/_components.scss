@@ -1,6 +1,7 @@
 @use 'sass:map';
 @use 'sass:color';
 @use 'variables' as v;
+@use 'mixins' as m;
 
 // Navigation with Vue-style animations
 nav {
@@ -62,7 +63,67 @@ nav {
   }
 }
 
-// Forms with Vue.js styling
+// Buttons mit konsistenter Stilisierung
+.btn {
+  @include m.flex(row, center, center);
+  @include m.ripple-effect;
+  padding: v.$spacing-sm v.$spacing-lg;
+  border-radius: v.$border-radius;
+  font-size: map.get(v.$font-scale, 'base');
+  font-weight: 600;
+  cursor: pointer;
+  transition: all v.$vue-ease 0.2s;
+  border: none;
+  width: auto;
+  
+  @include m.respond-below('sm') {
+    min-height: 44px; // iOS recommended minimum
+  }
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  // Stilisierte Varianten
+  &-primary {
+    background: v.$primary-color;
+    color: white;
+    box-shadow: 0 2px 4px rgba(v.$primary-color, 0.3);
+    
+    &:hover:not(:disabled) {
+      background: v.$primary-color-light;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$primary-color-dark;
+    }
+  }
+  
+  &-danger, &-delete {
+    background: v.$danger-color;
+    color: white;
+    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.3);
+    
+    &:hover:not(:disabled) {
+      background: color.adjust(v.$danger-color, $lightness: -10%);
+    }
+  }
+  
+  // Weitere Varianten...
+}
+
+// Form-Felder mit besserer Zugänglichkeit
 .form-group {
   margin-bottom: v.$spacing-md;
   position: relative;
@@ -70,7 +131,6 @@ nav {
 
 .input-field {
   width: 100%;
-  box-sizing: border-box;
   background: v.$background-dark;
   border: 2px solid v.$border-color;
   color: v.$text-primary;
@@ -79,28 +139,23 @@ nav {
   font-size: map.get(v.$font-scale, 'base');
   transition: all v.$vue-ease 0.2s;
   position: relative;
-  z-index: 1;
-
+  
   &:focus {
     outline: none;
     border-color: v.$primary-color;
     box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
   }
-
+  
   &::placeholder {
     color: v.$text-secondary;
     opacity: 0.7;
   }
-
+  
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
     background: color.adjust(v.$background-dark, $lightness: -3%);
   }
-}
-
-.form-control {
-  @extend .input-field;
 }
 
 // Input with tooltip - improved for mobile
@@ -280,33 +335,9 @@ nav {
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
-// Vue-styled cards with hover effects
+// Karten-Komponenten
 .card {
-  background: v.$background-card;
-  border-radius: v.$border-radius;
-  padding: v.$spacing-md;
-  margin-bottom: v.$spacing-md;
-  box-shadow: v.$shadow-sm;
-  border: 1px solid rgba(v.$border-color, 0.5);
-  transition: all v.$vue-ease 0.25s;
-  transform-origin: center center;
-  overflow: hidden;
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-lg;
-    border-radius: v.$border-radius-lg;
-  }
-
-  &:hover {
-    box-shadow: v.$shadow-md;
-    transform: translateY(-2px);
-    border-color: rgba(v.$primary-color, 0.3);
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: v.$shadow-sm;
-  }
+  @include m.card-base;
 }
 
 .streamer-card {
@@ -625,118 +656,6 @@ nav {
   }
 }
 
-// Buttons with Vue-style design
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: v.$spacing-sm v.$spacing-lg;
-  border-radius: v.$border-radius;
-  font-size: map.get(v.$font-scale, 'base');
-  font-weight: 600;
-  cursor: pointer;
-  transition: all v.$vue-ease 0.2s;
-  border: none;
-  position: relative;
-  overflow: hidden;
-  width: auto;
-
-  // Improved touch target for mobile
-  @media (max-width: map.get(v.$breakpoints, 'sm')) {
-    min-height: 44px; // iOS recommended minimum
-  }
-
-  // Subtle top highlight
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
-    opacity: 0;
-    transition: opacity 0.3s v.$vue-ease;
-  }
-
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-
-    &::before {
-      opacity: 1;
-    }
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(1px);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  // Clean up button variants with Vue-like styling
-  &-primary {
-    background: v.$primary-color;
-    color: white;
-    box-shadow: 0 2px 4px rgba(v.$primary-color, 0.3);
-
-    &:hover:not(:disabled) {
-      background: v.$primary-color-light;
-    }
-
-    &:active:not(:disabled) {
-      background: v.$primary-color-dark;
-    }
-  }
-
-  &-danger, &-delete {
-    background: v.$danger-color;
-    color: white;
-    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.3);
-
-    &:hover:not(:disabled) {
-      background: color.scale(v.$danger-color, $lightness: -10%);
-    }
-  }
-
-  &-secondary {
-    background: v.$background-card;
-    color: v.$text-primary;
-    border: 1px solid v.$border-color;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-
-    &:hover:not(:disabled) {
-      color: v.$primary-color;
-      border-color: v.$primary-color;
-      background: rgba(v.$primary-color, 0.05);
-    }
-  }
-
-  &-success {
-    background: v.$success-color;
-    color: white;
-    box-shadow: 0 2px 4px rgba(v.$success-color, 0.3);
-
-    &:hover:not(:disabled) {
-      background: color.scale(v.$success-color, $lightness: -10%);
-    }
-  }
-
-  &-twitch {
-    background-color: #9146FF;
-    color: white;
-    box-shadow: 0 2px 4px rgba(145, 70, 255, 0.3);
-
-    &:hover:not(:disabled) {
-      background-color: color.scale(#9146FF, $lightness: -10%);
-    }
-  }
-}
-
 // Legacy button styles mapped to new design
 .submit-button {
   @extend .btn;
@@ -762,44 +681,8 @@ nav {
   font-size: map.get(v.$font-scale, 'sm');
 }
 
-// Improved button ripple effect
-.btn {
-  &::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 5px;
-    height: 5px;
-    background: rgba(255,255,255,0.7);
-    opacity: 0;
-    border-radius: 100%;
-    transform: scale(1, 1) translate(-50%);
-    transform-origin: 50% 50%;
-  }
-
-  &:focus:not(:active)::after {
-    animation: ripple 0.7s v.$vue-ease-out;
-  }
-}
-
-@keyframes ripple {
-  0% {
-    transform: scale(0, 0);
-    opacity: 0.7;
-  }
-  20% {
-    transform: scale(25, 25);
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(40, 40);
-  }
-}
-
-// Tables with better mobile behavior
-.table-container, .streamer-table-container {
+// Modernere Tabellen
+.table-container {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -808,23 +691,23 @@ nav {
   background-color: v.$background-card;
   border: 1px solid v.$border-color;
   margin-bottom: v.$spacing-lg;
-
+  
   table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-
+    
     th, td {
       padding: v.$spacing-sm;
       text-align: left;
       vertical-align: middle;
       border-bottom: 1px solid rgba(v.$border-color, 0.5);
-
-      @media (min-width: map.get(v.$breakpoints, 'md')) {
+      
+      @include m.respond-to('md') {
         padding: v.$spacing-md;
       }
     }
-
+    
     th {
       font-weight: 600;
       color: v.$text-primary;
@@ -833,47 +716,35 @@ nav {
       z-index: 10;
       background: v.$background-darker;
       backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
     }
-
+    
     tbody tr {
       transition: background-color 0.2s v.$vue-ease;
-
+      
       &:hover {
         background-color: rgba(v.$primary-color, 0.05);
       }
     }
   }
-
-  // Responsive tables for mobile
-  @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+  
+  // Verbesserte responsive Tabellen
+  @include m.respond-below('md') {
     table, thead, tbody, tr, th, td {
       display: block;
     }
-
+    
     thead tr {
       position: absolute;
       top: -9999px;
       left: -9999px;
     }
-
-    tr {
-      margin-bottom: v.$spacing-md;
-      border: 1px solid v.$border-color;
-      border-radius: v.$border-radius-sm;
-      padding: v.$spacing-xs;
-    }
-
+    
     td {
       position: relative;
       padding-left: 40%;
       border: none;
       border-bottom: 1px solid rgba(v.$border-color, 0.3);
-
-      &:last-child {
-        border-bottom: none;
-      }
-
+      
       &:before {
         content: attr(data-label);
         position: absolute;

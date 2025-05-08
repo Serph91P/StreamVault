@@ -1,0 +1,84 @@
+@use 'sass:map';
+@use 'variables' as v;
+
+// Responsive Breakpoints
+@mixin respond-to($breakpoint) {
+  @if map-has-key(v.$breakpoints, $breakpoint) {
+    @media (min-width: map.get(v.$breakpoints, $breakpoint)) {
+      @content;
+    }
+  } @else {
+    @warn "Unbekannter Breakpoint: #{$breakpoint}";
+  }
+}
+
+@mixin respond-below($breakpoint) {
+  @if map-has-key(v.$breakpoints, $breakpoint) {
+    @media (max-width: map.get(v.$breakpoints, $breakpoint) - 1px) {
+      @content;
+    }
+  } @else {
+    @warn "Unbekannter Breakpoint: #{$breakpoint}";
+  }
+}
+
+// Flexbox-Helfer
+@mixin flex($direction: row, $justify: flex-start, $align: stretch, $wrap: nowrap) {
+  display: flex;
+  flex-direction: $direction;
+  justify-content: $justify;
+  align-items: $align;
+  flex-wrap: $wrap;
+}
+
+// Verbesserte Card-Styles mit einheitlichem Erscheinungsbild
+@mixin card-base($padding: v.$spacing-md, $bg: v.$background-card) {
+  background: $bg;
+  border-radius: v.$border-radius;
+  padding: $padding;
+  box-shadow: v.$shadow-sm;
+  border: 1px solid rgba(v.$border-color, 0.5);
+  transition: all v.$vue-ease 0.25s;
+  
+  @include respond-to('md') {
+    padding: v.$spacing-lg;
+    border-radius: v.$border-radius-lg;
+  }
+  
+  &:hover {
+    box-shadow: v.$shadow-md;
+    transform: translateY(-2px);
+  }
+}
+
+// Focus styles für bessere Accessibility
+@mixin focus-outline {
+  &:focus-visible {
+    outline: 2px solid v.$primary-color;
+    outline-offset: 2px;
+  }
+}
+
+// Vermeidet Code-Duplikation für Button-Ripple-Effekt
+@mixin ripple-effect {
+  position: relative;
+  overflow: hidden;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.7);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+  }
+  
+  &:focus:not(:active)::after {
+    animation: ripple 0.7s v.$vue-ease-out;
+  }
+}

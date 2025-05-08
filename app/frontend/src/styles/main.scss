@@ -1,68 +1,54 @@
 @use 'sass:map';
-@forward 'variables';
+@use 'sass:color';
+
 @use 'variables' as v;
+@use 'mixins' as m;
+@forward 'variables';
 @use 'layout';
 @use 'components';
 @use 'views';
 
-// Base styles
+// CSS Reset und moderne Basis
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
 :root {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   font-size: 16px;
   color-scheme: dark;
-  --vue-green: #{v.$primary-color};
-  --vue-green-light: #{v.$primary-color-light};
-  --vue-green-dark: #{v.$primary-color-dark};
-  --content-transition: transform 0.3s v.$vue-ease, opacity 0.3s v.$vue-ease;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Core fixes with better mobile optimization */
-html, body {
-  overflow-x: hidden;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  height: 100%;
-  -webkit-overflow-scrolling: touch; // Smoother scrolling on iOS
   scroll-behavior: smooth;
 }
 
-*, *:before, *:after {
-  box-sizing: inherit;
-  margin: 0;
-  padding: 0;
+/* Core fixes mit besserer Mobiloptimierung */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
   background: v.$background-dark;
   color: v.$text-primary;
-  margin: 0;
   min-height: 100vh;
   line-height: 1.6;
   display: flex;
   flex-direction: column;
 }
 
-a {
-  color: v.$primary-color;
-  text-decoration: none;
-  transition: color v.$transition-fast;
-  
-  &:hover {
-    color: v.$primary-color-light;
-  }
-}
-
-// Focus outline for accessibility
+// Bessere Fokus-Stile 
 :focus {
-  outline: 2px solid v.$primary-color;
-  outline-offset: 2px;
+  @include m.focus-outline;
 }
 
-// Improved headings
+// Typografie-Hierarchie
 h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
   font-weight: 600;
@@ -79,14 +65,25 @@ h3 { font-size: map.get(v.$font-scale, 'lg'); }
 h4 { font-size: map.get(v.$font-scale, 'base'); }
 h5, h6 { font-size: map.get(v.$font-scale, 'sm'); }
 
-// Responsive images
+// Link-Styling
+a {
+  color: v.$primary-color;
+  text-decoration: none;
+  transition: color v.$transition-fast;
+  
+  &:hover {
+    color: v.$primary-color-light; 
+  }
+}
+
+// Responsive Bild-Optimierung
 img {
   max-width: 100%;
   height: auto;
   display: block;
 }
 
-// Vue-style fade transitions
+// Verbesserte Vue-Übergänge
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s v.$vue-ease;
@@ -97,46 +94,31 @@ img {
   opacity: 0;
 }
 
-// Base container with improved responsiveness
+// Container
 .container {
   width: 100%;
-  max-width: 100%;
   padding-inline: v.$spacing-sm;
   margin-inline: auto;
-  box-sizing: border-box;
-
-  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+  
+  @include m.respond-to('sm') {
     padding-inline: v.$spacing-md;
   }
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    max-width: v.$container-md;
+  
+  @include m.respond-to('md') {
+    max-width: map.get(v.$container-sizes, 'md');
     padding-inline: v.$spacing-lg;
   }
-
-  @media (min-width: map.get(v.$breakpoints, 'lg')) {
-    max-width: v.$container-lg;
+  
+  @include m.respond-to('lg') {
+    max-width: map.get(v.$container-sizes, 'lg');
   }
-
-  @media (min-width: map.get(v.$breakpoints, 'xl')) {
-    max-width: v.$container-xl;
+  
+  @include m.respond-to('xl') {
+    max-width: map.get(v.$container-sizes, 'xl');
   }
 }
 
-// Screen reader only class for accessibility
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-// Improved scrollbars
+// Scroll-Balken
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -155,28 +137,43 @@ img {
   }
 }
 
-// Vue-style content section transitions
-.content-section {
-  transition: var(--content-transition);
-}
-
-// Fix tap highlight on mobile
-* {
-  -webkit-tap-highlight-color: transparent;
-}
-
-// Better table responsiveness
-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-// Fix for safe areas on mobile devices
-@supports (padding: max(0px)) {
-  body {
-    padding-left: min(0vmin, env(safe-area-inset-left));
-    padding-right: min(0vmin, env(safe-area-inset-right));
-    padding-bottom: min(0vmin, env(safe-area-inset-bottom));
+// Animationen
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.7;
   }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(40, 40);
+  }
+}
+
+// Verbesserte Safe-Area-Unterstützung für notch phones
+@supports (padding: max(0px)) {
+  body, .mobile-nav-bottom, .main-content {
+    padding-left: max(v.$spacing-sm, env(safe-area-inset-left));
+    padding-right: max(v.$spacing-sm, env(safe-area-inset-right));
+  }
+  
+  .mobile-nav-bottom {
+    padding-bottom: max(v.$spacing-xs, env(safe-area-inset-bottom));
+  }
+}
+
+// Zugänglichkeit
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

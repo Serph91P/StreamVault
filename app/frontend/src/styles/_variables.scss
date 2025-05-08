@@ -36,11 +36,13 @@ $breakpoints: (
   'xl': 1200px
 );
 
-// Container max-widths
-$container-sm: 100%;
-$container-md: 720px;
-$container-lg: 960px;
-$container-xl: 1140px;
+// Container-Größen als Map für konsistentere Nutzung
+$container-sizes: (
+  'sm': 100%,
+  'md': 720px,
+  'lg': 960px,
+  'xl': 1140px
+);
 
 // Z-index layers
 $z-layers: (
@@ -50,9 +52,12 @@ $z-layers: (
   'toast': 1000
 );
 
-// Fluid typography function
+// Verbesserte flüssige Typografie
 @function fluid-type($min-vw, $max-vw, $min-size, $max-size) {
-  $factor: calc(100 * ($max-size - $min-size) / ($max-vw - $min-vw));
+  $factor: 1;
+  @if $max-vw - $min-vw > 0 {
+    $factor: calc(100 * ($max-size - $min-size) / ($max-vw - $min-vw));
+  }
   @return clamp(#{$min-size}rem, #{$factor}vw, #{$max-size}rem);
 }
 
