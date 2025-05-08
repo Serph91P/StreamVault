@@ -1092,7 +1092,7 @@ nav {
   padding: v.$spacing-md;
   background: rgba(v.$danger-color, 0.1);
   border-left: 4px solid v.$danger-color;
-  color: lighten(v.$danger-color, 10%);
+  color: color.adjust(v.$danger-color, $lightness: 10%);
   margin-bottom: v.$spacing-lg;
   border-radius: v.$border-radius-sm;
   box-shadow: 0 1px 2px rgba(v.$danger-color, 0.1);

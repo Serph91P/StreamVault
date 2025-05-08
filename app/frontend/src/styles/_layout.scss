@@ -38,6 +38,17 @@
   display: flex;
   align-items: center;
 
+  // Füge diese Media Query hinzu, um die Desktop-Navigation auf mobilen Geräten zu modifizieren
+  @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+    .main-nav {
+      display: none; // Verbirgt die Desktop-Navigation auf mobilen Geräten
+    }
+    
+    // Optional: Header-Höhe auf Mobilgeräten anpassen
+    min-height: 50px;
+    padding: v.$spacing-xs v.$spacing-sm;
+  }
+
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-sm v.$spacing-lg;
     min-height: 70px;
@@ -395,21 +406,21 @@
     width: 100%;
     transition: all 0.2s v.$vue-ease;
     
-    svg {
+    .mobile-nav-icon {
       margin-bottom: v.$spacing-xxs;
-      font-size: 1.4rem;
-      transition: transform 0.2s v.$vue-ease;
+      transition: transform 0.2s v.$vue-ease, stroke 0.2s v.$vue-ease;
+      stroke: currentColor;
     }
     
-    &.active {
+    &.router-link-active {
       color: v.$primary-color;
       
-      svg {
+      .mobile-nav-icon {
         transform: translateY(-2px);
       }
     }
     
-    &:hover:not(.active) {
+    &:hover:not(.router-link-active) {
       color: v.$text-primary;
     }
   }
