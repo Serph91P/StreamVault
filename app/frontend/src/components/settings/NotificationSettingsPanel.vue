@@ -353,25 +353,25 @@ const testNotification = () => {
 <style scoped>
 .settings-form {
   margin-bottom: 30px;
-  background-color: #1f1f23;
+  background-color: var(--background-darker, #1f1f23);
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--border-radius, 8px);
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-lg, 20px);
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm, 8px);
   font-weight: 500;
 }
 
 .checkbox-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-sm, 8px);
 }
 
 .checkbox-group label {
@@ -382,41 +382,8 @@ const testNotification = () => {
 }
 
 .checkbox-group input[type="checkbox"] {
-  margin-right: 8px;
+  margin-right: var(--spacing-sm, 8px);
   margin-top: 4px;
-}
-
-.settings-form {
-  margin-bottom: 30px;
-  background-color: #1f1f23;
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.checkbox-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  font-weight: normal;
-}
-
-.checkbox-group input[type="checkbox"] {
-  margin-right: 8px;
 }
 
 .input-with-tooltip {
@@ -426,24 +393,59 @@ const testNotification = () => {
 .form-control {
   width: 100%;
   padding: 10px;
-  border: 1px solid #333;
-  background-color: #18181b;
-  color: #fff;
-  border-radius: 4px;
+  border: 1px solid var(--border-color, #333);
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #fff);
+  border-radius: var(--border-radius, 4px);
+}
+
+.form-control.is-invalid {
+  border-color: var(--danger-color, #ef4444);
+}
+
+.invalid-feedback {
+  color: var(--danger-color, #ef4444);
+  font-size: 0.875rem;
+  margin-top: var(--spacing-xs, 4px);
+}
+
+.tooltip-wrapper {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  margin-top: var(--spacing-sm, 8px);
+}
+
+.tooltip {
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-secondary, #adadb8);
+  padding: var(--spacing-md, 12px);
+  border-radius: var(--border-radius, 4px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tooltip-link {
+  color: var(--primary-color, #42b883);
+  text-decoration: underline;
 }
 
 .form-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 20px;
+  gap: var(--spacing-sm, 10px);
+  margin-top: var(--spacing-lg, 20px);
 }
 
 .btn {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 6px);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  border: none;
 }
 
 .btn-primary {
@@ -477,27 +479,60 @@ const testNotification = () => {
 }
 
 .streamer-notifications {
-  margin-top: 30px;
+  margin-top: var(--spacing-xl, 30px);
 }
 
 .table-controls {
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: var(--spacing-sm, 10px);
+  margin-bottom: var(--spacing-md, 15px);
+}
+
+.streamer-table {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .streamer-table table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
-  background-color: #1f1f23;
-  border-radius: 8px;
+  background-color: var(--background-darker, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color, #303034);
   overflow: hidden;
+}
+
+/* Fix table striping */
+.streamer-table table tr {
+  background-color: transparent;
+}
+
+.streamer-table table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+.streamer-table th {
+  background-color: rgba(0, 0, 0, 0.2);
+  font-weight: 500;
+  color: var(--text-secondary, #ccc);
+  position: relative;
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.streamer-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #333);
 }
 
 .streamer-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-sm, 10px);
 }
 
 .streamer-avatar {
@@ -513,19 +548,6 @@ const testNotification = () => {
   object-fit: cover;
 }
 
-.streamer-table th,
-.streamer-table td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid #333;
-}
-
-.streamer-table th {
-  background-color: #18181b;
-  font-weight: 500;
-  color: #ccc;
-}
-
 .streamer-table tr:last-child td {
   border-bottom: none;
 }
@@ -533,7 +555,27 @@ const testNotification = () => {
 .th-tooltip {
   font-size: 0.8rem;
   font-weight: normal;
-  color: #aaa;
-  margin-top: 4px;
+  color: var(--text-secondary, #aaa);
+  margin-top: var(--spacing-xs, 4px);
+}
+
+@media (max-width: 768px) {
+  .streamer-table {
+    border-radius: 0;
+  }
+  
+  .btn {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+  
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .table-controls button {
+    margin-right: 0;
+  }
 }
 </style>

@@ -2,64 +2,133 @@
 @use 'sass:color';
 @use 'variables' as v;
 
+// Base layout structure with improved responsiveness
 .app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 100vw; /* Limit to viewport width */
-  overflow-x: hidden; /* Prevent horizontal scrolling */
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
 }
 
-.header {
-  background: v.$background-darker;
-  position: fixed;
+// Vue-inspired header with subtle gradient
+.header,
+.app-header {
+  background: linear-gradient(
+    to bottom,
+    v.$background-darker,
+    color.adjust(v.$background-darker, $lightness: -2%)
+  );
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: v.$spacing-sm;
+  z-index: map.get(v.$z-layers, 'overlay');
+  box-shadow: v.$shadow-md;
+  padding: v.$spacing-sm v.$spacing-md;
   width: 100%;
   box-sizing: border-box;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all v.$transition-base;
+  border-bottom: 1px solid rgba(v.$border-color, 0.5);
+  min-height: 60px;
+  display: flex;
+  align-items: center;
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-md;
+    padding: v.$spacing-sm v.$spacing-lg;
+    min-height: 70px;
   }
 
-  .container {
+  .container,
+  .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
     max-width: 100%;
-    box-sizing: border-box;
-  }
-}
-
-.nav-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: v.$spacing-md;
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    justify-content: flex-start;
-    margin: 0 auto;
     gap: v.$spacing-md;
   }
+  
+  h1 {
+    font-size: map.get(v.$font-scale, 'lg');
+    margin: 0;
+    color: v.$text-primary;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-sm;
+    
+    img, svg {
+      height: 24px;
+      width: auto;
+    }
+  }
+
+  // Vue-style animated navigation
+  nav {
+    display: flex;
+    gap: v.$spacing-md;
+    
+    a {
+      color: v.$text-secondary;
+      text-decoration: none;
+      font-weight: 500;
+      padding: v.$spacing-xs v.$spacing-sm;
+      border-radius: v.$border-radius;
+      transition: all v.$vue-ease-out 0.2s;
+      position: relative;
+      
+      &::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 2px;
+        background: v.$primary-color;
+        transition: width 0.2s v.$vue-ease;
+      }
+      
+      &:hover, &.active {
+        color: v.$primary-color-light;
+        
+        &::after {
+          width: 80%;
+        }
+      }
+      
+      &.active {
+        color: v.$primary-color;
+        background-color: rgba(v.$primary-color, 0.08);
+        
+        &::after {
+          width: 100%;
+        }
+      }
+    }
+  }
 }
 
+// Main content area with smoother transitions
 .main-content {
   flex: 1;
   padding: v.$spacing-md;
-  margin-top: 56px; /* Account for fixed header */
+  padding-top: v.$spacing-lg;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  animation: fadeIn 0.4s v.$vue-ease-out;
+  margin-bottom: calc(v.$spacing-xxl + env(safe-area-inset-bottom, 0px)); // Add space for mobile navigation
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
+    padding-top: v.$spacing-xl;
+    margin-bottom: v.$spacing-lg;
   }
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
@@ -67,5 +136,281 @@
     max-width: v.$container-xl;
     margin-left: auto;
     margin-right: auto;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+// Vue-style page containers with subtle animation
+.page-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: v.$spacing-md;
+  background: v.$background-card;
+  border-radius: v.$border-radius-lg;
+  box-shadow: v.$shadow-md;
+  box-sizing: border-box;
+  transition: transform v.$transition-base, box-shadow v.$transition-base;
+  border: 1px solid v.$border-color;
+  overflow: hidden; // Ensure content doesn't break the radius
+  
+  &:hover {
+    box-shadow: v.$shadow-lg;
+  }
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-lg;
+  }
+
+  &.narrow {
+    max-width: 600px;
+  }
+
+  &.medium {
+    max-width: 800px; 
+  }
+
+  &.wide {
+    max-width: 1200px;
+  }
+}
+
+// Improved content sections
+.content-section {
+  margin-bottom: v.$spacing-lg;
+  padding-bottom: v.$spacing-md;
+  border-bottom: 1px solid v.$border-color;
+  animation: fadeIn 0.3s v.$vue-ease-out;
+  transform-origin: top center;
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  h2, h3, h4 {
+    margin-top: 0;
+    margin-bottom: v.$spacing-md;
+    color: v.$text-primary;
+    font-weight: 600;
+  }
+}
+
+// Vue-inspired page headers with gradient text
+.page-header {
+  margin-bottom: v.$spacing-lg;
+  
+  h1, h2 {
+    margin: 0 0 v.$spacing-sm 0;
+    font-size: map.get(v.$font-scale, 'xl');
+    background: linear-gradient(90deg, v.$primary-color, v.$primary-color-light);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+  }
+  
+  .description {
+    color: v.$text-secondary;
+    margin: 0;
+    max-width: 700px;
+    line-height: 1.6;
+  }
+}
+
+// Navigation container with Vue-style hover effects
+.nav-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: v.$spacing-sm;
+  margin-bottom: v.$spacing-lg;
+
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    justify-content: flex-start;
+    gap: v.$spacing-md;
+  }
+
+  a, button {
+    padding: v.$spacing-xs v.$spacing-md;
+    border-radius: v.$border-radius-pill;
+    background: transparent;
+    color: v.$text-primary;
+    border: 1px solid v.$border-color;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all v.$vue-ease 0.2s;
+    position: relative;
+    overflow: hidden;
+    
+    &::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: v.$primary-color;
+      opacity: 0;
+      z-index: -1;
+      transition: opacity 0.2s v.$vue-ease;
+    }
+    
+    &:hover, &.active {
+      border-color: v.$primary-color;
+      color: v.$primary-color;
+      
+      &::after {
+        opacity: 0.08;
+      }
+    }
+    
+    &.active {
+      background: rgba(v.$primary-color, 0.12);
+      border-color: v.$primary-color;
+      font-weight: 600;
+    }
+  }
+}
+
+// Responsive grid system with CSS grid
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: v.$spacing-md;
+  width: 100%;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: v.$spacing-lg;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  &.grid-2 {
+    @media (min-width: map.get(v.$breakpoints, 'sm')) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  &.grid-3 {
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+}
+
+// Two-column layout with better mobile stacking
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: v.$spacing-lg;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    grid-template-columns: 2fr 3fr;
+  }
+  
+  // Reverse on mobile
+  &.reverse-mobile {
+    @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+      display: flex;
+      flex-direction: column-reverse;
+    }
+  }
+}
+
+// Vue-style sidebar layout
+.sidebar-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: v.$spacing-lg;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: 300px 1fr;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    grid-template-columns: 320px 1fr;
+  }
+  
+  .sidebar {
+    position: sticky;
+    top: 90px; // Account for header + spacing
+    height: fit-content;
+    transition: all 0.3s v.$vue-ease;
+    
+    @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
+      position: relative;
+      top: 0;
+      padding-bottom: v.$spacing-md;
+      border-bottom: 1px solid v.$border-color;
+    }
+  }
+}
+
+// Bottom navigation for mobile with Vue styling
+.mobile-nav-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(
+    to top,
+    rgba(v.$background-darker, 0.95),
+    rgba(v.$background-darker, 0.9)
+  );
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+  z-index: map.get(v.$z-layers, 'overlay');
+  display: flex;
+  justify-content: space-around;
+  padding: v.$spacing-xs;
+  padding-bottom: calc(v.$spacing-xs + env(safe-area-inset-bottom, 0px));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(v.$border-color, 0.5);
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    display: none; // Hide on larger screens
+  }
+  
+  a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: v.$spacing-xs;
+    color: v.$text-secondary;
+    text-decoration: none;
+    font-size: map.get(v.$font-scale, 'xs');
+    width: 100%;
+    transition: all 0.2s v.$vue-ease;
+    
+    svg {
+      margin-bottom: v.$spacing-xxs;
+      font-size: 1.4rem;
+      transition: transform 0.2s v.$vue-ease;
+    }
+    
+    &.active {
+      color: v.$primary-color;
+      
+      svg {
+        transform: translateY(-2px);
+      }
+    }
+    
+    &:hover:not(.active) {
+      color: v.$text-primary;
+    }
   }
 }

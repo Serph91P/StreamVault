@@ -1,19 +1,32 @@
 // Colors
-$background-dark: #18181b;
-$background-darker: #1f1f23;
-$text-primary: #efeff1;
-$text-secondary: #adadb8;
-$border-color: #303034;
-$primary-color: #42b883;
-$danger-color: #ef4444;
-$success-color: #28a745;
+$background-dark: #121214;
+$background-darker: #18181b;
+$background-card: #1f1f23;
+$text-primary: #f1f1f3;
+$text-secondary: #b1b1b9;
+$border-color: #2d2d35;
+$primary-color: #42b883; // Vue.js green as primary color
+$primary-color-light: #63d5a4;
+$primary-color-dark: #2f9c6a;
+$accent-color: #7c4dff; // Purple as accent color
+$danger-color: #ff4757;
+$success-color: #2ed573;
+$warning-color: #ffa502;
+$info-color: #70a1ff;
+
+// Shadows
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.16);
+$shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.20);
 
 // Spacing (using rem for better scaling)
+$spacing-xxs: 0.125rem;
 $spacing-xs: 0.25rem;
 $spacing-sm: 0.5rem;
 $spacing-md: 1rem;
 $spacing-lg: 1.5rem;
 $spacing-xl: 2rem;
+$spacing-xxl: 3rem;
 
 // Breakpoints (mobile-first)
 $breakpoints: (
@@ -43,14 +56,29 @@ $z-layers: (
   @return clamp(#{$min-size}rem, #{$factor}vw, #{$max-size}rem);
 }
 
-// Updated font sizes
+// Updated font sizes with better scaling
 $font-scale: (
   'xs': fluid-type(320, 1200, 0.75, 0.875),
   'sm': fluid-type(320, 1200, 0.875, 1),
   'base': fluid-type(320, 1200, 1, 1.125),
-  'lg': fluid-type(320, 1200, 1.125, 1.25),
-  'xl': fluid-type(320, 1200, 1.25, 1.5)
+  'lg': fluid-type(320, 1200, 1.125, 1.375),
+  'xl': fluid-type(320, 1200, 1.375, 1.75),
+  '2xl': fluid-type(320, 1200, 1.75, 2.25)
 );
 
 // Border styles
-$border-radius: 6px;
+$border-radius-sm: 4px;
+$border-radius: 8px;
+$border-radius-lg: 12px;
+$border-radius-xl: 16px;
+$border-radius-pill: 9999px;
+
+// Transitions
+$transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+// Vue.js theme animation curves
+$vue-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+$vue-ease-out: cubic-bezier(0, 0, 0.2, 1);
+$vue-ease-in: cubic-bezier(0.4, 0, 1, 1);

@@ -33,7 +33,8 @@
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
       <div v-if="isLoading" class="loading">
-        Lade Kategorien...
+        <div class="spinner"></div>
+        <p>Loading categories...</p>
       </div>
       <template v-else>
         <div v-if="filteredCategories.length === 0" class="no-categories">
@@ -45,36 +46,46 @@
           </p>
         </div>
         
-        <div 
-          v-for="category in filteredCategories" 
-          :key="category.id" 
-          class="category-card"
-          :class="{ 'is-favorite': category.is_favorite }"
-        >
-          <div class="category-image">
-            <img 
-              :src="category.box_art_url ?? ''" 
-              :alt="category.name"
-              @error="setDefaultImage($event)"
-            />
-          </div>
-          <div class="category-details">
-            <h4>{{ category.name }}</h4>
-            <div class="category-actions">
-              <button 
-                v-if="!category.is_favorite" 
-                @click="addFavorite(category.id)"
-                class="btn btn-sm btn-outline-primary"
-              >
-                Mark as Favorite
-              </button>
-              <button 
-                v-else 
-                @click="removeFavorite(category.id)"
-                class="btn btn-sm btn-outline-danger"
-              >
-                Remove Favorite
-              </button>
+        <!-- Category Cards Grid -->
+        <div v-else class="category-cards">
+          <div 
+            v-for="category in filteredCategories" 
+            :key="category.id"
+            class="category-card"
+            :class="{ 'is-favorite': category.is_favorite }"
+          >
+            <div class="category-image-wrapper">
+              <img 
+                v-if="category.box_art_url" 
+                :src="formatImageUrl(category.box_art_url, 144, 192)" 
+                alt="Game box art"
+                class="category-image"
+                loading="lazy"
+              />
+              <div v-else class="category-image-placeholder">
+                <span>No image</span>
+              </div>
+            </div>
+            <div class="category-content">
+              <h4 class="category-name">{{ category.name }}</h4>
+              <div class="category-meta">
+                <span>{{ category.stream_count || 0 }} recorded streams</span>
+              </div>
+              <div class="category-actions">
+                <button 
+                  @click="toggleFavorite(category)"
+                  class="btn-icon"
+                  :title="category.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" class="star-icon">
+                    <path 
+                      :fill="category.is_favorite ? '#FFD700' : 'currentColor'" 
+                      d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                    />
+                  </svg>
+                  {{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -84,206 +95,364 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import type { Category } from '@/types/settings'
+import { ref, computed, onMounted } from 'vue';
 
-// State
-const categories = ref<Category[]>([])
-const isLoading = ref(true)
-const searchQuery = ref('')
-const showFavoritesOnly = ref(false)
-const error = ref<string | null>(null)
+interface Category {
+  id: string;
+  name: string;
+  box_art_url: string | null;
+  is_favorite: boolean;
+  stream_count?: number;
+}
 
-// Computed
+// State variables
+const searchQuery = ref('');
+const showFavoritesOnly = ref(false);
+const categories = ref<Category[]>([]);
+const isLoading = ref(true);
+const error = ref<string | null>(null);
+
+// Computed properties
 const filteredCategories = computed(() => {
-  let result = categories.value
-
-  // Filter nach Favoriten, falls aktiviert
+  let result = categories.value;
+  
+  // Filter by favorites if enabled
   if (showFavoritesOnly.value) {
-    result = result.filter(cat => cat.is_favorite)
+    result = result.filter(category => category.is_favorite);
   }
-
-  // Filter nach Suchtext
+  
+  // Filter by search query
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase().trim()
-    result = result.filter(cat => 
-      cat.name.toLowerCase().includes(query)
-    )
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(category => 
+      category.name.toLowerCase().includes(query)
+    );
   }
+  
+  console.log(`Filtered categories: ${result.length}`); // Debug log
+  return result;
+});
 
-  return result
-})
-
-// Methoden
+// Methods
 const fetchCategories = async () => {
+  isLoading.value = true;
+  error.value = null;
+  
   try {
-    isLoading.value = true;
-    error.value = null;
-    console.log("Fetching categories...");
-    
+    console.log('Fetching categories...');
     const response = await fetch('/api/categories');
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      error.value = `Fehler beim Laden: ${response.status}`;
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to fetch categories');
     }
     
     const data = await response.json();
-    console.log("Categories fetched:", data);
-    categories.value = data.categories || [];
-    
-    if (categories.value.length === 0) {
-      console.log("No categories found in the response");
-    }
-  } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.log(`Received ${data.length} categories from API`);
+    categories.value = data;
+  } catch (err: any) {
+    error.value = err.message || 'An error occurred while fetching categories';
+    console.error('Error fetching categories:', err);
   } finally {
     isLoading.value = false;
   }
 };
 
-const addFavorite = async (categoryId: number) => {
+const toggleFavorite = async (category: Category) => {
   try {
-    const response = await fetch('/api/categories/favorites', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ category_id: categoryId }),
-    })
+    const response = await fetch(`/api/categories/${category.id}/favorite`, {
+      method: category.is_favorite ? 'DELETE' : 'PUT',
+    });
     
     if (!response.ok) {
-      throw new Error('Failed to add favorite')
+      throw new Error(`Failed to ${category.is_favorite ? 'remove from' : 'add to'} favorites`);
     }
     
-    const updatedCategory = await response.json()
-    
-    // Update local state
-    const index = categories.value.findIndex(cat => cat.id === categoryId)
-    if (index !== -1) {
-      categories.value[index].is_favorite = true
-    }
-  } catch (error) {
-    console.error('Error adding favorite:', error)
+    // Update the local state
+    category.is_favorite = !category.is_favorite;
+  } catch (err: any) {
+    error.value = err.message;
+    console.error('Error toggling favorite status:', err);
   }
-}
+};
 
-const removeFavorite = async (categoryId: number) => {
-  try {
-    const response = await fetch(`/api/categories/favorites/${categoryId}`, {
-      method: 'DELETE',
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to remove favorite')
-    }
-    
-    // Update local state
-    const index = categories.value.findIndex(cat => cat.id === categoryId)
-    if (index !== -1) {
-      categories.value[index].is_favorite = false
-    }
-  } catch (error) {
-    console.error('Error removing favorite:', error)
-  }
-}
+const formatImageUrl = (url: string, width: number, height: number): string => {
+  return url
+    .replace('{width}', width.toString())
+    .replace('{height}', height.toString());
+};
 
-const setDefaultImage = (event: Event) => {
-  const target = event.target as HTMLImageElement
-  target.src = '/assets/default-game-box.png'
-}
-
-// Lifecycle
+// Initialize component
 onMounted(() => {
-  fetchCategories()
-})
+  fetchCategories();
+});
 </script>
 
 <style scoped>
 .filter-container {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #18181b;
+  border-radius: 6px;
+  border: 1px solid #2a2a2d;
 }
 
-.search-box {
-  flex: 1;
-  max-width: 300px;
+@media (min-width: 768px) {
+  .filter-container {
+    flex-direction: row;
+    align-items: center;
+  }
+  
+  .search-box {
+    flex: 1;
+  }
 }
 
 .filter-buttons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .categories-grid {
+  position: relative;
+  min-height: 200px;
+}
+
+.loading, .no-categories {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  color: #9e9e9e;
+  background-color: #18181b;
+  border-radius: 6px;
+  min-height: 200px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(66, 184, 131, 0.1);
+  border-top-color: #42b883;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+/* Category grid with improved responsiveness */
+.category-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+/* Small screens: 1-2 cards per row */
+@media (min-width: 480px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Medium screens: 3-4 cards per row */
+@media (min-width: 768px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* Large screens: 5-6 cards per row */
+@media (min-width: 1200px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Extra large screens */
+@media (min-width: 1600px) {
+  .category-cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
 }
 
 .category-card {
   background-color: #1f1f23;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid #333;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+  border: 1px solid #2a2a2d;
+  display: flex;
+  flex-direction: column;
 }
 
 .category-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: rgba(66, 184, 131, 0.5);
 }
 
 .category-card.is-favorite {
-  border: 2px solid #9146FF;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.category-image-wrapper {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background-color: #18181b;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .category-image {
-  height: 180px;
-  overflow: hidden;
-}
-
-.category-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.category-details {
-  padding: 15px;
-}
-
-.category-details h4 {
-  margin: 0 0 10px 0;
-  font-size: 1rem;
-}
-
-.category-actions {
-  margin-top: 10px;
-}
-
-.loading, .no-categories {
-  grid-column: 1 / -1;
+.category-image-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px;
-  color: #aaa;
-  text-align: center;
-  background-color: #1f1f23;
-  border-radius: 8px;
+  background-color: #18181b;
+  color: #9e9e9e;
 }
 
-.error-message {
-  background-color: rgba(220, 53, 69, 0.2);
-  color: #dc3545;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  text-align: center;
+.category-content {
+  padding: 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #efeff1;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.category-meta {
+  font-size: 0.8rem;
+  color: #9e9e9e;
+  margin: 4px 0;
+}
+
+.category-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  background-color: transparent;
+  color: #9e9e9e;
+  border: 1px solid #2a2a2d;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background-color: #18181b;
+  color: #efeff1;
+}
+
+.category-card.is-favorite .btn-icon {
+  color: #FFD700;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.star-icon {
+  transition: transform 0.2s ease;
+}
+
+.btn-icon:hover .star-icon {
+  transform: scale(1.2);
+}
+
+/* Standard button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.btn-primary {
+  background-color: #42b883;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #3ca978;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
+}
+
+.btn-secondary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #efeff1;
+  border: 1px solid #2a2a2d;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.form-control {
+  width: 100%;
+  box-sizing: border-box;
+  background: #121214;
+  border: 1px solid #2a2a2d;
+  color: #efeff1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus {
+  border-color: #42b883;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
 }
 </style>

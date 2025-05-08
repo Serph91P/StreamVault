@@ -1,13 +1,17 @@
 <template>
   <div class="streams-container">
-    <!-- Bestehendes Template -->
     <div v-if="isLoading" class="loading-container">
-      <span>Loading streams...</span>
+      <div class="spinner"></div>
+      <p>Loading streams...</p>
     </div>
     <div v-else-if="streams.length === 0" class="no-data-container">
       <p>No streams found for this streamer.</p>
       <button @click="handleBack" class="btn btn-primary back-btn">
         Back to streamers
+      </button>
+      
+      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+        Force Recording (Offline Mode)
       </button>
     </div>
     <div v-else>
@@ -30,7 +34,6 @@
               <span class="status-badge" :class="{ 'live': !stream.ended_at }">
                 {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
               </span>
-              <!-- Recording-Status anzeigen, wenn live -->
               <span 
                 v-if="!stream.ended_at" 
                 class="recording-badge" 
@@ -47,25 +50,71 @@
             <p><strong>Duration:</strong> {{ calculateDuration(stream.started_at, stream.ended_at) }}</p>
             <p v-if="stream.ended_at"><strong>Ended:</strong> {{ formatDate(stream.ended_at) }}</p>
           </div>
-          <!-- Aktionsbuttons nur für Live-Streams anzeigen -->
-          <div class="stream-actions" v-if="!stream.ended_at">
+          <div class="stream-actions">
+            <div v-if="!stream.ended_at">
+              <button 
+                v-if="!isStreamRecording(parseInt(streamerId))" 
+                @click="startRecording(parseInt(streamerId))" 
+                class="btn btn-success" 
+                :disabled="isStartingRecording"
+              >
+                {{ isStartingRecording ? 'Starting Recording...' : 'Force Record' }}
+              </button>
+              <button 
+                v-else 
+                @click="stopRecording(parseInt(streamerId))" 
+                class="btn btn-danger" 
+                :disabled="isStoppingRecording"
+              >
+                {{ isStoppingRecording ? 'Stopping Recording...' : 'Stop Recording' }}
+              </button>
+            </div>
+            
+            <!-- Delete Stream button - disabled while stream is recording -->
             <button 
-              v-if="!isStreamRecording(parseInt(streamerId))" 
-              @click="startRecording(parseInt(streamerId))" 
-              class="btn btn-success" 
-              :disabled="isStartingRecording"
+              @click="confirmDeleteStream(stream)" 
+              class="btn btn-danger delete-btn" 
+              :disabled="
+                deletingStreamId === stream.id || 
+                (!stream.ended_at && isStreamRecording(parseInt(streamerId)))
+              "
             >
-              {{ isStartingRecording ? 'Starting Recording...' : 'Force Record' }}
-            </button>
-            <button 
-              v-else 
-              @click="stopRecording(parseInt(streamerId))" 
-              class="btn btn-danger" 
-              :disabled="isStoppingRecording"
-            >
-              {{ isStoppingRecording ? 'Stopping Recording...' : 'Stop Recording' }}
+              <span v-if="deletingStreamId === stream.id" class="loader"></span>
+              <span v-else>Delete Stream</span>
             </button>
           </div>
+        </div>
+      </div>
+      
+      <div v-if="!hasLiveStreams" class="offline-recording-section">
+        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+          {{ isStartingOfflineRecording ? 'Starting Offline Recording...' : 'Force Recording (Offline Mode)' }}
+        </button>
+        <p class="help-text">
+          Use this option if the streamer is live but StreamVault didn't detect it automatically.
+        </p>
+      </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="cancelDelete">
+      <div class="modal-content">
+        <h3>Delete Stream</h3>
+        <p>Are you sure you want to delete this stream?</p>
+        <p class="warning-text">This will permanently delete the stream record and all associated metadata files.</p>
+        
+        <div class="stream-details" v-if="streamToDelete">
+          <p><strong>Date:</strong> {{ formatDate(streamToDelete.started_at) }}</p>
+          <p><strong>Title:</strong> {{ streamToDelete.title || '-' }}</p>
+          <p><strong>Category:</strong> {{ streamToDelete.category_name || '-' }}</p>
+        </div>
+        
+        <div class="modal-actions">
+          <button @click="cancelDelete" class="btn btn-secondary">Cancel</button>
+          <button @click="deleteStream" class="btn btn-danger" :disabled="deletingStreamId !== null">
+            <span v-if="deletingStreamId !== null" class="loader"></span>
+            <span v-else>Delete</span>
+          </button>
         </div>
       </div>
     </div>
@@ -87,10 +136,22 @@ const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings, fetchActiveRecordings, stopRecording: stopStreamRecording } = useRecordingSettings()
 const { messages } = useWebSocket()
 
-// State für Aufnahmeaktionen
+// State for recording actions
 const isStartingRecording = ref(false)
 const isStoppingRecording = ref(false)
+const isStartingOfflineRecording = ref(false)
 const localRecordingState = ref<Record<string, boolean>>({})
+
+// State for stream deletion
+const showDeleteModal = ref(false)
+const streamToDelete = ref<any>(null)
+const deletingStreamId = ref<number | null>(null)
+const deleteResults = ref<any>(null)
+
+// Computed property um zu prüfen, ob es Live-Streams gibt
+const hasLiveStreams = computed(() => {
+  return streams.value.some(stream => !stream.ended_at)
+})
 
 // Formatierungsfunktionen
 const formatDate = (date: string | undefined | null): string => {
@@ -126,23 +187,27 @@ const handleBack = () => {
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue: number): boolean => {
-  // Überprüfe zuerst den lokalen Status für sofortige Aktualisierung
+  // First check local state which gets updated immediately via WebSockets
   if (localRecordingState.value[streamerIdValue] !== undefined) {
+    console.log(`Using local recording state for ${streamerIdValue}: ${localRecordingState.value[streamerIdValue]}`);
     return localRecordingState.value[streamerIdValue];
   }
   
-  // Fall zurück auf activeRecordings vom Server
+  // Then check activeRecordings from the server
   if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
+    console.log(`No active recordings available for ${streamerIdValue}`);
     return false;
   }
   
-  console.log("Active recordings:", activeRecordings.value);
-  console.log("Checking for streamer ID:", streamerIdValue);
+  console.log(`Active recordings for ${streamerIdValue}:`, activeRecordings.value);
   
-  return activeRecordings.value.some(rec => {
-    console.log("Comparing with recording:", rec);
-    return rec.streamer_id === streamerIdValue;
+  const isRecording = activeRecordings.value.some(rec => {
+    // Ensure both are treated as numbers for comparison
+    return parseInt(rec.streamer_id.toString()) === parseInt(streamerIdValue.toString());
   });
+  
+  console.log(`Stream ${streamerIdValue} recording status: ${isRecording}`);
+  return isRecording;
 }
 
 // Aufnahme starten
@@ -150,7 +215,7 @@ const startRecording = async (streamerIdValue: number) => {
   try {
     isStartingRecording.value = true
     
-    // Sofort Status lokal aktualisieren für bessere UX
+    // Update local state immediately for better UX
     localRecordingState.value[streamerIdValue] = true
     
     const response = await fetch(`/api/recording/force/${streamerIdValue}`, {
@@ -165,16 +230,60 @@ const startRecording = async (streamerIdValue: number) => {
       throw new Error(errorData.detail || 'Failed to start recording')
     }
     
-    // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
+    // Keep local state since it was successful
+    console.log(`Successfully started recording for streamer ${streamerIdValue}`);
+    
+    // Fetch active recordings to ensure our UI is in sync
     await fetchActiveRecordings()
     
   } catch (error) {
     console.error('Failed to start recording:', error)
     alert(`Failed to start recording: ${error instanceof Error ? error.message : String(error)}`)
-    // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
+    
+    // Reset local state on failure
     localRecordingState.value[streamerIdValue] = false
   } finally {
     isStartingRecording.value = false
+  }
+}
+
+// Neue Methode: Force-Offline-Recording starten
+const forceOfflineRecording = async (streamerIdValue: number) => {
+  try {
+    isStartingOfflineRecording.value = true
+    
+    // Update local state immediately for better UX
+    localRecordingState.value[streamerIdValue] = true
+    
+    const response = await fetch(`/api/recording/force-offline/${streamerIdValue}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Failed to start offline recording')
+    }
+    
+    // Keep local state since it was successful
+    console.log(`Successfully started offline recording for streamer ${streamerIdValue}`);
+    
+    // Fetch active recordings to ensure our UI is in sync
+    await fetchActiveRecordings()
+    
+    // Reload streams to show the newly created stream
+    await fetchStreams(streamerId.value)
+    
+  } catch (error) {
+    console.error('Failed to start offline recording:', error)
+    alert(`Failed to start offline recording: ${error instanceof Error ? error.message : String(error)}`)
+    
+    // Reset local state on failure
+    localRecordingState.value[streamerIdValue] = false
+  } finally {
+    isStartingOfflineRecording.value = false
   }
 }
 
@@ -201,6 +310,57 @@ const stopRecording = async (streamerIdValue: number) => {
   }
 }
 
+// Stream deletion functions
+const confirmDeleteStream = (stream: any) => {
+  streamToDelete.value = stream
+  showDeleteModal.value = true
+}
+
+const cancelDelete = () => {
+  showDeleteModal.value = false
+  streamToDelete.value = null
+}
+
+const deleteStream = async () => {
+  if (!streamToDelete.value || !streamerId.value) return
+  
+  try {
+    deletingStreamId.value = streamToDelete.value.id
+    
+    const response = await fetch(`/api/streamers/${streamerId.value}/streams/${streamToDelete.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Failed to delete stream')
+    }
+    
+    const result = await response.json()
+    deleteResults.value = result
+    console.log('Delete stream result:', result)
+    
+    // Remove stream from the UI
+    streams.value = streams.value.filter(s => s.id !== streamToDelete.value.id)
+    
+    // Close the modal
+    showDeleteModal.value = false
+    streamToDelete.value = null
+    
+    // Show success message
+    alert(`Stream deleted successfully. Removed ${result.deleted_files_count} associated files.`)
+    
+  } catch (error) {
+    console.error('Failed to delete stream:', error)
+    alert(`Failed to delete stream: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    deletingStreamId.value = null
+  }
+}
+
 // Daten laden
 const loadStreams = async () => {
   if (streamerId.value) {
@@ -212,12 +372,21 @@ const loadStreams = async () => {
 
 onMounted(async () => {
   await loadStreams();
-  // Alle 10 Sekunden aktive Aufnahmen aktualisieren
-  const interval = setInterval(async () => {
-    await fetchActiveRecordings();
-  }, 10000);
   
-  // Cleanup beim Unmount
+  // Poll active recordings immediately and then every 5 seconds
+  await fetchActiveRecordings();
+  console.log("Initial active recordings:", activeRecordings.value);
+  
+  const interval = setInterval(async () => {
+    try {
+      await fetchActiveRecordings();
+      console.log("Updated active recordings:", activeRecordings.value);
+    } catch (err) {
+      console.error("Error fetching active recordings:", err);
+    }
+  }, 5000);
+  
+  // Cleanup on component unmount
   onUnmounted(() => {
     clearInterval(interval);
   });
@@ -230,15 +399,54 @@ watch(messages, (newMessages) => {
   const latestMessage = newMessages[newMessages.length - 1]
   console.log('Received WebSocket message:', latestMessage)
   
-  // Lokalen Status basierend auf WebSocket-Ereignissen aktualisieren
+  // Update local state based on WebSocket events
   if (latestMessage.type === 'recording.started') {
-    console.log('Recording started for streamer:', latestMessage.data.streamer_id)
-    localRecordingState.value[latestMessage.data.streamer_id] = true
-    fetchActiveRecordings() // Synchronisiere mit dem Server
+    const streamerId = parseInt(latestMessage.data.streamer_id);
+    console.log(`Recording started for streamer ${streamerId}`);
+    
+    // Update local state immediately
+    localRecordingState.value[streamerId] = true;
+    
+    // Also update our local cache of activeRecordings
+    if (!activeRecordings.value) {
+      activeRecordings.value = [];
+    }
+    
+    // Add or update the recording in our cache
+    const existingIndex = activeRecordings.value.findIndex(r => 
+      parseInt(r.streamer_id.toString()) === streamerId
+    );
+    
+    if (existingIndex >= 0) {
+      activeRecordings.value[existingIndex] = latestMessage.data;
+    } else {
+      activeRecordings.value.push(latestMessage.data);
+    }
+    
+    // Still fetch from server to ensure we're in sync
+    fetchActiveRecordings();
+    
   } else if (latestMessage.type === 'recording.stopped') {
-    console.log('Recording stopped for streamer:', latestMessage.data.streamer_id)
-    localRecordingState.value[latestMessage.data.streamer_id] = false
-    fetchActiveRecordings() // Synchronisiere mit dem Server
+    const streamerId = parseInt(latestMessage.data.streamer_id);
+    console.log(`Recording stopped for streamer ${streamerId}`);
+    
+    // Update local state immediately
+    localRecordingState.value[streamerId] = false;
+    
+    // Remove from our local cache
+    if (activeRecordings.value) {
+      activeRecordings.value = activeRecordings.value.filter(r => 
+        parseInt(r.streamer_id.toString()) !== streamerId
+      );
+    }
+    
+    // Sync with server
+    fetchActiveRecordings();
+  } else if (latestMessage.type === 'stream.online') {
+    // Wenn ein neuer Stream erkannt wird, aktualisieren wir die Stream-Liste
+    if (parseInt(latestMessage.data.streamer_id) === parseInt(streamerId.value)) {
+      fetchStreams(streamerId.value);
+    }
   }
 }, { deep: true })
 
@@ -326,21 +534,22 @@ watch(streamerId, (newId, oldId) => {
 }
 
 .recording-badge {
-  background-color: #444;
-  color: white;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 12px;
   font-size: 0.8rem;
   font-weight: bold;
+  margin-right: 0.5rem;
 }
 
 .recording-badge.recording {
-  background-color: #2ecc71;
+  background-color: var(--success-color);
+  color: white;
   animation: pulse 2s infinite;
 }
 
 .recording-badge.not-recording {
-  background-color: #e74c3c;
+  background-color: var(--danger-color);
+  color: white;
 }
 
 .stream-content {
@@ -352,7 +561,88 @@ watch(streamerId, (newId, oldId) => {
 }
 
 .stream-actions {
-  padding: 0 15px 15px;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.delete-btn {
+  margin-left: auto;
+}
+
+.offline-recording-section {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--border-radius);
+}
+
+.help-text {
+  margin-top: var(--spacing-sm);
+  color: var(--text-muted-color);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #1f1f23;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 400px;
+  max-width: 90%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h3 {
+  color: #fff;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.warning-text {
+  color: #ff5252;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.stream-details {
+  background-color: #18181b;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.stream-details p {
+  margin: 5px 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-secondary {
+  background-color: #444;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #555;
 }
 
 @keyframes pulse {
@@ -371,6 +661,20 @@ watch(streamerId, (newId, oldId) => {
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
+  }
+  
+  .stream-actions {
+    flex-direction: column;
+  }
+  
+  .delete-btn {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .modal-content {
+    min-width: 320px;
+    padding: 15px;
   }
 }
 </style>

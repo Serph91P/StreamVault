@@ -21,12 +21,12 @@
       </button>
     </div>
 
-    <div v-if="validationMessage" class="validation-message" :class="{ error: !isValid, success: isValid }">
+    <div v-if="validationMessage" class="notification-item" :class="{ error: !isValid, success: isValid }">
       {{ validationMessage }}
     </div>
 
     <!-- Erweiterte Einstellungen (nur anzeigen, wenn der Benutzername gültig ist) -->
-    <div v-if="isValid && streamerInfo" class="settings-panel">
+    <div v-if="isValid && streamerInfo" class="settings-panel content-section">
       <h3>Streamer Settings for {{ streamerInfo.display_name }}</h3>
       
       <div class="streamer-preview">
@@ -46,7 +46,7 @@
             id="quality-select"
             v-model="quality" 
             :disabled="isLoading"
-            class="quality-select interactive-element"
+            class="input-field"
           >
             <option value="best">Best</option>
             <option value="1080p60">1080p60</option>
@@ -131,7 +131,7 @@
             <select 
               id="recording-quality"
               v-model="recording.quality" 
-              class="form-control"
+              class="input-field"
             >
               <option value="">Use global default</option>
               <option value="best">Best</option>
@@ -152,7 +152,7 @@
               type="text" 
               v-model="recording.custom_filename"
               placeholder="Use global template" 
-              class="form-control"
+              class="input-field"
             >
             <div class="help-text">
               Leave empty to use global template
@@ -166,14 +166,14 @@
       <button 
         type="submit" 
         :disabled="isLoading || isValidating || !isValid" 
-        class="submit-button interactive-element"
+        class="btn btn-primary"
       >
         <span v-if="isLoading" class="loader"></span>
         {{ isLoading ? 'Adding...' : 'Add Streamer' }}
       </button>
     </div>
 
-    <div v-if="statusMessage" class="status-message" :class="{ error: hasError }">
+    <div v-if="statusMessage" class="notification-item" :class="{ error: hasError }">
       {{ statusMessage }}
     </div>
   </form>
@@ -302,31 +302,11 @@ const emit = defineEmits(['streamer-added'])
 </script>
 
 <style scoped>
-.streamer-form {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: var(--background-dark, #18181b);
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
 .input-group {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
-}
-
-.input-field {
-  flex: 1;
-  min-width: 200px;
-  padding: 10px 12px;
-  border: 2px solid var(--border-color, #303034);
-  border-radius: 6px;
-  background-color: var(--background-darker, #0e0e10);
-  color: var(--text-primary, #efeff1);
-  font-size: 16px;
 }
 
 .validate-button {
@@ -348,49 +328,9 @@ const emit = defineEmits(['streamer-added'])
   cursor: not-allowed;
 }
 
-.quality-select, .form-control {
-  background: var(--background-dark, #18181b);
-  color: var(--text-primary, #efeff1);
-  border: 2px solid var(--border-color, #303034);
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 16px;
-  min-width: 120px;
-  width: 100%;
-  transition: all 0.2s ease;
-}
-
-.quality-select:focus, .form-control:focus {
-  outline: none;
-  border-color: var(--primary-color, #42b883);
-  box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
-}
-
-.validation-message {
-  margin-bottom: 1rem;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.validation-message.error {
-  background-color: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
-  border: 1px solid rgba(220, 53, 69, 0.2);
-}
-
-.validation-message.success {
-  background-color: rgba(40, 167, 69, 0.1);
-  color: #28a745;
-  border: 1px solid rgba(40, 167, 69, 0.2);
-}
-
 .settings-panel {
   margin-top: 1.5rem;
   padding: 1rem;
-  background-color: var(--background-darker, #0e0e10);
-  border-radius: 6px;
-  border: 1px solid var(--border-color, #303034);
 }
 
 .settings-section {
@@ -411,17 +351,6 @@ const emit = defineEmits(['streamer-added'])
   color: var(--text-primary, #efeff1);
   font-size: 1.1rem;
   font-weight: 600;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  font-size: 16px;
 }
 
 .help-text {
@@ -562,43 +491,6 @@ const emit = defineEmits(['streamer-added'])
   justify-content: flex-end;
 }
 
-.submit-button {
-  padding: 12px 24px;
-  background-color: var(--primary-color, #42b883);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 16px;
-  transition: background-color 0.2s;
-}
-
-.submit-button:hover:not(:disabled) {
-  background-color: var(--primary-color-hover, #3ca576);
-}
-
-.submit-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.status-message {
-  margin-top: 1rem;
-  padding: 10px;
-  border-radius: 4px;
-  text-align: center;
-  background-color: rgba(40, 167, 69, 0.1);
-  color: #28a745;
-  border: 1px solid rgba(40, 167, 69, 0.2);
-}
-
-.status-message.error {
-  background-color: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
-  border: 1px solid rgba(220, 53, 69, 0.2);
-}
-
 .loader {
   display: inline-block;
   width: 16px;
@@ -612,15 +504,6 @@ const emit = defineEmits(['streamer-added'])
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.interactive-element {
-  transition: all 0.2s ease;
-}
-
-.interactive-element:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.4);
 }
 
 /* Responsive Anpassungen */
@@ -641,10 +524,6 @@ const emit = defineEmits(['streamer-added'])
   
   .form-actions {
     justify-content: center;
-  }
-  
-  .submit-button {
-    width: 100%;
   }
   
   .streamer-preview {
@@ -671,24 +550,6 @@ const emit = defineEmits(['streamer-added'])
     top: 3px;
     width: 4px;
     height: 8px;
-  }
-}
-
-@media (max-width: 480px) {
-  .streamer-form {
-    padding: 15px;
-  }
-  
-  .settings-panel {
-    padding: 0.75rem;
-  }
-  
-  .option-title {
-    font-size: 15px;
-  }
-  
-  .option-description {
-    font-size: 13px;
   }
 }
 </style>

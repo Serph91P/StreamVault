@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13.3-slim
 
 # Create non-root user and set up directories
 RUN groupadd -g 1000 appuser && \

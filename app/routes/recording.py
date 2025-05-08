@@ -224,3 +224,16 @@ async def force_start_recording(streamer_id: int):
     except Exception as e:
         logger.error(f"Error force starting recording: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/force-offline/{streamer_id}")
+async def force_start_offline_recording(streamer_id: int):
+    """Manuell eine Aufnahme für einen Stream starten, auch wenn das online Event nicht erkannt wurde"""
+    try:
+        result = await recording_service.force_start_recording_offline(streamer_id)
+        if result:
+            return {"status": "success", "message": "Recording started successfully"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to start recording. Check logs for details.")
+    except Exception as e:
+        logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

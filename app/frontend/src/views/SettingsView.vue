@@ -1,72 +1,75 @@
 <template>
-  <div class="settings-container">
-    <div v-if="isLoading" class="loading-indicator">
-      <p>Loading settings...</p>
-    </div>
-    
-    <div v-else>
-      <!-- Tab Navigation -->
-      <div class="settings-tabs">
-        <button 
-          @click="activeTab = 'notifications'" 
-          :class="{ active: activeTab === 'notifications' }"
-          class="tab-button"
-        >
-          Notifications
-        </button>
-        <button 
-          @click="activeTab = 'recording'" 
-          :class="{ active: activeTab === 'recording' }"
-          class="tab-button"
-        >
-          Recording
-        </button>
-        <button 
-          @click="activeTab = 'favorites'" 
-          :class="{ active: activeTab === 'favorites' }"
-          class="tab-button"
-        >
-          Favorite Games
-        </button>
+  <div class="settings-view">
+    <div class="settings-container">
+      <div v-if="isLoading" class="loading-indicator">
+        <div class="spinner"></div>
+        <p>Loading settings...</p>
       </div>
       
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- Notifications Tab -->
-        <div v-if="activeTab === 'notifications'" class="tab-pane">
-          <NotificationSettingsPanel 
-            :settings="notificationSettings || {
-              notification_url: '',
-              notifications_enabled: true,
-              apprise_docs_url: '',
-              notify_online_global: true,
-              notify_offline_global: true,
-              notify_update_global: true,
-              notify_favorite_category_global: false
-            }"
-            :streamer-settings="notificationStreamerSettings"
-            @update-settings="handleUpdateNotificationSettings"
-            @update-streamer-settings="handleUpdateStreamerNotificationSettings"
-            @test-notification="handleTestNotification"
-          />
+      <div v-else>
+        <!-- Tab Navigation -->
+        <div class="settings-tabs">
+          <button 
+            @click="activeTab = 'notifications'" 
+            :class="{ active: activeTab === 'notifications' }"
+            class="tab-button"
+          >
+            Notifications
+          </button>
+          <button 
+            @click="activeTab = 'recording'" 
+            :class="{ active: activeTab === 'recording' }"
+            class="tab-button"
+          >
+            Recording
+          </button>
+          <button 
+            @click="activeTab = 'favorites'" 
+            :class="{ active: activeTab === 'favorites' }"
+            class="tab-button"
+          >
+            Favorite Games
+          </button>
         </div>
         
-        <!-- Recording Tab -->
-        <div v-if="activeTab === 'recording'" class="tab-pane">
-          <RecordingSettingsPanel
-            :settings="recordingSettings"
-            :streamer-settings="recordingStreamerSettings"
-            :active-recordings="activeRecordings"
-            @update="handleUpdateRecordingSettings"
-            @update-streamer="handleUpdateStreamerRecordingSettings"
-            @test-recording="handleTestRecording"
-            @stop-recording="handleStopRecording"
-          />
-        </div>
-        
-        <!-- Favorites Tab -->
-        <div v-if="activeTab === 'favorites'" class="tab-pane">
-          <FavoritesSettingsPanel />
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <!-- Notifications Tab -->
+          <div v-if="activeTab === 'notifications'" class="tab-pane">
+            <NotificationSettingsPanel 
+              :settings="notificationSettings || {
+                notification_url: '',
+                notifications_enabled: true,
+                apprise_docs_url: '',
+                notify_online_global: true,
+                notify_offline_global: true,
+                notify_update_global: true,
+                notify_favorite_category_global: false
+              }"
+              :streamer-settings="notificationStreamerSettings"
+              @update-settings="handleUpdateNotificationSettings"
+              @update-streamer-settings="handleUpdateStreamerNotificationSettings"
+              @test-notification="handleTestNotification"
+            />
+          </div>
+          
+          <!-- Recording Tab -->
+          <div v-if="activeTab === 'recording'" class="tab-pane">
+            <RecordingSettingsPanel
+              :settings="recordingSettings"
+              :streamer-settings="recordingStreamerSettings"
+              :active-recordings="activeRecordings"
+              @update="handleUpdateRecordingSettings"
+              @update-streamer="handleUpdateStreamerRecordingSettings"
+              @test-recording="handleTestRecording"
+              @stop-recording="handleStopRecording"
+            />
+          </div>
+          
+          <!-- Favorites Tab -->
+          <div v-if="activeTab === 'favorites'" class="tab-pane">
+            <FavoritesSettingsPanel />
+          </div>
         </div>
       </div>
     </div>
@@ -127,7 +130,6 @@ onMounted(async () => {
     }
     
     try {
-      // Hier den korrekten Funktionsnamen verwenden
       await fetchRecordingStreamerSettings()
       console.log("Recording streamer settings count:", recordingStreamerSettings.value.length)
     } catch (e) {
@@ -151,6 +153,7 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
+
 onBeforeUnmount(() => {
   // Clear polling interval when component is unmounted
   if (pollingInterval) {
@@ -261,6 +264,12 @@ const handleStopRecording = async (streamerId: number) => {
 </script>
 
 <style scoped>
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .settings-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -271,6 +280,22 @@ const handleStopRecording = async (streamerId: number) => {
   text-align: center;
   padding: 40px;
   color: #aaa;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #ccc;
+  border-top-color: #9146FF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .settings-tabs {

@@ -1,69 +1,81 @@
 <template>
-  <div class="subscriptions-page">
-    <h2>Subscription Management</h2>
-    
-    <div class="controls">
-      <button @click="loadSubscriptions" :disabled="loading" class="btn primary">
-        {{ loading ? 'Loading...' : 'Refresh Subscriptions' }}
-      </button>
-      <button @click="deleteAllSubscriptions" :disabled="loading || !subscriptions.length" class="btn danger">
-        Delete All Subscriptions
-      </button>
+  <div class="subscriptions-view">
+    <div class="subscriptions-container">
+      <div class="page-header">
+        <h1>Subscription Management</h1>
+        <p class="description">Manage your Twitch EventSub subscriptions for tracked streamers</p>
+      </div>
+      
+      <div class="content-section">
+        <div class="controls">
+          <button @click="loadSubscriptions" :disabled="loading" class="btn btn-primary">
+            <span v-if="loading" class="loader"></span>
+            {{ loading ? 'Loading...' : 'Refresh Subscriptions' }}
+          </button>
+          <button @click="deleteAllSubscriptions" :disabled="loading || !subscriptions.length" class="btn btn-danger">
+            Delete All Subscriptions
+          </button>
 
-      <button 
-          @click="resubscribeAll" 
-          class="btn btn-success" 
-          :disabled="loadingResubscribe"
-        >
-          {{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All Streamers' }}
-      </button>
-    </div>
+          <button 
+              @click="resubscribeAll" 
+              class="btn btn-success" 
+              :disabled="loadingResubscribe"
+            >
+              <span v-if="loadingResubscribe" class="loader"></span>
+              {{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All Streamers' }}
+          </button>
+        </div>
 
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading subscriptions...</p>
-    </div>
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading subscriptions...</p>
+        </div>
 
-    <div v-else-if="subscriptions.length" class="streamer-table-container">
-      <table class="streamer-table">
-        <thead>
-          <tr>
-            <th>Streamer</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Created At</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="sub in subscriptions" :key="sub.id">
-            <td>
-              <div class="streamer-info">
-                <span class="streamer-name">
-                  {{ getStreamerName(sub.condition?.broadcaster_user_id) }}
-                </span>
-              </div>
-            </td>
-            <td>{{ formatEventType(sub.type) }}</td>
-            <td>
-              <span class="status-badge" :class="sub.status">
-                {{ sub.status }}
-              </span>
-            </td>
-            <td>{{ new Date(sub.created_at).toLocaleString() }}</td>
-            <td>
-              <button @click="deleteSubscription(sub.id)" 
-                      class="delete-btn" 
-                      :disabled="loading">
-                Delete
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div v-else class="empty-state">
-      <p>No subscriptions found</p>
+        <div v-else-if="subscriptions.length" class="table-container">
+          <table class="streamer-table">
+            <thead>
+              <tr>
+                <th>Streamer</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sub in subscriptions" :key="sub.id">
+                <td data-label="Streamer">
+                  <div class="streamer-info">
+                    <span class="streamer-name">
+                      {{ getStreamerName(sub.condition?.broadcaster_user_id) }}
+                    </span>
+                  </div>
+                </td>
+                <td data-label="Type">{{ formatEventType(sub.type) }}</td>
+                <td data-label="Status">
+                  <span class="status-badge" :class="sub.status">
+                    {{ sub.status }}
+                  </span>
+                </td>
+                <td data-label="Created At">{{ new Date(sub.created_at).toLocaleString() }}</td>
+                <td data-label="Actions">
+                  <button @click="deleteSubscription(sub.id)" 
+                          class="btn btn-danger" 
+                          :disabled="loading">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state">
+          <p>No subscriptions found</p>
+          <button @click="loadSubscriptions" class="btn btn-primary">
+            Refresh
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

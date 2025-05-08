@@ -31,7 +31,10 @@
       </div>
       
       <button @click="startTwitchAuth" class="btn btn-twitch">
-        <i class="fa fa-twitch"></i> Connect with Twitch
+        <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right: 8px;">
+          <path fill="white" d="M11.64 5.93H13.07V10.21H11.64M15.57 5.93H17V10.21H15.57M7 2L3.43 5.57V18.43H7.71V22L11.29 18.43H14.14L20.57 12V2M19.14 11.29L16.29 14.14H13.43L10.93 16.64V14.14H7.71V3.43H19.14Z"/>
+        </svg>
+        Connect with Twitch
       </button>
     </div>
     
@@ -41,17 +44,17 @@
     </div>
     
     <div v-if="isAuthenticated && !importing" class="selection-section">
-      <div class="controls">
+      <div class="filter-container">
         <div class="search-box">
           <input 
             type="text" 
             v-model="searchQuery" 
             placeholder="Search streamers..." 
-            class="search-input"
+            class="form-control"
           />
         </div>
         
-        <div class="selection-actions">
+        <div class="filter-buttons">
           <button 
             @click="selectAll" 
             class="btn btn-secondary" 
@@ -76,11 +79,11 @@
         </div>
       </div>
       
-      <div v-if="channels.length === 0" class="no-channels">
+      <div v-if="channels.length === 0" class="no-data-container">
         You don't follow any channels on Twitch.
       </div>
       
-      <div v-else-if="filteredChannels.length === 0" class="no-results">
+      <div v-else-if="filteredChannels.length === 0" class="no-data-container">
         No channels match your search.
       </div>
       
@@ -97,13 +100,15 @@
             <div class="channel-login">{{ channel.login }}</div>
           </div>
           <div class="selection-indicator">
-            <i class="fa" :class="isSelected(channel) ? 'fa-check-circle' : 'fa-circle-o'"></i>
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+            </svg>
           </div>
         </div>
       </div>
     </div>
     
-    <div v-if="importResults" class="import-results">
+    <div v-if="importResults" class="import-results content-section">
       <h3>Import Results</h3>
       <div class="results-summary">
         <div class="result-item">
@@ -334,35 +339,388 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Styles for the component */
-.callback-url-hint {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  border-left: 3px solid #ff9800;
+/* Twitch Import Form Styling */
+.twitch-import-container {
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  padding: var(--spacing-lg, 1.5rem);
+  border: 1px solid var(--border-color, #2d2d35);
+}
+
+/* Auth Section */
+.auth-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-md, 1rem) 0;
+}
+
+/* Vue-styled Twitch button */
+.btn-twitch {
+  background-color: #9146FF;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius, 8px);
+  border: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  cursor: pointer;
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+  margin-top: var(--spacing-md, 1rem);
+}
+
+.btn-twitch:hover {
+  background-color: #7d5bbe;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(145, 70, 255, 0.25);
+}
+
+.btn-twitch:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(145, 70, 255, 0.2);
+}
+
+/* Vue-style ripple effect */
+.btn-twitch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn-twitch:focus:not(:active)::after {
+  animation: ripple 0.8s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(20, 20);
+    opacity: 0;
+  }
 }
 
 .setup-hint {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: rgba(33, 150, 243, 0.1);
-  border-radius: 4px;
-  font-size: 0.9em;
+  background-color: var(--background-darker, #18181b);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  border-left: 3px solid var(--primary-color, #42b883);
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: var(--spacing-md, 1rem);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #adadb8);
 }
 
 .callback-url {
+  margin-top: var(--spacing-sm, 0.5rem);
+  padding: var(--spacing-sm, 0.5rem);
   background-color: rgba(0, 0, 0, 0.2);
-  padding: 8px;
-  border-radius: 4px;
-  margin-top: 8px;
-  word-break: break-all;
+  border-radius: var(--border-radius-sm, 4px);
+  overflow-x: auto;
+  font-size: 0.9rem;
 }
 
 code {
-  background-color: rgba(0, 0, 0, 0.3);
-  padding: 3px 5px;
-  border-radius: 3px;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 2px 4px;
+  border-radius: var(--border-radius-sm, 4px);
+  font-size: 0.9em;
+}
+
+/* Loading */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--text-secondary, #adadb8);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+  border-top-color: var(--primary-color, #42b883);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Filter Container */
+.filter-container {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  gap: var(--spacing-md, 1rem);
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+  }
+  
+  .filter-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-top: var(--spacing-sm, 0.5rem);
+  }
+  
+  .filter-buttons button {
+    flex: 1;
+    white-space: nowrap;
+    padding-left: var(--spacing-sm, 0.5rem);
+    padding-right: var(--spacing-sm, 0.5rem);
+    font-size: 0.9rem;
+  }
+}
+
+/* Channels Grid */
+.channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md, 1rem);
+}
+
+.channel-card {
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 8px);
+  padding: var(--spacing-md, 1rem);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border-color, #2d2d35);
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+}
+
+.channel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.1));
+  border-color: var(--primary-color-muted, rgba(66, 184, 131, 0.5));
+  background-color: rgba(var(--background-darker-rgb, 24, 24, 27), 0.8);
+}
+
+.channel-card.selected {
+  border-color: var(--primary-color, #42b883);
+  background-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
+}
+
+.channel-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.channel-name {
+  font-weight: 600;
+  color: var(--text-primary, #efeff1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-login {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #adadb8);
+}
+
+.selection-indicator {
+  opacity: 0;
+  color: var(--primary-color, #42b883);
+  margin-left: var(--spacing-sm, 0.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.channel-card.selected .selection-indicator {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+/* No Data State */
+.no-data-container {
+  text-align: center;
+  padding: var(--spacing-xl, 2rem);
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 8px);
+  color: var(--text-secondary, #adadb8);
+  border: 1px dashed var(--border-color, #2d2d35);
+}
+
+/* Error Message */
+.error-message {
+  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
+  color: var(--danger-color, #ef4444);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+}
+
+.callback-url-hint {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-md, 1rem);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius, 8px);
+  border-left: 3px solid #ff9800;
+}
+
+/* Import Results */
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: var(--spacing-md, 1rem);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  background-color: var(--background-darker, #18181b);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.result-label {
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs, 0.25rem);
+  font-size: 0.9rem;
+  color: var(--text-secondary, #adadb8);
+}
+
+.result-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.result-value.success {
+  color: var(--success-color, #42b883);
+}
+
+.result-value.error {
+  color: var(--danger-color, #ef4444);
+}
+
+.result-value.info {
+  color: var(--info-color, #3b82f6);
+}
+
+.failure-list {
+  background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+}
+
+.failure-list h4 {
+  margin-top: 0;
+  color: var(--danger-color, #ef4444);
+}
+
+.failure-list ul {
+  padding-left: var(--spacing-lg, 1.5rem);
+  margin: var(--spacing-sm, 0.5rem) 0 0;
+}
+
+.failure-list li {
+  margin-bottom: var(--spacing-sm, 0.5rem);
+}
+
+.import-results {
+  padding: var(--spacing-lg, 1.5rem);
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  margin-top: var(--spacing-xl, 2rem);
+  border: 1px solid var(--border-color, #2d2d35);
+}
+
+/* Standard buttons - match Vue.js style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: var(--border-radius-sm, 6px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  border: none;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color, #42b883);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-color-hover, #3ca978);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
+}
+
+.btn-secondary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #efeff1);
+  border: 1px solid var(--border-color, #2d2d35);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 </style>
