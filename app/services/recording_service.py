@@ -960,18 +960,18 @@ class RecordingService:
                 "-o", ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
-                "--stream-segment-threads", "3",
-                "--ringbuffer-size", "32M",
-                "--stream-segment-timeout", "10",
-                "--stream-segment-attempts", "5",
-                "--stream-timeout", "60",
-                "--retry-streams", "3",
-                "--retry-max", "5",
-                "--retry-open", "3",
+                "--stream-segment-threads", "4",
+                "--ringbuffer-size", "128M",
+                "--stream-segment-timeout", "20",
+                "--stream-segment-attempts", "10",
+                "--stream-timeout", "120",
+                "--retry-streams", "5",
+                "--retry-max", "10",
+                "--retry-open", "10",
                 "--hls-segment-stream-data",
                 "--force"
             ]
-        
+                    
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
             
             # Use subprocess manager to start the process
@@ -1017,23 +1017,24 @@ class RecordingService:
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
-            # Enhanced remux settings for better compatibility
+            # Enhanced remux settings with guaranteed working audio handling
             cmd = [
                 "ffmpeg",
+                "-fflags", "+genpts",  # Generate presentation timestamps
                 "-i", ts_path,
-                "-c:v", "copy",         # Copy video stream without re-encoding
-                "-c:a", "copy",         # Copy audio stream without re-encoding
-                "-map", "0:v:0",        # Map only the first video stream
-                "-map", "0:a:0",        # Map only the first audio stream
-                "-bsf:a", "aac_adtstoasc",  # Fix for AAC bitstream from ADTS to ASC
-                "-ignore_unknown",      # Ignore unknown streams
-                "-movflags", "+faststart+write_colr",  # Optimize for web streaming and color metadata
+                "-c:v", "copy",        # Copy video stream
+                "-c:a", "aac",         # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
+                "-b:a", "160k",        # Definierter Bitrate für Audio
+                "-map", "0:v:0",       # Nur den ersten Video-Stream verwenden
+                "-map", "0:a:0?",      # Ersten Audio-Stream (optional)
+                "-ignore_unknown",     
+                "-movflags", "+faststart",
                 "-metadata", "encoded_by=StreamVault",
                 "-metadata", "encoding_tool=StreamVault",
-                "-y",                   # Overwrite output
+                "-y",
                 mp4_path
             ]
-        
+
             logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
             
             # Use subprocess manager for the remux process
@@ -1066,11 +1067,7 @@ class RecordingService:
                 logger.error(f"FFmpeg remux failed with code {process.returncode}: {stderr_text}")
             
                 # Try with fallback method if the first attempt failed
-                if stderr_text and ("aac_adtstoasc" in stderr_text or "Malformed AAC bitstream" in stderr_text):
-                    logger.info("Retrying with aac_adtstoasc fix")
-                    return await self._remux_to_mp4_fallback(ts_path, mp4_path)
-            
-                return False
+                return await self._remux_to_mp4_fallback(ts_path, mp4_path)
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
@@ -1079,51 +1076,105 @@ class RecordingService:
             await self.subprocess_manager.terminate_process(f"ffmpeg_remux_{int(datetime.now().timestamp())}")
 
     async def _remux_to_mp4_fallback(self, ts_path: str, mp4_path: str) -> bool:
-        """Fallback method for remuxing with even more restrictive options"""
         try:
-            # Simpler command with explicit stream selection to avoid codec issues
-            cmd = [
+            logger.info("Using advanced fallback method for remuxing")
+        
+            # Try two-step process: extract streams then recombine
+            video_path = f"{ts_path}.h264"
+            audio_path = f"{ts_path}.aac"
+        
+            # Step 1: Extract streams
+            extract_cmd = [
                 "ffmpeg",
                 "-i", ts_path,
-                "-c", "copy",          # Copy streams without re-encoding
-                "-map", "0:v:0",       # Map only the first video stream
-                "-map", "0:a:0",       # Map only the first audio stream
-                "-ignore_unknown",     # Ignore unknown streams
-                "-movflags", "+faststart",  # Optimize for web streaming
-                "-y",                  # Overwrite output
+                "-map", "0:v:0", "-c:v", "copy", "-f", "h264", video_path,
+                "-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-f", "adts", audio_path,
+                "-y"
+            ]
+        
+            process_id = f"ffmpeg_extract_{int(datetime.now().timestamp())}"
+            process = await self.subprocess_manager.start_process(extract_cmd, process_id)
+            await process.communicate()
+            await self.subprocess_manager.terminate_process(process_id)
+        
+            # Step 2: Recombine to MP4
+            if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                combine_cmd = [
+                    "ffmpeg",
+                    "-i", video_path
+                ]
+            
+                # Only add audio if it exists
+                if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                    combine_cmd.extend(["-i", audio_path])
+            
+                combine_cmd.extend([
+                    "-c:v", "copy",
+                    "-c:a", "copy",
+                    "-movflags", "+faststart",
+                    "-y",
+                    mp4_path
+                ])
+            
+                process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
+                process = await self.subprocess_manager.start_process(combine_cmd, process_id)
+                stdout, stderr = await process.communicate()
+                await self.subprocess_manager.terminate_process(process_id)
+            
+                # Clean up temp files
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+            
+                # Check if successful
+                if process.returncode == 0 and os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                    logger.info(f"Successfully remuxed using advanced fallback method: {mp4_path}")
+                
+                    # Delete original TS file
+                    if os.path.exists(ts_path):
+                        os.remove(ts_path)
+                    return True
+        
+            # If we're here, try the simplest possible method as last resort
+            logger.warning("Advanced fallback failed, trying simple fallback method")
+        
+            simple_cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c:v", "copy",
+                "-y",
                 mp4_path
             ]
         
-            logger.debug(f"Starting fallback FFmpeg remux: {' '.join(cmd)}")
-            
-            # Use subprocess manager for the fallback remux process
-            process_id = f"ffmpeg_fallback_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(cmd, process_id)
-        
+            process_id = f"ffmpeg_simple_{int(datetime.now().timestamp())}"
+            process = await self.subprocess_manager.start_process(simple_cmd, process_id)
             stdout, stderr = await process.communicate()
+            await self.subprocess_manager.terminate_process(process_id)
         
-            if process.returncode == 0:
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path} using fallback method")
-                # Delete TS file after successful conversion
-                os.remove(ts_path)
-                return True
-            else:
-                stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
-                logger.error(f"FFmpeg fallback remux failed with code {process.returncode}: {stderr_text}")
+            if process.returncode == 0 and os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                logger.info(f"Successfully remuxed using simple fallback method: {mp4_path}")
             
-                # Save the TS file in case it's valuable
-                logger.warning(f"Keeping original TS file at {ts_path} for recovery")
-                return False
-        except Exception as e:
-            logger.error(f"Error during fallback remux: {e}", exc_info=True)
+                # Delete original TS file
+                if os.path.exists(ts_path):
+                    os.remove(ts_path)
+                return True
+            
+            # If all failed, keep TS file for manual recovery
+            logger.error("All remux methods failed, keeping TS file for manual recovery")
             return False
-        finally:
-            # Clean up the process
-            await self.subprocess_manager.terminate_process(f"ffmpeg_fallback_{int(datetime.now().timestamp())}")
+        except Exception as e:
+            logger.error(f"Error in fallback remux: {e}", exc_info=True)
+            return False
 
     async def _validate_mp4(self, mp4_path: str) -> bool:
         """Validate that an MP4 file is properly finalized with moov atom"""
         try:
+            # Check if file exists and has reasonable size
+            if not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000:  # At least 10KB
+                logger.warning(f"MP4 file does not exist or is too small: {mp4_path}")
+                return False
+            
             # Use ffprobe to check if the file has a valid duration (indicates proper moov atom)
             cmd = [
                 "ffprobe", 
@@ -1142,8 +1193,27 @@ class RecordingService:
             # Clean up the process
             await self.subprocess_manager.terminate_process(process_id)
             
-            # If we got a valid duration, the file is properly finalized
-            return process.returncode == 0 and stdout and float(stdout.decode('utf-8', errors='ignore').strip()) > 0
+            # Additional check: Make sure we can read video streams
+            check_video_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                mp4_path
+            ]
+            
+            video_process_id = f"ffprobe_video_{int(datetime.now().timestamp())}"
+            video_process = await self.subprocess_manager.start_process(check_video_cmd, video_process_id)
+            
+            video_stdout, video_stderr = await video_process.communicate()
+            await self.subprocess_manager.terminate_process(video_process_id)
+            
+            # If we got a valid duration and can read video stream, the file is properly finalized
+            has_valid_duration = process.returncode == 0 and stdout and float(stdout.decode('utf-8', errors='ignore').strip()) > 0
+            has_video_stream = video_process.returncode == 0 and video_stdout and "video" in video_stdout.decode('utf-8', errors='ignore').strip()
+            
+            return has_valid_duration and has_video_stream
         except Exception as e:
             logger.error(f"Error validating MP4 file: {e}", exc_info=True)
             return False
@@ -1154,7 +1224,61 @@ class RecordingService:
             # Temporary file for the repaired version
             repaired_path = mp4_path + ".repaired.mp4"
         
-            # Use ffmpeg with special flags to repair the file
+            # Extract video and audio streams separately and then combine
+            cmd = [
+                "ffmpeg",
+                "-i", ts_path,
+                # Extract video (copy)
+                "-map", "0:v:0", "-c:v", "copy", "-f", "h264", 
+                f"{ts_path}.h264",
+                # Extract audio and convert to AAC
+                "-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-f", "adts",
+                f"{ts_path}.aac"
+            ]
+        
+            # First pass: extract streams
+            process_id = f"ffmpeg_extract_{int(datetime.now().timestamp())}"
+            process = await self.subprocess_manager.start_process(cmd, process_id)
+            await process.communicate()
+            await self.subprocess_manager.terminate_process(process_id)
+        
+            # Second pass: combine streams into MP4
+            if os.path.exists(f"{ts_path}.h264") and os.path.exists(f"{ts_path}.aac"):
+                combine_cmd = [
+                    "ffmpeg",
+                    "-i", f"{ts_path}.h264",
+                    "-i", f"{ts_path}.aac",
+                    "-c:v", "copy",
+                    "-c:a", "copy",
+                    "-movflags", "+faststart",
+                    "-y",
+                    repaired_path
+                ]
+            
+                process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
+                process = await self.subprocess_manager.start_process(combine_cmd, process_id)
+                stdout, stderr = await process.communicate()
+                await self.subprocess_manager.terminate_process(process_id)
+            
+                # Check if successful
+                if process.returncode == 0 and os.path.exists(repaired_path) and os.path.getsize(repaired_path) > 0:
+                    # Replace the original file with the repaired version
+                    os.replace(repaired_path, mp4_path)
+                    logger.info(f"Successfully repaired MP4 file: {mp4_path}")
+                
+                    # Clean up temporary files
+                    os.remove(f"{ts_path}.h264")
+                    os.remove(f"{ts_path}.aac")
+                
+                    # Delete the TS file if the repair was successful
+                    if os.path.exists(ts_path):
+                        os.remove(ts_path)
+                    return True
+        
+            # Fallback to original repair method if the above failed
+            logger.warning("Advanced repair failed, trying original repair method")
+        
+            # Original repair code follows...
             cmd = [
                 "ffmpeg",
                 "-i", ts_path,
@@ -1241,51 +1365,4 @@ class RecordingService:
             
         return filename
 
-    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
-        """Get episode number (count of streams in current month)"""
-        try:
-            with SessionLocal() as db:
-                # Count streams in the current month for this streamer
-                stream_count = db.query(Stream).filter(
-                    Stream.streamer_id == streamer_id,
-                    extract('year', Stream.started_at) == now.year,
-                    extract('month', Stream.started_at) == now.month
-                ).count()
-                
-                # Add 1 for the current stream
-                return f"{stream_count + 1:02d}"
-        except Exception as e:
-            logger.error(f"Error getting episode number: {e}", exc_info=True)
-            return "01"  # Default value
-
-    def _sanitize_filename(self, name: str) -> str:
-        """Remove illegal characters from filename"""
-        return re.sub(r'[<>:"/\\|?*]', '_', name)
-
-    async def cleanup(self):
-        """Clean up all resources when shutting down"""
-        try:
-            # Stop all active recordings
-            streamer_ids = list(self.active_recordings.keys())
-            for streamer_id in streamer_ids:
-                await self.stop_recording(streamer_id)
-            
-            # Clean up all subprocess manager processes
-            await self.subprocess_manager.cleanup_all()
-            
-            # Close metadata service
-            await self.metadata_service.close()
-            
-            logger.info("Recording service cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
-
-# Filename presets
-FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}e{month}{day} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
-}
+    def _get_episode_number(self, streamer_id

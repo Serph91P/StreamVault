@@ -978,18 +978,8 @@ class MetadataService:
             return None
 
     async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
-        """Embed both chapters and all other metadata in one pass.
-        
-        Args:
-            mp4_path: Path to the MP4 file
-            chapters_path: Path to the FFmpeg chapters file
-            stream_id: Stream ID for additional metadata
-        
-        Returns:
-            bool: True on success, False on failure
-        """
+        """Embed both chapters and all other metadata in one pass."""
         try:
-            import copy
             mp4_path_obj = Path(mp4_path)
             
             if not mp4_path_obj.exists():
@@ -998,6 +988,28 @@ class MetadataService:
             
             # Initialize chapters_path_obj
             chapters_path_obj = Path(chapters_path) if chapters_path else None
+            
+            # Validate the MP4 file first
+            validate_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name",
+                "-of", "json",
+                str(mp4_path_obj)
+            ]
+            
+            validate_process = await asyncio.create_subprocess_exec(
+                *validate_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            validate_stdout, validate_stderr = await validate_process.communicate()
+            
+            if validate_process.returncode != 0:
+                logger.error(f"MP4 file validation failed: {validate_stderr.decode('utf-8')}")
+                return False
             
             # Get stream and streamer information
             with SessionLocal() as db:
@@ -1081,88 +1093,53 @@ class MetadataService:
                 else:
                     logger.warning(f"No valid chapters file available: {chapters_path}")
             
-            # Temporary output file
-            output_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}_metadata_complete{mp4_path_obj.suffix}")
-            
-            # FFmpeg command to embed all metadata
-            cmd = [
+            # Use a simpler FFmpeg command that guarantees at least the metadata gets embedded
+            logger.info(f"Embedding metadata with simplified command...")
+            basic_cmd = [
                 "ffmpeg",
                 "-i", str(mp4_path_obj),
                 "-i", str(meta_path),
-                "-map_metadata", "1",   # Metadata from second file
-                "-map_chapters", "1",   # Chapters from second file
-                "-codec", "copy",       # No re-encoding
-                "-map", "0",            # Keep all streams
-                "-movflags", "+faststart+write_colr",  # Optimize for web streaming
-                "-metadata:s:v:0", "title=Video",
-                "-metadata:s:a:0", "title=Audio",
-                "-f", "mp4",            # Force MP4 format
-                "-y",                   # Overwrite if file exists
-                str(output_path)
+                "-map_metadata", "1",  # Take metadata from metadata file
+                "-codec", "copy",      # Don't re-encode
+                "-y",                  # Overwrite
+                f"{str(mp4_path_obj)}.temp.mp4"
             ]
             
-            logger.info(f"Running FFmpeg to embed all metadata: {' '.join(cmd)}")
-            
             process = await asyncio.create_subprocess_exec(
-                *cmd,
+                *basic_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             
             stdout, stderr = await process.communicate()
-            stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else ""
             
-            if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
-                # Validate the output file and check if it contains chapters
-                if has_chapters:
-                    chapter_check_cmd = [
-                        "ffprobe",
-                        "-v", "error",
-                        "-show_chapters",
-                        "-print_format", "json",
-                        str(output_path)
-                    ]
-                    
-                    chapter_check = await asyncio.create_subprocess_exec(
-                        *chapter_check_cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    
-                    check_stdout, check_stderr = await chapter_check.communicate()
-                    
-                    if chapter_check.returncode == 0 and check_stdout:
-                        try:
-                            chapter_info = json.loads(check_stdout)
-                            if "chapters" in chapter_info and len(chapter_info["chapters"]) > 0:
-                                logger.info(f"Successfully embedded {len(chapter_info['chapters'])} chapters into {mp4_path}")
-                                
-                                # Create additional chapter files for various media servers
-                                await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title)
-                            else:
-                                logger.warning(f"No chapters found in the output file despite valid chapter file")
-                        except json.JSONDecodeError:
-                            logger.warning("Could not parse chapter info JSON")
-                
-                # Replace original file with new one
-                output_path.replace(mp4_path_obj)
-                logger.info(f"Successfully embedded all metadata into {mp4_path}")
-                
-                # Delete temporary files
-                if meta_path.exists():
-                    meta_path.unlink()
-                
-                # Update database
+            success = False
+            if process.returncode == 0 and os.path.exists(f"{str(mp4_path_obj)}.temp.mp4") and os.path.getsize(f"{str(mp4_path_obj)}.temp.mp4") > 0:
+                # Replace original with temp file
+                os.replace(f"{str(mp4_path_obj)}.temp.mp4", str(mp4_path_obj))
+                logger.info(f"Successfully embedded metadata into {mp4_path}")
+                success = True
+            else:
+                stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
+                logger.error(f"Failed to embed metadata: {stderr_text}")
+            
+            # Delete temporary metadata file
+            if os.path.exists(meta_path):
+                os.remove(meta_path)
+            
+            # Update database
+            if success:
                 with SessionLocal() as db:
                     metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                     if metadata:
                         metadata.metadata_embedded = True
                         db.commit()
-                
-                return True
-            else:
-                logger.error(f"Failed to embed metadata: {stderr_text}")
-                return False
+            
+            # Create additional chapter files for various media servers
+            if success:
+                await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title)
+            
+            return success
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
             return False
