@@ -110,6 +110,26 @@ nav {
     }
   }
   
+  &-secondary {
+    background: v.$secondary-color;
+    color: white;
+    box-shadow: 0 2px 4px rgba(v.$secondary-color, 0.3);
+    
+    &:hover:not(:disabled) {
+      background: color.adjust(v.$secondary-color, $lightness: -10%);
+    }
+  }
+  
+  &-success {
+    background: v.$success-color;
+    color: white;
+    box-shadow: 0 2px 4px rgba(v.$success-color, 0.3);
+    
+    &:hover:not(:disabled) {
+      background: color.adjust(v.$success-color, $lightness: -10%);
+    }
+  }
+  
   &-danger, &-delete {
     background: v.$danger-color;
     color: white;
@@ -976,7 +996,7 @@ nav {
   background-color: rgba(v.$warning-color, 0.08);
   border-left: 4px solid v.$warning-color;
   border-radius: v.$border-radius-sm;
-  color: lighten(v.$warning-color, 10%);
+  color: color.adjust(v.$warning-color, $lightness: 10%);
   position: relative;
   animation: fadeIn 0.3s v.$vue-ease-out;
 
