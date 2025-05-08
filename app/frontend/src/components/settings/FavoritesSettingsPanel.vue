@@ -14,7 +14,7 @@
         </div>
         <div class="filter-buttons">
           <button 
-            @click="showFavoritesOnly = !showFavoritesOnly" 
+            @click="toggleFavoritesFilter" 
             class="btn" 
             :class="{ 'btn-primary': showFavoritesOnly, 'btn-secondary': !showFavoritesOnly }"
           >
@@ -65,6 +65,7 @@
                 alt="Game box art"
                 class="category-image"
                 loading="lazy"
+                @error="handleImageError"
               />
               <div v-else class="category-image-placeholder">
                 <span>No image</span>
@@ -99,13 +100,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 
 interface Category {
   id: string;
+  twitch_id: string;
   name: string;
   box_art_url: string | null;
   is_favorite: boolean;
+  first_seen?: string;
+  last_seen?: string;
   stream_count?: number;
 }
 
@@ -115,6 +119,7 @@ const showFavoritesOnly = ref(false);
 const categories = ref<Category[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+const imageErrors = ref<Set<string>>(new Set());
 
 // Computed properties
 const filteredCategories = computed(() => {
@@ -150,8 +155,15 @@ const fetchCategories = async () => {
     }
     
     const data = await response.json();
-    console.log(`Received ${data.length} categories from API`);
-    categories.value = data;
+    
+    // Wichtig: Die API gibt die Kategorien in einem "categories"-Feld zurück
+    if (data.categories && Array.isArray(data.categories)) {
+      console.log(`Received ${data.categories.length} categories from API`);
+      categories.value = data.categories;
+    } else {
+      console.error('Unexpected API response format:', data);
+      throw new Error('Unexpected API response format');
+    }
   } catch (err: any) {
     error.value = err.message || 'An error occurred while fetching categories';
     console.error('Error fetching categories:', err);
@@ -160,10 +172,26 @@ const fetchCategories = async () => {
   }
 };
 
+const toggleFavoritesFilter = () => {
+  showFavoritesOnly.value = !showFavoritesOnly.value;
+};
+
 const toggleFavorite = async (category: Category) => {
   try {
-    const response = await fetch(`/api/categories/${category.id}/favorite`, {
-      method: category.is_favorite ? 'DELETE' : 'PUT',
+    // Basierend auf der API-Route aus categories.py
+    const endpoint = category.is_favorite 
+      ? `/api/categories/favorites/${category.id}`  // DELETE für Entfernen
+      : `/api/categories/favorites`;               // POST für Hinzufügen
+    
+    const method = category.is_favorite ? 'DELETE' : 'POST';
+    const body = !category.is_favorite ? JSON.stringify({ category_id: category.id }) : undefined;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body
     });
     
     if (!response.ok) {
@@ -178,16 +206,41 @@ const toggleFavorite = async (category: Category) => {
   }
 };
 
-const formatImageUrl = (url: string, width: number, height: number): string => {
-  return url
-    .replace('{width}', width.toString())
-    .replace('{height}', height.toString());
+const formatImageUrl = (url: string | null, width: number, height: number): string => {
+  if (!url) return '';
+  
+  // Handle Twitch-Format mit Platzhaltern
+  if (url.includes('{width}') && url.includes('{height}')) {
+    return url
+      .replace('{width}', width.toString())
+      .replace('{height}', height.toString());
+  }
+  
+  return url;
+};
+
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img.src && !imageErrors.value.has(img.src)) {
+    console.error(`Failed to load image: ${img.src}`);
+    imageErrors.value.add(img.src);
+    
+    // Platzhalter für fehlerhafte Bilder
+    img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDQiIGhlaWdodD0iMTkyIiBmaWxsPSJub25lIiB2aWV3Qm94PSIwIDAgMTQ0IDE5MiI+PHJlY3Qgd2lkdGg9IjE0NCIgaGVpZ2h0PSIxOTIiIGZpbGw9IiMyZDJkMzUiLz48dGV4dCB4PSI3MiIgeT0iOTYiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2VmZWZmMSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
+  }
 };
 
 // Initialize component
 onMounted(() => {
   fetchCategories();
 });
+
+// Debug-Output
+watch(categories, (newCategories) => {
+  if (newCategories.length > 0) {
+    console.log('First category example:', newCategories[0]);
+  }
+}, { immediate: true, deep: true });
 </script>
 
 <style scoped>
@@ -434,7 +487,6 @@ onMounted(() => {
   transform: scale(1.2);
 }
 
-/* Standard button styles */
 .btn {
   display: inline-flex;
   align-items: center;
