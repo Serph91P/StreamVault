@@ -6,18 +6,29 @@
     </div>
     <div v-else-if="streams.length === 0" class="no-data-container">
       <p>No streams found for this streamer.</p>
-      <button @click="handleBack" class="btn btn-primary back-btn">
-        Back to streamers
-      </button>
-      
-      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
-        Force Recording (Offline Mode)
-      </button>
-    </div>
-    <div v-else>
-      <div class="back-btn-container">
+      <div class="action-buttons">
         <button @click="handleBack" class="btn btn-primary back-btn">
           Back to streamers
+        </button>
+        
+        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+          Force Recording (Offline Mode)
+        </button>
+      </div>
+    </div>
+    <div v-else>
+      <div class="actions-container">
+        <button @click="handleBack" class="btn btn-primary back-btn">
+          Back to streamers
+        </button>
+        
+        <button 
+          v-if="!hasLiveStreams" 
+          @click="forceOfflineRecording(parseInt(streamerId))" 
+          class="btn btn-warning"
+          :disabled="isStartingOfflineRecording"
+        >
+          {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline Mode)' }}
         </button>
       </div>
       
@@ -84,15 +95,6 @@
             </button>
           </div>
         </div>
-      </div>
-      
-      <div v-if="!hasLiveStreams" class="offline-recording-section">
-        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
-          {{ isStartingOfflineRecording ? 'Starting Offline Recording...' : 'Force Recording (Offline Mode)' }}
-        </button>
-        <p class="help-text">
-          Use this option if the streamer is live but StreamVault didn't detect it automatically.
-        </p>
       </div>
     </div>
     
@@ -469,12 +471,45 @@ watch(streamerId, (newId, oldId) => {
   padding: 40px;
 }
 
-.back-btn-container {
+.actions-container {
+  display: flex;
+  gap: 12px;
   margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
 }
 
 .back-btn {
-  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.btn-warning {
+  background-color: #ff9800;
+  color: #000;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #ffac33;
+  transform: translateY(-1px);
+}
+
+.btn-warning:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-warning:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .streams-summary {
