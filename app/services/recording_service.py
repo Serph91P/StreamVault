@@ -1365,4 +1365,51 @@ class RecordingService:
             
         return filename
 
-    def _get_episode_number(self, streamer_id
+    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
+        """Get episode number (count of streams in current month)"""
+        try:
+            with SessionLocal() as db:
+                # Count streams in the current month for this streamer
+                stream_count = db.query(Stream).filter(
+                    Stream.streamer_id == streamer_id,
+                    extract('year', Stream.started_at) == now.year,
+                    extract('month', Stream.started_at) == now.month
+                ).count()
+                
+                # Add 1 for the current stream
+                return f"{stream_count + 1:02d}"
+        except Exception as e:
+            logger.error(f"Error getting episode number: {e}", exc_info=True)
+            return "01"  # Default value
+
+    def _sanitize_filename(self, name: str) -> str:
+        """Remove illegal characters from filename"""
+        return re.sub(r'[<>:"/\\|?*]', '_', name)
+
+    async def cleanup(self):
+        """Clean up all resources when shutting down"""
+        try:
+            # Stop all active recordings
+            streamer_ids = list(self.active_recordings.keys())
+            for streamer_id in streamer_ids:
+                await self.stop_recording(streamer_id)
+            
+            # Clean up all subprocess manager processes
+            await self.subprocess_manager.cleanup_all()
+            
+            # Close metadata service
+            await self.metadata_service.close()
+            
+            logger.info("Recording service cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
+
+# Filename presets
+FILENAME_PRESETS = {
+    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{day} - {title}",
+    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}",
+    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
+    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}e{month}{day} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
+}
