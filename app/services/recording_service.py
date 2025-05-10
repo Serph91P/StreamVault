@@ -1357,7 +1357,9 @@ class RecordingService:
         # Replace all variables in template
         filename = template
         for key, value in values.items():
-            filename = filename.replace(f"{{{key}}}", str(value))
+            placeholder = f"{{{key}}}"
+            if placeholder in filename:  # Prüfen, ob der Platzhalter vorhanden ist
+                filename = filename.replace(placeholder, str(value))
         
         # Ensure the filename ends with .mp4
         if not filename.lower().endswith('.mp4'):
@@ -1377,7 +1379,9 @@ class RecordingService:
                 ).count()
                 
                 # Add 1 for the current stream
-                return f"{stream_count + 1:02d}"
+                episode_number = stream_count + 1
+                logger.debug(f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number}")
+                return f"{episode_number:02d}"  # Format with leading zero
         except Exception as e:
             logger.error(f"Error getting episode number: {e}", exc_info=True)
             return "01"  # Default value
@@ -1404,12 +1408,14 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
+
 # Filename presets
 FILENAME_PRESETS = {
     "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}e{month}{day} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
+    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
+    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
+    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - E{episode} - {title}",
+    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}e{month}{episode} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - E{episode} - {title} - {hour}-{minute}"
 }
+

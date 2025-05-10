@@ -264,7 +264,8 @@ const previewFilename = computed(() => {
     .replace(/{timestamp}/g, `${year}${month}${day}_${hour}${minute}${second}`)
     .replace(/{datetime}/g, `${year}-${month}-${day}_${hour}-${minute}-${second}`)
     .replace(/{id}/g, 'stream_12345')
-    .replace(/{season}/g, `S${year}-${month}`);
+    .replace(/{season}/g, `S${year}-${month}`)
+    .replace(/{episode}/g, '01');
 
   // Add .mp4 if not present
   if (!filename.toLowerCase().endsWith('.mp4')) {
