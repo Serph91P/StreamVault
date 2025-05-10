@@ -1346,8 +1346,8 @@ class RecordingService:
             "timestamp": now.strftime("%Y%m%d_%H%M%S"),
             "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
             "id": stream_data.get("id", ""),
-            "season": f"S{now.year}-{now.month:02d}",
-            "episode": episode
+            "season": f"S{now.year}{now.month:02d}",  # Saison ohne Bindestrich
+            "episode": f"E{episode}"  # Präfix E zur Episodennummer hinzufügen
         }
         
         # Check if template is a preset name
@@ -1415,7 +1415,7 @@ FILENAME_PRESETS = {
     "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
     "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
     "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - E{episode} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}e{month}{episode} - {title}",
+    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}{month}e{episode} - {title}",
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode} - {title} - {hour}-{minute}"
 }
 
