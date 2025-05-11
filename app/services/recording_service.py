@@ -479,19 +479,27 @@ class RecordingService:
     async def force_start_recording(self, streamer_id: int) -> bool:
         """Manually start a recording for an active stream and ensure full metadata generation"""
         try:
+            stream_id = None
+            stream_data = None
+            
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 if not streamer:
                     logger.error(f"Streamer not found: {streamer_id}")
                     raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
                 
-                # Check if the streamer is live
-                if not streamer.is_live:
-                    logger.error(f"Streamer {streamer.username} is not live")
+                # Check if the streamer is live via Twitch API
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+                
+                if not stream_info:
+                    logger.error(f"Streamer {streamer.username} is not live according to Twitch API")
                     return False
                 
                 # Find or create stream record
                 stream = await self._find_or_create_stream(streamer_id, streamer, db)
+                
+                # IMPORTANT: Store the ID while we're still in the session
+                stream_id = stream.id
                 
                 # Prepare stream data for recording
                 stream_data = self._prepare_stream_data(streamer, stream)
@@ -517,39 +525,45 @@ class RecordingService:
                         original_setting = streamer_settings.enabled
                     
                     # Override recording settings for this particular session
-                    with db:
-                        temp_settings = db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
-                        if not temp_settings:
-                            temp_settings = StreamerRecordingSettings(streamer_id=streamer_id)
-                            db.add(temp_settings)
-                        
-                        # Store the original setting for later reference
-                        temp_settings.original_enabled = original_setting
-                        
-                        # Temporarily enable recording for this streamer
-                        temp_settings.enabled = True
-                        db.commit()
+                    temp_settings = db.query(StreamerRecordingSettings).filter(
+                        StreamerRecordingSettings.streamer_id == streamer_id
+                    ).first()
+                    
+                    if not temp_settings:
+                        temp_settings = StreamerRecordingSettings(streamer_id=streamer_id)
+                        db.add(temp_settings)
+                    
+                    # Store the original setting for later reference
+                    temp_settings.original_enabled = original_setting
+                    
+                    # Temporarily enable recording for this streamer
+                    temp_settings.enabled = True
+                    db.commit()
                     
                     # Invalidate the cache to ensure settings are reloaded
                     self.config_manager.invalidate_cache()
-                
+                    
+            # Now outside the database session, start the recording process
+            if stream_data:
                 # Start recording with existing method (which will now use the temporarily enabled setting)
                 recording_started = await self.start_recording(streamer_id, stream_data)
                 
                 # Save the stream ID and force started flag in the recording information
                 if recording_started and streamer_id in self.active_recordings:
-                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["stream_id"] = stream_id
                     self.active_recordings[streamer_id]["force_started"] = True
                     
                     # Record that this was a forced recording (to handle special case on stop)
                     self.active_recordings[streamer_id]["forced_recording"] = True
                     
-                    logger.info(f"Force recording started for {streamer.username}, stream_id: {stream.id}")
+                    logger.info(f"Force recording started for {streamer.username}, stream_id: {stream_id}")
                     
                     return True
                 
                 return recording_started
-                
+            
+            return False
+            
         except RecordingError:
             # Re-raise specific domain exceptions
             raise
@@ -665,18 +679,30 @@ class RecordingService:
             return False
     
     async def _get_stream_info_from_api(self, streamer: Streamer, db) -> Optional[Dict[str, Any]]:
-        """Get stream information from Twitch API"""
+        """Get stream information from Twitch API to verify if streamer is live"""
         try:
             # Import here to avoid circular dependencies
             from app.services.streamer_service import StreamerService
             
-            # Temporary session for API query
-            streamer_service = StreamerService(db=db, websocket_manager=websocket_manager)
+            # Create streamer service for API query
+            streamer_service = StreamerService(
+                db=db, 
+                websocket_manager=None,  # Not needed for this specific call
+                event_registry=None      # Not needed for this specific call
+            )
             
-            # Query Twitch API to check if the streamer is actually live
-            return await streamer_service.get_stream_info(streamer.twitch_id)
+            # Query Twitch API for stream info using the new method
+            stream_info = await streamer_service.get_stream_info(streamer.twitch_id)
+            
+            if stream_info:
+                logger.info(f"Confirmed {streamer.username} is live via Twitch API")
+                return stream_info
+            else:
+                logger.warning(f"Streamer {streamer.username} appears to be offline according to Twitch API")
+                return None
+                
         except Exception as e:
-            logger.warning(f"Failed to get stream info from Twitch API: {e}")
+            logger.error(f"Error checking stream status via API: {e}")
             return None
     
     def _create_stream_data(self, streamer: Streamer, stream_info: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -988,7 +1014,7 @@ class RecordingService:
             return None
     
     async def _monitor_process(self, process: asyncio.subprocess.Process, process_id: str, 
-                              streamer_name: str, ts_path: str, mp4_path: str) -> None:
+                    streamer_name: str, ts_path: str, mp4_path: str) -> None:
         """Monitor recording process and convert TS to MP4 when finished"""
         try:
             stdout, stderr = await process.communicate()
@@ -1344,78 +1370,3 @@ class RecordingService:
             "minute": now.strftime("%M"),
             "second": now.strftime("%S"),
             "timestamp": now.strftime("%Y%m%d_%H%M%S"),
-            "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
-            "id": stream_data.get("id", ""),
-            "season": f"S{now.year}{now.month:02d}",  # Saison ohne Bindestrich
-            "episode": f"E{episode}"  # Präfix E zur Episodennummer hinzufügen
-        }
-        
-        # Check if template is a preset name
-        if template in FILENAME_PRESETS:
-            template = FILENAME_PRESETS[template]
-        
-        # Replace all variables in template
-        filename = template
-        for key, value in values.items():
-            placeholder = f"{{{key}}}"
-            if placeholder in filename:  # Prüfen, ob der Platzhalter vorhanden ist
-                filename = filename.replace(placeholder, str(value))
-        
-        # Ensure the filename ends with .mp4
-        if not filename.lower().endswith('.mp4'):
-            filename += '.mp4'
-            
-        return filename
-
-    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
-        """Get episode number (count of streams in current month)"""
-        try:
-            with SessionLocal() as db:
-                # Count streams in the current month for this streamer
-                stream_count = db.query(Stream).filter(
-                    Stream.streamer_id == streamer_id,
-                    extract('year', Stream.started_at) == now.year,
-                    extract('month', Stream.started_at) == now.month
-                ).count()
-                
-                # Add 1 for the current stream
-                episode_number = stream_count + 1
-                logger.debug(f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number}")
-                return f"{episode_number:02d}"  # Format with leading zero
-        except Exception as e:
-            logger.error(f"Error getting episode number: {e}", exc_info=True)
-            return "01"  # Default value
-
-    def _sanitize_filename(self, name: str) -> str:
-        """Remove illegal characters from filename"""
-        return re.sub(r'[<>:"/\\|?*]', '_', name)
-
-    async def cleanup(self):
-        """Clean up all resources when shutting down"""
-        try:
-            # Stop all active recordings
-            streamer_ids = list(self.active_recordings.keys())
-            for streamer_id in streamer_ids:
-                await self.stop_recording(streamer_id)
-            
-            # Clean up all subprocess manager processes
-            await self.subprocess_manager.cleanup_all()
-            
-            # Close metadata service
-            await self.metadata_service.close()
-            
-            logger.info("Recording service cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
-
-
-# Filename presets
-FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - E{episode} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}{month}e{episode} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - E{episode} - {title} - {hour}-{minute}"
-}
-
