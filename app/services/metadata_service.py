@@ -146,29 +146,127 @@ class MetadataService:
         base_filename: str, 
         metadata: StreamMetadata
     ) -> bool:
-        """Erzeugt NFO-Datei für Kodi/Plex.
+        """Creates NFO file for Kodi/Plex/Emby with correct image links.
         
         Returns:
-            bool: True bei Erfolg, False bei Fehler
+            bool: True on success, False on error
         """
         try:
-            nfo_path = base_path / f"{base_filename}.nfo"
+            # Create two NFO files:
+            # 1. tvshow.nfo - for show/season data (uses streamer image)
+            # 2. episode.nfo - for the specific stream episode (uses stream thumbnail)
             
-            # XML-Struktur erstellen
-            root = ET.Element("tvshow")
+            # Paths for NFO files
+            episode_nfo_path = base_path / f"{base_filename}.nfo"
+            tvshow_nfo_path = base_path.parent / "tvshow.nfo"
+            season_nfo_path = base_path.parent / "season.nfo"
             
-            ET.SubElement(root, "title").text = stream.title or f"{streamer.username} Stream"
-            ET.SubElement(root, "originaltitle").text = stream.title or f"{streamer.username} Stream"
-            ET.SubElement(root, "showtitle").text = f"{streamer.username} Streams"
+            # Check if path contains season directory
+            is_in_season_dir = "season" in base_path.name.lower() or f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower()
             
-            # Datumsformat für Kodi
+            # Determine streamer directory (one or two levels up)
+            if is_in_season_dir:
+                streamer_dir = base_path.parent.parent
+            else:
+                streamer_dir = base_path.parent
+                    
+            # 1. Generate Show/Season NFO
+            show_root = ET.Element("tvshow")
+            
+            # Basic metadata
+            ET.SubElement(show_root, "title").text = f"{streamer.username} Streams"
+            ET.SubElement(show_root, "sorttitle").text = f"{streamer.username} Streams"
+            ET.SubElement(show_root, "showtitle").text = f"{streamer.username} Streams"
+            
+            # Streamer information
+            ET.SubElement(show_root, "studio").text = "Twitch"
+            ET.SubElement(show_root, "plot").text = f"Streams by {streamer.username} on Twitch."
+            
+            # Important for Plex: Correct paths for images
+            # Plex expects specific filenames, not just in NFO files
+            if streamer.profile_image_url:
+                # Images for the show
+                poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
+                poster_element.text = "poster.jpg"
+                
+                banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
+                banner_element.text = "banner.jpg"
+                
+                # Fanart (background image)
+                fanart = ET.SubElement(show_root, "fanart")
+                ET.SubElement(fanart, "thumb").text = "fanart.jpg"
+                
+                # Save streamer images in different formats
+                await self._save_streamer_images(streamer, streamer_dir)
+                
+            # Genre/Category
+            if streamer.category_name:
+                ET.SubElement(show_root, "genre").text = streamer.category_name
+            else:
+                ET.SubElement(show_root, "genre").text = "Livestream"
+            
+            # Streamer as "actor"
+            actor = ET.SubElement(show_root, "actor")
+            ET.SubElement(actor, "name").text = streamer.username
+            if streamer.profile_image_url:
+                ET.SubElement(actor, "thumb").text = "actors/"+streamer.username+".jpg"
+                # Create actors directory
+                actors_dir = streamer_dir / "actors"
+                actors_dir.mkdir(exist_ok=True)
+                await self._download_image(streamer.profile_image_url, actors_dir / f"{streamer.username}.jpg")
+                
+            ET.SubElement(actor, "role").text = "Streamer"
+            
+            # Write XML
+            show_tree = ET.ElementTree(show_root)
+            show_tree.write(str(tvshow_nfo_path), encoding="utf-8", xml_declaration=True)
+            
+            # Create season NFO if in season directory
+            if is_in_season_dir:
+                season_root = ET.Element("season")
+                
+                if stream.started_at:
+                    season_num = stream.started_at.strftime("%Y%m")
+                    ET.SubElement(season_root, "seasonnumber").text = season_num
+                    
+                # Season title
+                ET.SubElement(season_root, "title").text = f"Season {stream.started_at.strftime('%Y-%m')}"
+                
+                # Season poster
+                if streamer.profile_image_url:
+                    ET.SubElement(season_root, "thumb").text = "poster.jpg"
+                    # Save season image
+                    await self._download_image(streamer.profile_image_url, base_path.parent / "poster.jpg")
+                    await self._download_image(streamer.profile_image_url, base_path.parent / "season.jpg")
+                    
+                # Write XML
+                season_tree = ET.ElementTree(season_root)
+                season_tree.write(str(season_nfo_path), encoding="utf-8", xml_declaration=True)
+            
+            # 2. Generate Episode NFO
+            episode_root = ET.Element("episodedetails")
+            
+            # Episode title and number
+            ET.SubElement(episode_root, "title").text = stream.title or f"{streamer.username} Stream"
+            
+            # Calculate episode number from date (e.g., day of month)
             if stream.started_at:
-                aired = stream.started_at.strftime("%Y-%m-%d")
-                ET.SubElement(root, "aired").text = aired
-                ET.SubElement(root, "dateadded").text = stream.started_at.strftime("%Y-%m-%d %H:%M:%S")
+                ET.SubElement(episode_root, "aired").text = stream.started_at.strftime("%Y-%m-%d")
+                ET.SubElement(episode_root, "premiered").text = stream.started_at.strftime("%Y-%m-%d")
+                ET.SubElement(episode_root, "dateadded").text = stream.started_at.strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Use year-month as season number and day as episode number
+                season_num = stream.started_at.strftime("%Y%m")
+                episode_num = stream.started_at.strftime("%d")
+                
+                ET.SubElement(episode_root, "season").text = season_num
+                ET.SubElement(episode_root, "episode").text = episode_num
+                
+                # Correct episode ID for Plex
+                ET.SubElement(episode_root, "episodeID").text = f"S{season_num}E{episode_num}"
             
-            # Sprache
-            ET.SubElement(root, "language").text = stream.language or "en"
+            # Language
+            ET.SubElement(episode_root, "language").text = stream.language or "en"
             
             # Stream Info
             plot = f"{streamer.username} streamed"
@@ -176,37 +274,358 @@ class MetadataService:
                 plot += f" {stream.category_name}"
             if stream.started_at:
                 plot += f" on {stream.started_at.strftime('%Y-%m-%d')}"
+                
+                # Add duration if available
+                if stream.ended_at:
+                    duration_mins = int((stream.ended_at - stream.started_at).total_seconds() / 60)
+                    plot += f" for {duration_mins} minutes"
             plot += "."
             
-            ET.SubElement(root, "plot").text = plot
-            ET.SubElement(root, "outline").text = plot
+            ET.SubElement(episode_root, "plot").text = plot
+            ET.SubElement(episode_root, "runtime").text = str(int((stream.ended_at - stream.started_at).total_seconds() / 60)) if stream.ended_at and stream.started_at else ""
             
-            # Genre/Kategorie
+            # Genre/Category
             if stream.category_name:
-                ET.SubElement(root, "genre").text = stream.category_name
+                ET.SubElement(episode_root, "genre").text = stream.category_name
             
-            # Streamer als "actor"
-            actor = ET.SubElement(root, "actor")
+            # Streamer as "actor"
+            actor = ET.SubElement(episode_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                ET.SubElement(actor, "thumb").text = streamer.profile_image_url
+                ET.SubElement(actor, "thumb").text = "../actors/"+streamer.username+".jpg" if is_in_season_dir else "actors/"+streamer.username+".jpg"
             ET.SubElement(actor, "role").text = "Streamer"
             
-            # Thumbnail
-            if streamer.profile_image_url:
-                ET.SubElement(root, "thumb").text = streamer.profile_image_url
+            # IMPORTANT: Thumbnails for the episode with different standard names
+            thumbnail_url = None
+            local_thumbnail = None
             
-            # XML schreiben
-            tree = ET.ElementTree(root)
-            tree.write(str(nfo_path), encoding="utf-8", xml_declaration=True)
+            # Check for Twitch thumbnail in database
+            if metadata.thumbnail_url:
+                thumbnail_url = metadata.thumbnail_url
+                
+            # Check for locally stored thumbnail
+            if metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
+                local_thumbnail = metadata.thumbnail_path
+                
+            # Process thumbnail for episode
+            episode_thumb_path = await self._process_episode_thumbnail(
+                stream_id=stream.id,
+                base_path=base_path,
+                base_filename=base_filename,
+                thumbnail_url=thumbnail_url,
+                local_thumbnail=local_thumbnail,
+                db=db
+            )
             
-            metadata.nfo_path = str(nfo_path)
-            logger.debug(f"Generated NFO file for stream {stream.id} at {nfo_path}")
+            # Different thumb formats for different media servers
+            if episode_thumb_path:
+                # Standard format
+                thumb_element = ET.SubElement(episode_root, "thumb")
+                thumb_element.text = os.path.basename(episode_thumb_path)
+                
+                # Plex format
+                thumb_element_plex = ET.SubElement(episode_root, "thumb", aspect="poster")
+                thumb_element_plex.text = os.path.basename(episode_thumb_path)
+            
+            # Write XML
+            episode_tree = ET.ElementTree(episode_root)
+            episode_tree.write(str(episode_nfo_path), encoding="utf-8", xml_declaration=True)
+            
+            # Update metadata in database
+            metadata.nfo_path = str(episode_nfo_path)
+            metadata.tvshow_nfo_path = str(tvshow_nfo_path)
+            
+            # Create additional symlinks/copies for specific media servers
+            await self._create_media_server_specific_files(
+                stream=stream, 
+                base_path=base_path, 
+                episode_thumb_path=episode_thumb_path if episode_thumb_path else None,
+                db=db
+            )
+            
+            logger.debug(f"Generated NFO files for stream {stream.id}: {episode_nfo_path} and {tvshow_nfo_path}")
             return True
         except Exception as e:
-            logger.error(f"Error generating NFO file: {e}", exc_info=True)
+            logger.error(f"Error generating NFO files: {e}", exc_info=True)
             return False
-    
+
+    async def _process_episode_thumbnail(
+        self, 
+        stream_id: int,
+        base_path: Path,
+        base_filename: str,
+        thumbnail_url: Optional[str] = None,
+        local_thumbnail: Optional[str] = None,
+        db: Optional[Session] = None
+    ) -> Optional[str]:
+        """Processes thumbnail for an episode and saves it in different formats
+        
+        Returns:
+            Optional[str]: Path to main thumbnail or None on error
+        """
+        try:
+            # Standard filenames for different media servers
+            thumb_filename = f"{base_filename}-thumb.jpg"
+            thumb_path = base_path / thumb_filename
+            
+            # Alternative filenames for Plex/Kodi/Emby
+            poster_filename = "poster.jpg"
+            poster_path = base_path / poster_filename
+            
+            # Determine thumbnail source
+            if local_thumbnail and os.path.exists(local_thumbnail):
+                # Copy existing local thumbnail
+                import shutil
+                shutil.copy2(local_thumbnail, thumb_path)
+                shutil.copy2(local_thumbnail, poster_path)
+                logger.debug(f"Copied local thumbnail for stream {stream_id} to {thumb_path}")
+                return str(thumb_path)
+                
+            elif thumbnail_url:
+                # Download thumbnail from URL
+                success = await self._download_image(thumbnail_url, thumb_path)
+                if success:
+                    # Also save as poster.jpg
+                    import shutil
+                    shutil.copy2(thumb_path, poster_path)
+                    logger.debug(f"Downloaded thumbnail for stream {stream_id} to {thumb_path}")
+                    return str(thumb_path)
+                    
+            # If no thumbnail available, extract from video
+            video_files = [f for f in os.listdir(base_path) if f.endswith('.mp4')]
+            if video_files:
+                video_path = os.path.join(base_path, video_files[0])
+                extracted_thumb = await self.extract_thumbnail(video_path, stream_id, db)
+                
+                if extracted_thumb and os.path.exists(extracted_thumb):
+                    # Copy to standard formats
+                    import shutil
+                    shutil.copy2(extracted_thumb, thumb_path)
+                    shutil.copy2(extracted_thumb, poster_path)
+                    logger.debug(f"Extracted thumbnail for stream {stream_id} to {thumb_path}")
+                    return str(thumb_path)
+                    
+            logger.warning(f"Could not create thumbnail for stream {stream_id}")
+            return None
+        except Exception as e:
+            logger.error(f"Error processing episode thumbnail: {e}", exc_info=True)
+            return None
+        
+    async def _save_streamer_images(self, streamer: Streamer, streamer_dir: Path) -> bool:
+        """Saves streamer profile image in different formats for media servers
+        
+        Returns:
+            bool: True on success, False on error
+        """
+        try:
+            if not streamer.profile_image_url:
+                logger.warning(f"No profile image URL for streamer {streamer.username}")
+                return False
+                
+            # Standard media server image names
+            image_files = {
+                "poster.jpg": "Main poster for the show",
+                "banner.jpg": "Banner image",
+                "fanart.jpg": "Background image",
+                "logo.jpg": "Logo image",
+                "clearlogo.jpg": "Clear logo image",
+                "season.jpg": "Season poster",
+                "folder.jpg": "Folder image for Windows",
+                "show.jpg": "Show image"
+            }
+            
+            # Download and save each image format
+            success_count = 0
+            for filename, description in image_files.items():
+                target_path = streamer_dir / filename
+                if await self._download_image(streamer.profile_image_url, target_path):
+                    success_count += 1
+                    logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
+            
+            # Create specific media server directories if needed
+            artwork_dir = streamer_dir / "artwork"
+            artwork_dir.mkdir(exist_ok=True)
+            
+            # Save additional copies in artwork directory
+            await self._download_image(streamer.profile_image_url, artwork_dir / "poster.jpg")
+            
+            return success_count > 0
+        except Exception as e:
+            logger.error(f"Error saving streamer images: {e}", exc_info=True)
+            return False
+
+    async def _download_image(self, url: str, target_path: Path) -> bool:
+        """Downloads an image from a URL to a target path
+        
+        Returns:
+            bool: True on success, False on error
+        """
+        try:
+            # Check if URL is actually a local path
+            if not url.startswith(('http://', 'https://')):
+                local_path = Path(url)
+                if local_path.exists():
+                    import shutil
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    shutil.copy2(local_path, target_path)
+                    return True
+                else:
+                    logger.warning(f"Local image file not found: {url}")
+                    return False
+            
+            # Download from URL
+            session = await self._get_session()
+            async with session.get(url) as response:
+                if response.status == 200:
+                    # Make sure the directory exists
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    
+                    # Save the image
+                    with open(target_path, 'wb') as f:
+                        f.write(await response.read())
+                    return True
+                else:
+                    logger.warning(f"Failed to download image, status: {response.status}")
+                    return False
+        except Exception as e:
+            logger.error(f"Error downloading image: {e}", exc_info=True)
+            return False
+
+    async def _create_media_server_specific_files(
+        self,
+        stream: Stream,
+        base_path: Path,
+        episode_thumb_path: Optional[str] = None,
+        db: Optional[Session] = None
+    ) -> bool:
+        """Creates additional files and symlinks for specific media servers
+        
+        Returns:
+            bool: True on success, False on error
+        """
+        try:
+            if not stream.started_at:
+                logger.warning(f"Stream {stream.id} has no start date, cannot create media server specific files")
+                return False
+                
+            # Get the current filename preset from settings
+            recording_settings = None
+            if db:
+                recording_settings = db.query(RecordingSettings).first()
+            
+            # Default to generic files if no specific preset found
+            filename_preset = "default"
+            if recording_settings and hasattr(recording_settings, "filename_preset"):
+                filename_preset = recording_settings.filename_preset
+                
+            logger.debug(f"Using filename preset '{filename_preset}' for media server specific files")
+            
+            # List of common media servers
+            media_servers = ["plex", "emby", "jellyfin", "kodi"]
+            
+            # Get base filename without extension
+            base_filename = base_path.stem if isinstance(base_path, Path) else Path(base_path).stem
+            
+            # Create thumbnail and metadata files specific to each media server
+            if episode_thumb_path and os.path.exists(episode_thumb_path):
+                import shutil
+                
+                # Plex specific files - always create these for maximum compatibility
+                if "plex" in filename_preset or True:  # Always create Plex files
+                    # Plex prefers poster.jpg in the same directory
+                    plex_poster = base_path / "poster.jpg"
+                    if not plex_poster.exists():
+                        shutil.copy2(episode_thumb_path, plex_poster)
+                    
+                    # Create season-poster.jpg in parent if it's a season directory
+                    if "season" in str(base_path).lower() or "s20" in str(base_path).lower():
+                        season_poster = base_path.parent / "season-poster.jpg"
+                        if not season_poster.exists() and os.path.exists(episode_thumb_path):
+                            shutil.copy2(episode_thumb_path, season_poster)
+                
+                # Kodi specific files
+                if "kodi" in filename_preset or True:  # Always create Kodi files
+                    # Kodi uses .tbn extension for thumbnails
+                    kodi_tbn = base_path / f"{base_filename}.tbn"
+                    if not kodi_tbn.exists():
+                        shutil.copy2(episode_thumb_path, kodi_tbn)
+                
+                # Emby/Jellyfin specific files
+                if any(server in filename_preset for server in ["emby", "jellyfin"]) or True:
+                    # Emby/Jellyfin also like poster.jpg
+                    poster_jpg = base_path / "poster.jpg"
+                    if not poster_jpg.exists():
+                        shutil.copy2(episode_thumb_path, poster_jpg)
+            
+            # Create specific nfo link based on the preset
+            # For example, Plex sometimes requires SXXEXX format in the filename
+            if "plex" in filename_preset and stream.started_at:
+                season_num = stream.started_at.strftime("%Y%m")
+                episode_num = stream.started_at.strftime("%d")
+                
+                streamer_name = ""
+                with SessionLocal() as session:
+                    streamer = session.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                    if streamer:
+                        streamer_name = streamer.username
+                
+                # Plex pattern: ShowName - SXXEXX - EpisodeTitle
+                plex_name = f"{streamer_name} - S{season_num}E{episode_num}"
+                if stream.title:
+                    plex_name += f" - {stream.title}"
+                
+                # Clean the filename
+                plex_name = plex_name.replace('/', '-').replace('\\', '-').replace(':', '-')
+                
+                # Create symlinks for video and nfo files with Plex naming
+                video_files = list(base_path.parent.glob(f"{base_filename}.mp4"))
+                nfo_files = list(base_path.parent.glob(f"{base_filename}.nfo"))
+                
+                if video_files:
+                    try:
+                        # Create symlink or copy for video
+                        video_src = video_files[0]
+                        video_dest = base_path.parent / f"{plex_name}.mp4"
+                        
+                        if not video_dest.exists():
+                            if os.name == 'nt':  # Windows
+                                try:
+                                    os.link(video_src, video_dest)
+                                except:
+                                    shutil.copy2(video_src, video_dest)
+                            else:  # Linux/Mac
+                                try:
+                                    os.symlink(video_src, video_dest)
+                                except:
+                                    shutil.copy2(video_src, video_dest)
+                    except Exception as e:
+                        logger.warning(f"Error creating Plex video symlink: {e}")
+                
+                if nfo_files:
+                    try:
+                        # Create symlink or copy for NFO
+                        nfo_src = nfo_files[0]
+                        nfo_dest = base_path.parent / f"{plex_name}.nfo"
+                        
+                        if not nfo_dest.exists():
+                            if os.name == 'nt':  # Windows
+                                try:
+                                    os.link(nfo_src, nfo_dest)
+                                except:
+                                    shutil.copy2(nfo_src, nfo_dest)
+                            else:  # Linux/Mac
+                                try:
+                                    os.symlink(nfo_src, nfo_dest)
+                                except:
+                                    shutil.copy2(nfo_src, nfo_dest)
+                    except Exception as e:
+                        logger.warning(f"Error creating Plex NFO symlink: {e}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error creating media server specific files: {e}", exc_info=True)
+            return False
+
     async def extract_thumbnail(
         self, 
         video_path: str, 
