@@ -17,9 +17,7 @@
       </div>
     </div>
     <div v-else>
-      <div class="actions-container">
-        <!-- Removing the duplicate "Back to streamers" button -->
-        
+      <div class="actions-container">        
         <button 
           v-if="!hasLiveStreams" 
           @click="forceOfflineRecording(parseInt(streamerId))" 
@@ -598,7 +596,8 @@ const getCategoryImage = (categoryName: string): string => {
   background-color: var(--success-color);
   color: white;
   animation: pulse 2s infinite;
-;
+}
+
 .recording-badge.not-recording {
   background-color: var(--danger-color);
   color: white;
