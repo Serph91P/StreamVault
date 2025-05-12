@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import SessionLocal, get_db
-from app.models import GlobalSettings, NotificationSettings, Streamer
-from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema, StreamerNotificationSettingsUpdateSchema
+from app.models import GlobalSettings, NotificationSettings, Stream            settings.notification_url = settings_data.notification_url or ""
+            settings.notifications_enabled = settings_data.notifications_enabled
+            settings.notify_online_global = settings_data.notify_online_global
+            settings.notify_offline_global = settings_data.notify_offline_global
+            settings.notify_update_global = settings_data.notify_update_global
+            settings.notify_favorite_category_global = settings_data.notify_favorite_category_globalom app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema, StreamerNotificationSettingsUpdateSchema
 from apprise import Apprise
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -36,6 +40,7 @@ async def get_settings():
             notify_online_global=settings.notify_online_global,
             notify_offline_global=settings.notify_offline_global,
             notify_update_global=settings.notify_update_global,
+            notify_favorite_category_global=settings.notify_favorite_category_global,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
@@ -170,6 +175,7 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
+            settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
             
             db.commit()
             

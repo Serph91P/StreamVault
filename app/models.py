@@ -109,6 +109,7 @@ class GlobalSettings(Base):
     notify_online_global: bool = Column(Boolean, default=True)
     notify_offline_global: bool = Column(Boolean, default=True)
     notify_update_global: bool = Column(Boolean, default=True)
+    notify_favorite_category_global: bool = Column(Boolean, default=True)
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"
