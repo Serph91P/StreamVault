@@ -186,17 +186,40 @@ app.include_router(recording_router.router)
 app.include_router(categories.router)
 
 # Static files for assets
-app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
+try:
+    # Try the standard production path
+    app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
+except Exception as e:
+    logger.warning(f"Could not mount static files from app/frontend/dist/assets: {e}")
+    # Fallback to a secondary path for development
+    try:
+        app.mount("/assets", StaticFiles(directory="/app/app/frontend/dist/assets"), name="assets")
+        logger.info("Successfully mounted static files from /app/app/frontend/dist/assets")
+    except Exception as e:
+        logger.error(f"Failed to mount static assets: {e}")
+
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 # Static files for root-level items
 @app.get("/favicon.ico")
 async def favicon():
-    return FileResponse("app/frontend/dist/favicon.ico")
+    # Try production path first, then fallback
+    for path in ["app/frontend/dist/favicon.ico", "/app/app/frontend/dist/favicon.ico"]:
+        try:
+            return FileResponse(path)
+        except:
+            continue
+    return Response(status_code=404)
 
 @app.get("/icons/{file_path:path}")
 async def serve_icons(file_path: str):
-    return FileResponse(f"app/frontend/dist/icons/{file_path}")
+    # Try production path first, then fallback
+    for path in [f"app/frontend/dist/icons/{file_path}", f"/app/app/frontend/dist/icons/{file_path}"]:
+        try:
+            return FileResponse(path)
+        except:
+            continue
+    return Response(status_code=404)
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
