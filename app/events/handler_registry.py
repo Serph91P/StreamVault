@@ -287,11 +287,10 @@ class EventHandlerRegistry:
                         .filter(Stream.streamer_id == streamer.id)\
                         .filter(Stream.ended_at.is_(None))\
                         .order_by(Stream.started_at.desc())\
-                        .first()
-            
+                        .first()                    
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
-                        stream.status = "offline"
+                        # stream.status = "offline"  # Remove - status is not a field in the Stream model
                 
                     db.commit()
             
