@@ -8,44 +8,41 @@ RUN groupadd -g 1000 appuser && \
 
 WORKDIR /app
 
-# Copy Python requirements first
+# Copy only what's needed for dependencies first
 COPY requirements.txt ./
 
-# Install Node.js, npm, and required packages including FFmpeg
+# Install system dependencies and Python packages
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y \
-    nodejs \
     gcc \
     python3-dev \
     libpq-dev \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install streamlink==7.2.0 \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup frontend
-COPY app/frontend/package*.json ./frontend/
+# Setup and build frontend
 WORKDIR /app/frontend
+COPY app/frontend/package*.json ./
 RUN npm install
 
-# Copy and build frontend
-COPY app/frontend ./
+# Copy and build frontend sources
+COPY app/frontend/ ./
 RUN npm run build
 
-# Back to main directory and copy rest of app
+# Back to main directory and copy only necessary app files
+# This avoids duplicate directory structures
 WORKDIR /app
-COPY . .
-
-# Set proper permissions again after all copies
-RUN chown -R appuser:appuser /app
+COPY app/ ./app/
 
 # Create recordings directory with correct permissions
 RUN mkdir -p /recordings && \
-    chown -R appuser:appuser /recordings && \
+    chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings
 
 USER appuser
