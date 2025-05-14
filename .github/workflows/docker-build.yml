@@ -193,8 +193,7 @@ jobs:
         else
           echo "tag=develop" >> $GITHUB_OUTPUT
         fi
-    
-    - name: Build and push Docker image
+      - name: Build and push Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -205,6 +204,7 @@ jobs:
         build-args: |
           BUILD_DATE=${{ steps.prep.outputs.created }}
           VERSION=${{ needs.version.outputs.new_version }}
+          BUILD_ENV=production
         tags: |
           frequency2098/streamvault:${{ steps.docker_tag.outputs.tag }}
           frequency2098/streamvault:${{ github.sha }}

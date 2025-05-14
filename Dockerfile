@@ -26,14 +26,24 @@ RUN apt-get update && apt-get install -y \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup and build frontend
+# Setup frontend dependencies
 WORKDIR /app/frontend
 COPY app/frontend/package*.json ./
 RUN npm install
 
-# Copy and build frontend sources
+# Copy frontend sources
 COPY app/frontend/ ./
-RUN npm run build
+
+# Build frontend only if not in development mode
+ARG BUILD_ENV=production
+RUN if [ "$BUILD_ENV" = "production" ]; then \
+        echo "Building frontend in production mode..." && \
+        npm run build && \
+        mkdir -p /app/app/frontend && \
+        cp -r dist /app/app/frontend/; \
+    else \
+        echo "Skipping frontend build in development mode..."; \
+    fi
 
 # Back to main directory and copy only necessary app files
 # Keep all app code in a single directory structure
