@@ -213,10 +213,17 @@ async def favicon():
 
 @app.get("/icons/{file_path:path}")
 async def serve_icons(file_path: str):
-    # Try production path first, then fallback
-    for path in [f"app/frontend/dist/icons/{file_path}", f"/app/app/frontend/dist/icons/{file_path}"]:
+    import os
+    base_dir = "app/frontend/dist/icons"
+    fallback_dir = "/app/app/frontend/dist/icons"
+    
+    # Normalize and validate the path
+    for base_path in [base_dir, fallback_dir]:
+        full_path = os.path.normpath(os.path.join(base_path, file_path))
+        if not full_path.startswith(os.path.abspath(base_path)):
+            continue  # Skip invalid paths
         try:
-            return FileResponse(path)
+            return FileResponse(full_path)
         except:
             continue
     return Response(status_code=404)
