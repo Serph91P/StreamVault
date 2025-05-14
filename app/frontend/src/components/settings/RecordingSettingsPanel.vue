@@ -360,15 +360,36 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   width: 100%;
   padding: 10px;
   border: 1px solid var(--border-color);
-  background-color: var(--background-dark);
-  color: var(--text-primary);
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #f1f1f3);
   border-radius: var(--border-radius);
   box-sizing: border-box;
 }
 
+/* Style for select elements to make them more visible */
+select.form-control {
+  appearance: auto; /* Re-enable native appearance for better visibility */
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  background-image: linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
+                    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(1em + 2px),
+                       calc(100% - 15px) calc(1em + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px; /* Make room for the arrow */
+}
+
+/* Show dropdown options with better contrast */
+select.form-control option {
+  background-color: var(--background-darker, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  padding: 8px;
+}
+
 .help-text {
   font-size: 0.85rem;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary, #adadb8);
   margin-top: var(--spacing-xs, 0.25rem);
 }
 
@@ -452,9 +473,10 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   .streamer-table td:first-child {
     padding-top: 0;
   }
-  
-  .streamer-table .form-control-sm {
+    .streamer-table .form-control-sm {
     width: 100%;
+    background-color: var(--background-dark, #18181b);
+    color: var(--text-primary, #f1f1f3);
   }
 }
 
@@ -696,6 +718,36 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   padding: var(--spacing-md, 1rem);
   text-align: center;
   color: var(--text-secondary, #999);
+}
+
+.form-control-sm {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
+}
+
+/* Style for small select elements */
+select.form-control-sm {
+  appearance: auto;
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  background-image: linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
+                    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(1em + 0px),
+                       calc(100% - 15px) calc(1em + 0px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+}
+
+select.form-control-sm option {
+  background-color: var(--background-darker, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  padding: 6px;
 }
 
 @media (min-width: 768px) {
