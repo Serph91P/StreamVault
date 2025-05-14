@@ -117,45 +117,44 @@
                   />
                 </div>
                 <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
-              </td>
-              <td>
+              </td>              <td data-label="Online">
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_online"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
                 />
               </td>
-              <td>
+              <td data-label="Offline">
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_offline"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
                 />
               </td>
-              <td>
+              <td data-label="Updates">
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_update"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
                 />
               </td>
-              <td>
+              <td data-label="Favorites">
                 <input 
                   type="checkbox" 
                   v-model="streamer.notify_favorite_category"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_favorite_category: streamer.notify_favorite_category })"
                 />
-              </td>
-              <td>
-                <button 
-                  @click="toggleAllForStreamer(streamer.streamer_id, true)" 
-                  class="btn btn-sm btn-secondary"
-                  style="margin-right: 8px;"
-                >All On</button>
-                <button 
-                  @click="toggleAllForStreamer(streamer.streamer_id, false)" 
-                  class="btn btn-sm btn-secondary"
-                >All Off</button>
+              </td>              <td class="actions-cell">
+                <div class="btn-group">
+                  <button 
+                    @click="toggleAllForStreamer(streamer.streamer_id, true)" 
+                    class="btn btn-sm btn-secondary"
+                  >On</button>
+                  <button 
+                    @click="toggleAllForStreamer(streamer.streamer_id, false)" 
+                    class="btn btn-sm btn-secondary"
+                  >Off</button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -476,6 +475,11 @@ const testNotification = () => {
 .btn-sm {
   padding: 4px 8px;
   font-size: 0.875rem;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
 }
 
 .streamer-notifications {
@@ -492,6 +496,7 @@ const testNotification = () => {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  margin-bottom: var(--spacing-lg, 20px);
 }
 
 .streamer-table table {
@@ -535,11 +540,21 @@ const testNotification = () => {
   gap: var(--spacing-sm, 10px);
 }
 
+.streamer-name {
+  line-height: 1.2;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .streamer-avatar {
   width: 30px;
   height: 30px;
+  min-width: 30px; /* Ensure consistent width */
   border-radius: 50%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .streamer-avatar img {
@@ -559,14 +574,29 @@ const testNotification = () => {
   margin-top: var(--spacing-xs, 4px);
 }
 
+.btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .streamer-table {
     border-radius: 0;
   }
   
   .btn {
-    padding: 8px 12px;
+    padding: 6px 10px;
     font-size: 0.9rem;
+  }
+  
+  .btn-sm {
+    padding: 4px 6px;
+    font-size: 0.8rem;
   }
   
   .table-controls {
@@ -576,6 +606,90 @@ const testNotification = () => {
   
   .table-controls button {
     margin-right: 0;
+  }
+  
+  /* Fix alignment in table cells */
+  .streamer-table td, .streamer-table th {
+    padding: 8px 6px;
+  }
+  
+  /* Fix the streamer info height */
+  .streamer-info {
+    gap: 6px;
+  }
+  
+  .streamer-name {
+    font-size: 0.9rem;
+  }
+  
+  /* Make checkboxes easier to tap on mobile */
+  input[type="checkbox"] {
+    min-width: 18px;
+    min-height: 18px;
+  }
+}
+
+/* For very small screens, switch to card layout */
+@media (max-width: 480px) {
+  .streamer-table table,
+  .streamer-table thead,
+  .streamer-table tbody,
+  .streamer-table th,
+  .streamer-table td,
+  .streamer-table tr {
+    display: block;
+  }
+  
+  .streamer-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .streamer-table tr {
+    margin-bottom: var(--spacing-md, 16px);
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid var(--border-color, #333);
+    overflow: hidden;
+  }
+  
+  .streamer-table td {
+    position: relative;
+    padding-left: 110px; /* Space for labels */
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(var(--border-color-rgb), 0.5);
+  }
+  
+  .streamer-table td:before {
+    content: attr(data-label);
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 95px;
+    padding-right: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--text-secondary, #aaa);
+    font-size: 0.85rem;
+  }
+  
+  .streamer-table td.streamer-info {
+    padding-left: 12px;
+    font-weight: 600;
+    background-color: rgba(0, 0, 0, 0.15);
+    display: flex;
+  }
+  
+  .streamer-table td.actions-cell {
+    display: flex;
+    justify-content: flex-end;
+    padding-left: 12px;
+  }
+  
+  .btn-group {
+    margin-left: auto;
   }
 }
 </style>
