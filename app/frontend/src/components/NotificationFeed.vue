@@ -1,6 +1,5 @@
 <template>
-  <!-- Feed wird nur angezeigt, wenn tatsächlich Benachrichtigungen existieren -->
-  <div v-if="notifications.length > 0" class="notification-feed">
+  <div class="notification-feed">
     <h2 class="section-title">
       Recent Notifications
       <button @click="clearAllNotifications" class="clear-all-btn" aria-label="Clear all notifications">
@@ -8,7 +7,12 @@
       </button>
     </h2>
     
-    <TransitionGroup name="notification" tag="ul" class="notification-list">
+    <div v-if="notifications.length === 0" class="no-notifications">
+      <div class="empty-icon">🔔</div>
+      <p>No notifications yet</p>
+    </div>
+    
+    <TransitionGroup v-else name="notification" tag="ul" class="notification-list">
       <li v-for="notification in sortedNotifications" 
           :key="notification.id" 
           class="notification-item"
@@ -21,6 +25,7 @@
             <span v-else-if="notification.type === 'recording.started'">🎥</span>
             <span v-else-if="notification.type === 'recording.completed'">✅</span>
             <span v-else-if="notification.type === 'recording.failed'">❌</span>
+            <span v-else-if="notification.type === 'connection.status'">🔌</span>
             <span v-else>📣</span>
           </div>
         </div>
@@ -51,8 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUpdated, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
+
+const emit = defineEmits(['notifications-read'])
 
 interface NotificationData {
   [key: string]: any;
@@ -70,7 +77,7 @@ interface Notification {
 const notifications = ref<Notification[]>([])
 const { messages } = useWebSocket()
 
-const MAX_NOTIFICATIONS = 50
+const MAX_NOTIFICATIONS = 100
 
 // Sort notifications by timestamp (newest first)
 const sortedNotifications = computed(() => {
@@ -129,6 +136,8 @@ const formatTitle = (notification: Notification): string => {
       return `Recording Completed`
     case 'recording.failed':
       return `Recording Failed`
+    case 'connection.status':
+      return 'Connection Status'
     default:
       return `Notification for ${username}`
   }
@@ -158,6 +167,8 @@ const formatMessage = (notification: Notification): string => {
       return data?.error 
         ? `Failed to record ${username}'s stream: ${data.error}` 
         : `Failed to record ${username}'s stream.`
+    case 'connection.status':
+      return data?.message || 'WebSocket connection status updated.'
     default:
       return title || `New notification for ${username}`
   }
@@ -178,6 +189,8 @@ const getNotificationClass = (type: string): string => {
       return 'success'
     case 'recording.failed':
       return 'error'
+    case 'connection.status':
+      return 'info'
     default:
       return 'default'
   }
@@ -214,6 +227,7 @@ const removeNotification = (id: string): void => {
 const clearAllNotifications = (): void => {
   notifications.value = []
   saveNotifications()
+  emit('notifications-read')
 }
 
 // Save notifications to localStorage
@@ -244,7 +258,8 @@ const processNewMessage = (message: any) => {
     'channel.update',
     'recording.started',
     'recording.completed',
-    'recording.failed'
+    'recording.failed',
+    'connection.status'
   ]
   
   if (notificationTypes.includes(message.type)) {
@@ -252,9 +267,19 @@ const processNewMessage = (message: any) => {
   }
 }
 
+// Emit notifications-read event when component becomes visible
+onUpdated(() => {
+  if (document.visibilityState === 'visible') {
+    emit('notifications-read')
+  }
+})
+
 // Lifecycle hooks
 onMounted(() => {
   loadNotifications()
+  
+  // Emit notifications-read when first mounted
+  emit('notifications-read')
   
   // Watch for new messages being added to the array
   watch(messages, (newMessages, oldMessages) => {
@@ -281,10 +306,29 @@ onMounted(() => {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.7);
-  position: fixed;
+  position: absolute;
   top: 60px;
   right: 20px;
   z-index: 1000;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.no-notifications {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  opacity: 0.7;
 }
 
 .section-title {
@@ -321,7 +365,7 @@ onMounted(() => {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 400px;
+  max-height: calc(80vh - 60px);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--primary-color-muted) transparent;
@@ -385,6 +429,10 @@ onMounted(() => {
   border-left-color: var(--danger-color);
 }
 
+.notification-item.info {
+  border-left-color: var(--info-color, #0ea5e9);
+}
+
 .notification-icon {
   flex-shrink: 0;
   margin-right: var(--spacing-sm);
@@ -402,11 +450,11 @@ onMounted(() => {
 }
 
 .icon-wrapper.online {
-  background-color: rgba(220, 53, 69, 0.2);
+  background-color: rgba(255, 0, 0, 0.2);
 }
 
 .icon-wrapper.offline {
-  background-color: rgba(108, 117, 125, 0.2);
+  background-color: rgba(150, 150, 150, 0.2);
 }
 
 .icon-wrapper.update {
@@ -414,27 +462,31 @@ onMounted(() => {
 }
 
 .icon-wrapper.recording {
-  background-color: rgba(255, 193, 7, 0.2);
+  background-color: rgba(255, 165, 0, 0.2);
 }
 
 .icon-wrapper.success {
-  background-color: rgba(40, 167, 69, 0.2);
+  background-color: rgba(66, 184, 131, 0.2);
 }
 
 .icon-wrapper.error {
-  background-color: rgba(220, 53, 69, 0.2);
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.icon-wrapper.info {
+  background-color: rgba(14, 165, 233, 0.2);
 }
 
 .notification-content {
   flex: 1;
-  min-width: 0;
+  min-width: 0; /* Ensure text wrapping works correctly */
 }
 
 .notification-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 2px;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-xs);
 }
 
 .notification-title {
@@ -442,83 +494,91 @@ onMounted(() => {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .notification-time {
   font-size: 0.75rem;
   color: var(--text-secondary);
   white-space: nowrap;
-  margin-left: var(--spacing-xs);
-  flex-shrink: 0;
+  margin-left: var(--spacing-sm);
 }
 
 .notification-message {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  margin-bottom: 2px;
-  line-height: 1.4;
+  margin-bottom: var(--spacing-xs);
+  word-break: break-word;
 }
 
 .notification-category {
   display: inline-block;
   font-size: 0.75rem;
-  padding: 1px 4px;
-  background-color: var(--background-darker);
+  padding: 2px 6px;
+  background-color: rgba(var(--border-color-rgb, 45, 45, 53), 0.5);
+  border-radius: 4px;
   color: var(--text-secondary);
-  border-radius: 3px;
 }
 
 .notification-dismiss {
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 1.1rem;
-  line-height: 1;
-  padding: 0 0 0 5px;
+  opacity: 0.6;
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.2s var(--vue-ease);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s var(--vue-ease);
 }
 
 .notification-dismiss:hover {
   opacity: 1;
-  color: var(--danger-color);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Animation transitions */
 .notification-enter-active,
 .notification-leave-active {
-  transition: all 0.3s var(--vue-ease);
+  transition: all 0.3s ease;
 }
 
 .notification-enter-from {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateX(30px);
 }
 
 .notification-leave-to {
   opacity: 0;
-  transform: translateX(30px);
+  transform: translateX(-30px);
 }
 
 .notification-move {
-  transition: transform 0.4s var(--vue-ease);
+  transition: transform 0.3s ease;
 }
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .notification-feed {
-    max-width: calc(100% - 40px);
-    top: 50px;
-    right: 10px;
-    left: 10px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    z-index: 1001;
   }
   
-  .notification-header {
-    flex-wrap: wrap;
+  .notification-list {
+    max-height: calc(100vh - 60px);
   }
 }
 </style>

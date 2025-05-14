@@ -29,10 +29,14 @@ export function useWebSocket() {
         console.log('WebSocket raw message received:', event.data)
         console.log('WebSocket parsed message:', data)
         
+        // Accept all notification types
         if (data && (
           data.type === 'stream.online' || 
           data.type === 'stream.offline' || 
           data.type === 'channel.update' ||
+          data.type === 'recording.started' ||
+          data.type === 'recording.completed' ||
+          data.type === 'recording.failed' ||
           data.type === 'connection.status'
         )) {
           console.log('Adding message to messages array:', data)
