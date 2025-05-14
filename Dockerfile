@@ -45,8 +45,12 @@ RUN mkdir -p /recordings && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings
 
+# Copy the entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 USER appuser
 
 EXPOSE 7000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
+ENTRYPOINT ["/app/entrypoint.sh"]
