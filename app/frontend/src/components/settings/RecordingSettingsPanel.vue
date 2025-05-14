@@ -125,8 +125,7 @@
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
         <p>No streamers found. Add streamers in the Streamers section to configure recording settings.</p>
       </div>
-      
-      <template v-else>
+        <template v-else>
         <div class="table-controls">
           <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
           <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
@@ -707,11 +706,9 @@ select.form-control option {
 }
 
 .table-controls {
-  margin-bottom: var(--spacing-md, 1rem);
-}
-
-.table-controls button {
-  margin-right: var(--spacing-sm, 0.5rem);
+  display: flex;
+  gap: var(--spacing-sm, 10px);
+  margin-bottom: var(--spacing-md, 15px);
 }
 
 .no-streamers-message {
