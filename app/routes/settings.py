@@ -47,9 +47,10 @@ async def get_all_streamer_settings():
             settings = db.query(NotificationSettings).join(Streamer).options(
                 joinedload(NotificationSettings.streamer)
             ).all()
-            return [                StreamerNotificationSettingsSchema(
+            return [
+                StreamerNotificationSettingsSchema(
                     streamer_id=s.streamer_id,
-                    username=s.streamer.username,  # Include username
+                    username=s.streamer.username,
                     profile_image_url=s.streamer.profile_image_url,
                     notify_online=s.notify_online,
                     notify_offline=s.notify_offline,
@@ -74,7 +75,8 @@ async def update_streamer_settings(
             if not settings:
                 settings = NotificationSettings(streamer_id=streamer_id)
                 db.add(settings)
-              if settings_data.notify_online is not None:
+            
+            if settings_data.notify_online is not None:
                 settings.notify_online = settings_data.notify_online
             if settings_data.notify_offline is not None:
                 settings.notify_offline = settings_data.notify_offline
@@ -105,7 +107,8 @@ async def get_streamer_settings():
     try:
         with SessionLocal() as db:
             settings = db.query(NotificationSettings).all()
-            return [                {
+            return [
+                {
                     "streamer_id": s.streamer_id,
                     "notify_online": s.notify_online,
                     "notify_offline": s.notify_offline,
