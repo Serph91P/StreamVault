@@ -49,9 +49,8 @@
             This happens automatically when a streamer changes their game on Twitch.
           </p>
         </div>
-        
-        <!-- Category Cards Grid -->
-        <div v-else class="category-cards">
+          <!-- Category Cards Grid -->
+        <TransitionGroup v-else name="category-cards" tag="div" class="category-cards">
           <div 
             v-for="category in filteredCategories" 
             :key="category.id"
@@ -70,16 +69,18 @@
               <div v-else class="category-image-placeholder">
                 <span>No image</span>
               </div>
-            </div>
-            <div class="category-content">
+            </div>            <div class="category-content">
               <h4 class="category-name">{{ category.name }}</h4>
               <div class="category-meta">
-                <span>{{ category.stream_count || 0 }} recorded streams</span>
-              </div>
-              <div class="category-actions">
+                <span class="category-date" v-if="category.last_seen">Last seen: {{ new Date(category.last_seen).toLocaleDateString() }}</span>
+              </div><div class="category-actions">
+                <div class="category-stats">
+                  <span>{{ category.stream_count || 0 }} streams</span>
+                </div>
                 <button 
                   @click="toggleFavorite(category)"
                   class="btn-icon"
+                  :class="{'is-favorite': category.is_favorite}"
                   :title="category.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
                 >
                   <svg viewBox="0 0 24 24" width="18" height="18" class="star-icon">
@@ -88,12 +89,12 @@
                       d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
                     />
                   </svg>
-                  {{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}
+                  <span class="button-label">{{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}</span>
                 </button>
-              </div>
+              </div>            
             </div>
           </div>
-        </div>
+        </TransitionGroup>
       </template>
     </div>
   </div>
@@ -341,60 +342,123 @@ watch(categories, (newCategories) => {
   margin-bottom: 16px;
 }
 
-/* Category grid with improved responsiveness */
+/* Card transition animations */
+.category-cards-enter-active,
+.category-cards-leave-active {
+  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+}
+
+.category-cards-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.category-cards-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.category-cards-move {
+  transition: transform 0.5s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+}
+
+/* Category grid with improved responsiveness - matched to StreamerList */
 .category-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 8px;
+  width: 100%;
 }
 
-/* Small screens: 1-2 cards per row */
-@media (min-width: 480px) {
+/* Small screens: 1 card per row */
+@media (max-width: 640px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
-/* Medium screens: 3-4 cards per row */
+/* Medium screens: 2-3 cards per row */
 @media (min-width: 768px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
 }
 
-/* Large screens: 5-6 cards per row */
+/* Large screens: 3-4 cards per row */
 @media (min-width: 1200px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
 }
 
-/* Extra large screens */
+/* Extra large screens: 4-5 cards per row */
 @media (min-width: 1600px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
 }
 
 .category-card {
-  background-color: #1f1f23;
-  border-radius: 6px;
+  background-color: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
-  border: 1px solid #2a2a2d;
+  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  position: relative;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--border-color, #2d2d35);
+  margin-bottom: 0;
+  box-shadow: none;
 }
 
 .category-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   border-color: rgba(66, 184, 131, 0.5);
 }
 
 .category-card.is-favorite {
   border-color: rgba(255, 215, 0, 0.5);
+  box-shadow: none;
+}
+
+.category-card.is-favorite:hover {
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.15);
+}
+
+/* Left border indicator with more subtle styling */
+.category-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: transparent;
+  transition: background-color 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+}
+
+.category-card:hover::before {
+  background-color: var(--primary-color, #42b883);
+}
+
+.category-card.is-favorite::before {
+  background-color: var(--highlight-color, #FFD700);
+  animation: subtle-pulse 2s infinite;
+}
+
+@keyframes subtle-pulse {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
 }
 
 .category-image-wrapper {
@@ -433,12 +497,13 @@ watch(categories, (newCategories) => {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #efeff1;
+  color: var(--text-primary, #efeff1);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -452,7 +517,14 @@ watch(categories, (newCategories) => {
   margin-top: auto;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding-top: 8px;
+  border-top: 1px solid var(--border-color, #2d2d35);
+}
+
+.category-stats {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #9e9e9e);
 }
 
 .btn-icon {
@@ -472,9 +544,10 @@ watch(categories, (newCategories) => {
 .btn-icon:hover {
   background-color: #18181b;
   color: #efeff1;
+  transform: translateY(-1px);
 }
 
-.category-card.is-favorite .btn-icon {
+.btn-icon.is-favorite {
   color: #FFD700;
   border-color: rgba(255, 215, 0, 0.5);
 }
@@ -485,6 +558,12 @@ watch(categories, (newCategories) => {
 
 .btn-icon:hover .star-icon {
   transform: scale(1.2);
+}
+
+@media (max-width: 480px) {
+  .button-label {
+    display: none;
+  }
 }
 
 .btn {
