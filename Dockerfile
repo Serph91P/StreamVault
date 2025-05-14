@@ -38,7 +38,7 @@ RUN npm run build
 # Back to main directory and copy only necessary app files
 # Keep all app code in a single directory structure
 WORKDIR /app
-COPY app/ ./
+COPY app/ ./app/
 
 # Create recordings directory with correct permissions
 RUN mkdir -p /recordings && \
