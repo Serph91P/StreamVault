@@ -95,14 +95,53 @@ jobs:
           
           if git push origin ${NEW_VERSION}; then
             echo "tag_created=true" >> $GITHUB_OUTPUT
-            echo "Tag ${NEW_VERSION} created and pushed successfully"
-          else
+            echo "Tag ${NEW_VERSION} created and pushed successfully"          else
             echo "tag_created=false" >> $GITHUB_OUTPUT
             echo "Failed to push tag ${NEW_VERSION}, check permissions"
           fi
   
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_changed: ${{ steps.check_paths.outputs.frontend_changed }}
+      backend_changed: ${{ steps.check_paths.outputs.backend_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check changed paths
+        id: check_paths
+        run: |
+          # Get the list of changed files
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            # Get files changed in the most recent commit
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          else
+            # If this is the first commit
+            CHANGED_FILES=$(git diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD)
+          fi
+          
+          # Check if frontend files have changed
+          if echo "$CHANGED_FILES" | grep -q "^app/frontend/"; then
+            echo "Frontend files have changed"
+            echo "frontend_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No frontend changes detected"
+            echo "frontend_changed=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if backend files or dependencies have changed
+          if echo "$CHANGED_FILES" | grep -qE "^app/(?!frontend/).*|^requirements.txt|^Dockerfile"; then
+            echo "Backend files have changed"
+            echo "backend_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No backend changes detected"
+            echo "backend_changed=false" >> $GITHUB_OUTPUT
+          fi
+
   build:
-    needs: version
+    needs: [version, check_changes]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -112,16 +151,23 @@ jobs:
       
     - name: Set up Node.js
       uses: actions/setup-node@v4
+      if: needs.check_changes.outputs.frontend_changed == 'true'
       with:
         node-version: '22.15.0'
         cache: 'npm'
         cache-dependency-path: './app/frontend/package-lock.json'
         
     - name: Build Frontend
+      if: needs.check_changes.outputs.frontend_changed == 'true'
       working-directory: ./app/frontend
       run: |
         npm ci
         npm run build
+    
+    - name: Use cached frontend build
+      if: needs.check_changes.outputs.frontend_changed == 'false'
+      run: |
+        echo "Using cached frontend build from previous successful workflow"
     
     - name: Prepare metadata
       id: prep
