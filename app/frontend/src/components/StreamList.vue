@@ -6,18 +6,25 @@
     </div>
     <div v-else-if="streams.length === 0" class="no-data-container">
       <p>No streams found for this streamer.</p>
-      <button @click="handleBack" class="btn btn-primary back-btn">
-        Back to streamers
-      </button>
-      
-      <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
-        Force Recording (Offline Mode)
-      </button>
-    </div>
-    <div v-else>
-      <div class="back-btn-container">
+      <div class="action-buttons">
         <button @click="handleBack" class="btn btn-primary back-btn">
           Back to streamers
+        </button>
+        
+        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+          Force Recording (Offline Mode)
+        </button>
+      </div>
+    </div>
+    <div v-else>
+      <div class="actions-container">        
+        <button 
+          v-if="!hasLiveStreams" 
+          @click="forceOfflineRecording(parseInt(streamerId))" 
+          class="btn btn-warning"
+          :disabled="isStartingOfflineRecording"
+        >
+          {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline Mode)' }}
         </button>
       </div>
       
@@ -44,9 +51,17 @@
               <h3>{{ formatDate(stream.started_at) }}</h3>
             </div>
           </div>
+          
+          <!-- New Category Visualization -->
+          <div class="category-visual" v-if="stream.category_name">
+            <div class="category-image">
+              <img :src="getCategoryImage(stream.category_name)" :alt="stream.category_name" />
+            </div>
+            <div class="category-name">{{ stream.category_name }}</div>
+          </div>
+          
           <div class="stream-content">
             <p><strong>Title:</strong> {{ stream.title || '-' }}</p>
-            <p><strong>Category:</strong> {{ stream.category_name || '-' }}</p>
             <p><strong>Duration:</strong> {{ calculateDuration(stream.started_at, stream.ended_at) }}</p>
             <p v-if="stream.ended_at"><strong>Ended:</strong> {{ formatDate(stream.ended_at) }}</p>
           </div>
@@ -62,7 +77,7 @@
               </button>
               <button 
                 v-else 
-                @click="stopRecording(parseInt(streamerId))" 
+                @click="stopRecording(parseInt(streamerId))"
                 class="btn btn-danger" 
                 :disabled="isStoppingRecording"
               >
@@ -85,15 +100,6 @@
           </div>
         </div>
       </div>
-      
-      <div v-if="!hasLiveStreams" class="offline-recording-section">
-        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
-          {{ isStartingOfflineRecording ? 'Starting Offline Recording...' : 'Force Recording (Offline Mode)' }}
-        </button>
-        <p class="help-text">
-          Use this option if the streamer is live but StreamVault didn't detect it automatically.
-        </p>
-      </div>
     </div>
     
     <!-- Confirmation Modal -->
@@ -103,7 +109,8 @@
         <p>Are you sure you want to delete this stream?</p>
         <p class="warning-text">This will permanently delete the stream record and all associated metadata files.</p>
         
-        <div class="stream-details" v-if="streamToDelete">
+
+        <div class="stream-stream" v-if="streamToDelete">
           <p><strong>Date:</strong> {{ formatDate(streamToDelete.started_at) }}</p>
           <p><strong>Title:</strong> {{ streamToDelete.title || '-' }}</p>
           <p><strong>Category:</strong> {{ streamToDelete.category_name || '-' }}</p>
@@ -142,7 +149,8 @@ const isStoppingRecording = ref(false)
 const isStartingOfflineRecording = ref(false)
 const localRecordingState = ref<Record<string, boolean>>({})
 
-// State for stream deletion
+
+//State for stream deletion
 const showDeleteModal = ref(false)
 const streamToDelete = ref<any>(null)
 const deletingStreamId = ref<number | null>(null)
@@ -256,7 +264,7 @@ const forceOfflineRecording = async (streamerIdValue: number) => {
     localRecordingState.value[streamerIdValue] = true
     
     const response = await fetch(`/api/recording/force-offline/${streamerIdValue}`, {
-      method: 'POST',
+     method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       }
@@ -350,7 +358,7 @@ const deleteStream = async () => {
     showDeleteModal.value = false
     streamToDelete.value = null
     
-    // Show success message
+    // Show success success
     alert(`Stream deleted successfully. Removed ${result.deleted_files_count} associated files.`)
     
   } catch (error) {
@@ -456,6 +464,17 @@ watch(streamerId, (newId, oldId) => {
     loadStreams()
   }
 })
+
+const getCategoryImage = (categoryName: string): string => {
+  if (!categoryName) return '/images/default-category.png';
+  
+  // Replace spaces with hyphens and convert to lowercase for URL-friendly format
+  const formattedName = categoryName.replace(/\s+/g, '-').toLowerCase();
+  
+  // Try to get the category image from Twitch's CDN
+  // This is a common pattern for Twitch category box art
+  return `https://static-cdn.jtvnw.net/ttv-boxart/${formattedName}-144x192.jpg`;
+}
 </script>
 
 <style scoped>
@@ -469,12 +488,44 @@ watch(streamerId, (newId, oldId) => {
   padding: 40px;
 }
 
-.back-btn-container {
+.actions-container {
+  display: flex;
+  gap: 12px;
   margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
 }
 
 .back-btn {
-  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+.btn-warning {
+  background-color: #ff9800;
+  color: #000;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #ffac33;
+  transform: translateY(-1px);
+}
+
+.btn-warning:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-warning:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .streams-summary {
@@ -675,6 +726,57 @@ watch(streamerId, (newId, oldId) => {
   .modal-content {
     min-width: 320px;
     padding: 15px;
+  }
+}
+
+/* Add this to your existing CSS */
+.category-visual {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  background: rgba(24, 24, 27, 0.5);
+  border-radius: 4px;
+  margin: 0 15px 15px;
+}
+
+.category-image {
+  width: 50px;
+  height: 66px;
+  overflow: hidden;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  background-color: #121214;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.category-visual:hover .category-image img {
+  transform: scale(1.1);
+}
+
+.category-name {
+  font-weight: 500;
+  color: #9146FF;
+}
+
+/* Adjust stream-content padding to account for the category visual */
+.stream-content {
+  padding-top: 0;
+}
+
+/* Grid layout adjustments for better fit with category visuals */
+@media (min-width: 1024px) {
+  .stream-list {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
 }
 </style>

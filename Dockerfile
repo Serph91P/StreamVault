@@ -8,48 +8,59 @@ RUN groupadd -g 1000 appuser && \
 
 WORKDIR /app
 
-# Copy Python requirements first
+# Copy only what's needed for dependencies first
 COPY requirements.txt ./
 
-# Install Node.js, npm, and required packages including FFmpeg
+# Install system dependencies and Python packages
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y \
-    nodejs \
     gcc \
     python3-dev \
     libpq-dev \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install streamlink==7.2.0 \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup frontend
-COPY app/frontend/package*.json ./frontend/
+# Setup frontend dependencies
 WORKDIR /app/frontend
+COPY app/frontend/package*.json ./
 RUN npm install
 
-# Copy and build frontend
-COPY app/frontend ./
-RUN npm run build
+# Copy frontend sources
+COPY app/frontend/ ./
 
-# Back to main directory and copy rest of app
+# Build frontend only if not in development mode
+ARG BUILD_ENV=production
+RUN if [ "$BUILD_ENV" = "production" ]; then \
+        echo "Building frontend in production mode..." && \
+        npm run build && \
+        mkdir -p /app/app/frontend && \
+        cp -r dist /app/app/frontend/; \
+    else \
+        echo "Skipping frontend build in development mode..."; \
+    fi
+
+# Back to main directory and copy only necessary app files
+# Keep all app code in a single directory structure
 WORKDIR /app
-COPY . .
-
-# Set proper permissions again after all copies
-RUN chown -R appuser:appuser /app
+COPY app/ ./app/
 
 # Create recordings directory with correct permissions
 RUN mkdir -p /recordings && \
-    chown -R appuser:appuser /recordings && \
+    chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings
+
+# Copy the entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER appuser
 
 EXPOSE 7000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
+ENTRYPOINT ["/app/entrypoint.sh"]

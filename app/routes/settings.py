@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import SessionLocal, get_db
-from app.models import GlobalSettings, NotificationSettings, Streamer
+from app.models import GlobalSettings, NotificationSettings, Stream, Streamer
 from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema, StreamerNotificationSettingsUpdateSchema
 from apprise import Apprise
 from sqlalchemy.orm import Session, joinedload
@@ -36,6 +36,7 @@ async def get_settings():
             notify_online_global=settings.notify_online_global,
             notify_offline_global=settings.notify_offline_global,
             notify_update_global=settings.notify_update_global,
+            notify_favorite_category_global=settings.notify_favorite_category_global,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
@@ -49,11 +50,12 @@ async def get_all_streamer_settings():
             return [
                 StreamerNotificationSettingsSchema(
                     streamer_id=s.streamer_id,
-                    username=s.streamer.username,  # Include username
+                    username=s.streamer.username,
                     profile_image_url=s.streamer.profile_image_url,
                     notify_online=s.notify_online,
                     notify_offline=s.notify_offline,
-                    notify_update=s.notify_update
+                    notify_update=s.notify_update,
+                    notify_favorite_category=s.notify_favorite_category
                 )
                 for s in settings
             ]
@@ -80,6 +82,8 @@ async def update_streamer_settings(
                 settings.notify_offline = settings_data.notify_offline
             if settings_data.notify_update is not None:
                 settings.notify_update = settings_data.notify_update
+            if settings_data.notify_favorite_category is not None:
+                settings.notify_favorite_category = settings_data.notify_favorite_category
             
             db.commit()
             
@@ -91,7 +95,8 @@ async def update_streamer_settings(
                 profile_image_url=streamer.profile_image_url if streamer else None,
                 notify_online=settings.notify_online,
                 notify_offline=settings.notify_offline,
-                notify_update=settings.notify_update
+                notify_update=settings.notify_update,
+                notify_favorite_category=settings.notify_favorite_category
             )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
@@ -107,7 +112,8 @@ async def get_streamer_settings():
                     "streamer_id": s.streamer_id,
                     "notify_online": s.notify_online,
                     "notify_offline": s.notify_offline,
-                    "notify_update": s.notify_update
+                    "notify_update": s.notify_update,
+                    "notify_favorite_category": s.notify_favorite_category
                 }
                 for s in settings
             ]
@@ -170,6 +176,7 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
+            settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
             
             db.commit()
             

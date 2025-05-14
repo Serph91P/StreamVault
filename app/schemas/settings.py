@@ -39,6 +39,7 @@ class StreamerNotificationSettingsUpdateSchema(BaseModel):
     notify_online: Optional[bool] = None
     notify_offline: Optional[bool] = None
     notify_update: Optional[bool] = None
+    notify_favorite_category: Optional[bool] = None
     
     class Config:
         from_attributes = True

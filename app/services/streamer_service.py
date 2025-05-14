@@ -275,3 +275,23 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Error fetching game data: {e}")
             return None
+
+    async def get_stream_info(self, twitch_id: str) -> Optional[Dict[str, Any]]:
+        """Get current stream information for a Twitch user to check if they're live"""
+        token = await self.get_access_token()
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{self.base_url}/streams",
+                params={"user_id": twitch_id},
+                headers={
+                    "Client-ID": self.client_id,
+                    "Authorization": f"Bearer {token}"
+                }
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data["data"][0] if data["data"] else None
+                else:
+                    logger.error(f"Failed to get stream info. Status: {response.status}")
+                    return None
