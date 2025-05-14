@@ -36,9 +36,9 @@ COPY app/frontend/ ./
 RUN npm run build
 
 # Back to main directory and copy only necessary app files
-# This avoids duplicate directory structures
+# Keep all app code in a single directory structure
 WORKDIR /app
-COPY app/ ./app/
+COPY app/ ./
 
 # Create recordings directory with correct permissions
 RUN mkdir -p /recordings && \
