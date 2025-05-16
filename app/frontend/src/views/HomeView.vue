@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import TheWelcome from '../components/TheWelcome.vue'
 import StreamerList from '../components/StreamerList.vue'
-
-const handleStreamerDeleted = async () => {
-  // Refresh subscriptions or perform other necessary updates
-}
 </script>
 
 <template>
@@ -16,15 +11,13 @@ const handleStreamerDeleted = async () => {
         <!-- You can add more stats here, e.g. number of streamers, last recording, etc. -->
       </div>
       
-      <TheWelcome />
-      
       <section class="content-section">
         <div class="page-header">
           <h2>Your Streamers</h2>
           <p class="description">Manage your tracked streamers and their recordings</p>
         </div>
         
-        <StreamerList @streamer-deleted="handleStreamerDeleted" />
+        <StreamerList />
       </section>
     </div>
   </div>
