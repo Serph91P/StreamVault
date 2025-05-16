@@ -5,7 +5,7 @@
       <div class="header-content">
         <h1 class="app-logo">StreamVault</h1>
         <nav class="main-nav">
-          <router-link to="/" class="nav-link">Welcome</router-link>
+          <router-link to="/" class="nav-link">Home</router-link>
           <router-link to="/streamers" class="nav-link">Streamers</router-link>
           <router-link to="/add-streamer" class="nav-link">Add Streamer</router-link>
           <router-link to="/subscriptions" class="nav-link">Subscriptions</router-link>
@@ -39,7 +39,7 @@
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
           <polyline points="9 22 9 12 15 12 15 22"></polyline>
         </svg>
-        <span>Welcome</span>
+        <span>Home</span>
       </router-link>
       <router-link to="/streamers" class="mobile-nav-item">
         <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

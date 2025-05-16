@@ -14,10 +14,18 @@
       </li>
     </ol>
     <p>You can change these settings at any time from the menu.</p>
+    <button class="btn btn-primary" @click="continueToHome">Continue</button>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+const router = useRouter()
+
+function continueToHome() {
+  localStorage.setItem('welcome_seen', '1')
+  router.replace('/home')
+}
 </script>
 
 <style scoped>
@@ -41,5 +49,8 @@
 .welcome-page li {
   margin-bottom: 1rem;
   font-size: 1.1rem;
+}
+.btn {
+  margin-top: 2rem;
 }
 </style>

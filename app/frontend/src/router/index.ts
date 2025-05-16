@@ -15,6 +15,11 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'home',
+      component: HomeView,
+    },
+    {
+      path: '/welcome',
       name: 'welcome',
       component: WelcomeView,
     },
@@ -44,11 +49,6 @@ const router = createRouter({
       component: LoginView,
     },
     {
-      path: '/home',
-      name: 'home',
-      component: HomeView,
-    },
-    {
       path: "/admin",
       name: "Admin",
       component: AdminView,
@@ -65,7 +65,17 @@ const router = createRouter({
     },
   ],
 });
+
+// Show WelcomeView only if not seen yet
 router.beforeEach(async (to, from, next) => {
+  // Show WelcomeView only if not seen yet and not coming from setup
+  if (to.path === '/' && !localStorage.getItem('welcome_seen')) {
+    return next('/welcome');
+  }
+  // Prevent direct access to /welcome after first visit
+  if (to.path === '/welcome' && localStorage.getItem('welcome_seen')) {
+    return next('/');
+  }
   try {
     const response = await fetch('/auth/setup', {
       headers: {
