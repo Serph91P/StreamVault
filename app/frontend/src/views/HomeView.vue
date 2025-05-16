@@ -110,41 +110,33 @@ onMounted(async () => {
 }
 .stat-item {
   min-width: 160px;
-  background: var(--background-tertiary, #f7f7fa);
-  border-radius: 8px;
-  padding: 1rem 1.5rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  background: var(--background-card, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  padding: 1.2rem 1.7rem;
+  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.12));
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: background 0.2s, box-shadow 0.2s;
+  border: 1px solid var(--border-color, #2d2d35);
+  transition: box-shadow 0.2s, transform 0.2s;
 }
-.stat-item:nth-child(1) {
-  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
-  color: #fff;
-}
-.stat-item:nth-child(2) {
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  color: #fff;
-}
-.stat-item:nth-child(3) {
-  background: linear-gradient(135deg, #f59e42 0%, #fbbf24 100%);
-  color: #fff;
-}
-.stat-item:nth-child(4) {
-  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
-  color: #fff;
+.stat-item:hover {
+  box-shadow: var(--shadow-md, 0 4px 8px rgba(0,0,0,0.16));
+  transform: translateY(-2px);
 }
 .stat-label {
   font-size: 1rem;
-  color: rgba(255,255,255,0.85);
+  color: var(--text-secondary, #b1b1b9);
   margin-bottom: 0.25rem;
   letter-spacing: 0.01em;
 }
 .stat-value {
-  font-size: 1.3rem;
-  font-weight: bold;
-  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary-color, #42b883);
   text-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.stat-item:last-child .stat-value {
+  color: var(--accent-color, #7c4dff);
 }
 </style>
