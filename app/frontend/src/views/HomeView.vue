@@ -117,15 +117,34 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.stat-item:nth-child(1) {
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+  color: #fff;
+}
+.stat-item:nth-child(2) {
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  color: #fff;
+}
+.stat-item:nth-child(3) {
+  background: linear-gradient(135deg, #f59e42 0%, #fbbf24 100%);
+  color: #fff;
+}
+.stat-item:nth-child(4) {
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  color: #fff;
 }
 .stat-label {
   font-size: 1rem;
-  color: #888;
+  color: rgba(255,255,255,0.85);
   margin-bottom: 0.25rem;
+  letter-spacing: 0.01em;
 }
 .stat-value {
   font-size: 1.3rem;
   font-weight: bold;
-  color: var(--primary, #3b82f6);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 </style>
