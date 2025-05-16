@@ -930,7 +930,8 @@ class RecordingService:
             )
             return existing_stream
 
-        # Create a new stream entry        started_at = (
+        # Create a new stream entry        
+        started_at = (
             datetime.fromisoformat(stream_data["started_at"].replace("Z", "+00:00"))
             if "started_at" in stream_data
             else datetime.now(timezone.utc)
@@ -945,7 +946,6 @@ class RecordingService:
             category_name=stream_data.get("category_name"),
             language=stream_data.get("language"),
             started_at=started_at,
-            # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
         )
         db.add(stream)
         db.flush()  # To get the stream ID
