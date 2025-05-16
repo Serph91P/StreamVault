@@ -1,8 +1,8 @@
 <template>
   <div class="streamers-page">
-    <h2>Deine Streamer</h2>
+    <h2>Your Streamers</h2>
     <StreamerList />
-    <router-link to="/add-streamer" class="btn btn-primary" style="margin-top:2rem;">Streamer hinzufügen</router-link>
+    <router-link to="/add-streamer" class="btn btn-primary" style="margin-top:2rem;">Add Streamer</router-link>
   </div>
 </template>
 

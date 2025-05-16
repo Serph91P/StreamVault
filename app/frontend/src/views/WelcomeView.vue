@@ -1,19 +1,19 @@
 <template>
   <div class="welcome-page">
-    <h2>Willkommen bei StreamVault!</h2>
-    <p>So startest du am besten:</p>
+    <h2>Welcome to StreamVault!</h2>
+    <p>How to get started:</p>
     <ol>
       <li>
-        <router-link to="/settings">Aufnahme-Einstellungen festlegen</router-link>
+        <router-link to="/settings">Set up recording settings</router-link>
       </li>
       <li>
-        <router-link to="/settings">Benachrichtigungen konfigurieren</router-link>
+        <router-link to="/settings">Configure notifications</router-link>
       </li>
       <li>
-        <router-link to="/streamers">Streamer hinzufügen & verwalten</router-link>
+        <router-link to="/streamers">Add & manage streamers</router-link>
       </li>
     </ol>
-    <p>Du kannst diese Einstellungen jederzeit im Menü anpassen.</p>
+    <p>You can change these settings at any time from the menu.</p>
   </div>
 </template>
 
