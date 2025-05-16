@@ -1,5 +1,48 @@
 <script setup lang="ts">
 import StreamerList from '../components/StreamerList.vue'
+import { onMounted, computed, ref } from 'vue'
+import { useStreamers } from '@/composables/useStreamers'
+import { useRecordingSettings } from '@/composables/useRecordingSettings'
+import { useStreams } from '@/composables/useStreams'
+
+const { streamers, fetchStreamers } = useStreamers()
+const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
+const totalStreamers = computed(() => streamers.value.length)
+const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
+const totalActiveRecordings = computed(() => activeRecordings.value.length)
+
+// For last recording, fetch all streams and find the latest ended stream
+const lastRecording = ref<any>(null)
+const isLoadingLastRecording = ref(false)
+
+async function fetchLastRecording() {
+  isLoadingLastRecording.value = true
+  let allStreams: any[] = []
+  for (const streamer of streamers.value) {
+    try {
+      const response = await fetch(`/api/streamers/${streamer.id}/streams`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.streams && Array.isArray(data.streams)) {
+          allStreams = allStreams.concat(data.streams)
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  // Find the latest ended stream
+  const endedStreams = allStreams.filter(s => s.ended_at)
+  endedStreams.sort((a, b) => new Date(b.ended_at).getTime() - new Date(a.ended_at).getTime())
+  lastRecording.value = endedStreams[0] || null
+  isLoadingLastRecording.value = false
+}
+
+onMounted(async () => {
+  await fetchStreamers()
+  await fetchActiveRecordings()
+  await fetchLastRecording()
+})
 </script>
 
 <template>
@@ -8,9 +51,32 @@ import StreamerList from '../components/StreamerList.vue'
       <div class="status-box">
         <h2>Dashboard</h2>
         <p>Welcome back to StreamVault! Here you can see the current status of your streamers and recordings.</p>
-        <!-- You can add more stats here, e.g. number of streamers, last recording, etc. -->
+        <div class="dashboard-stats">
+          <div class="stat-item">
+            <span class="stat-label">Total Streamers</span>
+            <span class="stat-value">{{ totalStreamers }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Live Streamers</span>
+            <span class="stat-value">{{ liveStreamers }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Active Recordings</span>
+            <span class="stat-value">{{ totalActiveRecordings }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Last Recording</span>
+            <span class="stat-value">
+              <template v-if="isLoadingLastRecording">Loading...</template>
+              <template v-else-if="lastRecording">
+                {{ lastRecording.title || 'Untitled' }}<br />
+                <small>{{ lastRecording.ended_at ? new Date(lastRecording.ended_at).toLocaleString() : '' }}</small>
+              </template>
+              <template v-else>No recordings found</template>
+            </span>
+          </div>
+        </div>
       </div>
-      
       <section class="content-section">
         <div class="page-header">
           <h2>Your Streamers</h2>
@@ -34,5 +100,32 @@ import StreamerList from '../components/StreamerList.vue'
 }
 .status-box h2 {
   margin-bottom: 0.5rem;
+}
+.dashboard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+.stat-item {
+  min-width: 160px;
+  background: var(--background-tertiary, #f7f7fa);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stat-label {
+  font-size: 1rem;
+  color: #888;
+  margin-bottom: 0.25rem;
+}
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: var(--primary, #3b82f6);
 }
 </style>
