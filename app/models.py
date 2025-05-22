@@ -123,6 +123,7 @@ class RecordingSettings(Base):
     filename_preset = Column(String, default="default")
     use_category_as_chapter_title = Column(Boolean, default=False)
     max_streams_per_streamer = Column(Integer, default=0)  # 0 = unlimited
+    cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
       
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
@@ -133,6 +134,7 @@ class StreamerRecordingSettings(Base):
     quality = Column(String, default="best")
     custom_filename = Column(String, nullable=True)
     max_streams = Column(Integer, nullable=True)  # Per-streamer override for max recordings
+    cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
     
     streamer = relationship("Streamer", back_populates="recording_settings")
 

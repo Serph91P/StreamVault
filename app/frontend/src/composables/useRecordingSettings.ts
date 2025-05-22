@@ -2,8 +2,10 @@ import { ref, Ref } from 'vue';
 import type { 
   RecordingSettings, 
   StreamerRecordingSettings, 
-  ActiveRecording 
+  ActiveRecording,
+  CleanupPolicy
 } from '@/types/recording';
+import { CleanupPolicyType } from '@/types/recording';
 
 export function useRecordingSettings() {
   const settings: Ref<RecordingSettings | null> = ref(null);
@@ -28,7 +30,8 @@ export function useRecordingSettings() {
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
           use_category_as_chapter_title: data.use_category_as_chapter_title,
-          max_streams_per_streamer: data.max_streams_per_streamer || 0
+          max_streams_per_streamer: data.max_streams_per_streamer || 0,
+          cleanup_policy: data.cleanup_policy // Add cleanup policy
         };
       } else {
         error.value = 'Failed to load settings';
@@ -58,7 +61,8 @@ export function useRecordingSettings() {
           default_quality: newSettings.default_quality,
           use_chapters: newSettings.use_chapters,
           use_category_as_chapter_title: newSettings.use_category_as_chapter_title,
-          max_streams_per_streamer: newSettings.max_streams_per_streamer
+          max_streams_per_streamer: newSettings.max_streams_per_streamer,
+          cleanup_policy: newSettings.cleanup_policy // Add new cleanup policy field
         })
       });
       
@@ -72,7 +76,8 @@ export function useRecordingSettings() {
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
           use_category_as_chapter_title: data.use_category_as_chapter_title,
-          max_streams_per_streamer: data.max_streams_per_streamer
+          max_streams_per_streamer: data.max_streams_per_streamer,
+          cleanup_policy: data.cleanup_policy // Include cleanup policy in response
         };
       } else {
         error.value = 'Failed to update settings';
@@ -82,7 +87,9 @@ export function useRecordingSettings() {
     } finally {
       isLoading.value = false;
     }
-  };  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
+  };
+
+  const fetchStreamerSettings = async (): Promise<StreamerRecordingSettings[]> => {
     try {
       isLoading.value = true;
       error.value = null;
@@ -223,6 +230,151 @@ export function useRecordingSettings() {
     }
   };
 
+  // New functions for advanced cleanup policies
+  const getDefaultCleanupPolicy = (): CleanupPolicy => {
+    return {
+      type: CleanupPolicyType.COUNT,
+      threshold: 10,
+      preserve_favorites: true,
+      delete_silently: false
+    };
+  };
+
+  const updateCleanupPolicy = async (policy: CleanupPolicy): Promise<boolean> => {
+    try {
+      isLoading.value = true;
+      
+      if (!settings.value) {
+        await fetchSettings();
+      }
+      
+      if (settings.value) {
+        const updatedSettings = { ...settings.value, cleanup_policy: policy };
+        await updateSettings(updatedSettings);
+        return true;
+      }
+      
+      return false;
+    } catch (err) {
+      console.error('Error updating cleanup policy:', err);
+      error.value = err instanceof Error ? err.message : String(err);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const updateStreamerCleanupPolicy = async (
+    streamerId: number, 
+    policy: CleanupPolicy
+  ): Promise<boolean> => {
+    try {
+      isLoading.value = true;
+      
+      const response = await fetch(`/api/recording/streamers/${streamerId}/cleanup-policy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(policy)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update streamer cleanup policy');
+      }
+      
+      // Update local cache
+      await fetchStreamerSettings();
+      
+      return true;
+    } catch (err) {
+      console.error('Error updating streamer cleanup policy:', err);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const runCustomCleanup = async (
+    streamerId: number,
+    customPolicy?: CleanupPolicy
+  ): Promise<{ deletedCount: number, deletedPaths: string[] }> => {
+    try {
+      isLoading.value = true;
+      
+      const url = customPolicy 
+        ? `/api/recording/cleanup/${streamerId}/custom` 
+        : `/api/recording/cleanup/${streamerId}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: customPolicy ? JSON.stringify(customPolicy) : undefined
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to run cleanup: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return {
+        deletedCount: data.deleted_count || 0,
+        deletedPaths: data.deleted_paths || []
+      };
+    } catch (err) {
+      console.error('Error running custom cleanup:', err);
+      error.value = err instanceof Error ? err.message : String(err);
+      return { deletedCount: 0, deletedPaths: [] };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const getStreamerStorageUsage = async (streamerId: number): Promise<{ 
+    totalSize: number, 
+    recordingCount: number,
+    oldestRecording: string,
+    newestRecording: string 
+  }> => {
+    try {
+      isLoading.value = true;
+      
+      const response = await fetch(`/api/recording/storage/${streamerId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get storage usage: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (err) {
+      console.error('Error getting streamer storage usage:', err);
+      error.value = err instanceof Error ? err.message : String(err);
+      return { 
+        totalSize: 0, 
+        recordingCount: 0,
+        oldestRecording: '',
+        newestRecording: ''
+      };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const getAvailableCategories = async (): Promise<{id: number; name: string}[]> => {
+    try {
+      const response = await fetch('/api/categories');
+      if (!response.ok) {
+        throw new Error('Failed to fetch categories');
+      }
+      return await response.json();
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      return [];
+    }
+  };
+
   return {
     settings,
     streamerSettings,
@@ -235,6 +387,12 @@ export function useRecordingSettings() {
     updateStreamerSettings,
     fetchActiveRecordings,
     stopRecording,
-    cleanupOldRecordings
+    cleanupOldRecordings,
+    getDefaultCleanupPolicy,
+    updateCleanupPolicy,
+    updateStreamerCleanupPolicy,
+    runCustomCleanup,
+    getStreamerStorageUsage,
+    getAvailableCategories
   }
 }

@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
+from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording_service import RecordingService
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import List
+from typing import List, Dict
 
 logger = logging.getLogger("streamvault")
 
@@ -255,8 +256,44 @@ async def cleanup_old_recordings(streamer_id: int):
         return {
             "status": "success", 
             "message": f"Cleaned up {deleted_count} recordings",
+            "deleted_count": deleted_count,
             "deleted_paths": deleted_paths
         }
     except Exception as e:
         logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
+async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
+    """Run a custom cleanup with specified policy"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        
+        # Convert pydantic model to dict
+        policy_dict = policy.dict(exclude_unset=True)
+        
+        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+            streamer_id, 
+            custom_policy=policy_dict
+        )
+        
+        return {
+            "status": "success", 
+            "message": f"Cleaned up {deleted_count} recordings using custom policy",
+            "deleted_count": deleted_count,
+            "deleted_paths": deleted_paths
+        }
+    except Exception as e:
+        logger.error(f"Error running custom cleanup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+        
+@router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
+async def get_storage_usage(streamer_id: int):
+    """Get storage usage information for a streamer"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        usage = await CleanupService.get_storage_usage(streamer_id)
+        return usage
+    except Exception as e:
+        logger.error(f"Error getting storage usage: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

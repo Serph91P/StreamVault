@@ -98,6 +98,20 @@
           the oldest recordings will be automatically deleted.
         </div>
       </div>
+      
+      <!-- Advanced Cleanup Policy -->
+      <div class="form-group">
+        <h4 class="section-title">Advanced Cleanup Policy</h4>
+        <p class="section-description">
+          Configure more advanced rules for automatic cleanup of old recordings.
+        </p>
+        
+        <CleanupPolicyEditor
+          :is-global="true"
+          title="Global Cleanup Policy"
+          @saved="handleCleanupPolicySaved"
+        />
+      </div>
 
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">

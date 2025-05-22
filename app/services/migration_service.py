@@ -22,7 +22,10 @@ class MigrationService:
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'migrations')
         migration_scripts = glob.glob(os.path.join(migrations_dir, '*.py'))
         # Filter out __init__.py and any other non-migration files
-        migration_scripts = [script for script in migration_scripts if os.path.basename(script) != '__init__.py']
+        migration_scripts = [script for script in migration_scripts if os.path.basename(script) != '__init__.py' 
+                            and os.path.basename(script) != 'create_migration.py'
+                            and os.path.basename(script) != 'template_migration.py'
+                            and os.path.basename(script) != 'manage.py']
         return migration_scripts
     
     @staticmethod
@@ -41,14 +44,21 @@ class MigrationService:
             migration_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(migration_module)
             
+            # Check for Alembic-style migrations
+            if hasattr(migration_module, 'upgrade'):
+                # This is an Alembic-style migration
+                logger.info(f"Running Alembic-style migration: {script_name}")
+                migration_module.upgrade()
+                logger.info(f"Successfully ran Alembic-style migration: {script_name}")
+                return True, f"Successfully ran migration: {script_name}"
             # Look for and run the migration function
-            if hasattr(migration_module, 'run_migration'):
+            elif hasattr(migration_module, 'run_migration'):
                 migration_module.run_migration()
                 logger.info(f"Successfully ran migration: {script_name}")
                 return True, f"Successfully ran migration: {script_name}"
             else:
-                logger.warning(f"Migration script {script_name} does not have a run_migration function")
-                return False, f"Migration script {script_name} does not have a run_migration function"
+                logger.warning(f"Migration script {script_name} does not have run_migration or upgrade function")
+                return False, f"Migration script {script_name} does not have a compatible migration function"
                 
         except Exception as e:
             logger.error(f"Error running migration {script_path}: {str(e)}", exc_info=True)
