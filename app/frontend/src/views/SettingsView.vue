@@ -53,7 +53,6 @@
               :active-recordings="activeRecordings"
               @update="handleUpdateRecordingSettings"
               @update-streamer="handleUpdateStreamerRecordingSettings"
-              @test-recording="handleTestRecording"
               @stop-recording="handleStopRecording"
               @cleanup-recordings="handleCleanupRecordings"
             />
@@ -104,7 +103,6 @@ const {
   updateStreamerSettings: updateStreamerRecordingSettings,
   fetchActiveRecordings,
   stopRecording,
-  testRecording,
   cleanupOldRecordings
 } = useRecordingSettings()
 
@@ -234,19 +232,6 @@ const handleUpdateStreamerRecordingSettings = async (
     await updateStreamerRecordingSettings(streamerId, settings)
   } catch (error) {
     console.error('Failed to update streamer recording settings:', error)
-  }
-}
-
-const handleTestRecording = async (streamerId: number) => {
-  try {
-    const success = await testRecording(streamerId)
-    if (success) {
-      alert('Test recording started. Check the "Active Recordings" section.')
-    } else {
-      alert('Failed to start test recording.')
-    }
-  } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to start test recording')
   }
 }
 

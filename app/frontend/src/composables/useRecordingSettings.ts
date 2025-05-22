@@ -200,28 +200,6 @@ export function useRecordingSettings() {
     }
   };
 
-  const testRecording = async (streamerId: number): Promise<boolean> => {
-    try {
-      isLoading.value = true;
-      
-      const response = await fetch(`/api/recording/test/${streamerId}`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      await fetchActiveRecordings();
-      return true;
-    } catch (err) {
-      console.error('Error testing recording:', err);
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
   const cleanupOldRecordings = async (streamerId: number): Promise<boolean> => {
     try {
       isLoading.value = true;
@@ -257,7 +235,6 @@ export function useRecordingSettings() {
     updateStreamerSettings,
     fetchActiveRecordings,
     stopRecording,
-    testRecording,
     cleanupOldRecordings
   }
 }

@@ -202,13 +202,6 @@
                 <td>
                   <div class="streamer-actions">
                     <button 
-                      v-if="!isActiveRecording(streamer.streamer_id)" 
-                      @click="testRecording(streamer.streamer_id)" 
-                      class="btn btn-secondary btn-sm" 
-                      :disabled="isLoading">
-                      Test
-                    </button>
-                    <button 
                       v-if="isActiveRecording(streamer.streamer_id)" 
                       @click="stopRecording(streamer.streamer_id)" 
                       class="btn btn-danger btn-sm" 
@@ -248,7 +241,6 @@ const props = defineProps<{
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
-  testRecording: [streamerId: number];
   stopRecording: [streamerId: number];
   cleanupRecordings: [streamerId: number];
 }>();
@@ -354,10 +346,6 @@ const toggleAllStreamers = async (enabled: boolean) => {
     if (!streamer?.streamer_id) continue;
     await updateStreamerSetting(streamer.streamer_id, { enabled });
   }
-};
-
-const testRecording = (streamerId: number) => {
-  emits('testRecording', streamerId);
 };
 
 const stopRecording = (streamerId: number) => {
