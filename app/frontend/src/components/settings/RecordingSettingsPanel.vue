@@ -89,6 +89,15 @@
           When enabled, chapter titles will use the game/category name instead of the stream title.
         </div>
       </div>
+      
+      <div class="form-group">
+        <label>Maximum Streams Per Streamer:</label>
+        <input v-model.number="data.max_streams_per_streamer" type="number" min="0" class="form-control" />
+        <div class="help-text">
+          Maximum number of recordings to keep per streamer (0 = unlimited). When this limit is reached,
+          the oldest recordings will be automatically deleted.
+        </div>
+      </div>
 
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
@@ -148,6 +157,14 @@
                   Custom Filename
                   <div class="th-tooltip">Optional custom filename template for this streamer</div>
                 </th>
+                <th>
+                  Max Streams
+                  <div class="th-tooltip">Maximum number of recordings to keep (0 = use global setting)</div>
+                </th>
+                <th>
+                  Actions
+                  <div class="th-tooltip">Test, stop, or clean up recordings</div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -177,6 +194,36 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
+                <td>
+                  <input type="number" v-model.number="streamer.max_streams" min="0"
+                    @change="updateStreamerSetting(streamer.streamer_id, { max_streams: streamer.max_streams })"
+                    placeholder="0" class="form-control form-control-sm" />
+                </td>
+                <td>
+                  <div class="streamer-actions">
+                    <button 
+                      v-if="!isActiveRecording(streamer.streamer_id)" 
+                      @click="testRecording(streamer.streamer_id)" 
+                      class="btn btn-secondary btn-sm" 
+                      :disabled="isLoading">
+                      Test
+                    </button>
+                    <button 
+                      v-if="isActiveRecording(streamer.streamer_id)" 
+                      @click="stopRecording(streamer.streamer_id)" 
+                      class="btn btn-danger btn-sm" 
+                      :disabled="isLoading">
+                      Stop
+                    </button>
+                    <button 
+                      @click="cleanupStreamerRecordings(streamer.streamer_id)" 
+                      class="btn btn-warning btn-sm" 
+                      :disabled="isLoading || (!streamer.max_streams && !data.max_streams_per_streamer)" 
+                      :title="(!streamer.max_streams && !data.max_streams_per_streamer) ? 'Set max recordings first' : 'Delete old recordings'">
+                      Clean
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -203,6 +250,7 @@ const emits = defineEmits<{
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
   testRecording: [streamerId: number];
   stopRecording: [streamerId: number];
+  cleanupRecordings: [streamerId: number];
 }>();
 
 const { isLoading, error } = useRecordingSettings();
@@ -215,7 +263,8 @@ const data = ref<RecordingSettings>({
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
-  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false,
+  max_streams_per_streamer: props.settings?.max_streams_per_streamer ?? 0
 });
 
 const updateFilenameTemplate = () => {
@@ -313,6 +362,16 @@ const testRecording = (streamerId: number) => {
 
 const stopRecording = (streamerId: number) => {
   emits('stopRecording', streamerId);
+};
+
+const cleanupStreamerRecordings = (streamerId: number) => {
+  if (confirm('Are you sure you want to clean up old recordings for this streamer? This action cannot be undone.')) {
+    emits('cleanupRecordings', streamerId);
+  }
+};
+
+const isActiveRecording = (streamerId: number): boolean => {
+  return props.activeRecordings.some(rec => rec.streamer_id === streamerId);
 };
 
 const formatDate = (date: string) => {
@@ -639,6 +698,11 @@ select.form-control option {
   color: white;
 }
 
+.btn-warning {
+  background-color: var(--warning-color, #ffc107);
+  color: #212529;
+}
+
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
@@ -782,5 +846,16 @@ select.form-control-sm option {
   .button-container {
     flex-direction: row;
   }
+}
+
+.streamer-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.streamer-actions .btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 </style>
