@@ -5,7 +5,7 @@ Migration to index streams table for better performance
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 
 # Add parent directory to path
@@ -27,7 +27,7 @@ def run_migration():
         session = Session()
         
         # Check if indices exist before creating them
-        inspector = engine.dialect.get_inspector(engine)
+        inspector = inspect(engine)
         existing_indices = inspector.get_indexes('streams')
         existing_index_names = [index['name'] for index in existing_indices]
         
