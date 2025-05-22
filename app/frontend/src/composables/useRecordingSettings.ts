@@ -71,7 +71,8 @@ export function useRecordingSettings() {
           filename_preset: data.filename_preset,
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
-          use_category_as_chapter_title: data.use_category_as_chapter_title
+          use_category_as_chapter_title: data.use_category_as_chapter_title,
+          max_streams_per_streamer: data.max_streams_per_streamer
         };
       } else {
         error.value = 'Failed to update settings';
@@ -132,7 +133,7 @@ export function useRecordingSettings() {
       const updatedSettings = await response.json();
       
       // Update local state
-      const index = streamerSettings.value.findIndex(s => s.streamer_id === streamerId);
+      const index = streamerSettings.value.findIndex((s: StreamerRecordingSettings) => s.streamer_id === streamerId);
       if (index !== -1) {
         streamerSettings.value[index] = updatedSettings;
       }
