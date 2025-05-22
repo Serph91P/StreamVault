@@ -27,7 +27,8 @@ export function useRecordingSettings() {
           filename_preset: data.filename_preset,
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
-          use_category_as_chapter_title: data.use_category_as_chapter_title
+          use_category_as_chapter_title: data.use_category_as_chapter_title,
+          max_streams_per_streamer: data.max_streams_per_streamer || 0
         };
       } else {
         error.value = 'Failed to load settings';
@@ -56,7 +57,8 @@ export function useRecordingSettings() {
           filename_preset: newSettings.filename_preset,
           default_quality: newSettings.default_quality,
           use_chapters: newSettings.use_chapters,
-          use_category_as_chapter_title: newSettings.use_category_as_chapter_title
+          use_category_as_chapter_title: newSettings.use_category_as_chapter_title,
+          max_streams_per_streamer: newSettings.max_streams_per_streamer
         })
       });
       
@@ -219,6 +221,29 @@ export function useRecordingSettings() {
     }
   };
 
+  const cleanupOldRecordings = async (streamerId: number): Promise<boolean> => {
+    try {
+      isLoading.value = true;
+      
+      const response = await fetch(`/api/recording/cleanup/${streamerId}`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to cleanup old recordings: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return true;
+    } catch (err) {
+      console.error('Error cleaning up recordings:', err);
+      error.value = err instanceof Error ? err.message : String(err);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     settings,
     streamerSettings,
@@ -231,6 +256,7 @@ export function useRecordingSettings() {
     updateStreamerSettings,
     fetchActiveRecordings,
     stopRecording,
-    testRecording
+    testRecording,
+    cleanupOldRecordings
   }
 }
