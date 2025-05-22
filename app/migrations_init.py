@@ -11,7 +11,7 @@ logger = logging.getLogger("streamvault")
 def run_migrations() -> None:
     """Run all pending database migrations"""
     # Ensure we have a valid database connection before proceeding
-    if not settings.database_url:
+    if not settings.DATABASE_URL:
         logger.error("No database URL configured. Skipping migrations.")
         return
 

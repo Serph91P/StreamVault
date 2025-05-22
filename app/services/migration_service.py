@@ -6,6 +6,7 @@ import importlib.util
 import logging
 import glob
 from typing import List, Tuple
+from sqlalchemy import text
 
 from app.config.settings import settings
 from app.database import SessionLocal, engine

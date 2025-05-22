@@ -21,7 +21,7 @@ def run_migration():
     """Add max_streams columns to the database tables"""
     try:
         # Connect to the database
-        engine = create_engine(settings.database_url)
+        engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
         
