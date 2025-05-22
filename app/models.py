@@ -121,7 +121,8 @@ class RecordingSettings(Base):
     default_quality = Column(String, default="best")
     use_chapters = Column(Boolean, default=True)
     filename_preset = Column(String, default="default")
-    use_category_as_chapter_title = Column(Boolean, default=False)   
+    use_category_as_chapter_title = Column(Boolean, default=False)
+    max_streams_per_streamer = Column(Integer, default=0)  # 0 = unlimited
       
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
@@ -131,6 +132,7 @@ class StreamerRecordingSettings(Base):
     enabled = Column(Boolean, default=True)
     quality = Column(String, default="best")
     custom_filename = Column(String, nullable=True)
+    max_streams = Column(Integer, nullable=True)  # Per-streamer override for max recordings
     
     streamer = relationship("Streamer", back_populates="recording_settings")
 
