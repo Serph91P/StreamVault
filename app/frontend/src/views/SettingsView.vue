@@ -55,6 +55,7 @@
               @update-streamer="handleUpdateStreamerRecordingSettings"
               @test-recording="handleTestRecording"
               @stop-recording="handleStopRecording"
+              @cleanup-recordings="handleCleanupRecordings"
             />
           </div>
           
@@ -103,7 +104,8 @@ const {
   updateStreamerSettings: updateStreamerRecordingSettings,
   fetchActiveRecordings,
   stopRecording,
-  testRecording
+  testRecording,
+  cleanupOldRecordings
 } = useRecordingSettings()
 
 const activeTab = ref('notifications')
@@ -258,6 +260,19 @@ const handleStopRecording = async (streamerId: number) => {
     }
   } catch (error) {
     alert(error instanceof Error ? error.message : 'Failed to stop recording')
+  }
+}
+
+const handleCleanupRecordings = async (streamerId: number) => {
+  try {
+    const success = await cleanupOldRecordings(streamerId)
+    if (success) {
+      alert('Old recordings cleaned up successfully.')
+    } else {
+      alert('Failed to clean up recordings.')
+    }
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to clean up recordings')
   }
 }
 </script>
