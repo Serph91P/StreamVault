@@ -49,17 +49,61 @@ class ThumbnailService:
             os.makedirs(output_dir, exist_ok=True)
             thumbnail_path = os.path.join(output_dir, f"{streamer.username}_thumbnail.jpg")
             
+            # Prüfen, ob bereits ein Thumbnail existiert
+            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+            if metadata and metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
+                logger.info(f"Using existing thumbnail for stream {stream_id} from {metadata.thumbnail_path}")
+                
+                # Kopiere auch in das Standard-Format für Plex, falls verfügbar
+                try:
+                    if metadata.json_path:
+                        video_dir = os.path.dirname(metadata.json_path)
+                        base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
+                        base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                        
+                        plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
+                        poster_path = os.path.join(video_dir, "poster.jpg")
+                        
+                        import shutil
+                        if not os.path.exists(plex_thumbnail_path) or os.path.getsize(plex_thumbnail_path) < 1000:
+                            shutil.copy2(metadata.thumbnail_path, plex_thumbnail_path)
+                        
+                        if not os.path.exists(poster_path):
+                            shutil.copy2(metadata.thumbnail_path, poster_path)
+                except Exception as e:
+                    logger.error(f"Error copying to Plex format: {e}", exc_info=True)
+                
+                return metadata.thumbnail_path
+            
+            # Prüfen, ob das Ziel-Thumbnail bereits existiert
+            if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
+                logger.info(f"Using existing thumbnail file at {thumbnail_path}")
+                
+                # Metadata aktualisieren
+                if metadata:
+                    metadata.thumbnail_path = thumbnail_path
+                    db.commit()
+                
+                return thumbnail_path
+                
             # URL generieren
             url = await self.get_stream_thumbnail(streamer.username)
             
             try:
-                async with self.session.get(url) as response:
+                session = await self._get_session()
+                async with session.get(url) as response:
                     if response.status == 200:
+                        image_data = await response.read()
+                        
+                        # Prüfen, ob es ein Platzhalter-Bild ist
+                        if await self._is_placeholder_image(image_data):
+                            logger.warning(f"Thumbnail for stream {stream_id} is a placeholder image, skipping")
+                            return None
+                            
                         with open(thumbnail_path, 'wb') as f:
-                            f.write(await response.read())
+                            f.write(image_data)
                         
                         # Metadata aktualisieren
-                        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                         if not metadata:
                             metadata = StreamMetadata(stream_id=stream_id)
                             db.add(metadata)
@@ -67,6 +111,24 @@ class ThumbnailService:
                         metadata.thumbnail_path = thumbnail_path
                         metadata.thumbnail_url = url
                         db.commit()
+                        
+                        # Auch in das Verzeichnis mit dem Video kopieren, falls es schon existiert
+                        try:
+                            if metadata.json_path:
+                                video_dir = os.path.dirname(metadata.json_path)
+                                base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
+                                base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                                
+                                # Kopiere in verschiedene Standard-Formate für Plex und andere Media Server
+                                import shutil
+                                plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
+                                poster_path = os.path.join(video_dir, "poster.jpg")
+                                
+                                shutil.copy2(thumbnail_path, plex_thumbnail_path)
+                                shutil.copy2(thumbnail_path, poster_path)
+                                logger.info(f"Copied thumbnail to Plex format: {plex_thumbnail_path}")
+                        except Exception as e:
+                            logger.error(f"Error copying thumbnail to video directory: {e}", exc_info=True)
                         
                         logger.info(f"Downloaded thumbnail for stream {stream_id} to {thumbnail_path}")
                         return thumbnail_path
@@ -185,9 +247,57 @@ class ThumbnailService:
                                 metadata.thumbnail_path = thumbnail_path
                                 db.commit()
                                 
+                                # Kopiere das Thumbnail auch in das Verzeichnis mit dem passenden Namen für Plex
+                                if metadata.json_path:
+                                    try:
+                                        video_dir = os.path.dirname(metadata.json_path)
+                                        base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
+                                        base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                                        
+                                        # Kopiere in verschiedene Standard-Formate für Plex und andere Media Server
+                                        import shutil
+                                        plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
+                                        poster_path = os.path.join(video_dir, "poster.jpg")
+                                        
+                                        shutil.copy2(thumbnail_path, plex_thumbnail_path)
+                                        shutil.copy2(thumbnail_path, poster_path)
+                                        logger.info(f"Copied extracted thumbnail to Plex format: {plex_thumbnail_path}")
+                                    except Exception as e:
+                                        logger.error(f"Error copying extracted thumbnail to video directory: {e}", exc_info=True)
+                                
                                 logger.info(f"Successfully extracted thumbnail from video for stream {stream_id}")
                                 return thumbnail_path
                         except Exception as e:
                             logger.error(f"Error extracting thumbnail from video: {e}", exc_info=True)
             
-            # Wenn wir hier sind, haben wir entweder ein Twitch-Thumbnail oder gar keins            return twitch_thumbnail
+            # Wenn wir hier sind, haben wir entweder ein Twitch-Thumbnail oder gar keins
+            # Prüfe nochmal, ob wir ein Thumbnail in den Metadaten haben, falls alles andere fehlgeschlagen ist
+            if metadata and metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
+                logger.info(f"Using existing thumbnail from metadata for stream {stream_id}")
+                
+                # Stelle sicher, dass das Thumbnail auch mit dem richtigen Namen im Verzeichnis liegt,
+                # damit die Plex-Integration es korrekt findet
+                if metadata.json_path:
+                    try:
+                        video_dir = os.path.dirname(metadata.json_path)
+                        base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
+                        base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                        
+                        # Kopiere das Thumbnail in das Verzeichnis mit standardisierten Namen für Plex
+                        plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
+                        poster_path = os.path.join(video_dir, "poster.jpg")
+                        
+                        import shutil
+                        if not os.path.exists(plex_thumbnail_path) or os.path.getsize(plex_thumbnail_path) < 1000:
+                            shutil.copy2(metadata.thumbnail_path, plex_thumbnail_path)
+                            logger.info(f"Copied thumbnail to Plex-friendly format: {plex_thumbnail_path}")
+                        
+                        if not os.path.exists(poster_path):
+                            shutil.copy2(metadata.thumbnail_path, poster_path)
+                            logger.info(f"Copied thumbnail to Plex poster: {poster_path}")
+                    except Exception as e:
+                        logger.error(f"Error copying thumbnail to standardized location: {e}", exc_info=True)
+                
+                return metadata.thumbnail_path
+                
+            return twitch_thumbnail
