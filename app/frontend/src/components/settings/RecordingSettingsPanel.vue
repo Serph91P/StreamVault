@@ -325,15 +325,15 @@ const previewFilename = computed(() => {
 
 const saveSettings = async () => {
   try {
-    isSaving.value = true;
-    emits('update', {
+    isSaving.value = true;      emits('update', {
       enabled: data.value.enabled,
       output_directory: data.value.output_directory,
       filename_template: data.value.filename_template,
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
       use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title,
+      max_streams_per_streamer: data.value.max_streams_per_streamer
     });
   } catch (error) {
     console.error('Failed to save settings:', error);
