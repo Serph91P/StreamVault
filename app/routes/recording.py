@@ -60,6 +60,9 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             # Füge das neue Feld hinzu
             if hasattr(settings_data, 'use_category_as_chapter_title'):
                 existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
+                
+            if hasattr(settings_data, 'max_streams_per_streamer'):
+                existing_settings.max_streams_per_streamer = settings_data.max_streams_per_streamer
             
             # Save changes
             db.commit()
@@ -105,7 +108,8 @@ async def get_all_streamer_recording_settings():
                     profile_image_url=streamer.profile_image_url,
                     enabled=settings.enabled,
                     quality=settings.quality,
-                    custom_filename=settings.custom_filename
+                    custom_filename=settings.custom_filename,
+                    max_streams=settings.max_streams
                 ))
             
             db.commit()
@@ -193,6 +197,8 @@ async def update_streamer_recording_settings(
             streamer_settings.quality = settings.quality
         if settings.custom_filename is not None:
             streamer_settings.custom_filename = settings.custom_filename
+        if settings.max_streams is not None:
+            streamer_settings.max_streams = settings.max_streams
         
         db.commit()
         
@@ -203,7 +209,8 @@ async def update_streamer_recording_settings(
             profile_image_url=streamer.profile_image_url,
             enabled=streamer_settings.enabled,
             quality=streamer_settings.quality,
-            custom_filename=streamer_settings.custom_filename
+            custom_filename=streamer_settings.custom_filename,
+            max_streams=streamer_settings.max_streams
         )
     except HTTPException:
         raise
@@ -236,4 +243,20 @@ async def force_start_offline_recording(streamer_id: int):
             raise HTTPException(status_code=400, detail="Failed to start recording. Check logs for details.")
     except Exception as e:
         logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cleanup/{streamer_id}")
+async def cleanup_old_recordings(streamer_id: int):
+    """Manually clean up old recordings for a streamer"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
+        
+        return {
+            "status": "success", 
+            "message": f"Cleaned up {deleted_count} recordings",
+            "deleted_paths": deleted_paths
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
