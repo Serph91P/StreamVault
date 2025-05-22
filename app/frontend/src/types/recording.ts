@@ -6,6 +6,7 @@ export interface RecordingSettings {
   default_quality: string;
   use_chapters: boolean;
   use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
+  max_streams_per_streamer: number; // Maximum number of streams to keep per streamer
 }
 export interface StreamerRecordingSettings {
   streamer_id: number;
@@ -14,6 +15,7 @@ export interface StreamerRecordingSettings {
   quality?: string;
   custom_filename?: string;
   profile_image_url?: string;
+  max_streams?: number; // Maximum number of streams to keep for this streamer
 }
 export interface ActiveRecording {
   streamer_id: number;
