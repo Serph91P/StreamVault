@@ -219,6 +219,18 @@ class ConfigManager:
         else:
             return "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"  # Default fallback
 
+    def get_max_streams(self, streamer_id: int) -> int:
+        """Get the maximum number of streams for a streamer"""
+        streamer_settings = self.get_streamer_settings(streamer_id)
+        if streamer_settings and streamer_settings.max_streams is not None and streamer_settings.max_streams > 0:
+            return streamer_settings.max_streams
+            
+        global_settings = self.get_global_settings()
+        if global_settings and global_settings.max_streams_per_streamer:
+            return global_settings.max_streams_per_streamer
+            
+        return 0  # 0 means unlimited
+
 
 # Subprocess manager for better resource handling
 class SubprocessManager:
@@ -373,6 +385,12 @@ class RecordingService:
                             f"Recording disabled for streamer {streamer.username}"
                         )
                         return False
+
+                    # Clean up old recordings for this streamer before starting a new one
+                    from app.services.cleanup_service import CleanupService
+                    deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id, db)
+                    if deleted_count > 0:
+                        logger.info(f"Cleaned up {deleted_count} old recordings for streamer {streamer.username}")
 
                     # Get quality setting from config manager
                     quality = self.config_manager.get_quality_setting(streamer_id)
