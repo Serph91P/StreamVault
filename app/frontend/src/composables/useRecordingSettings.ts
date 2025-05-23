@@ -228,8 +228,7 @@ export function useRecordingSettings() {
     } finally {
       isLoading.value = false;
     }
-  };
-  // New functions for advanced cleanup policies
+  };  // New functions for advanced cleanup policies
   const getDefaultCleanupPolicy = (): CleanupPolicy => {
     return {
       type: CleanupPolicyType.COUNT,

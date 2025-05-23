@@ -244,7 +244,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { CleanupPolicyType } from '@/types/recording';
+import { CleanupPolicyType, type CleanupPolicy } from '@/types/recording';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 
 const recordingSettings = useRecordingSettings();
@@ -383,12 +383,12 @@ watch([startDate, endDate, selectedWeekdays, startTime, endTime], () => {
 // Methods
 function updateTimeframeFromFields() {
   policy.value.preserve_timeframe = {
-    start_date: startDate.value,
-    end_date: endDate.value,
-    weekdays: selectedWeekdays.value,
+    start_date: startDate.value || '',
+    end_date: endDate.value || '',
+    weekdays: selectedWeekdays.value || [],
     timeOfDay: {
-      start: startTime.value,
-      end: endTime.value
+      start: startTime.value || '',
+      end: endTime.value || ''
     }
   };
 }
@@ -509,22 +509,7 @@ async function savePolicy() {
     updateTimeframeFromFields();
     
     // Ensure all required properties are present
-    const completePolicy = {
-      type: policy.value.type,
-      threshold: policy.value.threshold,
-      preserve_favorites: policy.value.preserve_favorites !== undefined ? policy.value.preserve_favorites : true,
-      preserve_categories: policy.value.preserve_categories || [],
-      preserve_timeframe: {
-        start_date: policy.value.preserve_timeframe?.start_date || '',
-        end_date: policy.value.preserve_timeframe?.end_date || '',
-        weekdays: policy.value.preserve_timeframe?.weekdays || [],
-        timeOfDay: {
-          start: policy.value.preserve_timeframe?.timeOfDay?.start || '',
-          end: policy.value.preserve_timeframe?.timeOfDay?.end || ''
-        }
-      },
-      delete_silently: policy.value.delete_silently !== undefined ? policy.value.delete_silently : false
-    };
+    const completePolicy = ensureCompletePolicy(policy.value);
     
     if (props.isGlobal) {
       // Update global policy
@@ -577,22 +562,7 @@ async function runCustomCleanup() {
     updateTimeframeFromFields();
     
     // Ensure all required properties are present
-    const completePolicy = {
-      type: policy.value.type,
-      threshold: policy.value.threshold,
-      preserve_favorites: policy.value.preserve_favorites !== undefined ? policy.value.preserve_favorites : true,
-      preserve_categories: policy.value.preserve_categories || [],
-      preserve_timeframe: {
-        start_date: policy.value.preserve_timeframe?.start_date || '',
-        end_date: policy.value.preserve_timeframe?.end_date || '',
-        weekdays: policy.value.preserve_timeframe?.weekdays || [],
-        timeOfDay: {
-          start: policy.value.preserve_timeframe?.timeOfDay?.start || '',
-          end: policy.value.preserve_timeframe?.timeOfDay?.end || ''
-        }
-      },
-      delete_silently: policy.value.delete_silently !== undefined ? policy.value.delete_silently : false
-    };
+    const completePolicy = ensureCompletePolicy(policy.value);
     
     const result = await recordingSettings.runCustomCleanup(props.streamerId, completePolicy);
     
@@ -645,6 +615,26 @@ function showError(message: string) {
   snackbarText.value = message;
   snackbarColor.value = 'error';
   showSnackbar.value = true;
+}
+
+// Helper function to ensure policy has all required properties
+function ensureCompletePolicy(policyObj: any): CleanupPolicy {
+  return {
+    type: policyObj.type || CleanupPolicyType.COUNT,
+    threshold: policyObj.threshold || 10,
+    preserve_favorites: policyObj.preserve_favorites !== undefined ? policyObj.preserve_favorites : true,
+    preserve_categories: policyObj.preserve_categories || [],
+    preserve_timeframe: {
+      start_date: policyObj.preserve_timeframe?.start_date || '',
+      end_date: policyObj.preserve_timeframe?.end_date || '',
+      weekdays: policyObj.preserve_timeframe?.weekdays || [],
+      timeOfDay: {
+        start: policyObj.preserve_timeframe?.timeOfDay?.start || '',
+        end: policyObj.preserve_timeframe?.timeOfDay?.end || ''
+      }
+    },
+    delete_silently: policyObj.delete_silently !== undefined ? policyObj.delete_silently : false
+  };
 }
 
 // Load initial data

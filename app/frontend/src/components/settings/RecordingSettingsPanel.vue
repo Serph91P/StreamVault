@@ -392,7 +392,10 @@ const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
 
 const handleCleanupPolicySaved = (policy: any) => {
   if (props.settings) {
-    const updatedSettings = { ...props.settings, cleanup_policy: policy };
+    const updatedSettings = { 
+      ...props.settings, 
+      cleanup_policy: policy 
+    };
     emits('update', updatedSettings);
   }
 };

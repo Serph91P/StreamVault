@@ -25,10 +25,10 @@ export interface StreamerRecordingSettings {
 export interface CleanupPolicy {
   type: CleanupPolicyType;
   threshold: number;
-  preserve_favorites?: boolean;
-  preserve_categories?: string[];
-  preserve_timeframe?: PreserveTimeframe;
-  delete_silently?: boolean; // Whether to delete without confirmation
+  preserve_favorites: boolean;
+  preserve_categories: string[];
+  preserve_timeframe: PreserveTimeframe;
+  delete_silently: boolean; // Whether to delete without confirmation
 }
 
 export enum CleanupPolicyType {
@@ -39,10 +39,10 @@ export enum CleanupPolicyType {
 }
 
 export interface PreserveTimeframe {
-  start_date?: string;   // ISO date string
-  end_date?: string;     // ISO date string 
-  weekdays?: number[];   // 0-6 (Sunday-Saturday)
-  timeOfDay?: {
+  start_date: string;   // ISO date string
+  end_date: string;     // ISO date string 
+  weekdays: number[];   // 0-6 (Sunday-Saturday)
+  timeOfDay: {
     start: string;       // HH:MM format
     end: string;         // HH:MM format
   };
