@@ -19,10 +19,10 @@ router = APIRouter(
 recording_service = RecordingService()
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
-async def get_recording_settings():
-    try:
+async def get_recording_settings():    try:
         with SessionLocal() as db:
-            settings = db.query(RecordingSettings).first()            if not settings:
+            settings = db.query(RecordingSettings).first()
+            if not settings:
                 # Initialize with default values
                 settings = RecordingSettings(
                     enabled=True,
