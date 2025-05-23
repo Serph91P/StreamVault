@@ -389,6 +389,13 @@ const formatDuration = (seconds: number) => {
 const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   updateStreamerSetting(streamerId, { enabled });
 };
+
+const handleCleanupPolicySaved = (policy: any) => {
+  if (props.settings) {
+    const updatedSettings = { ...props.settings, cleanup_policy: policy };
+    emits('update', updatedSettings);
+  }
+};
 </script>
 
 <style scoped>

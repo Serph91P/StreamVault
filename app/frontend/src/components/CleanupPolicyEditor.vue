@@ -411,13 +411,30 @@ function updateFieldsFromTimeframe() {
 
 async function loadPolicy() {
   try {
+    const defaultPolicy = recordingSettings.getDefaultCleanupPolicy();
+    
     if (props.isGlobal) {
       // Load global settings
       await recordingSettings.fetchSettings();
       if (recordingSettings.settings.value?.cleanup_policy) {
-        policy.value = { ...recordingSettings.getDefaultCleanupPolicy(), ...recordingSettings.settings.value.cleanup_policy };
+        policy.value = {
+          ...defaultPolicy,
+          ...recordingSettings.settings.value.cleanup_policy,
+          preserve_favorites: recordingSettings.settings.value.cleanup_policy.preserve_favorites ?? true,
+          preserve_categories: recordingSettings.settings.value.cleanup_policy.preserve_categories ?? [],
+          preserve_timeframe: {
+            start_date: recordingSettings.settings.value.cleanup_policy.preserve_timeframe?.start_date ?? '',
+            end_date: recordingSettings.settings.value.cleanup_policy.preserve_timeframe?.end_date ?? '',
+            weekdays: recordingSettings.settings.value.cleanup_policy.preserve_timeframe?.weekdays ?? [],
+            timeOfDay: {
+              start: recordingSettings.settings.value.cleanup_policy.preserve_timeframe?.timeOfDay?.start ?? '',
+              end: recordingSettings.settings.value.cleanup_policy.preserve_timeframe?.timeOfDay?.end ?? ''
+            }
+          },
+          delete_silently: recordingSettings.settings.value.cleanup_policy.delete_silently ?? false
+        };
       } else {
-        policy.value = recordingSettings.getDefaultCleanupPolicy();
+        policy.value = defaultPolicy;
       }
     } else if (props.streamerId) {
       // Load streamer-specific settings
@@ -427,15 +444,29 @@ async function loadPolicy() {
       );
       
       if (streamerSettings?.cleanup_policy) {
-        policy.value = { ...recordingSettings.getDefaultCleanupPolicy(), ...streamerSettings.cleanup_policy };
+        policy.value = {
+          ...defaultPolicy,
+          ...streamerSettings.cleanup_policy,
+          preserve_favorites: streamerSettings.cleanup_policy.preserve_favorites ?? true,
+          preserve_categories: streamerSettings.cleanup_policy.preserve_categories ?? [],
+          preserve_timeframe: {
+            start_date: streamerSettings.cleanup_policy.preserve_timeframe?.start_date ?? '',
+            end_date: streamerSettings.cleanup_policy.preserve_timeframe?.end_date ?? '',
+            weekdays: streamerSettings.cleanup_policy.preserve_timeframe?.weekdays ?? [],
+            timeOfDay: {
+              start: streamerSettings.cleanup_policy.preserve_timeframe?.timeOfDay?.start ?? '',
+              end: streamerSettings.cleanup_policy.preserve_timeframe?.timeOfDay?.end ?? ''
+            }
+          },
+          delete_silently: streamerSettings.cleanup_policy.delete_silently ?? false
+        };
       } else {
-        policy.value = recordingSettings.getDefaultCleanupPolicy();
+        policy.value = defaultPolicy;
       }
       
       // Load storage stats for this streamer
       await loadStorageStats();
-    }
-    
+    }    
     // Update form fields from the loaded policy
     updateFieldsFromTimeframe();
     
@@ -477,16 +508,34 @@ async function savePolicy() {
     // Update timeframe from form fields one more time before saving
     updateTimeframeFromFields();
     
+    // Ensure all required properties are present
+    const completePolicy = {
+      type: policy.value.type,
+      threshold: policy.value.threshold,
+      preserve_favorites: policy.value.preserve_favorites !== undefined ? policy.value.preserve_favorites : true,
+      preserve_categories: policy.value.preserve_categories || [],
+      preserve_timeframe: {
+        start_date: policy.value.preserve_timeframe?.start_date || '',
+        end_date: policy.value.preserve_timeframe?.end_date || '',
+        weekdays: policy.value.preserve_timeframe?.weekdays || [],
+        timeOfDay: {
+          start: policy.value.preserve_timeframe?.timeOfDay?.start || '',
+          end: policy.value.preserve_timeframe?.timeOfDay?.end || ''
+        }
+      },
+      delete_silently: policy.value.delete_silently !== undefined ? policy.value.delete_silently : false
+    };
+    
     if (props.isGlobal) {
       // Update global policy
-      await recordingSettings.updateCleanupPolicy(policy.value);
+      await recordingSettings.updateCleanupPolicy(completePolicy);
     } else if (props.streamerId) {
       // Update streamer-specific policy
-      await recordingSettings.updateStreamerCleanupPolicy(props.streamerId, policy.value);
+      await recordingSettings.updateStreamerCleanupPolicy(props.streamerId, completePolicy);
     }
     
     showSuccess('Cleanup policy saved successfully');
-    emit('saved', policy.value);
+    emit('saved', completePolicy);
   } catch (error) {
     showError('Failed to save cleanup policy');
     console.error('Error saving policy:', error);
@@ -527,7 +576,25 @@ async function runCustomCleanup() {
     // Update timeframe from form fields before running custom cleanup
     updateTimeframeFromFields();
     
-    const result = await recordingSettings.runCustomCleanup(props.streamerId, policy.value);
+    // Ensure all required properties are present
+    const completePolicy = {
+      type: policy.value.type,
+      threshold: policy.value.threshold,
+      preserve_favorites: policy.value.preserve_favorites !== undefined ? policy.value.preserve_favorites : true,
+      preserve_categories: policy.value.preserve_categories || [],
+      preserve_timeframe: {
+        start_date: policy.value.preserve_timeframe?.start_date || '',
+        end_date: policy.value.preserve_timeframe?.end_date || '',
+        weekdays: policy.value.preserve_timeframe?.weekdays || [],
+        timeOfDay: {
+          start: policy.value.preserve_timeframe?.timeOfDay?.start || '',
+          end: policy.value.preserve_timeframe?.timeOfDay?.end || ''
+        }
+      },
+      delete_silently: policy.value.delete_silently !== undefined ? policy.value.delete_silently : false
+    };
+    
+    const result = await recordingSettings.runCustomCleanup(props.streamerId, completePolicy);
     
     // Show results dialog
     cleanupResults.value = {

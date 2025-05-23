@@ -229,13 +229,22 @@ export function useRecordingSettings() {
       isLoading.value = false;
     }
   };
-
   // New functions for advanced cleanup policies
   const getDefaultCleanupPolicy = (): CleanupPolicy => {
     return {
       type: CleanupPolicyType.COUNT,
       threshold: 10,
       preserve_favorites: true,
+      preserve_categories: [],
+      preserve_timeframe: {
+        start_date: '',
+        end_date: '',
+        weekdays: [],
+        timeOfDay: {
+          start: '',
+          end: ''
+        }
+      },
       delete_silently: false
     };
   };
