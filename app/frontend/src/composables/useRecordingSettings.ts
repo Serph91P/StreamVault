@@ -368,7 +368,13 @@ export function useRecordingSettings() {
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }
-      return await response.json();
+      const data = await response.json();
+      
+      // Extract the id and name from each category 
+      return data.categories.map((category: any) => ({
+        id: category.id,
+        name: category.name
+      }));
     } catch (err) {
       console.error('Error fetching categories:', err);
       return [];
