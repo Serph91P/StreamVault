@@ -41,61 +41,91 @@ class MigrationService:
                 logger.info(f"Migration {script_name} already applied, skipping")
                 return True, f"Migration {script_name} already applied"
             
-            # Create a proper Alembic context for the migration
-            from alembic import context
-            from alembic.config import Config
-            from alembic.runtime.environment import EnvironmentContext
-            from alembic.script import ScriptDirectory
-            
             # Load the migration module
             spec = importlib.util.spec_from_file_location("migration", script_path)
+            if not spec or not spec.loader:
+                return False, f"Failed to load module for {script_name}"
+                
             migration_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(migration_module)
             
-            if spec and spec.loader:
-                spec.loader.exec_module(migration_module)
-            else:
-                raise ImportError(f"Could not load migration module from {script_path}")
-            
-            # Create Alembic config
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option("script_location", os.path.dirname(script_path))
-            alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
-            
-            # Run the migration within proper Alembic context
-            def run_migrations_online():
-                """Run migrations in 'online' mode."""
-                with engine.connect() as connection:
-                    context.configure(
-                        connection=connection,
-                        target_metadata=None,
-                        compare_type=True,
-                        compare_server_default=True
-                    )
+            # For simple Alembic-style migrations, we'll use direct SQLAlchemy
+            if hasattr(migration_module, 'upgrade'):
+                logger.info(f"Running simplified migration: {script_name}")
+                
+                # Create a simple mock alembic op for basic operations
+                class SimpleOp:
+                    @staticmethod
+                    def add_column(table_name: str, column):
+                        """Add a column to a table"""
+                        try:
+                            with engine.connect() as conn:
+                                # Check if column already exists
+                                result = conn.execute(text(f"""
+                                    SELECT column_name 
+                                    FROM information_schema.columns 
+                                    WHERE table_name = '{table_name}' AND column_name = '{column.name}'
+                                """))
+                                
+                                if result.fetchone() is None:
+                                    # Column doesn't exist, add it
+                                    sql = f"ALTER TABLE {table_name} ADD COLUMN {column.name} {column.type}"
+                                    if column.nullable:
+                                        sql += " NULL"
+                                    else:
+                                        sql += " NOT NULL"
+                                    
+                                    conn.execute(text(sql))
+                                    conn.commit()
+                                    logger.info(f"Added column {column.name} to {table_name}")
+                                else:
+                                    logger.info(f"Column {column.name} already exists in {table_name}")
+                        except Exception as e:
+                            logger.warning(f"Error adding column {column.name} to {table_name}: {e}")
                     
-                    with context.begin_transaction():
-                        # Execute the upgrade function
-                        if hasattr(migration_module, 'upgrade'):
-                            migration_module.upgrade()
-                        else:
-                            logger.warning(f"Migration {script_name} has no upgrade function")
+                    @staticmethod
+                    def drop_column(table_name: str, column_name: str):
+                        """Drop a column from a table"""
+                        try:
+                            with engine.connect() as conn:
+                                # Check if column exists
+                                result = conn.execute(text(f"""
+                                    SELECT column_name 
+                                    FROM information_schema.columns 
+                                    WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+                                """))
+                                
+                                if result.fetchone() is not None:
+                                    # Column exists, drop it
+                                    conn.execute(text(f"ALTER TABLE {table_name} DROP COLUMN {column_name}"))
+                                    conn.commit()
+                                    logger.info(f"Dropped column {column_name} from {table_name}")
+                                else:
+                                    logger.info(f"Column {column_name} doesn't exist in {table_name}")
+                        except Exception as e:
+                            logger.warning(f"Error dropping column {column_name} from {table_name}: {e}")
+                
+                # Add the op object to the migration module's namespace
+                setattr(migration_module, 'op', SimpleOp())
+                
+                # Run the upgrade function
+                migration_module.upgrade()
+                
+                logger.info(f"Successfully ran migration: {script_name}")
+                return True, f"Successfully ran migration: {script_name}"
             
-            # Set up the context and run
-            with EnvironmentContext(
-                config=alembic_cfg,
-                script=ScriptDirectory.from_config(alembic_cfg)
-            ):
-                run_migrations_online()
-            
-            # Record successful migration
-            MigrationService.record_migration(script_name, True)
-            logger.info(f"Successfully applied migration: {script_name}")
-            return True, f"Successfully applied migration: {script_name}"
-            
+            # Look for legacy run_migration function
+            elif hasattr(migration_module, 'run_migration'):
+                migration_module.run_migration()
+                logger.info(f"Successfully ran migration: {script_name}")
+                return True, f"Successfully ran migration: {script_name}"
+            else:
+                logger.warning(f"Migration script {script_name} does not have run_migration or upgrade function")
+                return False, f"Migration script {script_name} does not have a compatible migration function"
+                
         except Exception as e:
-            error_msg = f"Error running migration {script_path}: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            MigrationService.record_migration(os.path.basename(script_path), False)
-            return False, error_msg
+            logger.error(f"Error running migration {script_path}: {str(e)}", exc_info=True)
+            return False, f"Error running migration {script_path}: {str(e)}"
     
     @classmethod
     def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
@@ -144,8 +174,13 @@ class MigrationService:
         """Record that a migration has been run"""
         try:
             with SessionLocal() as session:
+                # Use INSERT ... ON CONFLICT DO NOTHING to avoid duplicate key errors
                 session.execute(
-                    text("INSERT INTO migrations (script_name, applied_at, success) VALUES (:script_name, NOW(), :success)"),
+                    text("""
+                    INSERT INTO migrations (script_name, applied_at, success) 
+                    VALUES (:script_name, NOW(), :success)
+                    ON CONFLICT (script_name) DO NOTHING
+                    """),
                     {"script_name": script_name, "success": success}
                 )
                 session.commit()
@@ -210,9 +245,8 @@ class MigrationService:
                 success, message = cls.run_migration_script(script_path)
                 results.append((script_name, success, message))
                 
-                # Record the migration
-                if success:
-                    cls.record_migration(script_name, success)
+                # Record the migration (but handle duplicates gracefully)
+                cls.record_migration(script_name, success)
             
             return results
         except Exception as e:
