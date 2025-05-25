@@ -245,6 +245,7 @@ import { ref, computed, watch } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;

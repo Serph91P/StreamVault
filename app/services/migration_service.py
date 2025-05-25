@@ -32,37 +32,70 @@ class MigrationService:
     def run_migration_script(script_path: str) -> Tuple[bool, str]:
         """Run a single migration script"""
         try:
-            # Get the script filename for logging
             script_name = os.path.basename(script_path)
             logger.info(f"Running migration: {script_name}")
             
-            # Load the module dynamically
-            spec = importlib.util.spec_from_file_location("migration_module", script_path)
-            if not spec or not spec.loader:
-                return False, f"Failed to load module for {script_name}"
-                
-            migration_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(migration_module)
+            # Check if this migration was already applied
+            applied_migrations = MigrationService.get_applied_migrations()
+            if script_name in applied_migrations:
+                logger.info(f"Migration {script_name} already applied, skipping")
+                return True, f"Migration {script_name} already applied"
             
-            # Check for Alembic-style migrations
-            if hasattr(migration_module, 'upgrade'):
-                # This is an Alembic-style migration
-                logger.info(f"Running Alembic-style migration: {script_name}")
-                migration_module.upgrade()
-                logger.info(f"Successfully ran Alembic-style migration: {script_name}")
-                return True, f"Successfully ran migration: {script_name}"
-            # Look for and run the migration function
-            elif hasattr(migration_module, 'run_migration'):
-                migration_module.run_migration()
-                logger.info(f"Successfully ran migration: {script_name}")
-                return True, f"Successfully ran migration: {script_name}"
+            # Create a proper Alembic context for the migration
+            from alembic import context
+            from alembic.config import Config
+            from alembic.runtime.environment import EnvironmentContext
+            from alembic.script import ScriptDirectory
+            
+            # Load the migration module
+            spec = importlib.util.spec_from_file_location("migration", script_path)
+            migration_module = importlib.util.module_from_spec(spec)
+            
+            if spec and spec.loader:
+                spec.loader.exec_module(migration_module)
             else:
-                logger.warning(f"Migration script {script_name} does not have run_migration or upgrade function")
-                return False, f"Migration script {script_name} does not have a compatible migration function"
-                
+                raise ImportError(f"Could not load migration module from {script_path}")
+            
+            # Create Alembic config
+            alembic_cfg = Config()
+            alembic_cfg.set_main_option("script_location", os.path.dirname(script_path))
+            alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+            
+            # Run the migration within proper Alembic context
+            def run_migrations_online():
+                """Run migrations in 'online' mode."""
+                with engine.connect() as connection:
+                    context.configure(
+                        connection=connection,
+                        target_metadata=None,
+                        compare_type=True,
+                        compare_server_default=True
+                    )
+                    
+                    with context.begin_transaction():
+                        # Execute the upgrade function
+                        if hasattr(migration_module, 'upgrade'):
+                            migration_module.upgrade()
+                        else:
+                            logger.warning(f"Migration {script_name} has no upgrade function")
+            
+            # Set up the context and run
+            with EnvironmentContext(
+                config=alembic_cfg,
+                script=ScriptDirectory.from_config(alembic_cfg)
+            ):
+                run_migrations_online()
+            
+            # Record successful migration
+            MigrationService.record_migration(script_name, True)
+            logger.info(f"Successfully applied migration: {script_name}")
+            return True, f"Successfully applied migration: {script_name}"
+            
         except Exception as e:
-            logger.error(f"Error running migration {script_path}: {str(e)}", exc_info=True)
-            return False, f"Error running migration {script_path}: {str(e)}"
+            error_msg = f"Error running migration {script_path}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            MigrationService.record_migration(os.path.basename(script_path), False)
+            return False, error_msg
     
     @classmethod
     def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
