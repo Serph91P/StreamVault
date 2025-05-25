@@ -223,6 +223,13 @@
                       Stop
                     </button>
                     <button 
+                      @click="openCleanupPolicyEditor(streamer)" 
+                      class="btn btn-info btn-sm" 
+                      :disabled="isLoading"
+                      title="Configure cleanup policy for this streamer">
+                      Policy
+                    </button>
+                    <button 
                       @click="cleanupStreamerRecordings(streamer.streamer_id)" 
                       class="btn btn-warning btn-sm" 
                       :disabled="isLoading || (!streamer.max_streams && !data.max_streams_per_streamer)" 
@@ -236,6 +243,24 @@
           </table>
         </div>
       </template>
+    </div>
+    
+    <!-- Per-Streamer Cleanup Policy Editor Dialog -->
+    <div v-if="showStreamerPolicyDialog" class="modal-overlay" @click="closeStreamerPolicyDialog">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Cleanup Policy for {{ selectedStreamer?.username || 'Streamer' }}</h3>
+          <button @click="closeStreamerPolicyDialog" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <CleanupPolicyEditor
+            v-if="selectedStreamer"
+            :streamer-id="selectedStreamer.streamer_id"
+            :title="`Cleanup Policy for ${selectedStreamer.username}`"
+            @saved="handleStreamerPolicySaved"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -261,6 +286,10 @@ const emits = defineEmits<{
 }>();
 
 const { isLoading, error } = useRecordingSettings();
+
+// State for streamer cleanup policy dialog
+const showStreamerPolicyDialog = ref(false);
+const selectedStreamer = ref<StreamerRecordingSettings | null>(null);
 
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
@@ -399,6 +428,22 @@ const handleCleanupPolicySaved = (policy: any) => {
     };
     emits('update', updatedSettings);
   }
+};
+
+// Methods for per-streamer cleanup policy editor
+const openCleanupPolicyEditor = (streamer: StreamerRecordingSettings) => {
+  selectedStreamer.value = streamer;
+  showStreamerPolicyDialog.value = true;
+};
+
+const closeStreamerPolicyDialog = () => {
+  showStreamerPolicyDialog.value = false;
+  selectedStreamer.value = null;
+};
+
+const handleStreamerPolicySaved = (policy: any) => {
+  console.log('Streamer cleanup policy saved:', policy);
+  closeStreamerPolicyDialog();
 };
 </script>
 
@@ -870,5 +915,74 @@ select.form-control-sm option {
   flex: 1;
   padding: 4px 8px;
   font-size: 0.75rem;
+}
+
+.btn-info {
+  background-color: var(--info-color, #17a2b8);
+  color: white;
+}
+
+/* Modal styles for cleanup policy dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background-color: var(--background-darker, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color, #303034);
+  max-width: 90vw;
+  max-height: 90vh;
+  width: 800px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color, #303034);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--text-primary, #f1f1f3);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary, #adadb8);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #f1f1f3);
+}
+
+.modal-body {
+  padding: 20px;
 }
 </style>
