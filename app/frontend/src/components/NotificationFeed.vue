@@ -203,25 +203,34 @@ const getNotificationClass = (type: string): string => {
 const addNotification = (message: any): void => {
   const id = crypto.randomUUID()
   
-  console.log('NotificationFeed: Adding notification:', message)
+  console.log('📝 NotificationFeed: Adding notification with ID:', id)
+  console.log('📝 NotificationFeed: Message data:', message)
   
-  notifications.value.unshift({
+  const newNotification = {
     id,
     type: message.type,
     timestamp: new Date().toISOString(),
     streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
     data: message.data
-  })
+  }
+  
+  console.log('📝 NotificationFeed: Created notification object:', newNotification)
+  
+  notifications.value.unshift(newNotification)
+  
+  console.log('📝 NotificationFeed: Notifications array before limit check:', notifications.value.length)
   
   // Limit the number of notifications
   if (notifications.value.length > MAX_NOTIFICATIONS) {
     notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
+    console.log('📝 NotificationFeed: Trimmed notifications to:', notifications.value.length)
   }
   
   // Save to localStorage
   saveNotifications()
   
-  console.log('NotificationFeed: Total notifications after adding:', notifications.value.length)
+  console.log('✅ NotificationFeed: Total notifications after adding:', notifications.value.length)
+  console.log('✅ NotificationFeed: Current notifications:', notifications.value)
 }
 
 // Remove a specific notification
@@ -256,7 +265,7 @@ const loadNotifications = (): void => {
 
 // Process new WebSocket messages
 const processNewMessage = (message: any) => {
-  console.log('NotificationFeed: New WebSocket message:', message)
+  console.log('🔔 NotificationFeed: Processing new WebSocket message:', message)
   
   // Only process certain notification types
   const notificationTypes = [
@@ -270,8 +279,13 @@ const processNewMessage = (message: any) => {
     'connection.status'
   ]
   
+  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'against:', notificationTypes)
+  
   if (notificationTypes.includes(message.type)) {
+    console.log('✅ NotificationFeed: Message type accepted, adding notification')
     addNotification(message)
+  } else {
+    console.warn('❌ NotificationFeed: Message type not in allowed list:', message.type)
   }
 }
 

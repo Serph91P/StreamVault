@@ -40,12 +40,14 @@ export function useWebSocket() {
           data.type === 'recording.failed' ||
           data.type === 'connection.status'
         )) {
+          console.log('✅ Message type accepted:', data.type)
           console.log('Adding message to messages array:', data)
           console.log('Messages array before push:', messages.value.length)
           messages.value.push(data)
           console.log('Messages array after push:', messages.value.length)
+          console.log('Current messages array:', messages.value)
         } else {
-          console.log('Message type not recognized or data invalid:', data?.type)
+          console.warn('❌ Message type not recognized or data invalid:', data?.type, 'Full data:', data)
         }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e)

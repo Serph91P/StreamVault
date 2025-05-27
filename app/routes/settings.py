@@ -167,7 +167,7 @@ async def test_websocket_notification():
         
         # Send a test notification through WebSocket
         test_notification = {
-            "type": "stream.update",
+            "type": "channel.update",
             "data": {
                 "streamer_id": 999,
                 "twitch_id": "test_user",
