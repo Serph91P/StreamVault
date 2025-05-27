@@ -106,6 +106,8 @@ function toggleNotifications() {
   if (showNotifications.value) {
     console.log('🔔 Notifications panel opened, marking as read')
     markAsRead()
+  } else {
+    console.log('🔔 Notifications panel closed')
   }
 }
 
@@ -116,7 +118,11 @@ function markAsRead() {
 }
 
 function closeNotificationPanel() {
-  showNotifications.value = false
+  // Only close if currently open to prevent unnecessary re-renders
+  if (showNotifications.value) {
+    console.log('🔔 App: Closing notification panel')
+    showNotifications.value = false
+  }
 }
 
 // Update unread count from localStorage on mount
@@ -203,11 +209,20 @@ watch(messages, (newMessages, oldMessages) => {
       // 'connection.status' is explicitly excluded to prevent counter increases
     ]
     
-    if (notificationTypes.includes(newMessage.type)) {
+    // Only increment if it's a valid notification type AND panel is not currently shown
+    if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
       console.log('🔢 App: Incrementing unread count for message type:', newMessage.type)
-      unreadCount.value++
+      
+      // Check if this notification has already been counted
+      const notificationTimestamp = newMessage.data?.timestamp || Date.now();
+      if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
+        unreadCount.value++;
+        console.log('🔢 App: Unread count is now', unreadCount.value);
+      } else {
+        console.log('🔢 App: Notification timestamp older than last read, not incrementing count');
+      }
     } else {
-      console.log('⏭️ App: Skipping unread count for message type:', newMessage.type)
+      console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value)
     }
   }
 }, { deep: true })

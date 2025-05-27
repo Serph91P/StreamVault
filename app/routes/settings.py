@@ -5,6 +5,8 @@ from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSetti
 from apprise import Apprise
 from sqlalchemy.orm import Session, joinedload
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List
 from app.services.notification_service import NotificationService
 
@@ -143,6 +145,27 @@ async def test_notification():
                 )
 
         from app.services.notification_service import NotificationService
+        from app.dependencies import websocket_manager
+        import uuid
+        
+        # Generate a unique test ID to track this notification
+        test_id = str(uuid.uuid4())
+        
+        # Send WebSocket notification first
+        await websocket_manager.send_notification({
+            "type": "channel.update",  # Use channel.update type to match Twitch format
+            "data": {
+                "test_id": test_id,
+                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                "username": "TestUser",
+                "streamer_name": "TestUser",
+                "title": "Test Notification",
+                "category_name": "StreamVault",
+                "message": "This is a test notification from StreamVault."
+            }
+        })
+        
+        # Then send external notification via apprise
         notification_service = NotificationService()
         success = await notification_service.send_test_notification()
         

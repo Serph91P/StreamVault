@@ -39,19 +39,34 @@ export function useWebSocket() {
         console.log('🔌 WebSocket raw message received:', event.data)
         console.log('🔌 WebSocket parsed message:', data)
         
-        // Speziell mit Connection-Status umgehen
+        // Special handling for connection status messages
         if (data?.type === 'connection.status') {
-          // Nur Status ändern, keine Benachrichtigung erzeugen
+          // Only update status, don't create notification
           console.log('⚡ WebSocket connection status message received, updating status only')
           connectionStatus.value = data?.data?.status || 'connected'
           return
         }
         
-        // Alle anderen Benachrichtigungstypen verarbeiten
+        // Process all other notification types
         if (data && data.type) {
+          // Check if this is a duplicate message (by comparing with the last message)
+          const isDuplicate = messages.value.length > 0 && 
+            data.type === messages.value[messages.value.length - 1].type &&
+            JSON.stringify(data.data) === JSON.stringify(messages.value[messages.value.length - 1].data);
+          
+          if (isDuplicate) {
+            console.log('🔄 Duplicate message detected, ignoring:', data.type)
+            return;
+          }
+          
           console.log('✅ Message type accepted:', data.type)
           console.log('📨 Adding message to messages array:', data)
           console.log('📊 Messages array before push:', messages.value.length)
+          
+          // Ensure test_id is present for test notifications
+          if (data.type === 'channel.update' && data.data?.username === 'TestUser' && !data.data.test_id) {
+            data.data.test_id = `test_${Date.now()}`;
+          }
           
           // Create a new array reference to trigger reactivity
           const newMessages = [...messages.value, data]

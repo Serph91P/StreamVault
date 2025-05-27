@@ -151,8 +151,8 @@ const formatTime = (timestamp: string): string => {
 const formatTitle = (notification: Notification): string => {
   const username = notification.streamer_username || 'Unknown'
   
-  // Spezialbehandlung für Test-Benachrichtigungen
-  if (notification.type === 'test') {
+  // Check if this is a test notification by looking at test_id
+  if (notification.data?.test_id) {
     return `🧪 Test Notification`
   }
   
@@ -163,7 +163,7 @@ const formatTitle = (notification: Notification): string => {
       return `${username} Ended Stream`
     case 'channel.update':
     case 'stream.update':
-      return `${username} Updated Stream`
+      return username === 'TestUser' ? '🧪 Test Notification' : `${username} Updated Stream`
     case 'recording.started':
       return `Recording Started`
     case 'recording.completed':
@@ -305,9 +305,18 @@ const removeNotification = (id: string): void => {
 // Clear all notifications
 const clearAllNotifications = (): void => {
   notifications.value = []
-  saveNotifications()
+  
+  // Save empty notifications array to localStorage
+  localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+  console.log('🧹 NotificationFeed: Cleared all notifications')
+  
+  // Emit events to update UI
   emit('notifications-read')
-  emit('close-panel') // Close the notification panel after clearing
+  
+  // Add a small delay before closing panel to ensure animations complete properly
+  setTimeout(() => {
+    emit('close-panel') // Close the notification panel after clearing
+  }, 100)
 }
 
 // Save notifications to localStorage
@@ -369,13 +378,25 @@ const processNewMessage = (message: any) => {
     console.log('✅ NotificationFeed: Message type accepted, adding notification:', message)
     
     try {
-      // Try adding the notification and check if it was successful
+      // Try adding the notification
       addNotification(message)
       
-      // Check if notification was actually added by looking at localStorage
-      const savedCount = localStorage.getItem('streamvault_notifications') ? 
-        JSON.parse(localStorage.getItem('streamvault_notifications')!).length : 0
-      console.log(`🔒 NotificationFeed: Verification check - localStorage has ${savedCount} notifications`)
+      // Perform a verification check with a delay to ensure localStorage was updated
+      setTimeout(() => {
+        try {
+          const savedNotifs = localStorage.getItem('streamvault_notifications')
+          const savedCount = savedNotifs ? JSON.parse(savedNotifs).length : 0
+          console.log(`🔒 NotificationFeed: Verification check - localStorage has ${savedCount} notifications`)
+          
+          // Force re-save if there's a mismatch (to ensure persistence)
+          if (notifications.value.length !== savedCount) {
+            console.warn('⚠️ NotificationFeed: Storage mismatch detected, forcing save')
+            saveNotifications()
+          }
+        } catch (err) {
+          console.error('❌ NotificationFeed: Error in verification check:', err)
+        }
+      }, 50)
     } catch (error) {
       console.error('❌ NotificationFeed: Error processing notification:', error)
     }
@@ -401,61 +422,40 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watcher für neue Nachrichten - improved version
+  // Watch for new WebSocket messages - simplified approach
   watch(messages, (newMessages, oldMessages) => {
     console.log('📊 NotificationFeed: Messages watcher triggered', { 
       newMessagesLength: newMessages?.length, 
       oldMessagesLength: oldMessages?.length
     })
     
-    // Wenn keine Nachrichten vorhanden, einfach zurückkehren
+    // Don't process empty messages
     if (!newMessages || newMessages.length === 0) {
       console.log('📊 NotificationFeed: No messages to process')
       return
     }
     
-    // Debug the current state of notifications
-    console.log('📊 NotificationFeed: Current notifications count:', notifications.value.length)
-    
-    // Wenn es die erste Nachricht ist oder alte Nachrichten nicht existieren
-    if (!oldMessages || oldMessages.length === 0) {
-      console.log('📊 NotificationFeed: Initial setup, processing all messages')
-      // Alle Nachrichten verarbeiten (wichtig beim ersten Laden)
-      newMessages.forEach(message => {
-        console.log('📊 NotificationFeed: Processing initial message:', message)
-        
-        // Ensure to only process valid notification types
-        if (message && message.type && message.type !== 'connection.status') {
-          processNewMessage(message)
-        } else {
-          console.log('📊 NotificationFeed: Skipping initial message of type:', message?.type)
-        }
-      })
-      return
-    }
-    
-    // Wenn neue Nachrichten hinzugefügt wurden
-    if (newMessages.length > oldMessages.length) {
-      // Verarbeite nur die neueste Nachricht
+    // Only handle messages when we have new ones
+    if (oldMessages && newMessages.length > oldMessages.length) {
+      // Get only the new messages
       const newMessage = newMessages[newMessages.length - 1]
-      console.log('📊 NotificationFeed: New message detected, checking type:', newMessage?.type)
       
-      // Ensure the notification is a real notification (not connection.status)
-      if (newMessage && newMessage.type && newMessage.type !== 'connection.status') {
-        console.log('📊 NotificationFeed: Message is a valid notification, processing:', newMessage)
-        
-        // Process this message and ensure it gets saved
-        processNewMessage(newMessage)
-        
-        // Double check that notifications were persisted to localStorage
-        setTimeout(() => {
-          const savedNotifs = localStorage.getItem('streamvault_notifications')
-          console.log('📊 NotificationFeed: After processing, localStorage has:', 
-            savedNotifs ? JSON.parse(savedNotifs).length : 0, 'notifications')
-        }, 100)
-      } else {
-        console.log('📊 NotificationFeed: Message is not a valid notification, skipping:', newMessage)
+      // Skip connection.status messages - they're not notifications
+      if (newMessage.type === 'connection.status') {
+        console.log('⏭️ NotificationFeed: Skipping connection.status message')
+        return
       }
+      
+      console.log('🔄 NotificationFeed: Processing new message:', newMessage)
+      
+      try {
+        // Process the notification handling logic
+        processNewMessage(newMessage)
+      } catch (error) {
+        console.error('❌ NotificationFeed: Error during message handling:', error)
+      }
+    } else {
+      console.log('📊 NotificationFeed: No new messages to process')
     }
   }, { deep: true })
 })
