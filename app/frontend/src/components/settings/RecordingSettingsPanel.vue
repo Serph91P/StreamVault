@@ -257,6 +257,7 @@
             v-if="selectedStreamer"
             :streamer-id="selectedStreamer.streamer_id"
             :title="`Cleanup Policy for ${selectedStreamer.username}`"
+            :is-global="false"
             @saved="handleStreamerPolicySaved"
           />
         </div>
