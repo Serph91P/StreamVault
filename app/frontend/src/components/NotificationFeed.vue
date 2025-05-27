@@ -151,6 +151,11 @@ const formatTime = (timestamp: string): string => {
 const formatTitle = (notification: Notification): string => {
   const username = notification.streamer_username || 'Unknown'
   
+  // Spezialbehandlung für Test-Benachrichtigungen
+  if (notification.type === 'test') {
+    return `🧪 Test Notification`
+  }
+  
   switch (notification.type) {
     case 'stream.online':
       return `${username} is Live!`
@@ -176,6 +181,11 @@ const formatTitle = (notification: Notification): string => {
 const formatMessage = (notification: Notification): string => {
   const { type, data, title } = notification
   const username = notification.streamer_username || 'Unknown'
+  
+  // Wenn eine direkte Nachricht vorhanden ist, diese bevorzugen
+  if (data?.message) {
+    return data.message;
+  }
   
   switch (type) {
     case 'stream.online':
@@ -222,6 +232,8 @@ const getNotificationClass = (type: string): string => {
       return 'error'
     case 'connection.status':
       return 'info'
+    case 'test':
+      return 'success' // Test notifications use the success style
     default:
       return 'default'
   }
@@ -312,7 +324,14 @@ const loadNotifications = (): void => {
 // Process new WebSocket messages
 const processNewMessage = (message: any) => {
   console.log('🔔 NotificationFeed: Processing new WebSocket message:', message)
-   // Only process certain notification types (excluding connection.status to prevent spam)
+  
+  // Check if message has required properties
+  if (!message || !message.type) {
+    console.error('❌ NotificationFeed: Invalid message format, missing type property:', message)
+    return
+  }
+  
+  // Only process certain notification types (excluding connection.status to prevent spam)
   const notificationTypes = [
     'stream.online', 
     'stream.offline',
@@ -321,14 +340,13 @@ const processNewMessage = (message: any) => {
     'recording.started',
     'recording.completed',
     'recording.failed',
-    'test' // Add test notification type for debugging
-    // Removed 'connection.status' to prevent spam notifications when opening/closing panel
+    'test' // Special test notification type
   ]
   
-  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'data:', message.data)
+  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'against allowed types')
   
   if (notificationTypes.includes(message.type)) {
-    console.log('✅ NotificationFeed: Message type accepted, adding notification')
+    console.log('✅ NotificationFeed: Message type accepted, adding notification:', message)
     addNotification(message)
   } else {
     console.warn('❌ NotificationFeed: Message type not in allowed list:', message.type)
@@ -345,6 +363,9 @@ onUpdated(() => {
 // Lifecycle hooks
 onMounted(() => {
   loadNotifications()
+  
+  // Prüfe, ob Benachrichtigungen vorhanden sind und ggf. warum nicht
+  console.log('🔍 NotificationFeed: On mount - Notifications loaded from localStorage:', notifications.value.length)
   
   // Emit notifications-read when first mounted
   emit('notifications-read')

@@ -39,18 +39,16 @@ export function useWebSocket() {
         console.log('🔌 WebSocket raw message received:', event.data)
         console.log('🔌 WebSocket parsed message:', data)
         
-        // Accept all notification types including test notifications from settings.py
-        if (data && (
-          data.type === 'stream.online' || 
-          data.type === 'stream.offline' || 
-          data.type === 'channel.update' ||
-          data.type === 'stream.update' ||
-          data.type === 'recording.started' ||
-          data.type === 'recording.completed' ||
-          data.type === 'recording.failed' ||
-          data.type === 'test'
-          // Removed 'connection.status' to prevent spam notifications
-        )) {
+        // Speziell mit Connection-Status umgehen
+        if (data?.type === 'connection.status') {
+          // Nur Status ändern, keine Benachrichtigung erzeugen
+          console.log('⚡ WebSocket connection status message received, updating status only')
+          connectionStatus.value = data?.data?.status || 'connected'
+          return
+        }
+        
+        // Alle anderen Benachrichtigungstypen verarbeiten
+        if (data && data.type) {
           console.log('✅ Message type accepted:', data.type)
           console.log('📨 Adding message to messages array:', data)
           console.log('📊 Messages array before push:', messages.value.length)

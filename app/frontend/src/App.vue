@@ -98,8 +98,13 @@ const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 const { messages } = useWebSocket()
 
 function toggleNotifications() {
+  // Check localStorage for debugging
+  const savedNotifications = localStorage.getItem('streamvault_notifications')
+  console.log('📂 LocalStorage notifications check:', savedNotifications)
+  
   showNotifications.value = !showNotifications.value
   if (showNotifications.value) {
+    console.log('🔔 Notifications panel opened, marking as read')
     markAsRead()
   }
 }
@@ -165,6 +170,8 @@ watch(messages, (newMessages, oldMessages) => {
   
   if (oldMessages && newMessages.length > oldMessages.length) {
     const newMessage = newMessages[newMessages.length - 1]
+    console.log('🔄 App: New message detected:', newMessage)
+    
     // Only count specific notification types (exclude connection.status to prevent false positives)
     const notificationTypes = [
       'stream.online', 
@@ -173,12 +180,16 @@ watch(messages, (newMessages, oldMessages) => {
       'stream.update',
       'recording.started',
       'recording.completed',
-      'recording.failed'
+      'recording.failed',
+      'test'
       // Removed 'connection.status' to prevent spam counter increases
     ]
     
     if (notificationTypes.includes(newMessage.type)) {
+      console.log('🔢 App: Incrementing unread count for message type:', newMessage.type)
       unreadCount.value++
+    } else {
+      console.log('⏭️ App: Skipping unread count for message type:', newMessage.type)
     }
   }
 }, { deep: true })

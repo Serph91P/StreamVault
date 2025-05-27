@@ -166,14 +166,19 @@ async def test_websocket_notification():
         from app.dependencies import websocket_manager
         import time
         import uuid
+        import random
         
         # Generate unique ID to prevent duplicates
         unique_id = str(uuid.uuid4())
         timestamp = str(int(time.time() * 1000))  # milliseconds timestamp
         
+        # Logger adding to help diagnose issues
+        logger.info(f"🧪 Sending test WebSocket notification with ID {unique_id}")
+        
         # Send a test notification through WebSocket with unique identifiers
+        # Note: We need to make sure this type is accepted by the frontend filters
         test_notification = {
-            "type": "stream.update",  # Using stream.update for consistency
+            "type": "test",  # Using special test type to ensure it's recognized in the frontend
             "data": {
                 "streamer_id": f"test_{unique_id}",
                 "twitch_id": f"test_user_{timestamp}",
@@ -187,7 +192,7 @@ async def test_websocket_notification():
                 "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
                 "test_id": unique_id,  # Add test identifier
                 "timestamp": timestamp,
-                "message": f"This is a test notification #{timestamp[-4:]}"
+                "message": f"Dies ist eine Test-Benachrichtigung #{timestamp[-6:]}"
             }
         }
         
