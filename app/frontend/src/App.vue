@@ -122,9 +122,13 @@ function closeNotificationPanel() {
 // Update unread count from localStorage on mount
 onMounted(() => {
   const notificationsStr = localStorage.getItem('streamvault_notifications')
+  console.log('🔄 App: Checking localStorage for notifications on startup')
+  
   if (notificationsStr) {
     try {
       const notifications = JSON.parse(notificationsStr)
+      console.log('🔄 App: Found notifications in localStorage:', notifications.length)
+      
       if (Array.isArray(notifications)) {
         // Only count real notification types, not connection status
         const validNotificationTypes = [
@@ -134,19 +138,33 @@ onMounted(() => {
           'stream.update',
           'recording.started',
           'recording.completed',
-          'recording.failed'
+          'recording.failed',
+          'test' // Add test notification type to be counted
         ]
         
         const unread = notifications.filter(n => {
           const notifTimestamp = new Date(n.timestamp).getTime()
           const isValidType = validNotificationTypes.includes(n.type)
-          return isValidType && notifTimestamp > parseInt(lastReadTimestamp.value)
+          const isUnread = notifTimestamp > parseInt(lastReadTimestamp.value)
+          
+          console.log(`🔄 App: Notification ${n.id} - Type: ${n.type}, Valid: ${isValidType}, Unread: ${isUnread}`)
+          
+          return isValidType && isUnread
         })
+        
         unreadCount.value = unread.length
+        console.log('🔢 App: Updated unread count to:', unreadCount.value, 'notifications')
+        
+        // Log the actual unread notifications for debugging
+        if (unread.length > 0) {
+          console.log('🔢 App: Unread notifications:', unread)
+        }
       }
     } catch (e) {
-      console.error('Failed to parse notifications from localStorage', e)
+      console.error('❌ App: Failed to parse notifications from localStorage', e)
     }
+  } else {
+    console.log('🔄 App: No notifications found in localStorage')
   }
 
   // Listen for clicks outside the notification area to close it

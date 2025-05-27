@@ -241,44 +241,59 @@ const getNotificationClass = (type: string): string => {
 
 // Add a new notification from WebSocket message
 const addNotification = (message: any): void => {
-  // Nutze die test_id als ID falls vorhanden, ansonsten generiere eine neue ID
-  const id = message.data?.test_id || crypto.randomUUID()
-  
-  console.log('📝 NotificationFeed: Adding notification with ID:', id)
-  console.log('📝 NotificationFeed: Message data:', message)
-  
-  const newNotification = {
-    id,
-    type: message.type,
-    timestamp: message.data?.timestamp ? new Date(parseInt(message.data.timestamp)).toISOString() : new Date().toISOString(),
-    streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
-    data: message.data
+  try {
+    // Nutze die test_id als ID falls vorhanden, ansonsten generiere eine neue ID
+    const id = message.data?.test_id || crypto.randomUUID()
+    
+    console.log('📝 NotificationFeed: Adding notification with ID:', id)
+    console.log('📝 NotificationFeed: Message data:', message)
+    
+    const newNotification = {
+      id,
+      type: message.type,
+      timestamp: message.data?.timestamp ? new Date(parseInt(message.data.timestamp)).toISOString() : new Date().toISOString(),
+      streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
+      data: message.data
+    }
+    
+    console.log('📝 NotificationFeed: Created notification object:', newNotification)
+    
+    // Verhindere Duplikate
+    const existingIndex = notifications.value.findIndex(n => n.id === id)
+    if (existingIndex >= 0) {
+      console.log('📝 NotificationFeed: Duplicate notification detected, replacing:', id)
+      notifications.value.splice(existingIndex, 1)
+    }
+    
+    // Add at beginning of array
+    notifications.value = [newNotification, ...notifications.value]
+    
+    console.log('📝 NotificationFeed: Notifications array before limit check:', notifications.value.length)
+    
+    // Limit the number of notifications
+    if (notifications.value.length > MAX_NOTIFICATIONS) {
+      notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
+      console.log('📝 NotificationFeed: Trimmed notifications to:', notifications.value.length)
+    }
+    
+    // Save to localStorage immediately to ensure persistence
+    saveNotifications()
+    
+    // Verify notifications were saved correctly
+    const savedCount = localStorage.getItem('streamvault_notifications') ? 
+      JSON.parse(localStorage.getItem('streamvault_notifications')!).length : 0
+    
+    console.log('✅ NotificationFeed: Total notifications after adding:', notifications.value.length)
+    console.log('✅ NotificationFeed: Saved to localStorage count:', savedCount)
+    
+    // Force another save if counts don't match
+    if (savedCount !== notifications.value.length) {
+      console.warn('⚠️ NotificationFeed: Saved count mismatch, forcing another save')
+      setTimeout(() => saveNotifications(), 100)
+    }
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error adding notification:', error)
   }
-  
-  console.log('📝 NotificationFeed: Created notification object:', newNotification)
-  
-  // Verhindere Duplikate
-  const existingIndex = notifications.value.findIndex(n => n.id === id)
-  if (existingIndex >= 0) {
-    console.log('📝 NotificationFeed: Duplicate notification detected, replacing:', id)
-    notifications.value.splice(existingIndex, 1)
-  }
-  
-  notifications.value.unshift(newNotification)
-  
-  console.log('📝 NotificationFeed: Notifications array before limit check:', notifications.value.length)
-  
-  // Limit the number of notifications
-  if (notifications.value.length > MAX_NOTIFICATIONS) {
-    notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
-    console.log('📝 NotificationFeed: Trimmed notifications to:', notifications.value.length)
-  }
-  
-  // Save to localStorage
-  saveNotifications()
-  
-  console.log('✅ NotificationFeed: Total notifications after adding:', notifications.value.length)
-  console.log('✅ NotificationFeed: Current notifications:', notifications.value)
 }
 
 // Remove a specific notification
@@ -310,6 +325,11 @@ const loadNotifications = (): void => {
       if (Array.isArray(savedNotifications)) {
         notifications.value = savedNotifications
         console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
+        
+        // Debug info - show what notifications we loaded
+        if (notifications.value.length > 0) {
+          console.log('📝 NotificationFeed: Loaded notifications:', notifications.value)
+        }
       } else {
         console.error('Saved notifications is not an array:', saved)
       }
@@ -335,7 +355,7 @@ const processNewMessage = (message: any) => {
   const notificationTypes = [
     'stream.online', 
     'stream.offline',
-    'channel.update',
+    'channel.update',  // Standard Twitch notification type
     'stream.update',
     'recording.started',
     'recording.completed',
@@ -347,7 +367,18 @@ const processNewMessage = (message: any) => {
   
   if (notificationTypes.includes(message.type)) {
     console.log('✅ NotificationFeed: Message type accepted, adding notification:', message)
-    addNotification(message)
+    
+    try {
+      // Try adding the notification and check if it was successful
+      addNotification(message)
+      
+      // Check if notification was actually added by looking at localStorage
+      const savedCount = localStorage.getItem('streamvault_notifications') ? 
+        JSON.parse(localStorage.getItem('streamvault_notifications')!).length : 0
+      console.log(`🔒 NotificationFeed: Verification check - localStorage has ${savedCount} notifications`)
+    } catch (error) {
+      console.error('❌ NotificationFeed: Error processing notification:', error)
+    }
   } else {
     console.warn('❌ NotificationFeed: Message type not in allowed list:', message.type)
   }
@@ -370,26 +401,35 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Vereinfachter Watcher für neue Nachrichten
+  // Watcher für neue Nachrichten - improved version
   watch(messages, (newMessages, oldMessages) => {
-    console.log('NotificationFeed: Messages watched triggered', { 
+    console.log('📊 NotificationFeed: Messages watcher triggered', { 
       newMessagesLength: newMessages?.length, 
       oldMessagesLength: oldMessages?.length
     })
     
     // Wenn keine Nachrichten vorhanden, einfach zurückkehren
     if (!newMessages || newMessages.length === 0) {
-      console.log('NotificationFeed: No messages to process')
+      console.log('📊 NotificationFeed: No messages to process')
       return
     }
     
+    // Debug the current state of notifications
+    console.log('📊 NotificationFeed: Current notifications count:', notifications.value.length)
+    
     // Wenn es die erste Nachricht ist oder alte Nachrichten nicht existieren
     if (!oldMessages || oldMessages.length === 0) {
-      console.log('NotificationFeed: Initial setup, processing all messages')
+      console.log('📊 NotificationFeed: Initial setup, processing all messages')
       // Alle Nachrichten verarbeiten (wichtig beim ersten Laden)
       newMessages.forEach(message => {
-        console.log('NotificationFeed: Processing initial message:', message)
-        processNewMessage(message)
+        console.log('📊 NotificationFeed: Processing initial message:', message)
+        
+        // Ensure to only process valid notification types
+        if (message && message.type && message.type !== 'connection.status') {
+          processNewMessage(message)
+        } else {
+          console.log('📊 NotificationFeed: Skipping initial message of type:', message?.type)
+        }
       })
       return
     }
@@ -398,8 +438,24 @@ onMounted(() => {
     if (newMessages.length > oldMessages.length) {
       // Verarbeite nur die neueste Nachricht
       const newMessage = newMessages[newMessages.length - 1]
-      console.log('NotificationFeed: Processing new message:', newMessage)
-      processNewMessage(newMessage)
+      console.log('📊 NotificationFeed: New message detected, checking type:', newMessage?.type)
+      
+      // Ensure the notification is a real notification (not connection.status)
+      if (newMessage && newMessage.type && newMessage.type !== 'connection.status') {
+        console.log('📊 NotificationFeed: Message is a valid notification, processing:', newMessage)
+        
+        // Process this message and ensure it gets saved
+        processNewMessage(newMessage)
+        
+        // Double check that notifications were persisted to localStorage
+        setTimeout(() => {
+          const savedNotifs = localStorage.getItem('streamvault_notifications')
+          console.log('📊 NotificationFeed: After processing, localStorage has:', 
+            savedNotifs ? JSON.parse(savedNotifs).length : 0, 'notifications')
+        }, 100)
+      } else {
+        console.log('📊 NotificationFeed: Message is not a valid notification, skipping:', newMessage)
+      }
     }
   }, { deep: true })
 })
