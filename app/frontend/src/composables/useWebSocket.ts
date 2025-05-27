@@ -34,6 +34,7 @@ export function useWebSocket() {
           data.type === 'stream.online' || 
           data.type === 'stream.offline' || 
           data.type === 'channel.update' ||
+          data.type === 'stream.update' ||
           data.type === 'recording.started' ||
           data.type === 'recording.completed' ||
           data.type === 'recording.failed' ||

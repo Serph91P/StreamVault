@@ -21,7 +21,7 @@
           <div class="icon-wrapper" :class="getNotificationClass(notification.type)">
             <span v-if="notification.type === 'stream.online'">🔴</span>
             <span v-else-if="notification.type === 'stream.offline'">⭕</span>
-            <span v-else-if="notification.type === 'channel.update'">📝</span>
+            <span v-else-if="notification.type === 'channel.update' || notification.type === 'stream.update'">📝</span>
             <span v-else-if="notification.type === 'recording.started'">🎥</span>
             <span v-else-if="notification.type === 'recording.completed'">✅</span>
             <span v-else-if="notification.type === 'recording.failed'">❌</span>
@@ -129,6 +129,7 @@ const formatTitle = (notification: Notification): string => {
     case 'stream.offline':
       return `${username} Ended Stream`
     case 'channel.update':
+    case 'stream.update':
       return `${username} Updated Stream`
     case 'recording.started':
       return `Recording Started`
@@ -156,6 +157,7 @@ const formatMessage = (notification: Notification): string => {
     case 'stream.offline':
       return `${username} has ended their stream.`
     case 'channel.update':
+    case 'stream.update':
       return data?.title 
         ? `Stream updated: ${data.title}` 
         : `${username} updated their stream.`
@@ -182,6 +184,7 @@ const getNotificationClass = (type: string): string => {
     case 'stream.offline':
       return 'offline'
     case 'channel.update':
+    case 'stream.update':
       return 'update'
     case 'recording.started':
       return 'recording'
@@ -260,6 +263,7 @@ const processNewMessage = (message: any) => {
     'stream.online', 
     'stream.offline', 
     'channel.update',
+    'stream.update',
     'recording.started',
     'recording.completed',
     'recording.failed',
@@ -303,6 +307,17 @@ onMounted(() => {
       // Initial load - process all messages
       console.log('NotificationFeed: Initial load, processing all messages')
       newMessages.forEach(message => processNewMessage(message))
+    } else if (oldMessages && newMessages.length === oldMessages.length && newMessages.length > 0) {
+      // Check if the latest message is different (WebSocket reconnection case)
+      const latestMessage = newMessages[newMessages.length - 1]
+      const previousLatestMessage = oldMessages[oldMessages.length - 1]
+      
+      if (latestMessage && (!previousLatestMessage || 
+          latestMessage.type !== previousLatestMessage.type ||
+          JSON.stringify(latestMessage.data) !== JSON.stringify(previousLatestMessage.data))) {
+        console.log('NotificationFeed: Processing updated message:', latestMessage)
+        processNewMessage(latestMessage)
+      }
     }
   }, { deep: true, immediate: true })
 })

@@ -159,6 +159,37 @@ async def test_notification():
         logger.error(f"Error sending test notification: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/test-websocket-notification")
+async def test_websocket_notification():
+    """Test WebSocket notification delivery to frontend"""
+    try:
+        from app.dependencies import websocket_manager
+        
+        # Send a test notification through WebSocket
+        test_notification = {
+            "type": "stream.update",
+            "data": {
+                "streamer_id": 999,
+                "twitch_id": "test_user",
+                "streamer_name": "TestStreamer",
+                "username": "TestStreamer",
+                "title": "Test Stream Update Notification",
+                "category_name": "Test Category",
+                "language": "en",
+                "is_live": False,
+                "url": "https://twitch.tv/teststreamer",
+                "profile_image_url": ""
+            }
+        }
+        
+        await websocket_manager.send_notification(test_notification)
+        logger.info(f"Test WebSocket notification sent: {test_notification}")
+        
+        return {"status": "success", "message": "Test WebSocket notification sent successfully"}
+    except Exception as e:
+        logger.error(f"Error sending test WebSocket notification: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("", response_model=GlobalSettingsSchema)
 async def update_settings(settings_data: GlobalSettingsSchema):
     try:
