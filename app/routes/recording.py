@@ -98,7 +98,28 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             # This refreshes the instance after commit so it's bound to the session
             db.refresh(existing_settings)
             
-            return existing_settings
+            # Parse cleanup policy back to object for response
+            cleanup_policy = None
+            if existing_settings.cleanup_policy:
+                try:
+                    import json
+                    from app.schemas.recording import CleanupPolicySchema
+                    cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(existing_settings.cleanup_policy))
+                except Exception as e:
+                    logger.warning(f"Error parsing cleanup policy for response: {e}")
+            
+            # Create response with properly parsed cleanup policy
+            return RecordingSettingsSchema(
+                enabled=existing_settings.enabled,
+                output_directory=existing_settings.output_directory,
+                filename_template=existing_settings.filename_template,
+                filename_preset=getattr(existing_settings, 'filename_preset', 'default'),
+                default_quality=existing_settings.default_quality,
+                use_chapters=existing_settings.use_chapters,
+                use_category_as_chapter_title=getattr(existing_settings, 'use_category_as_chapter_title', False),
+                max_streams_per_streamer=getattr(existing_settings, 'max_streams_per_streamer', 0),
+                cleanup_policy=cleanup_policy
+            )
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))    
