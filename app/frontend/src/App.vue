@@ -24,7 +24,11 @@
     </header>
     
     <div class="main-content">
-      <NotificationFeed v-if="showNotifications" @notifications-read="markAsRead" />
+      <NotificationFeed 
+        v-if="showNotifications" 
+        @notifications-read="markAsRead" 
+        @close-panel="closeNotificationPanel"
+      />
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
@@ -104,6 +108,10 @@ function markAsRead() {
   unreadCount.value = 0
   lastReadTimestamp.value = Date.now().toString()
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
+}
+
+function closeNotificationPanel() {
+  showNotifications.value = false
 }
 
 // Update unread count from localStorage on mount

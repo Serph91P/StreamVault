@@ -87,7 +87,7 @@
 import { ref, computed, onMounted, onUpdated, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
-const emit = defineEmits(['notifications-read'])
+const emit = defineEmits(['notifications-read', 'close-panel'])
 
 interface NotificationData {
   [key: string]: any;
@@ -272,6 +272,7 @@ const clearAllNotifications = (): void => {
   notifications.value = []
   saveNotifications()
   emit('notifications-read')
+  emit('close-panel') // Close the notification panel after clearing
 }
 
 // Save notifications to localStorage
@@ -294,17 +295,16 @@ const loadNotifications = (): void => {
 // Process new WebSocket messages
 const processNewMessage = (message: any) => {
   console.log('🔔 NotificationFeed: Processing new WebSocket message:', message)
-  
-  // Only process certain notification types
+   // Only process certain notification types (excluding connection.status to prevent spam)
   const notificationTypes = [
     'stream.online', 
-    'stream.offline', 
+    'stream.offline',
     'channel.update',
     'stream.update',
     'recording.started',
     'recording.completed',
-    'recording.failed',
-    'connection.status'
+    'recording.failed'
+    // Removed 'connection.status' to prevent spam notifications when opening/closing panel
   ]
   
   console.log('🔍 NotificationFeed: Checking message type:', message.type, 'against:', notificationTypes)

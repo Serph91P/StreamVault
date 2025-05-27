@@ -16,6 +16,16 @@ export function useWebSocket() {
   let reconnectTimer: number | null = null
 
   const connect = () => {
+    // Prevent multiple connections
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('🔌 WebSocket already connected, skipping...')
+      return
+    }
+    
+    // Clean up existing connection
+    if (ws) {
+      ws.close()
+    }
     ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {
@@ -29,7 +39,7 @@ export function useWebSocket() {
         console.log('🔌 WebSocket raw message received:', event.data)
         console.log('🔌 WebSocket parsed message:', data)
         
-        // Accept all notification types
+        // Accept all notification types EXCEPT connection.status (to prevent spam)
         if (data && (
           data.type === 'stream.online' || 
           data.type === 'stream.offline' || 
@@ -37,8 +47,8 @@ export function useWebSocket() {
           data.type === 'stream.update' ||
           data.type === 'recording.started' ||
           data.type === 'recording.completed' ||
-          data.type === 'recording.failed' ||
-          data.type === 'connection.status'
+          data.type === 'recording.failed'
+          // Removed 'connection.status' to prevent spam notifications
         )) {
           console.log('✅ Message type accepted:', data.type)
           console.log('📨 Adding message to messages array:', data)
@@ -62,7 +72,19 @@ export function useWebSocket() {
     ws.onclose = () => {
       connectionStatus.value = 'disconnected'
       console.log('WebSocket disconnected, attempting reconnect...')
-      reconnectTimer = window.setTimeout(connect, 5000)
+      
+      // Clear existing timer
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      
+      // Only reconnect if we're not unmounting
+      reconnectTimer = window.setTimeout(() => {
+        if (connectionStatus.value === 'disconnected') {
+          connect()
+        }
+      }, 5000)
     }
 
     ws.onerror = (error) => {
@@ -75,8 +97,15 @@ export function useWebSocket() {
   })
 
   onUnmounted(() => {
-    if (ws) ws.close()
-    if (reconnectTimer) clearTimeout(reconnectTimer)
+    connectionStatus.value = 'disconnected'
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (ws) {
+      ws.close()
+      ws = null
+    }
   })
 
   return {
