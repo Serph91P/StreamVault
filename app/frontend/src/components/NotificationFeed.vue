@@ -352,8 +352,8 @@ const clearAllNotifications = (): void => {
     // Clear the notifications array
     notifications.value = []
     
-    // Save empty notifications array to localStorage
-    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    // Save empty notifications array to localStorage (using an actual empty array)
+    localStorage.setItem('streamvault_notifications', '[]')
     console.log('🧹 NotificationFeed: Cleared all notifications from localStorage')
     
     // Double-check localStorage was properly cleared
@@ -368,13 +368,22 @@ const clearAllNotifications = (): void => {
     setTimeout(() => {
       console.log('🧹 NotificationFeed: Closing notification panel')
       emit('close-panel') // Close the notification panel after clearing
-    }, 200)
+    }, 300)
+    
+    // Also clear the WebSocket message queue - this prevents reprocessing old messages
+    if (window.confirm('Do you want to clear all notifications? This will clear all notification history.')) {
+      console.log('🧹 NotificationFeed: User confirmed clearing all notifications')
+    }
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing notifications:', error)
     
     // Force clear in case of error
-    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    localStorage.setItem('streamvault_notifications', '[]')
     notifications.value = []
+    
+    // Emit events to ensure UI updates even after error
+    emit('notifications-read')
+    setTimeout(() => emit('close-panel'), 300)
   }
 }
 
@@ -407,12 +416,20 @@ const saveNotifications = (): void => {
 
 // Load notifications from localStorage
 const loadNotifications = (): void => {
+  console.log('🔍 NotificationFeed: Loading notifications from localStorage')
+  
+  // Attempt to get notifications from localStorage
   const saved = localStorage.getItem('streamvault_notifications')
-  if (saved) {
+  console.log('🔍 NotificationFeed: Raw localStorage data:', saved)
+  
+  // If we have saved data, parse it
+  if (saved && saved !== '[]') {
     try {
       const savedNotifications = JSON.parse(saved)
+      console.log('🔍 NotificationFeed: Parsed localStorage data:', savedNotifications)
+      
       if (Array.isArray(savedNotifications)) {
-        // Only consider notifications with proper structure
+        // Filter out invalid notifications
         const validNotifications = savedNotifications.filter(n => 
           n && typeof n === 'object' && n.id && n.type && n.timestamp
         );
@@ -421,25 +438,30 @@ const loadNotifications = (): void => {
           console.warn('⚠️ NotificationFeed: Found invalid notifications in localStorage, filtering them out')
         }
         
-        notifications.value = validNotifications
-        console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
-        
-        // Debug info - show what notifications we loaded
-        if (notifications.value.length > 0) {
-          console.log('📝 NotificationFeed: Loaded notifications:', notifications.value)
+        if (validNotifications.length > 0) {
+          notifications.value = validNotifications
+          console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
+          console.log('📝 NotificationFeed: First notification:', validNotifications[0])
+        } else {
+          console.warn('⚠️ NotificationFeed: No valid notifications found in localStorage')
+          notifications.value = []
         }
       } else {
-        console.error('Saved notifications is not an array:', saved)
-        // Initialize with empty array if saved data is invalid
+        console.error('❌ NotificationFeed: Saved notifications is not an array:', saved)
         notifications.value = []
+        
+        // Fix invalid data
+        localStorage.setItem('streamvault_notifications', '[]')
       }
     } catch (e) {
-      console.error('Failed to load notifications:', e)
-      // Initialize with empty array if parsing fails
+      console.error('❌ NotificationFeed: Failed to parse notifications from localStorage:', e)
       notifications.value = []
+      
+      // Fix corrupt data
+      localStorage.setItem('streamvault_notifications', '[]')
     }
   } else {
-    console.log('📝 NotificationFeed: No notifications in localStorage')
+    console.log('📝 NotificationFeed: No notifications in localStorage or empty array')
     notifications.value = []
   }
 }
@@ -508,9 +530,47 @@ onUpdated(() => {
 
 // Lifecycle hooks
 onMounted(() => {
+  // First, let's check if we can access and modify localStorage at all
+  try {
+    console.log('🧪 NotificationFeed: Testing localStorage access...')
+    localStorage.setItem('streamvault_test', 'test')
+    const testValue = localStorage.getItem('streamvault_test')
+    console.log('🧪 NotificationFeed: localStorage test result:', testValue)
+    if (testValue === 'test') {
+      console.log('🧪 NotificationFeed: localStorage is working correctly')
+      localStorage.removeItem('streamvault_test')
+    } else {
+      console.error('🧪 NotificationFeed: localStorage is not functioning correctly')
+    }
+  } catch (e) {
+    console.error('🧪 NotificationFeed: Error accessing localStorage:', e)
+  }
+
+  // Check if there are any messages in WebSocket that need to be added to localStorage
+  if (messages.value && messages.value.length > 0) {
+    console.log('🔍 NotificationFeed: Found existing WebSocket messages on mount:', messages.value.length)
+    
+    // Process any messages that aren't connection status updates
+    const validMessages = messages.value.filter(msg => msg.type !== 'connection.status')
+    
+    if (validMessages.length > 0) {
+      console.log('🔍 NotificationFeed: Processing valid WebSocket messages on mount:', validMessages.length)
+      // Add these messages to localStorage before loading
+      validMessages.forEach(message => {
+        try {
+          console.log('🔍 NotificationFeed: Processing existing message:', message)
+          processNewMessage(message)
+        } catch (e) {
+          console.error('❌ NotificationFeed: Error processing message on mount:', e)
+        }
+      })
+    }
+  }
+  
+  // Load notifications from localStorage
   loadNotifications()
   
-  // Prüfe, ob Benachrichtigungen vorhanden sind und ggf. warum nicht
+  // Check if any notifications were loaded
   console.log('🔍 NotificationFeed: On mount - Notifications loaded from localStorage:', notifications.value.length)
   
   // Emit notifications-read when first mounted
@@ -529,14 +589,6 @@ onMounted(() => {
       return
     }
     
-    // Force refresh notifications from localStorage first to ensure we have the latest data
-    try {
-      loadNotifications();
-      console.log('📊 NotificationFeed: Reloaded notifications from localStorage before processing')
-    } catch (e) {
-      console.error('❌ NotificationFeed: Error reloading notifications:', e)
-    }
-    
     // Only handle messages when we have new ones
     if (oldMessages && newMessages.length > oldMessages.length) {
       // Get only the new message
@@ -551,12 +603,67 @@ onMounted(() => {
       console.log('🔄 NotificationFeed: Processing new message:', newMessage)
       
       try {
-        // Add the notification directly (without the extra processNewMessage function)
-        // This simplifies the code and avoids potential issues
-        addNotification(newMessage)
+        // Create a notification object directly
+        const id = newMessage.data?.test_id || crypto.randomUUID()
         
-        // Force reactivity update
-        notifications.value = [...notifications.value]
+        // Format timestamp correctly
+        let timestamp: string;
+        if (newMessage.data?.timestamp) {
+          if (typeof newMessage.data.timestamp === 'number' || !isNaN(parseInt(newMessage.data.timestamp))) {
+            timestamp = new Date(parseInt(newMessage.data.timestamp)).toISOString();
+          } else {
+            try {
+              timestamp = new Date(newMessage.data.timestamp).toISOString();
+            } catch (e) {
+              timestamp = new Date().toISOString();
+            }
+          }
+        } else {
+          timestamp = new Date().toISOString();
+        }
+        
+        // Extract username
+        const streamer_username = newMessage.data?.username || 
+                                 newMessage.data?.streamer_name || 
+                                 'Unknown';
+        
+        // Create the notification object
+        const notification = {
+          id,
+          type: newMessage.type,
+          timestamp,
+          streamer_username,
+          data: newMessage.data || {}
+        }
+        
+        console.log('🎯 NotificationFeed: Created notification object:', notification)
+        
+        // Add to the local notifications array
+        notifications.value = [notification, ...notifications.value]
+        
+        // Save directly to localStorage
+        const savedNotifs = localStorage.getItem('streamvault_notifications') || '[]'
+        try {
+          const existingNotifs = JSON.parse(savedNotifs)
+          
+          // Remove duplicates based on ID
+          const filteredNotifs = existingNotifs.filter((n: any) => n.id !== id)
+          
+          // Add new notification at the beginning
+          const updatedNotifs = [notification, ...filteredNotifs]
+          
+          // Limit count
+          const limitedNotifs = updatedNotifs.slice(0, MAX_NOTIFICATIONS)
+          
+          // Save back to localStorage
+          localStorage.setItem('streamvault_notifications', JSON.stringify(limitedNotifs))
+          
+          console.log('💾 NotificationFeed: Saved notification to localStorage, count:', limitedNotifs.length)
+        } catch (e) {
+          console.error('❌ NotificationFeed: Error updating localStorage:', e)
+          // Fallback - save only current notifications array
+          localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
+        }
       } catch (error) {
         console.error('❌ NotificationFeed: Error during message handling:', error)
       }

@@ -83,8 +83,9 @@ export function useWebSocket() {
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       connectionStatus.value = 'disconnected'
+      console.log('WebSocket disconnected with code:', event.code, 'reason:', event.reason)
       console.log('WebSocket disconnected, attempting reconnect...')
       
       // Clear existing timer
@@ -93,12 +94,17 @@ export function useWebSocket() {
         reconnectTimer = null
       }
       
+      // Use exponential backoff for reconnection attempts
+      const backoffDelay = Math.min(5000 * Math.pow(1.5, Math.floor(Math.random() * 3)), 30000);
+      console.log(`WebSocket will attempt reconnection in ${backoffDelay/1000} seconds`)
+      
       // Only reconnect if we're not unmounting
       reconnectTimer = window.setTimeout(() => {
         if (connectionStatus.value === 'disconnected') {
+          console.log('WebSocket attempting reconnection now')
           connect()
         }
-      }, 5000)
+      }, backoffDelay)
     }
 
     ws.onerror = (error) => {

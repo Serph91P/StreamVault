@@ -112,9 +112,14 @@ function toggleNotifications() {
 }
 
 function markAsRead() {
+  console.log('🔔 App: Marking all notifications as read')
   unreadCount.value = 0
   lastReadTimestamp.value = Date.now().toString()
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
+  
+  // Verify that we actually updated localStorage
+  const saved = localStorage.getItem('lastReadTimestamp')
+  console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', saved)
 }
 
 function closeNotificationPanel() {
