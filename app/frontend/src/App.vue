@@ -149,6 +149,7 @@ watch(messages, (newMessages, oldMessages) => {
       'stream.online', 
       'stream.offline', 
       'channel.update',
+      'stream.update',
       'recording.started',
       'recording.completed',
       'recording.failed'

@@ -303,28 +303,42 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watch for new messages being added to the array
+  // Watch for new messages being added to the array with immediate: true for better reactivity
   watch(messages, (newMessages, oldMessages) => {
-    console.log('NotificationFeed: Messages watched triggered', { newMessages: newMessages?.length, oldMessages: oldMessages?.length })
+    console.log('NotificationFeed: Messages watched triggered', { 
+      newMessages: newMessages?.length, 
+      oldMessages: oldMessages?.length,
+      newMessagesContent: newMessages,
+      oldMessagesContent: oldMessages
+    })
     
-    if (!newMessages || newMessages.length === 0) {
-      console.log('NotificationFeed: No messages to process')
+    if (!newMessages) {
+      console.log('NotificationFeed: No messages ref')
+      return
+    }
+    
+    // Process all messages if this is the first time or if oldMessages is null/undefined
+    if (!oldMessages) {
+      console.log('NotificationFeed: Initial setup, processing all messages')
+      newMessages.forEach(message => processNewMessage(message))
       return
     }
     
     // If there are more messages than before, process only the new ones
-    if (oldMessages && newMessages.length > oldMessages.length) {
+    if (newMessages.length > oldMessages.length) {
+      console.log('NotificationFeed: New messages detected, processing latest')
       const newMessage = newMessages[newMessages.length - 1]
       console.log('NotificationFeed: Processing new message:', newMessage)
       processNewMessage(newMessage)
-    } else if (!oldMessages || oldMessages.length === 0) {
-      // Initial load - process all messages
-      console.log('NotificationFeed: Initial load, processing all messages')
-      newMessages.forEach(message => processNewMessage(message))
-    } else if (oldMessages && newMessages.length === oldMessages.length && newMessages.length > 0) {
+    } else if (newMessages.length === oldMessages.length && newMessages.length > 0) {
       // Check if the latest message is different (WebSocket reconnection case)
       const latestMessage = newMessages[newMessages.length - 1]
       const previousLatestMessage = oldMessages[oldMessages.length - 1]
+      
+      console.log('NotificationFeed: Checking for message changes', {
+        latest: latestMessage,
+        previous: previousLatestMessage
+      })
       
       if (latestMessage && (!previousLatestMessage || 
           latestMessage.type !== previousLatestMessage.type ||
@@ -334,6 +348,18 @@ onMounted(() => {
       }
     }
   }, { deep: true, immediate: true })
+  
+  // Additional watch with flush: 'post' to catch any missed updates
+  watch(() => messages.value.length, (newLength, oldLength) => {
+    console.log('NotificationFeed: Length watch triggered', { newLength, oldLength })
+    if (newLength > 0 && newLength !== oldLength) {
+      const latestMessage = messages.value[messages.value.length - 1]
+      console.log('NotificationFeed: Length changed, latest message:', latestMessage)
+      if (latestMessage) {
+        processNewMessage(latestMessage)
+      }
+    }
+  }, { flush: 'post' })
 })
 </script>
 
