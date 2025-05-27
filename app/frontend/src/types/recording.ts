@@ -6,7 +6,6 @@ export interface RecordingSettings {
   default_quality: string;
   use_chapters: boolean;
   use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
-  max_streams_per_streamer: number; // Maximum number of streams to keep per streamer
   cleanup_policy?: CleanupPolicy; // New property for cleanup policy
 }
 

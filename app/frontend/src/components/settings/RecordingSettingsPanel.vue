@@ -90,15 +90,6 @@
         </div>
       </div>
       
-      <div class="form-group">
-        <label>Maximum Streams Per Streamer:</label>
-        <input v-model.number="data.max_streams_per_streamer" type="number" min="0" class="form-control" />
-        <div class="help-text">
-          Maximum number of recordings to keep per streamer (0 = unlimited). When this limit is reached,
-          the oldest recordings will be automatically deleted.
-        </div>
-      </div>
-      
       <!-- Advanced Cleanup Policy -->
       <div class="form-group">
         <h4 class="section-title">Advanced Cleanup Policy</h4>
@@ -232,8 +223,8 @@
                     <button 
                       @click="cleanupStreamerRecordings(streamer.streamer_id)" 
                       class="btn btn-warning btn-sm" 
-                      :disabled="isLoading || (!streamer.max_streams && !data.max_streams_per_streamer)" 
-                      :title="(!streamer.max_streams && !data.max_streams_per_streamer) ? 'Set max recordings first' : 'Delete old recordings'">
+                      :disabled="isLoading || !streamer.max_streams" 
+                      :title="!streamer.max_streams ? 'Set max recordings first' : 'Delete old recordings'">
                       Clean
                     </button>
                   </div>
@@ -300,8 +291,7 @@ const data = ref<RecordingSettings>({
   filename_preset: props.settings?.filename_preset,
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
-  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false,
-  max_streams_per_streamer: props.settings?.max_streams_per_streamer ?? 0
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
 });
 
 const updateFilenameTemplate = () => {
@@ -370,8 +360,7 @@ const saveSettings = async () => {
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
       use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title,
-      max_streams_per_streamer: data.value.max_streams_per_streamer
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title
     });
   } catch (error) {
     console.error('Failed to save settings:', error);
