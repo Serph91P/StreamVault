@@ -12,89 +12,94 @@
     
     <!-- Global Settings -->
     <div v-else class="settings-form">
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.enabled" />
-          Enable Stream Recording
-        </label>
-      </div>
-
-      <div class="form-group">
-        <label>Output Directory:</label>
-        <input v-model="data.output_directory" placeholder="/recordings" class="form-control" />
-        <div class="help-text">
-          Directory inside the Docker container where recordings are saved.
-          You can mount this to your host system in docker-compose.yml.
+      <!-- Basic Recording Settings Section -->
+      <div class="settings-section">
+        <h4 class="section-title">Basic Recording Settings</h4>
+        
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.enabled" />
+            Enable Stream Recording
+          </label>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Filename Preset:</label>
-        <select v-model="data.filename_preset" class="form-control" @change="updateFilenameTemplate">
-          <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
-            {{ preset.label }}
-          </option>
-        </select>
-        <div class="help-text">
-          Select a preset for media server compatibility or use a custom template below.
+        <div class="form-group">
+          <label>Output Directory:</label>
+          <input v-model="data.output_directory" placeholder="/recordings" class="form-control" />
+          <div class="help-text">
+            Directory inside the Docker container where recordings are saved.
+            You can mount this to your host system in docker-compose.yml.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Filename Template:</label>
-        <input v-model="data.filename_template"
-          placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
-          class="form-control" />
-        <div class="filename-preview" v-if="data.filename_template">
-          <strong>Preview:</strong> {{ previewFilename }}
+        <div class="form-group">
+          <label>Filename Preset:</label>
+          <select v-model="data.filename_preset" class="form-control" @change="updateFilenameTemplate">
+            <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
+              {{ preset.label }}
+            </option>
+          </select>
+          <div class="help-text">
+            Select a preset for media server compatibility or use a custom template below.
+          </div>
         </div>
-        <div class="variables-list">
-          <strong>Available Variables:</strong>
-          <div class="variables-grid">
-            <div v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-item">
-              <code>{{ '{' + variable.key + '}' }}</code> - {{ variable.description }}
+
+        <div class="form-group">
+          <label>Filename Template:</label>
+          <input v-model="data.filename_template"
+            placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
+            class="form-control" />
+          <div class="filename-preview" v-if="data.filename_template">
+            <strong>Preview:</strong> {{ previewFilename }}
+          </div>
+          <div class="variables-list">
+            <strong>Available Variables:</strong>
+            <div class="variables-grid">
+              <div v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-item">
+                <code>{{ '{' + variable.key + '}' }}</code> - {{ variable.description }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Default Quality:</label>
-        <select v-model="data.default_quality" class="form-control">
-          <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-        <div class="help-text">
-          Default quality for all streamers. This can be overridden on a per-streamer basis.
+        <div class="form-group">
+          <label>Default Quality:</label>
+          <select v-model="data.default_quality" class="form-control">
+            <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+          <div class="help-text">
+            Default quality for all streamers. This can be overridden on a per-streamer basis.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.use_chapters" />
-          Create Chapters From Stream Events
-        </label>
-        <div class="help-text">
-          Create chapters in the recording based on stream title and game changes.
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.use_chapters" />
+            Create Chapters From Stream Events
+          </label>
+          <div class="help-text">
+            Create chapters in the recording based on stream title and game changes.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.use_category_as_chapter_title" />
-          Use Category as Chapter Title
-        </label>
-        <div class="help-text">
-          When enabled, chapter titles will use the game/category name instead of the stream title.
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.use_category_as_chapter_title" />
+            Use Category as Chapter Title
+          </label>
+          <div class="help-text">
+            When enabled, chapter titles will use the game/category name instead of the stream title.
+          </div>
         </div>
       </div>
       
-      <!-- Advanced Cleanup Policy -->
-      <div class="form-group">
-        <h4 class="section-title">Advanced Cleanup Policy</h4>
+      <!-- Storage & Cleanup Section -->
+      <div class="settings-section">
+        <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
         <p class="section-description">
-          Configure more advanced rules for automatic cleanup of old recordings.
+          Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
         </p>
         
         <CleanupPolicyEditor
@@ -752,6 +757,11 @@ select.form-control option {
   color: #212529;
 }
 
+.btn-info {
+  background-color: var(--info-color, #17a2b8);
+  color: white;
+}
+
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
@@ -908,11 +918,6 @@ select.form-control-sm option {
   font-size: 0.75rem;
 }
 
-.btn-info {
-  background-color: var(--info-color, #17a2b8);
-  color: white;
-}
-
 /* Modal styles for cleanup policy dialog */
 .modal-overlay {
   position: fixed;
@@ -975,5 +980,35 @@ select.form-control-sm option {
 
 .modal-body {
   padding: 20px;
+}
+
+/* Settings sections for better visual organization */
+.settings-section {
+  margin-bottom: var(--spacing-xxl, 2.5rem);
+  padding: var(--spacing-lg, 1.5rem);
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius, 8px);
+  border-left: 4px solid var(--primary-color, #42b883);
+}
+
+.settings-section:last-child {
+  margin-bottom: var(--spacing-lg, 1.5rem);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #f1f1f3);
+  margin-bottom: var(--spacing-md, 1rem);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+.section-description {
+  color: var(--text-secondary, #adadb8);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 </style>
