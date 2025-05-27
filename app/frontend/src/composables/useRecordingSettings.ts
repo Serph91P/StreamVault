@@ -30,7 +30,6 @@ export function useRecordingSettings() {
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
           use_category_as_chapter_title: data.use_category_as_chapter_title,
-          max_streams_per_streamer: data.max_streams_per_streamer || 0,
           cleanup_policy: data.cleanup_policy // Add cleanup policy
         };
       } else {
@@ -61,7 +60,6 @@ export function useRecordingSettings() {
           default_quality: newSettings.default_quality,
           use_chapters: newSettings.use_chapters,
           use_category_as_chapter_title: newSettings.use_category_as_chapter_title,
-          max_streams_per_streamer: newSettings.max_streams_per_streamer,
           cleanup_policy: newSettings.cleanup_policy // Add new cleanup policy field
         })
       });
@@ -76,7 +74,6 @@ export function useRecordingSettings() {
           default_quality: data.default_quality,
           use_chapters: data.use_chapters,
           use_category_as_chapter_title: data.use_category_as_chapter_title,
-          max_streams_per_streamer: data.max_streams_per_streamer,
           cleanup_policy: data.cleanup_policy // Include cleanup policy in response
         };
       } else {
