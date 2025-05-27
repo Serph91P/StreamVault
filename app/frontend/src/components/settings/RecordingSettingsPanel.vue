@@ -312,7 +312,7 @@ const updateFilenameTemplate = () => {
 };
 
 // Update local data when props change
-watch(() => props.settings, (newSettings) => {
+watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   if (newSettings) {
     data.value = { ...newSettings };
   }
@@ -362,7 +362,8 @@ const previewFilename = computed(() => {
 
 const saveSettings = async () => {
   try {
-    isSaving.value = true;      emits('update', {
+    isSaving.value = true;
+    emits('update', {
       enabled: data.value.enabled,
       output_directory: data.value.output_directory,
       filename_template: data.value.filename_template,
@@ -404,7 +405,7 @@ const cleanupStreamerRecordings = (streamerId: number) => {
 };
 
 const isActiveRecording = (streamerId: number): boolean => {
-  return props.activeRecordings.some(rec => rec.streamer_id === streamerId);
+  return props.activeRecordings.some((rec: any) => rec.streamer_id === streamerId);
 };
 
 const formatDate = (date: string) => {
