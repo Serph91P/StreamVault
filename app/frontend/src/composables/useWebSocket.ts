@@ -39,7 +39,7 @@ export function useWebSocket() {
         console.log('🔌 WebSocket raw message received:', event.data)
         console.log('🔌 WebSocket parsed message:', data)
         
-        // Accept all notification types EXCEPT connection.status (to prevent spam)
+        // Accept all notification types including test notifications from settings.py
         if (data && (
           data.type === 'stream.online' || 
           data.type === 'stream.offline' || 
@@ -47,7 +47,8 @@ export function useWebSocket() {
           data.type === 'stream.update' ||
           data.type === 'recording.started' ||
           data.type === 'recording.completed' ||
-          data.type === 'recording.failed'
+          data.type === 'recording.failed' ||
+          data.type === 'test'
           // Removed 'connection.status' to prevent spam notifications
         )) {
           console.log('✅ Message type accepted:', data.type)

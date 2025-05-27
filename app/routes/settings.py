@@ -173,7 +173,7 @@ async def test_websocket_notification():
         
         # Send a test notification through WebSocket with unique identifiers
         test_notification = {
-            "type": "stream.update",  # Changed to stream.update for better distinction
+            "type": "stream.update",  # Using stream.update for consistency
             "data": {
                 "streamer_id": f"test_{unique_id}",
                 "twitch_id": f"test_user_{timestamp}",
@@ -184,9 +184,10 @@ async def test_websocket_notification():
                 "language": "en",
                 "is_live": False,
                 "url": "https://twitch.tv/teststreamer",
-                "profile_image_url": "",
+                "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
                 "test_id": unique_id,  # Add test identifier
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "message": f"This is a test notification #{timestamp[-4:]}"
             }
         }
         

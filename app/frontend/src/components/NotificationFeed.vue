@@ -229,7 +229,8 @@ const getNotificationClass = (type: string): string => {
 
 // Add a new notification from WebSocket message
 const addNotification = (message: any): void => {
-  const id = crypto.randomUUID()
+  // Nutze die test_id als ID falls vorhanden, ansonsten generiere eine neue ID
+  const id = message.data?.test_id || crypto.randomUUID()
   
   console.log('📝 NotificationFeed: Adding notification with ID:', id)
   console.log('📝 NotificationFeed: Message data:', message)
@@ -237,12 +238,19 @@ const addNotification = (message: any): void => {
   const newNotification = {
     id,
     type: message.type,
-    timestamp: new Date().toISOString(),
+    timestamp: message.data?.timestamp ? new Date(parseInt(message.data.timestamp)).toISOString() : new Date().toISOString(),
     streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
     data: message.data
   }
   
   console.log('📝 NotificationFeed: Created notification object:', newNotification)
+  
+  // Verhindere Duplikate
+  const existingIndex = notifications.value.findIndex(n => n.id === id)
+  if (existingIndex >= 0) {
+    console.log('📝 NotificationFeed: Duplicate notification detected, replacing:', id)
+    notifications.value.splice(existingIndex, 1)
+  }
   
   notifications.value.unshift(newNotification)
   
@@ -312,11 +320,12 @@ const processNewMessage = (message: any) => {
     'stream.update',
     'recording.started',
     'recording.completed',
-    'recording.failed'
+    'recording.failed',
+    'test' // Add test notification type for debugging
     // Removed 'connection.status' to prevent spam notifications when opening/closing panel
   ]
   
-  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'against:', notificationTypes)
+  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'data:', message.data)
   
   if (notificationTypes.includes(message.type)) {
     console.log('✅ NotificationFeed: Message type accepted, adding notification')
@@ -340,63 +349,38 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watch for new messages being added to the array with immediate: true for better reactivity
+  // Vereinfachter Watcher für neue Nachrichten
   watch(messages, (newMessages, oldMessages) => {
     console.log('NotificationFeed: Messages watched triggered', { 
-      newMessages: newMessages?.length, 
-      oldMessages: oldMessages?.length,
-      newMessagesContent: newMessages,
-      oldMessagesContent: oldMessages
+      newMessagesLength: newMessages?.length, 
+      oldMessagesLength: oldMessages?.length
     })
     
-    if (!newMessages) {
-      console.log('NotificationFeed: No messages ref')
+    // Wenn keine Nachrichten vorhanden, einfach zurückkehren
+    if (!newMessages || newMessages.length === 0) {
+      console.log('NotificationFeed: No messages to process')
       return
     }
     
-    // Process all messages if this is the first time or if oldMessages is null/undefined
-    if (!oldMessages) {
+    // Wenn es die erste Nachricht ist oder alte Nachrichten nicht existieren
+    if (!oldMessages || oldMessages.length === 0) {
       console.log('NotificationFeed: Initial setup, processing all messages')
-      newMessages.forEach(message => processNewMessage(message))
+      // Alle Nachrichten verarbeiten (wichtig beim ersten Laden)
+      newMessages.forEach(message => {
+        console.log('NotificationFeed: Processing initial message:', message)
+        processNewMessage(message)
+      })
       return
     }
     
-    // If there are more messages than before, process only the new ones
+    // Wenn neue Nachrichten hinzugefügt wurden
     if (newMessages.length > oldMessages.length) {
-      console.log('NotificationFeed: New messages detected, processing latest')
+      // Verarbeite nur die neueste Nachricht
       const newMessage = newMessages[newMessages.length - 1]
       console.log('NotificationFeed: Processing new message:', newMessage)
       processNewMessage(newMessage)
-    } else if (newMessages.length === oldMessages.length && newMessages.length > 0) {
-      // Check if the latest message is different (WebSocket reconnection case)
-      const latestMessage = newMessages[newMessages.length - 1]
-      const previousLatestMessage = oldMessages[oldMessages.length - 1]
-      
-      console.log('NotificationFeed: Checking for message changes', {
-        latest: latestMessage,
-        previous: previousLatestMessage
-      })
-      
-      if (latestMessage && (!previousLatestMessage || 
-          latestMessage.type !== previousLatestMessage.type ||
-          JSON.stringify(latestMessage.data) !== JSON.stringify(previousLatestMessage.data))) {
-        console.log('NotificationFeed: Processing updated message:', latestMessage)
-        processNewMessage(latestMessage)
-      }
     }
-  }, { deep: true, immediate: true })
-  
-  // Additional watch with flush: 'post' to catch any missed updates
-  watch(() => messages.value.length, (newLength, oldLength) => {
-    console.log('NotificationFeed: Length watch triggered', { newLength, oldLength })
-    if (newLength > 0 && newLength !== oldLength) {
-      const latestMessage = messages.value[messages.value.length - 1]
-      console.log('NotificationFeed: Length changed, latest message:', latestMessage)
-      if (latestMessage) {
-        processNewMessage(latestMessage)
-      }
-    }
-  }, { flush: 'post' })
+  }, { deep: true })
 })
 </script>
 
