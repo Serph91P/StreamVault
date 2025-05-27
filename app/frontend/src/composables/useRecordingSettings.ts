@@ -232,15 +232,6 @@ export function useRecordingSettings() {
       threshold: 10,
       preserve_favorites: true,
       preserve_categories: [],
-      preserve_timeframe: {
-        start_date: '',
-        end_date: '',
-        weekdays: [],
-        timeOfDay: {
-          start: '',
-          end: ''
-        }
-      },
       delete_silently: false
     };
   };

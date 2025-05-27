@@ -58,44 +58,7 @@
           <div class="help-text">Hold Ctrl/Cmd to select multiple categories</div>
         </div>
 
-        <!-- Timeframe Controls -->
-        <div v-if="showTimeframeControls" class="form-group">
-          <label>Preserve Timeframe:</label>
-          
-          <div class="timeframe-controls">
-            <div class="date-range">
-              <div class="form-row">
-                <label>From Date:</label>
-                <input v-model="startDate" type="date" class="form-control" />
-              </div>
-              <div class="form-row">
-                <label>To Date:</label>
-                <input v-model="endDate" type="date" class="form-control" />
-              </div>
-            </div>
 
-            <div class="weekday-selection">
-              <label>Weekdays:</label>
-              <div class="checkbox-group">
-                <label v-for="day in weekdayOptions" :key="day.value" class="checkbox-label">
-                  <input type="checkbox" :value="day.value" v-model="selectedWeekdays" />
-                  {{ day.label }}
-                </label>
-              </div>
-            </div>
-
-            <div class="time-range">
-              <div class="form-row">
-                <label>From Time:</label>
-                <input v-model="startTime" type="time" class="form-control" />
-              </div>
-              <div class="form-row">
-                <label>To Time:</label>
-                <input v-model="endTime" type="time" class="form-control" />
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div class="form-actions">
           <button 
@@ -242,46 +205,20 @@ const storageStats = ref<StorageStats>({
   newestRecording: ''
 });
 
-// Base policy
+// Base policy - simplified without complex timeframe logic
 const policy = ref<CleanupPolicy>({
   type: CleanupPolicyType.COUNT,
   threshold: 10,
   preserve_favorites: true,
   preserve_categories: [],
-  preserve_timeframe: {
-    start_date: '',
-    end_date: '',
-    weekdays: [],
-    timeOfDay: {
-      start: '',
-      end: ''
-    }
-  },
   delete_silently: false
 });
 
-// Form fields for the timeframe
-const startDate = ref('');
-const endDate = ref('');
-const selectedWeekdays = ref<number[]>([]);
-const startTime = ref('');
-const endTime = ref('');
-
 // Options
 const policyTypes = [
-  { label: 'Limit by Count', value: CleanupPolicyType.COUNT },
-  { label: 'Limit by Size (GB)', value: CleanupPolicyType.SIZE },
-  { label: 'Limit by Age (days)', value: CleanupPolicyType.AGE }
-];
-
-const weekdayOptions = [
-  { label: 'Sunday', value: 0 },
-  { label: 'Monday', value: 1 },
-  { label: 'Tuesday', value: 2 },
-  { label: 'Wednesday', value: 3 },
-  { label: 'Thursday', value: 4 },
-  { label: 'Friday', value: 5 },
-  { label: 'Saturday', value: 6 }
+  { label: 'Keep X newest recordings', value: CleanupPolicyType.COUNT },
+  { label: 'Limit total size (GB)', value: CleanupPolicyType.SIZE },
+  { label: 'Delete older than X days', value: CleanupPolicyType.AGE }
 ];
 
 const availableCategories = ref<Category[]>([]);
@@ -290,11 +227,11 @@ const availableCategories = ref<Category[]>([]);
 const policyHint = computed(() => {
   switch (policy.value.type) {
     case CleanupPolicyType.COUNT:
-      return 'Keep only the most recent X recordings';
+      return `Keep only the ${policy.value.threshold} most recent recordings per streamer`;
     case CleanupPolicyType.SIZE:
-      return 'Limit total storage to X gigabytes';
+      return `Delete old recordings when total size exceeds ${policy.value.threshold} GB per streamer`;
     case CleanupPolicyType.AGE:
-      return 'Delete recordings older than X days';
+      return `Delete recordings older than ${policy.value.threshold} days`;
     default:
       return '';
   }
@@ -330,44 +267,33 @@ const showPreserveCategories = computed(() => {
   return availableCategories.value.length > 0;
 });
 
-const showTimeframeControls = computed(() => {
-  return policy.value.type !== CleanupPolicyType.AGE;
-});
-
-// Watchers
-watch(selectedWeekdays, (newWeekdays: number[]) => {
-  policy.value.preserve_timeframe.weekdays = newWeekdays;
-});
-
-watch(startDate, (newDate: string) => {
-  policy.value.preserve_timeframe.start_date = newDate;
-});
-
-watch(endDate, (newDate: string) => {
-  policy.value.preserve_timeframe.end_date = newDate;
-});
-
-watch(startTime, (newTime: string) => {
-  policy.value.preserve_timeframe.timeOfDay.start = newTime;
-});
-
-watch(endTime, (newTime: string) => {
-  policy.value.preserve_timeframe.timeOfDay.end = newTime;
-});
-
 // Methods
 async function loadPolicy() {
   try {
     if (props.isGlobal) {
+      // Make sure settings are loaded first
+      if (!recordingSettings.settings.value) {
+        await recordingSettings.fetchSettings();
+      }
+      
       // Load global cleanup policy from settings
       if (recordingSettings.settings.value?.cleanup_policy) {
-        policy.value = { ...policy.value, ...recordingSettings.settings.value.cleanup_policy };
-        updateFieldsFromPolicy();
+        const loadedPolicy = recordingSettings.settings.value.cleanup_policy;
+        policy.value = ensureCompletePolicy(loadedPolicy);
       }
     } else if (props.streamerId) {
       // Load storage stats for streamer
       showStorageStats.value = true;
       await loadStorageStats();
+      
+      // Load streamer-specific policy if available
+      await recordingSettings.fetchStreamerSettings();
+      const streamerSettings = recordingSettings.streamerSettings.value.find(
+        (s: any) => s.streamer_id === props.streamerId
+      );
+      if (streamerSettings?.cleanup_policy) {
+        policy.value = ensureCompletePolicy(streamerSettings.cleanup_policy);
+      }
     }
     
     // Load available categories
@@ -376,28 +302,6 @@ async function loadPolicy() {
     showError('Error loading cleanup policy');
     console.error('Error loading cleanup policy:', error);
   }
-}
-
-function updateFieldsFromPolicy() {
-  if (policy.value.preserve_timeframe) {
-    startDate.value = policy.value.preserve_timeframe.start_date || '';
-    endDate.value = policy.value.preserve_timeframe.end_date || '';
-    selectedWeekdays.value = policy.value.preserve_timeframe.weekdays || [];
-    startTime.value = policy.value.preserve_timeframe.timeOfDay?.start || '';
-    endTime.value = policy.value.preserve_timeframe.timeOfDay?.end || '';
-  }
-}
-
-function updateTimeframeFromFields() {
-  policy.value.preserve_timeframe = {
-    start_date: startDate.value,
-    end_date: endDate.value,
-    weekdays: selectedWeekdays.value,
-    timeOfDay: {
-      start: startTime.value,
-      end: endTime.value
-    }
-  };
 }
 
 async function loadCategories() {
@@ -423,9 +327,6 @@ async function loadStorageStats() {
 async function savePolicy() {
   try {
     isSaving.value = true;
-    
-    // Update timeframe from form fields
-    updateTimeframeFromFields();
     
     // Ensure all required properties are present
     const completePolicy = ensureCompletePolicy(policy.value);
@@ -481,9 +382,6 @@ async function runCustomCleanupTest() {
   
   try {
     isRunningCleanup.value = true;
-    
-    // Update timeframe from form fields before running custom cleanup
-    updateTimeframeFromFields();
     
     // Ensure all required properties are present
     const completePolicy = ensureCompletePolicy(policy.value);
@@ -563,15 +461,6 @@ function ensureCompletePolicy(policyObj: CleanupPolicy): CleanupPolicy {
     threshold: policyObj.threshold || 10,
     preserve_favorites: policyObj.preserve_favorites !== undefined ? policyObj.preserve_favorites : true,
     preserve_categories: policyObj.preserve_categories || [],
-    preserve_timeframe: {
-      start_date: policyObj.preserve_timeframe?.start_date || '',
-      end_date: policyObj.preserve_timeframe?.end_date || '',
-      weekdays: policyObj.preserve_timeframe?.weekdays || [],
-      timeOfDay: {
-        start: policyObj.preserve_timeframe?.timeOfDay?.start || '',
-        end: policyObj.preserve_timeframe?.timeOfDay?.end || ''
-      }
-    },
     delete_silently: policyObj.delete_silently !== undefined ? policyObj.delete_silently : false
   };
 }
