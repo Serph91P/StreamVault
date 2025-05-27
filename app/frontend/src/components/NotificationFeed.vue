@@ -278,6 +278,7 @@ const clearAllNotifications = (): void => {
 // Save notifications to localStorage
 const saveNotifications = (): void => {
   localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
+  console.log('📝 NotificationFeed: Saved to localStorage:', notifications.value.length, 'notifications')
 }
 
 // Load notifications from localStorage
@@ -285,10 +286,18 @@ const loadNotifications = (): void => {
   const saved = localStorage.getItem('streamvault_notifications')
   if (saved) {
     try {
-      notifications.value = JSON.parse(saved)
+      const savedNotifications = JSON.parse(saved)
+      if (Array.isArray(savedNotifications)) {
+        notifications.value = savedNotifications
+        console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
+      } else {
+        console.error('Saved notifications is not an array:', saved)
+      }
     } catch (e) {
       console.error('Failed to load notifications:', e)
     }
+  } else {
+    console.log('📝 NotificationFeed: No notifications in localStorage')
   }
 }
 
