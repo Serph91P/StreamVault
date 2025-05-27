@@ -176,13 +176,13 @@ watch(messages, (newMessages, oldMessages) => {
     const notificationTypes = [
       'stream.online', 
       'stream.offline', 
-      'channel.update',
+      'channel.update',  // Standard Twitch notification type
       'stream.update',
       'recording.started',
       'recording.completed',
       'recording.failed',
-      'test'
-      // Removed 'connection.status' to prevent spam counter increases
+      'test'  // Our custom test notification type
+      // 'connection.status' is explicitly excluded to prevent counter increases
     ]
     
     if (notificationTypes.includes(newMessage.type)) {

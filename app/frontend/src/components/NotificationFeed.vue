@@ -335,7 +335,7 @@ const processNewMessage = (message: any) => {
   const notificationTypes = [
     'stream.online', 
     'stream.offline',
-    'channel.update',
+    'channel.update',  // Standard Twitch notification type
     'stream.update',
     'recording.started',
     'recording.completed',
