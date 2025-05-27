@@ -242,23 +242,53 @@ const getNotificationClass = (type: string): string => {
 // Add a new notification from WebSocket message
 const addNotification = (message: any): void => {
   try {
-    // Nutze die test_id als ID falls vorhanden, ansonsten generiere eine neue ID
+    // Make sure we have a valid message object
+    if (!message || !message.type) {
+      console.error('❌ NotificationFeed: Invalid message object:', message)
+      return;
+    }
+    
+    // Use the test_id as ID if available, otherwise generate a new UUID
     const id = message.data?.test_id || crypto.randomUUID()
     
     console.log('📝 NotificationFeed: Adding notification with ID:', id)
     console.log('📝 NotificationFeed: Message data:', message)
     
+    // Create a properly formatted timestamp
+    let timestamp: string;
+    if (message.data?.timestamp) {
+      // Check if the timestamp is a number (milliseconds) or already a string date
+      if (typeof message.data.timestamp === 'number' || !isNaN(parseInt(message.data.timestamp))) {
+        timestamp = new Date(parseInt(message.data.timestamp)).toISOString();
+      } else {
+        // Try to parse the timestamp directly if it's already a date string
+        try {
+          timestamp = new Date(message.data.timestamp).toISOString();
+        } catch (e) {
+          timestamp = new Date().toISOString();
+        }
+      }
+    } else {
+      timestamp = new Date().toISOString();
+    }
+    
+    // Extract username properly
+    const streamer_username = message.data?.username || 
+                             message.data?.streamer_name || 
+                             message.streamer_username ||
+                             'Unknown';
+    
     const newNotification = {
       id,
       type: message.type,
-      timestamp: message.data?.timestamp ? new Date(parseInt(message.data.timestamp)).toISOString() : new Date().toISOString(),
-      streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
-      data: message.data
+      timestamp,
+      streamer_username,
+      data: message.data || {}
     }
     
     console.log('📝 NotificationFeed: Created notification object:', newNotification)
     
-    // Verhindere Duplikate
+    // Prevent duplicates
     const existingIndex = notifications.value.findIndex(n => n.id === id)
     if (existingIndex >= 0) {
       console.log('📝 NotificationFeed: Duplicate notification detected, replacing:', id)
@@ -279,18 +309,30 @@ const addNotification = (message: any): void => {
     // Save to localStorage immediately to ensure persistence
     saveNotifications()
     
-    // Verify notifications were saved correctly
-    const savedCount = localStorage.getItem('streamvault_notifications') ? 
-      JSON.parse(localStorage.getItem('streamvault_notifications')!).length : 0
-    
+    // Output debug info about the notifications we now have
     console.log('✅ NotificationFeed: Total notifications after adding:', notifications.value.length)
-    console.log('✅ NotificationFeed: Saved to localStorage count:', savedCount)
+    console.log('✅ NotificationFeed: Current notifications:', notifications.value)
     
-    // Force another save if counts don't match
-    if (savedCount !== notifications.value.length) {
-      console.warn('⚠️ NotificationFeed: Saved count mismatch, forcing another save')
-      setTimeout(() => saveNotifications(), 100)
-    }
+    // Verify notifications were saved correctly with a small delay
+    setTimeout(() => {
+      try {
+        const saved = localStorage.getItem('streamvault_notifications')
+        if (saved) {
+          const savedNotifications = JSON.parse(saved)
+          console.log('✅ NotificationFeed: Saved to localStorage count:', savedNotifications.length)
+          
+          if (savedNotifications.length !== notifications.value.length) {
+            console.warn('⚠️ NotificationFeed: Storage count mismatch, forcing save again')
+            saveNotifications()
+          }
+        } else {
+          console.warn('⚠️ NotificationFeed: No notifications in localStorage after save, forcing save')
+          saveNotifications()
+        }
+      } catch (err) {
+        console.error('❌ NotificationFeed: Error verifying localStorage:', err)
+      }
+    }, 100)
   } catch (error) {
     console.error('❌ NotificationFeed: Error adding notification:', error)
   }
@@ -304,25 +346,63 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (): void => {
-  notifications.value = []
-  
-  // Save empty notifications array to localStorage
-  localStorage.setItem('streamvault_notifications', JSON.stringify([]))
-  console.log('🧹 NotificationFeed: Cleared all notifications')
-  
-  // Emit events to update UI
-  emit('notifications-read')
-  
-  // Add a small delay before closing panel to ensure animations complete properly
-  setTimeout(() => {
-    emit('close-panel') // Close the notification panel after clearing
-  }, 100)
+  try {
+    console.log('🧹 NotificationFeed: Starting clear all notifications process')
+    
+    // Clear the notifications array
+    notifications.value = []
+    
+    // Save empty notifications array to localStorage
+    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    console.log('🧹 NotificationFeed: Cleared all notifications from localStorage')
+    
+    // Double-check localStorage was properly cleared
+    const saved = localStorage.getItem('streamvault_notifications')
+    console.log('🧹 NotificationFeed: Verification - localStorage now contains:', saved)
+    
+    // Emit events to update UI
+    emit('notifications-read')
+    console.log('🧹 NotificationFeed: Emitted notifications-read event')
+    
+    // Add a small delay before closing panel to ensure animations complete properly
+    setTimeout(() => {
+      console.log('🧹 NotificationFeed: Closing notification panel')
+      emit('close-panel') // Close the notification panel after clearing
+    }, 200)
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error clearing notifications:', error)
+    
+    // Force clear in case of error
+    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    notifications.value = []
+  }
 }
 
 // Save notifications to localStorage
 const saveNotifications = (): void => {
-  localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
-  console.log('📝 NotificationFeed: Saved to localStorage:', notifications.value.length, 'notifications')
+  try {
+    // First, ensure we only save valid notifications
+    const validNotifications = notifications.value.filter(n => 
+      n && typeof n === 'object' && n.id && n.type && n.timestamp
+    );
+    
+    if (validNotifications.length !== notifications.value.length) {
+      console.warn('⚠️ NotificationFeed: Filtered out invalid notifications before saving')
+      // Update the notifications array to remove invalid items
+      notifications.value = validNotifications
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('streamvault_notifications', JSON.stringify(validNotifications))
+    console.log('📝 NotificationFeed: Saved to localStorage:', validNotifications.length, 'notifications')
+    
+    // Get a sample to verify data integrity
+    if (validNotifications.length > 0) {
+      console.log('📝 NotificationFeed: Sample of saved notification:', validNotifications[0])
+    }
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error saving notifications to localStorage:', error)
+  }
 }
 
 // Load notifications from localStorage
@@ -332,7 +412,16 @@ const loadNotifications = (): void => {
     try {
       const savedNotifications = JSON.parse(saved)
       if (Array.isArray(savedNotifications)) {
-        notifications.value = savedNotifications
+        // Only consider notifications with proper structure
+        const validNotifications = savedNotifications.filter(n => 
+          n && typeof n === 'object' && n.id && n.type && n.timestamp
+        );
+        
+        if (validNotifications.length !== savedNotifications.length) {
+          console.warn('⚠️ NotificationFeed: Found invalid notifications in localStorage, filtering them out')
+        }
+        
+        notifications.value = validNotifications
         console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
         
         // Debug info - show what notifications we loaded
@@ -341,12 +430,17 @@ const loadNotifications = (): void => {
         }
       } else {
         console.error('Saved notifications is not an array:', saved)
+        // Initialize with empty array if saved data is invalid
+        notifications.value = []
       }
     } catch (e) {
       console.error('Failed to load notifications:', e)
+      // Initialize with empty array if parsing fails
+      notifications.value = []
     }
   } else {
     console.log('📝 NotificationFeed: No notifications in localStorage')
+    notifications.value = []
   }
 }
 
@@ -422,7 +516,7 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watch for new WebSocket messages - simplified approach
+  // Watch for new WebSocket messages - improved approach
   watch(messages, (newMessages, oldMessages) => {
     console.log('📊 NotificationFeed: Messages watcher triggered', { 
       newMessagesLength: newMessages?.length, 
@@ -435,9 +529,17 @@ onMounted(() => {
       return
     }
     
+    // Force refresh notifications from localStorage first to ensure we have the latest data
+    try {
+      loadNotifications();
+      console.log('📊 NotificationFeed: Reloaded notifications from localStorage before processing')
+    } catch (e) {
+      console.error('❌ NotificationFeed: Error reloading notifications:', e)
+    }
+    
     // Only handle messages when we have new ones
     if (oldMessages && newMessages.length > oldMessages.length) {
-      // Get only the new messages
+      // Get only the new message
       const newMessage = newMessages[newMessages.length - 1]
       
       // Skip connection.status messages - they're not notifications
@@ -449,8 +551,12 @@ onMounted(() => {
       console.log('🔄 NotificationFeed: Processing new message:', newMessage)
       
       try {
-        // Process the notification handling logic
-        processNewMessage(newMessage)
+        // Add the notification directly (without the extra processNewMessage function)
+        // This simplifies the code and avoids potential issues
+        addNotification(newMessage)
+        
+        // Force reactivity update
+        notifications.value = [...notifications.value]
       } catch (error) {
         console.error('❌ NotificationFeed: Error during message handling:', error)
       }

@@ -122,6 +122,18 @@ function closeNotificationPanel() {
   if (showNotifications.value) {
     console.log('🔔 App: Closing notification panel')
     showNotifications.value = false
+    
+    // Re-check unread count when closing panel
+    // This ensures we have the correct count in case notifications were added while panel was open
+    const notificationsStr = localStorage.getItem('streamvault_notifications')
+    if (notificationsStr) {
+      try {
+        const notifications = JSON.parse(notificationsStr)
+        console.log('🔄 App: Re-checking unread count on panel close, found:', notifications.length, 'notifications')
+      } catch (e) {
+        console.error('❌ App: Error parsing notifications during panel close:', e)
+      }
+    }
   }
 }
 
