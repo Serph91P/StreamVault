@@ -164,28 +164,40 @@ async def test_websocket_notification():
     """Test WebSocket notification delivery to frontend"""
     try:
         from app.dependencies import websocket_manager
+        import time
+        import uuid
         
-        # Send a test notification through WebSocket
+        # Generate unique ID to prevent duplicates
+        unique_id = str(uuid.uuid4())
+        timestamp = str(int(time.time() * 1000))  # milliseconds timestamp
+        
+        # Send a test notification through WebSocket with unique identifiers
         test_notification = {
-            "type": "channel.update",
+            "type": "stream.update",  # Changed to stream.update for better distinction
             "data": {
-                "streamer_id": 999,
-                "twitch_id": "test_user",
-                "streamer_name": "TestStreamer",
-                "username": "TestStreamer",
-                "title": "Test Stream Update Notification",
-                "category_name": "Test Category",
+                "streamer_id": f"test_{unique_id}",
+                "twitch_id": f"test_user_{timestamp}",
+                "streamer_name": "🧪 Test Notification",
+                "username": "🧪 Test Notification", 
+                "title": f"Test WebSocket Notification #{timestamp[-4:]}",
+                "category_name": "🔧 StreamVault Testing",
                 "language": "en",
                 "is_live": False,
                 "url": "https://twitch.tv/teststreamer",
-                "profile_image_url": ""
+                "profile_image_url": "",
+                "test_id": unique_id,  # Add test identifier
+                "timestamp": timestamp
             }
         }
         
         await websocket_manager.send_notification(test_notification)
-        logger.info(f"Test WebSocket notification sent: {test_notification}")
+        logger.info(f"🧪 Test WebSocket notification sent with ID {unique_id}")
         
-        return {"status": "success", "message": "Test WebSocket notification sent successfully"}
+        return {
+            "status": "success", 
+            "message": f"Test WebSocket notification sent successfully (ID: {unique_id[-8:]})",
+            "notification_id": unique_id
+        }
     except Exception as e:
         logger.error(f"Error sending test WebSocket notification: {e}")
         raise HTTPException(status_code=500, detail=str(e))
