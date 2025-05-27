@@ -200,11 +200,13 @@ const getNotificationClass = (type: string): string => {
 const addNotification = (message: any): void => {
   const id = crypto.randomUUID()
   
+  console.log('NotificationFeed: Adding notification:', message)
+  
   notifications.value.unshift({
     id,
     type: message.type,
     timestamp: new Date().toISOString(),
-    streamer_username: message.data?.username || message.data?.streamer_name,
+    streamer_username: message.data?.username || message.data?.streamer_name || message.streamer_username,
     data: message.data
   })
   
@@ -215,6 +217,8 @@ const addNotification = (message: any): void => {
   
   // Save to localStorage
   saveNotifications()
+  
+  console.log('NotificationFeed: Total notifications after adding:', notifications.value.length)
 }
 
 // Remove a specific notification
@@ -283,14 +287,24 @@ onMounted(() => {
   
   // Watch for new messages being added to the array
   watch(messages, (newMessages, oldMessages) => {
-    if (!newMessages || newMessages.length === 0) return
+    console.log('NotificationFeed: Messages watched triggered', { newMessages: newMessages?.length, oldMessages: oldMessages?.length })
+    
+    if (!newMessages || newMessages.length === 0) {
+      console.log('NotificationFeed: No messages to process')
+      return
+    }
     
     // If there are more messages than before, process only the new ones
     if (oldMessages && newMessages.length > oldMessages.length) {
       const newMessage = newMessages[newMessages.length - 1]
+      console.log('NotificationFeed: Processing new message:', newMessage)
       processNewMessage(newMessage)
+    } else if (!oldMessages || oldMessages.length === 0) {
+      // Initial load - process all messages
+      console.log('NotificationFeed: Initial load, processing all messages')
+      newMessages.forEach(message => processNewMessage(message))
     }
-  }, { deep: true })
+  }, { deep: true, immediate: true })
 })
 </script>
 

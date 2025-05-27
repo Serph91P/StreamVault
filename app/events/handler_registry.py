@@ -31,7 +31,7 @@ class EventHandlerRegistry:
         }
         self.manager = connection_manager
         self.settings = settings or app_settings
-        self.notification_service = NotificationService()
+        self.notification_service = NotificationService(websocket_manager=connection_manager)
         self._access_token = None
         self.eventsub = None
         self._processed_events = {}
@@ -241,6 +241,7 @@ class EventHandlerRegistry:
                         streamer_name=streamer.username,
                         event_type="online",
                         details={
+                            "streamer_id": streamer.id,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "started_at": data["started_at"],
                             "title": streamer.title,
@@ -307,6 +308,7 @@ class EventHandlerRegistry:
                         streamer_name=streamer.username,
                         event_type="offline",
                         details={
+                            "streamer_id": streamer.id,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "profile_image_url": streamer.profile_image_url,
                             "twitch_login": data['broadcaster_user_login']
@@ -381,6 +383,7 @@ class EventHandlerRegistry:
                         streamer_name=streamer.username,
                         event_type="update",
                         details={
+                            "streamer_id": streamer.id,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),

@@ -40,7 +40,11 @@ export function useWebSocket() {
           data.type === 'connection.status'
         )) {
           console.log('Adding message to messages array:', data)
+          console.log('Messages array before push:', messages.value.length)
           messages.value.push(data)
+          console.log('Messages array after push:', messages.value.length)
+        } else {
+          console.log('Message type not recognized or data invalid:', data?.type)
         }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e)
