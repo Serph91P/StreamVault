@@ -177,22 +177,23 @@ async def test_websocket_notification():
         
         # Send a test notification through WebSocket with unique identifiers
         # Note: We need to make sure this type is accepted by the frontend filters
+        # Using channel.update to match what would come from Twitch
         test_notification = {
-            "type": "test",  # Using special test type to ensure it's recognized in the frontend
+            "type": "channel.update",  # Using channel.update to match Twitch notification type
             "data": {
                 "streamer_id": f"test_{unique_id}",
                 "twitch_id": f"test_user_{timestamp}",
                 "streamer_name": "🧪 Test Notification",
                 "username": "🧪 Test Notification", 
-                "title": f"Test WebSocket Notification #{timestamp[-4:]}",
+                "title": f"Channel Update Test #{timestamp[-4:]}",
                 "category_name": "🔧 StreamVault Testing",
                 "language": "en",
-                "is_live": False,
+                "is_live": True,
                 "url": "https://twitch.tv/teststreamer",
                 "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
                 "test_id": unique_id,  # Add test identifier
                 "timestamp": timestamp,
-                "message": f"Dies ist eine Test-Benachrichtigung #{timestamp[-6:]}"
+                "message": f"Twitch channel update - Test #{timestamp[-6:]}"
             }
         }
         
