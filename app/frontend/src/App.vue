@@ -121,9 +121,21 @@ onMounted(() => {
     try {
       const notifications = JSON.parse(notificationsStr)
       if (Array.isArray(notifications)) {
+        // Only count real notification types, not connection status
+        const validNotificationTypes = [
+          'stream.online', 
+          'stream.offline', 
+          'channel.update',
+          'stream.update',
+          'recording.started',
+          'recording.completed',
+          'recording.failed'
+        ]
+        
         const unread = notifications.filter(n => {
           const notifTimestamp = new Date(n.timestamp).getTime()
-          return notifTimestamp > parseInt(lastReadTimestamp.value)
+          const isValidType = validNotificationTypes.includes(n.type)
+          return isValidType && notifTimestamp > parseInt(lastReadTimestamp.value)
         })
         unreadCount.value = unread.length
       }
@@ -153,6 +165,7 @@ watch(messages, (newMessages, oldMessages) => {
   
   if (oldMessages && newMessages.length > oldMessages.length) {
     const newMessage = newMessages[newMessages.length - 1]
+    // Only count specific notification types (exclude connection.status to prevent false positives)
     const notificationTypes = [
       'stream.online', 
       'stream.offline', 
@@ -161,6 +174,7 @@ watch(messages, (newMessages, oldMessages) => {
       'recording.started',
       'recording.completed',
       'recording.failed'
+      // Removed 'connection.status' to prevent spam counter increases
     ]
     
     if (notificationTypes.includes(newMessage.type)) {
