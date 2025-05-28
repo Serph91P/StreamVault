@@ -50,32 +50,26 @@
             <span v-else-if="notification.type === 'recording.started'">🎥</span>
             <span v-else-if="notification.type === 'recording.completed'">✅</span>
             <span v-else-if="notification.type === 'recording.failed'">❌</span>
-            <span v-else-if="notification.type === 'connection.status'">🔌</span>
-            <span v-else>📣</span>
+            <span v-else>ℹ️</span>
           </div>
         </div>
         
         <div class="notification-content">
           <div class="notification-header">
-            <h3 class="notification-title">{{ formatTitle(notification) }}</h3>
+            <span class="notification-title">{{ formatTitle(notification) }}</span>
             <span class="notification-time">{{ formatTime(notification.timestamp) }}</span>
           </div>
+          <p class="notification-message">{{ formatMessage(notification) }}</p>
           
-          <div class="notification-message">{{ formatMessage(notification) }}</div>
-          
-          <div v-if="notification.data && notification.data.category_name" class="notification-meta">
+          <div v-if="notification.data?.game_name || notification.data?.category_name" class="notification-meta">
             <span class="category-tag">
               <span class="tag-icon">🎮</span>
-              {{ notification.data.category_name }}
+              {{ notification.data?.game_name || notification.data?.category_name }}
             </span>
           </div>
         </div>
         
-        <button 
-          @click="removeNotification(notification.id)" 
-          class="notification-dismiss"
-          aria-label="Dismiss notification"
-        >
+        <button @click="removeNotification(notification.id)" class="notification-dismiss" aria-label="Dismiss notification">
           <span class="dismiss-icon">×</span>
         </button>
       </div>
@@ -153,27 +147,25 @@ const formatTitle = (notification: Notification): string => {
   
   // Check if this is a test notification by looking at test_id
   if (notification.data?.test_id) {
-    return `🧪 Test Notification`
+    return 'Test Notification'
   }
   
   switch (notification.type) {
     case 'stream.online':
-      return `${username} is Live!`
+      return `${username} is Live`
     case 'stream.offline':
-      return `${username} Ended Stream`
+      return `${username} Stream Ended`
     case 'channel.update':
     case 'stream.update':
-      return username === 'TestUser' ? '🧪 Test Notification' : `${username} Updated Stream`
+      return `${username} Updated Stream`
     case 'recording.started':
       return `Recording Started`
     case 'recording.completed':
       return `Recording Completed`
     case 'recording.failed':
       return `Recording Failed`
-    case 'connection.status':
-      return 'Connection Status'
     default:
-      return `Notification for ${username}`
+      return notification.title || 'Notification'
   }
 }
 
@@ -184,20 +176,20 @@ const formatMessage = (notification: Notification): string => {
   
   // Wenn eine direkte Nachricht vorhanden ist, diese bevorzugen
   if (data?.message) {
-    return data.message;
+    return data.message
   }
   
   switch (type) {
     case 'stream.online':
       return data?.title 
-        ? `${username} started streaming: ${data.title}` 
-        : `${username} is now live!`
+        ? `${username} is live: "${data.title}"` 
+        : `${username} is now streaming`
     case 'stream.offline':
-      return `${username} has ended their stream.`
+      return `${username} has gone offline`
     case 'channel.update':
     case 'stream.update':
       return data?.title 
-        ? `Stream updated: ${data.title}` 
+        ? `${username} changed stream title to: "${data.title}"` 
         : `${username} updated their stream.`
     case 'recording.started':
       return `Started recording ${username}'s stream.`
@@ -230,25 +222,15 @@ const getNotificationClass = (type: string): string => {
       return 'success'
     case 'recording.failed':
       return 'error'
-    case 'connection.status':
-      return 'info'
-    case 'test':
-      return 'success' // Test notifications use the success style
     default:
-      return 'default'
+      return 'info'
   }
 }
 
 // Add a new notification from WebSocket message
 const addNotification = (message: any): void => {
   try {
-    // Make sure we have a valid message object
-    if (!message || !message.type) {
-      console.error('❌ NotificationFeed: Invalid message object:', message)
-      return;
-    }
-    
-    // Use the test_id as ID if available, otherwise generate a new UUID
+    // Generate a unique ID
     const id = message.data?.test_id || crypto.randomUUID()
     
     console.log('📝 NotificationFeed: Adding notification with ID:', id)
@@ -319,18 +301,10 @@ const addNotification = (message: any): void => {
         const saved = localStorage.getItem('streamvault_notifications')
         if (saved) {
           const savedNotifications = JSON.parse(saved)
-          console.log('✅ NotificationFeed: Saved to localStorage count:', savedNotifications.length)
-          
-          if (savedNotifications.length !== notifications.value.length) {
-            console.warn('⚠️ NotificationFeed: Storage count mismatch, forcing save again')
-            saveNotifications()
-          }
-        } else {
-          console.warn('⚠️ NotificationFeed: No notifications in localStorage after save, forcing save')
-          saveNotifications()
+          console.log('✅ NotificationFeed: Stored notifications count:', savedNotifications.length)
         }
-      } catch (err) {
-        console.error('❌ NotificationFeed: Error verifying localStorage:', err)
+      } catch (error) {
+        console.error('❌ NotificationFeed: Error verifying stored notifications:', error)
       }
     }, 100)
   } catch (error) {
@@ -347,43 +321,10 @@ const removeNotification = (id: string): void => {
 // Clear all notifications
 const clearAllNotifications = (): void => {
   try {
-    console.log('🧹 NotificationFeed: Starting clear all notifications process')
-    
-    // Clear the notifications array
     notifications.value = []
-    
-    // Save empty notifications array to localStorage (using an actual empty array)
-    localStorage.setItem('streamvault_notifications', '[]')
-    console.log('🧹 NotificationFeed: Cleared all notifications from localStorage')
-    
-    // Double-check localStorage was properly cleared
-    const saved = localStorage.getItem('streamvault_notifications')
-    console.log('🧹 NotificationFeed: Verification - localStorage now contains:', saved)
-    
-    // Emit events to update UI
-    emit('notifications-read')
-    console.log('🧹 NotificationFeed: Emitted notifications-read event')
-    
-    // Add a small delay before closing panel to ensure animations complete properly
-    setTimeout(() => {
-      console.log('🧹 NotificationFeed: Closing notification panel')
-      emit('close-panel') // Close the notification panel after clearing
-    }, 300)
-    
-    // Also clear the WebSocket message queue - this prevents reprocessing old messages
-    if (window.confirm('Do you want to clear all notifications? This will clear all notification history.')) {
-      console.log('🧹 NotificationFeed: User confirmed clearing all notifications')
-    }
+    saveNotifications()
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing notifications:', error)
-    
-    // Force clear in case of error
-    localStorage.setItem('streamvault_notifications', '[]')
-    notifications.value = []
-    
-    // Emit events to ensure UI updates even after error
-    emit('notifications-read')
-    setTimeout(() => emit('close-panel'), 300)
   }
 }
 
@@ -532,39 +473,31 @@ onUpdated(() => {
 onMounted(() => {
   // First, let's check if we can access and modify localStorage at all
   try {
-    console.log('🧪 NotificationFeed: Testing localStorage access...')
-    localStorage.setItem('streamvault_test', 'test')
-    const testValue = localStorage.getItem('streamvault_test')
-    console.log('🧪 NotificationFeed: localStorage test result:', testValue)
-    if (testValue === 'test') {
-      console.log('🧪 NotificationFeed: localStorage is working correctly')
-      localStorage.removeItem('streamvault_test')
-    } else {
-      console.error('🧪 NotificationFeed: localStorage is not functioning correctly')
-    }
+    localStorage.setItem('_test', 'test')
+    localStorage.removeItem('_test')
+    console.log('✅ NotificationFeed: localStorage is accessible')
   } catch (e) {
-    console.error('🧪 NotificationFeed: Error accessing localStorage:', e)
+    console.error('❌ NotificationFeed: localStorage is not accessible:', e)
+    return
   }
-
-  // Check if there are any messages in WebSocket that need to be added to localStorage
-  if (messages.value && messages.value.length > 0) {
-    console.log('🔍 NotificationFeed: Found existing WebSocket messages on mount:', messages.value.length)
-    
-    // Process any messages that aren't connection status updates
-    const validMessages = messages.value.filter(msg => msg.type !== 'connection.status')
-    
-    if (validMessages.length > 0) {
-      console.log('🔍 NotificationFeed: Processing valid WebSocket messages on mount:', validMessages.length)
-      // Add these messages to localStorage before loading
-      validMessages.forEach(message => {
-        try {
-          console.log('🔍 NotificationFeed: Processing existing message:', message)
-          processNewMessage(message)
-        } catch (e) {
-          console.error('❌ NotificationFeed: Error processing message on mount:', e)
-        }
-      })
-    }
+  
+  // Check if there are already websocket messages in the messages store
+  console.log('🔍 NotificationFeed: Found existing WebSocket messages on mount:', messages.value.length)
+  
+  // Process any messages that aren't connection status updates
+  const validMessages = messages.value.filter(msg => msg.type !== 'connection.status')
+  
+  if (validMessages.length > 0) {
+    console.log('🔍 NotificationFeed: Processing valid WebSocket messages on mount:', validMessages.length)
+    // Add these messages to notifications
+    validMessages.forEach(message => {
+      try {
+        console.log('🔍 NotificationFeed: Processing existing message:', message)
+        processNewMessage(message)
+      } catch (e) {
+        console.error('❌ NotificationFeed: Error processing message on mount:', e)
+      }
+    })
   }
   
   // Load notifications from localStorage
@@ -576,99 +509,22 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watch for new WebSocket messages - improved approach
-  watch(messages, (newMessages, oldMessages) => {
-    console.log('📊 NotificationFeed: Messages watcher triggered', { 
-      newMessagesLength: newMessages?.length, 
-      oldMessagesLength: oldMessages?.length
-    })
+  // Watch for new WebSocket messages
+  watch(() => messages.value, (newVal, oldVal) => {
+    // Make sure we have new messages to process
+    if (!newVal || !oldVal) return;
     
-    // Don't process empty messages
-    if (!newMessages || newMessages.length === 0) {
-      console.log('📊 NotificationFeed: No messages to process')
-      return
-    }
-    
-    // Only handle messages when we have new ones
-    if (oldMessages && newMessages.length > oldMessages.length) {
-      // Get only the new message
-      const newMessage = newMessages[newMessages.length - 1]
+    if (newVal.length > oldVal.length) {
+      // We have new messages - get just the newest one
+      const newestMessage = newVal[newVal.length - 1];
       
-      // Skip connection.status messages - they're not notifications
-      if (newMessage.type === 'connection.status') {
-        console.log('⏭️ NotificationFeed: Skipping connection.status message')
-        return
-      }
+      // Skip connection status messages
+      if (newestMessage.type === 'connection.status') return;
       
-      console.log('🔄 NotificationFeed: Processing new message:', newMessage)
+      console.log('🔄 NotificationFeed: New WebSocket message detected:', newestMessage);
       
-      try {
-        // Create a notification object directly
-        const id = newMessage.data?.test_id || crypto.randomUUID()
-        
-        // Format timestamp correctly
-        let timestamp: string;
-        if (newMessage.data?.timestamp) {
-          if (typeof newMessage.data.timestamp === 'number' || !isNaN(parseInt(newMessage.data.timestamp))) {
-            timestamp = new Date(parseInt(newMessage.data.timestamp)).toISOString();
-          } else {
-            try {
-              timestamp = new Date(newMessage.data.timestamp).toISOString();
-            } catch (e) {
-              timestamp = new Date().toISOString();
-            }
-          }
-        } else {
-          timestamp = new Date().toISOString();
-        }
-        
-        // Extract username
-        const streamer_username = newMessage.data?.username || 
-                                 newMessage.data?.streamer_name || 
-                                 'Unknown';
-        
-        // Create the notification object
-        const notification = {
-          id,
-          type: newMessage.type,
-          timestamp,
-          streamer_username,
-          data: newMessage.data || {}
-        }
-        
-        console.log('🎯 NotificationFeed: Created notification object:', notification)
-        
-        // Add to the local notifications array
-        notifications.value = [notification, ...notifications.value]
-        
-        // Save directly to localStorage
-        const savedNotifs = localStorage.getItem('streamvault_notifications') || '[]'
-        try {
-          const existingNotifs = JSON.parse(savedNotifs)
-          
-          // Remove duplicates based on ID
-          const filteredNotifs = existingNotifs.filter((n: any) => n.id !== id)
-          
-          // Add new notification at the beginning
-          const updatedNotifs = [notification, ...filteredNotifs]
-          
-          // Limit count
-          const limitedNotifs = updatedNotifs.slice(0, MAX_NOTIFICATIONS)
-          
-          // Save back to localStorage
-          localStorage.setItem('streamvault_notifications', JSON.stringify(limitedNotifs))
-          
-          console.log('💾 NotificationFeed: Saved notification to localStorage, count:', limitedNotifs.length)
-        } catch (e) {
-          console.error('❌ NotificationFeed: Error updating localStorage:', e)
-          // Fallback - save only current notifications array
-          localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
-        }
-      } catch (error) {
-        console.error('❌ NotificationFeed: Error during message handling:', error)
-      }
-    } else {
-      console.log('📊 NotificationFeed: No new messages to process')
+      // Process the new message
+      processNewMessage(newestMessage);
     }
   }, { deep: true })
 })
@@ -676,134 +532,115 @@ onMounted(() => {
 
 <style scoped>
 .notification-feed {
-  padding: 0;
-  background: linear-gradient(135deg, 
-    rgba(var(--background-darker-rgb, 31, 31, 35), 0.98) 0%,
-    rgba(var(--background-card-rgb, 37, 37, 42), 0.95) 100%);
-  border-radius: 16px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.4),
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  max-width: 420px;
-  width: 100%;
-  overflow: hidden;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.8);
-  position: absolute;
-  top: 72px;
-  right: 20px;
-  z-index: 1000;
-  max-height: 85vh;
+  max-width: 400px;
+  max-height: 800px;
+  overflow-y: auto;
+  background-color: var(--background-darker, #18181b);
+  border-radius: var(--border-radius, 8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
-  animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 100%;
+  border: 1px solid var(--border-color, #2f2f35);
 }
 
 @keyframes slideIn {
   from {
+    transform: translateY(-10px);
     opacity: 0;
-    transform: translateY(-20px) translateX(10px) scale(0.95);
   }
   to {
+    transform: translateY(0);
     opacity: 1;
-    transform: translateY(0) translateX(0) scale(1);
   }
 }
 
 .feed-header {
-  padding: 24px 24px 16px;
-  border-bottom: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.6);
-  background: rgba(var(--background-darker-rgb, 31, 31, 35), 0.4);
+  padding: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-color, #2f2f35);
+  background-color: var(--background-darker, #18181b);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header-content {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .header-icon .icon-ring {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-light, #4ade80));
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--background-dark, #1f1f23);
+  border: 2px solid var(--primary-color, #9147ff);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
-    0 4px 12px rgba(var(--primary-color-rgb, 66, 184, 131), 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  margin-right: 10px;
 }
 
 .bell-icon {
-  font-size: 20px;
-  filter: brightness(1.2);
+  font-size: 16px;
 }
 
 .header-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .section-title {
   margin: 0;
-  color: var(--text-primary);
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #efeff1);
 }
 
 .section-subtitle {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: var(--text-secondary, #adadb8);
 }
 
 .clear-all-btn {
-  background: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
-  border: 1px solid rgba(var(--danger-color-rgb, 239, 68, 68), 0.2);
-  color: var(--danger-color);
-  font-size: 0.875rem;
-  font-weight: 600;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #adadb8);
+  font-size: 13px;
   cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: var(--border-radius, 4px);
+  transition: all 0.2s ease;
 }
 
 .clear-all-btn:hover {
-  background: rgba(var(--danger-color-rgb, 239, 68, 68), 0.15);
-  border-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--danger-color-rgb, 239, 68, 68), 0.2);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #efeff1);
 }
 
 .clear-icon {
-  font-size: 0.75rem;
+  font-size: 14px;
 }
 
 .no-notifications {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  min-height: 200px;
+  padding: 48px 16px;
+  text-align: center;
 }
 
 .empty-state {
-  text-align: center;
-  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
 }
 
 .empty-state .empty-icon {
@@ -811,37 +648,33 @@ onMounted(() => {
 }
 
 .empty-state .icon-circle {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: rgba(var(--background-card-rgb, 37, 37, 42), 0.8);
-  border: 2px dashed rgba(var(--border-color-rgb, 45, 45, 53), 0.5);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--background-dark, #1f1f23);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
-  margin: 0 auto 16px;
+  font-size: 30px;
 }
 
 .empty-state h3 {
-  margin: 0 0 8px;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  margin: 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary, #efeff1);
 }
 
 .empty-state p {
   margin: 0;
-  font-size: 0.875rem;
-  opacity: 0.8;
+  font-size: 14px;
+  color: var(--text-secondary, #adadb8);
 }
 
 .notification-list {
-  padding: 8px;
-  max-height: calc(85vh - 120px);
+  flex-grow: 1;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.3) transparent;
+  max-height: 550px; /* Adjust as needed */
 }
 
 .notification-list::-webkit-scrollbar {
@@ -853,36 +686,31 @@ onMounted(() => {
 }
 
 .notification-list::-webkit-scrollbar-thumb {
-  background: rgba(var(--primary-color-rgb, 66, 184, 131), 0.3);
+  background-color: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
 
 .notification-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--primary-color-rgb, 66, 184, 131), 0.5);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 .notification-item {
-  display: flex;
-  align-items: flex-start;
   padding: 16px;
-  margin-bottom: 8px;
-  background: rgba(var(--background-card-rgb, 37, 37, 42), 0.6);
-  border-radius: 12px;
+  border-bottom: 1px solid var(--border-color, #2f2f35);
   position: relative;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.4);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: flex-start;
+  animation: slideIn 0.3s ease;
 }
 
 .notification-item:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .notification-item:hover {
-  background: rgba(var(--background-card-rgb, 37, 37, 42), 0.9);
-  border-color: rgba(var(--border-color-rgb, 45, 45, 53), 0.6);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 .notification-indicator {
@@ -890,232 +718,197 @@ onMounted(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  border-radius: 0 2px 2px 0;
+  width: 3px;
 }
 
 .notification-indicator.online {
-  background: linear-gradient(180deg, var(--danger-color), #ff6b6b);
+  background-color: var(--success-color, #1db954);
 }
 
 .notification-indicator.offline {
-  background: linear-gradient(180deg, var(--text-secondary), #9ca3af);
+  background-color: var(--warning-color, #ff9800);
 }
 
 .notification-indicator.update {
-  background: linear-gradient(180deg, var(--primary-color), var(--primary-color-light, #4ade80));
+  background-color: var(--info-color, #00b4d8);
 }
 
 .notification-indicator.recording {
-  background: linear-gradient(180deg, var(--warning-color), #fbbf24);
+  background-color: var(--danger-color, #f44336);
 }
 
 .notification-indicator.success {
-  background: linear-gradient(180deg, var(--success-color), #34d399);
+  background-color: var(--success-color, #1db954);
 }
 
 .notification-indicator.error {
-  background: linear-gradient(180deg, var(--danger-color), #f87171);
+  background-color: var(--danger-color, #f44336);
 }
 
 .notification-indicator.info {
-  background: linear-gradient(180deg, var(--info-color, #0ea5e9), #38bdf8);
+  background-color: var(--info-color, #00b4d8);
 }
 
 .notification-icon {
-  flex-shrink: 0;
-  margin-right: 16px;
-  margin-left: 8px;
+  margin-top: 3px;
 }
 
 .icon-wrapper {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 16px;
 }
 
 .icon-wrapper.online {
-  background: linear-gradient(135deg, rgba(255, 0, 0, 0.2), rgba(255, 107, 107, 0.15));
+  background-color: rgba(29, 185, 84, 0.1);
+  color: var(--success-color, #1db954);
 }
 
 .icon-wrapper.offline {
-  background: linear-gradient(135deg, rgba(150, 150, 150, 0.2), rgba(156, 163, 175, 0.15));
+  background-color: rgba(255, 152, 0, 0.1);
+  color: var(--warning-color, #ff9800);
 }
 
 .icon-wrapper.update {
-  background: linear-gradient(135deg, rgba(66, 184, 131, 0.2), rgba(74, 222, 128, 0.15));
+  background-color: rgba(0, 180, 216, 0.1);
+  color: var(--info-color, #00b4d8);
 }
 
 .icon-wrapper.recording {
-  background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(251, 191, 36, 0.15));
+  background-color: rgba(244, 67, 54, 0.1);
+  color: var(--danger-color, #f44336);
 }
 
 .icon-wrapper.success {
-  background: linear-gradient(135deg, rgba(66, 184, 131, 0.2), rgba(52, 211, 153, 0.15));
+  background-color: rgba(29, 185, 84, 0.1);
+  color: var(--success-color, #1db954);
 }
 
 .icon-wrapper.error {
-  background: linear-gradient(135deg, rgba(255, 0, 0, 0.2), rgba(248, 113, 113, 0.15));
+  background-color: rgba(244, 67, 54, 0.1);
+  color: var(--danger-color, #f44336);
 }
 
 .icon-wrapper.info {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(56, 189, 248, 0.15));
+  background-color: rgba(0, 180, 216, 0.1);
+  color: var(--info-color, #00b4d8);
 }
 
 .notification-content {
   flex: 1;
-  min-width: 0;
+  min-width: 0; /* Ensure text wrapping */
 }
 
 .notification-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .notification-title {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.4;
+  font-weight: 500;
+  color: var(--text-primary, #efeff1);
+  font-size: 14px;
 }
 
 .notification-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  margin-left: 12px;
-  font-weight: 500;
-  opacity: 0.8;
+  color: var(--text-secondary, #adadb8);
+  font-size: 12px;
 }
 
 .notification-message {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin: 6px 0;
+  color: var(--text-secondary, #adadb8);
+  font-size: 13px;
+  line-height: 1.4;
   word-break: break-word;
-  line-height: 1.5;
 }
 
 .notification-meta {
+  margin-top: 8px;
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .category-tag {
-  display: inline-flex;
+  background-color: var(--background-dark, #1f1f23);
+  border-radius: 16px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #adadb8);
+  display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75rem;
-  padding: 4px 8px;
-  background: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
-  border: 1px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.2);
-  border-radius: 6px;
-  color: var(--primary-color);
-  font-weight: 500;
 }
 
 .tag-icon {
-  font-size: 0.65rem;
+  font-size: 12px;
 }
 
 .notification-dismiss {
   background: none;
   border: none;
-  color: var(--text-secondary);
-  opacity: 0.6;
+  color: var(--text-secondary, #adadb8);
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 18px;
   line-height: 1;
-  padding: 4px;
-  margin: 0;
-  width: 28px;
-  height: 28px;
+  padding: 5px 8px;
+  border-radius: 50%;
+  margin: -5px -8px 0 0; /* Negative margin to increase hit area */
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .notification-dismiss:hover {
-  opacity: 1;
-  background: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
-  color: var(--danger-color);
-  transform: scale(1.1);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #efeff1);
 }
 
 .dismiss-icon {
-  font-weight: 600;
+  display: inline-block;
 }
 
 /* Animation transitions */
 .notification-enter-active,
 .notification-leave-active {
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.3s ease;
 }
 
 .notification-enter-from {
   opacity: 0;
-  transform: translateX(40px) scale(0.9);
+  transform: translateY(-20px);
 }
 
 .notification-leave-to {
   opacity: 0;
-  transform: translateX(-40px) scale(0.9);
+  transform: translateX(20px);
 }
 
 .notification-move {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s ease;
 }
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .notification-feed {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-width: none;
-    max-height: none;
+    width: 100%;
+    max-width: 100%;
     border-radius: 0;
-    z-index: 1001;
-  }
-  
-  .notification-list {
-    max-height: calc(100vh - 120px);
-  }
-  
-  .feed-header {
-    padding: 20px 16px 16px;
-  }
-  
-  .notification-list {
-    padding: 4px;
-  }
-  
-  .notification-item {
-    padding: 12px;
+    height: 100%;
+    max-height: none;
   }
 }
 
 /* Dark mode enhancements */
 @media (prefers-color-scheme: dark) {
   .notification-feed {
-    box-shadow: 
-      0 20px 60px rgba(0, 0, 0, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   }
 }
 </style>
