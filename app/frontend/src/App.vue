@@ -205,44 +205,60 @@ onMounted(() => {
   })
 })
 
+// Track the previous message count to detect actual changes
+const previousMessageCountApp = ref(0);
+
 // Watch for new messages and update unread count
-watch(messages, (newMessages, oldMessages) => {
-  if (!newMessages || newMessages.length === 0) return
+watch(messages, (newMessages) => {
+  console.log('🔄 App: Messages watcher triggered. Messages count:', newMessages.length);
   
-  if (oldMessages && newMessages.length > oldMessages.length) {
-    const newMessage = newMessages[newMessages.length - 1]
-    console.log('🔄 App: New message detected:', newMessage)
+  if (!newMessages || newMessages.length === 0) return;
+  
+  // Check if we have new messages
+  if (newMessages.length > previousMessageCountApp.value) {
+    // Get only the new messages since last check
+    const newCount = newMessages.length - previousMessageCountApp.value;
+    const newMessagesToProcess = newMessages.slice(-newCount);
     
-    // Only count specific notification types (exclude connection.status to prevent false positives)
-    const notificationTypes = [
-      'stream.online', 
-      'stream.offline', 
-      'channel.update',  // Standard Twitch notification type
-      'stream.update',
-      'recording.started',
-      'recording.completed',
-      'recording.failed',
-      'test'  // Our custom test notification type
-      // 'connection.status' is explicitly excluded to prevent counter increases
-    ]
+    // Update our counter for next time
+    previousMessageCountApp.value = newMessages.length;
     
-    // Only increment if it's a valid notification type AND panel is not currently shown
-    if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
-      console.log('🔢 App: Incrementing unread count for message type:', newMessage.type)
+    // Process each new message
+    newMessagesToProcess.forEach(newMessage => {
+      console.log('🔄 App: Processing new message:', newMessage);
       
-      // Check if this notification has already been counted
-      const notificationTimestamp = newMessage.data?.timestamp || Date.now();
-      if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
-        unreadCount.value++;
-        console.log('🔢 App: Unread count is now', unreadCount.value);
+      // Only count specific notification types (exclude connection.status to prevent false positives)
+      const notificationTypes = [
+        'stream.online', 
+        'stream.offline', 
+        'channel.update',  // Standard Twitch notification type
+        'stream.update',
+        'recording.started',
+        'recording.completed',
+        'recording.failed',
+        'test'  // Our custom test notification type
+      ];
+      
+      // Only increment if it's a valid notification type AND panel is not currently shown
+      if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
+        console.log('🔢 App: Valid notification type for counter:', newMessage.type);
+        
+        // Check if this notification has already been counted
+        const notificationTimestamp = newMessage.data?.timestamp || Date.now();
+        if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
+          unreadCount.value++;
+          console.log('🔢 App: Unread count is now', unreadCount.value);
+        } else {
+          console.log('🔢 App: Notification timestamp older than last read, not incrementing count');
+        }
       } else {
-        console.log('🔢 App: Notification timestamp older than last read, not incrementing count');
+        console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value);
       }
-    } else {
-      console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value)
-    }
+    });
+  } else {
+    console.log('🔄 App: No new messages detected');
   }
-}, { deep: true })
+}, { deep: true, immediate: true });
 </script>
 
 <style scoped>

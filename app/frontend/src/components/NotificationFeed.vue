@@ -509,24 +509,44 @@ onMounted(() => {
   // Emit notifications-read when first mounted
   emit('notifications-read')
   
-  // Watch for new WebSocket messages
-  watch(() => messages.value, (newVal, oldVal) => {
-    // Make sure we have new messages to process
-    if (!newVal || !oldVal) return;
+  // Set up a simple message counter to track changes
+  const previousMessageCount = ref(0);
+  
+  // Watch for new WebSocket messages with a debug version that's very explicit
+  watch(messages, (newMessages: any[]) => {
+    console.log('🔵 NotificationFeed: Message watcher triggered. Messages count:', newMessages.length);
     
-    if (newVal.length > oldVal.length) {
-      // We have new messages - get just the newest one
-      const newestMessage = newVal[newVal.length - 1];
-      
-      // Skip connection status messages
-      if (newestMessage.type === 'connection.status') return;
-      
-      console.log('🔄 NotificationFeed: New WebSocket message detected:', newestMessage);
-      
-      // Process the new message
-      processNewMessage(newestMessage);
+    // Prevent processing on initial empty array
+    if (newMessages.length === 0) {
+      console.log('🔵 NotificationFeed: No messages to process');
+      return;
     }
-  }, { deep: true })
+    
+    // Check if we have any new messages since last time
+    if (newMessages.length > previousMessageCount.value) {
+      console.log('🔵 NotificationFeed: New messages detected! Before:', previousMessageCount.value, 'Now:', newMessages.length);
+      
+      // Get only the new messages
+      const newMessageCount = newMessages.length - previousMessageCount.value;
+      const latestMessages = newMessages.slice(-newMessageCount);
+      
+      // Update our counter for next time
+      previousMessageCount.value = newMessages.length;
+      
+      // Process each new message
+      latestMessages.forEach((message: any) => {
+        if (message.type === 'connection.status') {
+          console.log('🔵 NotificationFeed: Skipping connection status message');
+          return;
+        }
+        
+        console.log('🔵 NotificationFeed: Processing new message:', message);
+        processNewMessage(message);
+      });
+    } else {
+      console.log('🔵 NotificationFeed: No new messages detected');
+    }
+  }, { deep: true, immediate: true })
 })
 </script>
 
