@@ -168,10 +168,6 @@
                   <div class="th-tooltip">Optional custom filename template for this streamer</div>
                 </th>
                 <th>
-                  Max Streams
-                  <div class="th-tooltip">Maximum number of recordings to keep (0 = use global setting)</div>
-                </th>
-                <th>
                   Actions
                   <div class="th-tooltip">Test, stop, or clean up recordings</div>
                 </th>
@@ -205,11 +201,6 @@
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
                 <td>
-                  <input type="number" v-model.number="streamer.max_streams" min="0"
-                    @change="updateStreamerSetting(streamer.streamer_id, { max_streams: streamer.max_streams })"
-                    placeholder="0" class="form-control form-control-sm" />
-                </td>
-                <td>
                   <div class="streamer-actions">
                     <button 
                       v-if="isActiveRecording(streamer.streamer_id)" 
@@ -224,13 +215,6 @@
                       :disabled="isLoading"
                       title="Configure cleanup policy for this streamer">
                       Policy
-                    </button>
-                    <button 
-                      @click="cleanupStreamerRecordings(streamer.streamer_id)" 
-                      class="btn btn-warning btn-sm" 
-                      :disabled="isLoading || !streamer.max_streams" 
-                      :title="!streamer.max_streams ? 'Set max recordings first' : 'Delete old recordings'">
-                      Clean
                     </button>
                   </div>
                 </td>
@@ -279,7 +263,6 @@ const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
   stopRecording: [streamerId: number];
-  cleanupRecordings: [streamerId: number];
 }>();
 
 const { isLoading, error } = useRecordingSettings();
@@ -390,12 +373,6 @@ const toggleAllStreamers = async (enabled: boolean) => {
 
 const stopRecording = (streamerId: number) => {
   emits('stopRecording', streamerId);
-};
-
-const cleanupStreamerRecordings = (streamerId: number) => {
-  if (confirm('Are you sure you want to clean up old recordings for this streamer? This action cannot be undone.')) {
-    emits('cleanupRecordings', streamerId);
-  }
 };
 
 const isActiveRecording = (streamerId: number): boolean => {

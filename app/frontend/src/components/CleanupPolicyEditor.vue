@@ -58,8 +58,6 @@
           <div class="help-text">Hold Ctrl/Cmd to select multiple categories</div>
         </div>
 
-
-
         <div class="form-actions">
           <button 
             type="submit" 
@@ -147,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import type { CleanupPolicy } from '@/types/recording';
 import { CleanupPolicyType } from '@/types/recording';
@@ -571,32 +569,6 @@ select.form-control option {
   font-size: 0.85rem;
   color: var(--text-secondary, #adadb8);
   margin-top: 4px;
-}
-
-.timeframe-controls {
-  border: 1px solid var(--border-color, #303034);
-  border-radius: var(--border-radius, 6px);
-  padding: 15px;
-  background-color: var(--background-dark, #18181b);
-}
-
-.date-range,
-.weekday-selection,
-.time-range {
-  margin-bottom: 15px;
-}
-
-.date-range:last-child,
-.weekday-selection:last-child,
-.time-range:last-child {
-  margin-bottom: 0;
-}
-
-.weekday-selection .checkbox-group {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
 }
 
 .stats-grid {
