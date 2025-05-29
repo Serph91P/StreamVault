@@ -23,12 +23,15 @@
       </div>
     </header>
     
-    <div class="main-content">
+    <!-- Notification overlay -->
+    <div v-if="showNotifications" class="notification-overlay">
       <NotificationFeed 
-        v-if="showNotifications" 
         @notifications-read="markAsRead" 
         @close-panel="closeNotificationPanel"
       />
+    </div>
+    
+    <div class="main-content">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
@@ -98,14 +101,13 @@ const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 const { messages } = useWebSocket()
 
 function toggleNotifications() {
-  // Check localStorage for debugging
-  const savedNotifications = localStorage.getItem('streamvault_notifications')
-  console.log('📂 LocalStorage notifications check:', savedNotifications)
-  
+  console.log('🔔 App: Toggling notifications panel')
   showNotifications.value = !showNotifications.value
+  
   if (showNotifications.value) {
-    console.log('🔔 Notifications panel opened, marking as read')
-    markAsRead()
+    console.log('🔔 Notifications panel opened')
+    // When opening, recalculate unread count from localStorage
+    updateUnreadCountFromStorage()
   } else {
     console.log('🔔 Notifications panel closed')
   }
@@ -117,35 +119,20 @@ function markAsRead() {
   lastReadTimestamp.value = Date.now().toString()
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
   console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', lastReadTimestamp.value)
-  
-  // DON'T clear the notifications, just reset the counter!
-  // The NotificationFeed component should manage its own notifications
 }
 
 function closeNotificationPanel() {
-  // Only close if currently open to prevent unnecessary re-renders
   if (showNotifications.value) {
     console.log('🔔 App: Closing notification panel')
     showNotifications.value = false
-    
-    // Re-check unread count when closing panel
-    // This ensures we have the correct count in case notifications were added while panel was open
-    const notificationsStr = localStorage.getItem('streamvault_notifications')
-    if (notificationsStr) {
-      try {
-        const notifications = JSON.parse(notificationsStr)
-        console.log('🔄 App: Re-checking unread count on panel close, found:', notifications.length, 'notifications')
-      } catch (e) {
-        console.error('❌ App: Error parsing notifications during panel close:', e)
-      }
-    }
+    markAsRead() // Mark as read when panel closes
   }
 }
 
-// Update unread count from localStorage on mount
-onMounted(() => {
+// Function to update unread count from localStorage
+function updateUnreadCountFromStorage() {
   const notificationsStr = localStorage.getItem('streamvault_notifications')
-  console.log('🔄 App: Checking localStorage for notifications on startup')
+  console.log('🔄 App: Checking localStorage for notifications')
   
   if (notificationsStr) {
     try {
@@ -188,7 +175,13 @@ onMounted(() => {
     }
   } else {
     console.log('🔄 App: No notifications found in localStorage')
+    unreadCount.value = 0
   }
+}
+
+// Update unread count from localStorage on mount
+onMounted(() => {
+  updateUnreadCountFromStorage()
 
   // Listen for clicks outside the notification area to close it
   document.addEventListener('click', (event) => {
@@ -203,62 +196,76 @@ onMounted(() => {
       showNotifications.value = false
     }
   })
+  
+  // Listen for localStorage changes to update count
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'streamvault_notifications') {
+      console.log('📦 App: localStorage notifications changed, updating count')
+      updateUnreadCountFromStorage()
+    }
+  })
+  
+  // Listen for custom notifications updated event
+  window.addEventListener('notificationsUpdated', () => {
+    console.log('📦 App: Custom notificationsUpdated event received, updating count')
+    updateUnreadCountFromStorage()
+  })
 })
 
 // Track the previous message count to detect actual changes
-const previousMessageCountApp = ref(0);
+const previousMessageCountApp = ref(0)
 
 // Watch for new messages and update unread count
 watch(messages, (newMessages) => {
-  console.log('🔄 App: Messages watcher triggered. Messages count:', newMessages.length);
+  console.log('🔄 App: Messages watcher triggered. Messages count:', newMessages.length)
   
-  if (!newMessages || newMessages.length === 0) return;
+  if (!newMessages || newMessages.length === 0) return
   
   // Check if we have new messages
   if (newMessages.length > previousMessageCountApp.value) {
     // Get only the new messages since last check
-    const newCount = newMessages.length - previousMessageCountApp.value;
-    const newMessagesToProcess = newMessages.slice(-newCount);
+    const newCount = newMessages.length - previousMessageCountApp.value
+    const newMessagesToProcess = newMessages.slice(-newCount)
     
     // Update our counter for next time
-    previousMessageCountApp.value = newMessages.length;
+    previousMessageCountApp.value = newMessages.length
     
-    // Process each new message
+    // Process each new message - but only count them, don't store them (NotificationFeed handles storage)
     newMessagesToProcess.forEach(newMessage => {
-      console.log('🔄 App: Processing new message:', newMessage);
+      console.log('🔄 App: Processing new message for counting:', newMessage)
       
       // Only count specific notification types (exclude connection.status to prevent false positives)
       const notificationTypes = [
         'stream.online', 
         'stream.offline', 
-        'channel.update',  // Standard Twitch notification type
+        'channel.update',  
         'stream.update',
         'recording.started',
         'recording.completed',
         'recording.failed',
-        'test'  // Our custom test notification type
-      ];
+        'test'  
+      ]
       
       // Only increment if it's a valid notification type AND panel is not currently shown
       if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
-        console.log('🔢 App: Valid notification type for counter:', newMessage.type);
+        console.log('🔢 App: Valid notification type for counter:', newMessage.type)
         
         // Check if this notification has already been counted
-        const notificationTimestamp = newMessage.data?.timestamp || Date.now();
+        const notificationTimestamp = newMessage.data?.timestamp || Date.now()
         if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
-          unreadCount.value++;
-          console.log('🔢 App: Unread count is now', unreadCount.value);
+          unreadCount.value++
+          console.log('🔢 App: Unread count is now', unreadCount.value)
         } else {
-          console.log('🔢 App: Notification timestamp older than last read, not incrementing count');
+          console.log('🔢 App: Notification timestamp older than last read, not incrementing count')
         }
       } else {
-        console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value);
+        console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value)
       }
-    });
+    })
   } else {
-    console.log('🔄 App: No new messages detected');
+    console.log('🔄 App: No new messages detected')
   }
-}, { deep: true, immediate: true });
+}, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
 <style scoped>
@@ -329,6 +336,16 @@ watch(messages, (newMessages) => {
   height: 8px;
   background-color: var(--danger-color);
   border-radius: 50%;
+}
+
+/* Notification overlay positioning */
+.notification-overlay {
+  position: fixed;
+  top: 70px; /* Below the header */
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+  width: 90vw;
 }
 
 /* Ensure mobile navigation doesn't display on larger screens */

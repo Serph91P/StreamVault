@@ -286,6 +286,11 @@ const saveNotifications = (): void => {
   try {
     localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
     console.log('💾 NotificationFeed: Saved', notifications.value.length, 'notifications to localStorage')
+    
+    // Dispatch a custom event to notify other components (like App.vue) that notifications changed
+    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
+      detail: { count: notifications.value.length }
+    }))
   } catch (error) {
     console.error('❌ NotificationFeed: Error saving notifications:', error)
   }
@@ -309,7 +314,7 @@ const loadNotifications = (): void => {
 }
 
 // Process WebSocket message
-const processMessage = (message: any) => {
+const processMessage = (message: any): void => {
   console.log('⚡ NotificationFeed: PROCESSING MESSAGE:', message)
   
   if (!message || !message.type) {
@@ -331,7 +336,8 @@ const processMessage = (message: any) => {
     'stream.update',
     'recording.started',
     'recording.completed',
-    'recording.failed'
+    'recording.failed',
+    'test' // Add test type
   ]
   
   if (validTypes.includes(message.type)) {
@@ -342,34 +348,45 @@ const processMessage = (message: any) => {
   }
 }
 
-// Watch for new messages - FIXED VERSION
-watch(() => messages.value.length, (newLength, oldLength) => {
-  console.log('🔥 NotificationFeed: Message count changed from', oldLength, 'to', newLength)
+// Track previous message count to detect actual changes
+const previousMessageCount = ref(0)
+
+// Watch for new messages - IMPROVED VERSION
+watch(() => messages.value.length, (newLength: number) => {
+  console.log('🔥 NotificationFeed: Message count changed to', newLength, 'from', previousMessageCount.value)
   
-  if (newLength > (oldLength || 0)) {
+  if (newLength > previousMessageCount.value) {
     console.log('🔥 NotificationFeed: NEW MESSAGES DETECTED!')
     
-    // Process all messages since we might have missed some
-    const messagesToProcess = messages.value.slice(oldLength || 0)
-    console.log('🔥 NotificationFeed: Processing', messagesToProcess.length, 'messages')
+    // Process only the new messages since last check
+    const newCount = newLength - previousMessageCount.value
+    const messagesToProcess = messages.value.slice(-newCount)
+    console.log('🔥 NotificationFeed: Processing', messagesToProcess.length, 'new messages')
     
-    messagesToProcess.forEach((message, index) => {
-      console.log(`🔥 NotificationFeed: Processing message ${index + 1}:`, message)
+    messagesToProcess.forEach((message: any, index: number) => {
+      console.log(`🔥 NotificationFeed: Processing new message ${index + 1}:`, message)
       processMessage(message)
     })
+    
+    // Update our counter for next time
+    previousMessageCount.value = newLength
   }
-}, { immediate: true })
+}, { immediate: false }) // Don't process immediately to avoid double processing
 
 // On mount
 onMounted(() => {
   console.log('🚀 NotificationFeed: Component mounted')
   
-  // Load existing notifications
+  // Load existing notifications from localStorage FIRST
   loadNotifications()
   
-  // IMPORTANT: Process ALL existing messages immediately
-  console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing messages')
-  messages.value.forEach((message, index) => {
+  // Set the initial message count to current messages length
+  previousMessageCount.value = messages.value.length
+  console.log('🚀 NotificationFeed: Set initial message count to', previousMessageCount.value)
+  
+  // Process ALL existing WebSocket messages (they may not be in localStorage yet)
+  console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing WebSocket messages')
+  messages.value.forEach((message: any, index: number) => {
     console.log(`🚀 NotificationFeed: Processing existing message ${index + 1}:`, message)
     processMessage(message)
   })
