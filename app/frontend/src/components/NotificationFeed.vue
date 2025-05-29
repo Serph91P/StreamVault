@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUpdated, watch, defineEmits } from 'vue'
+import { ref, computed, onMounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 const emit = defineEmits(['notifications-read', 'close-panel'])
@@ -114,38 +114,32 @@ const formatTime = (timestamp: string): string => {
   const time = new Date(timestamp)
   const diff = now.getTime() - time.getTime()
   
-  // Less than a minute
   if (diff < 60 * 1000) {
     return 'Just now'
   }
   
-  // Less than an hour
   if (diff < 60 * 60 * 1000) {
     const minutes = Math.floor(diff / (60 * 1000))
     return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`
   }
   
-  // Less than a day
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000))
     return `${hours} hour${hours !== 1 ? 's' : ''} ago`
   }
   
-  // Less than a week
   if (diff < 7 * 24 * 60 * 60 * 1000) {
     const days = Math.floor(diff / (24 * 60 * 60 * 1000))
     return `${days} day${days !== 1 ? 's' : ''} ago`
   }
   
-  // Format as date
   return time.toLocaleDateString()
 }
 
 // Format notification title based on type
 const formatTitle = (notification: Notification): string => {
-  const username = notification.streamer_username || 'Unknown'
+  const username = notification.streamer_username || notification.data?.streamer_name || notification.data?.username || 'Unknown'
   
-  // Check if this is a test notification by looking at test_id
   if (notification.data?.test_id) {
     return 'Test Notification'
   }
@@ -171,38 +165,29 @@ const formatTitle = (notification: Notification): string => {
 
 // Format notification message based on type and data
 const formatMessage = (notification: Notification): string => {
-  const { type, data, title } = notification
-  const username = notification.streamer_username || 'Unknown'
+  const { type, data } = notification
+  const username = notification.streamer_username || data?.streamer_name || data?.username || 'Unknown'
   
-  // Wenn eine direkte Nachricht vorhanden ist, diese bevorzugen
   if (data?.message) {
     return data.message
   }
   
   switch (type) {
     case 'stream.online':
-      return data?.title 
-        ? `${username} is live: "${data.title}"` 
-        : `${username} is now streaming`
+      return data?.title ? `${username} is live: "${data.title}"` : `${username} is now streaming`
     case 'stream.offline':
       return `${username} has gone offline`
     case 'channel.update':
     case 'stream.update':
-      return data?.title 
-        ? `${username} changed stream title to: "${data.title}"` 
-        : `${username} updated their stream.`
+      return data?.title ? `New title: ${data.title}` : `${username} updated their stream`
     case 'recording.started':
-      return `Started recording ${username}'s stream.`
+      return `Started recording ${username}'s stream`
     case 'recording.completed':
-      return `Successfully completed recording ${username}'s stream.`
+      return `Successfully completed recording ${username}'s stream`
     case 'recording.failed':
-      return data?.error 
-        ? `Failed to record ${username}'s stream: ${data.error}` 
-        : `Failed to record ${username}'s stream.`
-    case 'connection.status':
-      return data?.message || 'WebSocket connection status updated.'
+      return data?.error ? `Failed to record ${username}'s stream: ${data.error}` : `Failed to record ${username}'s stream`
     default:
-      return title || `New notification for ${username}`
+      return `New notification for ${username}`
   }
 }
 
@@ -227,40 +212,22 @@ const getNotificationClass = (type: string): string => {
   }
 }
 
-// Add a new notification from WebSocket message
+// Add a new notification
 const addNotification = (message: any): void => {
+  console.log('🔥 NotificationFeed: ADDING NOTIFICATION:', message)
+  
   try {
-    // Generate a unique ID
     const id = message.data?.test_id || crypto.randomUUID()
     
-    console.log('📝 NotificationFeed: Adding notification with ID:', id)
-    console.log('📝 NotificationFeed: Message data:', message)
+    const timestamp = message.data?.timestamp 
+      ? new Date(parseInt(message.data.timestamp) || message.data.timestamp).toISOString()
+      : new Date().toISOString()
     
-    // Create a properly formatted timestamp
-    let timestamp: string;
-    if (message.data?.timestamp) {
-      // Check if the timestamp is a number (milliseconds) or already a string date
-      if (typeof message.data.timestamp === 'number' || !isNaN(parseInt(message.data.timestamp))) {
-        timestamp = new Date(parseInt(message.data.timestamp)).toISOString();
-      } else {
-        // Try to parse the timestamp directly if it's already a date string
-        try {
-          timestamp = new Date(message.data.timestamp).toISOString();
-        } catch (e) {
-          timestamp = new Date().toISOString();
-        }
-      }
-    } else {
-      timestamp = new Date().toISOString();
-    }
-    
-    // Extract username properly
     const streamer_username = message.data?.username || 
                              message.data?.streamer_name || 
-                             message.streamer_username ||
-                             'Unknown';
+                             'Unknown'
     
-    const newNotification = {
+    const newNotification: Notification = {
       id,
       type: message.type,
       timestamp,
@@ -268,45 +235,25 @@ const addNotification = (message: any): void => {
       data: message.data || {}
     }
     
-    console.log('📝 NotificationFeed: Created notification object:', newNotification)
+    console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification)
     
-    // Prevent duplicates
-    const existingIndex = notifications.value.findIndex(n => n.id === id)
-    if (existingIndex >= 0) {
-      console.log('📝 NotificationFeed: Duplicate notification detected, replacing:', id)
-      notifications.value.splice(existingIndex, 1)
-    }
+    // Remove duplicate
+    notifications.value = notifications.value.filter(n => n.id !== id)
     
-    // Add at beginning of array
-    notifications.value = [newNotification, ...notifications.value]
+    // Add to beginning
+    notifications.value.unshift(newNotification)
     
-    console.log('📝 NotificationFeed: Notifications array before limit check:', notifications.value.length)
-    
-    // Limit the number of notifications
+    // Limit notifications
     if (notifications.value.length > MAX_NOTIFICATIONS) {
       notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
-      console.log('📝 NotificationFeed: Trimmed notifications to:', notifications.value.length)
     }
     
-    // Save to localStorage immediately to ensure persistence
+    console.log('🔥 NotificationFeed: NOTIFICATIONS ARRAY NOW HAS:', notifications.value.length, 'items')
+    console.log('🔥 NotificationFeed: FIRST NOTIFICATION:', notifications.value[0])
+    
+    // Save to localStorage
     saveNotifications()
     
-    // Output debug info about the notifications we now have
-    console.log('✅ NotificationFeed: Total notifications after adding:', notifications.value.length)
-    console.log('✅ NotificationFeed: Current notifications:', notifications.value)
-    
-    // Verify notifications were saved correctly with a small delay
-    setTimeout(() => {
-      try {
-        const saved = localStorage.getItem('streamvault_notifications')
-        if (saved) {
-          const savedNotifications = JSON.parse(saved)
-          console.log('✅ NotificationFeed: Stored notifications count:', savedNotifications.length)
-        }
-      } catch (error) {
-        console.error('❌ NotificationFeed: Error verifying stored notifications:', error)
-      }
-    }, 100)
   } catch (error) {
     console.error('❌ NotificationFeed: Error adding notification:', error)
   }
@@ -320,233 +267,108 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (): void => {
-  try {
-    notifications.value = []
-    saveNotifications()
-  } catch (error) {
-    console.error('❌ NotificationFeed: Error clearing notifications:', error)
-  }
+  notifications.value = []
+  saveNotifications()
 }
 
 // Save notifications to localStorage
 const saveNotifications = (): void => {
   try {
-    // First, ensure we only save valid notifications
-    const validNotifications = notifications.value.filter(n => 
-      n && typeof n === 'object' && n.id && n.type && n.timestamp
-    );
-    
-    if (validNotifications.length !== notifications.value.length) {
-      console.warn('⚠️ NotificationFeed: Filtered out invalid notifications before saving')
-      // Update the notifications array to remove invalid items
-      notifications.value = validNotifications
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('streamvault_notifications', JSON.stringify(validNotifications))
-    console.log('📝 NotificationFeed: Saved to localStorage:', validNotifications.length, 'notifications')
-    
-    // Get a sample to verify data integrity
-    if (validNotifications.length > 0) {
-      console.log('📝 NotificationFeed: Sample of saved notification:', validNotifications[0])
-    }
+    localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
+    console.log('💾 NotificationFeed: Saved', notifications.value.length, 'notifications to localStorage')
   } catch (error) {
-    console.error('❌ NotificationFeed: Error saving notifications to localStorage:', error)
+    console.error('❌ NotificationFeed: Error saving notifications:', error)
   }
 }
 
 // Load notifications from localStorage
 const loadNotifications = (): void => {
-  console.log('🔍 NotificationFeed: Loading notifications from localStorage')
-  
-  // Attempt to get notifications from localStorage
-  const saved = localStorage.getItem('streamvault_notifications')
-  console.log('🔍 NotificationFeed: Raw localStorage data:', saved)
-  
-  // If we have saved data, parse it
-  if (saved && saved !== '[]') {
-    try {
-      const savedNotifications = JSON.parse(saved)
-      console.log('🔍 NotificationFeed: Parsed localStorage data:', savedNotifications)
-      
-      if (Array.isArray(savedNotifications)) {
-        // Filter out invalid notifications
-        const validNotifications = savedNotifications.filter(n => 
-          n && typeof n === 'object' && n.id && n.type && n.timestamp
-        );
-        
-        if (validNotifications.length !== savedNotifications.length) {
-          console.warn('⚠️ NotificationFeed: Found invalid notifications in localStorage, filtering them out')
-        }
-        
-        if (validNotifications.length > 0) {
-          notifications.value = validNotifications
-          console.log('📝 NotificationFeed: Loaded from localStorage:', notifications.value.length, 'notifications')
-          console.log('📝 NotificationFeed: First notification:', validNotifications[0])
-        } else {
-          console.warn('⚠️ NotificationFeed: No valid notifications found in localStorage')
-          notifications.value = []
-        }
-      } else {
-        console.error('❌ NotificationFeed: Saved notifications is not an array:', saved)
-        notifications.value = []
-        
-        // Fix invalid data
-        localStorage.setItem('streamvault_notifications', '[]')
+  try {
+    const saved = localStorage.getItem('streamvault_notifications')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        notifications.value = parsed
+        console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage')
       }
-    } catch (e) {
-      console.error('❌ NotificationFeed: Failed to parse notifications from localStorage:', e)
-      notifications.value = []
-      
-      // Fix corrupt data
-      localStorage.setItem('streamvault_notifications', '[]')
     }
-  } else {
-    console.log('📝 NotificationFeed: No notifications in localStorage or empty array')
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error loading notifications:', error)
     notifications.value = []
   }
 }
 
-// Process new WebSocket messages
-const processNewMessage = (message: any) => {
-  console.log('🔔 NotificationFeed: Processing new WebSocket message:', message)
+// Process WebSocket message
+const processMessage = (message: any) => {
+  console.log('⚡ NotificationFeed: PROCESSING MESSAGE:', message)
   
-  // Check if message has required properties
   if (!message || !message.type) {
-    console.error('❌ NotificationFeed: Invalid message format, missing type property:', message)
+    console.log('❌ NotificationFeed: Invalid message')
     return
   }
   
-  // Only process certain notification types (excluding connection.status to prevent spam)
-  const notificationTypes = [
+  // Skip connection status messages
+  if (message.type === 'connection.status') {
+    console.log('⏭️ NotificationFeed: Skipping connection status')
+    return
+  }
+  
+  // Valid notification types
+  const validTypes = [
     'stream.online', 
     'stream.offline',
-    'channel.update',  // Standard Twitch notification type
+    'channel.update',
     'stream.update',
     'recording.started',
     'recording.completed',
-    'recording.failed',
-    'test' // Special test notification type
+    'recording.failed'
   ]
   
-  console.log('🔍 NotificationFeed: Checking message type:', message.type, 'against allowed types')
-  
-  if (notificationTypes.includes(message.type)) {
-    console.log('✅ NotificationFeed: Message type accepted, adding notification:', message)
-    
-    try {
-      // Try adding the notification
-      addNotification(message)
-      
-      // Perform a verification check with a delay to ensure localStorage was updated
-      setTimeout(() => {
-        try {
-          const savedNotifs = localStorage.getItem('streamvault_notifications')
-          const savedCount = savedNotifs ? JSON.parse(savedNotifs).length : 0
-          console.log(`🔒 NotificationFeed: Verification check - localStorage has ${savedCount} notifications`)
-          
-          // Force re-save if there's a mismatch (to ensure persistence)
-          if (notifications.value.length !== savedCount) {
-            console.warn('⚠️ NotificationFeed: Storage mismatch detected, forcing save')
-            saveNotifications()
-          }
-        } catch (err) {
-          console.error('❌ NotificationFeed: Error in verification check:', err)
-        }
-      }, 50)
-    } catch (error) {
-      console.error('❌ NotificationFeed: Error processing notification:', error)
-    }
+  if (validTypes.includes(message.type)) {
+    console.log('✅ NotificationFeed: Valid message type, adding notification')
+    addNotification(message)
   } else {
-    console.warn('❌ NotificationFeed: Message type not in allowed list:', message.type)
+    console.log('❌ NotificationFeed: Invalid message type:', message.type)
   }
 }
 
-// Emit notifications-read event when component becomes visible
-onUpdated(() => {
-  if (document.visibilityState === 'visible') {
-    emit('notifications-read')
-  }
-})
+// Watch for new messages - SIMPLIFIED VERSION
+let lastProcessedCount = 0
 
-// Lifecycle hooks
-onMounted(() => {
-  // First, let's check if we can access and modify localStorage at all
-  try {
-    localStorage.setItem('_test', 'test')
-    localStorage.removeItem('_test')
-    console.log('✅ NotificationFeed: localStorage is accessible')
-  } catch (e) {
-    console.error('❌ NotificationFeed: localStorage is not accessible:', e)
-    return
-  }
+watch(messages, (newMessages) => {
+  console.log('👀 NotificationFeed: Messages changed. Count:', newMessages.length, 'Last processed:', lastProcessedCount)
   
-  // Check if there are already websocket messages in the messages store
-  console.log('🔍 NotificationFeed: Found existing WebSocket messages on mount:', messages.value.length)
-  
-  // Process any messages that aren't connection status updates
-  const validMessages = messages.value.filter(msg => msg.type !== 'connection.status')
-  
-  if (validMessages.length > 0) {
-    console.log('🔍 NotificationFeed: Processing valid WebSocket messages on mount:', validMessages.length)
-    // Add these messages to notifications
-    validMessages.forEach(message => {
-      try {
-        console.log('🔍 NotificationFeed: Processing existing message:', message)
-        processNewMessage(message)
-      } catch (e) {
-        console.error('❌ NotificationFeed: Error processing message on mount:', e)
-      }
+  if (newMessages.length > lastProcessedCount) {
+    console.log('🆕 NotificationFeed: NEW MESSAGES DETECTED!')
+    
+    // Process only the new messages
+    const newMessagesToProcess = newMessages.slice(lastProcessedCount)
+    console.log('🆕 NotificationFeed: Processing', newMessagesToProcess.length, 'new messages')
+    
+    newMessagesToProcess.forEach((message, index) => {
+      console.log(`🆕 NotificationFeed: Processing new message ${index + 1}:`, message)
+      processMessage(message)
     })
+    
+    lastProcessedCount = newMessages.length
   }
+}, { deep: true, immediate: true })
+
+// On mount
+onMounted(() => {
+  console.log('🚀 NotificationFeed: Component mounted')
   
-  // Load notifications from localStorage
+  // Load existing notifications
   loadNotifications()
   
-  // Check if any notifications were loaded
-  console.log('🔍 NotificationFeed: On mount - Notifications loaded from localStorage:', notifications.value.length)
+  // Process any existing messages
+  if (messages.value.length > 0) {
+    console.log('🚀 NotificationFeed: Found', messages.value.length, 'existing messages')
+    messages.value.forEach(processMessage)
+    lastProcessedCount = messages.value.length
+  }
   
-  // Emit notifications-read when first mounted
   emit('notifications-read')
-  
-  // Set up a simple message counter to track changes
-  const previousMessageCount = ref(0);
-  
-  // Watch for new WebSocket messages with a debug version that's very explicit
-  watch(messages, (newMessages: any[]) => {
-    console.log('🔵 NotificationFeed: Message watcher triggered. Messages count:', newMessages.length);
-    
-    // Prevent processing on initial empty array
-    if (newMessages.length === 0) {
-      console.log('🔵 NotificationFeed: No messages to process');
-      return;
-    }
-    
-    // Check if we have any new messages since last time
-    if (newMessages.length > previousMessageCount.value) {
-      console.log('🔵 NotificationFeed: New messages detected! Before:', previousMessageCount.value, 'Now:', newMessages.length);
-      
-      // Get only the new messages
-      const newMessageCount = newMessages.length - previousMessageCount.value;
-      const latestMessages = newMessages.slice(-newMessageCount);
-      
-      // Update our counter for next time
-      previousMessageCount.value = newMessages.length;
-      
-      // Process each new message
-      latestMessages.forEach((message: any) => {
-        if (message.type === 'connection.status') {
-          console.log('🔵 NotificationFeed: Skipping connection status message');
-          return;
-        }
-        
-        console.log('🔵 NotificationFeed: Processing new message:', message);
-        processNewMessage(message);
-      });
-    } else {
-      console.log('🔵 NotificationFeed: No new messages detected');
-    }
-  }, { deep: true, immediate: true })
 })
 </script>
 
