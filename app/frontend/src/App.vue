@@ -116,10 +116,10 @@ function markAsRead() {
   unreadCount.value = 0
   lastReadTimestamp.value = Date.now().toString()
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
+  console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', lastReadTimestamp.value)
   
-  // Verify that we actually updated localStorage
-  const saved = localStorage.getItem('lastReadTimestamp')
-  console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', saved)
+  // DON'T clear the notifications, just reset the counter!
+  // The NotificationFeed component should manage its own notifications
 }
 
 function closeNotificationPanel() {

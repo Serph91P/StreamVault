@@ -342,27 +342,23 @@ const processMessage = (message: any) => {
   }
 }
 
-// Watch for new messages - SIMPLIFIED VERSION
-let lastProcessedCount = 0
-
-watch(messages, (newMessages) => {
-  console.log('👀 NotificationFeed: Messages changed. Count:', newMessages.length, 'Last processed:', lastProcessedCount)
+// Watch for new messages - FIXED VERSION
+watch(() => messages.value.length, (newLength, oldLength) => {
+  console.log('🔥 NotificationFeed: Message count changed from', oldLength, 'to', newLength)
   
-  if (newMessages.length > lastProcessedCount) {
-    console.log('🆕 NotificationFeed: NEW MESSAGES DETECTED!')
+  if (newLength > (oldLength || 0)) {
+    console.log('🔥 NotificationFeed: NEW MESSAGES DETECTED!')
     
-    // Process only the new messages
-    const newMessagesToProcess = newMessages.slice(lastProcessedCount)
-    console.log('🆕 NotificationFeed: Processing', newMessagesToProcess.length, 'new messages')
+    // Process all messages since we might have missed some
+    const messagesToProcess = messages.value.slice(oldLength || 0)
+    console.log('🔥 NotificationFeed: Processing', messagesToProcess.length, 'messages')
     
-    newMessagesToProcess.forEach((message, index) => {
-      console.log(`🆕 NotificationFeed: Processing new message ${index + 1}:`, message)
+    messagesToProcess.forEach((message, index) => {
+      console.log(`🔥 NotificationFeed: Processing message ${index + 1}:`, message)
       processMessage(message)
     })
-    
-    lastProcessedCount = newMessages.length
   }
-}, { deep: true, immediate: true })
+}, { immediate: true })
 
 // On mount
 onMounted(() => {
@@ -371,12 +367,12 @@ onMounted(() => {
   // Load existing notifications
   loadNotifications()
   
-  // Process any existing messages
-  if (messages.value.length > 0) {
-    console.log('🚀 NotificationFeed: Found', messages.value.length, 'existing messages')
-    messages.value.forEach(processMessage)
-    lastProcessedCount = messages.value.length
-  }
+  // IMPORTANT: Process ALL existing messages immediately
+  console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing messages')
+  messages.value.forEach((message, index) => {
+    console.log(`🚀 NotificationFeed: Processing existing message ${index + 1}:`, message)
+    processMessage(message)
+  })
   
   emit('notifications-read')
 })
