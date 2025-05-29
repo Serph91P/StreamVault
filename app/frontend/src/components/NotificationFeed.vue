@@ -212,12 +212,12 @@ const getNotificationClass = (type: string): string => {
   }
 }
 
-// Add a new notification
+// Add a new notification - IMPROVED VERSION
 const addNotification = (message: any): void => {
   console.log('🔥 NotificationFeed: ADDING NOTIFICATION:', message)
   
   try {
-    const id = message.data?.test_id || crypto.randomUUID()
+    const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
     
     const timestamp = message.data?.timestamp 
       ? new Date(parseInt(message.data.timestamp) || message.data.timestamp).toISOString()
@@ -237,11 +237,21 @@ const addNotification = (message: any): void => {
     
     console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification)
     
-    // Remove duplicate
-    notifications.value = notifications.value.filter(n => n.id !== id)
+    // Check if notification already exists (by content, not just ID)
+    const existingIndex = notifications.value.findIndex(n => 
+      n.type === newNotification.type && 
+      n.streamer_username === newNotification.streamer_username &&
+      Math.abs(new Date(n.timestamp).getTime() - new Date(newNotification.timestamp).getTime()) < 5000 // Within 5 seconds
+    )
     
-    // Add to beginning
-    notifications.value.unshift(newNotification)
+    if (existingIndex >= 0) {
+      console.log('🔥 NotificationFeed: Duplicate notification found, replacing')
+      notifications.value[existingIndex] = newNotification
+    } else {
+      console.log('🔥 NotificationFeed: Adding new notification')
+      // Add to beginning
+      notifications.value.unshift(newNotification)
+    }
     
     // Limit notifications
     if (notifications.value.length > MAX_NOTIFICATIONS) {
@@ -249,7 +259,7 @@ const addNotification = (message: any): void => {
     }
     
     console.log('🔥 NotificationFeed: NOTIFICATIONS ARRAY NOW HAS:', notifications.value.length, 'items')
-    console.log('🔥 NotificationFeed: FIRST NOTIFICATION:', notifications.value[0])
+    console.log('🔥 NotificationFeed: ALL NOTIFICATIONS:', notifications.value)
     
     // Save to localStorage
     saveNotifications()
