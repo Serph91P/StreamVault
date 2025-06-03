@@ -72,6 +72,13 @@
         >
           Test Notification
         </button>
+        <button 
+          @click="testWebSocketNotification" 
+          class="btn btn-secondary"
+          style="margin-left: 10px;"
+        >
+          Test WebSocket
+        </button>
       </div>
     </div>
 
@@ -346,6 +353,26 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 const testNotification = () => {
   emit('test-notification')
+}
+
+const testWebSocketNotification = async () => {
+  try {
+    const response = await fetch('/api/settings/test-websocket-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to send test WebSocket notification')
+    }
+
+    alert('Test WebSocket notification sent! Check the notification bell.')
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
+  }
 }
 </script>
 

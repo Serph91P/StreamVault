@@ -53,8 +53,8 @@
               :active-recordings="activeRecordings"
               @update="handleUpdateRecordingSettings"
               @update-streamer="handleUpdateStreamerRecordingSettings"
-              @test-recording="handleTestRecording"
               @stop-recording="handleStopRecording"
+              @cleanup-recordings="handleCleanupRecordings"
             />
           </div>
           
@@ -103,7 +103,7 @@ const {
   updateStreamerSettings: updateStreamerRecordingSettings,
   fetchActiveRecordings,
   stopRecording,
-  testRecording
+  cleanupOldRecordings
 } = useRecordingSettings()
 
 const activeTab = ref('notifications')
@@ -235,19 +235,6 @@ const handleUpdateStreamerRecordingSettings = async (
   }
 }
 
-const handleTestRecording = async (streamerId: number) => {
-  try {
-    const success = await testRecording(streamerId)
-    if (success) {
-      alert('Test recording started. Check the "Active Recordings" section.')
-    } else {
-      alert('Failed to start test recording.')
-    }
-  } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to start test recording')
-  }
-}
-
 const handleStopRecording = async (streamerId: number) => {
   try {
     const success = await stopRecording(streamerId)
@@ -258,6 +245,19 @@ const handleStopRecording = async (streamerId: number) => {
     }
   } catch (error) {
     alert(error instanceof Error ? error.message : 'Failed to stop recording')
+  }
+}
+
+const handleCleanupRecordings = async (streamerId: number) => {
+  try {
+    const success = await cleanupOldRecordings(streamerId)
+    if (success) {
+      alert('Old recordings cleaned up successfully.')
+    } else {
+      alert('Failed to clean up recordings.')
+    }
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to clean up recordings')
   }
 }
 </script>
@@ -271,8 +271,11 @@ const handleStopRecording = async (streamerId: number) => {
 
 .settings-container {
   max-width: 1200px;
+  min-width: 800px;
+  width: 100%;
   margin: 0 auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .loading-indicator {
@@ -374,10 +377,33 @@ const handleStopRecording = async (streamerId: number) => {
 
 .tab-content {
   min-height: 400px;
+  width: 100%;
+  min-width: 760px;
+  box-sizing: border-box;
+}
+
+/* Tablet-optimierung */
+@media (max-width: 1024px) and (min-width: 641px) {
+  .settings-container {
+    min-width: 700px;
+  }
+  
+  .tab-content {
+    min-width: 660px;
+  }
 }
 
 /* Mobile-optimierung */
 @media (max-width: 640px) {
+  .settings-container {
+    min-width: unset;
+    padding: 12px;
+  }
+  
+  .tab-content {
+    min-width: unset;
+  }
+  
   .settings-tabs {
     justify-content: flex-start;
   }
@@ -385,10 +411,6 @@ const handleStopRecording = async (streamerId: number) => {
   .tab-button {
     padding: 10px 16px;
     font-size: 0.9rem;
-  }
-  
-  .settings-container {
-    padding: 12px;
   }
 }
 

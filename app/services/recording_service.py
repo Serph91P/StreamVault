@@ -219,6 +219,18 @@ class ConfigManager:
         else:
             return "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"  # Default fallback
 
+    def get_max_streams(self, streamer_id: int) -> int:
+        """Get the maximum number of streams for a streamer"""
+        streamer_settings = self.get_streamer_settings(streamer_id)
+        if streamer_settings and streamer_settings.max_streams is not None and streamer_settings.max_streams > 0:
+            return streamer_settings.max_streams
+            
+        global_settings = self.get_global_settings()
+        if global_settings and global_settings.max_streams_per_streamer:
+            return global_settings.max_streams_per_streamer
+            
+        return 0  # 0 means unlimited
+
 
 # Subprocess manager for better resource handling
 class SubprocessManager:
@@ -374,6 +386,12 @@ class RecordingService:
                         )
                         return False
 
+                    # Clean up old recordings for this streamer before starting a new one
+                    from app.services.cleanup_service import CleanupService
+                    deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id, db)
+                    if deleted_count > 0:
+                        logger.info(f"Cleaned up {deleted_count} old recordings for streamer {streamer.username}")
+
                     # Get quality setting from config manager
                     quality = self.config_manager.get_quality_setting(streamer_id)
 
@@ -479,9 +497,7 @@ class RecordingService:
                         db.commit()
 
                     # Update our recording info with stream ID
-                    self.active_recordings[streamer_id]["stream_id"] = stream.id
-
-                    # Download Twitch thumbnail asynchronously
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id                    # Download Twitch thumbnail asynchronously
                     output_dir = os.path.dirname(output_path)
                     asyncio.create_task(
                         self.metadata_service.download_twitch_thumbnail(
@@ -490,7 +506,7 @@ class RecordingService:
                     )
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
-
+            
     async def stop_recording(self, streamer_id: int) -> bool:
         """Stop an active recording and ensure metadata generation"""
         async with self.lock:
@@ -509,6 +525,7 @@ class RecordingService:
 
                 logger.info(f"Stopped recording for {recording_info['streamer_name']}")
 
+                # Send recording.stopped notification first
                 await websocket_manager.send_notification(
                     {
                         "type": "recording.stopped",
@@ -522,6 +539,7 @@ class RecordingService:
                 # Get stream ID and "force_started" flag
                 stream_id = recording_info.get("stream_id")
                 force_started = recording_info.get("force_started", False)
+                output_path = recording_info.get("output_path")
 
                 # Ensure we have a stream
                 if not stream_id and force_started:
@@ -530,10 +548,29 @@ class RecordingService:
                 # Generate metadata after recording stops
                 if stream_id:
                     # Allow some time for the remuxing process to complete
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._delayed_metadata_generation(
                             stream_id, recording_info["output_path"], force_started
                         )
+                    )
+                    
+                    # Send recording.completed notification
+                    await websocket_manager.send_notification(
+                        {
+                            "type": "recording.completed",
+                            "data": {
+                                "streamer_id": streamer_id,
+                                "streamer_name": recording_info["streamer_name"],
+                                "output_path": output_path,
+                                "timestamp": datetime.now().isoformat(),
+                                "duration": (
+                                    (datetime.now() - recording_info["started_at"]).total_seconds()
+                                    if isinstance(recording_info["started_at"], datetime)
+                                    else 0
+                                ),
+                                "quality": recording_info.get("quality", "unknown")
+                            },
+                        }
                     )
                 else:
                     logger.warning(
@@ -543,6 +580,23 @@ class RecordingService:
                 return True
             except Exception as e:
                 logger.error(f"Error stopping recording: {e}", exc_info=True)
+                # Send recording.failed notification
+                try:
+                    if streamer_id in self.active_recordings:
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
+                            {
+                                "type": "recording.failed",
+                                "data": {
+                                    "streamer_id": streamer_id,
+                                    "streamer_name": recording_info["streamer_name"],
+                                    "error": str(e),
+                                    "timestamp": datetime.now().isoformat(),
+                                },
+                            }
+                        )
+                except Exception as notify_error:
+                    logger.error(f"Error sending recording failure notification: {notify_error}", exc_info=True)
                 return False
 
     async def _find_stream_for_recording(self, streamer_id: int) -> Optional[int]:
@@ -689,8 +743,7 @@ class RecordingService:
             .first()
         )
 
-        if not stream:
-            # Create stream entry if none exists
+        if not stream:            # Create stream entry if none exists
             logger.info(f"Creating new stream record for {streamer.username}")
             stream = Stream(
                 streamer_id=streamer_id,
@@ -698,8 +751,8 @@ class RecordingService:
                 title=streamer.title or f"{streamer.username} Stream",
                 category_name=streamer.category_name,
                 language=streamer.language,
-                started_at=datetime.now(timezone.utc),
-                status="online",
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
             )
             db.add(stream)
             db.commit()
@@ -895,13 +948,13 @@ class RecordingService:
             )
             return existing_stream
 
-        # Create a new stream entry
+        # Create a new stream entry        
         started_at = (
             datetime.fromisoformat(stream_data["started_at"].replace("Z", "+00:00"))
             if "started_at" in stream_data
             else datetime.now(timezone.utc)
         )
-
+        
         stream = Stream(
             streamer_id=streamer_id,
             twitch_stream_id=stream_data.get(
@@ -911,7 +964,6 @@ class RecordingService:
             category_name=stream_data.get("category_name"),
             language=stream_data.get("language"),
             started_at=started_at,
-            status="online",
         )
         db.add(stream)
         db.flush()  # To get the stream ID
@@ -1058,12 +1110,10 @@ class RecordingService:
                 logger.error(f"Stream {stream_id} not found for metadata generation")
                 raise StreamNotFoundError(
                     f"Stream {stream_id} not found for metadata generation"
-                )
-
-            # Ensure stream is marked as ended
+                )            # Ensure stream is marked as ended
             if force_started or not stream.ended_at:
                 stream.ended_at = datetime.now(timezone.utc)
-                stream.status = "offline"
+                # stream.status = "offline"  # Remove - status is not a field in the Stream model
 
                 # Check if there are any stream events
                 events_count = (

@@ -29,6 +29,11 @@ from app.routes import categories
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
+    
+    # Run database migrations
+    from app.migrations_init import run_migrations
+    run_migrations()
+    
     event_registry = await get_event_registry()
     
     # Initialize EventSub subscriptions

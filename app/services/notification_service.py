@@ -6,13 +6,15 @@ from app.config.settings import settings as app_settings
 from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, NotificationSettings, Streamer
 from app.database import SessionLocal
+import logging
 
 logger = logging.getLogger("streamvault")
 
 class NotificationService:
-    def __init__(self):
+    def __init__(self, websocket_manager=None):
         self.apprise = Apprise()
         self._notification_url = None
+        self.websocket_manager = websocket_manager
         self._initialize_apprise()
 
     def _initialize_apprise(self):
@@ -71,7 +73,7 @@ class NotificationService:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
 
-    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str, original_image_url: str = None) -> str:
+    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str, original_image_url: Optional[str] = None) -> str:
         """Configure service-specific parameters based on the notification service."""
 
         logger.debug(f"Configuring service-specific URL for {base_url}")
@@ -167,6 +169,40 @@ class NotificationService:
         logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
         return base_url
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
+        try:
+            # Send WebSocket notification first
+            if self.websocket_manager:
+                websocket_notification = {
+                    "type": f"stream.{event_type}",
+                    "data": {
+                        "streamer_name": streamer_name,
+                        "username": streamer_name,  # For compatibility
+                        "title": details.get("title"),
+                        "category_name": details.get("category_name"),
+                        "language": details.get("language"),
+                        "started_at": details.get("started_at"),
+                        "url": details.get("url"),
+                        "profile_image_url": details.get("profile_image_url")
+                    }
+                }
+                logger.debug(f"Sending WebSocket notification: {websocket_notification}")
+                await self.websocket_manager.send_notification(websocket_notification)
+            
+            # Check if we should send external notifications
+            if 'streamer_id' in details:
+                should_send = await self.should_notify(details['streamer_id'], event_type)
+                if not should_send:
+                    logger.debug(f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}")
+                    return
+            
+            # Send external notification (Apprise)
+            await self._send_external_notification(streamer_name, event_type, details)
+                
+        except Exception as e:
+            logger.error(f"Error in send_stream_notification: {e}", exc_info=True)
+    
+    async def _send_external_notification(self, streamer_name: str, event_type: str, details: dict):
+        """Send external notification via Apprise"""
         try:
             logger.debug(f"Starting send_stream_notification for {streamer_name}, event type: {event_type}")
         

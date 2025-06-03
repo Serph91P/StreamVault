@@ -49,11 +49,14 @@ RUN if [ "$BUILD_ENV" = "production" ]; then \
 # Keep all app code in a single directory structure
 WORKDIR /app
 COPY app/ ./app/
+COPY migrations/ ./migrations/
 
-# Create recordings directory with correct permissions
+# Create directories with correct permissions
 RUN mkdir -p /recordings && \
+    mkdir -p /app/migrations && \
     chown -R appuser:appuser /app /recordings && \
-    chmod 775 /recordings
+    chmod 775 /recordings && \
+    chmod -R 775 /app/migrations
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh

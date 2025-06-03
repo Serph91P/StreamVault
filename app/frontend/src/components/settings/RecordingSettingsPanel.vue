@@ -12,82 +12,101 @@
     
     <!-- Global Settings -->
     <div v-else class="settings-form">
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.enabled" />
-          Enable Stream Recording
-        </label>
-      </div>
-
-      <div class="form-group">
-        <label>Output Directory:</label>
-        <input v-model="data.output_directory" placeholder="/recordings" class="form-control" />
-        <div class="help-text">
-          Directory inside the Docker container where recordings are saved.
-          You can mount this to your host system in docker-compose.yml.
+      <!-- Basic Recording Settings Section -->
+      <div class="settings-section">
+        <h4 class="section-title">Basic Recording Settings</h4>
+        
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.enabled" />
+            Enable Stream Recording
+          </label>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Filename Preset:</label>
-        <select v-model="data.filename_preset" class="form-control" @change="updateFilenameTemplate">
-          <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
-            {{ preset.label }}
-          </option>
-        </select>
-        <div class="help-text">
-          Select a preset for media server compatibility or use a custom template below.
+        <div class="form-group">
+          <label>Output Directory:</label>
+          <input v-model="data.output_directory" placeholder="/recordings" class="form-control" />
+          <div class="help-text">
+            Directory inside the Docker container where recordings are saved.
+            You can mount this to your host system in docker-compose.yml.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Filename Template:</label>
-        <input v-model="data.filename_template"
-          placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
-          class="form-control" />
-        <div class="filename-preview" v-if="data.filename_template">
-          <strong>Preview:</strong> {{ previewFilename }}
+        <div class="form-group">
+          <label>Filename Preset:</label>
+          <select v-model="data.filename_preset" class="form-control" @change="updateFilenameTemplate">
+            <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
+              {{ preset.label }}
+            </option>
+          </select>
+          <div class="help-text">
+            Select a preset for media server compatibility or use a custom template below.
+          </div>
         </div>
-        <div class="variables-list">
-          <strong>Available Variables:</strong>
-          <div class="variables-grid">
-            <div v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-item">
-              <code>{{ '{' + variable.key + '}' }}</code> - {{ variable.description }}
+
+        <div class="form-group">
+          <label>Filename Template:</label>
+          <input v-model="data.filename_template"
+            placeholder="{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}"
+            class="form-control" />
+          <div class="filename-preview" v-if="data.filename_template">
+            <strong>Preview:</strong> {{ previewFilename }}
+          </div>
+          <div class="variables-list">
+            <strong>Available Variables:</strong>
+            <div class="variables-grid">
+              <div v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-item">
+                <code>{{ '{' + variable.key + '}' }}</code> - {{ variable.description }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Default Quality:</label>
-        <select v-model="data.default_quality" class="form-control">
-          <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-        <div class="help-text">
-          Default quality for all streamers. This can be overridden on a per-streamer basis.
+        <div class="form-group">
+          <label>Default Quality:</label>
+          <select v-model="data.default_quality" class="form-control">
+            <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+          <div class="help-text">
+            Default quality for all streamers. This can be overridden on a per-streamer basis.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.use_chapters" />
+            Create Chapters From Stream Events
+          </label>
+          <div class="help-text">
+            Create chapters in the recording based on stream title and game changes.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="data.use_category_as_chapter_title" />
+            Use Category as Chapter Title
+          </label>
+          <div class="help-text">
+            When enabled, chapter titles will use the game/category name instead of the stream title.
+          </div>
         </div>
       </div>
-
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.use_chapters" />
-          Create Chapters From Stream Events
-        </label>
-        <div class="help-text">
-          Create chapters in the recording based on stream title and game changes.
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.use_category_as_chapter_title" />
-          Use Category as Chapter Title
-        </label>
-        <div class="help-text">
-          When enabled, chapter titles will use the game/category name instead of the stream title.
-        </div>
+      
+      <!-- Storage & Cleanup Section -->
+      <div class="settings-section">
+        <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
+        <p class="section-description">
+          Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
+        </p>
+        
+        <CleanupPolicyEditor
+          :is-global="true"
+          title="Global Cleanup Policy"
+          @saved="handleCleanupPolicySaved"
+        />
       </div>
 
       <div class="form-actions">
@@ -148,6 +167,10 @@
                   Custom Filename
                   <div class="th-tooltip">Optional custom filename template for this streamer</div>
                 </th>
+                <th>
+                  Actions
+                  <div class="th-tooltip">Test, stop, or clean up recordings</div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -177,11 +200,48 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
+                <td>
+                  <div class="streamer-actions">
+                    <button 
+                      v-if="isActiveRecording(streamer.streamer_id)" 
+                      @click="stopRecording(streamer.streamer_id)" 
+                      class="btn btn-danger btn-sm" 
+                      :disabled="isLoading">
+                      Stop
+                    </button>
+                    <button 
+                      @click="openCleanupPolicyEditor(streamer)" 
+                      class="btn btn-info btn-sm" 
+                      :disabled="isLoading"
+                      title="Configure cleanup policy for this streamer">
+                      Policy
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </template>
+    </div>
+    
+    <!-- Per-Streamer Cleanup Policy Editor Dialog -->
+    <div v-if="showStreamerPolicyDialog" class="modal-overlay" @click="closeStreamerPolicyDialog">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Cleanup Policy for {{ selectedStreamer?.username || 'Streamer' }}</h3>
+          <button @click="closeStreamerPolicyDialog" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <CleanupPolicyEditor
+            v-if="selectedStreamer"
+            :streamer-id="selectedStreamer.streamer_id"
+            :title="`Cleanup Policy for ${selectedStreamer.username}`"
+            :is-global="false"
+            @saved="handleStreamerPolicySaved"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -191,6 +251,7 @@ import { ref, computed, watch } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;
@@ -201,11 +262,14 @@ const props = defineProps<{
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
-  testRecording: [streamerId: number];
   stopRecording: [streamerId: number];
 }>();
 
 const { isLoading, error } = useRecordingSettings();
+
+// State for streamer cleanup policy dialog
+const showStreamerPolicyDialog = ref(false);
+const selectedStreamer = ref<StreamerRecordingSettings | null>(null);
 
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
@@ -226,7 +290,7 @@ const updateFilenameTemplate = () => {
 };
 
 // Update local data when props change
-watch(() => props.settings, (newSettings) => {
+watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   if (newSettings) {
     data.value = { ...newSettings };
   }
@@ -307,12 +371,12 @@ const toggleAllStreamers = async (enabled: boolean) => {
   }
 };
 
-const testRecording = (streamerId: number) => {
-  emits('testRecording', streamerId);
-};
-
 const stopRecording = (streamerId: number) => {
   emits('stopRecording', streamerId);
+};
+
+const isActiveRecording = (streamerId: number): boolean => {
+  return props.activeRecordings.some((rec: any) => rec.streamer_id === streamerId);
 };
 
 const formatDate = (date: string) => {
@@ -327,6 +391,32 @@ const formatDuration = (seconds: number) => {
 
 const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
   updateStreamerSetting(streamerId, { enabled });
+};
+
+const handleCleanupPolicySaved = (policy: any) => {
+  if (props.settings) {
+    const updatedSettings = { 
+      ...props.settings, 
+      cleanup_policy: policy 
+    };
+    emits('update', updatedSettings);
+  }
+};
+
+// Methods for per-streamer cleanup policy editor
+const openCleanupPolicyEditor = (streamer: StreamerRecordingSettings) => {
+  selectedStreamer.value = streamer;
+  showStreamerPolicyDialog.value = true;
+};
+
+const closeStreamerPolicyDialog = () => {
+  showStreamerPolicyDialog.value = false;
+  selectedStreamer.value = null;
+};
+
+const handleStreamerPolicySaved = (policy: any) => {
+  console.log('Streamer cleanup policy saved:', policy);
+  closeStreamerPolicyDialog();
 };
 </script>
 
@@ -639,6 +729,16 @@ select.form-control option {
   color: white;
 }
 
+.btn-warning {
+  background-color: var(--warning-color, #ffc107);
+  color: #212529;
+}
+
+.btn-info {
+  background-color: var(--info-color, #17a2b8);
+  color: white;
+}
+
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
@@ -782,5 +882,110 @@ select.form-control-sm option {
   .button-container {
     flex-direction: row;
   }
+}
+
+.streamer-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.streamer-actions .btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+/* Modal styles for cleanup policy dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background-color: var(--background-darker, #1f1f23);
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color, #303034);
+  max-width: 90vw;
+  max-height: 90vh;
+  width: 800px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color, #303034);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--text-primary, #f1f1f3);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary, #adadb8);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #f1f1f3);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+/* Settings sections for better visual organization */
+.settings-section {
+  margin-bottom: var(--spacing-xxl, 2.5rem);
+  padding: var(--spacing-lg, 1.5rem);
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius, 8px);
+  border-left: 4px solid var(--primary-color, #42b883);
+}
+
+.settings-section:last-child {
+  margin-bottom: var(--spacing-lg, 1.5rem);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #f1f1f3);
+  margin-bottom: var(--spacing-md, 1rem);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+.section-description {
+  color: var(--text-secondary, #adadb8);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 </style>

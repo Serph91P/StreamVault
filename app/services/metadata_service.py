@@ -372,6 +372,24 @@ class MetadataService:
             poster_filename = "poster.jpg"
             poster_path = base_path / poster_filename
             
+            # Prüfen, ob das Thumbnail bereits existiert und nicht überschrieben werden soll
+            if thumb_path.exists() and thumb_path.stat().st_size > 1000:
+                logger.debug(f"Thumb already exists at {thumb_path}, using existing file")
+                
+                # Update database metadata if needed
+                if db:
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if metadata and not metadata.thumbnail_path:
+                        metadata.thumbnail_path = str(thumb_path)
+                        db.commit()
+                
+                # Ensure poster.jpg exists as well
+                if not poster_path.exists():
+                    import shutil
+                    shutil.copy2(thumb_path, poster_path)
+                
+                return str(thumb_path)
+            
             # Determine thumbnail source
             if local_thumbnail and os.path.exists(local_thumbnail):
                 # Copy existing local thumbnail
@@ -526,6 +544,18 @@ class MetadataService:
             # Get base filename without extension
             base_filename = base_path.stem if isinstance(base_path, Path) else Path(base_path).stem
             
+            # Falls kein Thumbnail übergeben wurde, versuche es aus den Metadaten zu holen
+            if not episode_thumb_path or not os.path.exists(episode_thumb_path):
+                try:
+                    logger.debug(f"No thumb path provided, trying to find from metadata")
+                    if db:
+                        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+                        if metadata and metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
+                            episode_thumb_path = metadata.thumbnail_path
+                            logger.debug(f"Found thumbnail from metadata: {episode_thumb_path}")
+                except Exception as e:
+                    logger.error(f"Error getting thumbnail from metadata: {e}", exc_info=True)
+            
             # Create thumbnail and metadata files specific to each media server
             if episode_thumb_path and os.path.exists(episode_thumb_path):
                 import shutil
@@ -536,12 +566,20 @@ class MetadataService:
                     plex_poster = base_path / "poster.jpg"
                     if not plex_poster.exists():
                         shutil.copy2(episode_thumb_path, plex_poster)
+                        logger.debug(f"Created Plex poster: {plex_poster}")
+                    
+                    # Stelle sicher, dass das Standard-Thumbnail existiert
+                    plex_thumb = base_path / f"{base_filename}-thumb.jpg"
+                    if not plex_thumb.exists():
+                        shutil.copy2(episode_thumb_path, plex_thumb)
+                        logger.debug(f"Created standard thumb: {plex_thumb}")
                     
                     # Create season-poster.jpg in parent if it's a season directory
                     if "season" in str(base_path).lower() or "s20" in str(base_path).lower():
                         season_poster = base_path.parent / "season-poster.jpg"
                         if not season_poster.exists() and os.path.exists(episode_thumb_path):
                             shutil.copy2(episode_thumb_path, season_poster)
+                            logger.debug(f"Created season poster: {season_poster}")
                 
                 # Kodi specific files
                 if "kodi" in filename_preset or True:  # Always create Kodi files
@@ -549,6 +587,7 @@ class MetadataService:
                     kodi_tbn = base_path / f"{base_filename}.tbn"
                     if not kodi_tbn.exists():
                         shutil.copy2(episode_thumb_path, kodi_tbn)
+                        logger.debug(f"Created Kodi thumbnail: {kodi_tbn}")
                 
                 # Emby/Jellyfin specific files
                 if any(server in filename_preset for server in ["emby", "jellyfin"]) or True:
@@ -556,6 +595,9 @@ class MetadataService:
                     poster_jpg = base_path / "poster.jpg"
                     if not poster_jpg.exists():
                         shutil.copy2(episode_thumb_path, poster_jpg)
+                        logger.debug(f"Created Emby poster: {poster_jpg}")
+            else:
+                logger.warning(f"No episode thumbnail available to create media server specific files for {stream.id}")
             
             # Create specific nfo link based on the preset
             # For example, Plex sometimes requires SXXEXX format in the filename
@@ -649,6 +691,19 @@ class MetadataService:
         
         try:
             thumbnail_path = video_path_obj.with_suffix('.jpg').with_stem(f"{video_path_obj.stem}_thumbnail")
+            
+            # Prüfen, ob das Thumbnail bereits existiert
+            if thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
+                logger.info(f"Using existing thumbnail at {thumbnail_path}")
+                
+                # Aktualisiere Metadaten, wenn noch nicht gesetzt
+                if stream_id and db:
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if metadata and not metadata.thumbnail_path:
+                        metadata.thumbnail_path = str(thumbnail_path)
+                        db.commit()
+                        
+                return str(thumbnail_path)
             
             # FFmpeg-Befehl zum Extrahieren des ersten Frames
             cmd = [

@@ -68,12 +68,13 @@
               />
               <div v-else class="category-image-placeholder">
                 <span>No image</span>
-              </div>
-            </div>            <div class="category-content">
+              </div>            </div>
+            <div class="category-content">
               <h4 class="category-name">{{ category.name }}</h4>
               <div class="category-meta">
                 <span class="category-date" v-if="category.last_seen">Last seen: {{ new Date(category.last_seen).toLocaleDateString() }}</span>
-              </div><div class="category-actions">
+              </div>
+              <div class="category-actions">
                 <div class="category-stats">
                   <span>{{ category.stream_count || 0 }} streams</span>
                 </div>
@@ -89,9 +90,8 @@
                       d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
                     />
                   </svg>
-                  <span class="button-label">{{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}</span>
-                </button>
-              </div>            
+                  <span class="button-label">{{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}</span>                </button>
+              </div>
             </div>
           </div>
         </TransitionGroup>
@@ -307,6 +307,11 @@ watch(categories, (newCategories) => {
   }
 }
 
+.categories-grid {
+  width: 100%;
+  display: block;
+}
+
 .loading, .no-categories {
   display: flex;
   flex-direction: column;
@@ -364,11 +369,12 @@ watch(categories, (newCategories) => {
 
 /* Category grid with improved responsiveness - matched to StreamerList */
 .category-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 20px;
   padding: 8px;
   width: 100%;
+  min-height: 200px; /* Debug: ensure container has height */
 }
 
 /* Small screens: 1 card per row */
@@ -380,23 +386,26 @@ watch(categories, (newCategories) => {
 }
 
 /* Medium screens: 2-3 cards per row */
-@media (min-width: 768px) {
+@media (min-width: 641px) and (max-width: 1023px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
   }
 }
 
 /* Large screens: 3-4 cards per row */
-@media (min-width: 1200px) {
+@media (min-width: 1024px) and (max-width: 1439px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
   }
 }
 
-/* Extra large screens: 4-5 cards per row */
-@media (min-width: 1600px) {
+/* Extra large screens: 4+ cards per row */
+@media (min-width: 1440px) {
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 24px;
   }
 }
 

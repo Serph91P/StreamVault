@@ -6,7 +6,9 @@ import SetupView from '../views/SetupView.vue';
 import LoginView from '../views/LoginView.vue';
 import AdminView from '../views/AdminView.vue';
 import SettingsView from '../views/SettingsView.vue';
-import StreamerDetailView from '../views/StreamerDetailView.vue'
+import StreamerDetailView from '../views/StreamerDetailView.vue';
+import WelcomeView from '../views/WelcomeView.vue';
+import StreamersView from '../views/StreamersView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,6 +17,16 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+    },
+    {
+      path: '/welcome',
+      name: 'welcome',
+      component: WelcomeView,
+    },
+    {
+      path: '/streamers',
+      name: 'streamers',
+      component: StreamersView,
     },
     {
       path: '/subscriptions',
@@ -53,7 +65,17 @@ const router = createRouter({
     },
   ],
 });
+
+// Show WelcomeView only if not seen yet
 router.beforeEach(async (to, from, next) => {
+  // Show WelcomeView only if not seen yet and not coming from setup
+  if (to.path === '/' && !localStorage.getItem('welcome_seen')) {
+    return next('/welcome');
+  }
+  // Prevent direct access to /welcome after first visit
+  if (to.path === '/welcome' && localStorage.getItem('welcome_seen')) {
+    return next('/');
+  }
   try {
     const response = await fetch('/auth/setup', {
       headers: {

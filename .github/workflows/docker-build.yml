@@ -8,6 +8,7 @@ on:
       - rebase
     paths:
       - 'app/**'
+      - 'migrations/**'
       - 'Dockerfile'
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
@@ -134,7 +135,7 @@ jobs:
           echo "Changed files in this commit:"
           echo "$CHANGED_FILES"
             # Check if backend files or dependencies have changed
-          if echo "$CHANGED_FILES" | grep -qE "^app/[^f]|^app/f[^r]|^app/fr[^o]|^app/fro[^n]|^app/fron[^t]|^app/front[^e]|^app/fronte[^n]|^app/fronten[^d]|^requirements.txt|^Dockerfile"; then
+          if echo "$CHANGED_FILES" | grep -qE "^app/[^f]|^app/f[^r]|^app/fr[^o]|^app/fro[^n]|^app/fron[^t]|^app/front[^e]|^app/fronte[^n]|^app/fronten[^d]|^migrations/|^requirements.txt|^Dockerfile"; then
             echo "Backend files have changed"
             echo "backend_changed=true" >> $GITHUB_OUTPUT
           else

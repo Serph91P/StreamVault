@@ -5,6 +5,8 @@ from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSetti
 from apprise import Apprise
 from sqlalchemy.orm import Session, joinedload
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List
 from app.services.notification_service import NotificationService
 
@@ -143,6 +145,27 @@ async def test_notification():
                 )
 
         from app.services.notification_service import NotificationService
+        from app.dependencies import websocket_manager
+        import uuid
+        
+        # Generate a unique test ID to track this notification
+        test_id = str(uuid.uuid4())
+        
+        # Send WebSocket notification first
+        await websocket_manager.send_notification({
+            "type": "channel.update",  # Use channel.update type to match Twitch format
+            "data": {
+                "test_id": test_id,
+                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                "username": "TestUser",
+                "streamer_name": "TestUser",
+                "title": "Test Notification",
+                "category_name": "StreamVault",
+                "message": "This is a test notification from StreamVault."
+            }
+        })
+        
+        # Then send external notification via apprise
         notification_service = NotificationService()
         success = await notification_service.send_test_notification()
         
@@ -157,6 +180,56 @@ async def test_notification():
         raise
     except Exception as e:
         logger.error(f"Error sending test notification: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/test-websocket-notification")
+async def test_websocket_notification():
+    """Test WebSocket notification delivery to frontend"""
+    try:
+        from app.dependencies import websocket_manager
+        import time
+        import uuid
+        import random
+        
+        # Generate unique ID to prevent duplicates
+        unique_id = str(uuid.uuid4())
+        timestamp = str(int(time.time() * 1000))  # milliseconds timestamp
+        
+        # Logger adding to help diagnose issues
+        logger.info(f"🧪 Sending test WebSocket notification with ID {unique_id}")
+        
+        # Send a test notification through WebSocket with unique identifiers
+        # Note: We need to make sure this type is accepted by the frontend filters
+        # Using channel.update to match what would come from Twitch
+        test_notification = {
+            "type": "channel.update",  # Using channel.update to match Twitch notification type
+            "data": {
+                "streamer_id": f"test_{unique_id}",
+                "twitch_id": f"test_user_{timestamp}",
+                "streamer_name": "🧪 Test Notification",
+                "username": "🧪 Test Notification", 
+                "title": f"Channel Update Test #{timestamp[-4:]}",
+                "category_name": "🔧 StreamVault Testing",
+                "language": "en",
+                "is_live": True,
+                "url": "https://twitch.tv/teststreamer",
+                "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
+                "test_id": unique_id,  # Add test identifier
+                "timestamp": timestamp,
+                "message": f"Twitch channel update - Test #{timestamp[-6:]}"
+            }
+        }
+        
+        await websocket_manager.send_notification(test_notification)
+        logger.info(f"🧪 Test WebSocket notification sent with ID {unique_id}")
+        
+        return {
+            "status": "success", 
+            "message": f"Test WebSocket notification sent successfully (ID: {unique_id[-8:]})",
+            "notification_id": unique_id
+        }
+    except Exception as e:
+        logger.error(f"Error sending test WebSocket notification: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("", response_model=GlobalSettingsSchema)

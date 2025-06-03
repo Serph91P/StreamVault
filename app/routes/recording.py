@@ -2,10 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
+from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording_service import RecordingService
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import List
+import json
+from typing import List, Dict
 
 logger = logging.getLogger("streamvault")
 
@@ -33,7 +35,30 @@ async def get_recording_settings():
                 db.add(settings)
                 db.commit()
                 db.refresh(settings)
-            return settings
+                
+            # Parse the cleanup policy if it exists
+            cleanup_policy = None
+            if settings.cleanup_policy:
+                try:
+                    import json
+                    cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(settings.cleanup_policy))
+                except Exception as e:
+                    logger.warning(f"Error parsing cleanup policy: {e}")
+                    
+            # Create response
+            response = RecordingSettingsSchema(
+                enabled=settings.enabled,
+                output_directory=settings.output_directory,
+                filename_template=settings.filename_template,
+                filename_preset=getattr(settings, 'filename_preset', 'default'),
+                default_quality=settings.default_quality,
+                use_chapters=settings.use_chapters,
+                use_category_as_chapter_title=getattr(settings, 'use_category_as_chapter_title', False),
+                max_streams_per_streamer=getattr(settings, 'max_streams_per_streamer', 0),
+                cleanup_policy=cleanup_policy
+            )
+            
+            return response
     except Exception as e:
         logger.error(f"Error fetching recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -49,8 +74,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 # Create new settings if doesn't exist
                 existing_settings = RecordingSettings()
                 db.add(existing_settings)
-            
-            # Update fields
+              # Update fields
             existing_settings.enabled = settings_data.enabled
             existing_settings.output_directory = settings_data.output_directory
             existing_settings.filename_template = settings_data.filename_template
@@ -60,13 +84,42 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             # Füge das neue Feld hinzu
             if hasattr(settings_data, 'use_category_as_chapter_title'):
                 existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
+                
+            if hasattr(settings_data, 'max_streams_per_streamer'):
+                existing_settings.max_streams_per_streamer = settings_data.max_streams_per_streamer
+                
+            # Update cleanup policy if provided
+            if hasattr(settings_data, 'cleanup_policy') and settings_data.cleanup_policy:
+                import json
+                existing_settings.cleanup_policy = json.dumps(settings_data.cleanup_policy.dict())
             
             # Save changes
             db.commit()
             # This refreshes the instance after commit so it's bound to the session
             db.refresh(existing_settings)
             
-            return existing_settings
+            # Parse cleanup policy back to object for response
+            cleanup_policy = None
+            if existing_settings.cleanup_policy:
+                try:
+                    import json
+                    from app.schemas.recording import CleanupPolicySchema
+                    cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(existing_settings.cleanup_policy))
+                except Exception as e:
+                    logger.warning(f"Error parsing cleanup policy for response: {e}")
+            
+            # Create response with properly parsed cleanup policy
+            return RecordingSettingsSchema(
+                enabled=existing_settings.enabled,
+                output_directory=existing_settings.output_directory,
+                filename_template=existing_settings.filename_template,
+                filename_preset=getattr(existing_settings, 'filename_preset', 'default'),
+                default_quality=existing_settings.default_quality,
+                use_chapters=existing_settings.use_chapters,
+                use_category_as_chapter_title=getattr(existing_settings, 'use_category_as_chapter_title', False),
+                max_streams_per_streamer=getattr(existing_settings, 'max_streams_per_streamer', 0),
+                cleanup_policy=cleanup_policy
+            )
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))    
@@ -97,15 +150,25 @@ async def get_all_streamer_recording_settings():
                         enabled=True
                     )
                     db.add(settings)
-                
-                # Create response object
+                  # Create response object
+                try:
+                    cleanup_policy = None
+                    if hasattr(settings, 'cleanup_policy') and settings.cleanup_policy:
+                        import json
+                        cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(settings.cleanup_policy))
+                except Exception as e:
+                    logger.warning(f"Error parsing cleanup policy: {e}")
+                    cleanup_policy = None
+                    
                 result.append(StreamerRecordingSettingsSchema(
                     streamer_id=streamer.id,
                     username=streamer.username,
                     profile_image_url=streamer.profile_image_url,
                     enabled=settings.enabled,
                     quality=settings.quality,
-                    custom_filename=settings.custom_filename
+                    custom_filename=settings.custom_filename,
+                    max_streams=settings.max_streams,
+                    cleanup_policy=cleanup_policy
                 ))
             
             db.commit()
@@ -177,8 +240,7 @@ async def update_streamer_recording_settings(
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
-        
-        # Get or create streamer recording settings
+          # Get or create streamer recording settings
         streamer_settings = db.query(StreamerRecordingSettings).filter(
             StreamerRecordingSettings.streamer_id == streamer_id
         ).first()
@@ -193,17 +255,34 @@ async def update_streamer_recording_settings(
             streamer_settings.quality = settings.quality
         if settings.custom_filename is not None:
             streamer_settings.custom_filename = settings.custom_filename
+        if settings.max_streams is not None:
+            streamer_settings.max_streams = settings.max_streams
+        
+        # Update cleanup policy if provided
+        if settings.cleanup_policy is not None:
+            import json
+            streamer_settings.cleanup_policy = json.dumps(settings.cleanup_policy.dict())
         
         db.commit()
-        
-        # Return updated settings with streamer info
+          # Return updated settings with streamer info
+        try:
+            cleanup_policy = None
+            if streamer_settings.cleanup_policy:
+                import json
+                cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(streamer_settings.cleanup_policy))
+        except Exception as e:
+            logger.warning(f"Error parsing cleanup policy: {e}")
+            cleanup_policy = None
+            
         return StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
             profile_image_url=streamer.profile_image_url,
             enabled=streamer_settings.enabled,
             quality=streamer_settings.quality,
-            custom_filename=streamer_settings.custom_filename
+            custom_filename=streamer_settings.custom_filename,
+            max_streams=streamer_settings.max_streams,
+            cleanup_policy=cleanup_policy
         )
     except HTTPException:
         raise
@@ -236,4 +315,91 @@ async def force_start_offline_recording(streamer_id: int):
             raise HTTPException(status_code=400, detail="Failed to start recording. Check logs for details.")
     except Exception as e:
         logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cleanup/{streamer_id}")
+async def cleanup_old_recordings(streamer_id: int):
+    """Manually clean up old recordings for a streamer"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
+        
+        return {
+            "status": "success", 
+            "message": f"Cleaned up {deleted_count} recordings",
+            "deleted_count": deleted_count,
+            "deleted_paths": deleted_paths
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
+async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
+    """Run a custom cleanup with specified policy"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        
+        # Convert pydantic model to dict
+        policy_dict = policy.dict(exclude_unset=True)
+        
+        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+            streamer_id, 
+            custom_policy=policy_dict
+        )
+        
+        return {
+            "status": "success", 
+            "message": f"Cleaned up {deleted_count} recordings using custom policy",
+            "deleted_count": deleted_count,
+            "deleted_paths": deleted_paths
+        }
+    except Exception as e:
+        logger.error(f"Error running custom cleanup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+        
+@router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
+async def get_storage_usage(streamer_id: int):
+    """Get storage usage information for a streamer"""
+    try:
+        from app.services.cleanup_service import CleanupService
+        usage = await CleanupService.get_storage_usage(streamer_id)
+        return usage
+    except Exception as e:
+        logger.error(f"Error getting storage usage: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
+async def update_streamer_cleanup_policy(streamer_id: int, policy: CleanupPolicySchema, db: Session = Depends(get_db)):
+    """Update cleanup policy for a specific streamer"""
+    try:
+        # Check if the streamer exists
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+        
+        # Get or create streamer recording settings
+        streamer_settings = db.query(StreamerRecordingSettings).filter(
+            StreamerRecordingSettings.streamer_id == streamer_id
+        ).first()
+        
+        if not streamer_settings:
+            streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
+            db.add(streamer_settings)
+        
+        # Convert policy to JSON string and store it
+        import json
+        streamer_settings.cleanup_policy = json.dumps(policy.dict())
+        
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Cleanup policy updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating streamer cleanup policy: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

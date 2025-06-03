@@ -55,7 +55,7 @@
         <div class="empty-state-icon">🎬</div>
         <h3>No Streamers Yet</h3>
         <p>Add your favorite Twitch streamers to get started</p>
-        <router-link to="/add-streamer" class="btn btn-primary">Add Streamer</router-link>
+        <!-- Removed Add Streamer button as per the change request -->
       </div>
     </div>
   </div>

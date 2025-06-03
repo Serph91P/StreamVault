@@ -55,7 +55,7 @@ def get_settings_service():
         db.close()
 
 def get_notification_service():
-    return NotificationService()
+    return NotificationService(websocket_manager=websocket_manager)
 
 def get_current_user(db=Depends(get_db)):
     from app.models import User

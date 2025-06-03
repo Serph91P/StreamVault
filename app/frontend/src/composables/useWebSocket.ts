@@ -16,6 +16,16 @@ export function useWebSocket() {
   let reconnectTimer: number | null = null
 
   const connect = () => {
+    // Prevent multiple connections
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('🔌 WebSocket already connected, skipping...')
+      return
+    }
+    
+    // Clean up existing connection
+    if (ws) {
+      ws.close()
+    }
     ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {
@@ -26,27 +36,75 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        console.log('WebSocket raw message received:', event.data)
-        console.log('WebSocket parsed message:', data)
+        console.log('🔌 WebSocket raw message received:', event.data)
+        console.log('🔌 WebSocket parsed message:', data)
         
-        if (data && (
-          data.type === 'stream.online' || 
-          data.type === 'stream.offline' || 
-          data.type === 'channel.update' ||
-          data.type === 'connection.status'
-        )) {
-          console.log('Adding message to messages array:', data)
-          messages.value.push(data)
+        // Special handling for connection status messages
+        if (data?.type === 'connection.status') {
+          // Only update status, don't create notification
+          console.log('⚡ WebSocket connection status message received, updating status only')
+          connectionStatus.value = data?.data?.status || 'connected'
+          return
+        }
+        
+        // Process all other notification types
+        if (data && data.type) {
+          // Check if this is a duplicate message (by comparing with the last message)
+          const isDuplicate = messages.value.length > 0 && 
+            data.type === messages.value[messages.value.length - 1].type &&
+            JSON.stringify(data.data) === JSON.stringify(messages.value[messages.value.length - 1].data);
+          
+          if (isDuplicate) {
+            console.log('🔄 Duplicate message detected, ignoring:', data.type)
+            return;
+          }
+          
+          console.log('✅ Message type accepted:', data.type)
+          console.log('📨 Adding message to messages array:', data)
+          console.log('📊 Messages array before push:', messages.value.length)
+          
+          // Ensure test_id is present for test notifications
+          if (data.type === 'channel.update' && data.data?.username === 'TestUser' && !data.data.test_id) {
+            data.data.test_id = `test_${Date.now()}`;
+          }
+          
+          // Create a new array reference to trigger reactivity
+          const newMessages = [...messages.value, data]
+          messages.value = newMessages
+          
+          console.log('📊 Messages array after push:', messages.value.length)
+          console.log('📋 Current messages array:', messages.value)
+          console.log('🎯 Latest message:', messages.value[messages.value.length - 1])
+        } else {
+          console.warn('❌ Message type not recognized or data invalid:', data?.type, 'Full data:', data)
         }
       } catch (e) {
-        console.error('Error parsing WebSocket message:', e)
+        console.error('💥 Error parsing WebSocket message:', e)
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       connectionStatus.value = 'disconnected'
+      console.log('WebSocket disconnected with code:', event.code, 'reason:', event.reason)
       console.log('WebSocket disconnected, attempting reconnect...')
-      reconnectTimer = window.setTimeout(connect, 5000)
+      
+      // Clear existing timer
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      
+      // Use exponential backoff for reconnection attempts
+      const backoffDelay = Math.min(5000 * Math.pow(1.5, Math.floor(Math.random() * 3)), 30000);
+      console.log(`WebSocket will attempt reconnection in ${backoffDelay/1000} seconds`)
+      
+      // Only reconnect if we're not unmounting
+      reconnectTimer = window.setTimeout(() => {
+        if (connectionStatus.value === 'disconnected') {
+          console.log('WebSocket attempting reconnection now')
+          connect()
+        }
+      }, backoffDelay)
     }
 
     ws.onerror = (error) => {
@@ -59,8 +117,15 @@ export function useWebSocket() {
   })
 
   onUnmounted(() => {
-    if (ws) ws.close()
-    if (reconnectTimer) clearTimeout(reconnectTimer)
+    connectionStatus.value = 'disconnected'
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (ws) {
+      ws.close()
+      ws = null
+    }
   })
 
   return {

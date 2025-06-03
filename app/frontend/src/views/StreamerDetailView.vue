@@ -1,8 +1,7 @@
 <template>
   <div class="streamer-detail-view">
-    <div class="streamer-detail-container">
-      <div class="back-btn-container">
-        <router-link to="/" class="back-btn">Back to streamers</router-link>
+    <div class="streamer-detail-container">      <div class="back-btn-container">
+        <router-link to="/streamers" class="back-btn">Back to streamers</router-link>
       </div>
       
       <div class="streamer-header" v-if="streamerName">

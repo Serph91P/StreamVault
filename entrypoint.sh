@@ -60,6 +60,27 @@ else
     fi
 fi
 
+# Ensure migrations directory permissions are set correctly
+log_msg "Setting proper permissions for migrations directory..."
+if [ -d "/app/migrations" ]; then
+    chown -R appuser:appuser /app/migrations
+    chmod -R 755 /app/migrations
+    log_msg "Migrations directory permissions set."
+else
+    log_msg "WARNING: Migrations directory not found!"
+fi
+
+if [ "$ENVIRONMENT" = "development" ]; then
+    log_msg "Running database migrations in development mode..."
+    python -c "from app.services.migration_service import MigrationService; MigrationService.run_pending_migrations()"
+    migration_status=$?
+    if [ $migration_status -ne 0 ]; then
+        log_msg "WARNING: Database migrations failed with status $migration_status"
+    else
+        log_msg "Database migrations completed successfully"
+    fi
+fi
+
 log_msg "Starting FastAPI application..."
 # Start the application
 exec uvicorn app.main:app --host 0.0.0.0 --port 7000

@@ -6,7 +6,9 @@ export interface RecordingSettings {
   default_quality: string;
   use_chapters: boolean;
   use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
+  cleanup_policy?: CleanupPolicy; // New property for cleanup policy
 }
+
 export interface StreamerRecordingSettings {
   streamer_id: number;
   username: string;
@@ -14,7 +16,37 @@ export interface StreamerRecordingSettings {
   quality?: string;
   custom_filename?: string;
   profile_image_url?: string;
+  max_streams?: number; // Maximum number of streams to keep for this streamer
+  cleanup_policy?: CleanupPolicy; // New property for streamer-specific cleanup policy
 }
+
+// New type for advanced cleanup policies
+export interface CleanupPolicy {
+  type: CleanupPolicyType;
+  threshold: number;
+  preserve_favorites: boolean;
+  preserve_categories: string[];
+  preserve_timeframe?: PreserveTimeframe; // Made optional to simplify
+  delete_silently: boolean; // Whether to delete without confirmation
+}
+
+export enum CleanupPolicyType {
+  COUNT = 'count',       // Limit by number of recordings
+  SIZE = 'size',         // Limit by total size (in GB)
+  AGE = 'age',           // Limit by age (in days)
+  CUSTOM = 'custom'      // Custom policy (combination of the above)
+}
+
+export interface PreserveTimeframe {
+  start_date: string;   // ISO date string
+  end_date: string;     // ISO date string 
+  weekdays: number[];   // 0-6 (Sunday-Saturday)
+  timeOfDay: {
+    start: string;       // HH:MM format
+    end: string;         // HH:MM format
+  };
+}
+
 export interface ActiveRecording {
   streamer_id: number;
   streamer_name: string;
