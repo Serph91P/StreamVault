@@ -280,7 +280,9 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (): void => {
-  console.log('🗑️ NotificationFeed: Clear all button clicked, emitting clear-all event')
+  console.log('🗑️ NotificationFeed: Clear all button clicked!')
+  console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
+  console.log('🗑️ NotificationFeed: Emitting clear-all event to App.vue')
   emit('clear-all') // Let App.vue handle the actual clearing
 }
 

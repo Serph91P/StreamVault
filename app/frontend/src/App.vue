@@ -239,7 +239,7 @@ function markAsRead() {
 }
 
 function clearAllNotifications() {
-  console.log('🔔 App: Clearing all notifications')
+  console.log('🔔 App: Clearing all notifications - Event received from NotificationFeed')
   // Clear the notifications from localStorage
   localStorage.removeItem('streamvault_notifications')
   // Mark as read
@@ -248,6 +248,7 @@ function clearAllNotifications() {
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }
   }))
+  console.log('🔔 App: All notifications cleared successfully')
 }
 
 function closeNotificationPanel() {
