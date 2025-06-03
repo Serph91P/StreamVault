@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, defineEmits } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 const emit = defineEmits(['notifications-read', 'close-panel'])
@@ -387,17 +387,22 @@ onMounted(() => {
   // Set the initial message count to current messages length
   previousMessageCount.value = messages.value.length
   console.log('🚀 NotificationFeed: Set initial message count to', previousMessageCount.value)
+  
   // Process ALL existing WebSocket messages (they may not be in localStorage yet)
   console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing WebSocket messages')
   messages.value.forEach((message: any, index: number) => {
     console.log(`🚀 NotificationFeed: Processing existing message ${index + 1}:`, message)
     processMessage(message)
   })
-  
   console.log('🚀 NotificationFeed: Component fully loaded with', notifications.value.length, 'notifications')
   
-  // Don't automatically mark as read when mounting - let user interact first
-  // emit('notifications-read')
+  // DON'T auto-mark as read - let the user see the notifications until they manually close the panel
+})
+
+// Mark notifications as read when component is unmounted (panel closes)
+onUnmounted(() => {
+  console.log('🚀 NotificationFeed: Component unmounting, marking notifications as read')
+  emit('notifications-read')
 })
 </script>
 

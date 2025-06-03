@@ -106,8 +106,7 @@ function toggleNotifications() {
   
   if (showNotifications.value) {
     console.log('🔔 Notifications panel opened')
-    // When opening, recalculate unread count from localStorage
-    updateUnreadCountFromStorage()
+    // Don't recalculate unread count when opening - let the notifications stay visible
   } else {
     console.log('🔔 Notifications panel closed')
   }
@@ -182,7 +181,6 @@ function updateUnreadCountFromStorage() {
 // Update unread count from localStorage on mount
 onMounted(() => {
   updateUnreadCountFromStorage()
-
   // Listen for clicks outside the notification area to close it
   document.addEventListener('click', (event) => {
     const notificationFeed = document.querySelector('.notification-feed')
@@ -193,7 +191,7 @@ onMounted(() => {
         notificationBell && 
         !notificationFeed.contains(event.target) && 
         !notificationBell.contains(event.target)) {
-      showNotifications.value = false
+      closeNotificationPanel() // Use the proper close function instead of just setting the value
     }
   })
   
