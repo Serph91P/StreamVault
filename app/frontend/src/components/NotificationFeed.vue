@@ -81,7 +81,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 
-const emit = defineEmits(['notifications-read', 'close-panel'])
+const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all'])
 
 interface NotificationData {
   [key: string]: any;
@@ -280,9 +280,8 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (): void => {
-  notifications.value = []
-  saveNotifications()
-  emit('notifications-read') // Mark as read when user clears all
+  console.log('🗑️ NotificationFeed: Clear all button clicked, emitting clear-all event')
+  emit('clear-all') // Let App.vue handle the actual clearing
 }
 
 // Save notifications to localStorage
@@ -396,12 +395,24 @@ onMounted(() => {
   })
   console.log('🚀 NotificationFeed: Component fully loaded with', notifications.value.length, 'notifications')
   
+  // Listen for external notification updates (like clear all from App.vue)
+  window.addEventListener('notificationsUpdated', handleNotificationsUpdated)
+  
   // DON'T auto-mark as read - let the user see the notifications until they manually close the panel
 })
+
+// Handle external notification updates
+const handleNotificationsUpdated = (event: any) => {
+  console.log('📡 NotificationFeed: Received notificationsUpdated event:', event.detail)
+  // Reload notifications from localStorage to stay in sync
+  loadNotifications()
+}
 
 // Mark notifications as read when component is unmounted (panel closes)
 onUnmounted(() => {
   console.log('🚀 NotificationFeed: Component unmounting, marking notifications as read')
+  // Remove event listener
+  window.removeEventListener('notificationsUpdated', handleNotificationsUpdated)
   emit('notifications-read')
 })
 </script>

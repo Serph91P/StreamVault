@@ -26,6 +26,7 @@
       <NotificationFeed 
         @notifications-read="markAsRead" 
         @close-panel="closeNotificationPanel"
+        @clear-all="clearAllNotifications"
       />
     </div>
     
@@ -235,6 +236,18 @@ function markAsRead() {
   lastReadTimestamp.value = Date.now().toString()
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
   console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', lastReadTimestamp.value)
+}
+
+function clearAllNotifications() {
+  console.log('🔔 App: Clearing all notifications')
+  // Clear the notifications from localStorage
+  localStorage.removeItem('streamvault_notifications')
+  // Mark as read
+  markAsRead()
+  // Dispatch event to notify other components
+  window.dispatchEvent(new CustomEvent('notificationsUpdated', {
+    detail: { count: 0 }
+  }))
 }
 
 function closeNotificationPanel() {
