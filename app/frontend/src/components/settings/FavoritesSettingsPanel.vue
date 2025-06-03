@@ -307,6 +307,11 @@ watch(categories, (newCategories) => {
   }
 }
 
+.categories-grid {
+  width: 100%;
+  display: block;
+}
+
 .loading, .no-categories {
   display: flex;
   flex-direction: column;
@@ -364,11 +369,12 @@ watch(categories, (newCategories) => {
 
 /* Category grid with improved responsiveness - matched to StreamerList */
 .category-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 20px;
   padding: 8px;
   width: 100%;
+  min-height: 200px; /* Debug: ensure container has height */
 }
 
 /* Small screens: 1 card per row */
@@ -380,23 +386,26 @@ watch(categories, (newCategories) => {
 }
 
 /* Medium screens: 2-3 cards per row */
-@media (min-width: 768px) {
+@media (min-width: 641px) and (max-width: 1023px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
   }
 }
 
 /* Large screens: 3-4 cards per row */
-@media (min-width: 1200px) {
+@media (min-width: 1024px) and (max-width: 1439px) {
   .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
   }
 }
 
-/* Extra large screens: 4-5 cards per row */
-@media (min-width: 1600px) {
+/* Extra large screens: 4+ cards per row */
+@media (min-width: 1440px) {
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 24px;
   }
 }
 
