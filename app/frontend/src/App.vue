@@ -21,9 +21,7 @@
           </div>
         </nav>
       </div>
-    </header>
-    
-    <!-- Notification overlay -->
+    </header>    <!-- Notification overlay -->
     <div v-if="showNotifications" class="notification-overlay">
       <NotificationFeed 
         @notifications-read="markAsRead" 
@@ -99,6 +97,125 @@ const unreadCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
 const { messages } = useWebSocket()
+
+// WebSocket message processing - moved here so it runs even when notification panel is closed
+const processWebSocketMessage = (message) => {
+  console.log('🔥 App: Processing WebSocket message:', message)
+  
+  if (!message || !message.type) {
+    console.log('❌ App: Invalid message')
+    return
+  }
+  
+  // Skip connection status messages
+  if (message.type === 'connection.status') {
+    console.log('⏭️ App: Skipping connection status')
+    return
+  }
+  
+  // Valid notification types
+  const validTypes = [
+    'stream.online', 
+    'stream.offline',
+    'channel.update',
+    'stream.update',
+    'recording.started',
+    'recording.completed',
+    'recording.failed',
+    'test'
+  ]
+  
+  if (validTypes.includes(message.type)) {
+    console.log('✅ App: Valid message type, adding to localStorage')
+    addNotificationToStorage(message)
+  } else {
+    console.log('❌ App: Invalid message type:', message.type)
+  }
+}
+
+// Add notification to localStorage - similar to NotificationFeed logic
+const addNotificationToStorage = (message) => {
+  try {
+    const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
+    
+    const timestamp = message.data?.timestamp 
+      ? new Date(parseInt(message.data.timestamp) || message.data.timestamp).toISOString()
+      : new Date().toISOString()
+    
+    const streamer_username = message.data?.username || 
+                             message.data?.streamer_name || 
+                             'Unknown'
+    
+    const newNotification = {
+      id,
+      type: message.type,
+      timestamp,
+      streamer_username,
+      data: message.data || {}
+    }
+    
+    console.log('🔥 App: Created notification:', newNotification)
+    
+    // Get existing notifications
+    let notifications = []
+    try {
+      const existing = localStorage.getItem('streamvault_notifications')
+      if (existing) {
+        notifications = JSON.parse(existing)
+      }
+    } catch (e) {
+      notifications = []
+    }
+    
+    // Add new notification to beginning
+    notifications.unshift(newNotification)
+    
+    // Limit notifications
+    if (notifications.length > 100) {
+      notifications = notifications.slice(0, 100)
+    }
+    
+    // Save back to localStorage
+    localStorage.setItem('streamvault_notifications', JSON.stringify(notifications))
+    
+    console.log('💾 App: Saved notification to localStorage. Total notifications:', notifications.length)
+    
+    // Update unread count
+    updateUnreadCountFromStorage()
+    
+    // Dispatch event for other components
+    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
+      detail: { count: notifications.length }
+    }))
+    
+  } catch (error) {
+    console.error('❌ App: Error adding notification to localStorage:', error)
+  }
+}
+
+// Track previous message count to detect new messages
+let previousMessageCount = 0
+
+// Watch for new WebSocket messages
+watch(() => messages.value.length, (newLength) => {
+  console.log('🔥 App: Message count changed to', newLength, 'from', previousMessageCount)
+  
+  if (newLength > previousMessageCount) {
+    console.log('🔥 App: NEW MESSAGES DETECTED!')
+    
+    // Process only the new messages
+    const newCount = newLength - previousMessageCount
+    const messagesToProcess = messages.value.slice(-newCount)
+    console.log('🔥 App: Processing', messagesToProcess.length, 'new messages')
+    
+    messagesToProcess.forEach((message, index) => {
+      console.log(`🔥 App: Processing new message ${index + 1}:`, message)
+      processWebSocketMessage(message)
+    })
+    
+    previousMessageCount = newLength
+  }
+}, { immediate: false })
 
 function toggleNotifications() {
   console.log('🔔 App: Toggling notifications panel')
@@ -181,6 +298,20 @@ function updateUnreadCountFromStorage() {
 // Update unread count from localStorage on mount
 onMounted(() => {
   updateUnreadCountFromStorage()
+  
+  // Set initial message count
+  previousMessageCount = messages.value.length
+  console.log('🚀 App: Set initial message count to', previousMessageCount)
+  
+  // Process any existing WebSocket messages
+  if (messages.value.length > 0) {
+    console.log('🚀 App: Processing', messages.value.length, 'existing WebSocket messages')
+    messages.value.forEach((message, index) => {
+      console.log(`🚀 App: Processing existing message ${index + 1}:`, message)
+      processWebSocketMessage(message)
+    })
+  }
+  
   // Listen for clicks outside the notification area to close it
   document.addEventListener('click', (event) => {
     const notificationFeed = document.querySelector('.notification-feed')
