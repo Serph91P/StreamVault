@@ -68,12 +68,13 @@
               />
               <div v-else class="category-image-placeholder">
                 <span>No image</span>
-              </div>
-            </div>            <div class="category-content">
+              </div>            </div>
+            <div class="category-content">
               <h4 class="category-name">{{ category.name }}</h4>
               <div class="category-meta">
                 <span class="category-date" v-if="category.last_seen">Last seen: {{ new Date(category.last_seen).toLocaleDateString() }}</span>
-              </div><div class="category-actions">
+              </div>
+              <div class="category-actions">
                 <div class="category-stats">
                   <span>{{ category.stream_count || 0 }} streams</span>
                 </div>
@@ -89,9 +90,8 @@
                       d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
                     />
                   </svg>
-                  <span class="button-label">{{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}</span>
-                </button>
-              </div>            
+                  <span class="button-label">{{ category.is_favorite ? 'Unfavorite' : 'Favorite' }}</span>                </button>
+              </div>
             </div>
           </div>
         </TransitionGroup>
