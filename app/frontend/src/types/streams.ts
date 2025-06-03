@@ -1,3 +1,12 @@
+export interface StreamEvent {
+  id: number
+  event_type: string
+  title: string | null
+  category_name: string | null
+  language: string | null
+  timestamp: string | null
+}
+
 export interface Stream {
   id: number
   streamer_id: number
@@ -7,6 +16,7 @@ export interface Stream {
   category_name: string | null
   language: string | null
   twitch_stream_id: string | null
+  events?: StreamEvent[]
 }
 
 export interface StreamerInfo {

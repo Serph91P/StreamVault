@@ -291,7 +291,7 @@ async def get_streams_by_streamer_id(
     streamer_id: int,
     db: Session = Depends(get_db)
 ):
-    """Get all streams for a streamer by their ID"""
+    """Get all streams for a streamer by their ID with category history"""
     try:
         # Überprüfen, ob der Streamer existiert
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -308,6 +308,25 @@ async def get_streams_by_streamer_id(
         # Streams in ein lesbares Format umwandeln
         formatted_streams = []
         for stream in streams:
+            # Get all events for this stream, ordered by timestamp
+            events = db.query(StreamEvent).filter(
+                StreamEvent.stream_id == stream.id
+            ).order_by(
+                StreamEvent.timestamp.asc()
+            ).all()
+            
+            # Format events for the response
+            formatted_events = []
+            for event in events:
+                formatted_events.append({
+                    "id": event.id,
+                    "event_type": event.event_type,
+                    "title": event.title,
+                    "category_name": event.category_name,
+                    "language": event.language,
+                    "timestamp": event.timestamp.isoformat() if event.timestamp else None
+                })
+            
             formatted_streams.append({
                 "id": stream.id,
                 "streamer_id": stream.streamer_id,
@@ -316,7 +335,8 @@ async def get_streams_by_streamer_id(
                 "title": stream.title,
                 "category_name": stream.category_name,
                 "language": stream.language,
-                "twitch_stream_id": stream.twitch_stream_id
+                "twitch_stream_id": stream.twitch_stream_id,
+                "events": formatted_events
             })
         
         return {

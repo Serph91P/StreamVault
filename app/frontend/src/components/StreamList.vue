@@ -51,9 +51,16 @@
               <h3>{{ formatDate(stream.started_at) }}</h3>
             </div>
           </div>
+            <!-- Category Timeline - Show complete history if events are available -->
+          <CategoryTimeline 
+            v-if="stream.events && stream.events.length > 0"
+            :events="stream.events"
+            :stream-started="stream.started_at"
+            :stream-ended="stream.ended_at"
+          />
           
-          <!-- New Category Visualization -->
-          <div class="category-visual" v-if="stream.category_name">
+          <!-- Fallback: Simple category display if no events data -->
+          <div v-else-if="stream.category_name" class="category-visual">
             <div class="category-image">
               <img :src="getCategoryImage(stream.category_name)" :alt="stream.category_name" />
             </div>
@@ -134,6 +141,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
+import CategoryTimeline from './CategoryTimeline.vue'
 const route = useRoute()
 const router = useRouter()
 const streamerId = computed(() => route.params.id as string || route.query.id as string)
