@@ -282,6 +282,7 @@ const removeNotification = (id: string): void => {
 const clearAllNotifications = (): void => {
   notifications.value = []
   saveNotifications()
+  emit('notifications-read') // Mark as read when user clears all
 }
 
 // Save notifications to localStorage
@@ -386,7 +387,6 @@ onMounted(() => {
   // Set the initial message count to current messages length
   previousMessageCount.value = messages.value.length
   console.log('🚀 NotificationFeed: Set initial message count to', previousMessageCount.value)
-  
   // Process ALL existing WebSocket messages (they may not be in localStorage yet)
   console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing WebSocket messages')
   messages.value.forEach((message: any, index: number) => {
@@ -394,7 +394,10 @@ onMounted(() => {
     processMessage(message)
   })
   
-  emit('notifications-read')
+  console.log('🚀 NotificationFeed: Component fully loaded with', notifications.value.length, 'notifications')
+  
+  // Don't automatically mark as read when mounting - let user interact first
+  // emit('notifications-read')
 })
 </script>
 
