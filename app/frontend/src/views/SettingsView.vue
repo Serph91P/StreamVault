@@ -271,8 +271,11 @@ const handleCleanupRecordings = async (streamerId: number) => {
 
 .settings-container {
   max-width: 1200px;
+  min-width: 800px;
+  width: 100%;
   margin: 0 auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .loading-indicator {
@@ -374,10 +377,33 @@ const handleCleanupRecordings = async (streamerId: number) => {
 
 .tab-content {
   min-height: 400px;
+  width: 100%;
+  min-width: 760px;
+  box-sizing: border-box;
+}
+
+/* Tablet-optimierung */
+@media (max-width: 1024px) and (min-width: 641px) {
+  .settings-container {
+    min-width: 700px;
+  }
+  
+  .tab-content {
+    min-width: 660px;
+  }
 }
 
 /* Mobile-optimierung */
 @media (max-width: 640px) {
+  .settings-container {
+    min-width: unset;
+    padding: 12px;
+  }
+  
+  .tab-content {
+    min-width: unset;
+  }
+  
   .settings-tabs {
     justify-content: flex-start;
   }
@@ -385,10 +411,6 @@ const handleCleanupRecordings = async (streamerId: number) => {
   .tab-button {
     padding: 10px 16px;
     font-size: 0.9rem;
-  }
-  
-  .settings-container {
-    padding: 12px;
   }
 }
 
