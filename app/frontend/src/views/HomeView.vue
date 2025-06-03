@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import StreamerList from '../components/StreamerList.vue'
 import { onMounted, computed, ref } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
@@ -13,6 +12,7 @@ const totalActiveRecordings = computed(() => activeRecordings.value.length)
 
 // For last recording, fetch all streams and find the latest ended stream
 const lastRecording = ref<any>(null)
+const lastRecordingStreamer = ref<any>(null)
 const isLoadingLastRecording = ref(false)
 
 async function fetchLastRecording() {
@@ -23,8 +23,13 @@ async function fetchLastRecording() {
       const response = await fetch(`/api/streamers/${streamer.id}/streams`)
       if (response.ok) {
         const data = await response.json()
-        if (data.streams && Array.isArray(data.streams)) {
-          allStreams = allStreams.concat(data.streams)
+        if (data.streams && Array.isArray(data.streams)) {          // Add streamer info to each stream
+          const streamsWithStreamer = data.streams.map((stream: any) => ({
+            ...stream,
+            streamer_name: streamer.username,
+            streamer_id: streamer.id
+          }))
+          allStreams = allStreams.concat(streamsWithStreamer)
         }
       }
     } catch (e) {
@@ -34,7 +39,11 @@ async function fetchLastRecording() {
   // Find the latest ended stream
   const endedStreams = allStreams.filter(s => s.ended_at)
   endedStreams.sort((a, b) => new Date(b.ended_at).getTime() - new Date(a.ended_at).getTime())
-  lastRecording.value = endedStreams[0] || null
+  const latestStream = endedStreams[0] || null
+  lastRecording.value = latestStream
+  if (latestStream) {
+    lastRecordingStreamer.value = streamers.value.find(s => s.id === latestStream.streamer_id)
+  }
   isLoadingLastRecording.value = false
 }
 
@@ -63,12 +72,12 @@ onMounted(async () => {
           <div class="stat-item">
             <span class="stat-label">Active Recordings</span>
             <span class="stat-value">{{ totalActiveRecordings }}</span>
-          </div>
-          <div class="stat-item">
+          </div>          <div class="stat-item">
             <span class="stat-label">Last Recording</span>
             <span class="stat-value">
               <template v-if="isLoadingLastRecording">Loading...</template>
               <template v-else-if="lastRecording">
+                <strong>{{ lastRecording.streamer_name }}</strong><br />
                 {{ lastRecording.title || 'Untitled' }}<br />
                 <small>{{ lastRecording.ended_at ? new Date(lastRecording.ended_at).toLocaleString() : '' }}</small>
               </template>
@@ -76,15 +85,11 @@ onMounted(async () => {
             </span>
           </div>
         </div>
-      </div>
-      <section class="content-section">
-        <div class="page-header">
-          <h2>Your Streamers</h2>
-          <p class="description">Manage your tracked streamers and their recordings</p>
+        <div class="dashboard-actions">
+          <router-link to="/streamers" class="btn btn-primary">Manage Streamers</router-link>
+          <router-link to="/add-streamer" class="btn btn-secondary">Add New Streamer</router-link>
         </div>
-        
-        <StreamerList />
-      </section>
+      </div>
     </div>
   </div>
 </template>
@@ -138,5 +143,57 @@ onMounted(async () => {
 }
 .stat-item:last-child .stat-value {
   color: var(--accent-color, #7c4dff);
+}
+
+.dashboard-actions {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-color-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--background-hover);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .dashboard-actions {
+    flex-direction: column;
+  }
+  
+  .btn {
+    justify-content: center;
+  }
 }
 </style>
