@@ -153,47 +153,9 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-primary {
-  background: var(--primary-color);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--primary-color-hover);
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: var(--background-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover {
-  background: var(--background-hover);
-  transform: translateY(-1px);
-}
-
 @media (max-width: 768px) {
   .dashboard-actions {
     flex-direction: column;
-  }
-  
-  .btn {
-    justify-content: center;
   }
 }
 </style>
