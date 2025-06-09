@@ -32,6 +32,7 @@ class Stream(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     twitch_stream_id = Column(String, nullable=True)
+    recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     
     @property
     def is_live(self):
