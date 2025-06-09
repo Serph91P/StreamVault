@@ -34,7 +34,7 @@ async def setup_admin(
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created", "success": True})
-    response.set_cookie(key="session", value=token, httponly=True, secure=True)
+    response.set_cookie(key="session", value=token, httponly=True, secure=True, samesite='lax')
     return response
 
 @router.post("/login")
@@ -48,7 +48,7 @@ async def login(
     
     token = await auth_service.create_session(user.id)
     response = JSONResponse(content={"message": "Login successful", "success": True})
-    response.set_cookie(key="session", value=token, httponly=True, secure=True)
+    response.set_cookie(key="session", value=token, httponly=True, secure=True, samesite='lax')
     return response
 
 @router.api_route("/login", methods=["GET", "HEAD"])

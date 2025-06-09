@@ -115,7 +115,15 @@ async def eventsub_callback(request: Request):
         # Debug HMAC calculation
         logger.debug(f"HMAC message: {hmac_message}")
         logger.debug(f"Calculated signature: {calculated_signature}")
-        logger.debug(f"Secret used: {settings.EVENTSUB_SECRET}")
+        secret_to_log = settings.EVENTSUB_SECRET
+        if len(secret_to_log) > 10: # Only mask if it's long enough to be meaningful
+            masked_secret = f"{secret_to_log[:5]}...{secret_to_log[-5:]}"
+        else:
+            masked_secret = secret_to_log # For short secrets, show as is or use a generic mask like '***'
+            # To be more explicit for very short ones:
+            # if len(secret_to_log) <= 5: masked_secret = "*****"
+            # else: masked_secret = f"{secret_to_log[:2]}...{secret_to_log[-2:]}"
+        logger.debug(f"Secret used: {masked_secret}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
             logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")

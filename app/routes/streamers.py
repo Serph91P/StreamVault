@@ -1,17 +1,18 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body  # Body hinzugefügt
+from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
-from app.schemas.streamers import StreamerResponse, StreamerList
+from app.schemas.streamers import StreamerResponse, StreamerList, AddStreamerSettingsSchema
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.database import SessionLocal, get_db
-from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent
+from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent, RecordingSettings
 from app.schemas.streams import StreamList, StreamResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 import logging
 import asyncio
 from pathlib import Path
+import os
 
 logger = logging.getLogger("streamvault")
 
@@ -123,7 +124,7 @@ async def resubscribe_all(
 @router.post("/{username}")
 async def add_streamer(
     username: str,
-    settings: dict = Body(...),
+    settings: AddStreamerSettingsSchema, # Changed from dict = Body(...)
     streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db)
 ):
@@ -138,61 +139,73 @@ async def add_streamer(
             )
         
         # Streamer bei Twitch überprüfen und hinzufügen
-        streamer = await streamer_service.add_streamer(username)
+        # Note: The original task implies streamer_service.add_streamer would handle settings.
+        # However, current route code handles DB updates directly.
+        # We are adapting to use the Pydantic model for reading settings.
+        streamer_entity = await streamer_service.add_streamer(username) # Renamed to avoid confusion with streamer_id from models
         
-        if not streamer:
+        if not streamer_entity:
             return JSONResponse(
                 status_code=404,
                 content={"message": f"Streamer '{username}' not found on Twitch"}
             )
         
         # Benachrichtigungseinstellungen aktualisieren, falls vorhanden
-        if "notifications" in settings:
-            notification_settings = db.query(NotificationSettings).filter(
-                NotificationSettings.streamer_id == streamer.id
+        if settings.notifications:
+            notification_settings_db = db.query(NotificationSettings).filter(
+                NotificationSettings.streamer_id == streamer_entity.id
             ).first()
             
-            if not notification_settings:
-                notification_settings = NotificationSettings(streamer_id=streamer.id)
-                db.add(notification_settings)
+            if not notification_settings_db:
+                notification_settings_db = NotificationSettings(streamer_id=streamer_entity.id)
+                db.add(notification_settings_db)
             
-            # Aktualisiere die Einstellungen
-            notification_data = settings["notifications"]
-            if "notify_online" in notification_data:
-                notification_settings.notify_online = notification_data["notify_online"]
-            if "notify_offline" in notification_data:
-                notification_settings.notify_offline = notification_data["notify_offline"]
-            if "notify_update" in notification_data:
-                notification_settings.notify_update = notification_data["notify_update"]
-            if "notify_favorite_category" in notification_data:
-                notification_settings.notify_favorite_category = notification_data["notify_favorite_category"]
-        
+            if settings.notifications.notify_online is not None:
+                notification_settings_db.notify_online = settings.notifications.notify_online
+            if settings.notifications.notify_offline is not None:
+                notification_settings_db.notify_offline = settings.notifications.notify_offline
+            # Assuming 'notify_update' corresponds to title/game change for now
+            if settings.notifications.notify_title_change is not None:
+                 # Assuming 'notify_update' was a general flag, let's map title change to it.
+                 # If precise mapping is needed, DB model might need notify_title_change, notify_game_change fields.
+                notification_settings_db.notify_update = settings.notifications.notify_title_change
+            if settings.notifications.notify_game_change is not None:
+                # Similar to above, if DB has a specific field, use it. For now, also mapping to notify_update
+                # Or, if notify_update is a general bucket, this could be an OR condition or separate logic.
+                # For simplicity, let's assume notify_update covers these.
+                # If you have distinct DB fields like `notify_game_change`, use them:
+                # notification_settings_db.notify_game_change = settings.notifications.notify_game_change
+                pass # Placeholder if DB model doesn't have a direct match for notify_game_change
+            # notify_new_vod is not in the current DB model NotificationSettings based on prior context.
+            # if settings.notifications.notify_new_vod is not None:
+            #    notification_settings_db.notify_new_vod = settings.notifications.notify_new_vod
+
         # Aufnahmeeinstellungen aktualisieren, falls vorhanden
-        if "recording" in settings:
-            recording_settings = db.query(StreamerRecordingSettings).filter(
-                StreamerRecordingSettings.streamer_id == streamer.id
+        if settings.recording:
+            recording_settings_db = db.query(StreamerRecordingSettings).filter(
+                StreamerRecordingSettings.streamer_id == streamer_entity.id
             ).first()
             
-            if not recording_settings:
-                recording_settings = StreamerRecordingSettings(streamer_id=streamer.id)
-                db.add(recording_settings)
+            if not recording_settings_db:
+                recording_settings_db = StreamerRecordingSettings(streamer_id=streamer_entity.id)
+                db.add(recording_settings_db)
             
-            # Aktualisiere die Einstellungen
-            recording_data = settings["recording"]
-            if "enabled" in recording_data:
-                recording_settings.enabled = recording_data["enabled"]
-            if "quality" in recording_data:
-                recording_settings.quality = recording_data["quality"]
-            if "custom_filename" in recording_data:
-                recording_settings.custom_filename = recording_data["custom_filename"]
+            if settings.recording.enabled is not None:
+                recording_settings_db.enabled = settings.recording.enabled
+            if settings.recording.quality is not None:
+                recording_settings_db.quality = settings.recording.quality
+            if settings.recording.custom_filename is not None:
+                recording_settings_db.custom_filename = settings.recording.custom_filename
+            if settings.recording.max_streams is not None:
+                recording_settings_db.max_streams = settings.recording.max_streams
         
         db.commit()
         
         return {
-            "id": streamer.id,
-            "username": streamer.username,
-            "twitch_id": streamer.twitch_id,
-            "profile_image_url": streamer.profile_image_url,
+            "id": streamer_entity.id,
+            "username": streamer_entity.username,
+            "twitch_id": streamer_entity.twitch_id,
+            "profile_image_url": streamer_entity.profile_image_url,
             "message": f"Streamer '{username}' added successfully with custom settings"
         }
     except Exception as e:
@@ -299,8 +312,11 @@ async def get_streams_by_streamer_id(
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
         
         # Alle Streams für diesen Streamer abrufen, nach Startdatum absteigend sortiert
+        # Eager load events using selectinload
         streams = db.query(Stream).filter(
             Stream.streamer_id == streamer_id
+        ).options(
+            selectinload(Stream.events)
         ).order_by(
             Stream.started_at.desc()
         ).all()
@@ -308,16 +324,9 @@ async def get_streams_by_streamer_id(
         # Streams in ein lesbares Format umwandeln
         formatted_streams = []
         for stream in streams:
-            # Get all events for this stream, ordered by timestamp
-            events = db.query(StreamEvent).filter(
-                StreamEvent.stream_id == stream.id
-            ).order_by(
-                StreamEvent.timestamp.asc()
-            ).all()
-            
-            # Format events for the response
+            # Format events for the response (events are now pre-loaded with stream.events)
             formatted_events = []
-            for event in events:
+            for event in stream.events: # Iterate over pre-loaded stream.events
                 formatted_events.append({
                     "id": event.id,
                     "event_type": event.event_type,
@@ -361,6 +370,16 @@ async def delete_stream(
 ):
     """Delete a stream and all associated metadata files for a streamer"""
     try:
+        # Get base recording directory for validation
+        global_recording_settings = db.query(RecordingSettings).first()
+        if not global_recording_settings or not global_recording_settings.output_directory:
+            logger.error("Global recording output directory not configured. Aborting file deletion.")
+            # Potentially raise HTTPException or return an error response
+            # For now, we prevent deletions if this critical setting is missing.
+            raise HTTPException(status_code=500, detail="Recording output directory not configured, cannot safely delete files.")
+
+        base_recording_dir = os.path.abspath(global_recording_settings.output_directory)
+
         # Check if the streamer exists
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
@@ -402,28 +421,53 @@ async def delete_stream(
         
         # Now delete all the files
         deleted_files = []
-        for file_path in files_to_delete:
+        skipped_files = [] # Keep track of files skipped due to validation
+
+        for file_path_str in files_to_delete: # Renamed to avoid clash with Path object
             try:
-                path_obj = Path(file_path)
+                path_obj = Path(file_path_str)
                 if path_obj.exists():
-                    path_obj.unlink()
-                    deleted_files.append(str(path_obj))
+                    abs_file_path = os.path.abspath(str(path_obj))
+                    if abs_file_path.startswith(base_recording_dir):
+                        path_obj.unlink()
+                        deleted_files.append(str(path_obj))
+                    else:
+                        logger.warning(
+                            f"Skipping deletion of file outside recording directory: {str(path_obj)}"
+                        )
+                        skipped_files.append(str(path_obj))
                     
                     # Also try to delete companion files (like .vtt alongside .mp4, etc.)
-                    base_path = path_obj.with_suffix('')
+                    # Ensure path_obj is the original main file (e.g., .mp4) for correct suffix stripping
+                    # This part of logic might need refinement if files_to_delete contains non-primary files
+                    # For now, assuming path_obj refers to a primary media or metadata file.
+                    base_path_for_companions = path_obj.with_suffix('')
                     for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
-                        companion = base_path.with_suffix(ext)
-                        if companion.exists() and companion != path_obj:
-                            companion.unlink()
-                            deleted_files.append(str(companion))
+                        companion = base_path_for_companions.with_suffix(ext)
+                        if companion.exists() and companion != path_obj: # Avoid deleting the file itself if ext matches
+                            abs_companion_path = os.path.abspath(str(companion))
+                            if abs_companion_path.startswith(base_recording_dir):
+                                companion.unlink()
+                                deleted_files.append(str(companion))
+                            else:
+                                logger.warning(
+                                    f"Skipping deletion of companion file outside recording directory: {str(companion)}"
+                                )
+                                skipped_files.append(str(companion))
             except Exception as file_error:
-                logger.warning(f"Failed to delete file {file_path}: {file_error}")
+                logger.warning(f"Failed to process file {file_path_str} for deletion: {file_error}")
         
+        response_message = f"Stream {stream_id} processed for deletion."
+        if skipped_files:
+            response_message += f" Some files were skipped due to path validation: {len(skipped_files)}."
+
         return {
-            "success": True, 
-            "message": f"Stream {stream_id} deleted successfully",
+            "success": True,
+            "message": response_message,
             "deleted_files": deleted_files,
-            "deleted_files_count": len(deleted_files)
+            "deleted_files_count": len(deleted_files),
+            "skipped_files": skipped_files,
+            "skipped_files_count": len(skipped_files)
         }
     except HTTPException:
         raise

@@ -25,28 +25,31 @@ class Stream(Base):
     __tablename__ = "streams"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), index=True, nullable=False)
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), index=True, nullable=True)
     twitch_stream_id = Column(String, nullable=True)
     
     @property
     def is_live(self):
         return self.ended_at is None
 
+    events = relationship("StreamEvent", back_populates="stream", order_by="StreamEvent.timestamp.asc()", cascade="all, delete-orphan")
+
 class StreamEvent(Base):
     __tablename__ = "stream_events"
 
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
     event_type = Column(String, nullable=False)
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    stream = relationship("Stream", back_populates="events")
     
 class User(Base):
     __tablename__ = "users"
@@ -70,7 +73,7 @@ class NotificationSettings(Base):
     __tablename__ = "notification_settings"
     
     id = Column(Integer, primary_key=True, index=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), index=True, nullable=False)
     notify_online = Column(Boolean, default=True)
     notify_offline = Column(Boolean, default=True)
     notify_update = Column(Boolean, default=True)
@@ -129,7 +132,7 @@ class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
     
     id = Column(Integer, primary_key=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), index=True, nullable=False)
     enabled = Column(Boolean, default=True)
     quality = Column(String, default="best")
     custom_filename = Column(String, nullable=True)
@@ -144,7 +147,7 @@ class StreamMetadata(Base):
     __tablename__ = "stream_metadata"
     
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
     
     # Thumbnails
     thumbnail_path = Column(String)

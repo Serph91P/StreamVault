@@ -408,6 +408,20 @@ class RecordingService:
                     output_path = os.path.join(
                         global_settings.output_directory, filename
                     )
+
+                    # Validate output_path
+                    abs_output_path = os.path.abspath(output_path)
+                    abs_output_directory = os.path.abspath(global_settings.output_directory)
+                    if not abs_output_path.startswith(abs_output_directory):
+                        logger.error(
+                            f"Invalid output_path: {output_path}. "
+                            f"Path must be within {global_settings.output_directory}."
+                        )
+                        raise RecordingError(
+                            f"Invalid output_path: {output_path}. "
+                            f"Path must be within {global_settings.output_directory}."
+                        )
+
                     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
                     # Start streamlink process using subprocess manager
