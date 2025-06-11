@@ -1047,6 +1047,27 @@ class RecordingService:
             if not mp4_path:
                 return
 
+            # Update Stream.recording_path
+            if stream_id and mp4_path:
+                db_session: Optional[Session] = None
+                try:
+                    logger.debug(f"Attempting to update recording_path for stream_id: {stream_id} with path: {mp4_path}")
+                    db_session = SessionLocal()
+                    stream_to_update = db_session.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream_to_update:
+                        stream_to_update.recording_path = mp4_path
+                        db_session.commit()
+                        logger.info(f"Successfully updated stream {stream_id} with recording_path: {mp4_path}")
+                    else:
+                        logger.warning(f"Stream with id {stream_id} not found for recording_path update.")
+                except Exception as e:
+                    if db_session:
+                        db_session.rollback()
+                    logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
+                finally:
+                    if db_session:
+                        db_session.close()
+
             # Ensure stream is properly marked as ended
             await self._ensure_stream_ended(stream_id, force_started)
 
