@@ -10,6 +10,7 @@ import copy
 import uuid
 import time
 import functools
+import aiohttp
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Tuple, Callable
@@ -29,9 +30,62 @@ from app.models import (
 )
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
+from app.services.logging_service import logging_service
 from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
+
+# Spezieller Logger für Recording-Aktivitäten
+recording_logger = logging.getLogger("streamvault.recording")
+
+class RecordingActivityLogger:
+    """Detailliertes Logging für alle Recording-Aktivitäten"""
+    
+    def __init__(self):
+        self.session_id = str(uuid.uuid4())[:8]
+    
+    def log_recording_start(self, streamer_id: int, streamer_name: str, quality: str, output_path: str):
+        """Log the start of a recording session"""
+        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
+        recording_logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
+    
+    def log_recording_stop(self, streamer_id: int, streamer_name: str, reason: str = "manual"):
+        """Log the stop of a recording session"""
+        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Reason: {reason}")
+    
+    def log_recording_error(self, streamer_id: int, streamer_name: str, error: str):
+        """Log recording errors"""
+        recording_logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
+    
+    def log_process_monitoring(self, streamer_name: str, action: str, details: str = ""):
+        """Log process monitoring activities"""
+        recording_logger.debug(f"[SESSION:{self.session_id}] PROCESS_MONITOR - {streamer_name}: {action} {details}")
+    
+    def log_file_operation(self, operation: str, file_path: str, success: bool, details: str = ""):
+        """Log file operations (remux, conversion, etc.)"""
+        status = "SUCCESS" if success else "FAILED"
+        recording_logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
+    
+    def log_stream_detection(self, streamer_name: str, is_live: bool, stream_info: Optional[dict] = None):
+        """Log stream detection and status"""
+        status = "LIVE" if is_live else "OFFLINE"
+        recording_logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
+        if stream_info:
+            recording_logger.debug(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}")
+    
+    def log_configuration_change(self, setting: str, old_value: Any, new_value: Any, streamer_id: Optional[int] = None):
+        """Log configuration changes"""
+        target = f"Global" if streamer_id is None else f"Streamer {streamer_id}"
+        recording_logger.info(f"[SESSION:{self.session_id}] CONFIG_CHANGE - {target}: {setting} changed from {old_value} to {new_value}")
+    
+    def log_metadata_operation(self, streamer_name: str, operation: str, success: bool, details: str = ""):
+        """Log metadata operations"""
+        status = "SUCCESS" if success else "FAILED"
+        recording_logger.info(f"[SESSION:{self.session_id}] METADATA - {streamer_name}: {operation} - {status} {details}")
+    
+    def log_cleanup_operation(self, streamer_name: str, files_deleted: int, space_freed: int, details: str = ""):
+        """Log cleanup operations"""
+        recording_logger.info(f"[SESSION:{self.session_id}] CLEANUP - {streamer_name}: Deleted {files_deleted} files, freed {space_freed} MB {details}")
 
 
 # Define performance monitoring decorators
@@ -320,6 +374,12 @@ class RecordingService:
     ):
         # Only initialize once and allow dependency injection
         if not hasattr(self, "initialized"):
+            self.active_recordings: Dict[int, Dict[str, Any]] = {}
+            self.lock = asyncio.Lock()
+            self.metadata_service = metadata_service or MetadataService()
+            self.config_manager = config_manager or ConfigManager()
+            self.subprocess_manager = subprocess_manager or SubprocessManager()
+            self.activity_logger = RecordingActivityLogger()
             self.initialized = True
             # Dependencies are now injected in __new__
 
@@ -361,8 +421,13 @@ class RecordingService:
         async with self.lock:
             # Convert streamer_id to integer for consistency
             streamer_id = int(streamer_id)
+            
+            # Log recording attempt
+            recording_logger.info(f"RECORDING_ATTEMPT - Streamer ID: {streamer_id}")
+            recording_logger.debug(f"RECORDING_ATTEMPT - Stream data: {json.dumps(stream_data, indent=2)}")
 
             if streamer_id in self.active_recordings:
+                recording_logger.warning(f"RECORDING_ALREADY_ACTIVE - Streamer ID: {streamer_id}")
                 logger.debug(f"Recording already active for streamer {streamer_id}")
                 raise RecordingAlreadyActiveError(
                     f"Recording already active for streamer {streamer_id}"
@@ -384,13 +449,18 @@ class RecordingService:
                         logger.debug(
                             f"Recording disabled for streamer {streamer.username}"
                         )
+                        logging_service.log_recording_activity("RECORDING_DISABLED", streamer.username, f"Recording disabled in configuration")
                         return False
+
+                    # Log stream detection
+                    logging_service.log_stream_detection(streamer.username, True, stream_data)
 
                     # Clean up old recordings for this streamer before starting a new one
                     from app.services.cleanup_service import CleanupService
                     deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id, db)
                     if deleted_count > 0:
                         logger.info(f"Cleaned up {deleted_count} old recordings for streamer {streamer.username}")
+                        logging_service.log_file_operation("CLEANUP", f"{deleted_count} files", True, f"Freed space before recording start")
 
                     # Get quality setting from config manager
                     quality = self.config_manager.get_quality_setting(streamer_id)
@@ -405,10 +475,14 @@ class RecordingService:
 
                     # Get output directory from global settings
                     global_settings = self.config_manager.get_global_settings()
+                    output_directory = global_settings.output_directory if global_settings else "/recordings"
                     output_path = os.path.join(
-                        global_settings.output_directory, filename
+                        output_directory, filename
                     )
                     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+                    # Log recording start attempt
+                    logging_service.log_recording_start(streamer_id, streamer.username, quality, output_path)
 
                     # Start streamlink process using subprocess manager
                     process = await self._start_streamlink(
@@ -512,12 +586,28 @@ class RecordingService:
         async with self.lock:
             if streamer_id not in self.active_recordings:
                 logger.debug(f"No active recording for streamer {streamer_id}")
+                logging_service.log_recording_activity("STOP_ATTEMPT_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning")
                 return False
 
             try:
                 recording_info = self.active_recordings.pop(streamer_id)
                 process_id = recording_info.get(
                     "process_id", f"streamlink_{streamer_id}"
+                )
+                
+                # Calculate recording duration
+                start_time = recording_info.get("started_at")
+                duration = 0
+                if start_time and isinstance(start_time, datetime):
+                    duration = (datetime.now() - start_time).total_seconds()
+
+                # Log recording stop
+                logging_service.log_recording_stop(
+                    streamer_id, 
+                    recording_info['streamer_name'], 
+                    duration, 
+                    recording_info.get('output_path', 'Unknown'),
+                    "manual"
                 )
 
                 # Use subprocess manager to terminate the process
@@ -790,7 +880,7 @@ class RecordingService:
         }
 
     async def force_start_recording_offline(
-        self, streamer_id: int, stream_data: dict = None
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
         Start a recording for a stream, even if the online event wasn't detected.
@@ -861,15 +951,38 @@ class RecordingService:
             # Import here to avoid circular dependencies
             from app.services.streamer_service import StreamerService
 
-            # Create streamer service for API query
-            streamer_service = StreamerService(
-                db=db,
-                websocket_manager=None,  # Not needed for this specific call
-                event_registry=None,  # Not needed for this specific call
-            )
-
-            # Query Twitch API for stream info using the new method
-            stream_info = await streamer_service.get_stream_info(streamer.twitch_id)
+            # Query Twitch API for stream info using the API directly
+            # Since we don't need websocket/event functionality, make API call directly
+            from app.config.settings import settings
+            import aiohttp
+            
+            # Get access token for API call
+            async with aiohttp.ClientSession() as session:
+                # First get access token
+                async with session.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    params={
+                        "client_id": settings.TWITCH_APP_ID,
+                        "client_secret": settings.TWITCH_APP_SECRET,
+                        "grant_type": "client_credentials"
+                    }
+                ) as token_response:
+                    if token_response.status == 200:
+                        token_data = await token_response.json()
+                        access_token = token_data["access_token"]
+                        
+                        # Get stream info
+                        async with session.get(
+                            "https://api.twitch.tv/helix/streams",
+                            params={"user_id": streamer.twitch_id},
+                            headers={
+                                "Client-ID": settings.TWITCH_APP_ID,
+                                "Authorization": f"Bearer {access_token}"
+                            }
+                        ) as stream_response:
+                            if stream_response.status == 200:
+                                stream_data = await stream_response.json()
+                                stream_info = stream_data["data"][0] if stream_data["data"] else None
 
             if stream_info:
                 logger.info(f"Confirmed {streamer.username} is live via Twitch API")
@@ -1047,6 +1160,28 @@ class RecordingService:
             if not mp4_path:
                 return
 
+            # Update Stream.recording_path
+            if stream_id and mp4_path:
+                db_session: Optional[Session] = None
+                try:
+                    logger.debug(f"Attempting to update recording_path for stream_id: {stream_id} with path: {mp4_path}")
+                    db_session = SessionLocal()
+                    if db_session:
+                        stream_to_update = db_session.query(Stream).filter(Stream.id == stream_id).first()
+                        if stream_to_update:
+                            stream_to_update.recording_path = mp4_path
+                            db_session.commit()
+                            logger.info(f"Successfully updated stream {stream_id} with recording_path: {mp4_path}")
+                        else:
+                            logger.warning(f"Stream with id {stream_id} not found for recording_path update.")
+                except Exception as e:
+                    if db_session:
+                        db_session.rollback()
+                    logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
+                finally:
+                    if db_session:
+                        db_session.close()
+
             # Ensure stream is properly marked as ended
             await self._ensure_stream_ended(stream_id, force_started)
 
@@ -1209,7 +1344,10 @@ class RecordingService:
                 # Use a more specific quality selection string to prioritize highest resolution
                 adjusted_quality = "1080p60,1080p,best"
 
-            # Streamlink command with optimized settings based on current documentation
+            # Get streamlink log path for this recording session
+            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)
+
+            # Streamlink command with optimized settings and enhanced logging
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
@@ -1236,7 +1374,15 @@ class RecordingService:
                 "10",
                 "--hls-segment-stream-data",
                 "--force",
+                # Enhanced logging parameters
+                "--loglevel", "debug",
+                "--logfile", streamlink_log_path,
+                "--logformat", "[{asctime}][{name}][{levelname}] {message}",
+                "--logdateformat", "%Y-%m-%d %H:%M:%S",
             ]
+
+            # Log the command start
+            logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
 
@@ -1267,17 +1413,28 @@ class RecordingService:
     ) -> None:
         """Monitor recording process and convert TS to MP4 when finished"""
         try:
+            logging_service.log_recording_activity("PROCESS_MONITORING", streamer_name, "Starting to monitor streamlink process", "debug")
+            
             stdout, stderr = await process.communicate()
-            exit_code = process.returncode
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_streamlink_output(streamer_name, stdout, stderr, exit_code)
 
             if exit_code == 0 or exit_code == 130:  # 130 is SIGINT (user interruption)
+                reason = "completed" if exit_code == 0 else "user_interrupted"
+                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} ({reason})")
+                
                 logger.info(
                     f"Streamlink finished for {streamer_name}, converting TS to MP4"
                 )
                 # Only remux if TS file exists and has content
                 if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
-                    await self._remux_to_mp4(ts_path, mp4_path)
+                    file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
+                    logging_service.log_file_operation("REMUX_START", ts_path, True, f"Starting conversion to MP4", file_size_mb)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
                 else:
+                    logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
                     logger.warning(f"No valid TS file found at {ts_path} for remuxing")
             else:
                 stderr_text = (
@@ -1285,6 +1442,7 @@ class RecordingService:
                     if stderr
                     else "No error output"
                 )
+                logging_service.log_recording_error(0, streamer_name, "STREAMLINK_FAILED", f"Exit code {exit_code}: {stderr_text}")
                 logger.error(
                     f"Streamlink process for {streamer_name} exited with code {exit_code}: {stderr_text}"
                 )
@@ -1292,15 +1450,111 @@ class RecordingService:
                 if (
                     os.path.exists(ts_path) and os.path.getsize(ts_path) > 1000000
                 ):  # At least 1MB
+                    logging_service.log_recording_activity("PARTIAL_RECOVERY", streamer_name, "Attempting to recover partial recording")
                     logger.info(
                         f"Attempting to remux partial recording for {streamer_name}"
                     )
-                    await self._remux_to_mp4(ts_path, mp4_path)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
 
             # Remove the process from subprocess manager
             await self.subprocess_manager.terminate_process(process_id)
         except Exception as e:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
+
+    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
+        """Remux TS file to MP4 with enhanced logging"""
+        try:
+            # Enhanced remux settings with guaranteed working audio handling
+            cmd = [
+                "ffmpeg",
+                "-fflags",
+                "+genpts",  # Generate presentation timestamps
+                "-i",
+                ts_path,
+                "-c:v",
+                "copy",  # Copy video stream
+                "-c:a",
+                "aac",  # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
+                "-b:a",
+                "160k",  # Definierter Bitrate für Audio
+                "-map",
+                "0:v:0",  # Nur den ersten Video-Stream verwenden
+                "-map",
+                "0:a:0?",  # Ersten Audio-Stream (optional)
+                "-ignore_unknown",
+                "-movflags",
+                "+faststart",
+                "-metadata",
+                "encoded_by=StreamVault",
+                "-metadata",
+                "encoding_tool=StreamVault",
+                "-y",
+                mp4_path,
+            ]
+
+            # Get FFmpeg log path for this operation
+            ffmpeg_log_path = logging_service.get_ffmpeg_log_path("remux", streamer_name)
+            
+            # Add logging to FFmpeg command
+            cmd.extend([
+                "-report",
+                "-v", "verbose",
+                "-stats"
+            ])
+            
+            # Set environment variable for FFmpeg report
+            env = os.environ.copy()
+            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
+
+            # Log the command start
+            logging_service.log_ffmpeg_start("remux", cmd, streamer_name)
+
+            logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
+
+            # Use subprocess manager for the remux process
+            process_id = f"ffmpeg_remux_{streamer_name}_{int(datetime.now().timestamp())}"
+            
+            # Start process with custom environment
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
+
+            stdout, stderr = await process.communicate()
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
+
+            if exit_code == 0:
+                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+
+                # Verify that the MP4 file was correctly created
+                if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                    # Check if the moov atom is present
+                    is_valid = await self._validate_mp4(mp4_path)
+
+                    if is_valid:
+                        # Delete TS file after successful conversion to save space
+                        if os.path.exists(ts_path):
+                            os.remove(ts_path)
+                        return True
+                    else:
+                        logger.warning(f"MP4 validation failed, attempting repair")
+                        return await self._repair_mp4(ts_path, mp4_path)
+                else:
+                    logger.error(f"MP4 file was not created or is empty: {mp4_path}")
+                    return False
+            else:
+                logger.error(f"FFmpeg remux failed with exit code {exit_code}")
+                # Try with fallback method if the first attempt failed
+                return await self._remux_to_mp4_fallback(ts_path, mp4_path)
+                
+        except Exception as e:
+            logger.error(f"Error during remux: {e}", exc_info=True)
+            return False
 
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
@@ -1339,9 +1593,17 @@ class RecordingService:
             process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
 
-            stdout, stderr = await process.communicate()
+            if not process:
+                logger.error(f"Failed to start FFmpeg remux process")
+                return False
 
-            if process.returncode == 0:
+            stdout, stderr = await process.communicate()
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
+
+            if exit_code == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
 
                 # Verify that the MP4 file was correctly created

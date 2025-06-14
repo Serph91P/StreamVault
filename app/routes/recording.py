@@ -4,6 +4,7 @@ from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording_service import RecordingService
+from app.services.logging_service import logging_service
 from sqlalchemy.orm import Session, joinedload
 import logging
 import json
@@ -219,12 +220,18 @@ async def get_active_recordings():
 async def stop_recording(streamer_id: int):
     """Manually stop an active recording"""
     try:
+        # Log the stop request
+        logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
+        
         result = await recording_service.stop_recording(streamer_id)
         if result:
+            logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
             return {"status": "success", "message": "Recording stopped successfully"}
         else:
+            logging_service.log_recording_activity("STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning")
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
+        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "API_STOP_ERROR", str(e))
         logger.error(f"Error stopping recording: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -250,13 +257,28 @@ async def update_streamer_recording_settings(
             db.add(streamer_settings)
         
         # Update settings
+        old_enabled = streamer_settings.enabled if streamer_settings else False
+        
         streamer_settings.enabled = settings.enabled
         if settings.quality is not None:
+            old_quality = streamer_settings.quality
             streamer_settings.quality = settings.quality
+            if old_quality != settings.quality:
+                logging_service.log_configuration_change("quality", str(old_quality), str(settings.quality), streamer_id)
         if settings.custom_filename is not None:
+            old_filename = streamer_settings.custom_filename
             streamer_settings.custom_filename = settings.custom_filename
+            if old_filename != settings.custom_filename:
+                logging_service.log_configuration_change("custom_filename", str(old_filename), str(settings.custom_filename), streamer_id)
         if settings.max_streams is not None:
+            old_max_streams = streamer_settings.max_streams
             streamer_settings.max_streams = settings.max_streams
+            if old_max_streams != settings.max_streams:
+                logging_service.log_configuration_change("max_streams", str(old_max_streams), str(settings.max_streams), streamer_id)
+        
+        # Log the enabled/disabled change
+        if old_enabled != settings.enabled:
+            logging_service.log_configuration_change("recording_enabled", str(old_enabled), str(settings.enabled), streamer_id)
         
         # Update cleanup policy if provided
         if settings.cleanup_policy is not None:
@@ -295,12 +317,18 @@ async def update_streamer_recording_settings(
 async def force_start_recording(streamer_id: int):
     """Manuell eine Aufnahme für einen aktiven Stream starten"""
     try:
+        # Log force start attempt
+        logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
+        
         result = await recording_service.force_start_recording(streamer_id)
         if result:
+            logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
             return {"status": "success", "message": "Recording started successfully"}
         else:
+            logging_service.log_recording_activity("FORCE_START_FAILED", f"Streamer {streamer_id}", "Streamer might not be live", "warning")
             raise HTTPException(status_code=400, detail="Failed to start recording. Streamer might not be live.")
     except Exception as e:
+        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "FORCE_START_ERROR", str(e))
         logger.error(f"Error force starting recording: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -308,12 +336,18 @@ async def force_start_recording(streamer_id: int):
 async def force_start_offline_recording(streamer_id: int):
     """Manuell eine Aufnahme für einen Stream starten, auch wenn das online Event nicht erkannt wurde"""
     try:
+        # Log offline force start attempt
+        logging_service.log_recording_activity("FORCE_OFFLINE_START_REQUEST", f"Streamer {streamer_id}", "Manual offline force start requested via API")
+        
         result = await recording_service.force_start_recording_offline(streamer_id)
         if result:
+            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording started successfully")
             return {"status": "success", "message": "Recording started successfully"}
         else:
+            logging_service.log_recording_activity("FORCE_OFFLINE_START_FAILED", f"Streamer {streamer_id}", "Failed to start offline recording", "warning")
             raise HTTPException(status_code=400, detail="Failed to start recording. Check logs for details.")
     except Exception as e:
+        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "FORCE_OFFLINE_START_ERROR", str(e))
         logger.error(f"Error force starting offline recording: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -321,8 +355,17 @@ async def force_start_offline_recording(streamer_id: int):
 async def cleanup_old_recordings(streamer_id: int):
     """Manually clean up old recordings for a streamer"""
     try:
+        # Log cleanup request
+        logging_service.log_recording_activity("CLEANUP_REQUEST", f"Streamer {streamer_id}", "Manual cleanup requested via API")
+        
         from app.services.cleanup_service import CleanupService
         deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
+        
+        # Log cleanup results
+        if deleted_count > 0:
+            logging_service.log_file_operation("CLEANUP", f"{deleted_count} files", True, f"Deleted {deleted_count} old recordings")
+        else:
+            logging_service.log_recording_activity("CLEANUP_NO_FILES", f"Streamer {streamer_id}", "No files found to clean up")
         
         return {
             "status": "success", 
@@ -331,6 +374,7 @@ async def cleanup_old_recordings(streamer_id: int):
             "deleted_paths": deleted_paths
         }
     except Exception as e:
+        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "CLEANUP_ERROR", str(e))
         logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 

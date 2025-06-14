@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && pip install --no-cache-dir -r requirements.txt \
-    && pip install streamlink==7.2.0 \
+    && pip install streamlink==7.4.0 \
     && apt-get remove -y gcc python3-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
@@ -54,9 +54,13 @@ COPY migrations/ ./migrations/
 # Create directories with correct permissions
 RUN mkdir -p /recordings && \
     mkdir -p /app/migrations && \
+    mkdir -p /app/logs/streamlink && \
+    mkdir -p /app/logs/ffmpeg && \
+    mkdir -p /app/logs/app && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
-    chmod -R 775 /app/migrations
+    chmod -R 775 /app/migrations && \
+    chmod -R 775 /app/logs
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh

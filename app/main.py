@@ -7,6 +7,7 @@ from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
 from app.routes import recording as recording_router
+from app.routes import logging as logging_router
 import logging
 import hmac
 import hashlib
@@ -188,6 +189,7 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
+app.include_router(logging_router.router)
 app.include_router(categories.router)
 
 # Static files for assets
