@@ -29,6 +29,7 @@ from app.models import (
 )
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
+from app.services.logging_service import logging_service
 from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
@@ -320,6 +321,11 @@ class RecordingService:
     ):
         # Only initialize once and allow dependency injection
         if not hasattr(self, "initialized"):
+            self.active_recordings: Dict[int, Dict[str, Any]] = {}
+            self.lock = asyncio.Lock()
+            self.metadata_service = metadata_service or MetadataService()
+            self.config_manager = config_manager or ConfigManager()
+            self.subprocess_manager = subprocess_manager or SubprocessManager()
             self.initialized = True
             # Dependencies are now injected in __new__
 
@@ -790,7 +796,7 @@ class RecordingService:
         }
 
     async def force_start_recording_offline(
-        self, streamer_id: int, stream_data: dict = None
+        self, streamer_id: int, stream_data: Dict[str, Any] = None
     ) -> bool:
         """
         Start a recording for a stream, even if the online event wasn't detected.
@@ -1230,7 +1236,10 @@ class RecordingService:
                 # Use a more specific quality selection string to prioritize highest resolution
                 adjusted_quality = "1080p60,1080p,best"
 
-            # Streamlink command with optimized settings based on current documentation
+            # Get streamlink log path for this recording session
+            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)
+
+            # Streamlink command with optimized settings and enhanced logging
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
@@ -1257,7 +1266,15 @@ class RecordingService:
                 "10",
                 "--hls-segment-stream-data",
                 "--force",
+                # Enhanced logging parameters
+                "--loglevel", "debug",
+                "--logfile", streamlink_log_path,
+                "--logformat", "[{asctime}][{name}][{levelname}] {message}",
+                "--logdateformat", "%Y-%m-%d %H:%M:%S",
             ]
+
+            # Log the command start
+            logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
 
@@ -1289,7 +1306,10 @@ class RecordingService:
         """Monitor recording process and convert TS to MP4 when finished"""
         try:
             stdout, stderr = await process.communicate()
-            exit_code = process.returncode
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_streamlink_output(streamer_name, stdout, stderr, exit_code)
 
             if exit_code == 0 or exit_code == 130:  # 130 is SIGINT (user interruption)
                 logger.info(
@@ -1297,7 +1317,7 @@ class RecordingService:
                 )
                 # Only remux if TS file exists and has content
                 if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
-                    await self._remux_to_mp4(ts_path, mp4_path)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
                 else:
                     logger.warning(f"No valid TS file found at {ts_path} for remuxing")
             else:
@@ -1316,12 +1336,107 @@ class RecordingService:
                     logger.info(
                         f"Attempting to remux partial recording for {streamer_name}"
                     )
-                    await self._remux_to_mp4(ts_path, mp4_path)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
 
             # Remove the process from subprocess manager
             await self.subprocess_manager.terminate_process(process_id)
         except Exception as e:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
+
+    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
+        """Remux TS file to MP4 with enhanced logging"""
+        try:
+            # Enhanced remux settings with guaranteed working audio handling
+            cmd = [
+                "ffmpeg",
+                "-fflags",
+                "+genpts",  # Generate presentation timestamps
+                "-i",
+                ts_path,
+                "-c:v",
+                "copy",  # Copy video stream
+                "-c:a",
+                "aac",  # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
+                "-b:a",
+                "160k",  # Definierter Bitrate für Audio
+                "-map",
+                "0:v:0",  # Nur den ersten Video-Stream verwenden
+                "-map",
+                "0:a:0?",  # Ersten Audio-Stream (optional)
+                "-ignore_unknown",
+                "-movflags",
+                "+faststart",
+                "-metadata",
+                "encoded_by=StreamVault",
+                "-metadata",
+                "encoding_tool=StreamVault",
+                "-y",
+                mp4_path,
+            ]
+
+            # Get FFmpeg log path for this operation
+            ffmpeg_log_path = logging_service.get_ffmpeg_log_path("remux", streamer_name)
+            
+            # Add logging to FFmpeg command
+            cmd.extend([
+                "-report",
+                "-v", "verbose",
+                "-stats"
+            ])
+            
+            # Set environment variable for FFmpeg report
+            env = os.environ.copy()
+            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
+
+            # Log the command start
+            logging_service.log_ffmpeg_start("remux", cmd, streamer_name)
+
+            logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
+
+            # Use subprocess manager for the remux process
+            process_id = f"ffmpeg_remux_{streamer_name}_{int(datetime.now().timestamp())}"
+            
+            # Start process with custom environment
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
+
+            stdout, stderr = await process.communicate()
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
+
+            if exit_code == 0:
+                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+
+                # Verify that the MP4 file was correctly created
+                if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                    # Check if the moov atom is present
+                    is_valid = await self._validate_mp4(mp4_path)
+
+                    if is_valid:
+                        # Delete TS file after successful conversion to save space
+                        if os.path.exists(ts_path):
+                            os.remove(ts_path)
+                        return True
+                    else:
+                        logger.warning(f"MP4 validation failed, attempting repair")
+                        return await self._repair_mp4(ts_path, mp4_path)
+                else:
+                    logger.error(f"MP4 file was not created or is empty: {mp4_path}")
+                    return False
+            else:
+                logger.error(f"FFmpeg remux failed with exit code {exit_code}")
+                # Try with fallback method if the first attempt failed
+                return await self._remux_to_mp4_fallback(ts_path, mp4_path)
+                
+        except Exception as e:
+            logger.error(f"Error during remux: {e}", exc_info=True)
+            return False
 
     async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
@@ -1360,9 +1475,17 @@ class RecordingService:
             process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
 
-            stdout, stderr = await process.communicate()
+            if not process:
+                logger.error(f"Failed to start FFmpeg remux process")
+                return False
 
-            if process.returncode == 0:
+            stdout, stderr = await process.communicate()
+            exit_code = process.returncode or 0
+
+            # Log the process output
+            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
+
+            if exit_code == 0:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
 
                 # Verify that the MP4 file was correctly created
