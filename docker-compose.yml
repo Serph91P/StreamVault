@@ -6,6 +6,7 @@ services:
     volumes:
       - app_data:/app/data
       - ./recordings:/recordings
+      - ./logs:/app/logs
     ports:
       - "7000:7000"    
     environment:
