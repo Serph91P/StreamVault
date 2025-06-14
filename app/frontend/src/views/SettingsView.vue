@@ -62,6 +62,11 @@
           <div v-if="activeTab === 'favorites'" class="tab-pane" role="tabpanel">
             <FavoritesSettingsPanel />
           </div>
+          
+          <!-- Logging Tab -->
+          <!-- <div v-if="activeTab === 'logging'" class="tab-pane" role="tabpanel">
+            <LoggingPanel />
+          </div> -->
         </div>
       </div>
     </div>
@@ -75,6 +80,7 @@ import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
+// import LoggingPanel from '@/components/settings/LoggingPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings, StreamerRecordingSettings, ActiveRecording } from '@/types/recording'
 
@@ -82,7 +88,8 @@ import type { RecordingSettings, StreamerRecordingSettings, ActiveRecording } fr
 const availableTabs = computed(() => [
   { id: 'notifications', label: 'Notifications' },
   { id: 'recording', label: 'Recording' },
-  { id: 'favorites', label: 'Favorite Games' }
+  { id: 'favorites', label: 'Favorite Games' },
+  // { id: 'logging', label: 'Logging & Monitoring' }
 ])
 
 const { 
