@@ -31,14 +31,15 @@ async def get_settings():
         if not settings:
             settings = GlobalSettings()
             db.add(settings)
-            db.commit()
-        return GlobalSettingsSchema(
+            db.commit()        return GlobalSettingsSchema(
             notification_url=settings.notification_url,
             notifications_enabled=settings.notifications_enabled,
             notify_online_global=settings.notify_online_global,
             notify_offline_global=settings.notify_offline_global,
             notify_update_global=settings.notify_update_global,
             notify_favorite_category_global=settings.notify_favorite_category_global,
+            http_proxy=settings.http_proxy,
+            https_proxy=settings.https_proxy,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
@@ -243,13 +244,14 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             if not settings:
                 settings = GlobalSettings()
                 db.add(settings)
-            
-            settings.notification_url = settings_data.notification_url or ""
+              settings.notification_url = settings_data.notification_url or ""
             settings.notifications_enabled = settings_data.notifications_enabled
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
             settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
+            settings.http_proxy = settings_data.http_proxy or ""
+            settings.https_proxy = settings_data.https_proxy or ""
             
             db.commit()
             
