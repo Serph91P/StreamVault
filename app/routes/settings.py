@@ -240,12 +240,12 @@ async def update_settings(settings_data: GlobalSettingsSchema):
         with SessionLocal() as db:
             if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
                 raise HTTPException(status_code=400, detail="Invalid notification URL format")
-            
-            settings = db.query(GlobalSettings).first()
+              settings = db.query(GlobalSettings).first()
             if not settings:
                 settings = GlobalSettings()
                 db.add(settings)
-              settings.notification_url = settings_data.notification_url or ""
+            
+            settings.notification_url = settings_data.notification_url or ""
             settings.notifications_enabled = settings_data.notifications_enabled
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
