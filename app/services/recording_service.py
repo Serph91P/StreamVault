@@ -1345,9 +1345,7 @@ class RecordingService:
                 adjusted_quality = "1080p60,1080p,best"
 
             # Get streamlink log path for this recording session
-            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)
-
-            # Streamlink command with optimized settings and enhanced logging
+            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)            # Streamlink command with optimized settings and enhanced logging
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
@@ -1380,6 +1378,18 @@ class RecordingService:
                 "--logformat", "[{asctime}][{name}][{levelname}] {message}",
                 "--logdateformat", "%Y-%m-%d %H:%M:%S",
             ]
+
+            # Add proxy settings if configured
+            from app.models import GlobalSettings
+            with SessionLocal() as proxy_db:
+                global_settings = proxy_db.query(GlobalSettings).first()
+                if global_settings:
+                    if global_settings.http_proxy and global_settings.http_proxy.strip():
+                        cmd.extend(["--http-proxy", global_settings.http_proxy.strip()])
+                        logger.debug(f"Using HTTP proxy: {global_settings.http_proxy.strip()}")
+                    if global_settings.https_proxy and global_settings.https_proxy.strip():
+                        cmd.extend(["--https-proxy", global_settings.https_proxy.strip()])
+                        logger.debug(f"Using HTTPS proxy: {global_settings.https_proxy.strip()}")
 
             # Log the command start
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)

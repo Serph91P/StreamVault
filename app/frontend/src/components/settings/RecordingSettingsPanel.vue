@@ -11,7 +11,7 @@
     </div>
     
     <!-- Global Settings -->
-    <div v-else class="settings-form">
+    <div v-else class="settings-form">      
       <!-- Basic Recording Settings Section -->
       <div class="settings-section">
         <h4 class="section-title">Basic Recording Settings</h4>
@@ -91,6 +91,82 @@
           </label>
           <div class="help-text">
             When enabled, chapter titles will use the game/category name instead of the stream title.
+          </div>
+        </div>
+      </div>
+
+      <!-- Network & Proxy Settings Section -->
+      <div class="settings-section">
+        <h4 class="section-title">🌐 Network & Proxy Settings</h4>
+        <p class="section-description">
+          Configure proxy settings for Streamlink to route traffic through different locations. 
+          This can help reduce ads if using a proxy in a region with fewer advertisements.
+        </p>
+        
+        <div class="form-group">
+          <label>
+            <input type="checkbox" v-model="proxySettings.enabled" />
+            Enable Proxy for Streamlink
+          </label>
+          <div class="help-text">
+            When enabled, Streamlink will use the configured proxy servers for all connections.
+          </div>
+        </div>
+
+        <div v-if="proxySettings.enabled" class="proxy-configuration">
+          <div class="form-group">
+            <label>HTTP Proxy:</label>
+            <input v-model="proxySettings.http_proxy" 
+                   placeholder="http://proxy.example.com:8080" 
+                   class="form-control" />
+            <div class="help-text">
+              HTTP proxy server for non-encrypted connections.
+              <br><strong>Format:</strong> <code>http://[username:password@]host:port</code>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>HTTPS Proxy:</label>
+            <input v-model="proxySettings.https_proxy" 
+                   placeholder="https://proxy.example.com:8080" 
+                   class="form-control" />
+            <div class="help-text">
+              HTTPS proxy server for encrypted connections (recommended for Twitch).
+              <br><strong>Format:</strong> <code>https://[username:password@]host:port</code>
+            </div>
+          </div>
+
+          <div class="proxy-examples">
+            <h5>📋 Proxy URL Examples:</h5>
+            <div class="example-list">
+              <div class="example-item">
+                <code>http://proxy.example.com:8080</code>
+                <span>Simple proxy without authentication</span>
+              </div>
+              <div class="example-item">
+                <code>http://username:password@proxy.example.com:8080</code>
+                <span>Proxy with username/password authentication</span>
+              </div>
+              <div class="example-item">
+                <code>https://secure-proxy.example.com:3128</code>
+                <span>Secure HTTPS proxy</span>
+              </div>
+              <div class="example-item">
+                <code>socks5://127.0.0.1:1080</code>
+                <span>SOCKS5 proxy (if supported by Streamlink)</span>
+              </div>
+            </div>
+            
+            <div class="proxy-tips">
+              <h6>💡 Tips:</h6>
+              <ul>
+                <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
+                <li>Test your proxy configuration before enabling recording</li>
+                <li>Some regions have fewer or no Twitch advertisements</li>
+                <li>Ensure your proxy provider allows video streaming traffic</li>
+                <li>Leave fields empty to disable proxy for that protocol</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -247,10 +323,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+import type { GlobalSettings } from '@/types/settings';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 
 const props = defineProps<{
@@ -270,6 +347,69 @@ const { isLoading, error } = useRecordingSettings();
 // State for streamer cleanup policy dialog
 const showStreamerPolicyDialog = ref(false);
 const selectedStreamer = ref<StreamerRecordingSettings | null>(null);
+
+// Proxy settings state
+const proxySettings = ref({
+  enabled: false,
+  http_proxy: '',
+  https_proxy: ''
+});
+
+// Load proxy settings from GlobalSettings API
+const loadProxySettings = async () => {
+  try {
+    const response = await fetch('/api/settings');
+    if (response.ok) {
+      const globalSettings: GlobalSettings = await response.json();
+      proxySettings.value = {
+        enabled: !!(globalSettings.http_proxy || globalSettings.https_proxy),
+        http_proxy: globalSettings.http_proxy || '',
+        https_proxy: globalSettings.https_proxy || ''
+      };
+    }
+  } catch (error) {
+    console.error('Failed to load proxy settings:', error);
+  }
+};
+
+// Save proxy settings to GlobalSettings API
+const saveProxySettings = async () => {
+  try {
+    const response = await fetch('/api/settings');
+    if (!response.ok) throw new Error('Failed to load current settings');
+    
+    const globalSettings: GlobalSettings = await response.json();
+    
+    // Update proxy fields
+    const updatedSettings = {
+      ...globalSettings,
+      http_proxy: proxySettings.value.enabled ? proxySettings.value.http_proxy : '',
+      https_proxy: proxySettings.value.enabled ? proxySettings.value.https_proxy : ''
+    };
+    
+    const saveResponse = await fetch('/api/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedSettings),
+    });
+    
+    if (!saveResponse.ok) {
+      throw new Error('Failed to save proxy settings');
+    }
+    
+    console.log('Proxy settings saved successfully');
+  } catch (error) {
+    console.error('Failed to save proxy settings:', error);
+    alert('Failed to save proxy settings. Please try again.');
+  }
+};
+
+// Load proxy settings on component mount
+onMounted(() => {
+  loadProxySettings();
+});
 
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
@@ -341,6 +481,8 @@ const previewFilename = computed(() => {
 const saveSettings = async () => {
   try {
     isSaving.value = true;
+    
+    // Save recording settings
     emits('update', {
       enabled: data.value.enabled,
       output_directory: data.value.output_directory,
@@ -350,6 +492,10 @@ const saveSettings = async () => {
       use_chapters: data.value.use_chapters,
       use_category_as_chapter_title: data.value.use_category_as_chapter_title
     });
+    
+    // Save proxy settings separately
+    await saveProxySettings();
+    
   } catch (error) {
     console.error('Failed to save settings:', error);
     alert('Failed to save settings. Please try again.');
@@ -984,8 +1130,108 @@ select.form-control-sm option {
 
 .section-description {
   color: var(--text-secondary, #adadb8);
-  margin-bottom: var(--spacing-lg, 1.5rem);
-  line-height: 1.6;
+  margin-bottom: var(--spacing-lg, 1.5rem);  line-height: 1.6;
   font-size: 0.95rem;
+}
+
+/* Proxy settings specific styles */
+.proxy-configuration {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-lg, 1.5rem);
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius, 8px);
+  border-left: 3px solid var(--info-color, #17a2b8);
+}
+
+.proxy-examples {
+  margin-top: var(--spacing-lg, 1.5rem);
+  padding: var(--spacing-md, 1rem);
+  background-color: var(--background-dark, #18181b);
+  border-radius: var(--border-radius, 6px);
+  border: 1px solid var(--border-color, #303034);
+}
+
+.proxy-examples h5 {
+  margin-bottom: var(--spacing-md, 1rem);
+  color: var(--text-primary, #f1f1f3);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.proxy-examples h6 {
+  margin-top: var(--spacing-lg, 1.5rem);
+  margin-bottom: var(--spacing-sm, 0.5rem);
+  color: var(--text-primary, #f1f1f3);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.example-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+.example-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 0.25rem);
+  padding: var(--spacing-sm, 0.5rem);
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--border-radius-sm, 4px);
+}
+
+.example-item code {
+  background-color: var(--background-darker, #1f1f23);
+  color: var(--primary-color, #42b883);
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm, 4px);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color, #303034);
+  display: inline-block;
+  word-break: break-all;
+}
+
+.example-item span {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.proxy-tips {
+  margin-top: var(--spacing-md, 1rem);
+}
+
+.proxy-tips ul {
+  margin: var(--spacing-sm, 0.5rem) 0;
+  padding-left: var(--spacing-lg, 1.5rem);
+}
+
+.proxy-tips li {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: var(--spacing-xs, 0.25rem);
+}
+
+/* Mobile responsiveness for proxy settings */
+@media (max-width: 767px) {
+  .proxy-configuration {
+    padding: var(--spacing-md, 1rem);
+  }
+  
+  .proxy-examples {
+    padding: var(--spacing-sm, 0.75rem);
+  }
+  
+  .example-item {
+    padding: var(--spacing-xs, 0.375rem);
+  }
+  
+  .example-item code {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+  }
 }
 </style>

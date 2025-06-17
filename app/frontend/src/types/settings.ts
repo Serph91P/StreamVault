@@ -34,5 +34,7 @@ export interface GlobalSettings {
   notify_online_global: boolean;
   notify_offline_global: boolean;
   notify_update_global: boolean;
+  http_proxy?: string;
+  https_proxy?: string;
   apprise_docs_url: string;
 }

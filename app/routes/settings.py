@@ -26,7 +26,7 @@ def validate_apprise_url(url: str) -> bool:
 
 @router.get("", response_model=GlobalSettingsSchema)
 async def get_settings():
-    with SessionLocal() as db:
+    with SessionLocal() as db:        
         settings = db.query(GlobalSettings).first()
         if not settings:
             settings = GlobalSettings()
@@ -39,6 +39,8 @@ async def get_settings():
             notify_offline_global=settings.notify_offline_global,
             notify_update_global=settings.notify_update_global,
             notify_favorite_category_global=settings.notify_favorite_category_global,
+            http_proxy=settings.http_proxy,
+            https_proxy=settings.https_proxy,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
         )
 
@@ -234,7 +236,7 @@ async def test_websocket_notification():
 
 @router.post("", response_model=GlobalSettingsSchema)
 async def update_settings(settings_data: GlobalSettingsSchema):
-    try:
+    try:        
         with SessionLocal() as db:
             if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
                 raise HTTPException(status_code=400, detail="Invalid notification URL format")
@@ -250,6 +252,8 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
             settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
+            settings.http_proxy = settings_data.http_proxy or ""
+            settings.https_proxy = settings_data.https_proxy or ""
             
             db.commit()
             
