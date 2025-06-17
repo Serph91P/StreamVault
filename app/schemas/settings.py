@@ -18,6 +18,14 @@ class GlobalSettingsSchema(BaseModel):
     notify_offline_global: bool = True
     notify_update_global: bool = True
     notify_favorite_category_global: bool = True
+    http_proxy: Optional[str] = Field(
+        default="",
+        description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)"
+    )
+    https_proxy: Optional[str] = Field(
+        default="",
+        description="HTTPS proxy URL for Streamlink (e.g., https://proxy.example.com:8080)"
+    )
     apprise_docs_url: str = "https://github.com/caronc/apprise/wiki"
 
     class Config:
