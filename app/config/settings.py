@@ -12,10 +12,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
+    POSTGRES_DB: str    
     EVENTSUB_PORT: int = 8080
     EVENTSUB_SECRET: str = secrets.token_urlsafe(32)
     APPRISE_URLS: List[str] = []
+    
+    # Proxy settings for Streamlink
+    HTTP_PROXY: Optional[str] = None
+    HTTPS_PROXY: Optional[str] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
