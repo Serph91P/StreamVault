@@ -26,12 +26,13 @@ def validate_apprise_url(url: str) -> bool:
 
 @router.get("", response_model=GlobalSettingsSchema)
 async def get_settings():
-    with SessionLocal() as db:
+    with SessionLocal() as db:        
         settings = db.query(GlobalSettings).first()
         if not settings:
             settings = GlobalSettings()
             db.add(settings)
-            db.commit()        return GlobalSettingsSchema(
+            db.commit()
+        return GlobalSettingsSchema(
             notification_url=settings.notification_url,
             notifications_enabled=settings.notifications_enabled,
             notify_online_global=settings.notify_online_global,
