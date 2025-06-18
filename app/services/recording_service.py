@@ -1377,19 +1377,29 @@ class RecordingService:
                 "--logfile", streamlink_log_path,
                 "--logformat", "[{asctime}][{name}][{levelname}] {message}",
                 "--logdateformat", "%Y-%m-%d %H:%M:%S",
-            ]
-
-            # Add proxy settings if configured
+            ]            # Add proxy settings if configured
             from app.models import GlobalSettings
             with SessionLocal() as proxy_db:
                 global_settings = proxy_db.query(GlobalSettings).first()
                 if global_settings:
                     if global_settings.http_proxy and global_settings.http_proxy.strip():
-                        cmd.extend(["--http-proxy", global_settings.http_proxy.strip()])
-                        logger.debug(f"Using HTTP proxy: {global_settings.http_proxy.strip()}")
+                        proxy_url = global_settings.http_proxy.strip()
+                        # Validate that the proxy URL has the correct protocol prefix
+                        if not proxy_url.startswith(('http://', 'https://')):
+                            error_msg = f"HTTP proxy URL must start with 'http://' or 'https://'. Current value: {proxy_url}"
+                            logger.error(f"[RECORDING_ERROR] {streamer_name} - PROXY_VALIDATION_FAILED: {error_msg}")
+                            raise ValueError(error_msg)
+                        cmd.extend(["--http-proxy", proxy_url])
+                        logger.debug(f"Using HTTP proxy: {proxy_url}")
                     if global_settings.https_proxy and global_settings.https_proxy.strip():
-                        cmd.extend(["--https-proxy", global_settings.https_proxy.strip()])
-                        logger.debug(f"Using HTTPS proxy: {global_settings.https_proxy.strip()}")
+                        proxy_url = global_settings.https_proxy.strip()
+                        # Validate that the proxy URL has the correct protocol prefix
+                        if not proxy_url.startswith(('http://', 'https://')):
+                            error_msg = f"HTTPS proxy URL must start with 'http://' or 'https://'. Current value: {proxy_url}"
+                            logger.error(f"[RECORDING_ERROR] {streamer_name} - PROXY_VALIDATION_FAILED: {error_msg}")
+                            raise ValueError(error_msg)
+                        cmd.extend(["--https-proxy", proxy_url])
+                        logger.debug(f"Using HTTPS proxy: {proxy_url}")
 
             # Log the command start
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)

@@ -372,9 +372,32 @@ const loadProxySettings = async () => {
   }
 };
 
+// Validate proxy URL format
+const validateProxyUrl = (url: string): boolean => {
+  if (!url || !url.trim()) {
+    return true; // Empty URLs are valid (no proxy)
+  }
+  
+  const trimmedUrl = url.trim();
+  return trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://');
+};
+
 // Save proxy settings to GlobalSettings API
 const saveProxySettings = async () => {
   try {
+    // Validate proxy URLs before saving
+    if (proxySettings.value.enabled) {
+      if (proxySettings.value.http_proxy && !validateProxyUrl(proxySettings.value.http_proxy)) {
+        alert('HTTP proxy URL must start with "http://" or "https://"');
+        return;
+      }
+      
+      if (proxySettings.value.https_proxy && !validateProxyUrl(proxySettings.value.https_proxy)) {
+        alert('HTTPS proxy URL must start with "http://" or "https://"');
+        return;
+      }
+    }
+    
     const response = await fetch('/api/settings');
     if (!response.ok) throw new Error('Failed to load current settings');
     
