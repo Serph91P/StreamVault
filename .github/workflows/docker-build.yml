@@ -16,6 +16,8 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to create tags
     outputs:
       new_version: ${{ steps.semver.outputs.new_version }}
       release_type: ${{ steps.semver.outputs.release_type }}
@@ -84,14 +86,15 @@ jobs:
           
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
-          # Prüfe ob Tag bereits existiert
+            # Prüfe ob Tag bereits existiert
           if git rev-parse "${NEW_VERSION}" >/dev/null 2>&1; then
             echo "Tag ${NEW_VERSION} already exists!"
             echo "tag_created=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-            git tag -a ${NEW_VERSION} -m "Release ${NEW_VERSION}"
+          
+          # Erstelle und pushe das Tag
+          git tag -a ${NEW_VERSION} -m "Release ${NEW_VERSION}"
           
           if git push origin ${NEW_VERSION}; then
             echo "tag_created=true" >> $GITHUB_OUTPUT
@@ -99,6 +102,7 @@ jobs:
           else
             echo "tag_created=false" >> $GITHUB_OUTPUT
             echo "Failed to push tag ${NEW_VERSION}, check permissions"
+            exit 1
           fi
   
   check_changes:
@@ -226,7 +230,6 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-
   create-release:
     needs: [version, build]
     if: github.ref == 'refs/heads/main' && needs.version.outputs.tag_created == 'true'
@@ -237,6 +240,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
+      - name: Debug Release Conditions
+        run: |
+          echo "GitHub ref: ${{ github.ref }}"
+          echo "Is main branch: ${{ github.ref == 'refs/heads/main' }}"
+          echo "Tag created: ${{ needs.version.outputs.tag_created }}"
+          echo "New version: ${{ needs.version.outputs.new_version }}"
+          echo "Release type: ${{ needs.version.outputs.release_type }}"
       
       - name: Generate Release Notes
         id: generate_notes
@@ -267,8 +278,7 @@ jobs:
           
           if [ ! -z "$FIXES" ]; then
             RELEASE_NOTES="${RELEASE_NOTES}### Fehlerbehebungen\n\n${FIXES}\n\n"
-          fi
-          
+          fi          
           if [ ! -z "$REFACTORS" ]; then
             RELEASE_NOTES="${RELEASE_NOTES}### Code-Verbesserungen\n\n${REFACTORS}\n\n"
           fi
@@ -277,17 +287,18 @@ jobs:
             RELEASE_NOTES="${RELEASE_NOTES}### Sonstige Änderungen\n\n${OTHER}\n\n"
           fi
           
-          # Speichere Release Notes in einer Datei für die GitHub Release Action
-          echo -e "${RELEASE_NOTES}" > release_notes.md
-          echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
+          # Speichere Release Notes für die GitHub Release Action
+          {
+            echo "release_notes<<EOF"
+            echo -e "${RELEASE_NOTES}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
       
       - name: Create GitHub Release
-        uses: elgohr/Github-Release-Action@v5
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          title: Release ${{ needs.version.outputs.new_version }}
-          tag: ${{ needs.version.outputs.new_version }}
+          tag_name: ${{ needs.version.outputs.new_version }}
+          name: Release ${{ needs.version.outputs.new_version }}
           body: |
             ${{ steps.generate_notes.outputs.release_notes }}
             
@@ -296,3 +307,4 @@ jobs:
             Docker Image: `frequency2098/streamvault:${{ needs.version.outputs.new_version }}`
           draft: false
           prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
