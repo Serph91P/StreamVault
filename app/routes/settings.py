@@ -248,7 +248,8 @@ async def test_websocket_notification():
 
 @router.post("", response_model=GlobalSettingsSchema)
 async def update_settings(settings_data: GlobalSettingsSchema):
-    try:          with SessionLocal() as db:
+    try:
+        with SessionLocal() as db:
             if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
                 raise HTTPException(status_code=400, detail="Invalid notification URL format")
             
