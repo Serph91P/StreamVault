@@ -315,7 +315,7 @@ async def update_streamer_recording_settings(
     
 @router.post("/force/{streamer_id}")
 async def force_start_recording(streamer_id: int):
-    """Manuell eine Aufnahme für einen aktiven Stream starten"""
+    """Manually start a recording for an active stream"""
     try:
         # Log force start attempt
         logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
@@ -325,12 +325,22 @@ async def force_start_recording(streamer_id: int):
             logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
             return {"status": "success", "message": "Recording started successfully"}
         else:
-            logging_service.log_recording_activity("FORCE_START_FAILED", f"Streamer {streamer_id}", "Streamer might not be live", "warning")
-            raise HTTPException(status_code=400, detail="Failed to start recording. Streamer might not be live.")
+            # Provide more helpful error message
+            logger.error(f"Failed to force start recording for streamer {streamer_id}. This could be because:")
+            logger.error(f"1. The streamer is actually offline")
+            logger.error(f"2. Streamlink cannot connect to the stream")
+            logger.error(f"3. There are network connectivity issues")
+            logger.error(f"4. The stream URL is not accessible")
+            
+            logging_service.log_recording_activity("FORCE_START_FAILED", f"Streamer {streamer_id}", "Force start failed - streamer may be offline or stream inaccessible", "warning")
+            raise HTTPException(
+                status_code=400, 
+                detail="Failed to start recording. The streamer may be offline, or the stream may not be accessible. Check the logs for more details."
+            )
     except Exception as e:
         logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "FORCE_START_ERROR", str(e))
         logger.error(f"Error force starting recording: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.post("/force-offline/{streamer_id}")
 async def force_start_offline_recording(streamer_id: int):
