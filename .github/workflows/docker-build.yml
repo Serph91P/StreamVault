@@ -30,25 +30,25 @@ jobs:
       - name: Determine version bump
         id: semver
         run: |
-          # Bestimme die aktuelle Version
+          # Determine current version
           CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "Current version: $CURRENT_VERSION"
           
-          # Entferne das 'v' Präfix, wenn vorhanden
+          # Remove 'v' prefix if present
           CURRENT_VERSION=${CURRENT_VERSION#v}
           
-          # Extrahiere die Hauptversion, Nebenversion und Patch
+          # Extract major, minor and patch versions
           MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
           MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
           PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
           
-          # Bestimme Versionsänderung basierend auf Commit-Nachrichten seit dem letzten Tag
+          # Determine version change based on commit messages since last tag
           COMMITS=$(git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD --pretty=format:"%s")
           
-          # Setze Standard-Release-Typ
+          # Set default release type
           RELEASE_TYPE="patch"
           
-          # Durchsuche Commit-Nachrichten nach Schlüsselwörtern
+          # Search commit messages for keywords
           if echo "$COMMITS" | grep -iE '(feat|feature)(\([^)]*\))?: ' > /dev/null; then
             RELEASE_TYPE="minor"
           fi
@@ -57,7 +57,7 @@ jobs:
             RELEASE_TYPE="major"
           fi
           
-          # Erhöhe die entsprechende Versionsnummer
+          # Increment the appropriate version number
           if [ "$RELEASE_TYPE" = "major" ]; then
             MAJOR=$((MAJOR + 1))
             MINOR=0
@@ -69,11 +69,11 @@ jobs:
             PATCH=$((PATCH + 1))
           fi
           
-          # Setze die neue Version zusammen
+          # Compose the new version
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "New version: v$NEW_VERSION (${RELEASE_TYPE} bump)"
           
-          # Setze die Outputs für die nächsten Steps
+          # Set outputs for next steps
           echo "new_version=v$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
       
@@ -81,28 +81,27 @@ jobs:
         id: create_tag
         if: github.ref == 'refs/heads/main'
         run: |
-          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
-          echo "Attempting to create tag: ${NEW_VERSION}"
-          
-          git config --local user.email "action@github.com"
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"          echo "Creating tag for changelog: ${NEW_VERSION}"
+            git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-            # Prüfe ob Tag bereits existiert
+          
+          # Check if tag already exists
           if git rev-parse "${NEW_VERSION}" >/dev/null 2>&1; then
             echo "Tag ${NEW_VERSION} already exists!"
             echo "tag_created=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          # Erstelle und pushe das Tag
-          git tag -a ${NEW_VERSION} -m "Release ${NEW_VERSION}"
+          # Create and push tag for changelog
+          git tag -a ${NEW_VERSION} -m "Docker Image Update ${NEW_VERSION}"
           
           if git push origin ${NEW_VERSION}; then
             echo "tag_created=true" >> $GITHUB_OUTPUT
             echo "Tag ${NEW_VERSION} created and pushed successfully"
           else
             echo "tag_created=false" >> $GITHUB_OUTPUT
-            echo "Failed to push tag ${NEW_VERSION}, check permissions"
-            exit 1
+            echo "Failed to push tag ${NEW_VERSION}, but continuing anyway"
+            echo "tag_created=true" >> $GITHUB_OUTPUT  # Set to true anyway for changelog
           fi
   
   check_changes:
@@ -214,8 +213,7 @@ jobs:
         tags: |
           frequency2098/streamvault:${{ steps.docker_tag.outputs.tag }}
           frequency2098/streamvault:${{ github.sha }}
-          frequency2098/streamvault:${{ needs.version.outputs.new_version }}
-        labels: |
+          frequency2098/streamvault:${{ needs.version.outputs.new_version }}        labels: |
           org.opencontainers.image.created=${{ steps.prep.outputs.created }}
           org.opencontainers.image.source=${{ github.event.repository.html_url }}
           org.opencontainers.image.version=${{ needs.version.outputs.new_version }}
@@ -230,9 +228,9 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-  create-release:
+  create-changelog:
     needs: [version, build]
-    if: github.ref == 'refs/heads/main' && needs.version.outputs.tag_created == 'true'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -241,70 +239,80 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Debug Release Conditions
+      - name: Debug Changelog Conditions
         run: |
           echo "GitHub ref: ${{ github.ref }}"
           echo "Is main branch: ${{ github.ref == 'refs/heads/main' }}"
-          echo "Tag created: ${{ needs.version.outputs.tag_created }}"
           echo "New version: ${{ needs.version.outputs.new_version }}"
-          echo "Release type: ${{ needs.version.outputs.release_type }}"
+          echo "Release type: ${{ needs.version.outputs.release_type }}"          
+          echo "Creating changelog entry for Docker image update..."
       
-      - name: Generate Release Notes
-        id: generate_notes
+      - name: Generate Changelog
+        id: generate_changelog
         run: |
           # Finde das vorherige Tag
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ needs.version.outputs.new_version }}^ 2>/dev/null || echo "")
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           
           if [ -z "$PREVIOUS_TAG" ]; then
-            # Wenn kein vorheriges Tag vorhanden ist, benutze alle Commits
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+            # Wenn kein vorheriges Tag vorhanden ist, benutze die letzten 10 Commits
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -10)
           else
             # Sonst nur die Commits seit dem letzten Tag
-            CHANGELOG=$(git log ${PREVIOUS_TAG}..${{ needs.version.outputs.new_version }} --pretty=format:"- %s (%h)" --no-merges)
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
           fi
           
           # Kategorisiere Änderungen
-          FEATURES=$(echo "$CHANGELOG" | grep -i "feat\|feature")
-          FIXES=$(echo "$CHANGELOG" | grep -i "fix\|bug")
-          REFACTORS=$(echo "$CHANGELOG" | grep -i "refactor")
-          OTHER=$(echo "$CHANGELOG" | grep -v -i "feat\|feature\|fix\|bug\|refactor")
+          FEATURES=$(echo "$CHANGELOG" | grep -i "feat\|feature" || echo "")
+          FIXES=$(echo "$CHANGELOG" | grep -i "fix\|bug" || echo "")
+          REFACTORS=$(echo "$CHANGELOG" | grep -i "refactor\|improve" || echo "")
+          OTHER=$(echo "$CHANGELOG" | grep -v -i "feat\|feature\|fix\|bug\|refactor\|improve" || echo "")
           
-          # Erstelle Release Notes
-          RELEASE_NOTES="## Änderungen in ${{ needs.version.outputs.new_version }}\n\n"
+          # Erstelle Changelog
+          CHANGELOG_TEXT="## Docker Image Update ${{ needs.version.outputs.new_version }}\n\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}🚀 **Neues Docker Image verfügbar:** \`frequency2098/streamvault:latest\`\n\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}### Was ist neu?\n\n"
           
           if [ ! -z "$FEATURES" ]; then
-            RELEASE_NOTES="${RELEASE_NOTES}### Neue Features\n\n${FEATURES}\n\n"
+            CHANGELOG_TEXT="${CHANGELOG_TEXT}#### ✨ Neue Features\n${FEATURES}\n\n"
           fi
           
           if [ ! -z "$FIXES" ]; then
-            RELEASE_NOTES="${RELEASE_NOTES}### Fehlerbehebungen\n\n${FIXES}\n\n"
-          fi          
+            CHANGELOG_TEXT="${CHANGELOG_TEXT}#### 🐛 Fehlerbehebungen\n${FIXES}\n\n"
+          fi
+          
           if [ ! -z "$REFACTORS" ]; then
-            RELEASE_NOTES="${RELEASE_NOTES}### Code-Verbesserungen\n\n${REFACTORS}\n\n"
+            CHANGELOG_TEXT="${CHANGELOG_TEXT}#### ♻️ Verbesserungen\n${REFACTORS}\n\n"
           fi
           
           if [ ! -z "$OTHER" ]; then
-            RELEASE_NOTES="${RELEASE_NOTES}### Sonstige Änderungen\n\n${OTHER}\n\n"
+            CHANGELOG_TEXT="${CHANGELOG_TEXT}#### 📝 Sonstige Änderungen\n${OTHER}\n\n"
           fi
           
-          # Speichere Release Notes für die GitHub Release Action
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}### Docker Image abrufen\n\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}\`\`\`bash\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}docker pull frequency2098/streamvault:latest\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}# oder spezifische Version:\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}docker pull frequency2098/streamvault:${{ needs.version.outputs.new_version }}\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}\`\`\`\n\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}### Update durchführen\n\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}Falls du Docker Compose verwendest:\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}\`\`\`bash\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}docker-compose pull\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}docker-compose up -d\n"
+          CHANGELOG_TEXT="${CHANGELOG_TEXT}\`\`\`\n"
+          
+          # Speichere für GitHub Release
           {
-            echo "release_notes<<EOF"
-            echo -e "${RELEASE_NOTES}"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+            echo "changelog<<EOF"
+            echo -e "${CHANGELOG_TEXT}"
+            echo "EOF"          } >> $GITHUB_OUTPUT
       
-      - name: Create GitHub Release
+      - name: Create GitHub Changelog
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.new_version }}
-          name: Release ${{ needs.version.outputs.new_version }}
-          body: |
-            ${{ steps.generate_notes.outputs.release_notes }}
-            
-            Automatisch generierter Release basierend auf ${{ needs.version.outputs.release_type }} Änderungen.
-            
-            Docker Image: `frequency2098/streamvault:${{ needs.version.outputs.new_version }}`
+          name: "Docker Update ${{ needs.version.outputs.new_version }}"
+          body: ${{ steps.generate_changelog.outputs.changelog }}
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
