@@ -24,6 +24,18 @@ def validate_apprise_url(url: str) -> bool:
     except Exception:
         return False
 
+def validate_proxy_url(url: str) -> bool:
+    """Validate proxy URL format"""
+    if not url or not url.strip():
+        return True  # Empty URLs are valid (no proxy)
+    
+    url = url.strip()
+    # Check if URL starts with required protocol
+    if not url.startswith(('http://', 'https://')):
+        return False
+    
+    return True
+
 @router.get("", response_model=GlobalSettingsSchema)
 async def get_settings():
     with SessionLocal() as db:        
@@ -236,10 +248,17 @@ async def test_websocket_notification():
 
 @router.post("", response_model=GlobalSettingsSchema)
 async def update_settings(settings_data: GlobalSettingsSchema):
-    try:        
+    try:
         with SessionLocal() as db:
             if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
                 raise HTTPException(status_code=400, detail="Invalid notification URL format")
+            
+            # Validate proxy URLs
+            if settings_data.http_proxy and not validate_proxy_url(settings_data.http_proxy):
+                raise HTTPException(status_code=400, detail="HTTP proxy URL must start with 'http://' or 'https://'")
+            
+            if settings_data.https_proxy and not validate_proxy_url(settings_data.https_proxy):
+                raise HTTPException(status_code=400, detail="HTTPS proxy URL must start with 'http://' or 'https://'")
             
             settings = db.query(GlobalSettings).first()
             if not settings:
