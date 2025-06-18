@@ -9,12 +9,191 @@
     <div v-else-if="error" class="error-message">
       Error loading settings: {{ error }}
     </div>
-    
-    <!-- Global Settings -->
-    <div v-else class="settings-form">      
-      <!-- Basic Recording Settings Section -->
-      <div class="settings-section">
-        <h4 class="section-title">Basic Recording Settings</h4>
+      <!-- Global Settings -->
+    <div v-else class="settings-form">
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button 
+          v-for="tab in tabs" 
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :class="['tab-button', { active: activeTab === tab.id }]"
+        >
+          {{ tab.icon }} {{ tab.label }}
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content">        <!-- Recording Tab -->
+        <div v-if="activeTab === 'recording'" class="tab-panel">
+          <!-- Basic Recording Settings Section -->
+          <div class="settings-section">
+            <h4 class="section-title">📹 Basic Recording Settings</h4>
+            
+            <div class="form-group">
+              <label>
+                <input type="checkbox" v-model="data.enabled" />
+                Enable Recording
+              </label>
+              <div class="help-text">
+                Master toggle for all recording functionality. When disabled, no streams will be recorded regardless of individual streamer settings.
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Output Directory:</label>
+              <input v-model="data.output_directory" class="form-control" />
+              <div class="help-text">
+                Base directory where recordings will be saved. Individual streamers will have subdirectories created here.
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Default Quality:</label>
+              <select v-model="data.default_quality" class="form-control">
+                <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <div class="help-text">
+                Default quality setting for new streamers. Individual streamers can override this setting.
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Filename Template:</label>              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset">
+                <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
+                  {{ preset.label }}
+                </option>
+              </select>
+              <input v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
+              <div class="help-text">
+                Choose a preset or customize the filename template.
+                <br><strong>Available variables:</strong>                <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
+                  {{ variable.key }}
+                </span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" v-model="data.use_chapters" />
+                Create Chapters From Stream Events
+              </label>
+              <div class="help-text">
+                Create chapters in the recording based on stream title and game changes.
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" v-model="data.use_category_as_chapter_title" />
+                Use Category as Chapter Title
+              </label>
+              <div class="help-text">
+                When enabled, chapter titles will use the game/category name instead of the stream title.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Tab -->
+        <div v-if="activeTab === 'network'" class="tab-panel">
+          <div class="settings-section">
+            <h4 class="section-title">🌐 Network & Proxy Settings</h4>
+            <p class="section-description">
+              Configure proxy settings for Streamlink to route traffic through different locations. 
+              This can help reduce ads if using a proxy in a region with fewer advertisements.
+            </p>
+            
+            <div class="form-group">
+              <label>
+                <input type="checkbox" v-model="proxySettings.enabled" />
+                Enable Proxy Settings
+              </label>
+              <div class="help-text">
+                When enabled, Streamlink will use the configured proxy servers for all connections.
+              </div>
+            </div>
+
+            <div v-if="proxySettings.enabled" class="proxy-configuration">
+              <div class="form-group">
+                <label>HTTP Proxy:</label>
+                <input v-model="proxySettings.http_proxy" 
+                       placeholder="http://proxy.example.com:8080" 
+                       class="form-control" 
+                       :class="{ 'error': httpProxyError }" />
+                <div v-if="httpProxyError" class="error-text">
+                  {{ httpProxyError }}
+                </div>
+                <div class="help-text">
+                  HTTP proxy server for non-encrypted connections.
+                  <br><strong>Format:</strong> <code>http://[username:password@]host:port</code>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>HTTPS Proxy:</label>
+                <input v-model="proxySettings.https_proxy" 
+                       placeholder="https://proxy.example.com:8080" 
+                       class="form-control" 
+                       :class="{ 'error': httpsProxyError }" />
+                <div v-if="httpsProxyError" class="error-text">
+                  {{ httpsProxyError }}
+                </div>
+                <div class="help-text">
+                  HTTPS proxy server for encrypted connections (recommended for Twitch).
+                  <br><strong>Format:</strong> <code>https://[username:password@]host:port</code>
+                </div>
+              </div>
+
+              <div class="proxy-examples">
+                <h5>📋 Proxy URL Examples:</h5>
+                <ul>
+                  <li><code>http://proxy.example.com:8080</code> - Basic proxy</li>
+                  <li><code>http://username:password@proxy.example.com:8080</code> - Authenticated proxy</li>
+                  <li><code>https://secure-proxy.example.com:8080</code> - HTTPS proxy</li>
+                  <li><code>socks5://127.0.0.1:1080</code> - SOCKS5 proxy (if supported)</li>
+                </ul>
+              </div>
+              
+              <div class="proxy-tips">
+                <h6>💡 Tips:</h6>
+                <ul>
+                  <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
+                  <li>Test your proxy configuration before enabling recording</li>
+                  <li>Some regions have fewer or no Twitch advertisements</li>
+                  <li>Ensure your proxy provider allows video streaming traffic</li>
+                  <li>Leave fields empty to disable proxy for that protocol</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>        <!-- Storage Tab -->
+        <div v-if="activeTab === 'storage'" class="tab-panel">
+          <div class="settings-section">
+            <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
+            <p class="section-description">
+              Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
+            </p>
+            
+            <CleanupPolicyEditor
+              :is-global="true"
+              title="Global Cleanup Policy"
+              @saved="handleCleanupPolicySaved"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Button (outside of tabs) -->
+      <div class="form-actions">
+        <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
+          {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
+      </div>
+    </div>
+
+    <!-- Active Recordings -->
         
         <div class="form-group">
           <label>
@@ -348,6 +527,14 @@ const emits = defineEmits<{
   stopRecording: [streamerId: number];
 }>();
 
+// Tab management
+const activeTab = ref('recording');
+const tabs = [
+  { id: 'recording', label: 'Recording', icon: '📹' },
+  { id: 'network', label: 'Network', icon: '🌐' },
+  { id: 'storage', label: 'Storage', icon: '🗂️' }
+];
+
 const { isLoading, error } = useRecordingSettings();
 
 // State for streamer cleanup policy dialog
@@ -522,9 +709,16 @@ const previewFilename = computed(() => {
   if (!filename.toLowerCase().endsWith('.mp4')) {
     filename += '.mp4';
   }
-
   return filename;
 });
+
+// Update filename template when preset changes
+const updateFilenameFromPreset = () => {
+  const selectedPreset = FILENAME_PRESETS.find(preset => preset.value === data.value.filename_preset);
+  if (selectedPreset) {
+    data.value.filename_template = selectedPreset.value;
+  }
+};
 
 const saveSettings = async () => {
   try {
@@ -615,6 +809,51 @@ const handleStreamerPolicySaved = (policy: any) => {
 </script>
 
 <style scoped>
+/* Tab Navigation Styles */
+.tab-navigation {
+  display: flex;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 24px;
+  gap: 4px;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.2s ease;
+  border-bottom: 3px solid transparent;
+  font-size: 14px;
+}
+
+.tab-button:hover {
+  background-color: var(--background-dark);
+  color: var(--text-primary);
+}
+
+.tab-button.active {
+  background-color: var(--background-darker);
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+.tab-content {
+  min-height: 300px;
+}
+
+.tab-panel {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
 
 .settings-form,
