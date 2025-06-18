@@ -532,7 +532,7 @@ const previewFilename = computed(() => {
 const updateFilenameFromPreset = () => {
   const selectedPreset = FILENAME_PRESETS.find(preset => preset.value === data.value.filename_preset);
   if (selectedPreset) {
-    data.value.filename_template = selectedPreset.value;
+    data.value.filename_template = selectedPreset.description;
   }
 };
 
