@@ -111,14 +111,16 @@
           <div class="help-text">
             When enabled, Streamlink will use the configured proxy servers for all connections.
           </div>
-        </div>
-
-        <div v-if="proxySettings.enabled" class="proxy-configuration">
+        </div>        <div v-if="proxySettings.enabled" class="proxy-configuration">
           <div class="form-group">
             <label>HTTP Proxy:</label>
             <input v-model="proxySettings.http_proxy" 
                    placeholder="http://proxy.example.com:8080" 
-                   class="form-control" />
+                   class="form-control" 
+                   :class="{ 'error': httpProxyError }" />
+            <div v-if="httpProxyError" class="error-text">
+              {{ httpProxyError }}
+            </div>
             <div class="help-text">
               HTTP proxy server for non-encrypted connections.
               <br><strong>Format:</strong> <code>http://[username:password@]host:port</code>
@@ -129,7 +131,11 @@
             <label>HTTPS Proxy:</label>
             <input v-model="proxySettings.https_proxy" 
                    placeholder="https://proxy.example.com:8080" 
-                   class="form-control" />
+                   class="form-control" 
+                   :class="{ 'error': httpsProxyError }" />
+            <div v-if="httpsProxyError" class="error-text">
+              {{ httpsProxyError }}
+            </div>
             <div class="help-text">
               HTTPS proxy server for encrypted connections (recommended for Twitch).
               <br><strong>Format:</strong> <code>https://[username:password@]host:port</code>
@@ -355,6 +361,32 @@ const proxySettings = ref({
   https_proxy: ''
 });
 
+// Computed properties for real-time validation
+const httpProxyError = computed(() => {
+  if (!proxySettings.value.enabled || !proxySettings.value.http_proxy.trim()) {
+    return '';
+  }
+  if (!validateProxyUrl(proxySettings.value.http_proxy)) {
+    return 'HTTP proxy URL must start with "http://" or "https://"';
+  }
+  return '';
+});
+
+const httpsProxyError = computed(() => {
+  if (!proxySettings.value.enabled || !proxySettings.value.https_proxy.trim()) {
+    return '';
+  }
+  if (!validateProxyUrl(proxySettings.value.https_proxy)) {
+    return 'HTTPS proxy URL must start with "http://" or "https://"';
+  }
+  return '';
+});
+
+// Check if proxy settings have validation errors
+const hasProxyErrors = computed(() => {
+  return httpProxyError.value !== '' || httpsProxyError.value !== '';
+});
+
 // Load proxy settings from GlobalSettings API
 const loadProxySettings = async () => {
   try {
@@ -385,17 +417,10 @@ const validateProxyUrl = (url: string): boolean => {
 // Save proxy settings to GlobalSettings API
 const saveProxySettings = async () => {
   try {
-    // Validate proxy URLs before saving
-    if (proxySettings.value.enabled) {
-      if (proxySettings.value.http_proxy && !validateProxyUrl(proxySettings.value.http_proxy)) {
-        alert('HTTP proxy URL must start with "http://" or "https://"');
-        return;
-      }
-      
-      if (proxySettings.value.https_proxy && !validateProxyUrl(proxySettings.value.https_proxy)) {
-        alert('HTTPS proxy URL must start with "http://" or "https://"');
-        return;
-      }
+    // Check for validation errors before attempting to save
+    if (hasProxyErrors.value) {
+      // Don't save if there are validation errors - the errors are already shown in the UI
+      return;
     }
     
     const response = await fetch('/api/settings');
@@ -622,6 +647,20 @@ const handleStreamerPolicySaved = (policy: any) => {
   color: var(--text-primary, #f1f1f3);
   border-radius: var(--border-radius);
   box-sizing: border-box;
+}
+
+/* Error state for form controls */
+.form-control.error {
+  border-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Error text styling */
+.error-text {
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 /* Style for select elements to make them more visible */
