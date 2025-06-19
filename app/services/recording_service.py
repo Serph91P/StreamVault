@@ -412,7 +412,9 @@ class RecordingService:
             ]
 
             logger.debug(f"RECORDING STATUS: Returning {len(result)} active recordings")
-            return result    async def start_recording(
+            return result
+
+    async def start_recording(
         self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False
     ) -> bool:
         """Start recording a stream
@@ -818,8 +820,11 @@ class RecordingService:
                     db.commit()
 
                     # Invalidate the cache to ensure settings are reloaded
-                    self.config_manager.invalidate_cache()            # Now outside the database session, start the recording process
-            if stream_data:                try:
+                    self.config_manager.invalidate_cache()
+            
+            # Now outside the database session, start the recording process
+            if stream_data:
+                try:
                     # Start recording with force_mode=True for manual force recording
                     # This uses more aggressive streamlink settings to maximize success chance
                     recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
