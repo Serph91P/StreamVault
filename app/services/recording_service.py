@@ -937,7 +937,7 @@ class RecordingService:
                 await self._send_stream_online_notification(streamer, stream_data)
 
                 # Start the recording with the existing method
-                recording_started = await self.start_recording(streamer_id, stream_data)
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=False)
 
                 # Save the stream ID in the recording information
                 if recording_started and streamer_id in self.active_recordings:
@@ -1356,7 +1356,9 @@ class RecordingService:
 
         finally:
             # Close the metadata session
-            await metadata_service.close()      async def _start_streamlink(
+            await metadata_service.close()
+
+    async def _start_streamlink(
         self, streamer_name: str, quality: str, output_path: str, force_mode: bool = False
     ) -> Optional[asyncio.subprocess.Process]:
         """Start streamlink process for recording with TS format and post-processing to MP4
@@ -1383,6 +1385,7 @@ class RecordingService:
 
             # Get streamlink log path for this recording session
             streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)            # Streamlink command with optimized settings and enhanced logging
+            # Special settings for proxy to reduce desync issues
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
@@ -1392,22 +1395,23 @@ class RecordingService:
                 "--twitch-disable-ads",
                 "--hls-live-restart",
                 "--stream-segment-threads",
-                "4",
+                "2",  # Reduced from 4 to prevent race conditions with proxy
                 "--ringbuffer-size",
-                "128M",
+                "256M",  # Increased buffer for proxy connections
                 "--stream-segment-timeout",
-                "20" if not force_mode else "30",  # Longer timeout for force mode
+                "30" if not force_mode else "45",  # Increased timeouts for proxy
                 "--stream-segment-attempts",
-                "10" if not force_mode else "15",  # More attempts for force mode
+                "8" if not force_mode else "12",  # Adjusted attempts for proxy stability
                 "--stream-timeout",
-                "120" if not force_mode else "180",  # Longer overall timeout for force mode
+                "180" if not force_mode else "240",  # Longer timeouts for proxy
                 "--retry-streams",
-                "5" if not force_mode else "10",  # More stream retries for force mode
+                "3" if not force_mode else "6",  # Reduced to prevent connection buildup
                 "--retry-max",
-                "10" if not force_mode else "15",  # More overall retries for force mode
+                "8" if not force_mode else "12",  # Balanced retry count
                 "--retry-open",
-                "10" if not force_mode else "15",  # More open retries for force mode
+                "5" if not force_mode else "8",  # Reduced open retries
                 "--hls-segment-stream-data",
+                "--hls-segment-ignore-names", "*_muted*",  # Ignore muted segments that can cause sync issues
                 "--force",
                 # Enhanced logging parameters
                 "--loglevel", "debug",
@@ -1527,34 +1531,26 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 with enhanced logging"""
+        """Remux TS file to MP4 with enhanced logging and sync preservation"""
         try:
-            # Enhanced remux settings with guaranteed working audio handling
+            # Enhanced remux settings optimized for sync preservation
             cmd = [
                 "ffmpeg",
-                "-fflags",
-                "+genpts",  # Generate presentation timestamps
-                "-i",
-                ts_path,
-                "-c:v",
-                "copy",  # Copy video stream
-                "-c:a",
-                "aac",  # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
-                "-b:a",
-                "160k",  # Definierter Bitrate für Audio
-                "-map",
-                "0:v:0",  # Nur den ersten Video-Stream verwenden
-                "-map",
-                "0:a:0?",  # Ersten Audio-Stream (optional)
-                "-ignore_unknown",
-                "-movflags",
-                "+faststart",
-                "-metadata",
-                "encoded_by=StreamVault",
-                "-metadata",
-                "encoding_tool=StreamVault",
-                "-y",
-                mp4_path,
+                "-fflags", "+genpts+igndts",  # Generate PTS and ignore DTS for better sync
+                "-analyzeduration", "10M",     # Analyze more data for proper sync detection
+                "-probesize", "10M",          # Probe more data for stream analysis
+                "-i", ts_path,
+                "-c:v", "copy",               # Copy video stream (no re-encoding)
+                "-c:a", "copy",               # Copy audio stream (preserve original timing)
+                "-avoid_negative_ts", "make_zero",  # Handle negative timestamps
+                "-map", "0:v:0",              # Map first video stream
+                "-map", "0:a:0?",             # Map first audio stream (optional)
+                "-movflags", "+faststart",    # Enable fast start for MP4
+                "-ignore_unknown",            # Ignore unknown streams
+                "-max_muxing_queue_size", "4096",  # Increase muxing queue for large files
+                "-metadata", "encoded_by=StreamVault",
+                "-metadata", "encoding_tool=StreamVault",
+                "-y", mp4_path,
             ]
 
             # Get FFmpeg log path for this operation
