@@ -415,9 +415,15 @@ class RecordingService:
             return result
 
     async def start_recording(
-        self, streamer_id: int, stream_data: Dict[str, Any]
+        self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False
     ) -> bool:
-        """Start recording a stream"""
+        """Start recording a stream
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Stream information from Twitch
+            force_mode: If True, uses more aggressive streamlink settings (only for manual force recording)
+        """
         async with self.lock:
             # Convert streamer_id to integer for consistency
             streamer_id = int(streamer_id)
@@ -482,13 +488,13 @@ class RecordingService:
                     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
                     # Log recording start attempt
-                    logging_service.log_recording_start(streamer_id, streamer.username, quality, output_path)
-
+                    logging_service.log_recording_start(streamer_id, streamer.username, quality, output_path)                    
                     # Start streamlink process using subprocess manager
                     process = await self._start_streamlink(
                         streamer_name=streamer.username,
                         quality=quality,
                         output_path=output_path,
+                        force_mode=force_mode,
                     )
 
                     if process:
@@ -571,11 +577,23 @@ class RecordingService:
                         db.commit()
 
                     # Update our recording info with stream ID
-                    self.active_recordings[streamer_id]["stream_id"] = stream.id                    # Download Twitch thumbnail asynchronously
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    
+                    # Schedule delayed thumbnail download with video fallback
                     output_dir = os.path.dirname(output_path)
+                    ts_path = output_path.replace(".mp4", ".ts")  # TS file path for fallback
+                    
+                    # Import thumbnail service
+                    from app.services.thumbnail_service import ThumbnailService
+                    thumbnail_service = ThumbnailService()
+                    
                     asyncio.create_task(
-                        self.metadata_service.download_twitch_thumbnail(
-                            streamer.username, stream.id, output_dir
+                        thumbnail_service.delayed_thumbnail_download(
+                            streamer.username, 
+                            stream.id, 
+                            output_dir,
+                            video_path=ts_path,  # Use TS file for extraction
+                            delay_minutes=5  # Wait 5 minutes for stream to stabilize
                         )
                     )
         except Exception as e:
@@ -688,7 +706,7 @@ class RecordingService:
                 except Exception as notify_error:
                     logger.error(f"Error sending recording failure notification: {notify_error}", exc_info=True)
                 return False
-
+                
     async def _find_stream_for_recording(self, streamer_id: int) -> Optional[int]:
         """Find a stream record for a recording that was force-started"""
         try:
@@ -709,7 +727,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error finding stream for recording: {e}", exc_info=True)
             return None
-
+            
     async def force_start_recording(self, streamer_id: int) -> bool:
         """Manually start a recording for an active stream and ensure full metadata generation"""
         try:
@@ -720,16 +738,29 @@ class RecordingService:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 if not streamer:
                     logger.error(f"Streamer not found: {streamer_id}")
-                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
-
-                # Check if the streamer is live via Twitch API
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")                # Check if the streamer is live via Twitch API
                 stream_info = await self._get_stream_info_from_api(streamer, db)
 
                 if not stream_info:
-                    logger.error(
-                        f"Streamer {streamer.username} is not live according to Twitch API"
+                    logger.warning(
+                        f"Force recording requested for {streamer.username} but Twitch API indicates not live. Proceeding anyway since this is a manual force start."
                     )
-                    return False
+                    # For force recording, we continue even if API says not live
+                    # This handles cases where:
+                    # 1. API might be having issues
+                    # 2. There might be a delay in API updates
+                    # 3. User knows better than the API in this specific case
+                    
+                    # Create a minimal stream_info for force recording
+                    stream_info = {
+                        "id": f"force_{int(datetime.now().timestamp())}",
+                        "user_id": streamer.twitch_id,
+                        "user_name": streamer.username,
+                        "game_name": streamer.category_name or "Unknown",
+                        "title": streamer.title or f"{streamer.username} Stream",
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                        "language": streamer.language or "en"
+                    }
 
                 # Find or create stream record
                 stream = await self._find_or_create_stream(streamer_id, streamer, db)
@@ -790,25 +821,34 @@ class RecordingService:
 
                     # Invalidate the cache to ensure settings are reloaded
                     self.config_manager.invalidate_cache()
-
+            
             # Now outside the database session, start the recording process
             if stream_data:
-                # Start recording with existing method (which will now use the temporarily enabled setting)
-                recording_started = await self.start_recording(streamer_id, stream_data)
+                try:
+                    # Start recording with force_mode=True for manual force recording
+                    # This uses more aggressive streamlink settings to maximize success chance
+                    recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
 
-                # Save the stream ID and force started flag in the recording information
-                if recording_started and streamer_id in self.active_recordings:
-                    self.active_recordings[streamer_id]["stream_id"] = stream_id
-                    self.active_recordings[streamer_id]["force_started"] = True
+                    # Save the stream ID and force started flag in the recording information
+                    if recording_started and streamer_id in self.active_recordings:
+                        self.active_recordings[streamer_id]["stream_id"] = stream_id
+                        self.active_recordings[streamer_id]["force_started"] = True
 
-                    # Record that this was a forced recording (to handle special case on stop)
-                    self.active_recordings[streamer_id]["forced_recording"] = True
+                        # Record that this was a forced recording (to handle special case on stop)
+                        self.active_recordings[streamer_id]["forced_recording"] = True
 
-                    logger.info(
-                        f"Force recording started for {streamer.username}, stream_id: {stream_id}"
-                    )
+                        logger.info(
+                            f"Force recording started successfully for {streamer.username}, stream_id: {stream_id}"
+                        )
 
-                    return True
+                        return True
+                    else:
+                        logger.error(f"Force recording failed to start for {streamer.username}. Streamlink may have been unable to connect to the stream.")
+                        return False
+                        
+                except Exception as start_error:
+                    logger.error(f"Exception during force recording start for {streamer.username}: {start_error}", exc_info=True)
+                    return False
 
                 return recording_started
 
@@ -915,7 +955,7 @@ class RecordingService:
                 await self._send_stream_online_notification(streamer, stream_data)
 
                 # Start the recording with the existing method
-                recording_started = await self.start_recording(streamer_id, stream_data)
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=False)
 
                 # Save the stream ID in the recording information
                 if recording_started and streamer_id in self.active_recordings:
@@ -936,13 +976,12 @@ class RecordingService:
 
                 return recording_started
 
-        except RecordingError:
-            # Re-raise specific domain exceptions
+        except RecordingError:            # Re-raise specific domain exceptions
             raise
         except Exception as e:
             logger.error(f"Error force starting offline recording: {e}", exc_info=True)
             return False
-
+            
     async def _get_stream_info_from_api(
         self, streamer: Streamer, db
     ) -> Optional[Dict[str, Any]]:
@@ -967,22 +1006,30 @@ class RecordingService:
                         "grant_type": "client_credentials"
                     }
                 ) as token_response:
-                    if token_response.status == 200:
-                        token_data = await token_response.json()
-                        access_token = token_data["access_token"]
+                    if token_response.status != 200:
+                        token_error = await token_response.text()
+                        logger.error(f"Failed to get Twitch OAuth token: Status {token_response.status}, Response: {token_error}")
+                        return None
                         
-                        # Get stream info
-                        async with session.get(
-                            "https://api.twitch.tv/helix/streams",
-                            params={"user_id": streamer.twitch_id},
-                            headers={
-                                "Client-ID": settings.TWITCH_APP_ID,
-                                "Authorization": f"Bearer {access_token}"
-                            }
-                        ) as stream_response:
-                            if stream_response.status == 200:
-                                stream_data = await stream_response.json()
-                                stream_info = stream_data["data"][0] if stream_data["data"] else None
+                    token_data = await token_response.json()
+                    access_token = token_data["access_token"]
+                    
+                    # Get stream info
+                    async with session.get(
+                        "https://api.twitch.tv/helix/streams",
+                        params={"user_id": streamer.twitch_id},
+                        headers={
+                            "Client-ID": settings.TWITCH_APP_ID,
+                            "Authorization": f"Bearer {access_token}"
+                        }
+                    ) as stream_response:
+                        if stream_response.status != 200:
+                            stream_error = await stream_response.text()
+                            logger.error(f"Twitch API error when checking if {streamer.username} is live: Status {stream_response.status}, Response: {stream_error}")
+                            return None
+                            
+                        stream_data = await stream_response.json()
+                        stream_info = stream_data["data"][0] if stream_data["data"] else None
 
             if stream_info:
                 logger.info(f"Confirmed {streamer.username} is live via Twitch API")
@@ -991,10 +1038,12 @@ class RecordingService:
                 logger.warning(
                     f"Streamer {streamer.username} appears to be offline according to Twitch API"
                 )
+                # Log the full API response for debugging
+                logger.debug(f"Twitch API response for {streamer.username}: {stream_data}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error checking stream status via API: {e}")
+            logger.error(f"Error checking stream status via API: {e}", exc_info=True)
             return None
 
     def _create_stream_data(
@@ -1328,9 +1377,17 @@ class RecordingService:
             await metadata_service.close()
 
     async def _start_streamlink(
-        self, streamer_name: str, quality: str, output_path: str
+        self, streamer_name: str, quality: str, output_path: str, force_mode: bool = False
     ) -> Optional[asyncio.subprocess.Process]:
-        """Start streamlink process for recording with TS format and post-processing to MP4"""
+        """Start streamlink process for recording with TS format and post-processing to MP4
+        
+        Args:
+            streamer_name: Name of the streamer
+            quality: Video quality to record
+            output_path: Path where to save the recording
+            force_mode: If True, uses more aggressive settings (longer timeouts, more retries)
+                       Only used for manual force recording, not for automatic EventSub recordings
+        """
         try:
             # Ensure output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -1346,6 +1403,7 @@ class RecordingService:
 
             # Get streamlink log path for this recording session
             streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)            # Streamlink command with optimized settings and enhanced logging
+            # Special settings for proxy to reduce desync issues
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
@@ -1355,29 +1413,30 @@ class RecordingService:
                 "--twitch-disable-ads",
                 "--hls-live-restart",
                 "--stream-segment-threads",
-                "4",
+                "2",  # Reduced from 4 to prevent race conditions with proxy
                 "--ringbuffer-size",
-                "128M",
+                "256M",  # Increased buffer for proxy connections
                 "--stream-segment-timeout",
-                "20",
+                "30" if not force_mode else "45",  # Increased timeouts for proxy
                 "--stream-segment-attempts",
-                "10",
+                "8" if not force_mode else "12",  # Adjusted attempts for proxy stability
                 "--stream-timeout",
-                "120",
+                "180" if not force_mode else "240",  # Longer timeouts for proxy
                 "--retry-streams",
-                "5",
+                "3" if not force_mode else "6",  # Reduced to prevent connection buildup
                 "--retry-max",
-                "10",
+                "8" if not force_mode else "12",  # Balanced retry count
                 "--retry-open",
-                "10",
+                "5" if not force_mode else "8",  # Reduced open retries
                 "--hls-segment-stream-data",
+                "--hls-segment-ignore-names", "*_muted*",  # Ignore muted segments that can cause sync issues
                 "--force",
                 # Enhanced logging parameters
                 "--loglevel", "debug",
                 "--logfile", streamlink_log_path,
                 "--logformat", "[{asctime}][{name}][{levelname}] {message}",
                 "--logdateformat", "%Y-%m-%d %H:%M:%S",
-            ]            # Add proxy settings if configured
+            ]# Add proxy settings if configured
             from app.models import GlobalSettings
             with SessionLocal() as proxy_db:
                 global_settings = proxy_db.query(GlobalSettings).first()
@@ -1405,6 +1464,14 @@ class RecordingService:
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
+
+            # Special logging for force mode
+            if force_mode:
+                logger.info(f"Starting streamlink in FORCE MODE for {streamer_name} with enhanced retry settings")
+                logger.info(f"Force mode uses longer timeouts and more retry attempts to increase success chance")
+                
+            # Log the command being executed for debugging
+            logger.debug(f"Executing streamlink command: {' '.join(cmd)}")
 
             # Use subprocess manager to start the process
             process_id = f"streamlink_{streamer_name}_{int(datetime.now().timestamp())}"
@@ -1482,34 +1549,26 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 with enhanced logging"""
+        """Remux TS file to MP4 with enhanced logging and sync preservation"""
         try:
-            # Enhanced remux settings with guaranteed working audio handling
+            # Enhanced remux settings optimized for sync preservation
             cmd = [
                 "ffmpeg",
-                "-fflags",
-                "+genpts",  # Generate presentation timestamps
-                "-i",
-                ts_path,
-                "-c:v",
-                "copy",  # Copy video stream
-                "-c:a",
-                "aac",  # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
-                "-b:a",
-                "160k",  # Definierter Bitrate für Audio
-                "-map",
-                "0:v:0",  # Nur den ersten Video-Stream verwenden
-                "-map",
-                "0:a:0?",  # Ersten Audio-Stream (optional)
-                "-ignore_unknown",
-                "-movflags",
-                "+faststart",
-                "-metadata",
-                "encoded_by=StreamVault",
-                "-metadata",
-                "encoding_tool=StreamVault",
-                "-y",
-                mp4_path,
+                "-fflags", "+genpts+igndts",  # Generate PTS and ignore DTS for better sync
+                "-analyzeduration", "10M",     # Analyze more data for proper sync detection
+                "-probesize", "10M",          # Probe more data for stream analysis
+                "-i", ts_path,
+                "-c:v", "copy",               # Copy video stream (no re-encoding)
+                "-c:a", "copy",               # Copy audio stream (preserve original timing)
+                "-avoid_negative_ts", "make_zero",  # Handle negative timestamps
+                "-map", "0:v:0",              # Map first video stream
+                "-map", "0:a:0?",             # Map first audio stream (optional)
+                "-movflags", "+faststart",    # Enable fast start for MP4
+                "-ignore_unknown",            # Ignore unknown streams
+                "-max_muxing_queue_size", "4096",  # Increase muxing queue for large files
+                "-metadata", "encoded_by=StreamVault",
+                "-metadata", "encoding_tool=StreamVault",
+                "-y", mp4_path,
             ]
 
             # Get FFmpeg log path for this operation
