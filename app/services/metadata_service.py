@@ -209,8 +209,13 @@ class MetadataService:
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                ET.SubElement(actor, "thumb").text = "actors/"+streamer.username+".jpg"
-                # Create actors directory
+                # Korrekte Pfade für verschiedene Strukturen
+                if is_in_season_dir:
+                    ET.SubElement(actor, "thumb").text = f"../actors/{streamer.username}.jpg"
+                else:
+                    ET.SubElement(actor, "thumb").text = f"actors/{streamer.username}.jpg"
+                
+                # Create actors directory and download image
                 actors_dir = streamer_dir / "actors"
                 actors_dir.mkdir(exist_ok=True)
                 await self._download_image(streamer.profile_image_url, actors_dir / f"{streamer.username}.jpg")
@@ -440,19 +445,20 @@ class MetadataService:
                 logger.warning(f"No profile image URL for streamer {streamer.username}")
                 return False
                 
-            # Standard media server image names
+            # Standard media server image names - alle verwenden das gleiche Bild
             image_files = {
                 "poster.jpg": "Main poster for the show",
-                "banner.jpg": "Banner image",
-                "fanart.jpg": "Background image",
-                "logo.jpg": "Logo image",
-                "clearlogo.jpg": "Clear logo image",
-                "season.jpg": "Season poster",
+                "banner.jpg": "Banner image (same as poster for streamers)",
+                "fanart.jpg": "Background image (same as poster for streamers)", 
+                "logo.jpg": "Logo image (same as poster for streamers)",
+                "clearlogo.jpg": "Clear logo image (same as poster for streamers)",
+                "season.jpg": "Season poster (same as poster for streamers)",
+                "season-poster.jpg": "Season poster alternative name",
                 "folder.jpg": "Folder image for Windows",
-                "show.jpg": "Show image"
+                "show.jpg": "Show image (same as poster for streamers)"
             }
             
-            # Download and save each image format
+            # Download and save each image format (alle verwenden das gleiche Quellbild)
             success_count = 0
             for filename, description in image_files.items():
                 target_path = streamer_dir / filename
