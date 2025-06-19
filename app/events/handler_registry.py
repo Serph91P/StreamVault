@@ -263,7 +263,7 @@ class EventHandlerRegistry:
                         "title": streamer.title,
                         "category_name": streamer.category_name,
                         "language": streamer.language
-                    })
+                    }, force_mode=False)  # Normal EventSub recordings use standard settings
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
