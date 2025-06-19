@@ -575,11 +575,23 @@ class RecordingService:
                         db.commit()
 
                     # Update our recording info with stream ID
-                    self.active_recordings[streamer_id]["stream_id"] = stream.id                    # Download Twitch thumbnail asynchronously
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    
+                    # Schedule delayed thumbnail download with video fallback
                     output_dir = os.path.dirname(output_path)
+                    ts_path = output_path.replace(".mp4", ".ts")  # TS file path for fallback
+                    
+                    # Import thumbnail service
+                    from app.services.thumbnail_service import ThumbnailService
+                    thumbnail_service = ThumbnailService()
+                    
                     asyncio.create_task(
-                        self.metadata_service.download_twitch_thumbnail(
-                            streamer.username, stream.id, output_dir
+                        thumbnail_service.delayed_thumbnail_download(
+                            streamer.username, 
+                            stream.id, 
+                            output_dir,
+                            video_path=ts_path,  # Use TS file for extraction
+                            delay_minutes=5  # Wait 5 minutes for stream to stabilize
                         )
                     )
         except Exception as e:
@@ -688,7 +700,8 @@ class RecordingService:
                                     "timestamp": datetime.now().isoformat(),
                                 },
                             }
-                        )                except Exception as notify_error:
+                        )
+                except Exception as notify_error:
                     logger.error(f"Error sending recording failure notification: {notify_error}", exc_info=True)
                 return False
                 
