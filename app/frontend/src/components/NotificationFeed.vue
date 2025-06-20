@@ -106,6 +106,15 @@ const { messages } = useWebSocket()
 
 const MAX_NOTIFICATIONS = 100
 
+// Debounce mechanism to prevent rapid duplicate notifications
+const recentNotifications = new Map<string, number>()
+const DEBOUNCE_TIME = 2000 // 2 seconds
+
+// Function to generate a unique key for notifications
+const generateNotificationKey = (notification: Notification): string => {
+  return `${notification.type}_${notification.streamer_username}_${notification.data?.title || ''}`
+}
+
 // Sort notifications by timestamp (newest first)
 const sortedNotifications = computed(() => {
   return [...notifications.value].sort((a, b) => {
@@ -245,12 +254,62 @@ const addNotification = (message: any): void => {
     
     console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification)
     
-    // Check if notification already exists (by content, not just ID)
-    const existingIndex = notifications.value.findIndex(n => 
-      n.type === newNotification.type && 
-      n.streamer_username === newNotification.streamer_username &&
-      Math.abs(new Date(n.timestamp).getTime() - new Date(newNotification.timestamp).getTime()) < 5000 // Within 5 seconds
-    )
+    // Check debounce to prevent rapid duplicates
+    const notificationKey = generateNotificationKey(newNotification)
+    const now = Date.now()
+    const lastTime = recentNotifications.get(notificationKey)
+    
+    if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
+      console.log('🔥 NotificationFeed: Notification debounced (too soon after last identical notification)')
+      return
+    }
+    
+    // Update debounce tracker
+    recentNotifications.set(notificationKey, now)
+    
+    // Clean up old debounce entries (older than 5 minutes)
+    for (const [key, time] of recentNotifications.entries()) {
+      if (now - time > 300000) { // 5 minutes
+        recentNotifications.delete(key)
+      }
+    }
+    
+    // Enhanced duplicate detection
+    const isDuplicate = (existing: Notification, incoming: Notification): boolean => {
+      // Same type and streamer
+      if (existing.type !== incoming.type || existing.streamer_username !== incoming.streamer_username) {
+        return false
+      }
+      
+      // For stream updates, check if title/content is the same
+      if (incoming.type === 'channel.update' || incoming.type === 'stream.update') {
+        const existingTitle = existing.data?.title || ''
+        const incomingTitle = incoming.data?.title || ''
+        
+        // If same title and within 30 seconds, it's a duplicate
+        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
+        if (existingTitle === incomingTitle && timeDiff < 30000) {
+          return true
+        }
+      }
+      
+      // For stream.online, check within 10 seconds
+      if (incoming.type === 'stream.online') {
+        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
+        return timeDiff < 10000
+      }
+      
+      // For recording events, check within 5 seconds
+      if (incoming.type.startsWith('recording.')) {
+        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
+        return timeDiff < 5000
+      }
+      
+      return false
+    }
+    
+    // Find existing duplicate
+    const existingIndex = notifications.value.findIndex(n => isDuplicate(n, newNotification))
     
     if (existingIndex >= 0) {
       console.log('🔥 NotificationFeed: Duplicate notification found, replacing')
