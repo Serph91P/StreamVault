@@ -35,6 +35,45 @@ async def lifespan(app: FastAPI):
     from app.migrations_init import run_migrations
     run_migrations()
     
+    # Auto-run push subscription table creation if needed
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        
+        # Check if push_subscriptions table exists
+        if 'push_subscriptions' not in inspector.get_table_names():
+            logger.info("🔄 Creating push_subscriptions table...")
+            import subprocess
+            import os
+            
+            migration_path = os.path.join(os.path.dirname(__file__), "..", "migrations", "20250620_add_push_subscriptions.py")
+            result = subprocess.run(["python", migration_path], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                logger.info("✅ Push subscription table created successfully")
+            else:
+                logger.warning(f"⚠️ Push subscription migration failed: {result.stderr}")
+        else:
+            logger.debug("✅ Push subscription table already exists")
+        
+        # Check if system_config table exists
+        if 'system_config' not in inspector.get_table_names():
+            logger.info("🔄 Creating system_config table...")
+            
+            migration_path = os.path.join(os.path.dirname(__file__), "..", "migrations", "20250620_add_system_config.py")
+            result = subprocess.run(["python", migration_path], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                logger.info("✅ System config table created successfully")
+            else:
+                logger.warning(f"⚠️ System config migration failed: {result.stderr}")
+        else:
+            logger.debug("✅ System config table already exists")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Push subscription table check failed: {e}")
+        logger.info("💡 You can manually run: python migrations/20250620_add_push_subscriptions.py")
+    
     event_registry = await get_event_registry()
     
     # Initialize EventSub subscriptions
