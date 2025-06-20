@@ -14,12 +14,17 @@
       </div>
       <button 
         v-if="notifications.length > 0"
-        @click="clearAllNotifications" 
+        @click.stop="clearAllNotifications" 
+        @mousedown.stop
+        @mouseup.stop
+        @touchstart.stop="clearAllNotifications"
         class="clear-all-btn" 
         aria-label="Clear all notifications"
+        type="button"
+        ref="clearButton"
       >
-        <span class="clear-icon">🗑️</span>
-        <span class="clear-text">Clear</span>
+        <span class="clear-icon" @click.stop="clearAllNotifications">🗑️</span>
+        <span class="clear-text" @click.stop="clearAllNotifications">Clear</span>
       </button>
     </div>
     
@@ -279,9 +284,18 @@ const removeNotification = (id: string): void => {
 }
 
 // Clear all notifications
-const clearAllNotifications = (): void => {
+const clearAllNotifications = (event?: Event): void => {
   console.log('🗑️ NotificationFeed: Clear all button clicked!')
+  console.log('🗑️ NotificationFeed: Event object:', event)
+  console.log('🗑️ NotificationFeed: Event target:', event?.target)
   console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
+  
+  // Prevent any default behavior or propagation
+  if (event) {
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+  }
   
   // Clear notifications directly
   notifications.value = []
@@ -548,11 +562,27 @@ onUnmounted(() => {
   padding: 6px 10px;
   border-radius: var(--border-radius, 4px);
   transition: all 0.2s ease;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .clear-all-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: var(--text-primary, #efeff1);
+  transform: scale(1.05);
+}
+
+.clear-all-btn:active {
+  transform: scale(0.95);
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.clear-all-btn:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
 }
 
 .clear-icon {
