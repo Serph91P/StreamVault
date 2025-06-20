@@ -27,7 +27,7 @@
     
     <VideoPlayer 
       v-else
-      :video-url="chapterData.video_url"
+      :video-src="chapterData.video_url"
       :chapters="chapterData.chapters"
       :stream-title="chapterData.stream_title"
       class="video-player-container"
