@@ -1402,36 +1402,33 @@ class RecordingService:
                 adjusted_quality = "1080p60,1080p,best"
 
             # Get streamlink log path for this recording session
-            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)            # Streamlink command with optimized settings and enhanced logging
-            # Special settings for proxy to reduce desync issues
+            streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)
+            
+            # Streamlink command with enhanced proxy stability parameters from LiveStreamDVR
             cmd = [
                 "streamlink",
                 f"twitch.tv/{streamer_name}",
-                quality,
+                adjusted_quality,
                 "-o",
                 ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
-                "--stream-segment-threads",
-                "2",  # Reduced from 4 to prevent race conditions with proxy
-                "--ringbuffer-size",
-                "256M",  # Increased buffer for proxy connections
-                "--stream-segment-timeout",
-                "30" if not force_mode else "45",  # Increased timeouts for proxy
-                "--stream-segment-attempts",
-                "8" if not force_mode else "12",  # Adjusted attempts for proxy stability
-                "--stream-timeout",
-                "180" if not force_mode else "240",  # Longer timeouts for proxy
-                "--retry-streams",
-                "3" if not force_mode else "6",  # Reduced to prevent connection buildup
-                "--retry-max",
-                "8" if not force_mode else "12",  # Balanced retry count
-                "--retry-open",
-                "5" if not force_mode else "8",  # Reduced open retries
-                "--hls-segment-stream-data",
-                "--hls-segment-ignore-names", "*_muted*",  # Ignore muted segments that can cause sync issues
+                # LiveStreamDVR-inspired parameters for better proxy compatibility
+                "--hls-live-edge", "6",  # Start closer to live edge for better proxy stability
+                "--stream-segment-threads", "5",  # Multi-threading helps with proxy connections
+                "--ffmpeg-fout", "mpegts",  # Use mpegts format for better container handling
+                # Preserve existing timeout parameters with enhanced values for proxy usage
+                "--stream-segment-timeout", "30" if not force_mode else "45",
+                "--stream-timeout", "180" if not force_mode else "240", 
+                "--stream-segment-attempts", "8" if not force_mode else "12",
+                "--retry-streams", "10",  # More retries for proxy stability
+                "--retry-max", "5",
+                "--retry-open", "5" if not force_mode else "8",
+                # Buffer management for proxy connections
+                "--ringbuffer-size", "256M",
+                "--hls-segment-queue-threshold", "5",
                 "--force",
-                # Enhanced logging parameters
+                # Logging parameters
                 "--loglevel", "debug",
                 "--logfile", streamlink_log_path,
                 "--logformat", "[{asctime}][{name}][{levelname}] {message}",
