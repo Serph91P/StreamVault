@@ -6,6 +6,8 @@ export interface Streamer {
   twitch_id: string
   username: string
   is_live: boolean
+  is_recording: boolean  // Whether currently recording
+  recording_enabled: boolean  // Whether recording is enabled for this streamer
   title?: string
   category_name?: string
   language?: string
