@@ -240,10 +240,12 @@ function markAsRead() {
 
 function clearAllNotifications() {
   console.log('🔔 App: Clearing all notifications - Event received from NotificationFeed')
-  // Clear the notifications from localStorage
+  // Clear the notifications from localStorage (redundant but safe)
   localStorage.removeItem('streamvault_notifications')
   // Mark as read
   markAsRead()
+  // Reset notification count
+  notificationCount.value = 0
   // Dispatch event to notify other components
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }
