@@ -68,5 +68,13 @@ def rollback_migration():
         logger.error(f"❌ Failed to rollback system_config table: {e}")
         return False
 
+def run_migration():
+    """Main migration function called by migration runner"""
+    return apply_migration()
+
+def upgrade():
+    """Alembic-style upgrade function"""
+    return apply_migration()
+
 if __name__ == "__main__":
     apply_migration()
