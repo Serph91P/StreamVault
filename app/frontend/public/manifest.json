@@ -10,6 +10,7 @@
   "start_url": "/",
   "lang": "en",
   "categories": ["entertainment", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/android-icon-36x36.png",
