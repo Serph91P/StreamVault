@@ -172,8 +172,13 @@ class NotificationService:
         try:
             # Send WebSocket notification first
             if self.websocket_manager:
+                # Map event types to correct WebSocket types
+                websocket_type = f"stream.{event_type}"
+                if event_type == "update":
+                    websocket_type = "channel.update"
+                
                 websocket_notification = {
-                    "type": f"stream.{event_type}",
+                    "type": websocket_type,
                     "data": {
                         "streamer_name": streamer_name,
                         "username": streamer_name,  # For compatibility
@@ -182,7 +187,10 @@ class NotificationService:
                         "language": details.get("language"),
                         "started_at": details.get("started_at"),
                         "url": details.get("url"),
-                        "profile_image_url": details.get("profile_image_url")
+                        "profile_image_url": details.get("profile_image_url"),
+                        "streamer_id": details.get("streamer_id"),
+                        "twitch_id": details.get("twitch_id"),
+                        "is_live": details.get("is_live")
                     }
                 }
                 logger.debug(f"Sending WebSocket notification: {websocket_notification}")
