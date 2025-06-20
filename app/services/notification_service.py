@@ -1,12 +1,13 @@
 import logging
 import aiohttp
 import asyncio
+import json
 from typing import Dict, Optional, Any
 from app.config.settings import settings as app_settings
 from apprise import Apprise, NotifyFormat
-from app.models import GlobalSettings, NotificationSettings, Streamer
+from app.models import GlobalSettings, NotificationSettings, Streamer, PushSubscription
 from app.database import SessionLocal
-import logging
+from app.services.push_service import PushService
 
 logger = logging.getLogger("streamvault")
 
@@ -15,6 +16,7 @@ class NotificationService:
         self.apprise = Apprise()
         self._notification_url = None
         self.websocket_manager = websocket_manager
+        self.push_service = PushService()
         self._initialize_apprise()
 
     def _initialize_apprise(self):
@@ -196,6 +198,9 @@ class NotificationService:
                 logger.debug(f"Sending WebSocket notification: {websocket_notification}")
                 await self.websocket_manager.send_notification(websocket_notification)
             
+            # Send push notifications to all active subscribers
+            await self._send_push_notifications(streamer_name, event_type, details)
+            
             # Check if we should send external notifications
             if 'streamer_id' in details:
                 should_send = await self.should_notify(details['streamer_id'], event_type)
@@ -277,7 +282,76 @@ class NotificationService:
 
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
-            return False    
+            return False
+    
+    async def _send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
+        """Send push notifications to all active subscribers"""
+        try:
+            with SessionLocal() as db:
+                # Get all active push subscriptions
+                active_subscriptions = db.query(PushSubscription).filter(
+                    PushSubscription.is_active == True
+                ).all()
+                
+                if not active_subscriptions:
+                    logger.debug("No active push subscriptions found")
+                    return
+                
+                streamer_id = details.get('streamer_id')
+                stream_id = details.get('stream_id')
+                stream_title = details.get('title', 'Stream')
+                
+                # Skip if we don't have essential data
+                if not streamer_id:
+                    logger.warning("No streamer_id in details, skipping push notifications")
+                    return
+                
+                # Send appropriate notification based on event type
+                for subscription in active_subscriptions:
+                    try:
+                        subscription_data = json.loads(subscription.subscription_data)
+                        
+                        if event_type == 'online':
+                            await self.push_service.send_stream_online_notification(
+                                subscription_data,
+                                streamer_name,
+                                stream_title,
+                                int(streamer_id),
+                                int(stream_id) if stream_id else None
+                            )
+                        elif event_type == 'recording_started':
+                            await self.push_service.send_recording_started_notification(
+                                subscription_data,
+                                streamer_name,
+                                stream_title,
+                                int(streamer_id),
+                                int(stream_id) if stream_id else None
+                            )
+                        elif event_type == 'recording_finished' and stream_id:
+                            duration = details.get('duration', 'Unknown')
+                            await self.push_service.send_recording_finished_notification(
+                                subscription_data,
+                                streamer_name,
+                                stream_title,
+                                int(streamer_id),
+                                int(stream_id),
+                                duration
+                            )
+                        
+                    except Exception as sub_error:
+                        logger.warning(f"Failed to send push notification to {subscription.endpoint[:50]}: {sub_error}")
+                        
+                        # If subscription is invalid, deactivate it
+                        if "410" in str(sub_error) or "expired" in str(sub_error).lower():
+                            subscription.is_active = False
+                            db.commit()
+                            logger.info(f"Deactivated expired push subscription: {subscription.endpoint[:50]}")
+                
+                logger.debug(f"Push notifications sent for {event_type} event to {len(active_subscriptions)} subscribers")
+                
+        except Exception as e:
+            logger.error(f"Error sending push notifications: {e}", exc_info=True)
+    
     async def should_notify(self, streamer_id: int, event_type: str) -> bool:
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
