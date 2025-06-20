@@ -192,6 +192,10 @@ app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 
+# Push notification routes
+from app.routes import push as push_router
+app.include_router(push_router.router)
+
 # Static files for assets
 try:
     # Try the standard production path
