@@ -23,3 +23,22 @@ if ('serviceWorker' in navigator) {
     console.log('ServiceWorker registration failed: ', err);
   });
 }
+
+// PWA Install Event
+let deferredPrompt: any = null
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault()
+  // Stash the event so it can be triggered later.
+  deferredPrompt = e
+  console.log('PWA install prompt available')
+  
+  // Make the install prompt available
+  window.dispatchEvent(new CustomEvent('pwa-installable', { detail: e }))
+})
+
+window.addEventListener('appinstalled', () => {
+  console.log('PWA was installed')
+  deferredPrompt = null
+})
