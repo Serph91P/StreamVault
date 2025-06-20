@@ -184,9 +184,13 @@ export function usePWA() {
     const defaultOptions: NotificationOptions = {
       icon: '/android-icon-192x192.png',
       badge: '/android-icon-96x96.png',
-      vibrate: [200, 100, 200],
       tag: 'streamvault-notification',
       ...options
+    }
+
+    // Add vibration on mobile devices
+    if ('vibrate' in navigator && navigator.vibrate) {
+      navigator.vibrate([200, 100, 200])
     }
 
     return registration.value.showNotification(title, defaultOptions)
