@@ -156,19 +156,19 @@ class MetadataService:
             # 1. tvshow.nfo - for show/season data (uses streamer image)
             # 2. episode.nfo - for the specific stream episode (uses stream thumbnail)
             
-            # Paths for NFO files
+            # Paths for NFO files - alle im Streamer-Ordner!
             episode_nfo_path = base_path / f"{base_filename}.nfo"
-            tvshow_nfo_path = base_path.parent / "tvshow.nfo"
-            season_nfo_path = base_path.parent / "season.nfo"
-            
-            # Check if path contains season directory
-            is_in_season_dir = "season" in base_path.name.lower() or f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower()
             
             # Determine streamer directory (one or two levels up)
+            is_in_season_dir = "season" in base_path.name.lower() or f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower()
             if is_in_season_dir:
                 streamer_dir = base_path.parent.parent
             else:
                 streamer_dir = base_path.parent
+            
+            # Show-level NFO goes into streamer directory, not parent
+            tvshow_nfo_path = streamer_dir / "tvshow.nfo"
+            season_nfo_path = streamer_dir / "season.nfo"
                     
             # 1. Generate Show/Season NFO
             show_root = ET.Element("tvshow")
@@ -240,9 +240,9 @@ class MetadataService:
                 # Season poster
                 if streamer.profile_image_url:
                     ET.SubElement(season_root, "thumb").text = "poster.jpg"
-                    # Save season image
-                    await self._download_image(streamer.profile_image_url, base_path.parent / "poster.jpg")
-                    await self._download_image(streamer.profile_image_url, base_path.parent / "season.jpg")
+                    # Save season image im Streamer-Ordner
+                    await self._download_image(streamer.profile_image_url, streamer_dir / "poster.jpg")
+                    await self._download_image(streamer.profile_image_url, streamer_dir / "season.jpg")
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
