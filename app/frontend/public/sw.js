@@ -1,13 +1,14 @@
-const CACHE_NAME = 'streamvault-v3'
+const CACHE_NAME = 'streamvault-v4'
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/manifest.webmanifest',
   '/favicon.ico',
   '/apple-icon-180x180.png',
   '/android-icon-192x192.png',
   '/icon-512x512.png',
+  '/maskable-icon-192x192.png',
+  '/maskable-icon-512x512.png',
   // Static assets will be cached dynamically
 ]
 
