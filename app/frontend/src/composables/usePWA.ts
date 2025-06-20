@@ -21,7 +21,9 @@ export function usePWA() {
   // Check if app is installed (running in standalone mode)
   const checkInstallStatus = () => {
     isInstalled.value = window.matchMedia('(display-mode: standalone)').matches ||
-                       (window.navigator as any).standalone === true
+                       (window.navigator as any).standalone === true ||
+                       window.matchMedia('(display-mode: fullscreen)').matches ||
+                       window.matchMedia('(display-mode: minimal-ui)').matches
   }
 
   // Register service worker
@@ -242,6 +244,18 @@ export function usePWA() {
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    
+    // Special handling for mobile browsers
+    window.addEventListener('appinstalled', () => {
+      console.log('PWA was installed')
+      isInstalled.value = true
+      isInstallable.value = false
+      installPrompt.value = null
+    })
+    
+    // Check for display mode changes (mobile)
+    const mediaQuery = window.matchMedia('(display-mode: standalone)')
+    mediaQuery.addEventListener('change', checkInstallStatus)
     
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage)
