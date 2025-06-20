@@ -223,20 +223,7 @@ class EventHandlerRegistry:
                     streamer.last_updated = datetime.now(timezone.utc)
                     db.commit()
 
-                    notification = {
-                        "type": "stream.online",
-                        "data": {
-                            "streamer_id": streamer.id,
-                            "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": streamer.username,
-                            "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language
-                        }
-                    }
-                    await self.manager.send_notification(notification)
-
+                    # Send notification only via notification_service to avoid duplicates
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="online",
@@ -295,15 +282,7 @@ class EventHandlerRegistry:
                 
                     db.commit()
             
-                    await self.manager.send_notification({
-                        "type": "stream.offline",
-                        "data": {
-                            "streamer_id": streamer.id,
-                            "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": streamer.username
-                        }
-                    })
-                
+                    # Send notification only via notification_service to avoid duplicates
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="offline",
@@ -362,22 +341,7 @@ class EventHandlerRegistry:
                     else:
                         logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
                 
-                    notification = {
-                        "type": "channel.update",
-                        "data": {
-                            "streamer_id": streamer.id,
-                            "twitch_id": data["broadcaster_user_id"],
-                            "streamer_name": streamer.username,
-                            "title": data.get("title"),
-                            "category_name": data.get("category_name"),
-                            "language": data.get("language"),
-                            "is_live": streamer.is_live
-                        }
-                    }
-                
-                    await self.manager.send_notification(notification)
-                    logger.debug(f"WebSocket notification sent for channel.update: {notification}")
-                
+                    # Send notification only via notification_service to avoid duplicates
                     logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
