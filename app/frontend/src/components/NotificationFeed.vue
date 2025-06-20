@@ -287,13 +287,33 @@ const clearAllNotifications = (): void => {
   notifications.value = []
   console.log('🗑️ NotificationFeed: Cleared notifications array directly')
   
-  // Save empty array to localStorage
-  saveNotifications()
-  console.log('🗑️ NotificationFeed: Saved empty notifications to localStorage')
+  // Clear localStorage immediately and confirm
+  try {
+    localStorage.removeItem('streamvault_notifications')
+    const check = localStorage.getItem('streamvault_notifications')
+    console.log('🗑️ NotificationFeed: localStorage after removal:', check)
+    
+    // Set empty array to be extra sure
+    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    const checkAgain = localStorage.getItem('streamvault_notifications')
+    console.log('🗑️ NotificationFeed: localStorage after setting empty array:', checkAgain)
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error clearing localStorage:', error)
+  }
+  
+  // Dispatch event immediately
+  window.dispatchEvent(new CustomEvent('notificationsUpdated', {
+    detail: { count: 0 }
+  }))
+  console.log('🗑️ NotificationFeed: Dispatched notificationsUpdated event')
   
   // Also emit to App.vue for any additional cleanup
   emit('clear-all')
   console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue')
+  
+  // Close the panel after clearing
+  emit('close-panel')
+  console.log('🗑️ NotificationFeed: Emitted close-panel event')
 }
 
 // Save notifications to localStorage
@@ -315,12 +335,22 @@ const saveNotifications = (): void => {
 const loadNotifications = (): void => {
   try {
     const saved = localStorage.getItem('streamvault_notifications')
+    console.log('📂 NotificationFeed: Raw localStorage value:', saved)
+    
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) {
+      console.log('📂 NotificationFeed: Parsed localStorage value:', parsed)
+      
+      if (Array.isArray(parsed) && parsed.length > 0) {
         notifications.value = parsed
         console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage')
+      } else {
+        notifications.value = []
+        console.log('📂 NotificationFeed: Empty or invalid array in localStorage, starting with empty notifications')
       }
+    } else {
+      notifications.value = []
+      console.log('📂 NotificationFeed: No localStorage data found, starting with empty notifications')
     }
   } catch (error) {
     console.error('❌ NotificationFeed: Error loading notifications:', error)
