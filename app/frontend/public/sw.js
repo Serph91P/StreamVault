@@ -1,36 +1,49 @@
-const CACHE_NAME = 'streamvault-v4'
+const CACHE_NAME = 'streamvault-v5'
 const urlsToCache = [
   '/',
+  '/?source=pwa',
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
   '/apple-icon-180x180.png',
   '/android-icon-192x192.png',
+  '/android-icon-144x144.png',
   '/icon-512x512.png',
   '/maskable-icon-192x192.png',
   '/maskable-icon-512x512.png',
-  // Static assets will be cached dynamically
 ]
 
+// Install event - cache essential resources
 self.addEventListener('install', event => {
+  console.log('Service Worker installing...')
   self.skipWaiting()
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+      .then(cache => {
+        console.log('Caching essential resources')
+        return cache.addAll(urlsToCache)
+      })
+      .catch(err => console.error('Cache addAll failed:', err))
   )
 })
 
+// Activate event - clean old caches
 self.addEventListener('activate', event => {
+  console.log('Service Worker activating...')
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName)
-          }
-        })
-      )
-    })
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME) {
+              console.log('Deleting old cache:', cacheName)
+              return caches.delete(cacheName)
+            }
+          })
+        )
+      })
+    ])
   )
 })
 
