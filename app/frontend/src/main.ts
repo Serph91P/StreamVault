@@ -7,6 +7,9 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
+// PWA Debug helper (nur in development) 
+import('./utils/pwaDebug')
+
 const app = createApp(App)
 
 app.use(createPinia())
