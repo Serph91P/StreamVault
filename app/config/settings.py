@@ -142,3 +142,7 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 settings = Settings()
+
+def get_settings() -> Settings:
+    """Get the global settings instance"""
+    return settings
