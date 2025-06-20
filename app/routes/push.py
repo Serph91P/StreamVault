@@ -15,12 +15,21 @@ settings = get_settings()
 @router.get("/vapid-public-key")
 async def get_vapid_public_key():
     """Get VAPID public key for push subscription"""
-    # You should generate these keys and store them securely
-    # For now, return a placeholder - in production, use real VAPID keys
-    public_key = getattr(settings, 'VAPID_PUBLIC_KEY', 'BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjqAKHSr')
+    if not settings.has_push_notifications_configured:
+        logger.warning("🔑 Push notifications requested but VAPID keys not configured")
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "error": "Push notifications not configured",
+                "message": "VAPID keys are missing. They should be auto-generated on startup.",
+                "suggestion": "Check server logs for VAPID key generation or restart the application"
+            }
+        )
     
+    logger.debug("🔑 Serving VAPID public key for push subscription")
     return {
-        "publicKey": public_key
+        "publicKey": settings.VAPID_PUBLIC_KEY,
+        "configured": True
     }
 
 @router.post("/subscribe")
