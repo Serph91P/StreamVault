@@ -2,13 +2,13 @@ import json
 import logging
 from typing import Dict, Any, Optional
 from pywebpush import webpush, WebPushException
-from app.config.settings import get_settings
+from app.config.settings import settings
 
 logger = logging.getLogger("streamvault")
 
 class PushService:
     def __init__(self):
-        self.settings = get_settings()
+        self.settings = settings
         
         # VAPID keys - in production, generate these and store securely
         self.vapid_private_key = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
