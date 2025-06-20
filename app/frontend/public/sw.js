@@ -1,17 +1,14 @@
-const CACHE_NAME = 'streamvault-v2'
+const CACHE_NAME = 'streamvault-v3'
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/assets',
   '/manifest.webmanifest',
   '/favicon.ico',
-  '/apple-touch-icon.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/assets/index-*.js',
-  '/assets/index-*.css',
-  '/api/streamers'
+  '/apple-icon-180x180.png',
+  '/android-icon-192x192.png',
+  '/icon-512x512.png',
+  // Static assets will be cached dynamically
 ]
 
 self.addEventListener('install', event => {
