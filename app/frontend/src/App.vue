@@ -84,11 +84,15 @@
         <span v-if="unreadCount > 0" class="mobile-notification-indicator"></span>
       </button>
     </div>
+    
+    <!-- PWA Install Prompt -->
+    <PWAInstallPrompt />
   </div>
 </template>
 
 <script setup>
 import NotificationFeed from '@/components/NotificationFeed.vue'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
