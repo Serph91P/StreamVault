@@ -34,6 +34,9 @@ class Stream(Base):
     twitch_stream_id = Column(String, nullable=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     
+    # Relationships
+    metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
+    
     @property
     def is_live(self):
         return self.ended_at is None
