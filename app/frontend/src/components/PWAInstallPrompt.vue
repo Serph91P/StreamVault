@@ -31,12 +31,19 @@ onMounted(() => {
   const dismissed = localStorage.getItem('pwa-install-dismissed')
   hasBeenDismissed.value = dismissed === 'true'
   
-  // Show prompt after 5 seconds if installable and not dismissed
+  // Show prompt after 3 seconds if installable and not dismissed
   setTimeout(() => {
     if (isInstallable.value && !isInstalled.value && !hasBeenDismissed.value) {
       showInstallPrompt.value = true
     }
-  }, 5000)
+  }, 3000)
+  
+  // Also check periodically for installability changes (mobile browsers)
+  setInterval(() => {
+    if (isInstallable.value && !isInstalled.value && !hasBeenDismissed.value && !showInstallPrompt.value) {
+      showInstallPrompt.value = true
+    }
+  }, 10000)
 })
 
 const installApp = async () => {
@@ -176,6 +183,37 @@ const dismissPrompt = () => {
   
   .dismiss-btn:hover {
     background: #4a4d55;
+  }
+}
+
+/* Mobile specific styles */
+@media (max-width: 768px) {
+  .install-prompt {
+    margin: 8px;
+    border-radius: 12px;
+  }
+  
+  .install-prompt__content {
+    padding: 16px;
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .install-prompt__icon {
+    margin: 0 0 12px 0;
+  }
+  
+  .install-prompt__actions {
+    margin-top: 16px;
+    justify-content: center;
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .install-btn, .dismiss-btn {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 16px;
   }
 }
 </style>
