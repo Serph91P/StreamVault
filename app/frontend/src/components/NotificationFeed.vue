@@ -14,12 +14,17 @@
       </div>
       <button 
         v-if="notifications.length > 0"
-        @click="clearAllNotifications" 
+        @click.stop="clearAllNotifications" 
+        @mousedown.stop
+        @mouseup.stop
+        @touchstart.stop="clearAllNotifications"
         class="clear-all-btn" 
         aria-label="Clear all notifications"
+        type="button"
+        ref="clearButton"
       >
-        <span class="clear-icon">🗑️</span>
-        <span class="clear-text">Clear</span>
+        <span class="clear-icon" @click.stop="clearAllNotifications">🗑️</span>
+        <span class="clear-text" @click.stop="clearAllNotifications">Clear</span>
       </button>
     </div>
     
@@ -279,11 +284,50 @@ const removeNotification = (id: string): void => {
 }
 
 // Clear all notifications
-const clearAllNotifications = (): void => {
+const clearAllNotifications = (event?: Event): void => {
   console.log('🗑️ NotificationFeed: Clear all button clicked!')
+  console.log('🗑️ NotificationFeed: Event object:', event)
+  console.log('🗑️ NotificationFeed: Event target:', event?.target)
   console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
-  console.log('🗑️ NotificationFeed: Emitting clear-all event to App.vue')
-  emit('clear-all') // Let App.vue handle the actual clearing
+  
+  // Prevent any default behavior or propagation
+  if (event) {
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+  }
+  
+  // Clear notifications directly
+  notifications.value = []
+  console.log('🗑️ NotificationFeed: Cleared notifications array directly')
+  
+  // Clear localStorage immediately and confirm
+  try {
+    localStorage.removeItem('streamvault_notifications')
+    const check = localStorage.getItem('streamvault_notifications')
+    console.log('🗑️ NotificationFeed: localStorage after removal:', check)
+    
+    // Set empty array to be extra sure
+    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
+    const checkAgain = localStorage.getItem('streamvault_notifications')
+    console.log('🗑️ NotificationFeed: localStorage after setting empty array:', checkAgain)
+  } catch (error) {
+    console.error('❌ NotificationFeed: Error clearing localStorage:', error)
+  }
+  
+  // Dispatch event immediately
+  window.dispatchEvent(new CustomEvent('notificationsUpdated', {
+    detail: { count: 0 }
+  }))
+  console.log('🗑️ NotificationFeed: Dispatched notificationsUpdated event')
+  
+  // Also emit to App.vue for any additional cleanup
+  emit('clear-all')
+  console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue')
+  
+  // Close the panel after clearing
+  emit('close-panel')
+  console.log('🗑️ NotificationFeed: Emitted close-panel event')
 }
 
 // Save notifications to localStorage
@@ -305,12 +349,22 @@ const saveNotifications = (): void => {
 const loadNotifications = (): void => {
   try {
     const saved = localStorage.getItem('streamvault_notifications')
+    console.log('📂 NotificationFeed: Raw localStorage value:', saved)
+    
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) {
+      console.log('📂 NotificationFeed: Parsed localStorage value:', parsed)
+      
+      if (Array.isArray(parsed) && parsed.length > 0) {
         notifications.value = parsed
         console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage')
+      } else {
+        notifications.value = []
+        console.log('📂 NotificationFeed: Empty or invalid array in localStorage, starting with empty notifications')
       }
+    } else {
+      notifications.value = []
+      console.log('📂 NotificationFeed: No localStorage data found, starting with empty notifications')
     }
   } catch (error) {
     console.error('❌ NotificationFeed: Error loading notifications:', error)
@@ -508,11 +562,27 @@ onUnmounted(() => {
   padding: 6px 10px;
   border-radius: var(--border-radius, 4px);
   transition: all 0.2s ease;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .clear-all-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: var(--text-primary, #efeff1);
+  transform: scale(1.05);
+}
+
+.clear-all-btn:active {
+  transform: scale(0.95);
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.clear-all-btn:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
 }
 
 .clear-icon {
