@@ -3,29 +3,47 @@ export function debugPWA() {
   console.group('🔍 PWA Debug Information')
   
   // Browser information
-  console.log('User Agent:', navigator.userAgent)
-  console.log('Platform:', navigator.platform)
-  console.log('Language:', navigator.language)
+  console.log('🌐 User Agent:', navigator.userAgent)
+  console.log('📱 Platform:', navigator.platform)
+  console.log('🗣️ Language:', navigator.language)
+  console.log('🔗 URL:', window.location.href)
+  console.log('🔒 Protocol:', window.location.protocol)
+  
+  // Android Chrome specific detection
+  const isAndroid = /Android/i.test(navigator.userAgent)
+  const isChrome = /Chrome/i.test(navigator.userAgent) && !/Edge|OPR/i.test(navigator.userAgent)
+  console.log('📱 Is Android:', isAndroid)
+  console.log('🌐 Is Chrome:', isChrome)
   
   // Display mode detection
   const displayModes = ['standalone', 'minimal-ui', 'fullscreen', 'browser']
+  let currentDisplayMode = 'browser'
   displayModes.forEach(mode => {
     const isActive = window.matchMedia(`(display-mode: ${mode})`).matches
-    console.log(`Display mode ${mode}:`, isActive)
+    console.log(`📐 Display mode ${mode}:`, isActive)
+    if (isActive) currentDisplayMode = mode
   })
   
-  // Service Worker support
-  console.log('Service Worker supported:', 'serviceWorker' in navigator)
+  // PWA Installation status
+  const isInstalled = currentDisplayMode !== 'browser'
+  console.log('📲 PWA Installed:', isInstalled)
+  
+  // Service Worker support and status
+  console.log('⚙️ Service Worker supported:', 'serviceWorker' in navigator)
   if ('serviceWorker' in navigator) {
-    console.log('Service Worker controller:', navigator.serviceWorker.controller)
+    console.log('🎮 Service Worker controller:', !!navigator.serviceWorker.controller)
     navigator.serviceWorker.getRegistrations().then(registrations => {
-      console.log('Service Worker registrations:', registrations.length)
+      console.log('📋 Service Worker registrations:', registrations.length)
+      registrations.forEach((reg, i) => {
+        console.log(`  Registration ${i + 1}:`, reg.scope)
+      })
     })
   }
   
-  // Manifest support
+  // Install prompt support
   const manifestSupported = 'onbeforeinstallprompt' in window
-  console.log('beforeinstallprompt supported:', manifestSupported)
+  console.log('📲 beforeinstallprompt supported:', manifestSupported)
+  console.log('📲 Install prompt available:', !!(window as any).deferredPrompt)
   
   // Push notifications
   console.log('Push Manager supported:', 'PushManager' in window)
