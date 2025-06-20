@@ -10,25 +10,35 @@ logger = logging.getLogger("streamvault")
 def generate_vapid_keys():
     """Generate VAPID keys automatically if not provided"""
     try:
-        from pywebpush import Vapid
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
         
-        # Generate VAPID keys using pywebpush
-        vapid = Vapid()
-        vapid.generate_keys()
+        # Generate private key using cryptography directly
+        private_key = ec.generate_private_key(ec.SECP256R1())
         
-        private_key = vapid.private_key.private_bytes_raw()
-        public_key = vapid.public_key.public_bytes_raw()
+        # Get private key bytes
+        private_key_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
         
-        # Encode as base64url (without padding) - pywebpush standard
-        private_key_b64 = base64.urlsafe_b64encode(private_key).decode().rstrip('=')
-        public_key_b64 = base64.urlsafe_b64encode(public_key).decode().rstrip('=')
+        # Get public key bytes in uncompressed format for VAPID
+        public_key_bytes = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint
+        )
+        
+        # Encode as base64url (without padding) - standard for VAPID
+        private_key_b64 = base64.urlsafe_b64encode(private_key_pem).decode().rstrip('=')
+        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode().rstrip('=')
         
         logger.info("✅ VAPID keys auto-generated successfully")
         return public_key_b64, private_key_b64
         
     except ImportError:
-        logger.warning("⚠️ pywebpush library not available for VAPID key generation")
-        logger.info("💡 Install with: pip install pywebpush")
+        logger.warning("⚠️ cryptography library not available for VAPID key generation")
+        logger.info("💡 Install with: pip install cryptography")
         return None, None
     except Exception as e:
         logger.warning(f"⚠️ Failed to auto-generate VAPID keys: {e}")
