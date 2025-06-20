@@ -282,8 +282,18 @@ const removeNotification = (id: string): void => {
 const clearAllNotifications = (): void => {
   console.log('🗑️ NotificationFeed: Clear all button clicked!')
   console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
-  console.log('🗑️ NotificationFeed: Emitting clear-all event to App.vue')
-  emit('clear-all') // Let App.vue handle the actual clearing
+  
+  // Clear notifications directly
+  notifications.value = []
+  console.log('🗑️ NotificationFeed: Cleared notifications array directly')
+  
+  // Save empty array to localStorage
+  saveNotifications()
+  console.log('🗑️ NotificationFeed: Saved empty notifications to localStorage')
+  
+  // Also emit to App.vue for any additional cleanup
+  emit('clear-all')
+  console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue')
 }
 
 // Save notifications to localStorage
