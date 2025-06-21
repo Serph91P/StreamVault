@@ -84,11 +84,15 @@
         <span v-if="unreadCount > 0" class="mobile-notification-indicator"></span>
       </button>
     </div>
+    
+    <!-- PWA Install Prompt -->
+    <PWAInstallPrompt />
   </div>
 </template>
 
 <script setup>
 import NotificationFeed from '@/components/NotificationFeed.vue'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -473,6 +477,31 @@ watch(messages, (newMessages) => {
   position: relative;
 }
 
+.mobile-notification-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+.mobile-notification-btn:hover {
+  color: var(--text-primary);
+}
+
+.mobile-notification-btn .mobile-nav-icon {
+  margin-bottom: 4px;
+  transition: transform 0.2s ease, stroke 0.2s ease;
+  stroke: currentColor;
+}
+
 .mobile-notification-indicator {
   position: absolute;
   top: 2px;
@@ -491,6 +520,17 @@ watch(messages, (newMessages) => {
   z-index: 1000;
   max-width: 400px;
   width: 90vw;
+}
+
+/* Mobile specific notification overlay */
+@media (max-width: 767px) {
+  .notification-overlay {
+    top: 20px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+  }
 }
 
 /* Ensure mobile navigation doesn't display on larger screens */

@@ -93,20 +93,43 @@ class StreamerService:
 
     async def get_streamers(self) -> List[Dict[str, Any]]:
         streamers = self.db.query(Streamer).all()
-        return [
-            {
+        
+        # Try to get recording status - fail gracefully if not available
+        recording_streamer_ids = set()
+        try:
+            from app.services.recording_service import RecordingService
+            recording_service = RecordingService()
+            active_recordings = await recording_service.get_active_recordings()
+            recording_streamer_ids = {info['streamer_id'] for info in active_recordings}
+        except Exception as e:
+            logger.warning(f"Could not get recording status: {e}")
+        
+        result = []
+        for streamer in streamers:
+            # Check if recording is enabled for this streamer
+            recording_enabled = False
+            try:
+                from app.services.recording_service import RecordingService
+                recording_service = RecordingService()
+                recording_enabled = recording_service.config_manager.is_recording_enabled(streamer.id)
+            except Exception as e:
+                logger.warning(f"Could not check recording status for streamer {streamer.id}: {e}")
+            
+            result.append({
                 "id": streamer.id,
                 "twitch_id": streamer.twitch_id,
                 "username": streamer.username,
                 "is_live": streamer.is_live,
+                "is_recording": streamer.id in recording_streamer_ids,
+                "recording_enabled": recording_enabled,
                 "title": streamer.title,
                 "category_name": streamer.category_name,
                 "language": streamer.language,
                 "last_updated": streamer.last_updated,
                 "profile_image_url": streamer.profile_image_url
-            }
-            for streamer in streamers
-        ]
+            })
+            
+        return result
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()

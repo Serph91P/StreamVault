@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 import logging
 import asyncio
 from pathlib import Path
+import json
+import re
 
 logger = logging.getLogger("streamvault")
 
@@ -485,3 +487,151 @@ async def validate_streamer(
             "valid": False,
             "message": f"Error validating streamer: {str(e)}"
         }
+
+@router.get("/{streamer_id}/streams/{stream_id}/chapters")
+async def get_stream_chapters(
+    streamer_id: int,
+    stream_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get chapter data for a specific stream"""
+    try:
+        # First verify the stream exists for this streamer
+        stream = db.query(Stream).filter(
+            Stream.id == stream_id,
+            Stream.streamer_id == streamer_id
+        ).first()
+        
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        # Get metadata for the stream
+        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        
+        if not metadata:
+            return {"chapters": [], "message": "No metadata found for this stream"}
+        
+        chapters = []
+        
+        # Try to load chapters from WebVTT file first
+        if metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
+            try:
+                with open(metadata.chapters_vtt_path, 'r', encoding='utf-8') as f:
+                    vtt_content = f.read()
+                chapters.extend(parse_webvtt_chapters(vtt_content))
+                logger.debug(f"Loaded {len(chapters)} chapters from WebVTT file")
+            except Exception as e:
+                logger.warning(f"Failed to parse WebVTT chapters: {e}")
+        
+        # If no WebVTT chapters, try to load from StreamEvents (API-based chapters)
+        if not chapters:
+            events = db.query(StreamEvent).filter(
+                StreamEvent.stream_id == stream_id,
+                StreamEvent.event_type.in_(['stream.online', 'channel.update'])
+            ).order_by(StreamEvent.timestamp).all()
+            
+            for event in events:
+                try:
+                    event_data = json.loads(event.event_data) if event.event_data else {}
+                    title = "Stream Event"
+                    
+                    if event.event_type == 'stream.online':
+                        title = "Stream Started"
+                    elif event.event_type == 'channel.update':
+                        title = event_data.get('title', 'Channel Update')
+                        # Limit title length for chapters
+                        if len(title) > 50:
+                            title = title[:47] + "..."
+                    
+                    chapters.append({
+                        "start_time": event.timestamp.isoformat(),
+                        "title": title,
+                        "type": "event"
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to process event {event.id}: {e}")
+            
+            logger.debug(f"Generated {len(chapters)} chapters from events")
+        
+        # Return chapter data with metadata
+        video_url = None
+        if stream.recording_path:
+            # Convert absolute path to relative URL for static file serving
+            try:
+                video_path = Path(stream.recording_path)
+                if video_path.exists():
+                    # Assuming recordings are in /app/data, create URL relative to /data mount
+                    if '/app/data' in str(video_path):
+                        relative_path = str(video_path).replace('/app/data/', '')
+                        video_url = f"/data/{relative_path}"
+                    else:
+                        # Fallback: just use the filename
+                        video_url = f"/data/{video_path.name}"
+            except Exception as e:
+                logger.warning(f"Failed to generate video URL: {e}")
+        
+        # Calculate duration if possible
+        duration = None
+        if stream.started_at and stream.ended_at:
+            duration = (stream.ended_at - stream.started_at).total_seconds()
+        
+        return {
+            "chapters": chapters,
+            "stream_id": stream_id,
+            "stream_title": stream.title or f"Stream {stream_id}",
+            "duration": duration,
+            "video_url": video_url,
+            "video_file": stream.recording_path,
+            "metadata": {
+                "has_vtt": bool(metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists()),
+                "has_srt": bool(metadata.chapters_srt_path and Path(metadata.chapters_srt_path).exists()),
+                "has_ffmpeg": bool(metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists())
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting chapters for stream {stream_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
+    """Parse WebVTT chapter content and return chapter data"""
+    chapters = []
+    
+    # Split into cues by looking for timestamp lines
+    lines = vtt_content.split('\n')
+    current_chapter = None
+    
+    for line in lines:
+        line = line.strip()
+        
+        # Skip empty lines and WebVTT header
+        if not line or line == 'WEBVTT':
+            continue
+        
+        # Look for timestamp lines (format: 00:00:00.000 --> 00:00:00.000)
+        timestamp_match = re.match(r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})', line)
+        if timestamp_match:
+            if current_chapter:
+                chapters.append(current_chapter)
+            
+            start_time = timestamp_match.group(1)
+            current_chapter = {
+                "start_time": start_time,
+                "title": "",
+                "type": "chapter"
+            }
+        elif current_chapter and line and not line.startswith('NOTE'):
+            # This is the chapter title
+            if not current_chapter["title"]:
+                current_chapter["title"] = line
+            else:
+                # Multi-line title
+                current_chapter["title"] += " " + line
+    
+    # Add the last chapter
+    if current_chapter:
+        chapters.append(current_chapter)
+    
+    return chapters

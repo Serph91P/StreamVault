@@ -63,6 +63,11 @@
             <FavoritesSettingsPanel />
           </div>
           
+          <!-- PWA Tab -->
+          <div v-if="activeTab === 'pwa'" class="tab-pane" role="tabpanel">
+            <PWAPanel />
+          </div>
+          
           <!-- Logging Tab -->
           <!-- <div v-if="activeTab === 'logging'" class="tab-pane" role="tabpanel">
             <LoggingPanel />
@@ -80,6 +85,7 @@ import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
+import PWAPanel from '@/components/settings/PWAPanel.vue'
 // import LoggingPanel from '@/components/settings/LoggingPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings, StreamerRecordingSettings, ActiveRecording } from '@/types/recording'
@@ -89,6 +95,7 @@ const availableTabs = computed(() => [
   { id: 'notifications', label: 'Notifications' },
   { id: 'recording', label: 'Recording' },
   { id: 'favorites', label: 'Favorite Games' },
+  { id: 'pwa', label: 'PWA & Mobile' }
   // { id: 'logging', label: 'Logging & Monitoring' }
 ])
 

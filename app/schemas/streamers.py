@@ -13,6 +13,8 @@ class StreamerResponse(BaseModel):
     twitch_id: str
     username: str
     is_live: bool
+    is_recording: bool = False  # Whether currently recording
+    recording_enabled: bool = False  # Whether recording is enabled for this streamer
     title: Optional[str] = None
     category_name: Optional[str] = None
     language: Optional[str] = None

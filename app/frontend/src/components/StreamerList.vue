@@ -21,9 +21,25 @@
               {{ streamer.username }}
             </h3>
           </div>
-          <span class="status-badge" :class="{ 'live': streamer.is_live }">
-            {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
-          </span>
+          <div class="status-badges">
+            <span class="status-badge" :class="{ 'live': streamer.is_live }">
+              {{ streamer.is_live ? 'LIVE' : 'OFFLINE' }}
+            </span>
+            <span 
+              v-if="streamer.is_live && streamer.is_recording" 
+              class="status-badge recording"
+              title="Currently recording"
+            >
+              REC
+            </span>
+            <span 
+              v-else-if="streamer.is_live && !streamer.recording_enabled" 
+              class="status-badge not-recording"
+              title="Recording disabled for this streamer"
+            >
+              NO REC
+            </span>
+          </div>
         </div>
         <div class="streamer-content">
           <p v-if="streamer.title"><strong>Title:</strong> {{ streamer.title || '-' }}</p>
@@ -204,6 +220,24 @@ watch(messages, (newMessages) => {
       updateStreamer(message.data.streamer_id, updateData)
       break
     }
+    case 'recording.started': {
+      console.log('StreamerList: Processing recording started:', message.data)
+      const streamerId = message.data.streamer_id
+      const streamer = streamers.value.find(s => s.id === streamerId)
+      if (streamer) {
+        streamer.is_recording = true
+      }
+      break
+    }
+    case 'recording.stopped': {
+      console.log('StreamerList: Processing recording stopped:', message.data)
+      const streamerId = message.data.streamer_id
+      const streamer = streamers.value.find(s => s.id === streamerId)
+      if (streamer) {
+        streamer.is_recording = false
+      }
+      break
+    }
   }
 }, { deep: true })
 
@@ -297,6 +331,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-color, #2d2d35);
+}
+
+.status-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .streamer-info {
@@ -412,6 +452,26 @@ onMounted(() => {
 .status-badge.live {
   background-color: var(--danger-color, #ef4444);
   color: white;
+}
+
+.status-badge.recording {
+  background-color: var(--success-color, #22c55e);
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.status-badge.not-recording {
+  background-color: var(--warning-color, #f59e0b);
+  color: white;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Button styling */

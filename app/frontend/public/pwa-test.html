@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>StreamVault - PWA Installation Test</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#6f42c1">
+    <meta name="description" content="Automated Twitch stream recording and management platform">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="StreamVault">
+    
+    <!-- Apple Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="StreamVault">
+    <link rel="apple-touch-icon" href="/apple-icon-180x180.png">
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: white;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .install-status {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .install-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin: 10px;
+        }
+        
+        .install-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .install-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .debug-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .feature-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+        
+        .feature-card p {
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        .timer {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #ffc107;
+            margin-top: 15px;
+        }
+        
+        .criteria-list {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+        
+        .criteria-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .criteria-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-icon {
+            font-size: 1.2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 { font-size: 2rem; }
+            .features { grid-template-columns: 1fr; }
+            .main-content { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📱 StreamVault PWA</h1>
+        <p>Teste die Installation als Progressive Web App</p>
+    </div>
+    
+    <div class="main-content">
+        <div class="install-status">
+            <h2 id="install-title">🚀 App Installation</h2>
+            <p id="install-description">Prüfe PWA-Installationsmöglichkeiten...</p>
+            <div class="timer" id="engagement-timer">0:00</div>
+            <div style="margin-top: 20px;">
+                <button id="install-button" class="install-btn" disabled>Installation wird vorbereitet...</button>
+                <br>
+                <button id="debug-button" class="debug-btn">🔍 Debug Info</button>
+                <button id="refresh-button" class="debug-btn">🔄 Aktualisieren</button>
+            </div>
+        </div>
+        
+        <div class="criteria-list">
+            <h3 style="margin-bottom: 15px;">📋 PWA-Installationskriterien</h3>
+            <div id="criteria-https" class="criteria-item">
+                <span>HTTPS oder localhost</span>
+                <span class="status-icon">⏳</span>
+            </div>
+            <div id="criteria-manifest" class="criteria-item">
+                <span>Web App Manifest</span>
+                <span class="status-icon">⏳</span>
+            </div>
+            <div id="criteria-sw" class="criteria-item">
+                <span>Service Worker</span>
+                <span class="status-icon">⏳</span>
+            </div>
+            <div id="criteria-icons" class="criteria-item">
+                <span>Icons (144px, 512px)</span>
+                <span class="status-icon">⏳</span>
+            </div>
+            <div id="criteria-engagement" class="criteria-item">
+                <span>User Engagement (30s+)</span>
+                <span class="status-icon">⏳</span>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature-card">
+                <h3>🎥 Stream Recording</h3>
+                <p>Automatische Aufzeichnung von Twitch-Streams mit intelligenter Archivierung</p>
+            </div>
+            <div class="feature-card">
+                <h3>📱 Mobile Ready</h3>
+                <p>Vollständig responsives Design für die optimale mobile Nutzung</p>
+            </div>
+            <div class="feature-card">
+                <h3>🔔 Push Notifications</h3>
+                <p>Benachrichtigungen über neue Streams und wichtige Events</p>
+            </div>
+            <div class="feature-card">
+                <h3>⚡ Offline Support</h3>
+                <p>Grundfunktionen auch ohne Internetverbindung verfügbar</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let installPrompt = null;
+        let startTime = Date.now();
+        let timerInterval;
+        
+        // Timer für User Engagement
+        function startEngagementTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('engagement-timer').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Update engagement criteria
+                if (elapsed >= 30) {
+                    updateCriteria('criteria-engagement', true);
+                }
+            }, 1000);
+        }
+        
+        // PWA-Kriterien prüfen
+        async function checkCriteria() {
+            // HTTPS
+            const isSecure = window.location.protocol === 'https:' || 
+                           window.location.hostname === 'localhost' || 
+                           window.location.hostname.startsWith('192.168.');
+            updateCriteria('criteria-https', isSecure);
+            
+            // Manifest
+            try {
+                const manifestResponse = await fetch('/manifest.json');
+                const manifest = await manifestResponse.json();
+                updateCriteria('criteria-manifest', !!manifest.name);
+                
+                // Icons
+                const hasRequiredIcons = manifest.icons && 
+                    manifest.icons.some(icon => icon.sizes.includes('144x144')) &&
+                    manifest.icons.some(icon => icon.sizes.includes('512x512'));
+                updateCriteria('criteria-icons', hasRequiredIcons);
+            } catch (error) {
+                updateCriteria('criteria-manifest', false);
+                updateCriteria('criteria-icons', false);
+            }
+            
+            // Service Worker
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    updateCriteria('criteria-sw', registrations.length > 0);
+                } catch (error) {
+                    updateCriteria('criteria-sw', false);
+                }
+            } else {
+                updateCriteria('criteria-sw', false);
+            }
+        }
+        
+        function updateCriteria(id, success) {
+            const element = document.getElementById(id);
+            const icon = element.querySelector('.status-icon');
+            icon.textContent = success ? '✅' : '❌';
+        }
+        
+        // Install Prompt Handler
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            installPrompt = e;
+            
+            const button = document.getElementById('install-button');
+            const title = document.getElementById('install-title');
+            const description = document.getElementById('install-description');
+            
+            button.disabled = false;
+            button.textContent = '📱 PWA installieren';
+            title.textContent = '🎉 Installation verfügbar!';
+            description.textContent = 'Die App kann jetzt als PWA installiert werden.';
+            
+            console.log('💡 PWA Install prompt available!');
+        });
+        
+        // Install Button Handler
+        document.getElementById('install-button').addEventListener('click', async () => {
+            if (!installPrompt) {
+                // Fallback für Browser ohne beforeinstallprompt
+                alert('🔍 Installation nicht verfügbar.\n\nManuelle Installation:\n• Chrome: Menü → "Zum Startbildschirm hinzufügen"\n• Safari: Teilen → "Zum Home-Bildschirm"');
+                return;
+            }
+            
+            try {
+                const result = await installPrompt.prompt();
+                const choice = await result.userChoice;
+                
+                if (choice === 'accepted') {
+                    console.log('✅ PWA installation accepted');
+                    document.getElementById('install-title').textContent = '🎉 Installation erfolgreich!';
+                    document.getElementById('install-description').textContent = 'Die App wurde erfolgreich installiert.';
+                } else {
+                    console.log('❌ PWA installation dismissed');
+                }
+                
+                installPrompt = null;
+            } catch (error) {
+                console.error('💥 PWA installation failed:', error);
+                alert('Installation fehlgeschlagen: ' + error.message);
+            }
+        });
+        
+        // Debug Button
+        document.getElementById('debug-button').addEventListener('click', () => {
+            console.group('🔍 PWA Debug Information');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Platform:', navigator.platform);
+            console.log('URL:', window.location.href);
+            console.log('Protocol:', window.location.protocol);
+            console.log('Install Prompt Available:', !!installPrompt);
+            console.log('Service Worker Support:', 'serviceWorker' in navigator);
+            console.log('Service Worker Controller:', !!navigator.serviceWorker?.controller);
+            
+            // Check display mode
+            const modes = ['standalone', 'minimal-ui', 'fullscreen', 'browser'];
+            modes.forEach(mode => {
+                console.log(`Display mode ${mode}:`, window.matchMedia(`(display-mode: ${mode})`).matches);
+            });
+            
+            console.groupEnd();
+        });
+        
+        // Refresh Button
+        document.getElementById('refresh-button').addEventListener('click', () => {
+            window.location.reload();
+        });
+        
+        // App Installation Detection
+        window.addEventListener('appinstalled', () => {
+            console.log('🎉 PWA was installed successfully!');
+            document.getElementById('install-title').textContent = '✅ App installiert!';
+            document.getElementById('install-description').textContent = 'StreamVault wurde erfolgreich installiert.';
+        });
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            startEngagementTimer();
+            checkCriteria();
+            
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(registration => {
+                        console.log('✅ Service Worker registered:', registration.scope);
+                        updateCriteria('criteria-sw', true);
+                    })
+                    .catch(error => {
+                        console.error('❌ Service Worker registration failed:', error);
+                        updateCriteria('criteria-sw', false);
+                    });
+            }
+            
+            // Add user interaction for mobile browsers
+            let interactionCount = 0;
+            ['click', 'touch', 'scroll'].forEach(event => {
+                document.addEventListener(event, () => {
+                    interactionCount++;
+                    if (interactionCount === 1) {
+                        console.log('👆 First user interaction detected');
+                    }
+                }, { once: false });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -92,6 +92,15 @@
               </button>
             </div>
             
+            <!-- Watch Video button for ended streams -->
+            <button 
+              v-if="stream.ended_at"
+              @click="watchVideo(stream)" 
+              class="btn btn-primary watch-btn"
+            >
+              Watch Video
+            </button>
+            
             <!-- Delete Stream button - disabled while stream is recording -->
             <button 
               @click="confirmDeleteStream(stream)" 
@@ -199,6 +208,21 @@ const calculateDuration = (start: string | undefined | null, end: string | undef
 // Navigation zurück
 const handleBack = () => {
   router.push('/')
+}
+
+// Watch video function
+const watchVideo = (stream: any) => {
+  router.push({
+    name: 'VideoPlayer',
+    params: { 
+      streamerId: streamerId.value,
+      streamId: stream.id 
+    },
+    query: {
+      title: stream.title || `Stream ${stream.id}`,
+      streamerName: streamerName.value
+    }
+  })
 }
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
@@ -624,6 +648,21 @@ const getCategoryImage = (categoryName: string): string => {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+}
+
+.watch-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.watch-btn:hover {
+  background-color: #0056b3;
 }
 
 .delete-btn {

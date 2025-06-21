@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -8,6 +8,7 @@ from typing import Optional
 
 class Streamer(Base):
     __tablename__ = "streamers"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     twitch_id = Column(String, unique=True, nullable=False)
@@ -23,6 +24,7 @@ class Streamer(Base):
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
 class Stream(Base):
     __tablename__ = "streams"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
@@ -34,12 +36,16 @@ class Stream(Base):
     twitch_stream_id = Column(String, nullable=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     
+    # Relationships
+    stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
+    
     @property
     def is_live(self):
         return self.ended_at is None
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
@@ -51,6 +57,7 @@ class StreamEvent(Base):
     
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
@@ -61,6 +68,7 @@ class User(Base):
 
 class Session(Base):
     __tablename__ = "sessions"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
@@ -69,6 +77,7 @@ class Session(Base):
 
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, index=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
@@ -80,6 +89,7 @@ class NotificationSettings(Base):
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     twitch_id = Column(String, unique=True, nullable=False)
@@ -91,6 +101,7 @@ class Category(Base):
 
 class FavoriteCategory(Base):
     __tablename__ = "favorite_categories"
+    __table_args__ = (UniqueConstraint('user_id', 'category_id', name='uq_user_category'), {'extend_existing': True})
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -98,11 +109,11 @@ class FavoriteCategory(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="favorite_categories")
     category = relationship("Category", back_populates="favorites")
-    __table_args__ = (UniqueConstraint('user_id', 'category_id', name='uq_user_category'),)
 
     
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
+    __table_args__ = {'extend_existing': True}
     
     id: int = Column(Integer, primary_key=True)
     notification_url: Optional[str] = Column(String)
@@ -116,6 +127,7 @@ class GlobalSettings(Base):
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
     enabled = Column(Boolean, default=False)
@@ -130,6 +142,7 @@ class RecordingSettings(Base):
       
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
@@ -145,6 +158,7 @@ Streamer.recording_settings = relationship("StreamerRecordingSettings", back_pop
 
 class StreamMetadata(Base):
     __tablename__ = "stream_metadata"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
@@ -173,7 +187,27 @@ class StreamMetadata(Base):
     follower_count = Column(Integer)
     
     # Beziehung zum Stream
-    stream = relationship("Stream", back_populates="metadata")
+    stream = relationship("Stream", back_populates="stream_metadata")
 
-# Füge die Rückbeziehung zum Stream-Modell hinzu
-Stream.metadata = relationship("StreamMetadata", back_populates="stream", uselist=False, cascade="all, delete-orphan")
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    endpoint = Column(String, unique=True, nullable=False)
+    subscription_data = Column(Text, nullable=False)  # JSON string of the subscription object
+    user_agent = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String, unique=True, nullable=False)
+    value = Column(Text, nullable=False)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -147,13 +147,13 @@ class MigrationService:
     @classmethod
     def initialize_migrations_table(cls) -> None:
         """Create a migrations table to track which migrations have been run"""
-        from sqlalchemy import Column, String, DateTime, Boolean, MetaData, Table
+        from sqlalchemy import Column, String, DateTime, Boolean, MetaData as SQLMetaData, Table
         from sqlalchemy.sql import text
         import datetime
         
         try:
             # Check if migrations table exists
-            metadata = MetaData()
+            metadata = SQLMetaData()
             migrations_table = Table(
                 'migrations',
                 metadata,
