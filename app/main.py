@@ -420,7 +420,22 @@ app.add_exception_handler(Exception, error_handler)
 # Auth Middleware
 app.add_middleware(AuthMiddleware)
 
-# SPA catch-all route must be last
+# SPA catch-all route must be last - only serve for non-API paths
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    return FileResponse("app/frontend/dist/index.html")
+    # Don't serve SPA for API paths, static files, or PWA files
+    if (full_path.startswith("api/") or 
+        full_path.startswith("assets/") or 
+        full_path.startswith("data/") or
+        full_path.startswith("video/") or
+        full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"} or
+        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map"))):
+        raise HTTPException(status_code=404)
+    
+    # Try production path first, then fallback
+    for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
+        try:
+            return FileResponse(path, media_type="text/html")
+        except:
+            continue
+    return Response(status_code=404)
