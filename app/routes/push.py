@@ -6,6 +6,7 @@ from app.config.settings import get_settings
 import json
 import logging
 from typing import Dict, Any
+import time
 
 logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/push", tags=["push"])
@@ -150,4 +151,26 @@ async def send_test_notification(db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/test-local")
+async def send_test_local_notification():
+    """Send a test notification via Service Worker without push"""
+    try:
+        return {
+            "success": True,
+            "message": "Local test notification triggered",
+            "notification": {
+                "title": "StreamVault Local Test",
+                "body": "This is a local test notification - PWA notifications are working!",
+                "icon": "/android-icon-192x192.png",
+                "badge": "/android-icon-96x96.png",
+                "type": "test_local",
+                "requireInteraction": True,
+                "timestamp": int(time.time() * 1000)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating local test notification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
