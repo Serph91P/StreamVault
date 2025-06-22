@@ -143,6 +143,12 @@
             margin-top: 20px;
         }
         
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
         .criteria-item {
             display: flex;
             justify-content: space-between;
@@ -157,6 +163,12 @@
         
         .status-icon {
             font-size: 1.2rem;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
         
         @media (max-width: 768px) {
@@ -229,6 +241,7 @@
         </div>
     </div>
 
+    <script src="/pwa-helper.js"></script>
     <script>
         let installPrompt = null;
         let startTime = Date.now();
@@ -295,6 +308,7 @@
         
         // Install Prompt Handler
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('🎉 beforeinstallprompt event fired!');
             e.preventDefault();
             installPrompt = e;
             
@@ -303,37 +317,102 @@
             const description = document.getElementById('install-description');
             
             button.disabled = false;
-            button.textContent = '📱 PWA installieren';
+            button.textContent = '📱 PWA jetzt installieren';
             title.textContent = '🎉 Installation verfügbar!';
             description.textContent = 'Die App kann jetzt als PWA installiert werden.';
             
-            console.log('💡 PWA Install prompt available!');
+            // Show visual indicator
+            button.style.background = '#28a745';
+            button.style.animation = 'pulse 2s infinite';
+            
+            console.log('💡 PWA Install prompt is now ready!');
         });
+        
+        // Check for install prompt periodically (some browsers delay it)
+        let installCheckCount = 0;
+        const installChecker = setInterval(() => {
+            installCheckCount++;
+            console.log(`🔍 Install check #${installCheckCount}`);
+            
+            if (installPrompt) {
+                clearInterval(installChecker);
+                console.log('✅ Install prompt available after', installCheckCount, 'checks');
+            } else if (installCheckCount >= 30) {
+                clearInterval(installChecker);
+                console.log('❌ No install prompt after 30 checks (5 minutes)');
+                
+                // Show manual install instructions
+                const description = document.getElementById('install-description');
+                description.innerHTML = `
+                    <strong>Keine automatische Installation verfügbar.</strong><br>
+                    Manuelle Installation:<br>
+                    • Chrome: Menü (⋮) → "Zum Startbildschirm hinzufügen"<br>
+                    • Oder Adressleiste → Install-Icon (falls vorhanden)
+                `;
+            }
+        }, 10000); // Check every 10 seconds
         
         // Install Button Handler
         document.getElementById('install-button').addEventListener('click', async () => {
-            if (!installPrompt) {
-                // Fallback für Browser ohne beforeinstallprompt
-                alert('🔍 Installation nicht verfügbar.\n\nManuelle Installation:\n• Chrome: Menü → "Zum Startbildschirm hinzufügen"\n• Safari: Teilen → "Zum Home-Bildschirm"');
-                return;
-            }
-            
-            try {
-                const result = await installPrompt.prompt();
-                const choice = await result.userChoice;
+            if (window.pwaHelper && window.pwaHelper.canInstall) {
+                try {
+                    const installed = await window.pwaHelper.install();
+                    if (installed) {
+                        console.log('✅ PWA installation successful');
+                    }
+                } catch (error) {
+                    console.error('❌ PWA installation failed:', error);
+                    
+                    // Show manual instructions
+                    const instructions = window.pwaHelper.getManualInstallInstructions();
+                    let instructionText = `Manuelle Installation (${instructions.platform}):\n\n`;
+                    instructions.instructions.forEach((step, index) => {
+                        instructionText += `${index + 1}. ${step}\n`;
+                    });
+                    
+                    alert(instructionText);
+                }
+            } else if (!installPrompt) {
+                // Fallback for browsers without beforeinstallprompt
+                const userAgent = navigator.userAgent;
+                let instructions = 'Installation nicht automatisch verfügbar.\n\n';
                 
-                if (choice === 'accepted') {
-                    console.log('✅ PWA installation accepted');
-                    document.getElementById('install-title').textContent = '🎉 Installation erfolgreich!';
-                    document.getElementById('install-description').textContent = 'Die App wurde erfolgreich installiert.';
+                if (userAgent.includes('Android') && userAgent.includes('Chrome')) {
+                    instructions += 'Android Chrome:\n';
+                    instructions += '1. Tippen Sie auf Menü (⋮)\n';
+                    instructions += '2. "Zum Startbildschirm hinzufügen"\n';
+                    instructions += '3. Installation bestätigen';
+                } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+                    instructions += 'iOS Safari:\n';
+                    instructions += '1. Tippen Sie auf Teilen-Symbol\n';
+                    instructions += '2. "Zum Home-Bildschirm"\n';
+                    instructions += '3. Namen eingeben und hinzufügen';
                 } else {
-                    console.log('❌ PWA installation dismissed');
+                    instructions += 'Desktop Browser:\n';
+                    instructions += '1. Schauen Sie nach Install-Icon in Adressleiste\n';
+                    instructions += '2. Oder Browser-Menü verwenden';
                 }
                 
-                installPrompt = null;
-            } catch (error) {
-                console.error('💥 PWA installation failed:', error);
-                alert('Installation fehlgeschlagen: ' + error.message);
+                alert(instructions);
+            } else {
+                // Original fallback logic
+                try {
+                    const result = await installPrompt.prompt();
+                    const choice = await result.userChoice;
+                    
+                    if (choice === 'accepted') {
+                        console.log('✅ PWA installation accepted');
+                        document.getElementById('install-title').textContent = '🎉 Installation erfolgreich!';
+                        document.getElementById('install-description').textContent = 'Die App wurde erfolgreich installiert.';
+                    } else {
+                        console.log('❌ PWA installation dismissed');
+                    }
+                    
+                    installPrompt = null;
+                } catch (error) {
+                    console.error('💥 PWA installation failed:', error);
+                    alert('Installation fehlgeschlagen: ' + error.message);
+                }
             }
         });
         
@@ -369,10 +448,54 @@
             document.getElementById('install-description').textContent = 'StreamVault wurde erfolgreich installiert.';
         });
         
-        // Initialize
+        // Initialize with enhanced PWA helper
         document.addEventListener('DOMContentLoaded', () => {
             startEngagementTimer();
-            checkCriteria();
+            
+            // Use the enhanced PWA helper
+            if (window.pwaHelper) {
+                // Listen for install events
+                window.pwaHelper.on('installable', (canInstall) => {
+                    const button = document.getElementById('install-button');
+                    const title = document.getElementById('install-title');
+                    const description = document.getElementById('install-description');
+                    
+                    if (canInstall) {
+                        button.disabled = false;
+                        button.textContent = '🚀 PWA installieren';
+                        button.style.background = '#28a745';
+                        title.textContent = '🎉 Installation verfügbar!';
+                        description.textContent = 'Die App kann jetzt installiert werden.';
+                    } else {
+                        button.textContent = '⏳ Warte auf Installation...';
+                        title.textContent = '⏳ Installation wird vorbereitet';
+                        description.textContent = 'Bitte warten Sie einen Moment...';
+                    }
+                });
+                
+                window.pwaHelper.on('installed', () => {
+                    const title = document.getElementById('install-title');
+                    const description = document.getElementById('install-description');
+                    title.textContent = '✅ App installiert!';
+                    description.textContent = 'StreamVault wurde erfolgreich installiert.';
+                });
+                
+                window.pwaHelper.on('criteria', (criteria) => {
+                    updateCriteria('criteria-https', criteria.https);
+                    updateCriteria('criteria-manifest', criteria.manifest);
+                    updateCriteria('criteria-sw', criteria.serviceWorker);
+                    updateCriteria('criteria-icons', criteria.icons);
+                    updateCriteria('criteria-engagement', criteria.engagement);
+                });
+                
+                // Check criteria immediately
+                setTimeout(() => {
+                    window.pwaHelper.checkInstallCriteria();
+                }, 2000);
+            } else {
+                // Fallback to original implementation
+                checkCriteria();
+            }
             
             // Register Service Worker
             if ('serviceWorker' in navigator) {
