@@ -252,32 +252,115 @@ except Exception as e:
 
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
-# Static files for root-level items
-@app.get("/favicon.ico")
-async def favicon():
-    # Try production path first, then fallback
-    for path in ["app/frontend/dist/favicon.ico", "/app/app/frontend/dist/favicon.ico"]:
+# PWA Files serving - these must be at root level
+@app.get("/manifest.json")
+async def serve_manifest():
+    for path in ["app/frontend/public/manifest.json", "/app/app/frontend/public/manifest.json"]:
         try:
-            return FileResponse(path)
+            return FileResponse(
+                path,
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
         except:
             continue
     return Response(status_code=404)
 
-@app.get("/icons/{file_path:path}")
-async def serve_icons(file_path: str):
-    import os
-    base_dir = "app/frontend/dist/icons"
-    fallback_dir = "/app/app/frontend/dist/icons"
-    
-    # Normalize and validate the path
-    for base_path in [base_dir, fallback_dir]:
-        full_path = os.path.normpath(os.path.join(base_path, file_path))
-        if not full_path.startswith(os.path.abspath(base_path)):
-            continue  # Skip invalid paths
+@app.get("/manifest.webmanifest")
+async def serve_manifest_webmanifest():
+    for path in ["app/frontend/public/manifest.webmanifest", "/app/app/frontend/public/manifest.webmanifest"]:
         try:
-            return FileResponse(full_path)
+            return FileResponse(
+                path,
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
         except:
             continue
+    return Response(status_code=404)
+
+@app.get("/sw.js")
+async def service_worker():
+    for path in ["app/frontend/public/sw.js", "/app/app/frontend/public/sw.js"]:
+        try:
+            return FileResponse(
+                path,
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Service-Worker-Allowed": "/",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/browserconfig.xml")
+async def serve_browserconfig():
+    for path in ["app/frontend/public/browserconfig.xml", "/app/app/frontend/public/browserconfig.xml"]:
+        try:
+            return FileResponse(
+                path,
+                media_type="application/xml",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/pwa-test.html")
+async def serve_pwa_test():
+    for path in ["app/frontend/public/pwa-test.html", "/app/app/frontend/public/pwa-test.html"]:
+        try:
+            return FileResponse(path, media_type="text/html")
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/pwa-helper.js")
+async def serve_pwa_helper():
+    for path in ["app/frontend/public/pwa-helper.js", "/app/app/frontend/public/pwa-helper.js"]:
+        try:
+            return FileResponse(path, media_type="application/javascript")
+        except:
+            continue
+    return Response(status_code=404)
+
+# PWA Icons - serve from public directory
+@app.get("/{icon_file}")
+async def serve_pwa_icons(icon_file: str):
+    # Only serve known PWA icon files
+    pwa_files = {
+        'android-icon-36x36.png', 'android-icon-48x48.png', 'android-icon-72x72.png',
+        'android-icon-96x96.png', 'android-icon-144x144.png', 'android-icon-192x192.png',
+        'apple-icon-57x57.png', 'apple-icon-60x60.png', 'apple-icon-72x72.png',
+        'apple-icon-76x76.png', 'apple-icon-114x114.png', 'apple-icon-120x120.png',
+        'apple-icon-144x144.png', 'apple-icon-152x152.png', 'apple-icon-180x180.png',
+        'apple-icon-precomposed.png', 'apple-icon.png',
+        'favicon-16x16.png', 'favicon-32x32.png', 'favicon-96x96.png', 'favicon.ico',
+        'icon-512x512.png', 'maskable-icon-192x192.png', 'maskable-icon-512x512.png',
+        'ms-icon-70x70.png', 'ms-icon-144x144.png', 'ms-icon-150x150.png', 'ms-icon-310x310.png'
+    }
+    
+    if icon_file in pwa_files:
+        # Determine media type based on file extension
+        media_type = "image/png"
+        if icon_file.endswith('.ico'):
+            media_type = "image/x-icon"
+        elif icon_file.endswith('.svg'):
+            media_type = "image/svg+xml"
+            
+        for base_path in ["app/frontend/public", "/app/app/frontend/public"]:
+            try:
+                return FileResponse(
+                    f"{base_path}/{icon_file}",
+                    media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
+                )
+            except:
+                continue
     return Response(status_code=404)
 
 # Custom video serving route to handle URL encoding issues
@@ -341,14 +424,3 @@ app.add_middleware(AuthMiddleware)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     return FileResponse("app/frontend/dist/index.html")
-
-@app.get("/sw.js")
-async def service_worker():
-    return FileResponse(
-        "app/frontend/dist/sw.js",
-        media_type="application/javascript",
-        headers={
-            "Cache-Control": "no-cache",
-            "Service-Worker-Allowed": "/"
-        }
-    )
