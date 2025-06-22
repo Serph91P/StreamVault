@@ -87,6 +87,9 @@ self.addEventListener('push', (event) => {
     badge: '/android-icon-96x96.png',
     tag: 'streamvault-notification',
     requireInteraction: false,
+    vibrate: [200, 100, 200],
+    timestamp: Date.now(),
+    silent: false,
     actions: []
   }
 
@@ -94,11 +97,17 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       const data = event.data.json()
+      console.log('Service Worker: Push data parsed:', data)
+      
       notificationData = {
         ...notificationData,
-        ...data,
+        title: data.title || notificationData.title,
+        body: data.body || notificationData.body,
         icon: data.icon || notificationData.icon,
-        badge: data.badge || notificationData.badge
+        badge: data.badge || notificationData.badge,
+        tag: data.tag || `streamvault-${data.type || 'notification'}-${Date.now()}`,
+        data: data.data || {},
+        timestamp: data.timestamp || Date.now()
       }
 
       // Add actions based on notification type
@@ -126,14 +135,25 @@ self.addEventListener('push', (event) => {
             title: 'Dismiss'
           }
         ]
+      } else if (data.type === 'test') {
+        notificationData.body = 'Test notification from StreamVault - PWA notifications are working!'
+        notificationData.requireInteraction = true
       }
     } catch (e) {
       console.error('Service Worker: Error parsing push data', e)
     }
   }
 
+  console.log('Service Worker: Showing notification with data:', notificationData)
+  
   event.waitUntil(
     self.registration.showNotification(notificationData.title, notificationData)
+      .then(() => {
+        console.log('Service Worker: Notification shown successfully')
+      })
+      .catch((error) => {
+        console.error('Service Worker: Error showing notification:', error)
+      })
   )
 })
 
