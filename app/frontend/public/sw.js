@@ -1,10 +1,12 @@
-const CACHE_NAME = 'streamvault-v5'
+const CACHE_NAME = 'streamvault-v6'
 const urlsToCache = [
   '/',
   '/?source=pwa',
+  '/?source=pwa&utm_source=homescreen',
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
+  '/pwa-test.html',
   '/apple-icon-180x180.png',
   '/android-icon-192x192.png',
   '/android-icon-144x144.png',
