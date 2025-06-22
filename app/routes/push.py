@@ -159,15 +159,21 @@ async def send_test_local_notification():
     try:
         return {
             "success": True,
-            "message": "Local test notification triggered",
+            "message": "Local test notification triggered - check your browser notifications!",
             "notification": {
-                "title": "StreamVault Local Test",
-                "body": "This is a local test notification - PWA notifications are working!",
+                "title": "🎉 StreamVault PWA Test",
+                "body": "If you see this, PWA notifications are working perfectly!",
                 "icon": "/android-icon-192x192.png",
                 "badge": "/android-icon-96x96.png",
                 "type": "test_local",
                 "requireInteraction": True,
-                "timestamp": int(time.time() * 1000)
+                "timestamp": int(time.time() * 1000),
+                "actions": [
+                    {
+                        "action": "view",
+                        "title": "View App"
+                    }
+                ]
             }
         }
         
