@@ -1,10 +1,12 @@
-const CACHE_NAME = 'streamvault-v6'
+const CACHE_NAME = 'streamvault-v7'
 const urlsToCache = [
   '/',
   '/?source=pwa',
   '/?source=pwa&utm_source=homescreen',
+  '/?source=shortcut',
   '/index.html',
   '/manifest.json',
+  '/manifest.webmanifest',
   '/favicon.ico',
   '/pwa-test.html',
   '/apple-icon-180x180.png',
@@ -13,6 +15,7 @@ const urlsToCache = [
   '/icon-512x512.png',
   '/maskable-icon-192x192.png',
   '/maskable-icon-512x512.png',
+  '/browserconfig.xml',
 ]
 
 // Install event - cache essential resources
