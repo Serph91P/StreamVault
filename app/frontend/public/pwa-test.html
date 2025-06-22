@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -143,6 +143,12 @@
             margin-top: 20px;
         }
         
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
         .criteria-item {
             display: flex;
             justify-content: space-between;
@@ -159,10 +165,84 @@
             font-size: 1.2rem;
         }
         
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .platform-section {
+            margin: 15px 0;
+            padding: 10px;
+            border-left: 3px solid #007bff;
+            background: rgba(0,123,255,0.1);
+        }
+        
+        .platform-section h4 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        
+        .platform-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .platform-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+        
+        .general-tips {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255,193,7,0.1);
+            border-radius: 8px;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .general-tips h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        
+        .general-tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .general-tips li {
+            margin: 5px 0;
+            color: #856404;
+        }
+        
         @media (max-width: 768px) {
             .header h1 { font-size: 2rem; }
             .features { grid-template-columns: 1fr; }
             .main-content { padding: 15px; }
+        }
+        
+        .platform-instructions {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+        
+        .platform-info {
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+        
+        .install-instructions {
+            margin-top: 10px;
+        }
+        
+        .install-note {
+            font-size: 0.9rem;
+            color: #856404;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -227,8 +307,36 @@
                 <p>Grundfunktionen auch ohne Internetverbindung verfügbar</p>
             </div>
         </div>
+        
+        <div class="platform-section">
+            <h4>📲 Plattform-spezifische Installationsanleitungen</h4>
+            <ul>
+                <li><strong>Android (Chrome):</strong> Menü (⋮) → "Zum Startbildschirm hinzufügen"</li>
+                <li><strong>iOS (Safari):</strong> Teilen-Symbol → "Zum Home-Bildschirm"</li>
+                <li><strong>Windows (Chrome):</strong> Install-Icon in der Adressleiste klicken</li>
+                <li><strong>Mac (Safari):</strong> Datei → "Zum Dock hinzufügen"</li>
+            </ul>
+        </div>
+        
+        <div class="general-tips">
+            <h4>ℹ️ Allgemeine Tipps zur Installation</h4>
+            <ul>
+                <li>Stellen Sie sicher, dass Ihr Browser auf dem neuesten Stand ist.</li>
+                <li>Aktivieren Sie Pop-ups für diese Website, um die Installation zu ermöglichen.</li>
+                <li>Überprüfen Sie die Berechtigungen für Benachrichtigungen und Standortzugriff.</li>
+                <li>Bei Problemen versuchen Sie, den Browser-Cache zu leeren.</li>
+            </ul>
+        </div>
+        
+        <div class="platform-instructions">
+            <h3>📱 Installationsanweisungen für Ihr Gerät</h3>
+            <div class="platform-info">
+                <strong>Erkanntes System:</strong> Unbekannt mit Unbekannt
+            </div>
+        </div>
     </div>
 
+    <script src="/pwa-helper.js"></script>
     <script>
         let installPrompt = null;
         let startTime = Date.now();
@@ -295,6 +403,7 @@
         
         // Install Prompt Handler
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('🎉 beforeinstallprompt event fired!');
             e.preventDefault();
             installPrompt = e;
             
@@ -303,37 +412,102 @@
             const description = document.getElementById('install-description');
             
             button.disabled = false;
-            button.textContent = '📱 PWA installieren';
+            button.textContent = '📱 PWA jetzt installieren';
             title.textContent = '🎉 Installation verfügbar!';
             description.textContent = 'Die App kann jetzt als PWA installiert werden.';
             
-            console.log('💡 PWA Install prompt available!');
+            // Show visual indicator
+            button.style.background = '#28a745';
+            button.style.animation = 'pulse 2s infinite';
+            
+            console.log('💡 PWA Install prompt is now ready!');
         });
+        
+        // Check for install prompt periodically (some browsers delay it)
+        let installCheckCount = 0;
+        const installChecker = setInterval(() => {
+            installCheckCount++;
+            console.log(`🔍 Install check #${installCheckCount}`);
+            
+            if (installPrompt) {
+                clearInterval(installChecker);
+                console.log('✅ Install prompt available after', installCheckCount, 'checks');
+            } else if (installCheckCount >= 30) {
+                clearInterval(installChecker);
+                console.log('❌ No install prompt after 30 checks (5 minutes)');
+                
+                // Show manual install instructions
+                const description = document.getElementById('install-description');
+                description.innerHTML = `
+                    <strong>Keine automatische Installation verfügbar.</strong><br>
+                    Manuelle Installation:<br>
+                    • Chrome: Menü (⋮) → "Zum Startbildschirm hinzufügen"<br>
+                    • Oder Adressleiste → Install-Icon (falls vorhanden)
+                `;
+            }
+        }, 10000); // Check every 10 seconds
         
         // Install Button Handler
         document.getElementById('install-button').addEventListener('click', async () => {
-            if (!installPrompt) {
-                // Fallback für Browser ohne beforeinstallprompt
-                alert('🔍 Installation nicht verfügbar.\n\nManuelle Installation:\n• Chrome: Menü → "Zum Startbildschirm hinzufügen"\n• Safari: Teilen → "Zum Home-Bildschirm"');
-                return;
-            }
-            
-            try {
-                const result = await installPrompt.prompt();
-                const choice = await result.userChoice;
+            if (window.pwaHelper && window.pwaHelper.canInstall) {
+                try {
+                    const installed = await window.pwaHelper.install();
+                    if (installed) {
+                        console.log('✅ PWA installation successful');
+                    }
+                } catch (error) {
+                    console.error('❌ PWA installation failed:', error);
+                    
+                    // Show manual instructions
+                    const instructions = window.pwaHelper.getManualInstallInstructions();
+                    let instructionText = `Manuelle Installation (${instructions.platform}):\n\n`;
+                    instructions.instructions.forEach((step, index) => {
+                        instructionText += `${index + 1}. ${step}\n`;
+                    });
+                    
+                    alert(instructionText);
+                }
+            } else if (!installPrompt) {
+                // Fallback for browsers without beforeinstallprompt
+                const userAgent = navigator.userAgent;
+                let instructions = 'Installation nicht automatisch verfügbar.\n\n';
                 
-                if (choice === 'accepted') {
-                    console.log('✅ PWA installation accepted');
-                    document.getElementById('install-title').textContent = '🎉 Installation erfolgreich!';
-                    document.getElementById('install-description').textContent = 'Die App wurde erfolgreich installiert.';
+                if (userAgent.includes('Android') && userAgent.includes('Chrome')) {
+                    instructions += 'Android Chrome:\n';
+                    instructions += '1. Tippen Sie auf Menü (⋮)\n';
+                    instructions += '2. "Zum Startbildschirm hinzufügen"\n';
+                    instructions += '3. Installation bestätigen';
+                } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+                    instructions += 'iOS Safari:\n';
+                    instructions += '1. Tippen Sie auf Teilen-Symbol\n';
+                    instructions += '2. "Zum Home-Bildschirm"\n';
+                    instructions += '3. Namen eingeben und hinzufügen';
                 } else {
-                    console.log('❌ PWA installation dismissed');
+                    instructions += 'Desktop Browser:\n';
+                    instructions += '1. Schauen Sie nach Install-Icon in Adressleiste\n';
+                    instructions += '2. Oder Browser-Menü verwenden';
                 }
                 
-                installPrompt = null;
-            } catch (error) {
-                console.error('💥 PWA installation failed:', error);
-                alert('Installation fehlgeschlagen: ' + error.message);
+                alert(instructions);
+            } else {
+                // Original fallback logic
+                try {
+                    const result = await installPrompt.prompt();
+                    const choice = await result.userChoice;
+                    
+                    if (choice === 'accepted') {
+                        console.log('✅ PWA installation accepted');
+                        document.getElementById('install-title').textContent = '🎉 Installation erfolgreich!';
+                        document.getElementById('install-description').textContent = 'Die App wurde erfolgreich installiert.';
+                    } else {
+                        console.log('❌ PWA installation dismissed');
+                    }
+                    
+                    installPrompt = null;
+                } catch (error) {
+                    console.error('💥 PWA installation failed:', error);
+                    alert('Installation fehlgeschlagen: ' + error.message);
+                }
             }
         });
         
@@ -369,10 +543,220 @@
             document.getElementById('install-description').textContent = 'StreamVault wurde erfolgreich installiert.';
         });
         
-        // Initialize
+        // Enhanced platform detection
+        function detectPlatform() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const platform = navigator.platform.toLowerCase();
+            
+            let detectedPlatform = {
+                os: 'unknown',
+                browser: 'unknown',
+                mobile: false,
+                installSupported: false,
+                installMethod: 'unknown'
+            };
+            
+            // OS Detection
+            if (userAgent.includes('android')) {
+                detectedPlatform.os = 'android';
+                detectedPlatform.mobile = true;
+            } else if (userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ipod')) {
+                detectedPlatform.os = 'ios';
+                detectedPlatform.mobile = true;
+            } else if (platform.includes('win') || userAgent.includes('windows')) {
+                detectedPlatform.os = 'windows';
+            } else if (platform.includes('mac') || userAgent.includes('macintosh')) {
+                detectedPlatform.os = 'macos';
+            } else if (platform.includes('linux') || userAgent.includes('linux')) {
+                detectedPlatform.os = 'linux';
+            }
+            
+            // Browser Detection
+            if (userAgent.includes('chrome') && !userAgent.includes('edge')) {
+                detectedPlatform.browser = 'chrome';
+                detectedPlatform.installSupported = true;
+                detectedPlatform.installMethod = 'beforeinstallprompt';
+            } else if (userAgent.includes('firefox')) {
+                detectedPlatform.browser = 'firefox';
+                detectedPlatform.installSupported = detectedPlatform.os !== 'ios';
+                detectedPlatform.installMethod = 'manual';
+            } else if (userAgent.includes('safari') && !userAgent.includes('chrome')) {
+                detectedPlatform.browser = 'safari';
+                detectedPlatform.installSupported = true;
+                detectedPlatform.installMethod = detectedPlatform.os === 'ios' ? 'add-to-homescreen' : 'dock';
+            } else if (userAgent.includes('edge')) {
+                detectedPlatform.browser = 'edge';
+                detectedPlatform.installSupported = true;
+                detectedPlatform.installMethod = 'beforeinstallprompt';
+            } else if (userAgent.includes('samsung')) {
+                detectedPlatform.browser = 'samsung';
+                detectedPlatform.installSupported = true;
+                detectedPlatform.installMethod = 'add-to-homescreen';
+            }
+            
+            return detectedPlatform;
+        }
+        
+        // Show platform-specific instructions
+        function showPlatformInstructions() {
+            const platformInfo = detectPlatform();
+            const instructionsContainer = document.getElementById('platform-instructions');
+            
+            if (!instructionsContainer) {
+                // Create instructions container if it doesn't exist
+                const container = document.createElement('div');
+                container.id = 'platform-instructions';
+                container.className = 'platform-instructions';
+                
+                const mainContent = document.querySelector('.main-content');
+                mainContent.appendChild(container);
+            }
+            
+            let instructionsHTML = `
+                <h3>📱 Installationsanweisungen für Ihr Gerät</h3>
+                <div class="platform-info">
+                    <strong>Erkanntes System:</strong> ${platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1)} 
+                    mit ${platformInfo.browser.charAt(0).toUpperCase() + platformInfo.browser.slice(1)}
+                </div>
+            `;
+            
+            if (window.pwaHelper) {
+                const instructions = window.pwaHelper.getManualInstallInstructions();
+                instructionsHTML += `
+                    <div class="install-instructions">
+                        <h4>${instructions.platform}</h4>
+                        <ol>
+                `;
+                
+                instructions.instructions.forEach(instruction => {
+                    instructionsHTML += `<li>${instruction}</li>`;
+                });
+                
+                instructionsHTML += '</ol>';
+                
+                if (instructions.note) {
+                    instructionsHTML += `<p class="install-note"><strong>Hinweis:</strong> ${instructions.note}</p>`;
+                }
+                
+                if (instructions.alternativeInstructions) {
+                    instructionsHTML += '<h5>Alternative Methoden:</h5><ul>';
+                    instructions.alternativeInstructions.forEach(alt => {
+                        instructionsHTML += `<li>${alt}</li>`;
+                    });
+                    instructionsHTML += '</ul>';
+                }
+                
+                if (instructions.browsers) {
+                    instructionsHTML += '<h5>Browser-spezifische Anweisungen:</h5><ul>';
+                    Object.entries(instructions.browsers).forEach(([browser, instruction]) => {
+                        instructionsHTML += `<li><strong>${browser}:</strong> ${instruction}</li>`;
+                    });
+                    instructionsHTML += '</ul>';
+                }
+                
+                instructionsHTML += '</div>';
+            }
+            
+            document.getElementById('platform-instructions').innerHTML = instructionsHTML;
+        }
+
+        // Platform Detection with more details  
+        const platformInfo = {
+            isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+            isAndroid: /Android/.test(navigator.userAgent),
+            isWindows: /Windows/.test(navigator.userAgent),
+            isMacOS: /Macintosh|Mac OS X/.test(navigator.userAgent),
+            isLinux: /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent),
+            
+            // Browser Detection
+            isChrome: /Chrome/.test(navigator.userAgent) && !/Edge/.test(navigator.userAgent),
+            isEdge: /Edge/.test(navigator.userAgent),
+            isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent),
+            isFirefox: /Firefox/.test(navigator.userAgent),
+            isOpera: /Opera|OPR/.test(navigator.userAgent),
+            isSamsung: /SamsungBrowser/.test(navigator.userAgent),
+            isUC: /UCBrowser/.test(navigator.userAgent),
+            
+            // PWA Capabilities
+            hasServiceWorker: 'serviceWorker' in navigator,
+            hasManifest: 'manifest' in document.createElement('link'),
+            hasNotifications: 'Notification' in window,
+            hasPushManager: 'PushManager' in window,
+            hasInstallPrompt: false,
+            isInstalled: window.matchMedia('(display-mode: standalone)').matches || 
+                       window.matchMedia('(display-mode: fullscreen)').matches ||
+                       navigator.standalone === true,
+            
+            // Storage
+            hasIndexedDB: 'indexedDB' in window,
+            hasLocalStorage: 'localStorage' in window,
+            
+            // Network
+            hasOnLine: 'onLine' in navigator,
+            hasConnection: 'connection' in navigator,
+            
+            // Device Features
+            hasCamera: 'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices,
+            hasGeolocation: 'geolocation' in navigator,
+            hasVibration: 'vibrate' in navigator,
+            
+            // Display
+            screenWidth: screen.width,
+            screenHeight: screen.height,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            
+            // User Agent
+            userAgent: navigator.userAgent
+        }
+
+        // Initialize with enhanced PWA helper
         document.addEventListener('DOMContentLoaded', () => {
             startEngagementTimer();
-            checkCriteria();
+            
+            // Use the enhanced PWA helper
+            if (window.pwaHelper) {
+                // Listen for install events
+                window.pwaHelper.on('installable', (canInstall) => {
+                    const button = document.getElementById('install-button');
+                    const title = document.getElementById('install-title');
+                    const description = document.getElementById('install-description');
+                    
+                    if (canInstall) {
+                        button.disabled = false;
+                        button.textContent = '🚀 PWA installieren';
+                        button.style.background = '#28a745';
+                        title.textContent = '🎉 Installation verfügbar!';
+                        description.textContent = 'Die App kann jetzt installiert werden.';
+                    } else {
+                        button.textContent = '⏳ Warte auf Installation...';
+                        title.textContent = '⏳ Installation wird vorbereitet';
+                        description.textContent = 'Bitte warten Sie einen Moment...';
+                    }
+                });
+                
+                window.pwaHelper.on('installed', () => {
+                    const title = document.getElementById('install-title');
+                    const description = document.getElementById('install-description');
+                    title.textContent = '✅ App installiert!';
+                    description.textContent = 'StreamVault wurde erfolgreich installiert.';
+                });
+                
+                window.pwaHelper.on('criteria', (criteria) => {
+                    updateCriteria('criteria-https', criteria.https);
+                    updateCriteria('criteria-manifest', criteria.manifest);
+                    updateCriteria('criteria-sw', criteria.serviceWorker);
+                    updateCriteria('criteria-icons', criteria.icons);
+                    updateCriteria('criteria-engagement', criteria.engagement);
+                });
+                
+                // Check criteria immediately
+                setTimeout(() => {
+                    window.pwaHelper.checkInstallCriteria();
+                }, 2000);
+            } else {
+                // Fallback to original implementation
+                checkCriteria();
+            }
             
             // Register Service Worker
             if ('serviceWorker' in navigator) {
@@ -398,6 +782,63 @@
                 }, { once: false });
             });
         });
+
+        // Test local notifications
+        async function testLocalNotification() {
+            try {
+                // Request permission first
+                if ('Notification' in window && Notification.permission === 'default') {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                        alert('❌ Notification permission denied. Enable notifications in browser settings.');
+                        return;
+                    }
+                }
+                
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    // Show direct browser notification
+                    const notification = new Notification('🎉 StreamVault PWA Test', {
+                        body: 'Local notifications are working perfectly!',
+                        icon: '/android-icon-192x192.png',
+                        badge: '/android-icon-96x96.png',
+                        requireInteraction: true,
+                        tag: 'streamvault-test'
+                    });
+                    
+                    notification.onclick = () => {
+                        window.focus();
+                        notification.close();
+                    };
+                    
+                    // Also test Service Worker notification
+                    if ('serviceWorker' in navigator) {
+                        const registration = await navigator.serviceWorker.getRegistration();
+                        if (registration) {
+                            registration.showNotification('🚀 StreamVault SW Test', {
+                                body: 'Service Worker notifications are also working!',
+                                icon: '/android-icon-192x192.png',
+                                badge: '/android-icon-96x96.png',
+                                requireInteraction: true,
+                                tag: 'streamvault-sw-test',
+                                actions: [
+                                    {
+                                        action: 'view',
+                                        title: 'View App'
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                    
+                    alert('✅ Local notifications sent! Check your browser/system notifications.');
+                } else {
+                    alert('❌ Notifications not supported or permission denied.');
+                }
+            } catch (error) {
+                console.error('Notification test error:', error);
+                alert('❌ Notification test failed: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>

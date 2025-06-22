@@ -10,35 +10,22 @@ logger = logging.getLogger("streamvault")
 def generate_vapid_keys():
     """Generate VAPID keys automatically if not provided"""
     try:
-        from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives import serialization
+        from py_vapid import Vapid
         
-        # Generate private key using cryptography directly
-        private_key = ec.generate_private_key(ec.SECP256R1())
+        # Generate VAPID keys using py_vapid (the correct way)
+        vapid = Vapid()
+        vapid.generate_keys()
         
-        # Get private key bytes
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        )
+        # Get keys in the format expected by pywebpush
+        private_key = vapid.private_key_bytes()
+        public_key = vapid.public_key_bytes()
         
-        # Get public key bytes in uncompressed format for VAPID
-        public_key_bytes = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
-        )
-        
-        # Encode as base64url (without padding) - standard for VAPID
-        private_key_b64 = base64.urlsafe_b64encode(private_key_pem).decode().rstrip('=')
-        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode().rstrip('=')
-        
-        logger.info("✅ VAPID keys auto-generated successfully")
-        return public_key_b64, private_key_b64
+        logger.info("✅ VAPID keys auto-generated successfully using py_vapid")
+        return public_key, private_key
         
     except ImportError:
-        logger.warning("⚠️ cryptography library not available for VAPID key generation")
-        logger.info("💡 Install with: pip install cryptography")
+        logger.warning("⚠️ py_vapid library not available for VAPID key generation")
+        logger.info("💡 Install with: pip install py-vapid")
         return None, None
     except Exception as e:
         logger.warning(f"⚠️ Failed to auto-generate VAPID keys: {e}")

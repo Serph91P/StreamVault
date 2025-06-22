@@ -3,12 +3,13 @@
     <div class="video-wrapper" ref="videoWrapper">
       <video 
         ref="videoElement"
-        :src="videoSrc"
+        :src="decodedVideoSrc"
         @loadedmetadata="onVideoLoaded"
         @timeupdate="onTimeUpdate"
         @loadstart="onLoadStart"
         @canplay="onCanPlay"
         @error="onVideoError"
+        @abort="onVideoError"
         controls
         preload="metadata"
         class="video-element"
@@ -379,6 +380,21 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
+})
+
+const decodedVideoSrc = computed(() => {
+  if (!props.videoSrc) return ''
+  
+  try {
+    // URL decode the video source to handle special characters
+    const decoded = decodeURIComponent(props.videoSrc)
+    console.log('Original video src:', props.videoSrc)
+    console.log('Decoded video src:', decoded)
+    return decoded
+  } catch (error) {
+    console.error('Error decoding video src:', error)
+    return props.videoSrc
+  }
 })
 </script>
 

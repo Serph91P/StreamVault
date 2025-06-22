@@ -7,6 +7,7 @@
         <nav class="main-nav">
           <router-link to="/" class="nav-link">Home</router-link>
           <router-link to="/streamers" class="nav-link">Streamers</router-link>
+          <router-link to="/videos" class="nav-link">Videos</router-link>
           <router-link to="/add-streamer" class="nav-link">Add Streamer</router-link>
           <router-link to="/subscriptions" class="nav-link">Subscriptions</router-link>
           <router-link to="/settings" class="nav-link">Settings</router-link>
@@ -49,10 +50,18 @@
       </router-link>
       <router-link to="/streamers" class="mobile-nav-item">
         <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6"></path>
+          <path d="M2 12h20"></path>
         </svg>
         <span>Streamers</span>
+      </router-link>
+      <router-link to="/videos" class="mobile-nav-item">
+        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="23 7 16 12 23 17 23 7"></polygon>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+        </svg>
+        <span>Videos</span>
       </router-link>
       <router-link to="/add-streamer" class="mobile-nav-item">
         <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -198,6 +198,133 @@ export function usePWA() {
     return registration.value.showNotification(title, defaultOptions)
   }
 
+  // Get platform information for installation
+  const getPlatformInfo = () => {
+    const userAgent = navigator.userAgent
+    
+    let platform = 'Unknown'
+    let browser = 'Unknown'
+    
+    // Detect platform
+    if (/iPad|iPhone|iPod/.test(userAgent)) {
+      platform = 'iOS'
+    } else if (/Android/.test(userAgent)) {
+      platform = 'Android'
+    } else if (/Windows/.test(userAgent)) {
+      platform = 'Windows'
+    } else if (/Macintosh|Mac OS X/.test(userAgent)) {
+      platform = 'macOS'
+    } else if (/Linux/.test(userAgent) && !/Android/.test(userAgent)) {
+      platform = 'Linux'
+    }
+    
+    // Detect browser
+    if (/Edge/.test(userAgent)) {
+      browser = 'Microsoft Edge'
+    } else if (/Chrome/.test(userAgent) && !/Edge/.test(userAgent)) {
+      browser = 'Google Chrome'
+    } else if (/Safari/.test(userAgent) && !/Chrome/.test(userAgent)) {
+      browser = 'Safari'
+    } else if (/Firefox/.test(userAgent)) {
+      browser = 'Firefox'
+    } else if (/Opera|OPR/.test(userAgent)) {
+      browser = 'Opera'
+    } else if (/SamsungBrowser/.test(userAgent)) {
+      browser = 'Samsung Internet'
+    }
+    
+    return { platform, browser }
+  }
+
+  // Check PWA installation criteria
+  const checkPWAInstallCriteria = () => {
+    const criteria = {
+      hasManifest: !!document.querySelector('link[rel="manifest"]'),
+      hasServiceWorker: 'serviceWorker' in navigator,
+      hasHTTPS: location.protocol === 'https:' || location.hostname === 'localhost',
+      hasIcons: true, // We know we have icons
+      hasStartUrl: true, // We have a start_url in manifest
+      hasName: true, // We have name in manifest
+      hasDisplay: true // We have display mode in manifest
+    }
+    
+    const allCriteriaMet = Object.values(criteria).every(Boolean)
+    return { criteria, allCriteriaMet }
+  }
+
+  // Get installation instructions for current platform
+  const getInstallInstructions = () => {
+    const { platform, browser } = getPlatformInfo()
+    
+    if (platform === 'iOS' && browser === 'Safari') {
+      return {
+        steps: [
+          'Tap the Share button (box with arrow) at the bottom of the screen',
+          'Scroll down and tap "Add to Home Screen"',
+          'Edit the name if desired, then tap "Add"',
+          'StreamVault will appear on your home screen'
+        ],
+        icon: '📱'
+      }
+    }
+    
+    if (platform === 'Android' && (browser === 'Google Chrome' || browser === 'Samsung Internet')) {
+      return {
+        steps: [
+          'Look for the "Install" or "Add to Home Screen" prompt',
+          'If no prompt appears, tap the menu (⋮) and select "Install App" or "Add to Home Screen"',
+          'Tap "Install" in the confirmation dialog',
+          'StreamVault will be added to your app drawer and home screen'
+        ],
+        icon: '🤖'
+      }
+    }
+    
+    if (platform === 'Windows' && (browser === 'Google Chrome' || browser === 'Microsoft Edge')) {
+      return {
+        steps: [
+          'Look for the install icon (⊞) in the address bar',
+          'Click the install icon and select "Install"',
+          'Or open browser menu and select "Install StreamVault"',
+          'The app will be added to your Start Menu and taskbar'
+        ],
+        icon: '🪟'
+      }
+    }
+    
+    if (platform === 'macOS' && (browser === 'Google Chrome' || browser === 'Safari' || browser === 'Microsoft Edge')) {
+      return {
+        steps: [
+          'Look for the install icon in the address bar',
+          'Click the install icon and select "Install"',
+          'Or use browser menu and select "Install StreamVault"',
+          'The app will be added to your Applications folder and Dock'
+        ],
+        icon: '🍎'
+      }
+    }
+    
+    if (platform === 'Linux' && browser === 'Google Chrome') {
+      return {
+        steps: [
+          'Look for the install icon in the address bar',
+          'Click the install icon and select "Install"',
+          'Or open browser menu and select "Install StreamVault"',
+          'The app will be added to your applications menu'
+        ],
+        icon: '🐧'
+      }
+    }
+    
+    return {
+      steps: [
+        'PWA installation may not be supported on this platform/browser combination',
+        'For the best experience, use Chrome, Edge, or Safari on a supported platform'
+      ],
+      icon: '❓'
+    }
+  }
+
   // Online/offline handlers
   const handleOnline = () => {
     isOnline.value = true
@@ -286,7 +413,10 @@ export function usePWA() {
     subscribeToPush,
     unsubscribeFromPush,
     showNotification,
-    requestNotificationPermission
+    requestNotificationPermission,
+    getPlatformInfo,
+    checkPWAInstallCriteria,
+    getInstallInstructions
   }
 }
 
