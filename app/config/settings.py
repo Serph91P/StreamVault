@@ -10,17 +10,22 @@ logger = logging.getLogger("streamvault")
 def generate_vapid_keys():
     """Generate VAPID keys automatically if not provided"""
     try:
-        from pywebpush import vapid
+        from py_vapid import Vapid
         
-        # Generate VAPID keys using pywebpush
-        vapid_keys = vapid.generate_vapid_keys()
+        # Generate VAPID keys using py_vapid (the correct way)
+        vapid = Vapid()
+        vapid.generate_keys()
         
-        logger.info("✅ VAPID keys auto-generated successfully using pywebpush")
-        return vapid_keys['public_key'], vapid_keys['private_key']
+        # Get keys in the format expected by pywebpush
+        private_key = vapid.private_key_bytes()
+        public_key = vapid.public_key_bytes()
+        
+        logger.info("✅ VAPID keys auto-generated successfully using py_vapid")
+        return public_key, private_key
         
     except ImportError:
-        logger.warning("⚠️ pywebpush library not available for VAPID key generation")
-        logger.info("💡 Install with: pip install pywebpush")
+        logger.warning("⚠️ py_vapid library not available for VAPID key generation")
+        logger.info("💡 Install with: pip install py-vapid")
         return None, None
     except Exception as e:
         logger.warning(f"⚠️ Failed to auto-generate VAPID keys: {e}")
