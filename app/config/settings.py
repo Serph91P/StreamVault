@@ -10,35 +10,17 @@ logger = logging.getLogger("streamvault")
 def generate_vapid_keys():
     """Generate VAPID keys automatically if not provided"""
     try:
-        from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives import serialization
+        from pywebpush import vapid
         
-        # Generate private key using cryptography directly
-        private_key = ec.generate_private_key(ec.SECP256R1())
+        # Generate VAPID keys using pywebpush
+        vapid_keys = vapid.generate_vapid_keys()
         
-        # Get private key bytes
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        
-        # Get public key bytes in uncompressed format for VAPID
-        public_key_bytes = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
-        )
-        
-        # Encode as base64url (without padding) - standard for VAPID
-        private_key_b64 = base64.urlsafe_b64encode(private_key_pem).decode().rstrip('=')
-        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode().rstrip('=')
-        
-        logger.info("✅ VAPID keys auto-generated successfully")
-        return public_key_b64, private_key_b64
+        logger.info("✅ VAPID keys auto-generated successfully using pywebpush")
+        return vapid_keys['public_key'], vapid_keys['private_key']
         
     except ImportError:
-        logger.warning("⚠️ cryptography library not available for VAPID key generation")
-        logger.info("💡 Install with: pip install cryptography")
+        logger.warning("⚠️ pywebpush library not available for VAPID key generation")
+        logger.info("💡 Install with: pip install pywebpush")
         return None, None
     except Exception as e:
         logger.warning(f"⚠️ Failed to auto-generate VAPID keys: {e}")
