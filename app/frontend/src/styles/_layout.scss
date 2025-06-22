@@ -395,21 +395,33 @@
     display: none; // Hide on larger screens
   }
   
-  a {
+  a, button {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     padding: v.$spacing-xs;
     color: v.$text-secondary;
     text-decoration: none;
     font-size: map.get(v.$font-scale, 'xs');
     width: 100%;
     transition: all 0.2s v.$vue-ease;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: center;
     
     .mobile-nav-icon {
       margin-bottom: v.$spacing-xxs;
       transition: transform 0.2s v.$vue-ease, stroke 0.2s v.$vue-ease;
       stroke: currentColor;
+      display: block;
+    }
+    
+    span:not(.mobile-notification-indicator) {
+      display: block;
+      text-align: center;
+      font-weight: 500;
     }
     
     &.router-link-active {
