@@ -1,5 +1,5 @@
 {
-  "name": "StreamVault",
+  "name": "StreamVault - Stream Recording Manager",
   "short_name": "StreamVault",
   "description": "Automated Twitch stream recording and management platform",
   "theme_color": "#6f42c1",
@@ -8,9 +8,11 @@
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
   "scope": "/",
-  "start_url": "/?source=pwa",
+  "start_url": "/?source=pwa&utm_source=homescreen",
+  "id": "streamvault-pwa",
   "lang": "en",
-  "categories": ["entertainment", "utilities"],
+  "dir": "ltr",
+  "categories": ["entertainment", "utilities", "productivity"],
   "prefer_related_applications": false,
   "icons": [
     {
