@@ -19,7 +19,7 @@
       <!-- Video Player Tab -->
       <div v-if="activeTab === 'player'" class="tab-panel">
         <div class="video-section">
-          <h3>{{ currentVideo?.title || 'Stream-Aufzeichnung' }}</h3>
+          <h3>{{ currentVideo?.title || 'Stream Recording' }}</h3>
           <div v-if="currentVideo" class="video-info">
             <span class="info-item">
               <i class="icon">📅</i>
@@ -46,8 +46,8 @@
           
           <div v-else class="no-video-selected">
             <div class="no-video-icon">📹</div>
-            <h4>Kein Video ausgewählt</h4>
-            <p>Wählen Sie ein Video aus der Liste auf der rechten Seite aus.</p>
+            <h4>No Video Selected</h4>
+            <p>Select a video from the list on the right side.</p>
           </div>
         </div>
       </div>
@@ -59,10 +59,10 @@
             <h3>Verfügbare Videos</h3>
             <div class="list-controls">
               <select v-model="sortBy" class="sort-select">
-                <option value="date">Nach Datum</option>
-                <option value="title">Nach Titel</option>
-                <option value="duration">Nach Dauer</option>
-                <option value="game">Nach Spiel</option>
+                <option value="date">By Date</option>
+                <option value="title">By Title</option>
+                <option value="duration">By Duration</option>
+                <option value="game">By Game</option>
               </select>
               <button @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'" class="sort-order-btn">
                 {{ sortOrder === 'asc' ? '↑' : '↓' }}
@@ -96,8 +96,8 @@
 
           <div v-if="videos.length === 0" class="no-videos">
             <div class="no-videos-icon">📁</div>
-            <h4>Keine Videos gefunden</h4>
-            <p>Es sind noch keine Stream-Aufzeichnungen verfügbar.</p>
+            <h4>No Videos Found</h4>
+            <p>No stream recordings are available yet.</p>
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@
             
             <div class="stat-card">
               <div class="stat-value">{{ formatDuration(totalDuration) }}</div>
-              <div class="stat-label">Gesamtdauer</div>
+              <div class="stat-label">Total Duration</div>
             </div>
             
             <div class="stat-card">
@@ -130,7 +130,7 @@
           </div>
 
           <div class="games-breakdown">
-            <h4>Aufzeichnungen pro Spiel</h4>
+            <h4>Recordings by Game</h4>
             <div class="game-list">
               <div v-for="game in gameStats" :key="game.name" class="game-item">
                 <span class="game-name">{{ game.name || 'Unbekannt' }}</span>
@@ -189,7 +189,7 @@ const tabs = computed(() => [
   },
   {
     id: 'stats',
-    title: 'Statistiken',
+    title: 'Statistics',
     icon: '📊',
     count: null
   }
