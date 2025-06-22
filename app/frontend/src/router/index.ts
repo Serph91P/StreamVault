@@ -10,6 +10,7 @@ import StreamerDetailView from '../views/StreamerDetailView.vue';
 import WelcomeView from '../views/WelcomeView.vue';
 import StreamersView from '../views/StreamersView.vue';
 import VideoPlayerView from '../views/VideoPlayerView.vue';
+import VideosView from '../views/VideosView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,6 +29,11 @@ const router = createRouter({
       path: '/streamers',
       name: 'streamers',
       component: StreamersView,
+    },
+    {
+      path: '/videos',
+      name: 'videos',
+      component: VideosView,
     },
     {
       path: '/subscriptions',
