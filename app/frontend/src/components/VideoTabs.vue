@@ -110,7 +110,7 @@
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-value">{{ videos.length }}</div>
-              <div class="stat-label">Videos insgesamt</div>
+              <div class="stat-label">Total Videos</div>
             </div>
             
             <div class="stat-card">
@@ -120,7 +120,7 @@
             
             <div class="stat-card">
               <div class="stat-value">{{ formatFileSize(totalSize) }}</div>
-              <div class="stat-label">Gesamtgröße</div>
+              <div class="stat-label">Total Size</div>
             </div>
             
             <div class="stat-card">
