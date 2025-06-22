@@ -8,6 +8,7 @@ from app.routes import settings as settings_router
 from app.routes import twitch_auth
 from app.routes import recording as recording_router
 from app.routes import logging as logging_router
+from app.routes import videos
 import logging
 import hmac
 import hashlib
@@ -230,6 +231,7 @@ app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
+app.include_router(videos.router)
 
 # Push notification routes
 from app.routes import push as push_router
@@ -277,6 +279,57 @@ async def serve_icons(file_path: str):
         except:
             continue
     return Response(status_code=404)
+
+# Custom video serving route to handle URL encoding issues
+@app.get("/video/{file_path:path}")
+async def serve_video(file_path: str):
+    """Serve video files with proper URL decoding"""
+    import urllib.parse
+    from pathlib import Path
+    
+    try:
+        # URL decode the file path
+        decoded_path = urllib.parse.unquote(file_path)
+        
+        # Construct full path
+        full_path = Path("/app/data") / decoded_path
+        
+        # Security check - ensure path is within /app/data
+        if not str(full_path.resolve()).startswith("/app/data"):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if file exists
+        if not full_path.exists():
+            logger.error(f"Video file not found: {full_path}")
+            # Try to find the file with different extensions
+            possible_files = []
+            parent_dir = full_path.parent
+            base_name = full_path.stem
+            
+            if parent_dir.exists():
+                for ext in ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts']:
+                    candidate = parent_dir / f"{base_name}{ext}"
+                    if candidate.exists():
+                        possible_files.append(candidate)
+            
+            if possible_files:
+                full_path = possible_files[0]
+                logger.info(f"Found alternative video file: {full_path}")
+            else:
+                raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Serve the file
+        return FileResponse(
+            full_path,
+            media_type="video/mp4",
+            headers={
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error serving video {file_path}: {e}")
+        raise HTTPException(status_code=500, detail="Error serving video file")
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
