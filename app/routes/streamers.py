@@ -560,13 +560,16 @@ async def get_stream_chapters(
             try:
                 video_path = Path(stream.recording_path)
                 if video_path.exists():
-                    # Assuming recordings are in /app/data, create URL relative to /data mount
+                    # Create URL using the new video serving route
                     if '/app/data' in str(video_path):
                         relative_path = str(video_path).replace('/app/data/', '')
-                        video_url = f"/data/{relative_path}"
+                        # Don't URL encode here, let the frontend handle it properly
+                        video_url = f"/video/{relative_path}"
                     else:
                         # Fallback: just use the filename
-                        video_url = f"/data/{video_path.name}"
+                        video_url = f"/video/{video_path.name}"
+                else:
+                    logger.warning(f"Video file not found: {video_path}")
             except Exception as e:
                 logger.warning(f"Failed to generate video URL: {e}")
         
