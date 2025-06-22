@@ -7,8 +7,8 @@
         </svg>
       </div>
       <div class="install-prompt__text">
-        <h3>Install StreamVault</h3>
-        <p>Install this app on your device for a better experience</p>
+        <h3>{{ installText }}</h3>
+        <p>{{ installDescription }}</p>
       </div>
       <div class="install-prompt__actions">
         <button @click="installApp" class="install-btn">Install</button>
@@ -19,12 +19,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { usePWA } from '@/composables/usePWA'
 
-const { isInstallable, isInstalled, installPWA } = usePWA()
+const { isInstallable, isInstalled, installPWA, getPlatformInfo } = usePWA()
 const showInstallPrompt = ref(false)
 const hasBeenDismissed = ref(false)
+const platformInfo = ref(null)
+
+// Computed properties for platform-specific content
+const installText = computed(() => {
+  if (!platformInfo.value) return 'Install StreamVault'
+  
+  const { platform, browser } = platformInfo.value
+  
+  if (platform === 'iOS' && browser === 'Safari') {
+    return 'Add StreamVault to Home Screen'
+  }
+  if (platform === 'Android') {
+    return 'Install StreamVault App'
+  }
+  if (platform === 'Windows') {
+    return 'Install StreamVault'
+  }
+  if (platform === 'macOS') {
+    return 'Add StreamVault to Dock'
+  }
+  if (platform === 'Linux') {
+    return 'Install StreamVault'
+  }
+  
+  return 'Install StreamVault'
+})
+
+const installDescription = computed(() => {
+  if (!platformInfo.value) return 'Install this app on your device for a better experience'
+  
+  const { platform, browser } = platformInfo.value
+  
+  if (platform === 'iOS' && browser === 'Safari') {
+    return 'Tap the Share button, then "Add to Home Screen" for quick access'
+  }
+  if (platform === 'Android') {
+    return 'Install for faster loading and offline access'
+  }
+  if (platform === 'Windows') {
+    return 'Install to your Start Menu and taskbar'
+  }
+  if (platform === 'macOS') {
+    return 'Add to your Dock for quick access'
+  }
+  if (platform === 'Linux') {
+    return 'Install for better performance and offline use'
+  }
+  
+  return 'Install this app on your device for a better experience'
+})
 
 onMounted(() => {
   // Show install prompt if app is installable and hasn't been dismissed
