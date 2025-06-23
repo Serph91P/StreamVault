@@ -134,6 +134,12 @@ class MigrationService:
     def _run_indices_migration():
         """Add database indices for better performance"""
         with engine.connect() as connection:
+            # Check if streams table exists first
+            inspector = inspect(engine)
+            if 'streams' not in inspector.get_table_names():
+                logger.warning("streams table does not exist, skipping indices migration")
+                return
+                
             # Use PostgreSQL's CREATE INDEX IF NOT EXISTS
             fallback_sql = """
                 CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id);
@@ -148,6 +154,12 @@ class MigrationService:
     def _run_recording_path_migration():
         """Add recording_path column to streams table (idempotent)"""
         with engine.connect() as connection:
+            # Check if streams table exists first
+            inspector = inspect(engine)
+            if 'streams' not in inspector.get_table_names():
+                logger.warning("streams table does not exist, skipping recording_path migration")
+                return
+                
             # Check if column already exists (PostgreSQL)
             result = connection.execute(text("""
                 SELECT COUNT(*) 
@@ -249,9 +261,8 @@ class MigrationService:
             
             connection.commit()
             logger.info("System config table and index ready")
-
-class MigrationService:
-    """Service to manage database migrations"""
+    
+    # LEGACY METHODS - Keep for backward compatibility
     
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
