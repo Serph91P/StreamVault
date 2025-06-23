@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, FileResponse
 import os
 import urllib.parse
@@ -6,26 +6,42 @@ from typing import List
 import logging
 from pathlib import Path
 import mimetypes
+from app.database import SessionLocal
+from app.models import RecordingSettings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Base directory where recordings are stored
-RECORDINGS_DIR = "/app/data"
+def get_recordings_directory():
+    """Get the recordings directory from database settings"""
+    with SessionLocal() as db:
+        settings = db.query(RecordingSettings).first()
+        if settings and settings.output_directory:
+            return settings.output_directory
+        else:
+            # Fallback to default directory
+            return "/recordings"
 
 @router.get("/videos")
 async def get_all_videos():
     """Get all available videos from all streamers"""
     try:
         videos = []
+        recordings_dir = get_recordings_directory()
         
-        if not os.path.exists(RECORDINGS_DIR):
-            logger.warning(f"Recordings directory {RECORDINGS_DIR} does not exist")
+        # Convert to absolute path for local development
+        if not os.path.isabs(recordings_dir):
+            recordings_dir = os.path.abspath(recordings_dir)
+        
+        logger.info(f"Looking for videos in directory: {recordings_dir}")
+        
+        if not os.path.exists(recordings_dir):
+            logger.warning(f"Recordings directory {recordings_dir} does not exist")
             return videos
         
         # Iterate through streamer directories
-        for streamer_name in os.listdir(RECORDINGS_DIR):
-            streamer_path = os.path.join(RECORDINGS_DIR, streamer_name)
+        for streamer_name in os.listdir(recordings_dir):
+            streamer_path = os.path.join(recordings_dir, streamer_name)
             
             if not os.path.isdir(streamer_path):
                 continue
@@ -73,11 +89,16 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
         decoded_filename = urllib.parse.unquote(filename)
         logger.info(f"Streaming video: {streamer_name}/{decoded_filename}")
         
+        # Get recordings directory
+        recordings_dir = get_recordings_directory()
+        if not os.path.isabs(recordings_dir):
+            recordings_dir = os.path.abspath(recordings_dir)
+        
         # Construct file path
-        file_path = os.path.join(RECORDINGS_DIR, streamer_name, decoded_filename)
+        file_path = os.path.join(recordings_dir, streamer_name, decoded_filename)
         
         # Security check - ensure path is within recordings directory
-        if not os.path.abspath(file_path).startswith(os.path.abspath(RECORDINGS_DIR)):
+        if not os.path.abspath(file_path).startswith(os.path.abspath(recordings_dir)):
             logger.warning(f"Attempted path traversal: {file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
         
@@ -148,7 +169,11 @@ async def get_streamer_videos(streamer_name: str):
     """Get all videos for a specific streamer"""
     try:
         videos = []
-        streamer_path = os.path.join(RECORDINGS_DIR, streamer_name)
+        recordings_dir = get_recordings_directory()
+        if not os.path.isabs(recordings_dir):
+            recordings_dir = os.path.abspath(recordings_dir)
+            
+        streamer_path = os.path.join(recordings_dir, streamer_name)
         
         if not os.path.exists(streamer_path):
             logger.warning(f"Streamer directory {streamer_path} does not exist")
