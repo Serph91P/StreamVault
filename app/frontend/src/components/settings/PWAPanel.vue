@@ -240,7 +240,7 @@ const sendTestNotification = async () => {
   try {
     isSendingTest.value = true
     
-    // Send via API first
+    // Try server-side push notification first
     const response = await fetch('/api/push/test', {
       method: 'POST',
       headers: {
@@ -249,18 +249,53 @@ const sendTestNotification = async () => {
     })
     
     if (response.ok) {
-      showStatus('Test notification sent', 'success')
-    } else {
-      // Fallback to local notification
-      await showNotification('StreamVault Test', {
-        body: 'This is a test notification from StreamVault',
-        tag: 'test-notification'
-      })
-      showStatus('Local test notification sent', 'success')
+      const result = await response.json()
+      if (result.success && result.sent_count > 0) {
+        showStatus(result.message, 'success')
+        return
+      } else {
+        console.warn('Server push failed:', result.message)
+        // Fall through to local notification
+      }
     }
+    
+    // If server push fails, try local notification via Service Worker
+    console.log('Trying local notification fallback...')
+    
+    try {
+      await showNotification('🧪 StreamVault Test (Local)', {
+        body: 'This is a local test notification. If you see this, your browser supports notifications!',
+        icon: '/android-icon-192x192.png',
+        badge: '/android-icon-96x96.png',
+        tag: 'test-local-notification',
+        requireInteraction: true,
+        data: {
+          type: 'test_local',
+          timestamp: Date.now()
+        }
+      })
+      
+      showStatus('Local test notification sent successfully', 'success')
+      
+    } catch (localError) {
+      console.error('Local notification also failed:', localError)
+      
+      // Try browser native notification as last resort
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🧪 StreamVault Test (Native)', {
+          body: 'This is a native browser notification. Notifications are working!',
+          icon: '/android-icon-192x192.png',
+          tag: 'test-native-notification'
+        })
+        showStatus('Native test notification sent successfully', 'success')
+      } else {
+        throw new Error('All notification methods failed')
+      }
+    }
+    
   } catch (error) {
     console.error('Failed to send test notification:', error)
-    showStatus('Failed to send test notification', 'error')
+    showStatus('Failed to send test notification. Check console for details.', 'error')
   } finally {
     isSendingTest.value = false
   }

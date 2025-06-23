@@ -29,7 +29,11 @@ RUN apt-get update && apt-get install -y \
 # Setup frontend dependencies
 WORKDIR /app/frontend
 COPY app/frontend/package*.json ./
-RUN npm install
+
+# Update npm to latest version and install dependencies with security fixes
+RUN npm install -g npm@latest && \
+    npm ci --prefer-offline --no-audit && \
+    npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"
 
 # Copy frontend sources
 COPY app/frontend/ ./

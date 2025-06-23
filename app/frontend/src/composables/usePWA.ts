@@ -169,7 +169,6 @@ export function usePWA() {
       return false
     }
   }
-
   // Show local notification
   const showNotification = async (title: string, options: NotificationOptions = {}) => {
     if (!registration.value) {
@@ -195,6 +194,7 @@ export function usePWA() {
       navigator.vibrate([200, 100, 200])
     }
 
+    console.log('Showing notification:', title, defaultOptions)
     return registration.value.showNotification(title, defaultOptions)
   }
 
@@ -420,8 +420,9 @@ export function usePWA() {
   }
 }
 
-// Helper function to convert VAPID key
+// Helper function to convert VAPID key (base64url to Uint8Array)
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  // base64url decode - handle both regular base64 and base64url
   const padding = '='.repeat((4 - base64String.length % 4) % 4)
   const base64 = (base64String + padding)
     .replace(/-/g, '+')

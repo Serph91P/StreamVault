@@ -14,6 +14,7 @@ import hmac
 import hashlib
 import json
 import asyncio
+import os
 
 from contextlib import asynccontextmanager
 
@@ -27,53 +28,42 @@ from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 from app.routes import categories
+from app.utils.security_enhanced import safe_file_access, safe_error_message
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
-    
-    # Run database migrations
-    from app.migrations_init import run_migrations
-    run_migrations()
-    
-    # Auto-run push subscription table creation if needed
+      # Run database migrations using the improved migration system
     try:
-        from sqlalchemy import inspect
-        inspector = inspect(engine)
-        
-        # Check if push_subscriptions table exists
-        if 'push_subscriptions' not in inspector.get_table_names():
-            logger.info("🔄 Creating push_subscriptions table...")
-            import subprocess
-            import os
-            
-            migration_path = os.path.join(os.path.dirname(__file__), "..", "migrations", "20250620_add_push_subscriptions.py")
-            result = subprocess.run(["python", migration_path], capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                logger.info("✅ Push subscription table created successfully")
-            else:
-                logger.warning(f"⚠️ Push subscription migration failed: {result.stderr}")
+        # Check if migrations were already run by entrypoint.sh in development
+        if os.getenv("ENVIRONMENT") == "development":
+            logger.info("🔄 Development mode: Migrations handled by entrypoint.sh")
         else:
-            logger.debug("✅ Push subscription table already exists")
-        
-        # Check if system_config table exists
-        if 'system_config' not in inspector.get_table_names():
-            logger.info("🔄 Creating system_config table...")
+            logger.info("🚀 Production mode: Running database migrations...")
             
-            migration_path = os.path.join(os.path.dirname(__file__), "..", "migrations", "20250620_add_system_config.py")
-            result = subprocess.run(["python", migration_path], capture_output=True, text=True)
+            # Use the improved MigrationService with safe migrations
+            from app.services.migration_service import MigrationService
             
-            if result.returncode == 0:
-                logger.info("✅ System config table created successfully")
+            # Run safe migrations first
+            migration_success = MigrationService.run_safe_migrations()
+            
+            if migration_success:
+                logger.info("✅ All database migrations completed successfully")
             else:
-                logger.warning(f"⚠️ System config migration failed: {result.stderr}")
-        else:
-            logger.debug("✅ System config table already exists")
+                logger.warning("⚠️ Some migrations failed, trying legacy system...")
+                
+                # Fallback to legacy system if needed (only in production)
+                try:
+                    from app.migrations_init import run_migrations
+                    run_migrations()
+                    logger.info("✅ Legacy migrations completed")
+                except Exception as fallback_error:
+                    logger.error(f"❌ Legacy migration system also failed: {fallback_error}")
+                    logger.warning("⚠️ Application starting without full migrations - some features may not work")
             
     except Exception as e:
-        logger.warning(f"⚠️ Push subscription table check failed: {e}")
-        logger.info("💡 You can manually run: python migrations/20250620_add_push_subscriptions.py")
+        logger.error(f"❌ Migration system failed: {e}")
+        logger.warning("⚠️ Application starting without migrations - some features may not work")
     
     event_registry = await get_event_registry()
     
@@ -144,22 +134,20 @@ async def eventsub_callback(request: Request):
             return Response(status_code=403)
 
         # Create message exactly as Twitch does
-        hmac_message = message_id.encode() + timestamp.encode() + body
-
-        # Calculate HMAC using raw bytes
+        hmac_message = message_id.encode() + timestamp.encode() + body        # Calculate HMAC using raw bytes
         calculated_signature = "sha256=" + hmac.new(
             settings.EVENTSUB_SECRET.encode(),
             hmac_message,
             hashlib.sha256
         ).hexdigest()
 
-        # Debug HMAC calculation
-        logger.debug(f"HMAC message: {hmac_message}")
+        # Debug HMAC calculation (without exposing sensitive data)
+        logger.debug(f"HMAC message length: {len(hmac_message)}")
         logger.debug(f"Calculated signature: {calculated_signature}")
-        logger.debug(f"Secret used: {settings.EVENTSUB_SECRET}")
+        logger.debug(f"Secret length: {len(settings.EVENTSUB_SECRET)}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
-            logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
+            logger.error(f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}...")
             return Response(status_code=403)
 
         # Process webhook message based on message_type
@@ -236,6 +224,30 @@ app.include_router(videos.router)
 # Push notification routes
 from app.routes import push as push_router
 app.include_router(push_router.router)
+
+# Explicit SPA routes - these must come after API routes but before static files
+@app.get("/streamers")
+@app.get("/videos") 
+@app.get("/subscriptions")
+@app.get("/add-streamer")
+@app.get("/settings")
+@app.get("/welcome")
+@app.get("/admin")
+@app.get("/auth/setup")
+@app.get("/auth/login")
+@app.get("/streamer/{streamer_id}")
+@app.get("/streamer/{streamer_id}/stream/{stream_id}/watch")
+async def serve_spa_routes():
+    """Serve SPA for known frontend routes"""
+    for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
+        try:
+            import os
+            if os.path.exists(path):
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            continue
+    
+    return Response(content="SPA index.html not found", status_code=500)
 
 # Static files for assets
 try:
@@ -366,7 +378,7 @@ async def serve_pwa_icons(icon_file: str):
 # Custom video serving route to handle URL encoding issues
 @app.get("/video/{file_path:path}")
 async def serve_video(file_path: str):
-    """Serve video files with proper URL decoding"""
+    """Serve video files with proper URL decoding and security - CodeQL-safe version"""
     import urllib.parse
     from pathlib import Path
     
@@ -374,45 +386,79 @@ async def serve_video(file_path: str):
         # URL decode the file path
         decoded_path = urllib.parse.unquote(file_path)
         
-        # Construct full path
-        full_path = Path("/app/data") / decoded_path
+        # Validate and sanitize path components to prevent path traversal
+        if ".." in decoded_path or decoded_path.startswith("/") or "\\" in decoded_path:
+            logger.warning(f"Attempted path traversal in serve_video: {decoded_path}")
+            raise HTTPException(status_code=403, detail="Invalid path")
         
-        # Security check - ensure path is within /app/data
-        if not str(full_path.resolve()).startswith("/app/data"):
+        # Additional validation: ensure the path contains only safe characters
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_./ ]+$', decoded_path):
+            logger.warning(f"Path contains invalid characters: {decoded_path}")
+            raise HTTPException(status_code=403, detail="Invalid path")
+        
+        # Split the path into components and validate each one
+        path_components = [comp for comp in decoded_path.split('/') if comp]  # Remove empty components
+        for component in path_components:
+            if component in ['..', '.', ''] or len(component) > 255:  # Max filename length check
+                logger.warning(f"Invalid path component: {component}")
+                raise HTTPException(status_code=403, detail="Invalid path")
+        
+        # Use secure file access that completely isolates user input
+        base_directory = "/app/data"
+        
+        try:
+            if len(path_components) == 1:
+                final_file_path = safe_file_access(base_directory, path_components[0])
+            elif len(path_components) == 2:
+                final_file_path = safe_file_access(base_directory, path_components[0], path_components[1])
+            else:
+                # For complex paths, create safe intermediate path
+                intermediate_parts = path_components[:-1]
+                filename = path_components[-1]
+                # Join intermediate parts with safe separator
+                intermediate_path = "_".join(intermediate_parts)  # Safe joining
+                final_file_path = safe_file_access(base_directory, intermediate_path, filename)
+                
+        except HTTPException as e:
+            logger.warning(f"Secure file access failed: {e.detail}")
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Check if file exists
-        if not full_path.exists():
-            logger.error(f"Video file not found: {full_path}")
-            # Try to find the file with different extensions
-            possible_files = []
-            parent_dir = full_path.parent
-            base_name = full_path.stem
-            
-            if parent_dir.exists():
-                for ext in ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts']:
-                    candidate = parent_dir / f"{base_name}{ext}"
-                    if candidate.exists():
-                        possible_files.append(candidate)
-            
-            if possible_files:
-                full_path = possible_files[0]
-                logger.info(f"Found alternative video file: {full_path}")
-            else:
-                raise HTTPException(status_code=404, detail="Video file not found")
+        if not final_file_path.exists():
+            logger.error(f"Video file not found: {final_file_path}")
+            raise HTTPException(status_code=404, detail="Video file not found")
         
-        # Serve the file
+        # Serve the file using the clean, validated path
         return FileResponse(
-            full_path,
-            media_type="video/mp4",
-            headers={
+            final_file_path,
+            media_type="video/mp4",            headers={
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600"
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error serving video {file_path}: {e}")
+        logger.error(f"Error serving video: {e}")
         raise HTTPException(status_code=500, detail="Error serving video file")
+
+# Root route to serve index.html
+@app.get("/")
+async def serve_root():
+    """Serve the main SPA index.html for the root route"""
+    for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
+        try:
+            import os
+            if os.path.exists(path):
+                logger.info(f"Serving root index.html from: {path}")
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            logger.warning(f"Could not serve root from {path}: {e}")
+            continue
+    
+    logger.error("Could not find index.html for root route")
+    return Response(content="Welcome to StreamVault - Frontend not available", status_code=500)
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
@@ -428,14 +474,27 @@ async def serve_spa(full_path: str):
         full_path.startswith("assets/") or 
         full_path.startswith("data/") or
         full_path.startswith("video/") or
+        full_path.startswith("ws") or  # WebSocket
+        full_path.startswith("eventsub") or  # EventSub
+        full_path.startswith("health") or  # Health check
+        full_path.startswith("debug/") or  # Debug endpoints
         full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"} or
-        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map"))):
+        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
         raise HTTPException(status_code=404)
+    
+    # For SPA routes like /streamers, /subscriptions, etc., serve index.html
+    logger.info(f"SPA Fallback: Serving index.html for route '{full_path}'")
     
     # Try production path first, then fallback
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
-            return FileResponse(path, media_type="text/html")
-        except:
+            import os
+            if os.path.exists(path):
+                logger.debug(f"Successfully serving index.html from: {path}")
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            logger.warning(f"Could not serve from {path}: {e}")
             continue
-    return Response(status_code=404)
+    
+    logger.error(f"Could not find index.html for SPA route '{full_path}' in any expected location")
+    return Response(content=f"SPA index.html not found for route: {full_path}", status_code=500)

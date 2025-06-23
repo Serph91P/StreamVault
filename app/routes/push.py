@@ -29,7 +29,7 @@ async def get_vapid_public_key():
     
     logger.debug("🔑 Serving VAPID public key for push subscription")
     return {
-        "publicKey": settings.VAPID_PUBLIC_KEY,
+        "publicKey": settings.VAPID_PUBLIC_KEY,  # This is already base64 encoded
         "configured": True
     }
 
@@ -135,23 +135,50 @@ async def send_test_notification(db: Session = Depends(get_db)):
             PushSubscription.is_active == True
         ).all()
         
+        if not active_subscriptions:
+            return {
+                "success": False,
+                "message": "No active push subscriptions found",
+                "sent_count": 0
+            }
+        
         sent_count = 0
+        failed_count = 0
+        
         for subscription in active_subscriptions:
             try:
                 subscription_data = json.loads(subscription.subscription_data)
-                await push_service.send_notification(subscription_data, notification_data)
-                sent_count += 1
+                success = await push_service.send_notification(subscription_data, notification_data)
+                if success:
+                    sent_count += 1
+                else:
+                    failed_count += 1
             except Exception as e:
+                failed_count += 1
                 logger.warning(f"Failed to send test notification to {subscription.endpoint[:50]}: {e}")
         
-        return {
-            "success": True,
-            "message": f"Test notifications sent to {sent_count} subscribers"
-        }
+        if sent_count > 0:
+            return {
+                "success": True,
+                "message": f"Test notifications sent to {sent_count} subscribers" + 
+                          (f" ({failed_count} failed)" if failed_count > 0 else ""),
+                "sent_count": sent_count,
+                "failed_count": failed_count
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration.",
+                "sent_count": 0,
+                "failed_count": failed_count,
+                "suggestion": "Try restarting the server or resetting VAPID keys"            }
         
     except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "message": "Server error while sending test notification. Please contact support if the issue persists."
+        }
 
 @router.post("/test-local")
 async def send_test_local_notification():
@@ -159,24 +186,24 @@ async def send_test_local_notification():
     try:
         return {
             "success": True,
-            "message": "Local test notification triggered - check your browser notifications!",
+            "message": "Local test notification data prepared - use this data to trigger a notification via Service Worker",
             "notification": {
-                "title": "🎉 StreamVault PWA Test",
-                "body": "If you see this, PWA notifications are working perfectly!",
+                "title": "🧪 StreamVault Test (Local)",
+                "body": "If you see this, local PWA notifications are working perfectly! This is a fallback test.",
                 "icon": "/android-icon-192x192.png",
                 "badge": "/android-icon-96x96.png",
                 "type": "test_local",
                 "requireInteraction": True,
                 "timestamp": int(time.time() * 1000),
-                "actions": [
-                    {
-                        "action": "view",
-                        "title": "View App"
-                    }
-                ]
-            }
+                "tag": "test-local-notification",
+                "data": {
+                    "url": "/",
+                    "type": "test_local"
+                }            }
         }
-        
     except Exception as e:
         logger.error(f"Error creating local test notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "message": "Failed to prepare local test notification. An internal error occurred. Please try again later."
+        }

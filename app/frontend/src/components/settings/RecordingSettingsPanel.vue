@@ -106,14 +106,15 @@
               Configure proxy settings for Streamlink to route traffic through different locations. 
               This can help reduce ads if using a proxy in a region with fewer advertisements.
             </p>
-            
-            <div class="form-group">
+              <div class="form-group">
               <label>
                 <input type="checkbox" v-model="proxySettings.enabled" />
                 Enable Proxy Settings
               </label>
               <div class="help-text">
                 When enabled, Streamlink will use the configured proxy servers for all connections.
+                <br><strong>⚠️ Note:</strong> Proxy usage may occasionally cause audio synchronization issues due to network latency. 
+                StreamVault includes optimizations to minimize these issues, but you may need to test different proxy servers for best results.
               </div>
             </div>
 
@@ -157,8 +158,7 @@
                   <li><code>socks5://127.0.0.1:1080</code> - SOCKS5 proxy (if supported)</li>
                 </ul>
               </div>
-              
-              <div class="proxy-tips">
+                <div class="proxy-tips">
                 <h6>💡 Tips:</h6>
                 <ul>
                   <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
@@ -166,6 +166,8 @@
                   <li>Some regions have fewer or no Twitch advertisements</li>
                   <li>Ensure your proxy provider allows video streaming traffic</li>
                   <li>Leave fields empty to disable proxy for that protocol</li>
+                  <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
+                  <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
                 </ul>
               </div>
             </div>

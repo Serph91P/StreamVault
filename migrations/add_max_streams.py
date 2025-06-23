@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 def run_migration():
     """Add max_streams columns to the database tables"""
     try:
+        # Skip if already run by the new migration system in development
+        if os.getenv("ENVIRONMENT") == "development":
+            logger.info("Development mode: Skipping legacy migration (handled by new system)")
+            return
+            
         # Connect to the database
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
