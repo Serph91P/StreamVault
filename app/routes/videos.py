@@ -201,14 +201,14 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(end - start + 1),
-                "Content-Type": mime_type,
-            }
+                "Content-Type": mime_type,            }
             
             return StreamingResponse(
                 generate_chunk(),
                 status_code=206,
                 headers=headers
-            )        else:
+            )
+        else:
             # Return full file (use resolved path)
             return FileResponse(
                 resolved_file_path,
@@ -224,7 +224,8 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
 
 @router.get("/videos/{streamer_name}")
 async def get_streamer_videos(streamer_name: str):
-    """Get all videos for a specific streamer"""    try:
+    """Get all videos for a specific streamer"""
+    try:
         # Sanitize streamer_name - no path traversal characters allowed
         if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
             logger.warning(f"Invalid streamer name detected: {streamer_name}")
@@ -266,14 +267,13 @@ async def get_streamer_videos(streamer_name: str):
             if ".." in filename or "/" in filename or "\\" in filename:
                 logger.warning(f"Skipping potentially dangerous filename: {filename}")
                 continue
-            
-            # Additional validation for filename
+              # Additional validation for filename
             if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
                 logger.warning(f"Skipping filename with invalid characters: {filename}")
                 continue
-                  file_path = abs_streamer_path / filename
             
-            # Additional security check for each file
+            file_path = abs_streamer_path / filename
+              # Additional security check for each file
             try:
                 abs_file_path = file_path.resolve()
                 if not str(abs_file_path).startswith(str(abs_streamer_path)):
@@ -286,7 +286,7 @@ async def get_streamer_videos(streamer_name: str):
             if is_video_file(filename) and abs_file_path.is_file():
                 try:
                     file_stats = abs_file_path.stat()
-                      video_info = {
+                    video_info = {
                         "title": filename,
                         "streamer_name": streamer_name,
                         "file_path": str(abs_file_path),  # Use the validated path
@@ -295,7 +295,7 @@ async def get_streamer_videos(streamer_name: str):
                         "duration": None,
                         "thumbnail_url": None
                     }
-                      videos.append(video_info)
+                    videos.append(video_info)
                     
                 except Exception as e:
                     logger.error(f"Error processing video file {abs_file_path}: {e}")
