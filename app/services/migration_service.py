@@ -6,12 +6,249 @@ import importlib.util
 import logging
 import glob
 from typing import List, Tuple
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 from app.config.settings import settings
 from app.database import SessionLocal, engine
 
 logger = logging.getLogger("streamvault")
+
+class MigrationService:
+    """Service to manage database migrations"""
+    
+    @staticmethod
+    def ensure_migrations_table():
+        """Ensure the migrations tracking table exists"""
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("""
+                    CREATE TABLE IF NOT EXISTS applied_migrations (
+                        id SERIAL PRIMARY KEY,
+                        migration_name VARCHAR(255) UNIQUE NOT NULL,
+                        applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        success BOOLEAN DEFAULT TRUE
+                    )
+                """))
+                connection.commit()
+                logger.info("✅ Migrations tracking table ready")
+        except Exception as e:
+            logger.error(f"❌ Failed to create migrations table: {e}")
+            raise
+
+    @staticmethod
+    def is_migration_applied(migration_name: str) -> bool:
+        """Check if a migration has already been applied"""
+        try:
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("SELECT COUNT(*) FROM applied_migrations WHERE migration_name = :name"),
+                    {"name": migration_name}
+                )
+                return result.scalar() > 0
+        except Exception as e:
+            logger.warning(f"Could not check migration status for {migration_name}: {e}")
+            return False
+
+    @staticmethod
+    def mark_migration_applied(migration_name: str, success: bool = True):
+        """Mark a migration as applied"""
+        try:
+            with engine.connect() as connection:
+                connection.execute(
+                    text("""
+                        INSERT INTO applied_migrations (migration_name, success) 
+                        VALUES (:name, :success)
+                        ON CONFLICT (migration_name) 
+                        DO UPDATE SET success = :success, applied_at = CURRENT_TIMESTAMP
+                    """),
+                    {"name": migration_name, "success": success}
+                )
+                connection.commit()
+        except Exception as e:
+            logger.error(f"Failed to mark migration {migration_name} as applied: {e}")
+    
+    @staticmethod
+    def run_safe_migrations():
+        """Run all migrations safely with proper error handling"""
+        logger.info("🚀 Starting safe migration process...")
+        
+        # Ensure migrations table exists
+        MigrationService.ensure_migrations_table()
+        
+        migrations_to_run = [
+            {
+                "name": "20250522_add_stream_indices",
+                "description": "Add database indices for better performance",
+                "function": MigrationService._run_indices_migration
+            },
+            {
+                "name": "20250609_add_recording_path",
+                "description": "Add recording_path column to streams table",
+                "function": MigrationService._run_recording_path_migration
+            },
+            {
+                "name": "20250617_add_proxy_settings", 
+                "description": "Add proxy settings to global_settings",
+                "function": MigrationService._run_proxy_settings_migration
+            },
+            {
+                "name": "20250620_add_push_subscriptions",
+                "description": "Create push_subscriptions table",
+                "function": MigrationService._run_push_subscriptions_migration
+            },
+            {
+                "name": "20250620_add_system_config",
+                "description": "Create system_config table",
+                "function": MigrationService._run_system_config_migration
+            }
+        ]
+        
+        successful_migrations = 0
+        failed_migrations = 0
+        
+        for migration in migrations_to_run:
+            migration_name = migration["name"]
+            
+            if MigrationService.is_migration_applied(migration_name):
+                logger.info(f"⏭️  Migration {migration_name} already applied, skipping")
+                continue
+                
+            logger.info(f"🔄 Running migration: {migration['description']}")
+            
+            try:
+                migration["function"]()
+                MigrationService.mark_migration_applied(migration_name, True)
+                successful_migrations += 1
+                logger.info(f"✅ Migration {migration_name} completed successfully")
+            except Exception as e:
+                failed_migrations += 1
+                logger.error(f"❌ Migration {migration_name} failed: {e}")
+                MigrationService.mark_migration_applied(migration_name, False)
+                # Continue with other migrations instead of stopping
+                continue
+        
+        logger.info(f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed")
+        return failed_migrations == 0
+
+    @staticmethod
+    def _run_indices_migration():
+        """Add database indices for better performance"""
+        with engine.connect() as connection:
+            # Use PostgreSQL's CREATE INDEX IF NOT EXISTS
+            fallback_sql = """
+                CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id);
+                CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams (started_at);  
+                CREATE INDEX IF NOT EXISTS idx_streams_title ON streams (title);
+            """
+            connection.execute(text(fallback_sql))
+            connection.commit()
+            logger.info("Stream indices created")
+
+    @staticmethod
+    def _run_recording_path_migration():
+        """Add recording_path column to streams table (idempotent)"""
+        with engine.connect() as connection:
+            # Check if column already exists (PostgreSQL)
+            result = connection.execute(text("""
+                SELECT COUNT(*) 
+                FROM information_schema.columns 
+                WHERE table_name = 'streams' 
+                AND column_name = 'recording_path'
+            """))
+            
+            if result.scalar() > 0:
+                logger.info("Column recording_path already exists in streams table")
+                return
+                
+            # Add the column
+            connection.execute(text("ALTER TABLE streams ADD COLUMN recording_path VARCHAR(1024) NULL"))
+            connection.commit()
+            logger.info("Added recording_path column to streams table")
+
+    @staticmethod
+    def _run_proxy_settings_migration():
+        """Add proxy settings to global_settings table (idempotent)"""
+        with engine.connect() as connection:
+            # First ensure global_settings table exists
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS global_settings (
+                    id SERIAL PRIMARY KEY,
+                    setting_key VARCHAR(255) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            
+            # Check and add proxy columns
+            for column_name in ['http_proxy', 'https_proxy']:
+                result = connection.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'global_settings' 
+                    AND column_name = :column_name
+                """), {"column_name": column_name})
+                
+                if result.scalar() == 0:
+                    connection.execute(text(f"ALTER TABLE global_settings ADD COLUMN {column_name} VARCHAR(255) NULL"))
+                    logger.info(f"Added {column_name} column to global_settings")
+                
+            connection.commit()
+
+    @staticmethod
+    def _run_push_subscriptions_migration():
+        """Create push_subscriptions table (idempotent)"""
+        with engine.connect() as connection:
+            # Create table with IF NOT EXISTS
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS push_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    endpoint VARCHAR UNIQUE NOT NULL,
+                    subscription_data TEXT NOT NULL,
+                    user_agent VARCHAR,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            
+            # Create indices if they don't exist
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_push_subscriptions_endpoint 
+                ON push_subscriptions (endpoint)
+            """))
+            
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_push_subscriptions_is_active 
+                ON push_subscriptions (is_active)
+            """))
+            
+            connection.commit()
+            logger.info("Push subscriptions table and indices ready")
+
+    @staticmethod
+    def _run_system_config_migration():
+        """Create system_config table (idempotent)"""
+        with engine.connect() as connection:
+            # Create table with IF NOT EXISTS
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_config (
+                    id SERIAL PRIMARY KEY,
+                    key VARCHAR UNIQUE NOT NULL,
+                    value TEXT NOT NULL,
+                    description VARCHAR,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            
+            # Create index
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config(key)
+            """))
+            
+            connection.commit()
+            logger.info("System config table and index ready")
 
 class MigrationService:
     """Service to manage database migrations"""
