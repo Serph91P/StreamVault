@@ -389,8 +389,7 @@ async def serve_video(file_path: str):
         # Construct full path using secure path joining
         base_path = Path("/app/data")
         full_path = base_path / decoded_path
-        
-        # Security check - ensure resolved path is within /app/data
+          # Security check - ensure resolved path is within /app/data
         try:
             resolved_path = full_path.resolve()
             base_resolved = base_path.resolve()
@@ -401,9 +400,9 @@ async def serve_video(file_path: str):
             logger.warning(f"Path resolution failed for {decoded_path}: {e}")
             raise HTTPException(status_code=403, detail="Invalid path")
         
-        # Additional security - check for symlinks
-        if full_path.is_symlink():
-            logger.warning(f"Symlink access denied: {full_path}")
+        # Additional security - check for symlinks on resolved path
+        if resolved_path.is_symlink():
+            logger.warning(f"Symlink access denied: {resolved_path}")
             raise HTTPException(status_code=403, detail="Symlink access denied")
         
         # Check if file exists
