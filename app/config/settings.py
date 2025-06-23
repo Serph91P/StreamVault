@@ -33,14 +33,20 @@ def generate_vapid_keys():
                 encoding=serialization.Encoding.X962,
                 format=serialization.PublicFormat.UncompressedPoint
             )
-        
-        # Convert to base64url format for storage and the frontend API
+          # Convert to base64url format for storage and the frontend API
         try:
             from py_vapid.utils import b64urlencode
-            public_key_b64url = b64urlencode(public_key_uncompressed).decode('utf-8')
+            if isinstance(public_key_uncompressed, str):
+                # If it's already a string, assume it's already encoded
+                public_key_b64url = public_key_uncompressed
+            else:
+                public_key_b64url = b64urlencode(public_key_uncompressed).decode('utf-8')
         except ImportError:
             # Fallback if b64urlencode is not available
-            public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode('utf-8').rstrip('=')
+            if isinstance(public_key_uncompressed, str):
+                public_key_b64url = public_key_uncompressed
+            else:
+                public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode('utf-8').rstrip('=')
         
         # Store the private key as base64 for database storage
         private_key_b64 = base64.b64encode(private_key_der).decode('utf-8')
@@ -79,12 +85,17 @@ def _generate_vapid_keys_direct():
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
         )
-        
-        # Convert to base64url format for frontend
-        public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode('utf-8').rstrip('=')
+          # Convert to base64url format for frontend
+        if isinstance(public_key_uncompressed, str):
+            public_key_b64url = public_key_uncompressed
+        else:
+            public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode('utf-8').rstrip('=')
         
         # Store the private key as base64 for database storage
-        private_key_b64 = base64.b64encode(private_key_der).decode('utf-8')
+        if isinstance(private_key_der, str):
+            private_key_b64 = private_key_der
+        else:
+            private_key_b64 = base64.b64encode(private_key_der).decode('utf-8')
         
         logger.info("✅ VAPID keys auto-generated successfully using direct cryptography")
         logger.debug(f"Public key (b64url): {public_key_b64url[:20]}...")
