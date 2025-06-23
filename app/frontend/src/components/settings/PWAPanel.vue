@@ -240,7 +240,7 @@ const sendTestNotification = async () => {
   try {
     isSendingTest.value = true
     
-    // Send via API first
+    // Try server-side push notification first
     const response = await fetch('/api/push/test', {
       method: 'POST',
       headers: {
@@ -249,18 +249,39 @@ const sendTestNotification = async () => {
     })
     
     if (response.ok) {
-      showStatus('Test notification sent', 'success')
+      const result = await response.json()
+      showStatus(result.message || 'Test notification sent', 'success')
     } else {
-      // Fallback to local notification
-      await showNotification('StreamVault Test', {
-        body: 'This is a test notification from StreamVault',
-        tag: 'test-notification'
+      // If server push fails, try local notification
+      const localResponse = await fetch('/api/push/test-local', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
-      showStatus('Local test notification sent', 'success')
+      
+      if (localResponse.ok) {
+        const localResult = await localResponse.json()
+        // Show local notification using Service Worker
+        await showNotification(localResult.notification.title, {
+          body: localResult.notification.body,
+          icon: localResult.notification.icon,
+          badge: localResult.notification.badge,
+          tag: localResult.notification.tag,
+          requireInteraction: localResult.notification.requireInteraction,
+          data: {
+            type: localResult.notification.type,
+            timestamp: localResult.notification.timestamp
+          }
+        })
+        showStatus('Local test notification sent', 'success')
+      } else {
+        throw new Error('Both server and local notifications failed')
+      }
     }
   } catch (error) {
     console.error('Failed to send test notification:', error)
-    showStatus('Failed to send test notification', 'error')
+    showStatus('Failed to send test notification. Check console for details.', 'error')
   } finally {
     isSendingTest.value = false
   }
