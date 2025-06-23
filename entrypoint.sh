@@ -72,7 +72,7 @@ fi
 
 if [ "$ENVIRONMENT" = "development" ]; then
     log_msg "Running database migrations in development mode..."
-    python -c "from app.services.migration_service import MigrationService; MigrationService.run_pending_migrations()"
+    python -c "from app.services.migration_service import MigrationService; MigrationService.run_safe_migrations()"
     migration_status=$?
     if [ $migration_status -ne 0 ]; then
         log_msg "WARNING: Database migrations failed with status $migration_status"
