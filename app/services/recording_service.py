@@ -1433,7 +1433,7 @@ class RecordingService:
                 "--logfile", streamlink_log_path,
                 "--logformat", "[{asctime}][{name}][{levelname}] {message}",
                 "--logdateformat", "%Y-%m-%d %H:%M:%S",
-            ]# Add proxy settings if configured
+            ]            # Add proxy settings if configured
             from app.models import GlobalSettings
             with SessionLocal() as proxy_db:
                 global_settings = proxy_db.query(GlobalSettings).first()
@@ -1447,6 +1447,19 @@ class RecordingService:
                             raise ValueError(error_msg)
                         cmd.extend(["--http-proxy", proxy_url])
                         logger.debug(f"Using HTTP proxy: {proxy_url}")
+                          # Add proxy-specific optimizations for better audio sync
+                        cmd.extend([
+                            "--stream-segment-timeout", "60" if not force_mode else "90",  # Longer timeouts for proxy latency
+                            "--stream-timeout", "300" if not force_mode else "360",       # Extended overall timeout
+                            "--hls-segment-queue-threshold", "8",                         # More segments for proxy buffering
+                            "--stream-segment-attempts", "15" if not force_mode else "20", # More retry attempts
+                            "--hls-live-edge", "10",                                      # Stay further from live edge to avoid sync issues
+                            "--ringbuffer-size", "512M",                                 # Larger internal buffer for stable data flow
+                            "--hls-segment-stream-data",                                  # Write segment data immediately to reduce buffering delays
+                            "--stream-segment-threads", "2",                             # Use multiple threads for segment downloads
+                            "--hls-playlist-reload-time", "segment",                     # Optimize playlist reload timing
+                        ])
+                        
                     if global_settings.https_proxy and global_settings.https_proxy.strip():
                         proxy_url = global_settings.https_proxy.strip()
                         # Validate that the proxy URL has the correct protocol prefix
@@ -1456,6 +1469,16 @@ class RecordingService:
                             raise ValueError(error_msg)
                         cmd.extend(["--https-proxy", proxy_url])
                         logger.debug(f"Using HTTPS proxy: {proxy_url}")
+                        
+                        # Add proxy-specific optimizations for HTTPS connections too
+                        cmd.extend([
+                            "--stream-segment-timeout", "60" if not force_mode else "90",
+                            "--stream-timeout", "300" if not force_mode else "360",
+                            "--hls-segment-queue-threshold", "8",
+                            "--stream-segment-attempts", "15" if not force_mode else "20",
+                            "--hls-live-edge", "10",
+                            "--ringbuffer-size", "512M",
+                        ])
 
             # Log the command start
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
@@ -1546,23 +1569,32 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 with enhanced logging and sync preservation"""
-        try:
-            # Enhanced remux settings optimized for sync preservation
+        """Remux TS file to MP4 with enhanced logging and sync preservation"""        try:
+            # Check if the recording was made through a proxy by looking at active recording info
+            is_proxy_recording = False
+            from app.models import GlobalSettings
+            with SessionLocal() as proxy_db:
+                global_settings = proxy_db.query(GlobalSettings).first()
+                if global_settings and (global_settings.http_proxy or global_settings.https_proxy):
+                    is_proxy_recording = True
+            
+            # Enhanced remux settings optimized for sync preservation, especially for proxy recordings
             cmd = [
                 "ffmpeg",
-                "-fflags", "+genpts+igndts",  # Generate PTS and ignore DTS for better sync
-                "-analyzeduration", "10M",     # Analyze more data for proper sync detection
-                "-probesize", "10M",          # Probe more data for stream analysis
+                "-fflags", "+genpts+igndts+ignidx",  # Generate PTS, ignore DTS and index for better sync recovery
+                "-analyzeduration", "20M" if is_proxy_recording else "10M",     # Analyze more data for proxy recordings
+                "-probesize", "20M" if is_proxy_recording else "10M",          # Probe more data for stream analysis
                 "-i", ts_path,
                 "-c:v", "copy",               # Copy video stream (no re-encoding)
                 "-c:a", "copy",               # Copy audio stream (preserve original timing)
                 "-avoid_negative_ts", "make_zero",  # Handle negative timestamps
                 "-map", "0:v:0",              # Map first video stream
                 "-map", "0:a:0?",             # Map first audio stream (optional)
-                "-movflags", "+faststart",    # Enable fast start for MP4
+                "-movflags", "+faststart+frag_keyframe" if is_proxy_recording else "+faststart",  # Optimize for proxy recordings
                 "-ignore_unknown",            # Ignore unknown streams
-                "-max_muxing_queue_size", "4096",  # Increase muxing queue for large files
+                "-max_muxing_queue_size", "8192" if is_proxy_recording else "4096",  # Larger queue for proxy recordings
+                "-async", "1",                # Audio sync method for better audio/video alignment
+                "-vsync", "cfr",              # Constant frame rate for better sync
                 "-metadata", "encoded_by=StreamVault",
                 "-metadata", "encoding_tool=StreamVault",
                 "-y", mp4_path,
