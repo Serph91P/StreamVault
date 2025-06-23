@@ -456,12 +456,11 @@ class EventHandlerRegistry:
                         "id": subscription_id,
                         "status": "failed",
                         "error": f"Status code: {response.status}"
-                    }
-
-    async def delete_all_subscriptions(self):
+                    }    async def delete_all_subscriptions(self):
         subs = await self.list_subscriptions()
         results = []
-          for sub in subs.get("data", []):
+        
+        for sub in subs.get("data", []):
             try:
                 result = await self.delete_subscription(sub["id"])
                 results.append(result)
