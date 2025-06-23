@@ -144,9 +144,8 @@ async def eventsub_callback(request: Request):
             return Response(status_code=403)
 
         # Create message exactly as Twitch does
-        hmac_message = message_id.encode() + timestamp.encode() + body
-
-        # Calculate HMAC using raw bytes        calculated_signature = "sha256=" + hmac.new(
+        hmac_message = message_id.encode() + timestamp.encode() + body        # Calculate HMAC using raw bytes
+        calculated_signature = "sha256=" + hmac.new(
             settings.EVENTSUB_SECRET.encode(),
             hmac_message,
             hashlib.sha256
