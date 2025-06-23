@@ -106,9 +106,8 @@ async def resubscribe_all(
                 
             except Exception as e:
                 logger.error(f"Error resubscribing for {streamer.get('username', 'unknown')}: {e}")
-                results["errors"].append({
-                    "streamer": streamer.get("username", "unknown"),
-                    "error": str(e)
+                results["errors"].append({                    "streamer": streamer.get("username", "unknown"),
+                    "error": "Subscription failed"  # Don't expose detailed error info
                 })
         
         logger.info(f"Resubscription complete: {results['processed']} processed, {results['skipped']} skipped")
