@@ -81,11 +81,10 @@ async def get_all_videos():
                 
                 file_path = resolved_streamer_path / filename
                 
-                # Check if it's a video file
-                if is_video_file(filename) and file_path.is_file():
+                # Check if it's a video file                if is_video_file(filename) and file_path.is_file():
                     try:
                         file_stats = file_path.stat()
-                          video_info = {
+                        video_info = {
                             "title": filename,
                             "streamer_name": streamer_name,
                             "file_path": str(file_path),  # Use validated path
