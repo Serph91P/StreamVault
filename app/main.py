@@ -466,12 +466,12 @@ async def serve_video(file_path: str):
         # Serve the file using the clean, validated path
         return FileResponse(
             final_file_path,
-            media_type="video/mp4",
-            headers={
+            media_type="video/mp4",            headers={
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600"
             }
-        )    except HTTPException:
+        )
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error serving video: {e}")
