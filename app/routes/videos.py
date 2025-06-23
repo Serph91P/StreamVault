@@ -69,16 +69,15 @@ async def get_all_videos():
                 continue
                 
             # Look for video files in streamer directory
-            for filename in os.listdir(resolved_streamer_path):
-                # Validate filename
+            for filename in os.listdir(resolved_streamer_path):                # Validate filename
                 if ".." in filename or "/" in filename or "\\" in filename:
                     logger.warning(f"Skipping potentially dangerous filename: {filename}")
                     continue
-                
                 if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
                     logger.warning(f"Skipping filename with invalid characters: {filename}")
                     continue
-                  file_path = resolved_streamer_path / filename
+                
+                file_path = resolved_streamer_path / filename
                 
                 # Check if it's a video file
                 if is_video_file(filename) and file_path.is_file():
