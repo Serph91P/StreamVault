@@ -64,8 +64,7 @@ class PushService:
             
         except WebPushException as e:
             logger.error(f"WebPush error: {e}")
-            
-            # Handle different error codes
+              # Handle different error codes
             if e.response and e.response.status_code == 410:
                 # Subscription is no longer valid
                 logger.info(f"Subscription expired: {subscription.get('endpoint', 'unknown')[:50]}...")
@@ -80,7 +79,8 @@ class PushService:
         except Exception as e:
             logger.error(f"Unexpected error sending push notification: {e}", exc_info=True)
             return False
-      async def send_stream_online_notification(
+    
+    async def send_stream_online_notification(
         self, 
         subscription: Dict[str, Any], 
         streamer_name: str,
@@ -119,11 +119,11 @@ class PushService:
                 }
             ],
             "requireInteraction": True,
-            "tag": f"stream-online-{streamer_id}"
-        }
+            "tag": f"stream-online-{streamer_id}"        }
         
         return await self.send_notification(subscription, notification_data)
-      async def send_recording_started_notification(
+
+    async def send_recording_started_notification(
         self,
         subscription: Dict[str, Any],
         streamer_name: str,
@@ -148,7 +148,7 @@ class PushService:
         }
         
         return await self.send_notification(subscription, notification_data)
-      async def send_recording_finished_notification(
+    async def send_recording_finished_notification(
         self,
         subscription: Dict[str, Any],
         streamer_name: str,
