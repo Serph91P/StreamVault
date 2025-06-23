@@ -11,21 +11,30 @@ def generate_vapid_keys():
     """Generate VAPID keys automatically if not provided"""
     try:
         from py_vapid import Vapid
+        from py_vapid.utils import b64urlencode
         
-        # Generate VAPID keys using py_vapid (the correct way)
+        # Generate VAPID keys using py_vapid
         vapid = Vapid()
         vapid.generate_keys()
         
-        # Get keys in the format expected by pywebpush
-        private_key_bytes = vapid.private_key_bytes()
-        public_key_bytes = vapid.public_key_bytes()
+        # Get the private key in DER format (what pywebpush expects)
+        private_key_der = vapid.private_key_bytes()
         
-        # Convert to base64 strings for storage and transmission
-        private_key = base64.b64encode(private_key_bytes).decode('utf-8')
-        public_key = base64.b64encode(public_key_bytes).decode('utf-8')
+        # Get the public key in uncompressed format for browser subscription
+        public_key_uncompressed = vapid.public_key_bytes()
+        
+        # Convert to base64url format for storage and the frontend API
+        # This is the format that browsers expect for applicationServerKey
+        public_key_b64url = b64urlencode(public_key_uncompressed).decode('utf-8')
+        
+        # Store the private key as base64 for database storage
+        private_key_b64 = base64.b64encode(private_key_der).decode('utf-8')
         
         logger.info("✅ VAPID keys auto-generated successfully using py_vapid")
-        return public_key, private_key
+        logger.debug(f"Public key (b64url): {public_key_b64url[:20]}...")
+        logger.debug(f"Private key stored as base64 (length: {len(private_key_b64)})")
+        
+        return public_key_b64url, private_key_b64
         
     except ImportError:
         logger.warning("⚠️ py_vapid library not available for VAPID key generation")
@@ -33,6 +42,7 @@ def generate_vapid_keys():
         return None, None
     except Exception as e:
         logger.warning(f"⚠️ Failed to auto-generate VAPID keys: {e}")
+        logger.error(f"VAPID generation error details: {e}", exc_info=True)
         return None, None
 
 class Settings(BaseSettings):
