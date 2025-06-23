@@ -144,10 +144,8 @@ self.addEventListener('push', (event) => {
         tag: data.tag || `streamvault-${data.type || 'notification'}-${Date.now()}`,
         data: data.data || {},
         timestamp: data.timestamp || Date.now()
-      }
-
-      // Add actions based on notification type
-      if (data.type === 'stream_online') {
+      }      // Add actions based on notification type
+      if (data.type === 'stream_online' || data.type === 'stream_update' || data.type === 'favorite_category') {
         notificationData.actions = [
           {
             action: 'view_stream',
@@ -159,7 +157,7 @@ self.addEventListener('push', (event) => {
             title: 'Dismiss'
           }
         ]
-      } else if (data.type === 'recording_started') {
+      } else if (data.type === 'recording_finished') {
         notificationData.actions = [
           {
             action: 'view_recording',
@@ -211,32 +209,43 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
         const data = notification.data || {}
-        let url = '/'
-
-        // Determine URL based on action and data
-        if (action === 'view_stream' && data.streamer_id) {
-          url = `/streamer/${data.streamer_id}`
+        let url = '/'        // Determine URL based on action and data
+        if (action === 'view_stream') {
+          // For stream viewing, prefer external Twitch URL if available, otherwise internal
+          if (data.url && data.url.includes('twitch.tv')) {
+            url = data.url
+          } else if (data.internal_url) {
+            url = data.internal_url
+          } else if (data.streamer_id) {
+            url = `/streamer/${data.streamer_id}`
+          }
         } else if (action === 'view_recording' && data.streamer_id && data.stream_id) {
           url = `/streamer/${data.streamer_id}/stream/${data.stream_id}/watch`
         } else if (data.url) {
           url = data.url
-        }
-
-        // Try to focus existing window or open new one
+        }        // Try to focus existing window or open new one
         for (let client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.focus()
-            client.postMessage({
-              type: 'NOTIFICATION_CLICK',
-              action: action,
-              data: data,
-              url: url
-            })
-            return
+            // If it's a Twitch URL, open in new tab/window
+            if (url.includes('twitch.tv')) {
+              if (clients.openWindow) {
+                return clients.openWindow(url)
+              }
+            } else {
+              // For internal URLs, focus existing window and navigate
+              client.focus()
+              client.postMessage({
+                type: 'NOTIFICATION_CLICK',
+                action: action,
+                data: data,
+                url: url
+              })
+              return
+            }
           }
         }
 
-        // Open new window if no existing one found
+        // Open new window if no existing one found or for external URLs
         if (clients.openWindow) {
           return clients.openWindow(url)
         }
