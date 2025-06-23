@@ -1,12 +1,229 @@
-# StreamVault Database Migration System
-
-This document explains how to use and manage the automated database migration system in StreamVault.
+# Database Migrations Guide
 
 ## Overview
 
-The StreamVault migration system automatically applies database schema changes whenever the application is started. This ensures that the database schema is always up-to-date without requiring manual intervention, which is especially important in Docker container environments.
+StreamVault uses a robust database migration system that ensures all database schema changes are applied safely and consistently across different environments.
 
-## How It Works
+## Migration System Features
+
+### ✅ Idempotent Migrations
+- All migrations can be run multiple times safely
+- Existing tables and columns are detected and skipped
+- No risk of duplicate schema changes
+
+### 🔄 Automatic Execution
+- Migrations run automatically on application startup
+- Manual execution options available for troubleshooting
+- Comprehensive error handling and logging
+
+### 📊 Migration Tracking
+- All migrations are tracked in the `applied_migrations` table
+- Status tracking (success/failure) for each migration
+- Detailed timestamps and execution history
+
+## Migration Files
+
+### Current Migrations
+
+1. **20250522_add_stream_indices.py**
+   - Adds database indices for better query performance
+   - Indices on: streamer_id, started_at, title
+
+2. **20250609160908_add_recording_path_to_streams.py**
+   - Adds `recording_path` column to streams table
+   - Stores the filesystem path for each recording
+
+3. **20250617_add_proxy_settings.py**
+   - Adds HTTP/HTTPS proxy configuration to global_settings
+   - Columns: http_proxy, https_proxy
+
+4. **20250620_add_push_subscriptions.py**
+   - Creates push_subscriptions table for PWA notifications
+   - Includes endpoint, subscription_data, and management fields
+
+5. **20250620_add_system_config.py**
+   - Creates system_config table for persistent configuration
+   - Used for VAPID keys and other system-wide settings
+
+## Running Migrations
+
+### Automatic (Recommended)
+Migrations run automatically when the application starts. No manual intervention required.
+
+### Manual Execution
+
+#### Using Shell Scripts
+```bash
+# Linux/macOS
+./migrate.sh
+
+# Windows PowerShell
+.\migrate.ps1
+```
+
+#### Using Python Directly
+```bash
+# Run safe migrations via MigrationService
+python -c "from app.services.migration_service import MigrationService; MigrationService.run_safe_migrations()"
+
+# Validate database schema
+python validate_database.py
+```
+
+## Migration Logs
+
+### Successful Migration Log
+```
+🚀 Starting safe migration process...
+✅ Migrations tracking table ready
+⏭️  Migration 20250522_add_stream_indices already applied, skipping
+🔄 Running migration: Add recording_path column to streams table
+✅ Migration 20250609_add_recording_path completed successfully
+🎯 Migration summary: 4 successful, 0 failed
+```
+
+### Handling Migration Errors
+
+Common migration errors and their meanings:
+
+#### "Column already exists"
+```
+ERROR: column "recording_path" of relation "streams" already exists
+```
+- **Cause**: Migration was already applied
+- **Solution**: This is expected behavior with idempotent migrations
+- **Action**: No action required - migration will be skipped
+
+#### "Table already exists"
+```
+ERROR: relation "push_subscriptions" already exists
+```
+- **Cause**: Table was already created
+- **Solution**: Migration uses `CREATE TABLE IF NOT EXISTS`
+- **Action**: No action required
+
+## Database Schema Validation
+
+Use the validation script to check your database schema:
+
+```bash
+python validate_database.py
+```
+
+### Validation Output
+```
+🔍 Validating database schema...
+✅ Table 'streamers' exists
+✅ Table 'streams' exists
+✅ Column 'streams.recording_path' exists
+✅ Index 'idx_streams_streamer_id' exists
+📊 5 migrations tracked in database
+🎉 Database schema validation passed!
+```
+
+## Troubleshooting
+
+### Migration Failures
+
+1. **Check Database Connection**
+   ```bash
+   # Verify database is accessible
+   python -c "from app.database import engine; print(engine.connect())"
+   ```
+
+2. **Check Migration Logs**
+   - Look for specific error messages in application logs
+   - Check `applied_migrations` table for failure records
+
+3. **Manual Recovery**
+   ```sql
+   -- Check migration status
+   SELECT * FROM applied_migrations ORDER BY applied_at DESC;
+   
+   -- Mark failed migration as success (if manually fixed)
+   UPDATE applied_migrations 
+   SET success = true 
+   WHERE migration_name = 'problem_migration_name';
+   ```
+
+### Performance Issues
+
+If migrations take too long:
+
+1. **Check Database Load**
+   - Ensure database isn't under heavy load
+   - Consider running migrations during maintenance windows
+
+2. **Index Creation**
+   - Large tables may take time to index
+   - Index creation is normal for production databases
+
+## Best Practices
+
+### Development
+- Always test migrations on development environment first
+- Use the validation script after adding new migrations
+- Monitor migration logs during development
+
+### Production
+- Backup database before major migrations
+- Monitor application logs during startup
+- Validate schema after deployment
+
+### Creating New Migrations
+
+When creating new migrations:
+
+1. **Use Idempotent SQL**
+   ```sql
+   -- Good: Uses IF NOT EXISTS
+   CREATE TABLE IF NOT EXISTS new_table (...);
+   
+   -- Good: Check before adding column
+   ALTER TABLE existing_table 
+   ADD COLUMN IF NOT EXISTS new_column VARCHAR(255);
+   ```
+
+2. **Test Thoroughly**
+   - Test on fresh database
+   - Test on existing database with data
+   - Test running migration multiple times
+
+3. **Document Changes**
+   - Update this guide with new migrations
+   - Include migration purpose and impact
+   - Document any manual steps required
+
+## Migration System Architecture
+
+```
+MigrationService (app/services/migration_service.py)
+├── ensure_migrations_table()         # Create tracking table
+├── is_migration_applied()            # Check if migration ran
+├── mark_migration_applied()          # Record migration status
+├── run_safe_migrations()             # Execute all migrations safely
+│   ├── _run_indices_migration()
+│   ├── _run_recording_path_migration()
+│   ├── _run_proxy_settings_migration()
+│   ├── _run_push_subscriptions_migration()
+│   └── _run_system_config_migration()
+└── Legacy methods (for backward compatibility)
+    ├── get_all_migration_scripts()
+    ├── run_migration_script()
+    └── run_all_migrations()
+```
+
+## Legacy Migration System
+
+The old migration system is still available as a fallback:
+
+```python
+# Legacy system (still available for complex migrations)
+from app.services.migration_service import MigrationService
+MigrationService.run_all_migrations()  # Runs migration files from migrations/ directory
+```
+
+The new safe migration system is preferred and runs automatically. The legacy system is used as a fallback if the safe system encounters issues.
 
 1. When the application starts, it checks for any pending migrations
 2. Each migration is run exactly once (successful migrations are tracked in the database)
