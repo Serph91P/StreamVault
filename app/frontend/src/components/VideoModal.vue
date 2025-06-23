@@ -25,10 +25,9 @@
           >
             Your browser does not support the video tag.
           </video>
-          
-          <div v-if="loading" class="video-loading">
+            <div v-if="loading" class="video-loading">
             <div class="loading-spinner"></div>
-            <p>Video wird geladen...</p>
+            <p>Loading video...</p>
           </div>
           
           <div v-if="error" class="video-error">
@@ -37,9 +36,9 @@
               <line x1="15" y1="9" x2="9" y2="15"></line>
               <line x1="9" y1="9" x2="15" y2="15"></line>
             </svg>
-            <h3>Video konnte nicht geladen werden</h3>
+            <h3>Could not load video</h3>
             <p>{{ errorMessage }}</p>
-            <button @click="retryVideo" class="retry-btn">Erneut versuchen</button>
+            <button @click="retryVideo" class="retry-btn">Retry</button>
           </div>
         </div>
         
@@ -74,8 +73,7 @@
               </svg>
               Download
             </button>
-            
-            <button @click="shareVideo" class="action-btn share-btn">
+              <button @click="shareVideo" class="action-btn share-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="18" cy="5" r="3"></circle>
                 <circle cx="6" cy="12" r="3"></circle>
@@ -83,7 +81,7 @@
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
               </svg>
-              Teilen
+              Share
             </button>
           </div>
         </div>
@@ -141,22 +139,22 @@ const onError = (event) => {
   if (videoEl.error) {
     switch (videoEl.error.code) {
       case videoEl.error.MEDIA_ERR_ABORTED:
-        errorMessage.value = 'Video-Wiedergabe wurde abgebrochen.'
+        errorMessage.value = 'Video playback was aborted.'
         break
       case videoEl.error.MEDIA_ERR_NETWORK:
-        errorMessage.value = 'Netzwerkfehler beim Laden des Videos.'
+        errorMessage.value = 'Network error while loading video.'
         break
       case videoEl.error.MEDIA_ERR_DECODE:
-        errorMessage.value = 'Video konnte nicht dekodiert werden.'
+        errorMessage.value = 'Video could not be decoded.'
         break
       case videoEl.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-        errorMessage.value = 'Video-Format wird nicht unterstützt.'
+        errorMessage.value = 'Video format is not supported.'
         break
       default:
-        errorMessage.value = 'Unbekannter Fehler beim Laden des Videos.'
+        errorMessage.value = 'Unknown error while loading video.'
     }
   } else {
-    errorMessage.value = 'Video konnte nicht gefunden werden. Prüfen Sie den Pfad und versuchen Sie es erneut.'
+    errorMessage.value = 'Video could not be found. Please check the path and try again.'
   }
   
   console.error('Video error:', event.target.error, 'URL:', videoUrl.value)
