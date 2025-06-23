@@ -38,27 +38,57 @@ async def get_all_videos():
         if not os.path.exists(recordings_dir):
             logger.warning(f"Recordings directory {recordings_dir} does not exist")
             return videos
-        
-        # Iterate through streamer directories
+          # Iterate through streamer directories
         for streamer_name in os.listdir(recordings_dir):
-            streamer_path = os.path.join(recordings_dir, streamer_name)
+            # Validate streamer directory name
+            if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
+                logger.warning(f"Skipping potentially dangerous streamer directory: {streamer_name}")
+                continue
             
-            if not os.path.isdir(streamer_path):
+            # Additional validation: ensure streamer name contains only safe characters
+            import re
+            if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
+                logger.warning(f"Skipping streamer name with invalid characters: {streamer_name}")
+                continue
+            
+            from pathlib import Path
+            base_path = Path(recordings_dir)
+            streamer_path = base_path / streamer_name
+            
+            try:
+                resolved_streamer_path = streamer_path.resolve()
+                resolved_base_path = base_path.resolve()
+                if not str(resolved_streamer_path).startswith(str(resolved_base_path)):
+                    logger.warning(f"Skipping streamer directory outside base: {streamer_path}")
+                    continue
+            except Exception:
+                logger.warning(f"Failed to resolve streamer path: {streamer_path}")
+                continue
+            
+            if not resolved_streamer_path.is_dir():
                 continue
                 
             # Look for video files in streamer directory
-            for filename in os.listdir(streamer_path):
-                file_path = os.path.join(streamer_path, filename)
+            for filename in os.listdir(resolved_streamer_path):
+                # Validate filename
+                if ".." in filename or "/" in filename or "\\" in filename:
+                    logger.warning(f"Skipping potentially dangerous filename: {filename}")
+                    continue
+                
+                if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
+                    logger.warning(f"Skipping filename with invalid characters: {filename}")
+                    continue
+                
+                file_path = resolved_streamer_path / filename
                 
                 # Check if it's a video file
-                if is_video_file(filename) and os.path.isfile(file_path):
+                if is_video_file(filename) and file_path.is_file():
                     try:
-                        file_stats = os.stat(file_path)
-                        
-                        video_info = {
+                        file_stats = file_path.stat()
+                          video_info = {
                             "title": filename,
                             "streamer_name": streamer_name,
-                            "file_path": file_path,
+                            "file_path": str(file_path),  # Use validated path
                             "file_size": file_stats.st_size,
                             "created_at": file_stats.st_mtime,
                             "duration": None,  # Could be extracted with ffprobe if needed
@@ -90,11 +120,21 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
             logger.warning(f"Invalid streamer name detected: {streamer_name}")
             raise HTTPException(status_code=400, detail="Invalid streamer name")
         
-        # URL decode the filename and sanitize
-        decoded_filename = urllib.parse.unquote(filename)
+        # URL decode the filename and sanitize        decoded_filename = urllib.parse.unquote(filename)
         if ".." in decoded_filename or "/" in decoded_filename or "\\" in decoded_filename:
             logger.warning(f"Invalid filename detected: {decoded_filename}")
             raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # Additional validation: ensure filename contains only safe characters
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', decoded_filename):
+            logger.warning(f"Filename contains invalid characters: {decoded_filename}")
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # Validate streamer name 
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
+            logger.warning(f"Streamer name contains invalid characters: {streamer_name}")
+            raise HTTPException(status_code=400, detail="Invalid streamer name")
             
         logger.info(f"Streaming video: {streamer_name}/{decoded_filename}")
         
@@ -103,20 +143,21 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
         if not os.path.isabs(recordings_dir):
             recordings_dir = os.path.abspath(recordings_dir)
         
-        # Construct file path using os.path.join for security
-        file_path = os.path.join(recordings_dir, streamer_name, decoded_filename)
-        
-        # Security check - ensure path is within recordings directory        # Resolve paths to handle symlinks and ensure they're canonical
+        # Construct safe path using only validated components
+        from pathlib import Path
+        base_path = Path(recordings_dir)
+        safe_path = base_path / streamer_name / decoded_filename        
+        # Security check - resolve and ensure path is within recordings directory
         try:
-            resolved_file_path = os.path.realpath(file_path)
-            resolved_recordings_dir = os.path.realpath(recordings_dir)
+            resolved_file_path = safe_path.resolve()
+            resolved_recordings_dir = base_path.resolve()
         except Exception as e:
-            logger.warning(f"Path resolution failed for {file_path}: {e}")
+            logger.warning(f"Path resolution failed for {safe_path}: {e}")
             raise HTTPException(status_code=403, detail="Invalid path")
             
         # Security check: ensure resolved path is within recordings directory
-        if not resolved_file_path.startswith(resolved_recordings_dir):
-            logger.warning(f"Attempted path traversal: {file_path} -> {resolved_file_path}")
+        if not str(resolved_file_path).startswith(str(resolved_recordings_dir)):
+            logger.warning(f"Attempted path traversal: {safe_path} -> {resolved_file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Additional security check - ensure no symlink attacks on resolved path
@@ -185,63 +226,81 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
 
 @router.get("/videos/{streamer_name}")
 async def get_streamer_videos(streamer_name: str):
-    """Get all videos for a specific streamer"""
-    try:
+    """Get all videos for a specific streamer"""    try:
         # Sanitize streamer_name - no path traversal characters allowed
         if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
             logger.warning(f"Invalid streamer name detected: {streamer_name}")
+            raise HTTPException(status_code=400, detail="Invalid streamer name")
+        
+        # Additional validation: ensure streamer name contains only safe characters
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
+            logger.warning(f"Streamer name contains invalid characters: {streamer_name}")
             raise HTTPException(status_code=400, detail="Invalid streamer name")
             
         videos = []
         recordings_dir = get_recordings_directory()
         if not os.path.isabs(recordings_dir):
             recordings_dir = os.path.abspath(recordings_dir)
-            
-        streamer_path = os.path.join(recordings_dir, streamer_name)
+        
+        # Construct safe path using validated components
+        from pathlib import Path
+        base_path = Path(recordings_dir)
+        streamer_path = base_path / streamer_name
         
         # Security check - ensure path is within recordings directory
-        abs_streamer_path = os.path.abspath(streamer_path)
-        abs_recordings_dir = os.path.abspath(recordings_dir)
-        if not abs_streamer_path.startswith(abs_recordings_dir):
-            logger.warning(f"Attempted path traversal in get_streamer_videos: {streamer_path}")
-            raise HTTPException(status_code=403, detail="Access denied")
+        try:
+            abs_streamer_path = streamer_path.resolve()
+            abs_recordings_dir = base_path.resolve()
+            if not str(abs_streamer_path).startswith(str(abs_recordings_dir)):
+                logger.warning(f"Attempted path traversal in get_streamer_videos: {streamer_path}")
+                raise HTTPException(status_code=403, detail="Access denied")
+        except Exception as e:
+            logger.warning(f"Path resolution failed for {streamer_path}: {e}")
+            raise HTTPException(status_code=403, detail="Invalid path")
         
-        if not os.path.exists(streamer_path):
-            logger.warning(f"Streamer directory {streamer_path} does not exist")
+        if not abs_streamer_path.exists():
+            logger.warning(f"Streamer directory {abs_streamer_path} does not exist")
             return videos
         
-        for filename in os.listdir(streamer_path):
+        for filename in os.listdir(abs_streamer_path):
             # Sanitize filename
             if ".." in filename or "/" in filename or "\\" in filename:
                 logger.warning(f"Skipping potentially dangerous filename: {filename}")
                 continue
-                
-            file_path = os.path.join(streamer_path, filename)
+            
+            # Additional validation for filename
+            if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
+                logger.warning(f"Skipping filename with invalid characters: {filename}")
+                continue
+                  file_path = abs_streamer_path / filename
             
             # Additional security check for each file
-            abs_file_path = os.path.abspath(file_path)
-            if not abs_file_path.startswith(abs_streamer_path):
-                logger.warning(f"Skipping file outside streamer directory: {file_path}")
+            try:
+                abs_file_path = file_path.resolve()
+                if not str(abs_file_path).startswith(str(abs_streamer_path)):
+                    logger.warning(f"Skipping file outside streamer directory: {file_path}")
+                    continue
+            except Exception:
+                logger.warning(f"Failed to resolve file path: {file_path}")
                 continue
             
-            if is_video_file(filename) and os.path.isfile(file_path):
+            if is_video_file(filename) and abs_file_path.is_file():
                 try:
-                    file_stats = os.stat(file_path)
-                    
-                    video_info = {
+                    file_stats = abs_file_path.stat()
+                      video_info = {
                         "title": filename,
                         "streamer_name": streamer_name,
-                        "file_path": file_path,
+                        "file_path": str(abs_file_path),  # Use the validated path
                         "file_size": file_stats.st_size,
                         "created_at": file_stats.st_mtime,
                         "duration": None,
                         "thumbnail_url": None
                     }
-                    
-                    videos.append(video_info)
+                      videos.append(video_info)
                     
                 except Exception as e:
-                    logger.error(f"Error processing video file {file_path}: {e}")
+                    logger.error(f"Error processing video file {abs_file_path}: {e}")
                     continue
         
         # Sort by creation time (newest first)
