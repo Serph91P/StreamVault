@@ -1,5 +1,6 @@
 import json
 import logging
+import base64
 from typing import Dict, Any, Optional
 from pywebpush import webpush, WebPushException
 from app.config.settings import settings
@@ -10,9 +11,27 @@ class PushService:
     def __init__(self):
         self.settings = settings
         
-        # VAPID keys - in production, generate these and store securely
-        self.vapid_private_key = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
-        self.vapid_public_key = getattr(self.settings, 'VAPID_PUBLIC_KEY', None)
+        # VAPID keys - decode from base64 if needed
+        vapid_private_key_raw = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
+        vapid_public_key_raw = getattr(self.settings, 'VAPID_PUBLIC_KEY', None)
+        
+        # Decode from base64 if they are strings
+        if vapid_private_key_raw and isinstance(vapid_private_key_raw, str):
+            try:
+                self.vapid_private_key = base64.b64decode(vapid_private_key_raw)
+            except Exception:
+                self.vapid_private_key = vapid_private_key_raw
+        else:
+            self.vapid_private_key = vapid_private_key_raw
+            
+        if vapid_public_key_raw and isinstance(vapid_public_key_raw, str):
+            try:
+                self.vapid_public_key = base64.b64decode(vapid_public_key_raw)
+            except Exception:
+                self.vapid_public_key = vapid_public_key_raw
+        else:
+            self.vapid_public_key = vapid_public_key_raw
+            
         self.vapid_claims = {
             "sub": getattr(self.settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
         }
