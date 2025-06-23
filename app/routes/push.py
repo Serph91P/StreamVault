@@ -135,23 +135,52 @@ async def send_test_notification(db: Session = Depends(get_db)):
             PushSubscription.is_active == True
         ).all()
         
+        if not active_subscriptions:
+            return {
+                "success": False,
+                "message": "No active push subscriptions found",
+                "sent_count": 0
+            }
+        
         sent_count = 0
+        failed_count = 0
+        
         for subscription in active_subscriptions:
             try:
                 subscription_data = json.loads(subscription.subscription_data)
-                await push_service.send_notification(subscription_data, notification_data)
-                sent_count += 1
+                success = await push_service.send_notification(subscription_data, notification_data)
+                if success:
+                    sent_count += 1
+                else:
+                    failed_count += 1
             except Exception as e:
+                failed_count += 1
                 logger.warning(f"Failed to send test notification to {subscription.endpoint[:50]}: {e}")
         
-        return {
-            "success": True,
-            "message": f"Test notifications sent to {sent_count} subscribers"
-        }
+        if sent_count > 0:
+            return {
+                "success": True,
+                "message": f"Test notifications sent to {sent_count} subscribers" + 
+                          (f" ({failed_count} failed)" if failed_count > 0 else ""),
+                "sent_count": sent_count,
+                "failed_count": failed_count
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration.",
+                "sent_count": 0,
+                "failed_count": failed_count,
+                "suggestion": "Try restarting the server or resetting VAPID keys"
+            }
         
     except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "message": "Server error while sending test notification",
+            "error": str(e)
+        }
 
 @router.post("/test-local")
 async def send_test_local_notification():
