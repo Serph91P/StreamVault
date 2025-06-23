@@ -264,9 +264,7 @@ class NotificationService:
                     streamer_name=streamer_name,
                     event_type=event_type,
                     details=details
-                )
-
-                # Send notification
+                )                # Send notification
                 logger.debug(f"Sending notification with title: {title}, message: {message[:50]}...")
                 result = await apprise.async_notify(
                     title=title,
@@ -283,7 +281,8 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
             return False
-      async def _send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
+    
+    async def _send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
         """Send push notifications to all active subscribers"""
         try:
             with SessionLocal() as db:
