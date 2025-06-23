@@ -29,7 +29,7 @@ async def get_vapid_public_key():
     
     logger.debug("🔑 Serving VAPID public key for push subscription")
     return {
-        "publicKey": settings.VAPID_PUBLIC_KEY,
+        "publicKey": settings.VAPID_PUBLIC_KEY,  # This is already base64 encoded
         "configured": True
     }
 
