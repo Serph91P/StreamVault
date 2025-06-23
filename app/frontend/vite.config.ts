@@ -11,10 +11,9 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*'],
-      workbox: {
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*'],      workbox: {
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/(api|auth|assets|data|video)\/.*/],        runtimeCaching: [
+        navigateFallbackDenylist: [/^\/(api|auth|assets|data|video|ws|eventsub|health)\/.*/],runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
