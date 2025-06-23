@@ -11,32 +11,28 @@ class PushService:
     def __init__(self):
         self.settings = settings
         
-        # VAPID keys - decode from base64 if needed
+        # VAPID keys - pywebpush expects raw DER bytes for private key
         vapid_private_key_raw = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
         vapid_public_key_raw = getattr(self.settings, 'VAPID_PUBLIC_KEY', None)
         
-        # Decode from base64 if they are strings
+        # For pywebpush, we need to pass the private key as raw DER bytes
         if vapid_private_key_raw and isinstance(vapid_private_key_raw, str):
             try:
+                # Decode from base64 to get the raw DER bytes
                 self.vapid_private_key = base64.b64decode(vapid_private_key_raw)
-            except Exception:
-                self.vapid_private_key = vapid_private_key_raw
+            except Exception as e:
+                logger.error(f"Failed to decode VAPID private key: {e}")
+                self.vapid_private_key = None
         else:
             self.vapid_private_key = vapid_private_key_raw
             
-        if vapid_public_key_raw and isinstance(vapid_public_key_raw, str):
-            try:
-                self.vapid_public_key = base64.b64decode(vapid_public_key_raw)
-            except Exception:
-                self.vapid_public_key = vapid_public_key_raw
-        else:
-            self.vapid_public_key = vapid_public_key_raw
+        # For public key, keep it as base64 string for frontend API
+        self.vapid_public_key = vapid_public_key_raw
             
         self.vapid_claims = {
             "sub": getattr(self.settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
         }
-    
-    async def send_notification(
+      async def send_notification(
         self, 
         subscription: Dict[str, Any], 
         notification_data: Dict[str, Any]
@@ -50,11 +46,16 @@ class PushService:
             # Prepare the notification payload
             payload = json.dumps(notification_data)
             
-            # Send the push notification
+            # Debug logging
+            logger.debug(f"Sending push notification with payload: {payload[:100]}...")
+            logger.debug(f"Private key type: {type(self.vapid_private_key)}")
+            logger.debug(f"Private key length: {len(self.vapid_private_key) if self.vapid_private_key else 0}")
+            
+            # Send the push notification using raw DER bytes
             webpush(
                 subscription_info=subscription,
                 data=payload,
-                vapid_private_key=self.vapid_private_key,
+                vapid_private_key=self.vapid_private_key,  # This should be raw DER bytes
                 vapid_claims=self.vapid_claims
             )
             
