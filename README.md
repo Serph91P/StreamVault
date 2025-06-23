@@ -151,6 +151,50 @@ Open your browser and navigate to `https://your-domain.com`
 
 ## 📖 Documentation
 
+### Database Migrations
+
+StreamVault includes a robust database migration system that handles schema updates automatically:
+
+#### Automatic Migrations
+
+- **On Startup**: Migrations run automatically when the application starts
+- **Idempotent**: Safe to run multiple times - won't duplicate existing changes
+- **Error Handling**: Graceful handling of migration failures with detailed logging
+
+#### Manual Migration Management
+
+If you need to run migrations manually:
+
+```bash
+# Using the shell script (Linux/macOS)
+./migrate.sh
+
+# Using PowerShell script (Windows)
+.\migrate.ps1
+
+# Using Python directly
+python run_safe_migrations.py
+```
+
+#### Migration Status
+
+The migration system tracks which migrations have been applied and provides detailed logs:
+
+```
+🚀 Starting safe migration process...
+✅ Migrations tracking table ready
+⏭️  Migration 20250522_add_stream_indices already applied, skipping
+🔄 Running migration: Add recording_path column to streams table
+✅ Migration 20250609_add_recording_path completed successfully
+🎯 Migration summary: 4 successful, 0 failed
+```
+
+#### Troubleshooting Migrations
+
+- **Column already exists**: This is normal - the system will skip existing columns
+- **Table already exists**: Also normal - idempotent design prevents duplicates
+- **Migration tracking**: All migrations are logged in the `applied_migrations` table
+
 ### Configuration
 
 #### Recording Settings
