@@ -17,8 +17,12 @@ def generate_vapid_keys():
         vapid.generate_keys()
         
         # Get keys in the format expected by pywebpush
-        private_key = vapid.private_key_bytes()
-        public_key = vapid.public_key_bytes()
+        private_key_bytes = vapid.private_key_bytes()
+        public_key_bytes = vapid.public_key_bytes()
+        
+        # Convert to base64 strings for storage and transmission
+        private_key = base64.b64encode(private_key_bytes).decode('utf-8')
+        public_key = base64.b64encode(public_key_bytes).decode('utf-8')
         
         logger.info("✅ VAPID keys auto-generated successfully using py_vapid")
         return public_key, private_key
