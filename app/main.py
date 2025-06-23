@@ -237,6 +237,30 @@ app.include_router(videos.router)
 from app.routes import push as push_router
 app.include_router(push_router.router)
 
+# Explicit SPA routes - these must come after API routes but before static files
+@app.get("/streamers")
+@app.get("/videos") 
+@app.get("/subscriptions")
+@app.get("/add-streamer")
+@app.get("/settings")
+@app.get("/welcome")
+@app.get("/admin")
+@app.get("/auth/setup")
+@app.get("/auth/login")
+@app.get("/streamer/{streamer_id}")
+@app.get("/streamer/{streamer_id}/stream/{stream_id}/watch")
+async def serve_spa_routes():
+    """Serve SPA for known frontend routes"""
+    for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
+        try:
+            import os
+            if os.path.exists(path):
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            continue
+    
+    return Response(content="SPA index.html not found", status_code=500)
+
 # Static files for assets
 try:
     # Try the standard production path
@@ -414,6 +438,23 @@ async def serve_video(file_path: str):
         logger.error(f"Error serving video {file_path}: {e}")
         raise HTTPException(status_code=500, detail="Error serving video file")
 
+# Root route to serve index.html
+@app.get("/")
+async def serve_root():
+    """Serve the main SPA index.html for the root route"""
+    for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
+        try:
+            import os
+            if os.path.exists(path):
+                logger.info(f"Serving root index.html from: {path}")
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            logger.warning(f"Could not serve root from {path}: {e}")
+            continue
+    
+    logger.error("Could not find index.html for root route")
+    return Response(content="Welcome to StreamVault - Frontend not available", status_code=500)
+
 # Error handler
 app.add_exception_handler(Exception, error_handler)
 
@@ -428,14 +469,26 @@ async def serve_spa(full_path: str):
         full_path.startswith("assets/") or 
         full_path.startswith("data/") or
         full_path.startswith("video/") or
+        full_path.startswith("ws") or  # WebSocket
+        full_path.startswith("eventsub") or  # EventSub
+        full_path.startswith("health") or  # Health check
         full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"} or
-        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map"))):
+        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
         raise HTTPException(status_code=404)
+    
+    # For SPA routes like /streamers, /subscriptions, etc., serve index.html
+    logger.info(f"Serving SPA for path: {full_path}")
     
     # Try production path first, then fallback
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
-            return FileResponse(path, media_type="text/html")
-        except:
+            import os
+            if os.path.exists(path):
+                logger.info(f"Serving index.html from: {path}")
+                return FileResponse(path, media_type="text/html")
+        except Exception as e:
+            logger.warning(f"Could not serve from {path}: {e}")
             continue
-    return Response(status_code=404)
+    
+    logger.error("Could not find index.html in any expected location")
+    return Response(content="SPA index.html not found", status_code=500)
