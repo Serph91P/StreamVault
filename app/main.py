@@ -376,7 +376,8 @@ async def serve_video(file_path: str):
     """Serve video files with proper URL decoding and security"""
     import urllib.parse
     from pathlib import Path
-      try:
+    
+    try:
         # URL decode the file path
         decoded_path = urllib.parse.unquote(file_path)
         
