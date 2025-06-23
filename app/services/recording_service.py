@@ -371,8 +371,7 @@ class RecordingService:
 
     def __init__(
         self, metadata_service=None, config_manager=None, subprocess_manager=None
-    ):
-        # Only initialize once and allow dependency injection
+    ):        # Only initialize once and allow dependency injection
         if not hasattr(self, "initialized"):
             self.active_recordings: Dict[int, Dict[str, Any]] = {}
             self.lock = asyncio.Lock()
@@ -1561,12 +1560,12 @@ class RecordingService:
                     logger.info(
                         f"Attempting to remux partial recording for {streamer_name}"
                     )
-                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
-
-            # Remove the process from subprocess manager
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)            # Remove the process from subprocess manager
             await self.subprocess_manager.terminate_process(process_id)
         except Exception as e:
-            logger.error(f"Error monitoring process: {e}", exc_info=True)    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
+            logger.error(f"Error monitoring process: {e}", exc_info=True)
+
+    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
         """Remux TS file to MP4 with enhanced logging and sync preservation"""
         try:
             # Check if the recording was made through a proxy by looking at active recording info
