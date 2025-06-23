@@ -472,23 +472,24 @@ async def serve_spa(full_path: str):
         full_path.startswith("ws") or  # WebSocket
         full_path.startswith("eventsub") or  # EventSub
         full_path.startswith("health") or  # Health check
+        full_path.startswith("debug/") or  # Debug endpoints
         full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"} or
         full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
         raise HTTPException(status_code=404)
     
     # For SPA routes like /streamers, /subscriptions, etc., serve index.html
-    logger.info(f"Serving SPA for path: {full_path}")
+    logger.info(f"SPA Fallback: Serving index.html for route '{full_path}'")
     
     # Try production path first, then fallback
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
             import os
             if os.path.exists(path):
-                logger.info(f"Serving index.html from: {path}")
+                logger.debug(f"Successfully serving index.html from: {path}")
                 return FileResponse(path, media_type="text/html")
         except Exception as e:
             logger.warning(f"Could not serve from {path}: {e}")
             continue
     
-    logger.error("Could not find index.html in any expected location")
-    return Response(content="SPA index.html not found", status_code=500)
+    logger.error(f"Could not find index.html for SPA route '{full_path}' in any expected location")
+    return Response(content=f"SPA index.html not found for route: {full_path}", status_code=500)
