@@ -1,4 +1,4 @@
-const CACHE_NAME = 'streamvault-v7'
+const CACHE_NAME = 'streamvault-v8'
 const urlsToCache = [
   '/',
   '/?source=pwa',
@@ -16,6 +16,12 @@ const urlsToCache = [
   '/maskable-icon-192x192.png',
   '/maskable-icon-512x512.png',
   '/browserconfig.xml',
+  // Pre-cache main app routes for offline access
+  '/streamers',
+  '/videos',
+  '/subscriptions',
+  '/add-streamer',
+  '/settings',
 ]
 
 // Install event - cache essential resources
@@ -53,8 +59,15 @@ self.addEventListener('activate', event => {
 })
 
 self.addEventListener('fetch', event => {
-  // Für API-Anfragen immer zuerst das Netzwerk verwenden
-  if (event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url)
+  
+  // Skip cross-origin requests
+  if (url.origin !== self.origin) {
+    return
+  }
+  
+  // For API requests, always use network first
+  if (url.pathname.includes('/api/') || url.pathname.includes('/auth/')) {
     event.respondWith(
       fetch(event.request)
         .catch(() => {
@@ -63,8 +76,31 @@ self.addEventListener('fetch', event => {
     )
     return
   }
-
-  // Für andere Anfragen zuerst den Cache prüfen
+  
+  // For navigation requests (HTML pages), implement fallback to index.html for SPA routing
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // If we get a successful response, return it
+          if (response.ok) {
+            return response
+          }
+          // If not found (404), return index.html for client-side routing
+          if (response.status === 404) {
+            return caches.match('/index.html') || caches.match('/')
+          }
+          return response
+        })
+        .catch(() => {
+          // Network failed, return cached index.html for offline support
+          return caches.match('/index.html') || caches.match('/')
+        })
+    )
+    return
+  }
+  
+  // For other requests (assets), use cache first with network fallback
   event.respondWith(
     caches.match(event.request)
       .then(response => {
