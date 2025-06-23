@@ -188,24 +188,27 @@ async def send_test_local_notification():
     try:
         return {
             "success": True,
-            "message": "Local test notification triggered - check your browser notifications!",
+            "message": "Local test notification data prepared - use this data to trigger a notification via Service Worker",
             "notification": {
-                "title": "🎉 StreamVault PWA Test",
-                "body": "If you see this, PWA notifications are working perfectly!",
+                "title": "🧪 StreamVault Test (Local)",
+                "body": "If you see this, local PWA notifications are working perfectly! This is a fallback test.",
                 "icon": "/android-icon-192x192.png",
                 "badge": "/android-icon-96x96.png",
                 "type": "test_local",
                 "requireInteraction": True,
                 "timestamp": int(time.time() * 1000),
-                "actions": [
-                    {
-                        "action": "view",
-                        "title": "View App"
-                    }
-                ]
+                "tag": "test-local-notification",
+                "data": {
+                    "url": "/",
+                    "type": "test_local"
+                }
             }
         }
         
     except Exception as e:
         logger.error(f"Error creating local test notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "message": "Failed to prepare local test notification",
+            "error": str(e)
+        }
