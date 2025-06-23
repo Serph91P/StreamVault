@@ -444,8 +444,7 @@ class EventHandlerRegistry:
                 headers={
                     "Client-ID": self.settings.TWITCH_APP_ID,
                     "Authorization": f"Bearer {access_token}"
-                }
-            ) as response:
+                }            ) as response:
                 if response.status == 204:
                     return {
                         "id": subscription_id,
@@ -456,7 +455,9 @@ class EventHandlerRegistry:
                         "id": subscription_id,
                         "status": "failed",
                         "error": f"Status code: {response.status}"
-                    }    async def delete_all_subscriptions(self):
+                    }
+                    
+    async def delete_all_subscriptions(self):
         subs = await self.list_subscriptions()
         results = []
         
