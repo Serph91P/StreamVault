@@ -33,7 +33,8 @@ COPY app/frontend/package*.json ./
 # Update npm to latest version and install dependencies with security fixes
 RUN npm install -g npm@latest && \
     npm ci --prefer-offline --no-audit && \
-    npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"
+    npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues" && \
+    npm update vite@^6.2.7
 
 # Copy frontend sources
 COPY app/frontend/ ./
