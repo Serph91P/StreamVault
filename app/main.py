@@ -146,20 +146,19 @@ async def eventsub_callback(request: Request):
         # Create message exactly as Twitch does
         hmac_message = message_id.encode() + timestamp.encode() + body
 
-        # Calculate HMAC using raw bytes
-        calculated_signature = "sha256=" + hmac.new(
+        # Calculate HMAC using raw bytes        calculated_signature = "sha256=" + hmac.new(
             settings.EVENTSUB_SECRET.encode(),
             hmac_message,
             hashlib.sha256
         ).hexdigest()
 
-        # Debug HMAC calculation
-        logger.debug(f"HMAC message: {hmac_message}")
+        # Debug HMAC calculation (without exposing sensitive data)
+        logger.debug(f"HMAC message length: {len(hmac_message)}")
         logger.debug(f"Calculated signature: {calculated_signature}")
-        logger.debug(f"Secret used: {settings.EVENTSUB_SECRET}")
+        logger.debug(f"Secret length: {len(settings.EVENTSUB_SECRET)}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
-            logger.error(f"Signature mismatch. Got: {received_signature}, Expected: {calculated_signature}")
+            logger.error(f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}...")
             return Response(status_code=403)
 
         # Process webhook message based on message_type
@@ -390,7 +389,7 @@ async def serve_pwa_icons(icon_file: str):
 # Custom video serving route to handle URL encoding issues
 @app.get("/video/{file_path:path}")
 async def serve_video(file_path: str):
-    """Serve video files with proper URL decoding"""
+    """Serve video files with proper URL decoding and security"""
     import urllib.parse
     from pathlib import Path
     
@@ -398,12 +397,30 @@ async def serve_video(file_path: str):
         # URL decode the file path
         decoded_path = urllib.parse.unquote(file_path)
         
-        # Construct full path
-        full_path = Path("/app/data") / decoded_path
+        # Security check - prevent path traversal
+        if ".." in decoded_path or decoded_path.startswith("/") or "\\" in decoded_path:
+            logger.warning(f"Attempted path traversal in serve_video: {decoded_path}")
+            raise HTTPException(status_code=403, detail="Invalid path")
         
-        # Security check - ensure path is within /app/data
-        if not str(full_path.resolve()).startswith("/app/data"):
-            raise HTTPException(status_code=403, detail="Access denied")
+        # Construct full path using secure path joining
+        base_path = Path("/app/data")
+        full_path = base_path / decoded_path
+        
+        # Security check - ensure resolved path is within /app/data
+        try:
+            resolved_path = full_path.resolve()
+            base_resolved = base_path.resolve()
+            if not str(resolved_path).startswith(str(base_resolved)):
+                logger.warning(f"Path traversal attempt blocked: {decoded_path} -> {resolved_path}")
+                raise HTTPException(status_code=403, detail="Access denied")
+        except Exception as e:
+            logger.warning(f"Path resolution failed for {decoded_path}: {e}")
+            raise HTTPException(status_code=403, detail="Invalid path")
+        
+        # Additional security - check for symlinks
+        if full_path.is_symlink():
+            logger.warning(f"Symlink access denied: {full_path}")
+            raise HTTPException(status_code=403, detail="Symlink access denied")
         
         # Check if file exists
         if not full_path.exists():
