@@ -14,6 +14,7 @@ import hmac
 import hashlib
 import json
 import asyncio
+import os
 
 from contextlib import asynccontextmanager
 
@@ -31,30 +32,33 @@ from app.routes import categories
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting application initialization...")
-    
-    # Run database migrations using the improved migration system
+      # Run database migrations using the improved migration system
     try:
-        logger.info("🔄 Running database migrations...")
-        
-        # Use the improved MigrationService with safe migrations
-        from app.services.migration_service import MigrationService
-        
-        # Run safe migrations first
-        migration_success = MigrationService.run_safe_migrations()
-        
-        if migration_success:
-            logger.info("✅ All database migrations completed successfully")
+        # Check if migrations were already run by entrypoint.sh in development
+        if os.getenv("ENVIRONMENT") == "development":
+            logger.info("🔄 Development mode: Migrations handled by entrypoint.sh")
         else:
-            logger.warning("⚠️ Some migrations failed, trying legacy system...")
+            logger.info("🚀 Production mode: Running database migrations...")
             
-            # Fallback to legacy system if needed
-            try:
-                from app.migrations_init import run_migrations
-                run_migrations()
-                logger.info("✅ Legacy migrations completed")
-            except Exception as fallback_error:
-                logger.error(f"❌ Legacy migration system also failed: {fallback_error}")
-                logger.warning("⚠️ Application starting without full migrations - some features may not work")
+            # Use the improved MigrationService with safe migrations
+            from app.services.migration_service import MigrationService
+            
+            # Run safe migrations first
+            migration_success = MigrationService.run_safe_migrations()
+            
+            if migration_success:
+                logger.info("✅ All database migrations completed successfully")
+            else:
+                logger.warning("⚠️ Some migrations failed, trying legacy system...")
+                
+                # Fallback to legacy system if needed (only in production)
+                try:
+                    from app.migrations_init import run_migrations
+                    run_migrations()
+                    logger.info("✅ Legacy migrations completed")
+                except Exception as fallback_error:
+                    logger.error(f"❌ Legacy migration system also failed: {fallback_error}")
+                    logger.warning("⚠️ Application starting without full migrations - some features may not work")
             
     except Exception as e:
         logger.error(f"❌ Migration system failed: {e}")
