@@ -173,13 +173,11 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 "failed_count": failed_count,
                 "suggestion": "Try restarting the server or resetting VAPID keys"
             }
-        
-    except Exception as e:
+          except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
         return {
             "success": False,
-            "message": "Server error while sending test notification",
-            "error": str(e)
+            "message": "Server error while sending test notification. Please contact support if the issue persists."
         }
 
 @router.post("/test-local")
@@ -204,11 +202,9 @@ async def send_test_local_notification():
                 }
             }
         }
-        
-    except Exception as e:
+          except Exception as e:
         logger.error(f"Error creating local test notification: {e}", exc_info=True)
         return {
             "success": False,
-            "message": "Failed to prepare local test notification",
-            "error": str(e)
+            "message": "Failed to prepare local test notification. An internal error occurred. Please try again later."
         }
