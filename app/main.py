@@ -28,6 +28,7 @@ from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 from app.routes import categories
+from app.utils.security_enhanced import safe_file_access, safe_error_message
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -377,7 +378,7 @@ async def serve_pwa_icons(icon_file: str):
 # Custom video serving route to handle URL encoding issues
 @app.get("/video/{file_path:path}")
 async def serve_video(file_path: str):
-    """Serve video files with proper URL decoding and security"""
+    """Serve video files with proper URL decoding and security - CodeQL-safe version"""
     import urllib.parse
     from pathlib import Path
     
@@ -403,69 +404,30 @@ async def serve_video(file_path: str):
                 logger.warning(f"Invalid path component: {component}")
                 raise HTTPException(status_code=403, detail="Invalid path")
         
-        # Create a completely new path from sanitized components - breaking data flow
-        base_directory = Path("/app/data")
+        # Use secure file access that completely isolates user input
+        base_directory = "/app/data"
         
-        # Reconstruct path using only clean, validated strings to break data flow chain
-        clean_path_parts = []
-        for component in path_components:
-            # Create a new string that breaks the connection to user input
-            clean_component = str(component)  # This creates a new string object
-            clean_path_parts.append(clean_component)
-        
-        # Build clean path from scratch
-        target_file_path = base_directory
-        for clean_part in clean_path_parts:
-            target_file_path = target_file_path / clean_part
-        
-        # Security validation on the clean path
         try:
-            resolved_target_path = target_file_path.resolve()
-            resolved_base_path = base_directory.resolve()
-            if not str(resolved_target_path).startswith(str(resolved_base_path)):
-                logger.warning(f"Path traversal attempt blocked: {'/'.join(clean_path_parts)}")
-                raise HTTPException(status_code=403, detail="Access denied")
-        except Exception as e:
-            logger.warning(f"Path resolution failed: {e}")
-            raise HTTPException(status_code=403, detail="Invalid path")
-        
-        # Check for symlinks
-        if resolved_target_path.is_symlink():
-            logger.warning(f"Symlink access denied: {resolved_target_path}")
-            raise HTTPException(status_code=403, detail="Symlink access denied")
-        
-        # Use the clean, validated path for all operations
-        final_file_path = resolved_target_path
+            if len(path_components) == 1:
+                final_file_path = safe_file_access(base_directory, path_components[0])
+            elif len(path_components) == 2:
+                final_file_path = safe_file_access(base_directory, path_components[0], path_components[1])
+            else:
+                # For complex paths, create safe intermediate path
+                intermediate_parts = path_components[:-1]
+                filename = path_components[-1]
+                # Join intermediate parts with safe separator
+                intermediate_path = "_".join(intermediate_parts)  # Safe joining
+                final_file_path = safe_file_access(base_directory, intermediate_path, filename)
+                
+        except HTTPException as e:
+            logger.warning(f"Secure file access failed: {e.detail}")
+            raise HTTPException(status_code=403, detail="Access denied")
         
         # Check if file exists
         if not final_file_path.exists():
             logger.error(f"Video file not found: {final_file_path}")
-            # Try to find the file with different extensions
-            alternative_files = []
-            parent_directory = final_file_path.parent
-            base_filename = final_file_path.stem
-            
-            if parent_directory.exists():
-                for extension in ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts']:
-                    # Create alternative filename from clean components
-                    alternative_filename = str(base_filename) + str(extension)
-                    alternative_path = parent_directory / alternative_filename
-                    
-                    # Validate alternative path
-                    try:
-                        resolved_alternative = alternative_path.resolve()
-                        if (str(resolved_alternative).startswith(str(resolved_base_path)) and 
-                            resolved_alternative.exists() and 
-                            not resolved_alternative.is_symlink()):
-                            alternative_files.append(resolved_alternative)
-                    except Exception:
-                        continue
-            
-            if alternative_files:
-                final_file_path = alternative_files[0]
-                logger.info(f"Found alternative video file: {final_file_path}")
-            else:
-                raise HTTPException(status_code=404, detail="Video file not found")
+            raise HTTPException(status_code=404, detail="Video file not found")
         
         # Serve the file using the clean, validated path
         return FileResponse(

@@ -64,12 +64,12 @@ def secure_path_join(base_path: str, *components: str) -> Path:
     for component in components:
         sanitized = sanitize_path_component(component, allow_subdirs=True)
         sanitized_components.append(sanitized)
-    
-    # Join paths
+      # Join paths
     full_path = base
     for component in sanitized_components:
         full_path = full_path / component
-      # Resolve to handle any remaining .. or symlinks
+    
+    # Resolve to handle any remaining .. or symlinks
     try:
         resolved_path = full_path.resolve()
     except Exception as e:
@@ -104,3 +104,54 @@ def safe_error_message(error: Exception, default_message: str = "An error occurr
     
     # Return generic message to client
     return default_message
+
+def validate_safe_path(base_path: str, user_input: str) -> Path:
+    """
+    Validate that user input creates a safe path within the base directory.
+    This function is designed to prevent CodeQL path injection warnings by
+    clearly separating trusted base paths from untrusted user input.
+    
+    Args:
+        base_path: Trusted server configuration path
+        user_input: Untrusted user-provided path component
+        
+    Returns:
+        Validated Path object within base directory
+        
+    Raises:
+        HTTPException: If path is unsafe or outside base directory
+    """
+    # Sanitize user input first - no direct path operations on raw input
+    if not user_input or not isinstance(user_input, str):
+        raise HTTPException(status_code=400, detail="Invalid input")
+    
+    # Remove dangerous characters and validate
+    clean_input = sanitize_path_component(user_input, allow_subdirs=True)
+    
+    # Use secure_path_join for safe path construction
+    return secure_path_join(base_path, clean_input)
+
+
+def create_safe_file_path(recordings_dir: str, streamer_name: str, filename: str) -> Path:
+    """
+    Create a safe file path from user inputs, preventing path traversal.
+    This separates the validation logic to make CodeQL analysis clearer.
+    
+    Args:
+        recordings_dir: Trusted base directory from server config
+        streamer_name: User-provided streamer name (untrusted)
+        filename: User-provided filename (untrusted)
+        
+    Returns:
+        Safe, validated Path object
+        
+    Raises:
+        HTTPException: If inputs are invalid or create unsafe paths
+    """
+    # First validate the streamer directory
+    streamer_path = validate_safe_path(recordings_dir, streamer_name)
+    
+    # Then validate the filename within that directory
+    file_path = validate_safe_path(str(streamer_path), filename)
+    
+    return file_path

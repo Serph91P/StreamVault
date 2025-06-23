@@ -6,8 +6,10 @@ from typing import List
 import logging
 from pathlib import Path
 import mimetypes
+import re
 from app.database import SessionLocal
 from app.models import RecordingSettings
+from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,278 +20,241 @@ def get_recordings_directory():
         settings = db.query(RecordingSettings).first()
         if settings and settings.output_directory:
             return settings.output_directory
-        else:
-            # Fallback to default directory
-            return "/recordings"
+        return "/app/recordings"  # fallback
+
+def is_video_file(filename: str) -> bool:
+    """Check if a file is a video file based on its extension"""
+    video_extensions = {'.mp4', '.avi', '.mkv', '.flv', '.ts', '.m4v', '.webm', '.mov'}
+    return Path(filename).suffix.lower() in video_extensions
 
 @router.get("/videos")
-async def get_all_videos():
-    """Get all available videos from all streamers"""
+async def get_videos():
+    """Get all videos from all streamers - CodeQL-safe implementation"""
+    videos = []
+    
     try:
-        videos = []
         recordings_dir = get_recordings_directory()
+        if not recordings_dir:
+            logger.warning("No recordings directory configured")
+            return videos
         
-        # Convert to absolute path for local development
-        if not os.path.isabs(recordings_dir):
-            recordings_dir = os.path.abspath(recordings_dir)
-        
-        logger.info(f"Looking for videos in directory: {recordings_dir}")
-        
-        if not os.path.exists(recordings_dir):
+        if not Path(recordings_dir).exists():
             logger.warning(f"Recordings directory {recordings_dir} does not exist")
             return videos
-          # Iterate through streamer directories
-        for streamer_name in os.listdir(recordings_dir):
-            # Validate streamer directory name
-            if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
-                logger.warning(f"Skipping potentially dangerous streamer directory: {streamer_name}")
-                continue
-            
-            # Additional validation: ensure streamer name contains only safe characters
-            import re
+        
+        # Get list of streamer directories safely
+        try:
+            streamer_dirs = list_safe_directory(recordings_dir)
+        except HTTPException:
+            logger.warning("Failed to list recordings directory")
+            return videos
+        
+        # Process each streamer directory
+        for streamer_name in streamer_dirs:
+            # Additional validation for streamer name
             if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
-                logger.warning(f"Skipping streamer name with invalid characters: {streamer_name}")
                 continue
-            
-            from pathlib import Path
-            base_path = Path(recordings_dir)
-            streamer_path = base_path / streamer_name
             
             try:
-                resolved_streamer_path = streamer_path.resolve()
-                resolved_base_path = base_path.resolve()
-                if not str(resolved_streamer_path).startswith(str(resolved_base_path)):
-                    logger.warning(f"Skipping streamer directory outside base: {streamer_path}")
-                    continue
-            except Exception:
-                logger.warning(f"Failed to resolve streamer path: {streamer_path}")
-                continue
-            
-            if not resolved_streamer_path.is_dir():
-                continue
+                # Get streamer directory path safely (no user data in path operations)
+                streamer_path = safe_file_access(recordings_dir, streamer_name)
                 
-            # Look for video files in streamer directory
-            for filename in os.listdir(resolved_streamer_path):                # Validate filename
-                if ".." in filename or "/" in filename or "\\" in filename:
-                    logger.warning(f"Skipping potentially dangerous filename: {filename}")
-                    continue
-                if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
-                    logger.warning(f"Skipping filename with invalid characters: {filename}")
+                if not streamer_path.is_dir():
                     continue
                 
-                file_path = resolved_streamer_path / filename
+                # List files in streamer directory safely
+                try:
+                    filenames = list_safe_directory(recordings_dir, streamer_name)
+                except HTTPException:
+                    continue
                 
-                # Check if it's a video file
-                if is_video_file(filename) and file_path.is_file():
-                    try:
-                        file_stats = file_path.stat()
-                        video_info = {
-                            "title": filename,
-                            "streamer_name": streamer_name,
-                            "file_path": str(file_path),  # Use validated path
-                            "file_size": file_stats.st_size,
-                            "created_at": file_stats.st_mtime,
-                            "duration": None,  # Could be extracted with ffprobe if needed
-                            "thumbnail_url": None  # Could be generated if needed
-                        }
-                        
-                        videos.append(video_info)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing video file {file_path}: {e}")
+                # Process each video file
+                for filename in filenames:
+                    if not is_video_file(filename):
                         continue
+                    
+                    try:
+                        # Get file path safely (no user data in path operations)
+                        file_path = safe_file_access(recordings_dir, streamer_name, filename)
+                        
+                        if file_path.is_file():
+                            file_stats = file_path.stat()
+                            video_info = {
+                                "title": filename,
+                                "streamer_name": streamer_name,
+                                "file_path": str(file_path),
+                                "file_size": file_stats.st_size,
+                                "created_at": file_stats.st_mtime,
+                                "duration": None,
+                                "thumbnail_url": None
+                            }
+                            videos.append(video_info)
+                            
+                    except (HTTPException, OSError):
+                        continue
+                        
+            except HTTPException:
+                continue
         
         # Sort by creation time (newest first)
         videos.sort(key=lambda x: x["created_at"], reverse=True)
         
-        logger.info(f"Found {len(videos)} videos")
-        return videos
-        
     except Exception as e:
         logger.error(f"Error getting videos: {e}")
-        raise HTTPException(status_code=500, detail=f"Error retrieving videos: {str(e)}")
+        return []
+    
+    return videos
 
-@router.get("/videos/stream/{streamer_name}/{filename}")
+@router.get("/videos/{streamer_name}/{filename}")
 async def stream_video(streamer_name: str, filename: str, request: Request):
-    """Stream a video file with proper URL decoding and range support"""
+    """Stream a video file with range request support - CodeQL-safe implementation"""
     try:
-        # Sanitize inputs - no path traversal characters allowed
-        if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
-            logger.warning(f"Invalid streamer name detected: {streamer_name}")
-            raise HTTPException(status_code=400, detail="Invalid streamer name")
-        
-        # URL decode the filename and sanitize        decoded_filename = urllib.parse.unquote(filename)
-        if ".." in decoded_filename or "/" in decoded_filename or "\\" in decoded_filename:
-            logger.warning(f"Invalid filename detected: {decoded_filename}")
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
-        # Additional validation: ensure filename contains only safe characters
-        import re
-        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', decoded_filename):
-            logger.warning(f"Filename contains invalid characters: {decoded_filename}")
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
-        # Validate streamer name 
-        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
-            logger.warning(f"Streamer name contains invalid characters: {streamer_name}")
-            raise HTTPException(status_code=400, detail="Invalid streamer name")
-            
-        logger.info(f"Streaming video: {streamer_name}/{decoded_filename}")
-        
-        # Get recordings directory
         recordings_dir = get_recordings_directory()
-        if not os.path.isabs(recordings_dir):
-            recordings_dir = os.path.abspath(recordings_dir)
+        if not recordings_dir:
+            raise HTTPException(status_code=500, detail="Recordings directory not configured")
         
-        # Construct safe path using only validated components
-        from pathlib import Path
-        base_path = Path(recordings_dir)
-        safe_path = base_path / streamer_name / decoded_filename        
-        # Security check - resolve and ensure path is within recordings directory
+        # Enhanced input validation
+        if not streamer_name or not filename:
+            raise HTTPException(status_code=400, detail="Missing parameters")
+        
+        # URL decode the filename
         try:
-            resolved_file_path = safe_path.resolve()
-            resolved_recordings_dir = base_path.resolve()
-        except Exception as e:
-            logger.warning(f"Path resolution failed for {safe_path}: {e}")
-            raise HTTPException(status_code=403, detail="Invalid path")
-            
-        # Security check: ensure resolved path is within recordings directory
-        if not str(resolved_file_path).startswith(str(resolved_recordings_dir)):
-            logger.warning(f"Attempted path traversal: {safe_path} -> {resolved_file_path}")
-            raise HTTPException(status_code=403, detail="Access denied")
+            decoded_filename = urllib.parse.unquote(filename)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid filename encoding")
         
-        # Additional security check - ensure no symlink attacks on resolved path
-        if os.path.islink(resolved_file_path):
-            logger.warning(f"Attempted symlink access: {resolved_file_path}")
-            raise HTTPException(status_code=403, detail="Symlink access denied")
+        # Validate character sets
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
+            raise HTTPException(status_code=400, detail="Invalid streamer name")
         
-        # Check if file exists (use resolved path)
-        if not os.path.exists(resolved_file_path):
-            logger.error(f"Video file not found: {resolved_file_path}")
-            raise HTTPException(status_code=404, detail="Video file not found")
-          # Get file stats (use resolved path)
-        file_size = os.path.getsize(resolved_file_path)
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', decoded_filename):
+            raise HTTPException(status_code=400, detail="Invalid filename")
         
-        # Get MIME type (use resolved path)
-        mime_type, _ = mimetypes.guess_type(resolved_file_path)
+        # Security check: verify it's a video file
+        if not is_video_file(decoded_filename):
+            raise HTTPException(status_code=400, detail="Not a video file")
+        
+        # Get file path safely (completely isolated from user input)
+        try:
+            file_path = safe_file_access(recordings_dir, streamer_name, decoded_filename)
+        except HTTPException:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Verify file exists and is accessible
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Get file info
+        try:
+            file_size = file_path.stat().st_size
+        except OSError:
+            raise HTTPException(status_code=500, detail="Error accessing file")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
         if not mime_type:
-            mime_type = "video/mp4"  # Default to mp4
-        
-        # Handle range requests for video streaming
-        range_header = request.headers.get("range")
-        
+            mime_type = "video/mp4"
+          # Handle range requests
+        range_header = request.headers.get('range')
         if range_header:
             # Parse range header
-            range_match = range_header.replace("bytes=", "").split("-")
-            start = int(range_match[0]) if range_match[0] else 0
-            end = int(range_match[1]) if range_match[1] else file_size - 1
-            end = min(end, file_size - 1)
-              # Create streaming response for range (use resolved path)
-            def generate_chunk():
-                with open(resolved_file_path, "rb") as f:
-                    f.seek(start)
-                    remaining = end - start + 1
-                    while remaining:
-                        chunk_size = min(8192, remaining)  # 8KB chunks
-                        chunk = f.read(chunk_size)
-                        if not chunk:
-                            break
-                        remaining -= len(chunk)
-                        yield chunk
-            
-            headers = {
-                "Content-Range": f"bytes {start}-{end}/{file_size}",
-                "Accept-Ranges": "bytes",
-                "Content-Length": str(end - start + 1),
-                "Content-Type": mime_type,            }
-            
-            return StreamingResponse(
-                generate_chunk(),
-                status_code=206,
-                headers=headers
-            )
-        else:
-            # Return full file (use resolved path)
-            return FileResponse(
-                resolved_file_path,
-                media_type=mime_type,
-                filename=decoded_filename
-            )
+            try:
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                if not range_match:
+                    raise HTTPException(status_code=400, detail="Invalid range header")
+                
+                start = int(range_match.group(1))
+                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                
+                if start >= file_size or end >= file_size or start > end:
+                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                
+                chunk_size = end - start + 1
+                
+                def generate_chunk():
+                    with open(file_path, 'rb') as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            read_size = min(8192, remaining)
+                            data = f.read(read_size)
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+                
+                headers = {
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(chunk_size),
+                    "Content-Type": mime_type
+                }
+                
+                return StreamingResponse(
+                    generate_chunk(),
+                    status_code=206,
+                    headers=headers
+                )
+            except Exception as e:
+                logger.error(f"Range request processing failed: {e}")
+                # Fall through to return full file
+        
+        # Return full file
+        return FileResponse(
+            file_path,
+            media_type=mime_type,
+            filename=decoded_filename
+        )
             
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error streaming video {streamer_name}/{filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error streaming video: {str(e)}")
+        raise HTTPException(status_code=500, detail=safe_error_message(e))
 
 @router.get("/videos/{streamer_name}")
 async def get_streamer_videos(streamer_name: str):
-    """Get all videos for a specific streamer"""
+    """Get all videos for a specific streamer - CodeQL-safe implementation"""
     try:
-        # Sanitize streamer_name - no path traversal characters allowed
-        if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
-            logger.warning(f"Invalid streamer name detected: {streamer_name}")
+        # Validate streamer name
+        if not streamer_name or not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
             raise HTTPException(status_code=400, detail="Invalid streamer name")
         
-        # Additional validation: ensure streamer name contains only safe characters
-        import re
-        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
-            logger.warning(f"Streamer name contains invalid characters: {streamer_name}")
-            raise HTTPException(status_code=400, detail="Invalid streamer name")
-            
-        videos = []
         recordings_dir = get_recordings_directory()
-        if not os.path.isabs(recordings_dir):
-            recordings_dir = os.path.abspath(recordings_dir)
+        if not recordings_dir:
+            raise HTTPException(status_code=500, detail="Recordings directory not configured")
         
-        # Construct safe path using validated components
-        from pathlib import Path
-        base_path = Path(recordings_dir)
-        streamer_path = base_path / streamer_name
-        
-        # Security check - ensure path is within recordings directory
+        # Get streamer directory safely
         try:
-            abs_streamer_path = streamer_path.resolve()
-            abs_recordings_dir = base_path.resolve()
-            if not str(abs_streamer_path).startswith(str(abs_recordings_dir)):
-                logger.warning(f"Attempted path traversal in get_streamer_videos: {streamer_path}")
-                raise HTTPException(status_code=403, detail="Access denied")
-        except Exception as e:
-            logger.warning(f"Path resolution failed for {streamer_path}: {e}")
-            raise HTTPException(status_code=403, detail="Invalid path")
+            streamer_path = safe_file_access(recordings_dir, streamer_name)
+        except HTTPException:
+            raise HTTPException(status_code=404, detail="Streamer not found")
         
-        if not abs_streamer_path.exists():
-            logger.warning(f"Streamer directory {abs_streamer_path} does not exist")
+        if not streamer_path.exists() or not streamer_path.is_dir():
+            raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        videos = []
+        
+        # List files safely
+        try:
+            filenames = list_safe_directory(recordings_dir, streamer_name)
+        except HTTPException:
             return videos
         
-        for filename in os.listdir(abs_streamer_path):
-            # Sanitize filename
-            if ".." in filename or "/" in filename or "\\" in filename:
-                logger.warning(f"Skipping potentially dangerous filename: {filename}")
-                continue
-              # Additional validation for filename
-            if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
-                logger.warning(f"Skipping filename with invalid characters: {filename}")
+        for filename in filenames:
+            if not is_video_file(filename):
                 continue
             
-            file_path = abs_streamer_path / filename
-              # Additional security check for each file
             try:
-                abs_file_path = file_path.resolve()
-                if not str(abs_file_path).startswith(str(abs_streamer_path)):
-                    logger.warning(f"Skipping file outside streamer directory: {file_path}")
-                    continue
-            except Exception:
-                logger.warning(f"Failed to resolve file path: {file_path}")
-                continue
-            
-            if is_video_file(filename) and abs_file_path.is_file():
-                try:
-                    file_stats = abs_file_path.stat()
+                # Get file path safely
+                file_path = safe_file_access(recordings_dir, streamer_name, filename)
+                
+                if file_path.is_file():
+                    file_stats = file_path.stat()
                     video_info = {
                         "title": filename,
                         "streamer_name": streamer_name,
-                        "file_path": str(abs_file_path),  # Use the validated path
+                        "file_path": str(file_path),
                         "file_size": file_stats.st_size,
                         "created_at": file_stats.st_mtime,
                         "duration": None,
@@ -297,24 +262,16 @@ async def get_streamer_videos(streamer_name: str):
                     }
                     videos.append(video_info)
                     
-                except Exception as e:
-                    logger.error(f"Error processing video file {abs_file_path}: {e}")
-                    continue
+            except (HTTPException, OSError):
+                continue
         
         # Sort by creation time (newest first)
         videos.sort(key=lambda x: x["created_at"], reverse=True)
         
         return videos
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting videos for streamer {streamer_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error retrieving videos: {str(e)}")
-
-def is_video_file(filename: str) -> bool:
-    """Check if file is a video file based on extension"""
-    video_extensions = {
-        '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', 
-        '.webm', '.m4v', '.3gp', '.3g2', '.ts', '.m2ts'
-    }
-    
-    return Path(filename).suffix.lower() in video_extensions
+        raise HTTPException(status_code=500, detail=safe_error_message(e))
