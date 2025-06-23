@@ -171,9 +171,9 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration.",
                 "sent_count": 0,
                 "failed_count": failed_count,
-                "suggestion": "Try restarting the server or resetting VAPID keys"
-            }
-          except Exception as e:
+                "suggestion": "Try restarting the server or resetting VAPID keys"            }
+        
+    except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
         return {
             "success": False,
@@ -199,10 +199,9 @@ async def send_test_local_notification():
                 "data": {
                     "url": "/",
                     "type": "test_local"
-                }
-            }
+                }            }
         }
-          except Exception as e:
+    except Exception as e:
         logger.error(f"Error creating local test notification: {e}", exc_info=True)
         return {
             "success": False,
