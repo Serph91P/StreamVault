@@ -84,9 +84,10 @@ jobs:
           git tag -a v$VERSION -m "Release v$VERSION"
           git push origin v$VERSION || { echo "Failed to push tag"; exit 1; }
           echo "Tag v$VERSION created and pushed successfully"
-
   check_changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Needed to checkout code
     outputs:
       backend_changed: ${{ steps.check_paths.outputs.backend_changed }}
     steps:
@@ -106,6 +107,9 @@ jobs:
   build:
     needs: [version, check_changes]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Needed to checkout code
+      packages: write  # Needed to push Docker images
     steps:
     - uses: actions/checkout@v4
     
