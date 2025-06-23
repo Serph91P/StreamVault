@@ -690,14 +690,13 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]
-                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
                                     "streamer_id": streamer_id,
                                     "streamer_name": recording_info["streamer_name"],
-                                    "error": str(e),
+                                    "error": "Recording failed due to an internal error",
                                     "timestamp": datetime.now().isoformat(),
                                 },
                             }
