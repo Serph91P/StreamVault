@@ -80,26 +80,33 @@ class PushService:
         except Exception as e:
             logger.error(f"Unexpected error sending push notification: {e}", exc_info=True)
             return False
-    
-    async def send_stream_online_notification(
+      async def send_stream_online_notification(
         self, 
         subscription: Dict[str, Any], 
         streamer_name: str,
         stream_title: str,
         streamer_id: int,
-        stream_id: Optional[int] = None
+        stream_id: Optional[int] = None,
+        category_name: str = None
     ) -> bool:
         """Send a notification when a stream goes online"""
+        # Use same format as Apprise notifications
+        title = f"🟢 {streamer_name} is now live!"
+        body = f"Started streaming: {stream_title or 'No title'}"
+        if category_name:
+            body += f"\nCategory: {category_name}"
+            
         notification_data = {
-            "title": f"{streamer_name} is now live!",
-            "body": stream_title or "Started streaming",
+            "title": title,
+            "body": body,
             "icon": "/android-icon-192x192.png",
             "badge": "/android-icon-96x96.png",
             "type": "stream_online",
             "data": {
                 "streamer_id": streamer_id,
                 "stream_id": stream_id,
-                "url": f"/streamer/{streamer_id}"
+                "url": f"https://twitch.tv/{streamer_name.lower()}",
+                "internal_url": f"/streamer/{streamer_id}"
             },
             "actions": [
                 {
@@ -116,8 +123,7 @@ class PushService:
         }
         
         return await self.send_notification(subscription, notification_data)
-    
-    async def send_recording_started_notification(
+      async def send_recording_started_notification(
         self,
         subscription: Dict[str, Any],
         streamer_name: str,
@@ -126,8 +132,9 @@ class PushService:
         stream_id: Optional[int] = None
     ) -> bool:
         """Send a notification when recording starts"""
+        # Simple recording notification - no actions needed for recording start
         notification_data = {
-            "title": f"Recording started: {streamer_name}",
+            "title": f"📹 Recording started: {streamer_name}",
             "body": f"Now recording: {stream_title or 'Stream'}",
             "icon": "/android-icon-192x192.png",
             "badge": "/android-icon-96x96.png",
@@ -141,8 +148,7 @@ class PushService:
         }
         
         return await self.send_notification(subscription, notification_data)
-    
-    async def send_recording_finished_notification(
+      async def send_recording_finished_notification(
         self,
         subscription: Dict[str, Any],
         streamer_name: str,
@@ -153,7 +159,7 @@ class PushService:
     ) -> bool:
         """Send a notification when recording finishes"""
         notification_data = {
-            "title": f"Recording finished: {streamer_name}",
+            "title": f"✅ Recording finished: {streamer_name}",
             "body": f"Recorded {duration}: {stream_title or 'Stream'}",
             "icon": "/android-icon-192x192.png",
             "badge": "/android-icon-96x96.png",
@@ -174,6 +180,112 @@ class PushService:
                 }
             ],
             "tag": f"recording-finished-{stream_id}"
+        }
+        
+        return await self.send_notification(subscription, notification_data)
+
+    async def send_stream_offline_notification(
+        self,
+        subscription: Dict[str, Any],
+        streamer_name: str,
+        streamer_id: int
+    ) -> bool:
+        """Send a notification when a stream goes offline"""
+        # Use same format as Apprise notifications - simple offline notification
+        notification_data = {
+            "title": f"🔴 {streamer_name} went offline",
+            "body": "Stream ended",
+            "icon": "/android-icon-192x192.png",
+            "badge": "/android-icon-96x96.png",
+            "type": "stream_offline",
+            "data": {
+                "streamer_id": streamer_id,
+                "url": f"/streamer/{streamer_id}"
+            },
+            "tag": f"stream-offline-{streamer_id}"
+        }
+        
+        return await self.send_notification(subscription, notification_data)
+
+    async def send_stream_update_notification(
+        self,
+        subscription: Dict[str, Any],
+        streamer_name: str,
+        stream_title: str,
+        category_name: str,
+        streamer_id: int
+    ) -> bool:
+        """Send a notification when stream info is updated"""
+        # Use same format as Apprise notifications
+        title = f"📝 {streamer_name} updated stream"
+        body = f"New title: {stream_title or 'No title'}"
+        if category_name:
+            body += f"\nCategory: {category_name}"
+            
+        notification_data = {
+            "title": title,
+            "body": body,
+            "icon": "/android-icon-192x192.png",
+            "badge": "/android-icon-96x96.png",
+            "type": "stream_update",
+            "data": {
+                "streamer_id": streamer_id,
+                "url": f"https://twitch.tv/{streamer_name.lower()}",
+                "internal_url": f"/streamer/{streamer_id}"
+            },
+            "actions": [
+                {
+                    "action": "view_stream",
+                    "title": "View Stream"
+                },
+                {
+                    "action": "dismiss",
+                    "title": "Dismiss"
+                }
+            ],
+            "requireInteraction": True,
+            "tag": f"stream-update-{streamer_id}"
+        }
+        
+        return await self.send_notification(subscription, notification_data)
+
+    async def send_favorite_category_notification(
+        self,
+        subscription: Dict[str, Any],
+        streamer_name: str,
+        stream_title: str,
+        category_name: str,
+        streamer_id: int
+    ) -> bool:
+        """Send a notification when a streamer plays a favorite game"""
+        # Use same format as Apprise notifications
+        title = f"🎮 {streamer_name} spielt ein Favoriten-Spiel!"
+        body = f"🎮 {streamer_name} spielt jetzt {category_name}!\n\nTitel: {stream_title or 'No title'}\nDieses Spiel ist in deinen Favoriten."
+            
+        notification_data = {
+            "title": title,
+            "body": body,
+            "icon": "/android-icon-192x192.png",
+            "badge": "/android-icon-96x96.png",
+            "type": "favorite_category",
+            "data": {
+                "streamer_id": streamer_id,
+                "category_name": category_name,
+                "url": f"https://twitch.tv/{streamer_name.lower()}",
+                "internal_url": f"/streamer/{streamer_id}"
+            },
+            "actions": [
+                {
+                    "action": "view_stream",
+                    "title": "View Stream"
+                },
+                {
+                    "action": "dismiss",
+                    "title": "Dismiss"
+                }
+            ],
+            "requireInteraction": True,
+            "tag": f"favorite-category-{streamer_id}"
         }
         
         return await self.send_notification(subscription, notification_data)
