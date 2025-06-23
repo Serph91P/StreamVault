@@ -20,11 +20,23 @@ def run_migration():
     """
     Adds the recording_path column to the streams table.
     """
+    session = None
     try:
         # Connect to the database
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
-        session = Session()
+        session = Session()        # Check if the column already exists (PostgreSQL)
+        result = session.execute(text("""
+            SELECT COUNT(*) 
+            FROM information_schema.columns 
+            WHERE table_name = 'streams' 
+            AND column_name = 'recording_path'
+        """))
+        column_exists = result.scalar() > 0
+
+        if column_exists:
+            logger.info("Column recording_path already exists in streams table. Skipping migration.")
+            return
 
         # Add the recording_path column to the streams table
         # Making it nullable, VARCHAR with a reasonable length
@@ -35,10 +47,11 @@ def run_migration():
 
     except Exception as e:
         logger.error(f"Migration failed: {e}")
-        session.rollback() # Rollback in case of error
+        if session:
+            session.rollback() # Rollback in case of error
         raise
     finally:
-        if 'session' in locals() and session.is_active:
+        if session and session.is_active:
             session.close()
 
 # Example of how a downgrade might look, though the current runner might not support it.
