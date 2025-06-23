@@ -283,8 +283,7 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Error sending notification: {e}", exc_info=True)
             return False
-    
-    async def _send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
+      async def _send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
         """Send push notifications to all active subscribers"""
         try:
             with SessionLocal() as db:
@@ -300,10 +299,17 @@ class NotificationService:
                 streamer_id = details.get('streamer_id')
                 stream_id = details.get('stream_id')
                 stream_title = details.get('title', 'Stream')
+                category_name = details.get('category_name', '')
                 
                 # Skip if we don't have essential data
                 if not streamer_id:
                     logger.warning("No streamer_id in details, skipping push notifications")
+                    return
+                
+                # Check if we should send push notifications for this event type and streamer
+                should_send = await self.should_notify(int(streamer_id), event_type)
+                if not should_send:
+                    logger.debug(f"Push notifications disabled for streamer {streamer_id} and event {event_type}")
                     return
                 
                 # Send appropriate notification based on event type
@@ -317,7 +323,30 @@ class NotificationService:
                                 streamer_name,
                                 stream_title,
                                 int(streamer_id),
-                                int(stream_id) if stream_id else None
+                                int(stream_id) if stream_id else None,
+                                category_name
+                            )
+                        elif event_type == 'offline':
+                            await self.push_service.send_stream_offline_notification(
+                                subscription_data,
+                                streamer_name,
+                                int(streamer_id)
+                            )
+                        elif event_type == 'update':
+                            await self.push_service.send_stream_update_notification(
+                                subscription_data,
+                                streamer_name,
+                                stream_title,
+                                category_name,
+                                int(streamer_id)
+                            )
+                        elif event_type == 'favorite_category':
+                            await self.push_service.send_favorite_category_notification(
+                                subscription_data,
+                                streamer_name,
+                                stream_title,
+                                category_name,
+                                int(streamer_id)
                             )
                         elif event_type == 'recording_started':
                             await self.push_service.send_recording_started_notification(
@@ -348,6 +377,9 @@ class NotificationService:
                             logger.info(f"Deactivated expired push subscription: {subscription.endpoint[:50]}")
                 
                 logger.debug(f"Push notifications sent for {event_type} event to {len(active_subscriptions)} subscribers")
+                
+        except Exception as e:
+            logger.error(f"Error sending push notifications: {e}", exc_info=True)
                 
         except Exception as e:
             logger.error(f"Error sending push notifications: {e}", exc_info=True)
