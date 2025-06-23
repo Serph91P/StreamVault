@@ -1,8 +1,7 @@
-<template>
-  <div class="videos-view">
+<template>  <div class="videos-view">
     <div class="view-header">
       <h1>📹 Videos</h1>
-      <p>Alle aufgezeichneten Streams durchsuchen und anschauen</p>
+      <p>Browse and watch all recorded streams</p>
     </div>
 
     <!-- Filter und Suche -->
@@ -11,7 +10,7 @@
         <input 
           v-model="searchQuery" 
           type="text" 
-          placeholder="Videos durchsuchen..."
+          placeholder="Search videos..."
           class="search-input"
         >
         <button @click="searchVideos" class="search-btn">
@@ -37,7 +36,7 @@
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <div class="loading-spinner"></div>
-      <p>Videos werden geladen...</p>
+      <p>Loading videos...</p>
     </div>
 
     <!-- Videos Grid -->
@@ -83,17 +82,15 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Empty State -->
+    </div>    <!-- Empty State -->
     <div v-else class="empty-state">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <polygon points="23 7 16 12 23 17 23 7"></polygon>
         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
       </svg>
-      <h3>Keine Videos gefunden</h3>
-      <p v-if="searchQuery">Keine Videos entsprechen Ihrer Suche nach "{{ searchQuery }}"</p>
-      <p v-else>Es wurden noch keine Videos aufgezeichnet.</p>
+      <h3>No videos found</h3>
+      <p v-if="searchQuery">No videos match your search for "{{ searchQuery }}"</p>
+      <p v-else>No videos have been recorded yet.</p>
     </div>
 
     <!-- Video Modal -->
@@ -117,10 +114,10 @@ const selectedVideo = ref(null)
 const videos = ref([])
 
 const filters = [
-  { label: 'Alle', value: 'all' },
-  { label: 'Heute', value: 'today' },
-  { label: 'Diese Woche', value: 'week' },
-  { label: 'Dieser Monat', value: 'month' }
+  { label: 'All', value: 'all' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' }
 ]
 
 const filteredVideos = computed(() => {
@@ -197,11 +194,11 @@ const formatDate = (dateString) => {
   const diffInHours = (now - date) / (1000 * 60 * 60)
   
   if (diffInHours < 24) {
-    return `vor ${Math.floor(diffInHours)} Stunden`
+    return `${Math.floor(diffInHours)} hours ago`
   } else if (diffInHours < 24 * 7) {
-    return `vor ${Math.floor(diffInHours / 24)} Tagen`
+    return `${Math.floor(diffInHours / 24)} days ago`
   } else {
-    return date.toLocaleDateString('de-DE', {
+    return date.toLocaleDateString('en-US', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -438,6 +435,7 @@ onMounted(() => {
   color: var(--text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
