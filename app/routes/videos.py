@@ -85,8 +85,17 @@ async def get_all_videos():
 async def stream_video(streamer_name: str, filename: str, request: Request):
     """Stream a video file with proper URL decoding and range support"""
     try:
-        # URL decode the filename
+        # Sanitize inputs - no path traversal characters allowed
+        if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
+            logger.warning(f"Invalid streamer name detected: {streamer_name}")
+            raise HTTPException(status_code=400, detail="Invalid streamer name")
+        
+        # URL decode the filename and sanitize
         decoded_filename = urllib.parse.unquote(filename)
+        if ".." in decoded_filename or "/" in decoded_filename or "\\" in decoded_filename:
+            logger.warning(f"Invalid filename detected: {decoded_filename}")
+            raise HTTPException(status_code=400, detail="Invalid filename")
+            
         logger.info(f"Streaming video: {streamer_name}/{decoded_filename}")
         
         # Get recordings directory
@@ -94,13 +103,20 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
         if not os.path.isabs(recordings_dir):
             recordings_dir = os.path.abspath(recordings_dir)
         
-        # Construct file path
+        # Construct file path using os.path.join for security
         file_path = os.path.join(recordings_dir, streamer_name, decoded_filename)
         
         # Security check - ensure path is within recordings directory
-        if not os.path.abspath(file_path).startswith(os.path.abspath(recordings_dir)):
-            logger.warning(f"Attempted path traversal: {file_path}")
+        abs_file_path = os.path.abspath(file_path)
+        abs_recordings_dir = os.path.abspath(recordings_dir)
+        if not abs_file_path.startswith(abs_recordings_dir):
+            logger.warning(f"Attempted path traversal: {file_path} -> {abs_file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Additional security check - ensure no symlink attacks
+        if os.path.islink(file_path):
+            logger.warning(f"Attempted symlink access: {file_path}")
+            raise HTTPException(status_code=403, detail="Symlink access denied")
         
         # Check if file exists
         if not os.path.exists(file_path):
@@ -168,6 +184,11 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
 async def get_streamer_videos(streamer_name: str):
     """Get all videos for a specific streamer"""
     try:
+        # Sanitize streamer_name - no path traversal characters allowed
+        if ".." in streamer_name or "/" in streamer_name or "\\" in streamer_name:
+            logger.warning(f"Invalid streamer name detected: {streamer_name}")
+            raise HTTPException(status_code=400, detail="Invalid streamer name")
+            
         videos = []
         recordings_dir = get_recordings_directory()
         if not os.path.isabs(recordings_dir):
@@ -175,12 +196,30 @@ async def get_streamer_videos(streamer_name: str):
             
         streamer_path = os.path.join(recordings_dir, streamer_name)
         
+        # Security check - ensure path is within recordings directory
+        abs_streamer_path = os.path.abspath(streamer_path)
+        abs_recordings_dir = os.path.abspath(recordings_dir)
+        if not abs_streamer_path.startswith(abs_recordings_dir):
+            logger.warning(f"Attempted path traversal in get_streamer_videos: {streamer_path}")
+            raise HTTPException(status_code=403, detail="Access denied")
+        
         if not os.path.exists(streamer_path):
             logger.warning(f"Streamer directory {streamer_path} does not exist")
             return videos
         
         for filename in os.listdir(streamer_path):
+            # Sanitize filename
+            if ".." in filename or "/" in filename or "\\" in filename:
+                logger.warning(f"Skipping potentially dangerous filename: {filename}")
+                continue
+                
             file_path = os.path.join(streamer_path, filename)
+            
+            # Additional security check for each file
+            abs_file_path = os.path.abspath(file_path)
+            if not abs_file_path.startswith(abs_streamer_path):
+                logger.warning(f"Skipping file outside streamer directory: {file_path}")
+                continue
             
             if is_video_file(filename) and os.path.isfile(file_path):
                 try:
