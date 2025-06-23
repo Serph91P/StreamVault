@@ -25,14 +25,14 @@ class PushService:
                 self.vapid_private_key = None
         else:
             self.vapid_private_key = vapid_private_key_raw
-            
-        # For public key, keep it as base64 string for frontend API
+              # For public key, keep it as base64 string for frontend API
         self.vapid_public_key = vapid_public_key_raw
             
         self.vapid_claims = {
             "sub": getattr(self.settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
         }
-      async def send_notification(
+    
+    async def send_notification(
         self, 
         subscription: Dict[str, Any], 
         notification_data: Dict[str, Any]
