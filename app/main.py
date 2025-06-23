@@ -399,35 +399,44 @@ async def serve_video(file_path: str):
         except Exception as e:
             logger.warning(f"Path resolution failed for {decoded_path}: {e}")
             raise HTTPException(status_code=403, detail="Invalid path")
-        
-        # Additional security - check for symlinks on resolved path
+          # Additional security - check for symlinks on resolved path
         if resolved_path.is_symlink():
             logger.warning(f"Symlink access denied: {resolved_path}")
             raise HTTPException(status_code=403, detail="Symlink access denied")
         
+        # Use resolved_path for all subsequent operations
+        safe_path = resolved_path
+        
         # Check if file exists
-        if not full_path.exists():
-            logger.error(f"Video file not found: {full_path}")
+        if not safe_path.exists():
+            logger.error(f"Video file not found: {safe_path}")
             # Try to find the file with different extensions
             possible_files = []
-            parent_dir = full_path.parent
-            base_name = full_path.stem
+            parent_dir = safe_path.parent
+            base_name = safe_path.stem
             
             if parent_dir.exists():
                 for ext in ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts']:
                     candidate = parent_dir / f"{base_name}{ext}"
-                    if candidate.exists():
-                        possible_files.append(candidate)
+                    # Ensure candidate is also within allowed directory
+                    try:
+                        candidate_resolved = candidate.resolve()
+                        if (str(candidate_resolved).startswith(str(base_resolved)) and 
+                            candidate_resolved.exists() and 
+                            not candidate_resolved.is_symlink()):
+                            possible_files.append(candidate_resolved)
+                    except Exception:
+                        continue
             
             if possible_files:
-                full_path = possible_files[0]
-                logger.info(f"Found alternative video file: {full_path}")
+                safe_path = possible_files[0]
+                logger.info(f"Found alternative video file: {safe_path}")
             else:
                 raise HTTPException(status_code=404, detail="Video file not found")
         
-        # Serve the file
+        # Serve the file using the validated safe path
         return FileResponse(
-            full_path,
+            safe_path,
             media_type="video/mp4",
             headers={
                 "Accept-Ranges": "bytes",
