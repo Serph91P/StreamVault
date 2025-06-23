@@ -106,28 +106,33 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
         # Construct file path using os.path.join for security
         file_path = os.path.join(recordings_dir, streamer_name, decoded_filename)
         
-        # Security check - ensure path is within recordings directory
-        abs_file_path = os.path.abspath(file_path)
-        abs_recordings_dir = os.path.abspath(recordings_dir)
-        if not abs_file_path.startswith(abs_recordings_dir):
-            logger.warning(f"Attempted path traversal: {file_path} -> {abs_file_path}")
+        # Security check - ensure path is within recordings directory        # Resolve paths to handle symlinks and ensure they're canonical
+        try:
+            resolved_file_path = os.path.realpath(file_path)
+            resolved_recordings_dir = os.path.realpath(recordings_dir)
+        except Exception as e:
+            logger.warning(f"Path resolution failed for {file_path}: {e}")
+            raise HTTPException(status_code=403, detail="Invalid path")
+            
+        # Security check: ensure resolved path is within recordings directory
+        if not resolved_file_path.startswith(resolved_recordings_dir):
+            logger.warning(f"Attempted path traversal: {file_path} -> {resolved_file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Additional security check - ensure no symlink attacks
-        if os.path.islink(file_path):
-            logger.warning(f"Attempted symlink access: {file_path}")
+        # Additional security check - ensure no symlink attacks on resolved path
+        if os.path.islink(resolved_file_path):
+            logger.warning(f"Attempted symlink access: {resolved_file_path}")
             raise HTTPException(status_code=403, detail="Symlink access denied")
         
-        # Check if file exists
-        if not os.path.exists(file_path):
-            logger.error(f"Video file not found: {file_path}")
+        # Check if file exists (use resolved path)
+        if not os.path.exists(resolved_file_path):
+            logger.error(f"Video file not found: {resolved_file_path}")
             raise HTTPException(status_code=404, detail="Video file not found")
+          # Get file stats (use resolved path)
+        file_size = os.path.getsize(resolved_file_path)
         
-        # Get file stats
-        file_size = os.path.getsize(file_path)
-        
-        # Get MIME type
-        mime_type, _ = mimetypes.guess_type(file_path)
+        # Get MIME type (use resolved path)
+        mime_type, _ = mimetypes.guess_type(resolved_file_path)
         if not mime_type:
             mime_type = "video/mp4"  # Default to mp4
         
@@ -140,10 +145,9 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
             start = int(range_match[0]) if range_match[0] else 0
             end = int(range_match[1]) if range_match[1] else file_size - 1
             end = min(end, file_size - 1)
-            
-            # Create streaming response for range
+              # Create streaming response for range (use resolved path)
             def generate_chunk():
-                with open(file_path, "rb") as f:
+                with open(resolved_file_path, "rb") as f:
                     f.seek(start)
                     remaining = end - start + 1
                     while remaining:
@@ -165,11 +169,10 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
                 generate_chunk(),
                 status_code=206,
                 headers=headers
-            )
-        else:
-            # Return full file
+            )        else:
+            # Return full file (use resolved path)
             return FileResponse(
-                file_path,
+                resolved_file_path,
                 media_type=mime_type,
                 filename=decoded_filename
             )
