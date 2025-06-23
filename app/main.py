@@ -380,34 +380,51 @@ async def serve_video(file_path: str):
     try:
         # URL decode the file path
         decoded_path = urllib.parse.unquote(file_path)
-        
-        # Security check - prevent path traversal
+          # Validate and sanitize path components to prevent path traversal
         if ".." in decoded_path or decoded_path.startswith("/") or "\\" in decoded_path:
             logger.warning(f"Attempted path traversal in serve_video: {decoded_path}")
             raise HTTPException(status_code=403, detail="Invalid path")
         
-        # Construct full path using secure path joining
+        # Additional validation: ensure the path contains only safe characters
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_./ ]+$', decoded_path):
+            logger.warning(f"Path contains invalid characters: {decoded_path}")
+            raise HTTPException(status_code=403, detail="Invalid path")
+        
+        # Split the path into components and validate each one
+        path_components = [comp for comp in decoded_path.split('/') if comp]  # Remove empty components
+        for component in path_components:
+            if component in ['..', '.', ''] or len(component) > 255:  # Max filename length check
+                logger.warning(f"Invalid path component: {component}")
+                raise HTTPException(status_code=403, detail="Invalid path")
+        
+        # Construct safe path using only validated components
         base_path = Path("/app/data")
-        full_path = base_path / decoded_path
-          # Security check - ensure resolved path is within /app/data
+        
+        # Build the safe path component by component to avoid any user input contamination
+        safe_path = base_path
+        for component in path_components:
+            safe_path = safe_path / component
+        
+        # Final security check - resolve and verify the path is within base directory
         try:
-            resolved_path = full_path.resolve()
+            resolved_safe_path = safe_path.resolve()
             base_resolved = base_path.resolve()
-            if not str(resolved_path).startswith(str(base_resolved)):
-                logger.warning(f"Path traversal attempt blocked: {decoded_path} -> {resolved_path}")
+            if not str(resolved_safe_path).startswith(str(base_resolved)):
+                logger.warning(f"Path traversal attempt blocked: {decoded_path} -> {resolved_safe_path}")
                 raise HTTPException(status_code=403, detail="Access denied")
         except Exception as e:
             logger.warning(f"Path resolution failed for {decoded_path}: {e}")
             raise HTTPException(status_code=403, detail="Invalid path")
-          # Additional security - check for symlinks on resolved path
-        if resolved_path.is_symlink():
-            logger.warning(f"Symlink access denied: {resolved_path}")
+        
+        # Check for symlinks on the final resolved path
+        if resolved_safe_path.is_symlink():
+            logger.warning(f"Symlink access denied: {resolved_safe_path}")
             raise HTTPException(status_code=403, detail="Symlink access denied")
         
-        # Use resolved_path for all subsequent operations
-        safe_path = resolved_path
-        
-        # Check if file exists
+        # Use the validated, resolved path for all subsequent operations
+        safe_path = resolved_safe_path
+          # Check if file exists
         if not safe_path.exists():
             logger.error(f"Video file not found: {safe_path}")
             # Try to find the file with different extensions
@@ -417,10 +434,14 @@ async def serve_video(file_path: str):
             
             if parent_dir.exists():
                 for ext in ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts']:
-                    candidate = parent_dir / f"{base_name}{ext}"
+                    # Construct candidate path safely
+                    candidate_name = f"{base_name}{ext}"
+                    candidate = parent_dir / candidate_name
+                    
                     # Ensure candidate is also within allowed directory
                     try:
                         candidate_resolved = candidate.resolve()
+                        base_resolved = base_path.resolve()  # Use base_path from above
                         if (str(candidate_resolved).startswith(str(base_resolved)) and 
                             candidate_resolved.exists() and 
                             not candidate_resolved.is_symlink()):
