@@ -466,12 +466,11 @@ class EventHandlerRegistry:
             try:
                 result = await self.delete_subscription(sub["id"])
                 results.append(result)
-            except Exception as e:
-                logger.error(f"Failed to delete subscription {sub['id']}: {e}")
+            except Exception as e:                logger.error(f"Failed to delete subscription {sub['id']}: {e}")
                 results.append({
                     "id": sub["id"],
                     "status": "failed",
-                    "error": str(e)
+                    "error": "Failed to delete subscription"
                 })
         
         return {
