@@ -78,10 +78,10 @@ async def get_all_videos():
                 if not re.match(r'^[a-zA-Z0-9\-_. ]+$', filename):
                     logger.warning(f"Skipping filename with invalid characters: {filename}")
                     continue
+                  file_path = resolved_streamer_path / filename
                 
-                file_path = resolved_streamer_path / filename
-                
-                # Check if it's a video file                if is_video_file(filename) and file_path.is_file():
+                # Check if it's a video file
+                if is_video_file(filename) and file_path.is_file():
                     try:
                         file_stats = file_path.stat()
                         video_info = {
