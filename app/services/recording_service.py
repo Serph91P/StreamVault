@@ -690,7 +690,8 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
@@ -1369,7 +1370,8 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
@@ -2048,7 +2050,8 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
@@ -2727,7 +2730,8 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
@@ -3406,7 +3410,8 @@ class RecordingService:
                 # Send recording.failed notification
                 try:
                     if streamer_id in self.active_recordings:
-                        recording_info = self.active_recordings[streamer_id]                        await websocket_manager.send_notification(
+                        recording_info = self.active_recordings[streamer_id]
+                        await websocket_manager.send_notification(
                             {
                                 "type": "recording.failed",
                                 "data": {
