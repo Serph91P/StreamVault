@@ -169,7 +169,6 @@ export function usePWA() {
       return false
     }
   }
-
   // Show local notification
   const showNotification = async (title: string, options: NotificationOptions = {}) => {
     if (!registration.value) {
@@ -195,6 +194,7 @@ export function usePWA() {
       navigator.vibrate([200, 100, 200])
     }
 
+    console.log('Showing notification:', title, defaultOptions)
     return registration.value.showNotification(title, defaultOptions)
   }
 
