@@ -69,8 +69,7 @@ def secure_path_join(base_path: str, *components: str) -> Path:
     full_path = base
     for component in sanitized_components:
         full_path = full_path / component
-    
-    # Resolve to handle any remaining .. or symlinks
+      # Resolve to handle any remaining .. or symlinks
     try:
         resolved_path = full_path.resolve()
     except Exception as e:
@@ -82,9 +81,9 @@ def secure_path_join(base_path: str, *components: str) -> Path:
         logger.warning(f"Path outside base directory: {resolved_path} not in {base}")
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Check for symlink attacks
-    if full_path.is_symlink():
-        logger.warning(f"Symlink access attempted: {full_path}")
+    # Check for symlink attacks on resolved path
+    if resolved_path.is_symlink():
+        logger.warning(f"Symlink access attempted: {resolved_path}")
         raise HTTPException(status_code=403, detail="Symlink access denied")
     
     return resolved_path
