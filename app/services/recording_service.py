@@ -1566,10 +1566,9 @@ class RecordingService:
             # Remove the process from subprocess manager
             await self.subprocess_manager.terminate_process(process_id)
         except Exception as e:
-            logger.error(f"Error monitoring process: {e}", exc_info=True)
-
-    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 with enhanced logging and sync preservation"""        try:
+            logger.error(f"Error monitoring process: {e}", exc_info=True)    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
+        """Remux TS file to MP4 with enhanced logging and sync preservation"""
+        try:
             # Check if the recording was made through a proxy by looking at active recording info
             is_proxy_recording = False
             from app.models import GlobalSettings
