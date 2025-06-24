@@ -118,9 +118,9 @@ async def unsubscribe_from_push(
 async def send_test_notification(db: Session = Depends(get_db)):
     """Send a test push notification to all active subscriptions"""
     try:
-        from app.services.push_service import PushService
+        from app.services.enhanced_push_service import EnhancedPushService, enhanced_push_service
         
-        push_service = PushService()
+        push_service = enhanced_push_service
         
         notification_data = {
             "title": "StreamVault Test",

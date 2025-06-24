@@ -7,7 +7,7 @@ from app.config.settings import settings as app_settings
 from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, NotificationSettings, Streamer, PushSubscription
 from app.database import SessionLocal
-from app.services.push_service import PushService
+from app.services.enhanced_push_service import EnhancedPushService, enhanced_push_service
 
 logger = logging.getLogger("streamvault")
 
@@ -16,7 +16,7 @@ class NotificationService:
         self.apprise = Apprise()
         self._notification_url = None
         self.websocket_manager = websocket_manager
-        self.push_service = PushService()
+        self.push_service = enhanced_push_service
         self._initialize_apprise()
 
     def _initialize_apprise(self):
