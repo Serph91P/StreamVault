@@ -194,6 +194,13 @@ class FFmpegError(RecordingError):
 # Configuration manager for caching settings
 class ConfigManager:
     """Manages and caches recording configuration settings"""
+    
+    def __init__(self):
+        """Initialize the config manager with empty state"""
+        self._global_settings = None
+        self._streamer_settings = {}
+        self.last_refresh = datetime.min
+        self.cache_timeout = 60  # Default cache timeout in seconds
 
     def _is_cache_valid(self) -> bool:
         """Check if the cached settings are still valid"""
@@ -283,7 +290,12 @@ class ConfigManager:
 # Subprocess manager for better resource handling
 class SubprocessManager:
     """Manages subprocess execution and cleanup"""
-
+    
+    def __init__(self):
+        """Initialize the subprocess manager"""
+        self.active_processes = {}
+        self.lock = asyncio.Lock()
+    
     async def start_process(
         self, cmd: List[str], process_id: str
     ) -> Optional[asyncio.subprocess.Process]:
