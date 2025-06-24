@@ -16,5 +16,4 @@ aiohttp==3.11.12
 pillow==11.2.1
 alembic==1.13.1
 py-vapid==1.9.2
-http_ece==1.1.0
 cryptography==45.0.4
