@@ -7,8 +7,9 @@ import logging
 from pathlib import Path
 import mimetypes
 import re
-from app.database import SessionLocal
-from app.models import RecordingSettings
+from sqlalchemy.orm import Session
+from app.database import SessionLocal, get_db
+from app.models import RecordingSettings, Stream, Streamer
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
 logger = logging.getLogger(__name__)
@@ -28,79 +29,62 @@ def is_video_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in video_extensions
 
 @router.get("/videos")
-async def get_videos():
-    """Get all videos from all streamers - CodeQL-safe implementation"""
+async def get_videos(db: Session = Depends(get_db)):
+    """Get all videos from database with file verification"""
     videos = []
     
     try:
-        recordings_dir = get_recordings_directory()
-        if not recordings_dir:
-            logger.warning("No recordings directory configured")
-            return videos
+        # Query all streams that have recording paths
+        streams = db.query(Stream, Streamer).join(
+            Streamer, Stream.streamer_id == Streamer.id
+        ).filter(
+            Stream.recording_path.isnot(None),
+            Stream.recording_path != ""
+        ).order_by(Stream.started_at.desc()).all()
         
-        if not Path(recordings_dir).exists():
-            logger.warning(f"Recordings directory {recordings_dir} does not exist")
-            return videos
+        logger.debug(f"Found {len(streams)} streams with recording paths in database")
         
-        # Get list of streamer directories safely
-        try:
-            streamer_dirs = list_safe_directory(recordings_dir)
-        except HTTPException:
-            logger.warning("Failed to list recordings directory")
-            return videos
-        
-        # Process each streamer directory
-        for streamer_name in streamer_dirs:
-            # Additional validation for streamer name
-            if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
-                continue
-            
+        for stream, streamer in streams:
             try:
-                # Get streamer directory path safely (no user data in path operations)
-                streamer_path = safe_file_access(recordings_dir, streamer_name)
+                # Verify the file exists
+                recording_path = Path(stream.recording_path)
                 
-                if not streamer_path.is_dir():
-                    continue
-                
-                # List files in streamer directory safely
-                try:
-                    filenames = list_safe_directory(recordings_dir, streamer_name)
-                except HTTPException:
-                    continue
-                
-                # Process each video file
-                for filename in filenames:
-                    if not is_video_file(filename):
-                        continue
+                if recording_path.exists() and recording_path.is_file():
+                    file_stats = recording_path.stat()
                     
-                    try:
-                        # Get file path safely (no user data in path operations)
-                        file_path = safe_file_access(recordings_dir, streamer_name, filename)
-                        
-                        if file_path.is_file():
-                            file_stats = file_path.stat()
-                            video_info = {
-                                "title": filename,
-                                "streamer_name": streamer_name,
-                                "file_path": str(file_path),
-                                "file_size": file_stats.st_size,
-                                "created_at": file_stats.st_mtime,
-                                "duration": None,
-                                "thumbnail_url": None
-                            }
-                            videos.append(video_info)
-                            
-                    except (HTTPException, OSError):
-                        continue
-                        
-            except HTTPException:
+                    # Calculate duration if available
+                    duration = None
+                    if stream.started_at and stream.ended_at:
+                        duration = (stream.ended_at - stream.started_at).total_seconds()
+                    
+                    video_info = {
+                        "id": stream.id,
+                        "title": stream.title or f"Stream {stream.id}",
+                        "streamer_name": streamer.username,
+                        "streamer_id": streamer.id,
+                        "file_path": str(recording_path),
+                        "file_size": file_stats.st_size,
+                        "created_at": stream.started_at.timestamp() if stream.started_at else file_stats.st_mtime,
+                        "started_at": stream.started_at,
+                        "ended_at": stream.ended_at,
+                        "duration": duration,
+                        "category_name": stream.category_name,
+                        "language": stream.language,
+                        "thumbnail_url": None  # TODO: Generate thumbnails
+                    }
+                    videos.append(video_info)
+                    logger.debug(f"Added video: {stream.title} by {streamer.username}")
+                else:
+                    logger.warning(f"Recording file not found: {stream.recording_path}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing stream {stream.id}: {e}")
                 continue
         
-        # Sort by creation time (newest first)
-        videos.sort(key=lambda x: x["created_at"], reverse=True)
+        logger.info(f"Returning {len(videos)} videos")
         
     except Exception as e:
-        logger.error(f"Error getting videos: {e}")
+        logger.error(f"Error getting videos from database: {e}")
         return []
     
     return videos
@@ -275,3 +259,161 @@ async def get_streamer_videos(streamer_name: str):
     except Exception as e:
         logger.error(f"Error getting videos for streamer {streamer_name}: {e}")
         raise HTTPException(status_code=500, detail=safe_error_message(e))
+
+@router.get("/videos/stream/{stream_id}")
+async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Stream a video file by stream ID with range request support"""
+    try:
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        file_path = Path(stream.recording_path)
+        
+        # Verify file exists
+        if not file_path.exists() or not file_path.is_file():
+            logger.error(f"Video file not found: {stream.recording_path}")
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Get file info
+        try:
+            file_size = file_path.stat().st_size
+        except OSError:
+            raise HTTPException(status_code=500, detail="Error accessing file")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "video/mp4"
+            
+        # Handle range requests
+        range_header = request.headers.get('range')
+        if range_header:
+            # Parse range header
+            try:
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                if not range_match:
+                    raise HTTPException(status_code=400, detail="Invalid range header")
+                
+                start = int(range_match.group(1))
+                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                
+                if start >= file_size or end >= file_size or start > end:
+                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                
+                chunk_size = end - start + 1
+                
+                def generate_chunk():
+                    with open(file_path, 'rb') as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            read_size = min(8192, remaining)
+                            data = f.read(read_size)
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+                
+                headers = {
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(chunk_size),
+                    "Content-Type": mime_type
+                }
+                
+                return StreamingResponse(
+                    generate_chunk(),
+                    status_code=206,
+                    headers=headers
+                )
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid range header")
+        else:
+            # No range request, stream entire file
+            def generate_file():
+                with open(file_path, 'rb') as f:
+                    while True:
+                        data = f.read(8192)
+                        if not data:
+                            break
+                        yield data
+            
+            headers = {
+                "Content-Length": str(file_size),
+                "Accept-Ranges": "bytes",
+                "Content-Type": mime_type
+            }
+            
+            return StreamingResponse(
+                generate_file(),
+                headers=headers
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error streaming video {stream_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/videos/streamer/{streamer_id}")
+async def get_videos_by_streamer(streamer_id: int, db: Session = Depends(get_db)):
+    """Get all videos for a specific streamer"""
+    videos = []
+    
+    try:
+        # Query streams for specific streamer
+        streams = db.query(Stream, Streamer).join(
+            Streamer, Stream.streamer_id == Streamer.id
+        ).filter(
+            Stream.streamer_id == streamer_id,
+            Stream.recording_path.isnot(None),
+            Stream.recording_path != ""
+        ).order_by(Stream.started_at.desc()).all()
+        
+        logger.debug(f"Found {len(streams)} videos for streamer {streamer_id}")
+        
+        for stream, streamer in streams:
+            try:
+                # Verify the file exists
+                recording_path = Path(stream.recording_path)
+                
+                if recording_path.exists() and recording_path.is_file():
+                    file_stats = recording_path.stat()
+                    
+                    # Calculate duration if available
+                    duration = None
+                    if stream.started_at and stream.ended_at:
+                        duration = (stream.ended_at - stream.started_at).total_seconds()
+                    
+                    video_info = {
+                        "id": stream.id,
+                        "title": stream.title or f"Stream {stream.id}",
+                        "streamer_name": streamer.username,
+                        "streamer_id": streamer.id,
+                        "file_path": str(recording_path),
+                        "file_size": file_stats.st_size,
+                        "created_at": stream.started_at.timestamp() if stream.started_at else file_stats.st_mtime,
+                        "started_at": stream.started_at,
+                        "ended_at": stream.ended_at,
+                        "duration": duration,
+                        "category_name": stream.category_name,
+                        "language": stream.language,
+                        "thumbnail_url": None
+                    }
+                    videos.append(video_info)
+                else:
+                    logger.warning(f"Recording file not found: {stream.recording_path}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing stream {stream.id}: {e}")
+                continue
+        
+        logger.info(f"Returning {len(videos)} videos for streamer {streamer_id}")
+        
+    except Exception as e:
+        logger.error(f"Error getting videos for streamer {streamer_id}: {e}")
+        return []
+    
+    return videos
