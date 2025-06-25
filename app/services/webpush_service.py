@@ -8,9 +8,13 @@ import logging
 import base64
 import http.client
 import urllib.parse
-import http_ece
+import os
 from typing import Dict, Any, Optional, Union
 from py_vapid import Vapid
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 logger = logging.getLogger("streamvault")
 
@@ -32,6 +36,62 @@ class ModernWebPushService:
         self.vapid = Vapid.from_string(private_key=vapid_private_key)
         self.claims = vapid_claims
         
+    def _encrypt_payload(self, payload: bytes, auth: bytes, p256dh: bytes) -> bytes:
+        """Encrypt payload using AES128GCM according to RFC 8291"""
+        # Generate ephemeral key pair
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        public_key = private_key.public_key()
+        
+        # Get the public key in uncompressed format
+        public_key_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint
+        )
+        
+        # Deserialize the receiver's public key
+        receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(), p256dh
+        )
+        
+        # Perform ECDH
+        shared_key = private_key.exchange(ec.ECDH(), receiver_public_key)
+        
+        # Derive keys using HKDF
+        # Info for IKM
+        info_ikm = b"WebPush: info\x00" + p256dh + public_key_bytes
+        ikm = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=auth,
+            info=info_ikm,
+        ).derive(shared_key)
+        
+        # Info for CEK and Nonce
+        info_cek = b"Content-Encoding: aes128gcm\x00"
+        cek = HKDF(
+            algorithm=hashes.SHA256(),
+            length=16,
+            salt=b"",
+            info=info_cek,
+        ).derive(ikm)
+        
+        info_nonce = b"Content-Encoding: nonce\x00"
+        nonce = HKDF(
+            algorithm=hashes.SHA256(),
+            length=12,
+            salt=b"",
+            info=info_nonce,
+        ).derive(ikm)
+        
+        # Encrypt the payload
+        aesgcm = AESGCM(cek)
+        # Add padding delimiter (0x02 followed by padding)
+        padded_payload = payload + b'\x02'
+        ciphertext = aesgcm.encrypt(nonce, padded_payload, None)
+        
+        # Return the encrypted payload with public key prepended
+        return public_key_bytes + ciphertext
+    
     def encode_payload(self, data: Union[str, Dict, bytes]) -> bytes:
         """Encode the payload data for sending"""
         if isinstance(data, str):
@@ -79,22 +139,11 @@ class ModernWebPushService:
             # Encode the payload if provided
             payload = None
             if data:
-                try:
-                    import http_ece
-                except ImportError:
-                    logger.error("http_ece package is required. Install with 'pip install http_ece'")
-                    return False
-                
                 auth = base64.urlsafe_b64decode(subscription_info["keys"]["auth"])
                 p256dh = base64.urlsafe_b64decode(subscription_info["keys"]["p256dh"])
                 
-                payload = self.encode_payload(data)
-                payload = http_ece.encrypt(
-                    payload, 
-                    auth=auth, 
-                    dh=p256dh, 
-                    version="aes128gcm"
-                )
+                raw_payload = self.encode_payload(data)
+                payload = self._encrypt_payload(raw_payload, auth, p256dh)
                 headers["Content-Type"] = "application/octet-stream"
                 headers["Content-Length"] = str(len(payload))
             
