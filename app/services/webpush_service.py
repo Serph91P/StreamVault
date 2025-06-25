@@ -117,9 +117,13 @@ class ModernWebPushService:
         Returns:
             bool: True if the notification was sent successfully
         """
+        # Debug logging to see what we're getting
+        logger.debug(f"Received subscription_info type: {type(subscription_info)}")
+        logger.debug(f"Subscription_info content: {subscription_info}")
+        
         endpoint = subscription_info.get("endpoint")
         if not endpoint:
-            logger.error("No endpoint provided in subscription info")
+            logger.error(f"No endpoint provided in subscription info: {subscription_info}")
             return False
             
         # Parse the endpoint URL
@@ -139,8 +143,25 @@ class ModernWebPushService:
             # Encode the payload if provided
             payload = None
             if data:
-                auth = base64.urlsafe_b64decode(subscription_info["keys"]["auth"])
-                p256dh = base64.urlsafe_b64decode(subscription_info["keys"]["p256dh"])
+                # Handle different subscription data structures
+                keys = subscription_info.get("keys")
+                if not keys:
+                    logger.error(f"No keys found in subscription info: {subscription_info}")
+                    return False
+                
+                auth_key = keys.get("auth")
+                p256dh_key = keys.get("p256dh")
+                
+                if not auth_key or not p256dh_key:
+                    logger.error(f"Missing auth or p256dh keys in subscription: {keys}")
+                    return False
+                
+                try:
+                    auth = base64.urlsafe_b64decode(auth_key)
+                    p256dh = base64.urlsafe_b64decode(p256dh_key)
+                except Exception as e:
+                    logger.error(f"Failed to decode subscription keys: {e}")
+                    return False
                 
                 raw_payload = self.encode_payload(data)
                 payload = self._encrypt_payload(raw_payload, auth, p256dh)
