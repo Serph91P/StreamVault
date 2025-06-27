@@ -62,7 +62,8 @@
             </div>
 
             <div class="form-group">
-              <label>Filename Template:</label>              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset">
+              <label>Filename Template:</label>              
+              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset">
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
                 </option>
@@ -70,9 +71,13 @@
               <input v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
               <div class="help-text">
                 Choose a preset or customize the filename template.
-                <br><strong>Available variables:</strong>                <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
+                <br><strong>Available variables:</strong>
+                <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
                   {{ variable.key }}
                 </span>
+                <br><br><strong>Example output:</strong>
+                <code class="example-output">stremername - S202506E01 - Just Chatting Stream.mp4</code>
+                <br><small>Episode numbers (E01, E02, E03) are based on stream order within the month, not date.</small>
               </div>
             </div>
 
@@ -1351,6 +1356,31 @@ select.form-control-sm option {
   .example-item code {
     font-size: 0.75rem;
     padding: 3px 6px;
+  }
+
+  .variable-tag {
+    display: inline-block;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin: 2px 4px 2px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    font-weight: 500;
+  }
+
+  .example-output {
+    display: inline-block;
+    background-color: var(--bg-tertiary, #2a2a2a);
+    color: var(--accent-color, #4a9eff);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    font-weight: 600;
   }
 }
 </style>
