@@ -31,6 +31,20 @@
           {{ filter.label }}
         </button>
       </div>
+
+      <div class="category-filter" v-if="availableCategories.length > 1">
+        <h4>Filter by Category:</h4>
+        <div class="category-buttons">
+          <button 
+            v-for="category in availableCategories" 
+            :key="category.value"
+            @click="activeCategoryFilter = category.value"
+            :class="['category-btn', { active: activeCategoryFilter === category.value }]"
+          >
+            {{ category.label }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -51,19 +65,8 @@
       <button @click="loadVideos" class="retry-btn">Try Again</button>
     </div>
 
-    <!-- Debug Info (temporary) -->
-    <div style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px;">
-      <strong>Debug Info:</strong><br>
-      Loading: {{ loading }}<br>
-      Error: {{ error }}<br>
-      Raw videos count: {{ videos.length }}<br>
-      Filtered videos count: {{ filteredVideos.length }}<br>
-      Active filter: {{ activeFilter }}<br>
-      Search query: "{{ searchQuery }}"
-    </div>
-
     <!-- Videos Grid -->
-    <div v-if="!loading && !error && filteredVideos.length > 0" class="videos-grid">
+    <div v-else-if="filteredVideos.length > 0" class="videos-grid">
       <div 
         v-for="video in filteredVideos" 
         :key="video.id"
@@ -99,6 +102,7 @@
         <div class="video-info">
           <h3 class="video-title">{{ video.title }}</h3>
           <p class="video-streamer">{{ video.streamer_name }}</p>
+          <p v-if="video.category_name" class="video-category">🎮 {{ video.category_name }}</p>
           <div class="video-meta">
             <span class="video-date">{{ formatDate(video.created_at) }}</span>
             <span class="video-size" v-if="video.file_size">{{ formatFileSize(video.file_size) }}</span>
@@ -133,6 +137,7 @@ import { api } from '@/services/api'
 const loading = ref(true)
 const searchQuery = ref('')
 const activeFilter = ref('all')
+const activeCategoryFilter = ref('all')
 const selectedVideo = ref(null)
 const videos = ref([])
 const error = ref(null)
@@ -144,8 +149,21 @@ const filters = [
   { label: 'This Month', value: 'month' }
 ]
 
+// Get unique categories from videos
+const availableCategories = computed(() => {
+  const categories = videos.value
+    .map(video => video.category_name)
+    .filter(category => category && category.trim() !== '')
+    .filter((category, index, array) => array.indexOf(category) === index)
+    .sort()
+  
+  return [
+    { label: 'All Categories', value: 'all' },
+    ...categories.map(category => ({ label: category, value: category }))
+  ]
+})
+
 const filteredVideos = computed(() => {
-  console.log('Computing filtered videos, total videos:', videos.value.length, videos.value)
   let filtered = videos.value
 
   // Filter by search query
@@ -155,7 +173,13 @@ const filteredVideos = computed(() => {
       (video.title || '').toLowerCase().includes(query) ||
       (video.streamer_name || '').toLowerCase().includes(query)
     )
-    console.log('After search filter:', filtered.length)
+  }
+
+  // Filter by category
+  if (activeCategoryFilter.value !== 'all') {
+    filtered = filtered.filter(video => 
+      video.category_name === activeCategoryFilter.value
+    )
   }
 
   // Filter by date
@@ -185,7 +209,6 @@ const filteredVideos = computed(() => {
         return false
       }
     })
-    console.log('After date filter:', filtered.length)
   }
 
   // Sort by date (newest first)
@@ -199,7 +222,6 @@ const filteredVideos = computed(() => {
     }
   })
   
-  console.log('Final filtered videos:', result.length, result)
   return result
 })
 
@@ -207,16 +229,9 @@ const loadVideos = async () => {
   try {
     loading.value = true
     error.value = null
-    console.log('Making API request to /api/videos...')
     const response = await api.get('/api/videos')
-    console.log('Raw API response:', response)
-    console.log('Response type:', typeof response)
-    console.log('Is array:', Array.isArray(response))
-    
     // API returns array directly, not wrapped in data
     videos.value = Array.isArray(response) ? response : (response.data || [])
-    console.log('Final videos array:', videos.value)
-    console.log(`Loaded ${videos.value.length} videos`, videos.value)
   } catch (err) {
     console.error('Error loading videos:', err)
     error.value = err.response?.data?.detail || 'Failed to load videos'
@@ -378,6 +393,42 @@ onMounted(() => {
   border-color: var(--primary-color);
 }
 
+.category-filter {
+  margin-top: 15px;
+}
+
+.category-filter h4 {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.category-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.category-btn {
+  padding: 6px 16px;
+  border: 2px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.85rem;
+}
+
+.category-btn:hover,
+.category-btn.active {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -501,6 +552,13 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+.video-category {
+  color: var(--accent-color);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
 .video-meta {
   display: flex;
   justify-content: space-between;
@@ -594,6 +652,18 @@ onMounted(() => {
   .filter-btn {
     flex-shrink: 0;
   }
+
+  .category-buttons {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+
+  .category-btn {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    padding: 5px 12px;
+  }
 }
 
 /* Dark mode support */
@@ -607,6 +677,12 @@ onMounted(() => {
     --border-color: #404040;
     --primary-color: #6f42c1;
     --primary-hover: #5a359a;
+    --accent-color: #28a745;
   }
+}
+
+/* Light mode support */
+:root {
+  --accent-color: #28a745;
 }
 </style>
