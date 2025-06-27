@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as DBSession
 from app.models import User, Session
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -12,7 +12,7 @@ logger = logging.getLogger("streamvault")
 ph = PasswordHasher()
 
 class AuthService:
-    def __init__(self, db: Session):
+    def __init__(self, db: DBSession):
         self.db = db
 
     async def admin_exists(self) -> bool:
