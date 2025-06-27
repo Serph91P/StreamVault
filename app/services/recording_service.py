@@ -2205,6 +2205,45 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
+    async def _cleanup_temporary_files(self, mp4_path: str):
+        """Clean up temporary files after metadata generation"""
+        try:
+            # Find and remove temporary files like .ts, .temp, .part, etc.
+            base_path = Path(mp4_path).parent
+            base_name = Path(mp4_path).stem
+            
+            # Common temporary file extensions to clean up
+            temp_extensions = ['.ts', '.temp', '.part', '.tmp', '.processing']
+            
+            cleaned_files = 0
+            for temp_ext in temp_extensions:
+                temp_file = base_path / f"{base_name}{temp_ext}"
+                if temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                        cleaned_files += 1
+                        logger.debug(f"Cleaned up temporary file: {temp_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove temporary file {temp_file}: {e}")
+            
+            # Also look for any .ts file that matches the MP4 file
+            ts_file = Path(mp4_path.replace('.mp4', '.ts'))
+            if ts_file.exists() and ts_file != Path(mp4_path):
+                try:
+                    ts_file.unlink()
+                    cleaned_files += 1
+                    logger.debug(f"Cleaned up TS file: {ts_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove TS file {ts_file}: {e}")
+            
+            if cleaned_files > 0:
+                logger.info(f"Cleaned up {cleaned_files} temporary files for {Path(mp4_path).name}")
+            else:
+                logger.debug(f"No temporary files to clean up for {Path(mp4_path).name}")
+                
+        except Exception as e:
+            logger.error(f"Error during temporary file cleanup: {e}", exc_info=True)
+
 
 # Filename presets optimized for media servers
 FILENAME_PRESETS = {
