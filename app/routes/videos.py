@@ -673,7 +673,7 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         normalized_path = potential_path.resolve()
         
         # Validate that the path is within the recordings directory
-        if not str(normalized_path).startswith(str(recordings_path)):
+        if os.path.commonpath([recordings_path.resolve(), normalized_path]) != str(recordings_path.resolve()):
             raise HTTPException(status_code=400, detail="Invalid file path")
         
         # Check if the file exists and is a valid video file
