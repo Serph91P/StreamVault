@@ -39,11 +39,23 @@
       <p>Loading videos...</p>
     </div>
 
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+      <h3>Error loading videos</h3>
+      <p>{{ error }}</p>
+      <button @click="loadVideos" class="retry-btn">Try Again</button>
+    </div>
+
     <!-- Videos Grid -->
     <div v-else-if="filteredVideos.length > 0" class="videos-grid">
       <div 
         v-for="video in filteredVideos" 
-        :key="`${video.streamer_name}-${video.title}`"
+        :key="video.id"
         class="video-card"
         @click="openVideoModal(video)"
       >
@@ -112,6 +124,7 @@ const searchQuery = ref('')
 const activeFilter = ref('all')
 const selectedVideo = ref(null)
 const videos = ref([])
+const error = ref(null)
 
 const filters = [
   { label: 'All', value: 'all' },
@@ -161,10 +174,13 @@ const filteredVideos = computed(() => {
 const loadVideos = async () => {
   try {
     loading.value = true
+    error.value = null
     const response = await api.get('/api/videos')
     videos.value = response.data || []
-  } catch (error) {
-    console.error('Error loading videos:', error)
+    console.log(`Loaded ${videos.value.length} videos`)
+  } catch (err) {
+    console.error('Error loading videos:', err)
+    error.value = err.response?.data?.detail || 'Failed to load videos'
     videos.value = []
   } finally {
     loading.value = false
@@ -469,6 +485,38 @@ onMounted(() => {
   font-size: 1.5rem;
   margin-bottom: 10px;
   color: var(--text-primary);
+}
+
+.error-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-secondary);
+}
+
+.error-state svg {
+  margin-bottom: 20px;
+  color: #e74c3c;
+}
+
+.error-state h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+}
+
+.retry-btn {
+  padding: 10px 20px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background-color 0.3s;
+}
+
+.retry-btn:hover {
+  background: var(--primary-hover);
 }
 
 /* Mobile Responsive */
