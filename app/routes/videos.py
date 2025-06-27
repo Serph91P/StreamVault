@@ -673,8 +673,11 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         for root, dirs, files in os.walk(recordings_path):
             if decoded_filename in files:
                 potential_path = Path(root) / decoded_filename
-                if potential_path.is_file() and is_video_file(str(potential_path)):
-                    file_path = potential_path
+                normalized_path = potential_path.resolve()
+                if not str(normalized_path).startswith(str(recordings_path)):
+                    raise HTTPException(status_code=400, detail="Invalid file path")
+                if normalized_path.is_file() and is_video_file(str(normalized_path)):
+                    file_path = normalized_path
                     break
         
         if not file_path or not file_path.exists():
