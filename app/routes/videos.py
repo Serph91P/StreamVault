@@ -185,7 +185,8 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         
     except Exception as e:
         logger.error(f"DEBUG: Exception: {e}")
-        return {"error": str(e), "type": type(e).__name__}
+        # Don't expose internal error details to users
+        return {"error": "Internal error occurred", "success": False}
 
 @router.get("/videos/stream/{stream_id}")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):

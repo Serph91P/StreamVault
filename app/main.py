@@ -15,6 +15,7 @@ import hashlib
 import json
 import asyncio
 import os
+from pathlib import Path
 
 from contextlib import asynccontextmanager
 
@@ -366,12 +367,21 @@ async def serve_pwa_icons(icon_file: str):
             
         for base_path in ["app/frontend/public", "/app/app/frontend/public"]:
             try:
-                return FileResponse(
-                    f"{base_path}/{icon_file}",
-                    media_type=media_type,
-                    headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
-                )
-            except:
+                # Secure path construction to prevent path traversal
+                base_path_obj = Path(base_path).resolve()
+                icon_path = base_path_obj / icon_file
+                
+                # Ensure the resolved path is still within the base directory
+                if not str(icon_path.resolve()).startswith(str(base_path_obj)):
+                    continue
+                    
+                if icon_path.exists() and icon_path.is_file():
+                    return FileResponse(
+                        str(icon_path),
+                        media_type=media_type,
+                        headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
+                    )
+            except Exception:
                 continue
     return Response(status_code=404)
 
