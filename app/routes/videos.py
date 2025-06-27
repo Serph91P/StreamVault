@@ -12,7 +12,7 @@ from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("streamvault")
 router = APIRouter(
     prefix="/api",
     tags=["videos"]
@@ -296,6 +296,74 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
         logger.error(f"Error getting videos for streamer {streamer_name}: {e}")
         raise HTTPException(status_code=500, detail=safe_error_message(e))
 
+@router.get("/videos/debug/{stream_id}")
+async def debug_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Debug endpoint to test video access without streaming"""
+    try:
+        logger.info(f"DEBUG VIDEO ACCESS: stream_id={stream_id}")
+        logger.info(f"DEBUG: Request headers: {dict(request.headers)}")
+        logger.info(f"DEBUG: Request cookies: {dict(request.cookies)}")
+        
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            logger.error("DEBUG: No session token found")
+            return {"error": "No session token", "headers": dict(request.headers)}
+        
+        logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
+        
+        # Validate session
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(db)
+        session_valid = await auth_service.validate_session(session_token)
+        logger.info(f"DEBUG: Session validation result: {session_valid}")
+        
+        if not session_valid:
+            logger.error("DEBUG: Session validation failed")
+            return {"error": "Session validation failed", "token": session_token[:20]}
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            logger.error(f"DEBUG: Stream not found: stream_id={stream_id}")
+            return {"error": "Stream not found", "stream_id": stream_id}
+        
+        logger.info(f"DEBUG: Found stream: {stream.title}, recording_path: {stream.recording_path}")
+        
+        if not stream.recording_path:
+            return {"error": "No recording path", "stream": {"id": stream.id, "title": stream.title}}
+        
+        file_path = Path(stream.recording_path)
+        file_exists = file_path.exists()
+        
+        logger.info(f"DEBUG: File path: {file_path}, exists: {file_exists}")
+        
+        result = {
+            "success": True,
+            "stream_id": stream_id,
+            "stream": {
+                "id": stream.id,
+                "title": stream.title,
+                "recording_path": stream.recording_path,
+            },
+            "file": {
+                "path": str(file_path),
+                "exists": file_exists,
+                "size": file_path.stat().st_size if file_exists else 0,
+            },
+            "session": {
+                "token": session_token[:20] + "...",
+                "valid": session_valid,
+            }
+        }
+        
+        logger.info(f"DEBUG: Result: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"DEBUG: Exception: {e}")
+        return {"error": str(e), "type": type(e).__name__}
+
 @router.get("/videos/stream/{stream_id}")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Stream a video file by stream ID with range request support"""
@@ -313,14 +381,18 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         logger.info(f"Session token found: {session_token[:10]}...")
         
         # Validate session
-        from app.services.auth_service import AuthService
-        auth_service = AuthService(db)
-        session_valid = await auth_service.validate_session(session_token)
-        logger.info(f"Session validation result: {session_valid}")
-        
-        if not session_valid:
-            logger.error("Session validation failed")
-            raise HTTPException(status_code=401, detail="Invalid session")
+        try:
+            from app.services.auth_service import AuthService
+            auth_service = AuthService(db)
+            session_valid = await auth_service.validate_session(session_token)
+            logger.info(f"Session validation result: {session_valid}")
+            
+            if not session_valid:
+                logger.error("Session validation failed")
+                raise HTTPException(status_code=401, detail="Invalid session")
+        except Exception as e:
+            logger.error(f"Session validation error: {e}")
+            raise HTTPException(status_code=401, detail="Session validation error")
         
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
