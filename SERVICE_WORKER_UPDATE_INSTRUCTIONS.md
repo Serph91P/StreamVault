@@ -44,4 +44,10 @@ Additionally, the following improvements were made to the backend:
 - Better error handling in video routes
 - Improved logging for debugging
 
+## Security Fixes
+Several CodeQL security vulnerabilities have been addressed:
+- **Path Injection Prevention**: PWA icon serving now uses strict allowlist validation and safe file mapping
+- **Information Exposure**: Error messages no longer expose internal system details to users
+- **Input Validation**: Enhanced validation for user-provided filenames and paths
+
 After these changes, videos should load and play correctly.
