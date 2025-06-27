@@ -358,6 +358,9 @@ async def serve_pwa_icons(icon_file: str):
     }
     
     if icon_file in pwa_files:
+        # Normalize the file name to prevent path traversal
+        icon_file = os.path.normpath(icon_file)
+        
         # Determine media type based on file extension
         media_type = "image/png"
         if icon_file.endswith('.ico'):
@@ -372,12 +375,13 @@ async def serve_pwa_icons(icon_file: str):
                 icon_path = base_path_obj / icon_file
                 
                 # Ensure the resolved path is still within the base directory
-                if not str(icon_path.resolve()).startswith(str(base_path_obj)):
+                resolved_icon_path = icon_path.resolve()
+                if not str(resolved_icon_path).startswith(str(base_path_obj)):
                     continue
                     
-                if icon_path.exists() and icon_path.is_file():
+                if resolved_icon_path.exists() and resolved_icon_path.is_file():
                     return FileResponse(
-                        str(icon_path),
+                        str(resolved_icon_path),
                         media_type=media_type,
                         headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
                     )
