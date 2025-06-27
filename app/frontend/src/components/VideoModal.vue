@@ -108,10 +108,8 @@ const error = ref(false)
 const errorMessage = ref('')
 
 const videoUrl = computed(() => {
-  // Clean and encode the filename properly
-  const filename = props.video.title || 'video.mp4'
-  // Use the streaming route which handles URL decoding
-  return `/api/videos/stream/${props.video.streamer_name}/${encodeURIComponent(filename)}`
+  // Use the stream ID based endpoint
+  return `/api/videos/stream/${props.video.id}`
 })
 
 const closeModal = () => {
@@ -180,7 +178,7 @@ const downloadVideo = () => {
 const shareVideo = async () => {
   const shareData = {
     title: props.video.title,
-    text: `Schau dir dieses Video von ${props.video.streamer_name} an!`,
+    text: `Check out this video from ${props.video.streamer_name}!`,
     url: window.location.href
   }
   
@@ -200,15 +198,15 @@ const shareVideo = async () => {
 const fallbackShare = () => {
   const url = window.location.href
   navigator.clipboard.writeText(url).then(() => {
-    alert('Link wurde in die Zwischenablage kopiert!')
+    alert('Link copied to clipboard!')
   }).catch(() => {
-    alert(`Link zum Teilen: ${url}`)
+    alert(`Share link: ${url}`)
   })
 }
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('de-DE', {
+  return date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -219,7 +217,7 @@ const formatDate = (dateString) => {
 }
 
 const formatDuration = (seconds) => {
-  if (!seconds) return 'Unbekannt'
+  if (!seconds) return 'Unknown'
   
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -233,7 +231,7 @@ const formatDuration = (seconds) => {
 }
 
 const formatFileSize = (bytes) => {
-  if (!bytes) return 'Unbekannt'
+  if (!bytes) return 'Unknown'
   
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
