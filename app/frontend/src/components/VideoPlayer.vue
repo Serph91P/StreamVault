@@ -139,6 +139,12 @@ interface Props {
   streamId?: number
   chaptersUrl?: string // URL to WebVTT chapter file
   autoChapters?: boolean // Auto-generate chapters from category changes
+  chapters?: Array<{
+    start_time: string
+    title: string
+    type: string
+  }> // Pre-loaded chapters from API
+  streamTitle?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -234,6 +240,13 @@ const toggleChapterUI = () => {
 
 // Chapter loading
 const loadChapters = async () => {
+  // First, check if we have pre-loaded chapters from props
+  if (props.chapters && props.chapters.length > 0) {
+    chapters.value = convertApiChaptersToInternal(props.chapters)
+    console.log('Loaded', chapters.value.length, 'chapters from props')
+    return
+  }
+
   if (props.streamId && props.autoChapters) {
     try {
       // Fetch chapters from StreamVault API
@@ -264,6 +277,41 @@ const loadChapters = async () => {
       console.warn('Failed to load WebVTT chapters:', e)
     }
   }
+}
+
+// Convert API chapters to internal format
+const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, title: string, type: string}>) => {
+  return apiChapters.map((chapter, index) => ({
+    title: chapter.title || `Chapter ${index + 1}`,
+    startTime: parseTimeStringToSeconds(chapter.start_time),
+    duration: 60, // Default duration, can be calculated between chapters
+    gameIcon: undefined
+  }))
+}
+
+// Parse time string to seconds
+const parseTimeStringToSeconds = (timeString: string): number => {
+  if (!timeString) return 0
+  
+  // Handle ISO datetime format
+  if (timeString.includes('T')) {
+    // For now, just return 0 as we'd need the stream start time to calculate offset
+    return 0
+  }
+  
+  // Handle HH:MM:SS.mmm or MM:SS format
+  const parts = timeString.split(':')
+  if (parts.length === 2) {
+    // MM:SS format
+    const [minutes, seconds] = parts
+    return parseInt(minutes) * 60 + parseFloat(seconds)
+  } else if (parts.length === 3) {
+    // HH:MM:SS.mmm format
+    const [hours, minutes, seconds] = parts
+    return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
+  }
+  
+  return 0
 }
 
 const parseWebVTTChapters = (vttText: string) => {
@@ -381,6 +429,14 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
 })
+
+// Watch for changes in chapters prop
+watch(() => props.chapters, (newChapters) => {
+  if (newChapters && newChapters.length > 0) {
+    chapters.value = convertApiChaptersToInternal(newChapters)
+    console.log('Updated', chapters.value.length, 'chapters from props')
+  }
+}, { immediate: true })
 
 const decodedVideoSrc = computed(() => {
   if (!props.videoSrc) return ''
