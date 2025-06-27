@@ -266,7 +266,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                 chunk_size = end - start + 1
                 
                 def generate_chunk():
-                    with open(file_path, 'rb') as f:
+                    with open(str(file_path), 'rb') as f:
                         f.seek(start)
                         remaining = chunk_size
                         while remaining > 0:
@@ -295,7 +295,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         else:
             # No range request, stream entire file
             def generate_file():
-                with open(file_path, 'rb') as f:
+                with open(str(file_path), 'rb') as f:
                     while True:
                         data = f.read(8192)
                         if not data:
@@ -398,7 +398,7 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
                 chunk_size = end - start + 1
                 
                 def generate_chunk():
-                    with open(file_path, 'rb') as f:
+                    with open(str(file_path), 'rb') as f:
                         f.seek(start)
                         remaining = chunk_size
                         while remaining > 0:
@@ -427,7 +427,7 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
         
         # Return full file
         return FileResponse(
-            file_path,
+            str(file_path),
             media_type=mime_type,
             filename=decoded_filename
         )
@@ -683,35 +683,32 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         if not recordings_dir:
             raise HTTPException(status_code=500, detail="Recordings directory not configured")
         
-        # Search for the file in the recordings directory
-        recordings_path = Path(recordings_dir)
-        if not recordings_path.exists():
-            raise HTTPException(status_code=404, detail="Recordings directory not found")
+        # Security: Only allow video files and use safe file access
+        if not is_video_file(sanitized_filename):
+            raise HTTPException(status_code=404, detail="Video file not found")
         
-        # Construct the full file path
-        potential_path = recordings_path / sanitized_filename
+        # Use safe file access to prevent path injection
         try:
-            normalized_path = potential_path.resolve(strict=True)
-        except FileNotFoundError:
+            # Create a safe path that isolates user input from path operations
+            safe_path = safe_file_access(recordings_dir, "", sanitized_filename)
+            if not safe_path.exists() or not safe_path.is_file():
+                raise HTTPException(status_code=404, detail="Video file not found")
+            
+            # Use the safe path for all subsequent operations
+            file_path = safe_path
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error accessing file {sanitized_filename}: {e}")
             raise HTTPException(status_code=404, detail="Video file not found")
         
-        # Validate that the path is within the recordings directory and not a symbolic link outside it
-        if os.path.commonpath([recordings_path.resolve(), normalized_path]) != str(recordings_path.resolve()) or not normalized_path.is_file():
-            raise HTTPException(status_code=400, detail="Invalid file path")
-        
-        # Check if the file is a valid video file
-        if not is_video_file(str(normalized_path)):
-            raise HTTPException(status_code=404, detail="Video file not found")
-        
-        file_path = normalized_path
-        
-        # Get file info
+        # Get file info using safe path
         try:
             file_size = file_path.stat().st_size
         except OSError:
             raise HTTPException(status_code=500, detail="Error accessing file")
         
-        # Get MIME type
+        # Get MIME type using safe path
         mime_type, _ = mimetypes.guess_type(str(file_path))
         if not mime_type:
             mime_type = "video/mp4"
@@ -732,7 +729,8 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
                 chunk_size = end - start + 1
                 
                 def generate_chunk():
-                    with open(file_path, 'rb') as f:
+                    # Use safe path for file operations
+                    with open(str(file_path), 'rb') as f:
                         f.seek(start)
                         remaining = chunk_size
                         while remaining > 0:
@@ -759,9 +757,9 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
                 # Invalid range header, serve full file
                 pass
         
-        # Return full file
+        # Return full file using safe path
         return FileResponse(
-            file_path,
+            str(file_path),
             media_type=mime_type,
             filename=decoded_filename
         )
