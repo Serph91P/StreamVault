@@ -1,4 +1,4 @@
-const CACHE_NAME = 'streamvault-v8'
+const CACHE_NAME = 'streamvault-v10'
 const urlsToCache = [
   '/',
   '/?source=pwa',
@@ -66,11 +66,24 @@ self.addEventListener('fetch', event => {
     return
   }
   
-  // For API requests, always use network first
+  // Skip video streaming requests - let browser handle these directly
+  if (url.pathname.includes('/api/videos/stream/') || 
+      url.pathname.includes('/api/videos/') ||
+      event.request.destination === 'video' ||
+      event.request.destination === 'audio' ||
+      event.request.headers.get('range')) {
+    // Don't intercept video/audio requests or range requests
+    console.log('Service Worker: Skipping video/audio request:', url.pathname)
+    return
+  }
+  
+  // For API requests (except videos), always use network first
   if (url.pathname.includes('/api/') || url.pathname.includes('/auth/')) {
+    console.log('Service Worker: Handling API request:', url.pathname)
     event.respondWith(
       fetch(event.request)
-        .catch(() => {
+        .catch(error => {
+          console.error('Service Worker: API request failed:', error)
           return caches.match(event.request)
         })
     )
@@ -79,6 +92,7 @@ self.addEventListener('fetch', event => {
   
   // For navigation requests (HTML pages), implement fallback to index.html for SPA routing
   if (event.request.mode === 'navigate') {
+    console.log('Service Worker: Handling navigation request:', url.pathname)
     event.respondWith(
       fetch(event.request)
         .then(response => {
@@ -101,13 +115,25 @@ self.addEventListener('fetch', event => {
   }
   
   // For other requests (assets), use cache first with network fallback
+  console.log('Service Worker: Handling asset request:', url.pathname)
   event.respondWith(
     caches.match(event.request)
       .then(response => {
         if (response) {
+          console.log('Service Worker: Serving from cache:', url.pathname)
           return response
         }
+        console.log('Service Worker: Fetching from network:', url.pathname)
         return fetch(event.request)
+          .catch(error => {
+            console.error('Service Worker: Network request failed:', url.pathname, error)
+            throw error
+          })
+      })
+      .catch(error => {
+        console.error('Service Worker: Cache match failed:', url.pathname, error)
+        // Return a fallback response or re-throw
+        throw error
       })
   )
 })

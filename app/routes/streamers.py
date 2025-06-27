@@ -58,7 +58,7 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
 
     except Exception as e:
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to delete subscriptions. Please try again.")
 
 @router.post("/resubscribe-all", status_code=200)
 async def resubscribe_all(
@@ -119,7 +119,7 @@ async def resubscribe_all(
         
     except Exception as e:
         logger.error(f"Failed to resubscribe to all events: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to resubscribe to events. Please try again.")
 
 @router.post("/{username}")
 async def add_streamer(
@@ -201,7 +201,7 @@ async def add_streamer(
         logger.error(f"Error adding streamer: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"message": f"Error adding streamer: {str(e)}"}
+            content={"message": "Failed to add streamer. Please try again."}
         )
 
 async def setup_eventsub_background(
@@ -220,7 +220,7 @@ async def setup_eventsub_background(
         logger.error(f"Background EventSub setup failed: {e}")
         await streamer_service.notify({
             "type": "error",
-            "message": f"Failed to set up notifications for {username}: {str(e)}"
+            "message": f"Failed to set up notifications for {username}. Please try again."
         })
 
 @router.delete("/{streamer_id}")
@@ -249,7 +249,7 @@ async def delete_streamer(
         logger.error(f"Error deleting streamer: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"success": False, "message": str(e)}
+            content={"success": False, "message": "Failed to delete streamer. Please try again."}
         )
 
 @router.get("/streamer/{streamer_id}")
@@ -285,7 +285,7 @@ async def delete_all_subscriptions(
         return result
     except Exception as e:
         logger.error(f"Failed to delete subscriptions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to delete subscriptions. Please try again.")
 
 @router.get("/{streamer_id}/streams", response_model=dict)
 async def get_streams_by_streamer_id(
@@ -352,7 +352,7 @@ async def get_streams_by_streamer_id(
         raise
     except Exception as e:
         logger.error(f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve streams. Please try again.")
 
 @router.delete("/{streamer_id}/streams/{stream_id}")
 async def delete_stream(
@@ -431,7 +431,7 @@ async def delete_stream(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting stream {stream_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to delete stream. Please try again.")
 
 @router.get("/validate/{username}")
 async def validate_streamer(
@@ -484,7 +484,7 @@ async def validate_streamer(
         logger.error(f"Error validating streamer: {e}", exc_info=True)
         return {
             "valid": False,
-            "message": f"Error validating streamer: {str(e)}"
+            "message": "Failed to validate streamer. Please try again."
         }
 
 @router.get("/{streamer_id}/streams/{stream_id}/chapters")
@@ -597,7 +597,7 @@ async def get_stream_chapters(
         raise
     except Exception as e:
         logger.error(f"Error getting chapters for stream {stream_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to load stream chapters. Please try again.")
 
 def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
     """Parse WebVTT chapter content and return chapter data"""

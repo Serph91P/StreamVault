@@ -185,7 +185,8 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         
     except Exception as e:
         logger.error(f"DEBUG: Exception: {e}")
-        return {"error": str(e), "type": type(e).__name__}
+        # Don't expose internal error details to users
+        return {"error": "Internal error occurred", "success": False}
 
 @router.get("/videos/stream/{stream_id}")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
@@ -280,7 +281,8 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                     "Content-Range": f"bytes {start}-{end}/{file_size}",
                     "Accept-Ranges": "bytes",
                     "Content-Length": str(chunk_size),
-                    "Content-Type": mime_type
+                    "Content-Type": mime_type,
+                    "Cache-Control": "no-cache"
                 }
                 
                 return StreamingResponse(
@@ -303,7 +305,8 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             headers = {
                 "Content-Length": str(file_size),
                 "Accept-Ranges": "bytes",
-                "Content-Type": mime_type
+                "Content-Type": mime_type,
+                "Cache-Control": "no-cache"
             }
             
             return StreamingResponse(
