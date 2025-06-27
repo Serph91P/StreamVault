@@ -11,6 +11,11 @@ import uuid
 import time
 import functools
 import aiohttp
+import asyncio
+import os
+import subprocess
+import uuid
+import functools
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Tuple, Callable
@@ -44,34 +49,38 @@ class RecordingActivityLogger:
     
     def __init__(self):
         self.session_id = str(uuid.uuid4())[:8]
+        self.logger = logging_service.recording_logger
     
     def log_recording_start(self, streamer_id: int, streamer_name: str, quality: str, output_path: str):
         """Log the start of a recording session"""
-        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
-        recording_logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
+        self.logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
+        self.logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
     
     def log_recording_stop(self, streamer_id: int, streamer_name: str, reason: str = "manual"):
         """Log the stop of a recording session"""
-        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Reason: {reason}")
+        self.logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Reason: {reason}")
     
     def log_recording_error(self, streamer_id: int, streamer_name: str, error: str):
         """Log recording errors"""
-        recording_logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
+        self.logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
     
     def log_process_monitoring(self, streamer_name: str, action: str, details: str = ""):
         """Log process monitoring activities"""
-        recording_logger.debug(f"[SESSION:{self.session_id}] PROCESS_MONITOR - {streamer_name}: {action} {details}")
+        self.logger.debug(f"[SESSION:{self.session_id}] PROCESS_MONITOR - {streamer_name}: {action} {details}")
     
     def log_file_operation(self, operation: str, file_path: str, success: bool, details: str = ""):
         """Log file operations (remux, conversion, etc.)"""
         status = "SUCCESS" if success else "FAILED"
-        recording_logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
+        self.logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
     
     def log_stream_detection(self, streamer_name: str, is_live: bool, stream_info: Optional[dict] = None):
         """Log stream detection and status"""
         status = "LIVE" if is_live else "OFFLINE"
-        recording_logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
+        self.logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
         if stream_info:
+            title = stream_info.get('title', 'Unknown')
+            category = stream_info.get('category_name', 'Unknown')
+            self.logger.info(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'")
             recording_logger.debug(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}")
     
     def log_configuration_change(self, setting: str, old_value: Any, new_value: Any, streamer_id: Optional[int] = None):
@@ -381,7 +390,14 @@ class RecordingService:
             self.subprocess_manager = subprocess_manager or SubprocessManager()
             self.media_server_service = MediaServerStructureService()
             self.activity_logger = RecordingActivityLogger()
+            
+            # Initialize logging integration
+            self.logger = logging_service.recording_logger
+            self.streamlink_logger = logging_service.streamlink_logger
+            self.ffmpeg_logger = logging_service.ffmpeg_logger
+            
             self.initialized = True
+            logger.info("RecordingService initialized successfully with logging integration")
             # Dependencies are now injected in __new__
 
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
@@ -1506,6 +1522,8 @@ class RecordingService:
                         ])
 
             # Log the command start
+            self.streamlink_logger.info(f"[STREAMLINK_START] {streamer_name} - Quality: {quality}")
+            self.streamlink_logger.info(f"[STREAMLINK_CMD] {' '.join(cmd)}")
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
@@ -1639,6 +1657,8 @@ class RecordingService:
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
 
             # Log the command start
+            self.ffmpeg_logger.info(f"[FFMPEG_REMUX_START] {streamer_name} - {ts_path} -> {mp4_path}")
+            self.ffmpeg_logger.info(f"[FFMPEG_CMD] {' '.join(cmd)}")
             logging_service.log_ffmpeg_start("remux", cmd, streamer_name)
 
             logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
