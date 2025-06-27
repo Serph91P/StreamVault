@@ -31,6 +31,7 @@ from app.models import (
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
 from app.services.logging_service import logging_service
+from app.services.media_server_structure_service import MediaServerStructureService
 from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
@@ -378,6 +379,7 @@ class RecordingService:
             self.metadata_service = metadata_service or MetadataService()
             self.config_manager = config_manager or ConfigManager()
             self.subprocess_manager = subprocess_manager or SubprocessManager()
+            self.media_server_service = MediaServerStructureService()
             self.activity_logger = RecordingActivityLogger()
             self.initialized = True
             # Dependencies are now injected in __new__
@@ -1237,8 +1239,32 @@ class RecordingService:
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
             await self._generate_stream_metadata(stream_id, mp4_path)
 
+            # Create optimized media server structure
+            logger.info(f"Creating media server structure for stream {stream_id}")
+            media_server_service = MediaServerStructureService()
+            try:
+                new_mp4_path = await media_server_service.create_media_server_structure(
+                    stream_id, mp4_path
+                )
+                if new_mp4_path:
+                    logger.info(f"Successfully created media server structure for stream {stream_id}")
+                    # Update the recording path to the new location
+                    await self._update_recording_path(stream_id, new_mp4_path)
+                else:
+                    logger.warning(f"Failed to create media server structure for stream {stream_id}")
+            finally:
+                await media_server_service.close()
+
+            # Clean up all temporary files after successful metadata generation
+            await self._cleanup_temporary_files(mp4_path)
+            
         except Exception as e:
-            logger.error(f"Error in delayed metadata generation: {e}", exc_info=True)
+            logger.error(f"Error generating metadata for stream {stream_id}: {e}", exc_info=True)
+            # Still attempt to clean up temporary files even if metadata generation failed
+            try:
+                await self._cleanup_temporary_files(mp4_path)
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary files: {cleanup_error}")
 
     async def _find_and_validate_mp4(self, output_path: str) -> Optional[str]:
         """Find and validate the MP4 file after remuxing"""
@@ -1960,7 +1986,7 @@ class RecordingService:
                 "-f",
                 "h264",
                 f"{ts_path}.h264",
-                # Extract audio and convert to AAC
+                               # Extract audio and convert to AAC
                 "-map",
                 "0:a:0",
                 "-c:a",
@@ -2169,20 +2195,23 @@ class RecordingService:
 
             # Close metadata service
             await self.metadata_service.close()
+            
+            # Close media server structure service
+            if hasattr(self, 'media_server_service'):
+                await self.media_server_service.close()
+                
             logger.info("Recording service cleanup completed")
 
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
 
-# Filename presets
-
-
+# Filename presets optimized for media servers
 FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - E{episode} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}{month}e{episode} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - E{episode} - {title} - {hour}-{minute}",
+    "default": "{streamer}/{streamer}_{year}-{month:02d}-{day:02d}_{hour:02d}-{minute:02d}_{title}_{game}",
+    "plex": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "emby": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "jellyfin": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "kodi": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "chronological": "{year}/{month:02d}/{day:02d}/{streamer} - E{episode:02d} - {title} - {hour:02d}-{minute:02d}",
 }
