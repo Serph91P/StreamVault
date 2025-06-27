@@ -6,7 +6,7 @@ from typing import List
 import logging
 from pathlib import Path
 import mimetypes
-import re
+from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer
@@ -655,9 +655,10 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid filename encoding")
         
-        # Security: Validate filename format
-        if not re.match(r'^[a-zA-Z0-9\-_. ]+\.mp4$', decoded_filename):
-            raise HTTPException(status_code=400, detail="Invalid filename format")
+        # Security: Sanitize filename
+        sanitized_filename = secure_filename(decoded_filename)
+        if not sanitized_filename or sanitized_filename != decoded_filename:
+            raise HTTPException(status_code=400, detail="Invalid or unsafe filename")
         
         recordings_dir = get_recordings_directory()
         if not recordings_dir:
