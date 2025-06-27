@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 import xml.etree.ElementTree as ET
+from sqlalchemy import extract
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
