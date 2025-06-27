@@ -552,6 +552,14 @@ async def get_stream_chapters(
             
             logger.debug(f"Generated {len(chapters)} chapters from events")
         
+        # If still no chapters, create a basic chapter for the stream start
+        if not chapters and stream.started_at:
+            chapters.append({
+                "start_time": stream.started_at.isoformat(),
+                "title": stream.title or "Stream",
+                "type": "stream"
+            })
+        
         # Return chapter data with metadata
         video_url = None
         if stream.recording_path:
