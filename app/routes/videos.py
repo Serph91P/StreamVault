@@ -791,4 +791,4 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
         
     except Exception as e:
         logger.error(f"Error in test endpoint: {e}", exc_info=True)
-        return {"error": str(e)}
+        return {"error": "An internal error has occurred"}
