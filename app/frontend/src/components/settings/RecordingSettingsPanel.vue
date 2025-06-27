@@ -75,8 +75,8 @@
                 <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
                   {{ variable.key }}
                 </span>
-                <br><br><strong>Example output:</strong>
-                <code class="example-output">stremername - S202506E01 - Just Chatting Stream.mp4</code>
+                <br><br><strong>Example output: </strong>
+                <code class="example-output">Streamername - S202506E01 - Just Chatting Stream.mp4</code>
                 <br><small>Episode numbers (E01, E02, E03) are based on stream order within the month, not date.</small>
               </div>
             </div>
@@ -1360,15 +1360,16 @@ select.form-control-sm option {
 
   .variable-tag {
     display: inline-block;
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background-color: var(--background-dark, #2a2a2a);
+    color: var(--text-primary, #f1f1f3);
+    border: 1px solid var(--border-color, #404040);
     border-radius: 4px;
-    padding: 2px 6px;
-    margin: 2px 4px 2px 0;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85em;
+    padding: 4px 8px;
+    margin: 4px 8px 4px 0;
+    font-family: 'Courier New', 'Monaco', monospace;
+    font-size: 0.8em;
     font-weight: 500;
+    white-space: nowrap;
   }
 
   .example-output {
