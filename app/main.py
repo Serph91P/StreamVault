@@ -219,7 +219,7 @@ app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
-app.include_router(videos.router)
+app.include_router(videos.router)  # Router already has /api prefix
 
 # Push notification routes
 from app.routes import push as push_router
@@ -442,6 +442,18 @@ async def serve_video(file_path: str):
     except Exception as e:
         logger.error(f"Error serving video: {e}")
         raise HTTPException(status_code=500, detail="Error serving video file")
+
+# Direct video streaming routes (without auth requirements for better performance)
+@app.get("/video/{filename:path}")
+async def stream_video_direct(filename: str, request: Request):
+    """Direct video streaming route for player compatibility"""
+    try:
+        # Import here to avoid circular imports
+        from app.routes.videos import stream_video_by_filename
+        return await stream_video_by_filename(filename, request)
+    except Exception as e:
+        logger.error(f"Error in direct video streaming: {e}")
+        raise HTTPException(status_code=500, detail="Video streaming error")
 
 # Root route to serve index.html
 @app.get("/")
