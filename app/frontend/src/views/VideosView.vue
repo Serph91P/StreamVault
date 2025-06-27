@@ -51,8 +51,19 @@
       <button @click="loadVideos" class="retry-btn">Try Again</button>
     </div>
 
+    <!-- Debug Info (temporary) -->
+    <div style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px;">
+      <strong>Debug Info:</strong><br>
+      Loading: {{ loading }}<br>
+      Error: {{ error }}<br>
+      Raw videos count: {{ videos.length }}<br>
+      Filtered videos count: {{ filteredVideos.length }}<br>
+      Active filter: {{ activeFilter }}<br>
+      Search query: "{{ searchQuery }}"
+    </div>
+
     <!-- Videos Grid -->
-    <div v-else-if="filteredVideos.length > 0" class="videos-grid">
+    <div v-if="!loading && !error && filteredVideos.length > 0" class="videos-grid">
       <div 
         v-for="video in filteredVideos" 
         :key="video.id"
@@ -95,7 +106,7 @@
         </div>
       </div>
     </div>    <!-- Empty State -->
-    <div v-else class="empty-state">
+    <div v-else-if="!loading && !error" class="empty-state">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <polygon points="23 7 16 12 23 17 23 7"></polygon>
         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
@@ -134,15 +145,17 @@ const filters = [
 ]
 
 const filteredVideos = computed(() => {
+  console.log('Computing filtered videos, total videos:', videos.value.length, videos.value)
   let filtered = videos.value
 
   // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(video => 
-      video.title.toLowerCase().includes(query) ||
-      video.streamer_name.toLowerCase().includes(query)
+      (video.title || '').toLowerCase().includes(query) ||
+      (video.streamer_name || '').toLowerCase().includes(query)
     )
+    console.log('After search filter:', filtered.length)
   }
 
   // Filter by date
@@ -162,22 +175,48 @@ const filteredVideos = computed(() => {
         break
     }
     
-    filtered = filtered.filter(video => 
-      new Date(video.created_at) >= filterDate
-    )
+    filtered = filtered.filter(video => {
+      if (!video.created_at) return false
+      try {
+        const videoDate = new Date(video.created_at)
+        return videoDate >= filterDate
+      } catch (e) {
+        console.warn('Invalid date format:', video.created_at)
+        return false
+      }
+    })
+    console.log('After date filter:', filtered.length)
   }
 
   // Sort by date (newest first)
-  return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const result = filtered.sort((a, b) => {
+    try {
+      const dateA = new Date(a.created_at || 0)
+      const dateB = new Date(b.created_at || 0)
+      return dateB - dateA
+    } catch (e) {
+      return 0
+    }
+  })
+  
+  console.log('Final filtered videos:', result.length, result)
+  return result
 })
 
 const loadVideos = async () => {
   try {
     loading.value = true
     error.value = null
+    console.log('Making API request to /api/videos...')
     const response = await api.get('/api/videos')
-    videos.value = response.data || []
-    console.log(`Loaded ${videos.value.length} videos`)
+    console.log('Raw API response:', response)
+    console.log('Response type:', typeof response)
+    console.log('Is array:', Array.isArray(response))
+    
+    // API returns array directly, not wrapped in data
+    videos.value = Array.isArray(response) ? response : (response.data || [])
+    console.log('Final videos array:', videos.value)
+    console.log(`Loaded ${videos.value.length} videos`, videos.value)
   } catch (err) {
     console.error('Error loading videos:', err)
     error.value = err.response?.data?.detail || 'Failed to load videos'
