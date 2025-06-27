@@ -344,7 +344,8 @@ async def serve_pwa_helper():
 # PWA Icons - serve from public directory
 @app.get("/{icon_file}")
 async def serve_pwa_icons(icon_file: str):
-    # Only serve known PWA icon files
+    # SECURITY: Complete isolation of user input from file operations
+    # Step 1: Strict allowlist validation - no user data flows to file operations
     pwa_files = {
         'android-icon-36x36.png', 'android-icon-48x48.png', 'android-icon-72x72.png',
         'android-icon-96x96.png', 'android-icon-144x144.png', 'android-icon-192x192.png',
@@ -357,32 +358,55 @@ async def serve_pwa_icons(icon_file: str):
         'ms-icon-70x70.png', 'ms-icon-144x144.png', 'ms-icon-150x150.png', 'ms-icon-310x310.png'
     }
     
-    if icon_file in pwa_files:
+    # Step 2: Early validation - reject if not in allowlist
+    if icon_file not in pwa_files:
+        return Response(status_code=404)
+    
+    # Step 3: Additional security checks
+    if ".." in icon_file or "/" in icon_file or "\\" in icon_file:
+        return Response(status_code=404)
+    
+    # Step 4: Create safe file mapping - completely disconnect user input from file paths
+    # This mapping ensures no user data ever flows to file operations
+    safe_file_mappings = {}
+    base_directories = ["app/frontend/public", "/app/app/frontend/public"]
+    
+    for base_dir in base_directories:
+        try:
+            base_path = Path(base_dir)
+            if not base_path.exists():
+                continue
+                
+            # Pre-validate each allowed file independently
+            for allowed_file in pwa_files:
+                safe_path = base_path / allowed_file
+                if safe_path.exists() and safe_path.is_file():
+                    safe_file_mappings[allowed_file] = safe_path
+                    break  # Found in this directory, no need to check others
+        except Exception as e:
+            logger.warning(f"Error scanning directory {base_dir}: {e}")
+            continue
+    
+    # Step 5: Serve file using safe mapping (no user input in file operations)
+    if icon_file in safe_file_mappings:
+        safe_path = safe_file_mappings[icon_file]
+        
         # Determine media type based on file extension
         media_type = "image/png"
         if icon_file.endswith('.ico'):
             media_type = "image/x-icon"
         elif icon_file.endswith('.svg'):
             media_type = "image/svg+xml"
-            
-        for base_path in ["app/frontend/public", "/app/app/frontend/public"]:
-            try:
-                # Secure path construction to prevent path traversal
-                base_path_obj = Path(base_path).resolve()
-                icon_path = base_path_obj / icon_file
-                
-                # Ensure the resolved path is still within the base directory
-                if not str(icon_path.resolve()).startswith(str(base_path_obj)):
-                    continue
-                    
-                if icon_path.exists() and icon_path.is_file():
-                    return FileResponse(
-                        str(icon_path),
-                        media_type=media_type,
-                        headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
-                    )
-            except Exception:
-                continue
+        
+        try:
+            return FileResponse(
+                str(safe_path),
+                media_type=media_type,
+                headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
+            )
+        except Exception as e:
+            logger.warning(f"Error serving icon file: {e}")
+    
     return Response(status_code=404)
 
 # Root route to serve index.html
