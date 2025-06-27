@@ -281,7 +281,8 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                     "Content-Range": f"bytes {start}-{end}/{file_size}",
                     "Accept-Ranges": "bytes",
                     "Content-Length": str(chunk_size),
-                    "Content-Type": mime_type
+                    "Content-Type": mime_type,
+                    "Cache-Control": "no-cache"
                 }
                 
                 return StreamingResponse(
@@ -304,7 +305,8 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             headers = {
                 "Content-Length": str(file_size),
                 "Accept-Ranges": "bytes",
-                "Content-Type": mime_type
+                "Content-Type": mime_type,
+                "Cache-Control": "no-cache"
             }
             
             return StreamingResponse(
