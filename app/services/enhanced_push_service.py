@@ -1,36 +1,38 @@
+"""
+Enhanced Push Service using a more modern implementation
+"""
 import json
 import logging
-import base64
 from typing import Dict, Any, Optional
-from pywebpush import webpush, WebPushException
 from app.config.settings import settings
+from app.services.webpush_service import ModernWebPushService, WebPushException
 
 logger = logging.getLogger("streamvault")
 
-class PushService:
+class EnhancedPushService:
     def __init__(self):
         self.settings = settings
         
-        # VAPID keys - pywebpush expects raw DER bytes for private key
-        vapid_private_key_raw = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
-        vapid_public_key_raw = getattr(self.settings, 'VAPID_PUBLIC_KEY', None)
-        
-        # For pywebpush, we need to pass the private key as raw DER bytes
-        if vapid_private_key_raw and isinstance(vapid_private_key_raw, str):
-            try:
-                # Decode from base64 to get the raw DER bytes
-                self.vapid_private_key = base64.b64decode(vapid_private_key_raw)
-            except Exception as e:
-                logger.error(f"Failed to decode VAPID private key: {e}")
-                self.vapid_private_key = None
-        else:
-            self.vapid_private_key = vapid_private_key_raw
-              # For public key, keep it as base64 string for frontend API
-        self.vapid_public_key = vapid_public_key_raw
+        # Get VAPID keys from settings
+        vapid_private_key = getattr(self.settings, 'VAPID_PRIVATE_KEY', None)
+        self.vapid_public_key = getattr(self.settings, 'VAPID_PUBLIC_KEY', None)
             
-        self.vapid_claims = {
+        # VAPID claims for the sender
+        vapid_claims = {
             "sub": getattr(self.settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
         }
+        
+        # Initialize web push service if keys are available
+        self.web_push_service = None
+        if vapid_private_key and self.vapid_public_key:
+            try:
+                self.web_push_service = ModernWebPushService(
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims
+                )
+                logger.info("Enhanced Web Push Service initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Web Push Service: {e}")
     
     async def send_notification(
         self, 
@@ -39,7 +41,7 @@ class PushService:
     ) -> bool:
         """Send a push notification to a specific subscription"""
         try:
-            if not self.vapid_private_key or not self.vapid_public_key:
+            if not self.web_push_service or not self.vapid_public_key:
                 logger.warning("VAPID keys not configured, cannot send push notifications")
                 return False
             
@@ -48,28 +50,26 @@ class PushService:
             
             # Debug logging
             logger.debug(f"Sending push notification with payload: {payload[:100]}...")
-            logger.debug(f"Private key type: {type(self.vapid_private_key)}")
-            logger.debug(f"Private key length: {len(self.vapid_private_key) if self.vapid_private_key else 0}")
             
-            # Send the push notification using raw DER bytes
-            webpush(
+            # Send the push notification using our enhanced service
+            success = self.web_push_service.send_notification(
                 subscription_info=subscription,
-                data=payload,
-                vapid_private_key=self.vapid_private_key,  # This should be raw DER bytes
-                vapid_claims=self.vapid_claims
+                data=notification_data,
+                ttl=43200  # 12 hours TTL
             )
             
-            logger.debug(f"Push notification sent successfully to {subscription.get('endpoint', 'unknown')[:50]}...")
-            return True
+            if success:
+                logger.debug(f"Push notification sent successfully to {subscription.get('endpoint', 'unknown')[:50]}...")
+            return success
             
         except WebPushException as e:
             logger.error(f"WebPush error: {e}")
-              # Handle different error codes
-            if e.response and e.response.status_code == 410:
+            # Handle different error codes
+            if hasattr(e, 'response') and e.response and e.response.status == 410:
                 # Subscription is no longer valid
                 logger.info(f"Subscription expired: {subscription.get('endpoint', 'unknown')[:50]}...")
                 return False
-            elif e.response and e.response.status_code == 413:
+            elif hasattr(e, 'response') and e.response and e.response.status == 413:
                 logger.warning("Payload too large")
                 return False
             else:
@@ -79,6 +79,8 @@ class PushService:
         except Exception as e:
             logger.error(f"Unexpected error sending push notification: {e}", exc_info=True)
             return False
+    
+    # Die folgenden Methoden bleiben unverändert, nur kopiere ich die erste als Beispiel:
     
     async def send_stream_online_notification(
         self, 
@@ -119,7 +121,8 @@ class PushService:
                 }
             ],
             "requireInteraction": True,
-            "tag": f"stream-online-{streamer_id}"        }
+            "tag": f"stream-online-{streamer_id}"
+        }
         
         return await self.send_notification(subscription, notification_data)
 
@@ -148,6 +151,7 @@ class PushService:
         }
         
         return await self.send_notification(subscription, notification_data)
+    
     async def send_recording_finished_notification(
         self,
         subscription: Dict[str, Any],
@@ -289,3 +293,6 @@ class PushService:
         }
         
         return await self.send_notification(subscription, notification_data)
+    
+# Shared instance for dependency injection
+enhanced_push_service = EnhancedPushService()
