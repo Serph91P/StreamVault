@@ -40,6 +40,35 @@
             <p>{{ errorMessage }}</p>
             <button @click="retryVideo" class="retry-btn">Retry</button>
           </div>
+
+          <!-- Chapter Navigation -->
+          <div v-if="chapters.length > 0 && !loading && !error" class="chapter-navigation">
+            <button 
+              @click="toggleChapters" 
+              class="chapters-toggle-btn"
+              :class="{ active: showChapters }"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="9" x2="15" y2="9"></line>
+                <line x1="9" y1="12" x2="15" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              Chapters ({{ chapters.length }})
+            </button>
+            <div v-if="showChapters" class="chapters-list">
+              <div 
+                v-for="(chapter, index) in chapters" 
+                :key="index"
+                @click="jumpToChapter(chapter)"
+                class="chapter-item"
+                :class="{ active: currentChapter === index }"
+              >
+                <div class="chapter-time">{{ formatChapterTime(chapter.start_time) }}</div>
+                <div class="chapter-title">{{ chapter.title || `Chapter ${index + 1}` }}</div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="video-details">
@@ -92,6 +121,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { streamerApi } from '../services/api.js'
 
 const props = defineProps({
   video: {
@@ -106,17 +136,19 @@ const videoPlayer = ref(null)
 const loading = ref(true)
 const error = ref(false)
 const errorMessage = ref('')
+const chapters = ref([])
+const showChapters = ref(false)
+const currentChapter = ref(-1)
 
 const videoUrl = computed(() => {
-  // Clean and encode the filename properly
-  const filename = props.video.title || 'video.mp4'
-  // Use the streaming route which handles URL decoding
-  return `/api/videos/stream/${props.video.streamer_name}/${encodeURIComponent(filename)}`
+  // Use the stream ID based endpoint
+  return `/api/videos/stream/${props.video.id}`
 })
 
 const closeModal = () => {
   if (videoPlayer.value) {
     videoPlayer.value.pause()
+    videoPlayer.value.removeEventListener('timeupdate', updateCurrentChapter)
   }
   emit('close')
 }
@@ -129,6 +161,11 @@ const onLoadStart = () => {
 const onCanPlay = () => {
   loading.value = false
   error.value = false
+  
+  // Add event listener for time updates to track current chapter
+  if (videoPlayer.value) {
+    videoPlayer.value.addEventListener('timeupdate', updateCurrentChapter)
+  }
 }
 
 const onError = (event) => {
@@ -180,7 +217,7 @@ const downloadVideo = () => {
 const shareVideo = async () => {
   const shareData = {
     title: props.video.title,
-    text: `Schau dir dieses Video von ${props.video.streamer_name} an!`,
+    text: `Check out this video from ${props.video.streamer_name}!`,
     url: window.location.href
   }
   
@@ -200,15 +237,15 @@ const shareVideo = async () => {
 const fallbackShare = () => {
   const url = window.location.href
   navigator.clipboard.writeText(url).then(() => {
-    alert('Link wurde in die Zwischenablage kopiert!')
+    alert('Link copied to clipboard!')
   }).catch(() => {
-    alert(`Link zum Teilen: ${url}`)
+    alert(`Share link: ${url}`)
   })
 }
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('de-DE', {
+  return date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -219,11 +256,13 @@ const formatDate = (dateString) => {
 }
 
 const formatDuration = (seconds) => {
-  if (!seconds) return 'Unbekannt'
+  if (!seconds) return 'Unknown'
   
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  // Round to whole seconds to avoid decimal display
+  const totalSeconds = Math.round(seconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const secs = totalSeconds % 60
   
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
@@ -233,11 +272,114 @@ const formatDuration = (seconds) => {
 }
 
 const formatFileSize = (bytes) => {
-  if (!bytes) return 'Unbekannt'
+  if (!bytes) return 'Unknown'
   
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
+}
+
+// Chapter navigation functions
+const loadChapters = async () => {
+  try {
+    if (!props.video.streamer_id || !props.video.id) {
+      console.warn('Missing streamer_id or stream id for loading chapters', {
+        streamer_id: props.video.streamer_id,
+        video_id: props.video.id
+      })
+      return
+    }
+    
+    const response = await streamerApi.getStreamChapters(props.video.streamer_id, props.video.id)
+    chapters.value = response.chapters || []
+    console.log(`Loaded ${chapters.value.length} chapters for stream ${props.video.id}`)
+  } catch (error) {
+    console.error('Failed to load chapters:', error)
+    chapters.value = []
+  }
+}
+
+const toggleChapters = () => {
+  showChapters.value = !showChapters.value
+}
+
+const jumpToChapter = (chapter) => {
+  if (!videoPlayer.value) return
+  
+  try {
+    const timeInSeconds = parseTimeToSeconds(chapter.start_time)
+    videoPlayer.value.currentTime = timeInSeconds
+    
+    // Update current chapter
+    const chapterIndex = chapters.value.indexOf(chapter)
+    currentChapter.value = chapterIndex
+    
+    console.log(`Jumped to chapter: ${chapter.title} at ${chapter.start_time} (${timeInSeconds}s)`)
+  } catch (error) {
+    console.error('Failed to jump to chapter:', error)
+  }
+}
+
+const parseTimeToSeconds = (timeString) => {
+  // Handle different time formats: "HH:MM:SS.mmm", "MM:SS", ISO datetime
+  if (!timeString) return 0
+  
+  // If it looks like an ISO datetime, convert to seconds from start
+  if (timeString.includes('T')) {
+    const chapterTime = new Date(timeString)
+    const streamStart = new Date(props.video.created_at || props.video.started_at)
+    return Math.max(0, (chapterTime - streamStart) / 1000)
+  }
+  
+  // Handle "HH:MM:SS.mmm" or "MM:SS" format
+  const parts = timeString.split(':')
+  if (parts.length === 2) {
+    // MM:SS format
+    const [minutes, seconds] = parts
+    return parseInt(minutes) * 60 + parseFloat(seconds)
+  } else if (parts.length === 3) {
+    // HH:MM:SS.mmm format
+    const [hours, minutes, seconds] = parts
+    return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
+  }
+  
+  return 0
+}
+
+const formatChapterTime = (timeString) => {
+  try {
+    const seconds = parseTimeToSeconds(timeString)
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    } else {
+      return `${minutes}:${secs.toString().padStart(2, '0')}`
+    }
+  } catch (error) {
+    return timeString
+  }
+}
+
+const updateCurrentChapter = () => {
+  if (!videoPlayer.value || chapters.value.length === 0) return
+  
+  const currentTime = videoPlayer.value.currentTime
+  let newCurrentChapter = -1
+  
+  for (let i = chapters.value.length - 1; i >= 0; i--) {
+    const chapterTime = parseTimeToSeconds(chapters.value[i].start_time)
+    if (currentTime >= chapterTime) {
+      newCurrentChapter = i
+      break
+    }
+  }
+  
+  if (newCurrentChapter !== currentChapter.value) {
+    currentChapter.value = newCurrentChapter
+  }
 }
 
 // Handle ESC key
@@ -250,6 +392,9 @@ const handleKeydown = (event) => {
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   document.body.style.overflow = 'hidden'
+  
+  // Load chapters for this stream
+  loadChapters()
 })
 
 onBeforeUnmount(() => {
@@ -449,6 +594,179 @@ onBeforeUnmount(() => {
   border-color: var(--primary-color, #6f42c1);
 }
 
+/* Chapter Navigation Styles */
+.chapter-navigation {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+.chapters-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s;
+  backdrop-filter: blur(4px);
+}
+
+.chapters-toggle-btn:hover,
+.chapters-toggle-btn.active {
+  background: rgba(0, 0, 0, 0.95);
+  border-color: var(--primary-color, #6f42c1);
+  color: var(--primary-color, #6f42c1);
+}
+
+.chapters-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 250px;
+  max-width: 350px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.chapter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item:last-child {
+  border-bottom: none;
+}
+
+.chapter-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item.active {
+  background: var(--primary-color, #6f42c1);
+  color: white;
+}
+
+.chapter-time {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.chapter-item.active .chapter-time {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chapter-title {
+  font-size: 0.9rem;
+  color: white;
+  font-weight: 500;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Chapter Navigation */
+.chapter-navigation {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+.chapters-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+  backdrop-filter: blur(5px);
+}
+
+.chapters-toggle-btn:hover,
+.chapters-toggle-btn.active {
+  background: rgba(111, 66, 193, 0.8);
+  border-color: var(--primary-color, #6f42c1);
+}
+
+.chapters-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 8px;
+  padding: 8px 0;
+  min-width: 250px;
+  max-width: 350px;
+  max-height: 300px;
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.chapter-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.chapter-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item.active {
+  background: rgba(111, 66, 193, 0.3);
+  border-left-color: var(--primary-color, #6f42c1);
+}
+
+.chapter-time {
+  font-size: 0.8rem;
+  color: var(--primary-color, #6f42c1);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.chapter-title {
+  font-size: 0.9rem;
+  color: white;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+.chapter-item.active .chapter-title {
+  font-weight: 500;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .video-modal-overlay {
@@ -487,6 +805,36 @@ onBeforeUnmount(() => {
     flex: 1;
     justify-content: center;
   }
+
+  /* Chapter Navigation Mobile */
+  .chapter-navigation {
+    top: 10px;
+    right: 10px;
+  }
+
+  .chapters-toggle-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
+  .chapters-list {
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 250px;
+    right: -10px;
+  }
+
+  .chapter-item {
+    padding: 8px 12px;
+  }
+
+  .chapter-time {
+    font-size: 0.75rem;
+  }
+
+  .chapter-title {
+    font-size: 0.85rem;
+  }
 }
 
 /* Landscape mobile */
@@ -501,6 +849,15 @@ onBeforeUnmount(() => {
   
   .modal-header {
     padding: 10px 15px;
+  }
+
+  .chapter-navigation {
+    top: 60px;
+    right: 10px;
+  }
+
+  .chapters-list {
+    max-height: 200px;
   }
 }
 </style>

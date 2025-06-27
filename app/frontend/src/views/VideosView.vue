@@ -31,6 +31,20 @@
           {{ filter.label }}
         </button>
       </div>
+
+      <div class="category-filter" v-if="availableCategories.length > 1">
+        <h4>Filter by Category:</h4>
+        <div class="category-buttons">
+          <button 
+            v-for="category in availableCategories" 
+            :key="category.value"
+            @click="activeCategoryFilter = category.value"
+            :class="['category-btn', { active: activeCategoryFilter === category.value }]"
+          >
+            {{ category.label }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -39,11 +53,23 @@
       <p>Loading videos...</p>
     </div>
 
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+      <h3>Error loading videos</h3>
+      <p>{{ error }}</p>
+      <button @click="loadVideos" class="retry-btn">Try Again</button>
+    </div>
+
     <!-- Videos Grid -->
     <div v-else-if="filteredVideos.length > 0" class="videos-grid">
       <div 
         v-for="video in filteredVideos" 
-        :key="`${video.streamer_name}-${video.title}`"
+        :key="video.id"
         class="video-card"
         @click="openVideoModal(video)"
       >
@@ -76,6 +102,7 @@
         <div class="video-info">
           <h3 class="video-title">{{ video.title }}</h3>
           <p class="video-streamer">{{ video.streamer_name }}</p>
+          <p v-if="video.category_name" class="video-category">🎮 {{ video.category_name }}</p>
           <div class="video-meta">
             <span class="video-date">{{ formatDate(video.created_at) }}</span>
             <span class="video-size" v-if="video.file_size">{{ formatFileSize(video.file_size) }}</span>
@@ -83,7 +110,7 @@
         </div>
       </div>
     </div>    <!-- Empty State -->
-    <div v-else class="empty-state">
+    <div v-else-if="!loading && !error" class="empty-state">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <polygon points="23 7 16 12 23 17 23 7"></polygon>
         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
@@ -110,8 +137,10 @@ import { api } from '@/services/api'
 const loading = ref(true)
 const searchQuery = ref('')
 const activeFilter = ref('all')
+const activeCategoryFilter = ref('all')
 const selectedVideo = ref(null)
 const videos = ref([])
+const error = ref(null)
 
 const filters = [
   { label: 'All', value: 'all' },
@@ -120,6 +149,20 @@ const filters = [
   { label: 'This Month', value: 'month' }
 ]
 
+// Get unique categories from videos
+const availableCategories = computed(() => {
+  const categories = videos.value
+    .map(video => video.category_name)
+    .filter(category => category && category.trim() !== '')
+    .filter((category, index, array) => array.indexOf(category) === index)
+    .sort()
+  
+  return [
+    { label: 'All Categories', value: 'all' },
+    ...categories.map(category => ({ label: category, value: category }))
+  ]
+})
+
 const filteredVideos = computed(() => {
   let filtered = videos.value
 
@@ -127,8 +170,15 @@ const filteredVideos = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(video => 
-      video.title.toLowerCase().includes(query) ||
-      video.streamer_name.toLowerCase().includes(query)
+      (video.title || '').toLowerCase().includes(query) ||
+      (video.streamer_name || '').toLowerCase().includes(query)
+    )
+  }
+
+  // Filter by category
+  if (activeCategoryFilter.value !== 'all') {
+    filtered = filtered.filter(video => 
+      video.category_name === activeCategoryFilter.value
     )
   }
 
@@ -149,22 +199,42 @@ const filteredVideos = computed(() => {
         break
     }
     
-    filtered = filtered.filter(video => 
-      new Date(video.created_at) >= filterDate
-    )
+    filtered = filtered.filter(video => {
+      if (!video.created_at) return false
+      try {
+        const videoDate = new Date(video.created_at)
+        return videoDate >= filterDate
+      } catch (e) {
+        console.warn('Invalid date format:', video.created_at)
+        return false
+      }
+    })
   }
 
   // Sort by date (newest first)
-  return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const result = filtered.sort((a, b) => {
+    try {
+      const dateA = new Date(a.created_at || 0)
+      const dateB = new Date(b.created_at || 0)
+      return dateB - dateA
+    } catch (e) {
+      return 0
+    }
+  })
+  
+  return result
 })
 
 const loadVideos = async () => {
   try {
     loading.value = true
+    error.value = null
     const response = await api.get('/api/videos')
-    videos.value = response.data || []
-  } catch (error) {
-    console.error('Error loading videos:', error)
+    // API returns array directly, not wrapped in data
+    videos.value = Array.isArray(response) ? response : (response.data || [])
+  } catch (err) {
+    console.error('Error loading videos:', err)
+    error.value = err.response?.data?.detail || 'Failed to load videos'
     videos.value = []
   } finally {
     loading.value = false
@@ -207,9 +277,13 @@ const formatDate = (dateString) => {
 }
 
 const formatDuration = (seconds) => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  if (!seconds) return ''
+  
+  // Round to whole seconds to avoid decimal display
+  const totalSeconds = Math.round(seconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const secs = totalSeconds % 60
   
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
@@ -321,6 +395,42 @@ onMounted(() => {
   background: var(--primary-color);
   color: white;
   border-color: var(--primary-color);
+}
+
+.category-filter {
+  margin-top: 15px;
+}
+
+.category-filter h4 {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.category-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.category-btn {
+  padding: 6px 16px;
+  border: 2px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.85rem;
+}
+
+.category-btn:hover,
+.category-btn.active {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
 }
 
 .loading-container {
@@ -446,6 +556,13 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+.video-category {
+  color: var(--accent-color);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
 .video-meta {
   display: flex;
   justify-content: space-between;
@@ -469,6 +586,38 @@ onMounted(() => {
   font-size: 1.5rem;
   margin-bottom: 10px;
   color: var(--text-primary);
+}
+
+.error-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-secondary);
+}
+
+.error-state svg {
+  margin-bottom: 20px;
+  color: #e74c3c;
+}
+
+.error-state h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+}
+
+.retry-btn {
+  padding: 10px 20px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background-color 0.3s;
+}
+
+.retry-btn:hover {
+  background: var(--primary-hover);
 }
 
 /* Mobile Responsive */
@@ -507,6 +656,18 @@ onMounted(() => {
   .filter-btn {
     flex-shrink: 0;
   }
+
+  .category-buttons {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+
+  .category-btn {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    padding: 5px 12px;
+  }
 }
 
 /* Dark mode support */
@@ -520,6 +681,12 @@ onMounted(() => {
     --border-color: #404040;
     --primary-color: #6f42c1;
     --primary-hover: #5a359a;
+    --accent-color: #28a745;
   }
+}
+
+/* Light mode support */
+:root {
+  --accent-color: #28a745;
 }
 </style>

@@ -94,27 +94,27 @@ export const FILENAME_PRESETS = [
   },
   { 
     value: "plex", 
-    label: "Plex-Friendly", 
-    description: "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{day} - {title}"
+    label: "Plex/Emby/Jellyfin", 
+    description: "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
   },
   { 
     value: "emby", 
-    label: "Emby-Friendly", 
-    description: "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{day} - {title}"
+    label: "Emby Alternative", 
+    description: "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
   },
   { 
     value: "jellyfin", 
-    label: "Jellyfin-Friendly", 
-    description: "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - {title}"
+    label: "Jellyfin Alternative", 
+    description: "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
   },
   { 
     value: "kodi", 
-    label: "Kodi-Friendly", 
-    description: "{streamer}/Season {year}-{month}/{streamer} - s{year}e{month}{day} - {title}"
+    label: "Kodi", 
+    description: "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
   },
   { 
     value: "chronological", 
     label: "Chronological", 
-    description: "{year}/{month}/{day}/{streamer} - {title} - {hour}-{minute}"
+    description: "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
   }
 ];

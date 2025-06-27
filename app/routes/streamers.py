@@ -552,6 +552,14 @@ async def get_stream_chapters(
             
             logger.debug(f"Generated {len(chapters)} chapters from events")
         
+        # If still no chapters, create a basic chapter for the stream start
+        if not chapters and stream.started_at:
+            chapters.append({
+                "start_time": stream.started_at.isoformat(),
+                "title": stream.title or "Stream",
+                "type": "stream"
+            })
+        
         # Return chapter data with metadata
         video_url = None
         if stream.recording_path:
@@ -559,14 +567,8 @@ async def get_stream_chapters(
             try:
                 video_path = Path(stream.recording_path)
                 if video_path.exists():
-                    # Create URL using the new video serving route
-                    if '/app/data' in str(video_path):
-                        relative_path = str(video_path).replace('/app/data/', '')
-                        # Don't URL encode here, let the frontend handle it properly
-                        video_url = f"/video/{relative_path}"
-                    else:
-                        # Fallback: just use the filename
-                        video_url = f"/video/{video_path.name}"
+                    # Use the stream ID for direct video streaming
+                    video_url = f"/api/videos/stream/{stream.id}"
                 else:
                     logger.warning(f"Video file not found: {video_path}")
             except Exception as e:

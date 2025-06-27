@@ -11,6 +11,11 @@ import uuid
 import time
 import functools
 import aiohttp
+import asyncio
+import os
+import subprocess
+import uuid
+import functools
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Tuple, Callable
@@ -31,6 +36,7 @@ from app.models import (
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
 from app.services.logging_service import logging_service
+from app.services.media_server_structure_service import MediaServerStructureService
 from app.dependencies import websocket_manager
 
 logger = logging.getLogger("streamvault")
@@ -43,34 +49,38 @@ class RecordingActivityLogger:
     
     def __init__(self):
         self.session_id = str(uuid.uuid4())[:8]
+        self.logger = logging_service.recording_logger
     
     def log_recording_start(self, streamer_id: int, streamer_name: str, quality: str, output_path: str):
         """Log the start of a recording session"""
-        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
-        recording_logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
+        self.logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
+        self.logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
     
     def log_recording_stop(self, streamer_id: int, streamer_name: str, reason: str = "manual"):
         """Log the stop of a recording session"""
-        recording_logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Reason: {reason}")
+        self.logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Reason: {reason}")
     
     def log_recording_error(self, streamer_id: int, streamer_name: str, error: str):
         """Log recording errors"""
-        recording_logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
+        self.logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
     
     def log_process_monitoring(self, streamer_name: str, action: str, details: str = ""):
         """Log process monitoring activities"""
-        recording_logger.debug(f"[SESSION:{self.session_id}] PROCESS_MONITOR - {streamer_name}: {action} {details}")
+        self.logger.debug(f"[SESSION:{self.session_id}] PROCESS_MONITOR - {streamer_name}: {action} {details}")
     
     def log_file_operation(self, operation: str, file_path: str, success: bool, details: str = ""):
         """Log file operations (remux, conversion, etc.)"""
         status = "SUCCESS" if success else "FAILED"
-        recording_logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
+        self.logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
     
     def log_stream_detection(self, streamer_name: str, is_live: bool, stream_info: Optional[dict] = None):
         """Log stream detection and status"""
         status = "LIVE" if is_live else "OFFLINE"
-        recording_logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
+        self.logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
         if stream_info:
+            title = stream_info.get('title', 'Unknown')
+            category = stream_info.get('category_name', 'Unknown')
+            self.logger.info(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'")
             recording_logger.debug(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}")
     
     def log_configuration_change(self, setting: str, old_value: Any, new_value: Any, streamer_id: Optional[int] = None):
@@ -271,7 +281,7 @@ class ConfigManager:
         elif global_settings:
             return global_settings.filename_template
         else:
-            return "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"  # Default fallback
+            return "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}"  # Default media server compatible fallback
 
     def get_max_streams(self, streamer_id: int) -> int:
         """Get the maximum number of streams for a streamer"""
@@ -378,8 +388,16 @@ class RecordingService:
             self.metadata_service = metadata_service or MetadataService()
             self.config_manager = config_manager or ConfigManager()
             self.subprocess_manager = subprocess_manager or SubprocessManager()
+            self.media_server_service = MediaServerStructureService()
             self.activity_logger = RecordingActivityLogger()
+            
+            # Initialize logging integration
+            self.logger = logging_service.recording_logger
+            self.streamlink_logger = logging_service.streamlink_logger
+            self.ffmpeg_logger = logging_service.ffmpeg_logger
+            
             self.initialized = True
+            logger.info("RecordingService initialized successfully with logging integration")
             # Dependencies are now injected in __new__
 
     async def get_active_recordings(self) -> List[Dict[str, Any]]:
@@ -1237,8 +1255,32 @@ class RecordingService:
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
             await self._generate_stream_metadata(stream_id, mp4_path)
 
+            # Create optimized media server structure
+            logger.info(f"Creating media server structure for stream {stream_id}")
+            media_server_service = MediaServerStructureService()
+            try:
+                new_mp4_path = await media_server_service.create_media_server_structure(
+                    stream_id, mp4_path
+                )
+                if new_mp4_path:
+                    logger.info(f"Successfully created media server structure for stream {stream_id}")
+                    # Update the recording path to the new location
+                    await self._update_recording_path(stream_id, new_mp4_path)
+                else:
+                    logger.warning(f"Failed to create media server structure for stream {stream_id}")
+            finally:
+                await media_server_service.close()
+
+            # Clean up all temporary files after successful metadata generation
+            await self._cleanup_temporary_files(mp4_path)
+            
         except Exception as e:
-            logger.error(f"Error in delayed metadata generation: {e}", exc_info=True)
+            logger.error(f"Error generating metadata for stream {stream_id}: {e}", exc_info=True)
+            # Still attempt to clean up temporary files even if metadata generation failed
+            try:
+                await self._cleanup_temporary_files(mp4_path)
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary files: {cleanup_error}")
 
     async def _find_and_validate_mp4(self, output_path: str) -> Optional[str]:
         """Find and validate the MP4 file after remuxing"""
@@ -1480,6 +1522,8 @@ class RecordingService:
                         ])
 
             # Log the command start
+            self.streamlink_logger.info(f"[STREAMLINK_START] {streamer_name} - Quality: {quality}")
+            self.streamlink_logger.info(f"[STREAMLINK_CMD] {' '.join(cmd)}")
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
             logger.debug(f"Starting streamlink: {' '.join(cmd)}")
@@ -1613,6 +1657,8 @@ class RecordingService:
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
 
             # Log the command start
+            self.ffmpeg_logger.info(f"[FFMPEG_REMUX_START] {streamer_name} - {ts_path} -> {mp4_path}")
+            self.ffmpeg_logger.info(f"[FFMPEG_CMD] {' '.join(cmd)}")
             logging_service.log_ffmpeg_start("remux", cmd, streamer_name)
 
             logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
@@ -1960,7 +2006,7 @@ class RecordingService:
                 "-f",
                 "h264",
                 f"{ts_path}.h264",
-                # Extract audio and convert to AAC
+                               # Extract audio and convert to AAC
                 "-map",
                 "0:a:0",
                 "-c:a",
@@ -2169,20 +2215,62 @@ class RecordingService:
 
             # Close metadata service
             await self.metadata_service.close()
+            
+            # Close media server structure service
+            if hasattr(self, 'media_server_service'):
+                await self.media_server_service.close()
+                
             logger.info("Recording service cleanup completed")
 
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
+    async def _cleanup_temporary_files(self, mp4_path: str):
+        """Clean up temporary files after metadata generation"""
+        try:
+            # Find and remove temporary files like .ts, .temp, .part, etc.
+            base_path = Path(mp4_path).parent
+            base_name = Path(mp4_path).stem
+            
+            # Common temporary file extensions to clean up
+            temp_extensions = ['.ts', '.temp', '.part', '.tmp', '.processing']
+            
+            cleaned_files = 0
+            for temp_ext in temp_extensions:
+                temp_file = base_path / f"{base_name}{temp_ext}"
+                if temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                        cleaned_files += 1
+                        logger.debug(f"Cleaned up temporary file: {temp_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove temporary file {temp_file}: {e}")
+            
+            # Also look for any .ts file that matches the MP4 file
+            ts_file = Path(mp4_path.replace('.mp4', '.ts'))
+            if ts_file.exists() and ts_file != Path(mp4_path):
+                try:
+                    ts_file.unlink()
+                    cleaned_files += 1
+                    logger.debug(f"Cleaned up TS file: {ts_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove TS file {ts_file}: {e}")
+            
+            if cleaned_files > 0:
+                logger.info(f"Cleaned up {cleaned_files} temporary files for {Path(mp4_path).name}")
+            else:
+                logger.debug(f"No temporary files to clean up for {Path(mp4_path).name}")
+                
+        except Exception as e:
+            logger.error(f"Error during temporary file cleanup: {e}", exc_info=True)
 
-# Filename presets
 
-
+# Filename presets optimized for media servers
 FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "emby": "{streamer}/S{year}{month}/{streamer} - S{year}{month}E{episode} - {title}",
-    "jellyfin": "{streamer}/Season {year}{month}/{streamer} - {year}.{month}.{day} - E{episode} - {title}",
-    "kodi": "{streamer}/Season {year}{month}/{streamer} - s{year}{month}e{episode} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - E{episode} - {title} - {hour}-{minute}",
+    "default": "{streamer}/{streamer}_{year}-{month:02d}-{day:02d}_{hour:02d}-{minute:02d}_{title}_{game}",
+    "plex": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "emby": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "jellyfin": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "kodi": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
+    "chronological": "{year}/{month:02d}/{day:02d}/{streamer} - E{episode:02d} - {title} - {hour:02d}-{minute:02d}",
 }

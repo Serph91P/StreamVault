@@ -40,7 +40,7 @@ class AuthMiddleware:
             # Public paths that don't require authentication
             public_paths = [
                 "/auth/login",
-                "/auth/setup",
+                "/auth/setup", 
                 "/auth/check",
                 "/eventsub",
                 "/static/",

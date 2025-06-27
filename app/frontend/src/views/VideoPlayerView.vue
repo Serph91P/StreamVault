@@ -22,7 +22,7 @@
     
     <div v-else-if="!chapterData?.video_url" class="no-video-container">
       <p>No video file available for this stream.</p>
-      <button @click="goBack" class="btn btn-primary">Go Back</button>
+      <button @click="retryLoad" class="btn btn-secondary">Refresh</button>
     </div>
     
     <VideoPlayer 

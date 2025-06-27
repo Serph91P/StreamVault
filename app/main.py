@@ -219,7 +219,7 @@ app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
-app.include_router(videos.router)
+app.include_router(videos.router)  # Router already has /api prefix
 
 # Push notification routes
 from app.routes import push as push_router
@@ -374,74 +374,6 @@ async def serve_pwa_icons(icon_file: str):
             except:
                 continue
     return Response(status_code=404)
-
-# Custom video serving route to handle URL encoding issues
-@app.get("/video/{file_path:path}")
-async def serve_video(file_path: str):
-    """Serve video files with proper URL decoding and security - CodeQL-safe version"""
-    import urllib.parse
-    from pathlib import Path
-    
-    try:
-        # URL decode the file path
-        decoded_path = urllib.parse.unquote(file_path)
-        
-        # Validate and sanitize path components to prevent path traversal
-        if ".." in decoded_path or decoded_path.startswith("/") or "\\" in decoded_path:
-            logger.warning(f"Attempted path traversal in serve_video: {decoded_path}")
-            raise HTTPException(status_code=403, detail="Invalid path")
-        
-        # Additional validation: ensure the path contains only safe characters
-        import re
-        if not re.match(r'^[a-zA-Z0-9\-_./ ]+$', decoded_path):
-            logger.warning(f"Path contains invalid characters: {decoded_path}")
-            raise HTTPException(status_code=403, detail="Invalid path")
-        
-        # Split the path into components and validate each one
-        path_components = [comp for comp in decoded_path.split('/') if comp]  # Remove empty components
-        for component in path_components:
-            if component in ['..', '.', ''] or len(component) > 255:  # Max filename length check
-                logger.warning(f"Invalid path component: {component}")
-                raise HTTPException(status_code=403, detail="Invalid path")
-        
-        # Use secure file access that completely isolates user input
-        base_directory = "/app/data"
-        
-        try:
-            if len(path_components) == 1:
-                final_file_path = safe_file_access(base_directory, path_components[0])
-            elif len(path_components) == 2:
-                final_file_path = safe_file_access(base_directory, path_components[0], path_components[1])
-            else:
-                # For complex paths, create safe intermediate path
-                intermediate_parts = path_components[:-1]
-                filename = path_components[-1]
-                # Join intermediate parts with safe separator
-                intermediate_path = "_".join(intermediate_parts)  # Safe joining
-                final_file_path = safe_file_access(base_directory, intermediate_path, filename)
-                
-        except HTTPException as e:
-            logger.warning(f"Secure file access failed: {e.detail}")
-            raise HTTPException(status_code=403, detail="Access denied")
-        
-        # Check if file exists
-        if not final_file_path.exists():
-            logger.error(f"Video file not found: {final_file_path}")
-            raise HTTPException(status_code=404, detail="Video file not found")
-        
-        # Serve the file using the clean, validated path
-        return FileResponse(
-            final_file_path,
-            media_type="video/mp4",            headers={
-                "Accept-Ranges": "bytes",
-                "Cache-Control": "public, max-age=3600"
-            }
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error serving video: {e}")
-        raise HTTPException(status_code=500, detail="Error serving video file")
 
 # Root route to serve index.html
 @app.get("/")

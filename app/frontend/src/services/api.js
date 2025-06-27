@@ -121,6 +121,10 @@ export const streamerApi = {
 
   async getStreamerStreams(streamerName) {
     return api.get(`/api/streamers/${encodeURIComponent(streamerName)}/streams`)
+  },
+
+  async getStreamChapters(streamerId, streamId) {
+    return api.get(`/api/streamers/${streamerId}/streams/${streamId}/chapters`)
   }
 }
 
