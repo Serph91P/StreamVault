@@ -272,7 +272,7 @@ class ConfigManager:
         elif global_settings:
             return global_settings.filename_template
         else:
-            return "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"  # Default fallback
+            return "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}"  # Default media server compatible fallback
 
     def get_max_streams(self, streamer_id: int) -> int:
         """Get the maximum number of streams for a streamer"""
