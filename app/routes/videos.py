@@ -13,7 +13,10 @@ from app.models import RecordingSettings, Stream, Streamer
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(
+    prefix="/api",
+    tags=["videos"]
+)
 
 def get_recordings_directory():
     """Get the recordings directory from database settings"""
@@ -29,8 +32,19 @@ def is_video_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in video_extensions
 
 @router.get("/videos")
-async def get_videos(db: Session = Depends(get_db)):
+async def get_videos(request: Request, db: Session = Depends(get_db)):
     """Get all videos from database with file verification"""
+    # Check authentication via session cookie
+    session_token = request.cookies.get("session")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Validate session
+    from app.services.auth_service import AuthService
+    auth_service = AuthService(db)
+    if not await auth_service.validate_session(session_token):
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
     videos = []
     
     try:
@@ -417,3 +431,105 @@ async def get_videos_by_streamer(streamer_id: int, db: Session = Depends(get_db)
         return []
     
     return videos
+
+@router.get("/videos/stream_by_filename/{filename}")
+async def stream_video_by_filename(filename: str, request: Request):
+    """Stream video by filename for direct access"""
+    try:
+        # URL decode the filename
+        try:
+            decoded_filename = urllib.parse.unquote(filename)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid filename encoding")
+        
+        # Security: Validate filename format
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+\.mp4$', decoded_filename):
+            raise HTTPException(status_code=400, detail="Invalid filename format")
+        
+        recordings_dir = get_recordings_directory()
+        if not recordings_dir:
+            raise HTTPException(status_code=500, detail="Recordings directory not configured")
+        
+        # Search for the file in the recordings directory
+        recordings_path = Path(recordings_dir)
+        if not recordings_path.exists():
+            raise HTTPException(status_code=404, detail="Recordings directory not found")
+        
+        # Find the file recursively
+        file_path = None
+        for root, dirs, files in os.walk(recordings_path):
+            if decoded_filename in files:
+                potential_path = Path(root) / decoded_filename
+                if potential_path.is_file() and is_video_file(str(potential_path)):
+                    file_path = potential_path
+                    break
+        
+        if not file_path or not file_path.exists():
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Get file info
+        try:
+            file_size = file_path.stat().st_size
+        except OSError:
+            raise HTTPException(status_code=500, detail="Error accessing file")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "video/mp4"
+        
+        # Handle range requests for video streaming
+        range_header = request.headers.get('range')
+        if range_header:
+            # Parse range header
+            try:
+                ranges = range_header.replace('bytes=', '').split('-')
+                start = int(ranges[0]) if ranges[0] else 0
+                end = int(ranges[1]) if ranges[1] else file_size - 1
+                
+                # Validate range
+                if start >= file_size or end >= file_size or start > end:
+                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                
+                chunk_size = end - start + 1
+                
+                def generate_chunk():
+                    with open(file_path, 'rb') as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            chunk = f.read(min(8192, remaining))
+                            if not chunk:
+                                break
+                            remaining -= len(chunk)
+                            yield chunk
+                
+                headers = {
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(chunk_size),
+                    "Content-Type": mime_type
+                }
+                
+                return StreamingResponse(
+                    generate_chunk(),
+                    status_code=206,
+                    headers=headers
+                )
+                
+            except ValueError:
+                # Invalid range header, serve full file
+                pass
+        
+        # Return full file
+        return FileResponse(
+            file_path,
+            media_type=mime_type,
+            filename=decoded_filename
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in stream_video_by_filename: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
