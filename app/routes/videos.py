@@ -6,7 +6,7 @@ from typing import List
 import logging
 from pathlib import Path
 import mimetypes
-from werkzeug.utils import secure_filename
+import re
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer
@@ -17,6 +17,22 @@ router = APIRouter(
     prefix="/api",
     tags=["videos"]
 )
+
+def secure_filename(filename):
+    """Secure a filename by removing or replacing dangerous characters"""
+    if not filename:
+        return ""
+    
+    # Remove path separators and other dangerous characters
+    filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+    filename = re.sub(r'\.\.+', '.', filename)  # Remove multiple dots
+    filename = filename.strip('. ')  # Remove leading/trailing dots and spaces
+    
+    # Ensure filename is not empty after sanitization
+    if not filename:
+        return "file"
+    
+    return filename
 
 def get_recordings_directory():
     """Get the recordings directory from database settings"""
