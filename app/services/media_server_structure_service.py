@@ -479,20 +479,28 @@ class MediaServerStructureService:
             logger.error(f"Error creating episode thumbnail: {e}", exc_info=True)
     
     def _get_episode_number(self, streamer_id: int, stream_date: datetime) -> int:
-        """Get episode number for a stream within its month (consistent with recording_service.py)"""
+        """
+        Get episode number for a stream within its month based on chronological order.
+        First stream in month = E01, second = E02, etc., regardless of the actual date.
+        """
         try:
             with SessionLocal() as db:
-                # Count streams from the same streamer in the same month (up to but not including current stream)
-                episode_count = db.query(Stream).filter(
+                # Count streams from the same streamer in the same month that started BEFORE this stream
+                previous_streams_count = db.query(Stream).filter(
                     Stream.streamer_id == streamer_id,
                     Stream.started_at.isnot(None),
                     extract("year", Stream.started_at) == stream_date.year,
                     extract("month", Stream.started_at) == stream_date.month,
-                    Stream.started_at <= stream_date
+                    Stream.started_at < stream_date  # Only count streams that started BEFORE this one
                 ).count()
                 
-                # Return count + 1 for the current stream (minimum 1)
-                return max(1, episode_count)
+                # Return count + 1 (first stream = 1, second stream = 2, etc.)
+                episode_number = previous_streams_count + 1
+                
+                logger.debug(f"Episode number for streamer {streamer_id} on {stream_date}: E{episode_number:02d} "
+                           f"(found {previous_streams_count} previous streams in {stream_date.year}-{stream_date.month:02d})")
+                
+                return episode_number
                 
         except Exception as e:
             logger.error(f"Error getting episode number: {e}", exc_info=True)
