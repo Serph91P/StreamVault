@@ -104,9 +104,20 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
     return videos
 
 @router.get("/videos/{streamer_name}/{filename}")
-async def stream_video(streamer_name: str, filename: str, request: Request):
+async def stream_video(streamer_name: str, filename: str, request: Request, db: Session = Depends(get_db)):
     """Stream a video file with range request support - CodeQL-safe implementation"""
     try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
         recordings_dir = get_recordings_directory()
         if not recordings_dir:
             raise HTTPException(status_code=500, detail="Recordings directory not configured")
@@ -211,9 +222,20 @@ async def stream_video(streamer_name: str, filename: str, request: Request):
         raise HTTPException(status_code=500, detail=safe_error_message(e))
 
 @router.get("/videos/{streamer_name}")
-async def get_streamer_videos(streamer_name: str):
+async def get_streamer_videos(streamer_name: str, request: Request, db: Session = Depends(get_db)):
     """Get all videos for a specific streamer - CodeQL-safe implementation"""
     try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
         # Validate streamer name
         if not streamer_name or not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_name):
             raise HTTPException(status_code=400, detail="Invalid streamer name")
@@ -278,6 +300,17 @@ async def get_streamer_videos(streamer_name: str):
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Stream a video file by stream ID with range request support"""
     try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
         if not stream or not stream.recording_path:
@@ -372,8 +405,19 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/streamer/{streamer_id}")
-async def get_videos_by_streamer(streamer_id: int, db: Session = Depends(get_db)):
+async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session = Depends(get_db)):
     """Get all videos for a specific streamer"""
+    # Check authentication via session cookie
+    session_token = request.cookies.get("session")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Validate session
+    from app.services.auth_service import AuthService
+    auth_service = AuthService(db)
+    if not await auth_service.validate_session(session_token):
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
     videos = []
     
     try:
@@ -433,9 +477,20 @@ async def get_videos_by_streamer(streamer_id: int, db: Session = Depends(get_db)
     return videos
 
 @router.get("/videos/stream_by_filename/{filename}")
-async def stream_video_by_filename(filename: str, request: Request):
+async def stream_video_by_filename(filename: str, request: Request, db: Session = Depends(get_db)):
     """Stream video by filename for direct access"""
     try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
         # URL decode the filename
         try:
             decoded_filename = urllib.parse.unquote(filename)
