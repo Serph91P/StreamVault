@@ -20,7 +20,21 @@ class MediaServerStructureService:
     
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
-        self.recordings_base = Path(settings.RECORDINGS_PATH)
+        # Get recordings base path from database settings
+        self.recordings_base = self._get_recordings_base_path()
+    
+    def _get_recordings_base_path(self) -> Path:
+        """Get the recordings base path from database settings"""
+        try:
+            with SessionLocal() as db:
+                from app.models import RecordingSettings
+                settings_record = db.query(RecordingSettings).first()
+                if settings_record and settings_record.output_directory:
+                    return Path(settings_record.output_directory)
+                return Path("/app/recordings")  # Default fallback
+        except Exception as e:
+            logger.warning(f"Failed to get recordings path from database: {e}")
+            return Path("/app/recordings")  # Fallback
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create HTTP session"""
