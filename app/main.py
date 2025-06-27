@@ -375,18 +375,6 @@ async def serve_pwa_icons(icon_file: str):
                 continue
     return Response(status_code=404)
 
-# Direct video streaming routes (without auth requirements for better performance)
-@app.get("/video/{filename:path}")
-async def stream_video_direct(filename: str, request: Request):
-    """Direct video streaming route for player compatibility"""
-    try:
-        # Import here to avoid circular imports
-        from app.routes.videos import stream_video_by_filename
-        return await stream_video_by_filename(filename, request)
-    except Exception as e:
-        logger.error(f"Error in direct video streaming: {e}")
-        raise HTTPException(status_code=500, detail="Video streaming error")
-
 # Root route to serve index.html
 @app.get("/")
 async def serve_root():
