@@ -668,20 +668,19 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         if not recordings_path.exists():
             raise HTTPException(status_code=404, detail="Recordings directory not found")
         
-        # Find the file recursively
-        file_path = None
-        for root, dirs, files in os.walk(recordings_path):
-            if decoded_filename in files:
-                potential_path = Path(root) / decoded_filename
-                normalized_path = potential_path.resolve()
-                if not str(normalized_path).startswith(str(recordings_path)):
-                    raise HTTPException(status_code=400, detail="Invalid file path")
-                if normalized_path.is_file() and is_video_file(str(normalized_path)):
-                    file_path = normalized_path
-                    break
+        # Construct the full file path
+        potential_path = recordings_path / decoded_filename
+        normalized_path = potential_path.resolve()
         
-        if not file_path or not file_path.exists():
+        # Validate that the path is within the recordings directory
+        if not str(normalized_path).startswith(str(recordings_path)):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        
+        # Check if the file exists and is a valid video file
+        if not normalized_path.is_file() or not is_video_file(str(normalized_path)):
             raise HTTPException(status_code=404, detail="Video file not found")
+        
+        file_path = normalized_path
         
         # Get file info
         try:
