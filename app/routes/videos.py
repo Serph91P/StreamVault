@@ -78,9 +78,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "streamer_id": streamer.id,
                         "file_path": str(recording_path),
                         "file_size": file_stats.st_size,
-                        "created_at": stream.started_at.timestamp() if stream.started_at else file_stats.st_mtime,
-                        "started_at": stream.started_at,
-                        "ended_at": stream.ended_at,
+                        "created_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
@@ -562,149 +562,6 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.error(f"DEBUG: Exception: {e}")
         return {"error": str(e), "type": type(e).__name__}
 
-@router.get("/videos/stream/{stream_id}")
-async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Stream a video file by stream ID with range request support"""
-    try:
-        logger.info(f"Video stream request for stream_id: {stream_id}")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Cookies: {request.cookies}")
-        
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
-            logger.error("No session token found in cookies")
-            raise HTTPException(status_code=401, detail="Authentication required")
-        
-        logger.info(f"Session token found: {session_token[:10]}...")
-        
-        # Validate session
-        try:
-            from app.services.auth_service import AuthService
-            auth_service = AuthService(db)
-            session_valid = await auth_service.validate_session(session_token)
-            logger.info(f"Session validation result: {session_valid}")
-            
-            if not session_valid:
-                logger.error("Session validation failed")
-                raise HTTPException(status_code=401, detail="Invalid session")
-        except Exception as e:
-            logger.error(f"Session validation error: {e}")
-            raise HTTPException(status_code=401, detail="Session validation error")
-        
-        # Get stream from database
-        stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream or not stream.recording_path:
-            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
-            raise HTTPException(status_code=404, detail="Video not found")
-        
-        logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
-        
-        file_path = Path(stream.recording_path)
-        
-        # Verify file exists
-        if not file_path.exists() or not file_path.is_file():
-            logger.error(f"Video file not found: {stream.recording_path}")
-            raise HTTPException(status_code=404, detail="Video file not found")
-        
-        logger.info(f"Video file exists: {file_path}")
-        
-        # Get file info
-        try:
-            file_size = file_path.stat().st_size
-            logger.info(f"File size: {file_size} bytes")
-        except OSError as e:
-            logger.error(f"Error accessing file: {e}")
-            raise HTTPException(status_code=500, detail="Error accessing file")
-        
-        # Get MIME type
-        mime_type, _ = mimetypes.guess_type(str(file_path))
-        if not mime_type:
-            mime_type = "video/mp4"
-            
-        # Handle range requests
-        range_header = request.headers.get('range')
-        logger.info(f"Range header: {range_header}")
-        
-        if range_header:
-            # Parse range header
-            try:
-                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
-                if not range_match:
-                    logger.error(f"Invalid range header format: {range_header}")
-                    raise HTTPException(status_code=400, detail="Invalid range header")
-                
-                start = int(range_match.group(1))
-                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
-                
-                logger.info(f"Range request: start={start}, end={end}, file_size={file_size}")
-                
-                if start >= file_size or end >= file_size or start > end:
-                    logger.error(f"Range not satisfiable: start={start}, end={end}, file_size={file_size}")
-                    raise HTTPException(status_code=416, detail="Range not satisfiable")
-                
-                chunk_size = end - start + 1
-                logger.info(f"Serving range: {start}-{end}/{file_size} ({chunk_size} bytes)")
-                
-                def generate_chunk():
-                    with open(file_path, 'rb') as f:
-                        f.seek(start)
-                        remaining = chunk_size
-                        while remaining > 0:
-                            read_size = min(8192, remaining)
-                            data = f.read(read_size)
-                            if not data:
-                                break
-                            remaining -= len(data)
-                            yield data
-                
-                headers = {
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Accept-Ranges": "bytes",
-                    "Content-Length": str(chunk_size),
-                    "Content-Type": mime_type
-                }
-                
-                logger.info(f"Returning 206 response with headers: {headers}")
-                
-                return StreamingResponse(
-                    generate_chunk(),
-                    status_code=206,
-                    headers=headers
-                )
-            except ValueError as e:
-                logger.error(f"ValueError in range processing: {e}")
-                raise HTTPException(status_code=400, detail="Invalid range header")
-        else:
-            logger.info("No range header, serving full file")
-            # No range request, stream entire file
-            def generate_file():
-                with open(file_path, 'rb') as f:
-                    while True:
-                        data = f.read(8192)
-                        if not data:
-                            break
-                        yield data
-            
-            headers = {
-                "Content-Length": str(file_size),
-                "Accept-Ranges": "bytes",
-                "Content-Type": mime_type
-            }
-            
-            logger.info(f"Returning 200 response with headers: {headers}")
-            
-            return StreamingResponse(
-                generate_file(),
-                headers=headers
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error streaming video {stream_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
-
 @router.get("/videos/streamer/{streamer_id}")
 async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session = Depends(get_db)):
     """Get all videos for a specific streamer"""
@@ -753,9 +610,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "streamer_id": streamer.id,
                         "file_path": str(recording_path),
                         "file_size": file_stats.st_size,
-                        "created_at": stream.started_at.timestamp() if stream.started_at else file_stats.st_mtime,
-                        "started_at": stream.started_at,
-                        "ended_at": stream.ended_at,
+                        "created_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
