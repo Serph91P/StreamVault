@@ -258,9 +258,11 @@ const formatDate = (dateString) => {
 const formatDuration = (seconds) => {
   if (!seconds) return 'Unknown'
   
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  // Round to whole seconds to avoid decimal display
+  const totalSeconds = Math.round(seconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const secs = totalSeconds % 60
   
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
@@ -281,7 +283,10 @@ const formatFileSize = (bytes) => {
 const loadChapters = async () => {
   try {
     if (!props.video.streamer_id || !props.video.id) {
-      console.warn('Missing streamer_id or stream id for loading chapters')
+      console.warn('Missing streamer_id or stream id for loading chapters', {
+        streamer_id: props.video.streamer_id,
+        video_id: props.video.id
+      })
       return
     }
     
@@ -587,6 +592,99 @@ onBeforeUnmount(() => {
 .action-btn:hover {
   background: var(--primary-color, #6f42c1);
   border-color: var(--primary-color, #6f42c1);
+}
+
+/* Chapter Navigation Styles */
+.chapter-navigation {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+.chapters-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s;
+  backdrop-filter: blur(4px);
+}
+
+.chapters-toggle-btn:hover,
+.chapters-toggle-btn.active {
+  background: rgba(0, 0, 0, 0.95);
+  border-color: var(--primary-color, #6f42c1);
+  color: var(--primary-color, #6f42c1);
+}
+
+.chapters-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 250px;
+  max-width: 350px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.chapter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item:last-child {
+  border-bottom: none;
+}
+
+.chapter-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item.active {
+  background: var(--primary-color, #6f42c1);
+  color: white;
+}
+
+.chapter-time {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.chapter-item.active .chapter-time {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chapter-title {
+  font-size: 0.9rem;
+  color: white;
+  font-weight: 500;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Chapter Navigation */
