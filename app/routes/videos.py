@@ -300,21 +300,35 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Stream a video file by stream ID with range request support"""
     try:
+        logger.info(f"Video stream request for stream_id: {stream_id}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Cookies: {request.cookies}")
+        
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
         if not session_token:
+            logger.error("No session token found in cookies")
             raise HTTPException(status_code=401, detail="Authentication required")
+        
+        logger.info(f"Session token found: {session_token[:10]}...")
         
         # Validate session
         from app.services.auth_service import AuthService
         auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
+        session_valid = await auth_service.validate_session(session_token)
+        logger.info(f"Session validation result: {session_valid}")
+        
+        if not session_valid:
+            logger.error("Session validation failed")
             raise HTTPException(status_code=401, detail="Invalid session")
         
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
         if not stream or not stream.recording_path:
+            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
+        
+        logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
         
         file_path = Path(stream.recording_path)
         
@@ -323,10 +337,14 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             logger.error(f"Video file not found: {stream.recording_path}")
             raise HTTPException(status_code=404, detail="Video file not found")
         
+        logger.info(f"Video file exists: {file_path}")
+        
         # Get file info
         try:
             file_size = file_path.stat().st_size
-        except OSError:
+            logger.info(f"File size: {file_size} bytes")
+        except OSError as e:
+            logger.error(f"Error accessing file: {e}")
             raise HTTPException(status_code=500, detail="Error accessing file")
         
         # Get MIME type
@@ -336,20 +354,27 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             
         # Handle range requests
         range_header = request.headers.get('range')
+        logger.info(f"Range header: {range_header}")
+        
         if range_header:
             # Parse range header
             try:
                 range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
                 if not range_match:
+                    logger.error(f"Invalid range header format: {range_header}")
                     raise HTTPException(status_code=400, detail="Invalid range header")
                 
                 start = int(range_match.group(1))
                 end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
                 
+                logger.info(f"Range request: start={start}, end={end}, file_size={file_size}")
+                
                 if start >= file_size or end >= file_size or start > end:
+                    logger.error(f"Range not satisfiable: start={start}, end={end}, file_size={file_size}")
                     raise HTTPException(status_code=416, detail="Range not satisfiable")
                 
                 chunk_size = end - start + 1
+                logger.info(f"Serving range: {start}-{end}/{file_size} ({chunk_size} bytes)")
                 
                 def generate_chunk():
                     with open(file_path, 'rb') as f:
@@ -370,14 +395,18 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                     "Content-Type": mime_type
                 }
                 
+                logger.info(f"Returning 206 response with headers: {headers}")
+                
                 return StreamingResponse(
                     generate_chunk(),
                     status_code=206,
                     headers=headers
                 )
-            except ValueError:
+            except ValueError as e:
+                logger.error(f"ValueError in range processing: {e}")
                 raise HTTPException(status_code=400, detail="Invalid range header")
         else:
+            logger.info("No range header, serving full file")
             # No range request, stream entire file
             def generate_file():
                 with open(file_path, 'rb') as f:
@@ -393,6 +422,8 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                 "Content-Type": mime_type
             }
             
+            logger.info(f"Returning 200 response with headers: {headers}")
+            
             return StreamingResponse(
                 generate_file(),
                 headers=headers
@@ -401,7 +432,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error streaming video {stream_id}: {e}")
+        logger.error(f"Unexpected error streaming video {stream_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/streamer/{streamer_id}")
@@ -588,3 +619,49 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
     except Exception as e:
         logger.error(f"Error in stream_video_by_filename: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/videos/test/{stream_id}")
+async def test_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Test endpoint to debug video access issues"""
+    try:
+        logger.info(f"Test video access for stream_id: {stream_id}")
+        
+        # Check cookies
+        session_token = request.cookies.get("session")
+        logger.info(f"Session token: {'Found' if session_token else 'Not found'}")
+        
+        if session_token:
+            # Test session validation
+            from app.services.auth_service import AuthService
+            auth_service = AuthService(db)
+            session_valid = await auth_service.validate_session(session_token)
+            logger.info(f"Session valid: {session_valid}")
+        
+        # Check if stream exists
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            return {"error": "Stream not found", "stream_id": stream_id}
+        
+        # Check if file exists
+        if not stream.recording_path:
+            return {"error": "No recording path", "stream": {"id": stream.id, "title": stream.title}}
+        
+        file_path = Path(stream.recording_path)
+        file_exists = file_path.exists()
+        file_size = file_path.stat().st_size if file_exists else 0
+        
+        return {
+            "stream_id": stream_id,
+            "stream_title": stream.title,
+            "recording_path": stream.recording_path,
+            "file_exists": file_exists,
+            "file_size": file_size,
+            "session_token_present": bool(session_token),
+            "session_valid": session_valid if session_token else False,
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test endpoint: {e}", exc_info=True)
+        return {"error": str(e)}
