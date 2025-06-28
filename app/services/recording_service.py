@@ -360,6 +360,19 @@ class SubprocessManager:
 # At the top of the file, add this to make RecordingService a singleton
 class RecordingService:
     _instance = None  # Make this a class attribute
+    
+    # Define attributes for type checking
+    logger: Any
+    streamlink_logger: Any
+    ffmpeg_logger: Any
+    active_recordings: Dict[int, Dict[str, Any]]
+    lock: asyncio.Lock
+    metadata_service: Any
+    config_manager: Any
+    subprocess_manager: Any
+    media_server_service: Any
+    activity_logger: Any
+    initialized: bool
 
     def __new__(
         cls, metadata_service=None, config_manager=None, subprocess_manager=None
@@ -1269,13 +1282,15 @@ class RecordingService:
                 await media_server_service.close()
 
             # Clean up all temporary files after successful metadata generation
-            await self._cleanup_temporary_files(mp4_path)
+            if mp4_path:
+                await self._cleanup_temporary_files(mp4_path)
             
         except Exception as e:
             logger.error(f"Error generating metadata for stream {stream_id}: {e}", exc_info=True)
             # Still attempt to clean up temporary files even if metadata generation failed
             try:
-                await self._cleanup_temporary_files(mp4_path)
+                if mp4_path:
+                    await self._cleanup_temporary_files(mp4_path)
             except Exception as cleanup_error:
                 logger.warning(f"Failed to clean up temporary files: {cleanup_error}")
 
@@ -1701,7 +1716,7 @@ class RecordingService:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
 
-    async def _remux_to_mp4(self, ts_path: str, mp4_path: str) -> bool:
+    async def _remux_to_mp4(self, ts_path: str, mp4_path: str, streamer_name: str = "unknown") -> bool:
         """Remux TS file to MP4 without re-encoding to preserve quality"""
         try:
             # Enhanced remux settings with guaranteed working audio handling
@@ -1824,8 +1839,9 @@ class RecordingService:
             process = await self.subprocess_manager.start_process(
                 extract_cmd, process_id
             )
-            await process.communicate()
-            await self.subprocess_manager.terminate_process(process_id)
+            if process:
+                await process.communicate()
+                await self.subprocess_manager.terminate_process(process_id)
 
             # Step 2: Recombine to MP4
             if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
@@ -1852,8 +1868,12 @@ class RecordingService:
                 process = await self.subprocess_manager.start_process(
                     combine_cmd, process_id
                 )
-                stdout, stderr = await process.communicate()
-                await self.subprocess_manager.terminate_process(process_id)
+                if process:
+                    stdout, stderr = await process.communicate()
+                    await self.subprocess_manager.terminate_process(process_id)
+                else:
+                    logger.error("Failed to start ffmpeg combine process")
+                    return False
 
                 # Clean up temp files
                 if os.path.exists(video_path):
@@ -1863,6 +1883,7 @@ class RecordingService:
 
                 # Check if successful
                 if (
+                    process and
                     process.returncode == 0
                     and os.path.exists(mp4_path)
                     and os.path.getsize(mp4_path) > 0
@@ -1891,8 +1912,12 @@ class RecordingService:
                 process = await self.subprocess_manager.start_process(
                     audio_only_cmd, process_id
                 )
-                stdout, stderr = await process.communicate()
-                await self.subprocess_manager.terminate_process(process_id)
+                if process:
+                    stdout, stderr = await process.communicate()
+                    await self.subprocess_manager.terminate_process(process_id)
+                else:
+                    logger.error("Failed to start ffmpeg audio only process")
+                    return False
 
                 # Clean up temp files
                 if os.path.exists(audio_path):
@@ -1900,6 +1925,7 @@ class RecordingService:
 
                 # Check if successful
                 if (
+                    process and
                     process.returncode == 0
                     and os.path.exists(mp4_path)
                     and os.path.getsize(mp4_path) > 0
@@ -1923,10 +1949,15 @@ class RecordingService:
             process = await self.subprocess_manager.start_process(
                 simple_cmd, process_id
             )
-            stdout, stderr = await process.communicate()
-            await self.subprocess_manager.terminate_process(process_id)
+            if process:
+                stdout, stderr = await process.communicate()
+                await self.subprocess_manager.terminate_process(process_id)
+            else:
+                logger.error("Failed to start ffmpeg simple process")
+                return False
 
             if (
+                process and
                 process.returncode == 0
                 and os.path.exists(mp4_path)
                 and os.path.getsize(mp4_path) > 0
@@ -1974,6 +2005,10 @@ class RecordingService:
             process_id = f"ffprobe_validate_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
 
+            if not process:
+                logger.error("Failed to start ffprobe validate process")
+                return False
+
             stdout, stderr = await process.communicate()
 
             # Clean up the process
@@ -1997,6 +2032,10 @@ class RecordingService:
             video_process = await self.subprocess_manager.start_process(
                 check_video_cmd, video_process_id
             )
+
+            if not video_process:
+                logger.error("Failed to start ffprobe video process")
+                return False
 
             video_stdout, video_stderr = await video_process.communicate()
             await self.subprocess_manager.terminate_process(video_process_id)
@@ -2038,6 +2077,10 @@ class RecordingService:
                     audio_process = await self.subprocess_manager.start_process(
                         check_audio_cmd, audio_process_id
                     )
+
+                    if not audio_process:
+                        logger.error("Failed to start ffprobe audio process")
+                        return False
 
                     audio_stdout, audio_stderr = await audio_process.communicate()
                     await self.subprocess_manager.terminate_process(audio_process_id)
