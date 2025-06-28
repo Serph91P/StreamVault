@@ -736,14 +736,14 @@ class MetadataService:
                 logger.info(f"Audio-only file detected, skipping thumbnail extraction: {video_path}")
                 return None
             
-            # FFmpeg-Befehl zum Extrahieren des ersten Frames
+            # FFmpeg-Befehl zum Extrahieren eines Frames nach 10 Sekunden (bessere Bildqualität)
             cmd = [
                 "ffmpeg",
+                "-ss", "00:00:10",         # 10 Sekunden ins Video springen
                 "-i", str(video_path_obj),
-                "-vf", r"select=eq(n\,0)",  # Erstes Frame auswählen
+                "-vframes", "1",           # Nur ein Frame
                 "-q:v", "2",               # Hohe Qualität
                 "-f", "image2",
-                "-vframes", "1",
                 "-y",                      # Überschreiben bestehender Dateien
                 str(thumbnail_path)
             ]
@@ -869,8 +869,22 @@ class MetadataService:
                 ).order_by(StreamEvent.timestamp).all()
                 
                 if not events or len(events) < 1:
-                    logger.warning(f"No events found for stream {stream_id}, skipping chapter generation")
-                    return None
+                    logger.info(f"No events found for stream {stream_id}, creating minimal chapter file")
+                    
+                    # Erstelle ein Standard-Event für den ganzen Stream
+                    if stream.started_at and stream.category_name:
+                        # Erstelle ein echtes StreamEvent-Objekt
+                        dummy_event = StreamEvent(
+                            stream_id=stream_id,
+                            timestamp=stream.started_at,
+                            title=stream.title or "Stream",
+                            category_name=stream.category_name,
+                            event_type='category_change'
+                        )
+                        events = [dummy_event]
+                    else:
+                        logger.warning(f"Cannot create minimal chapters for stream {stream_id} - missing data")
+                        return None
                 
                 # Basispfade für Kapitel
                 mp4_path_obj = Path(mp4_path)
