@@ -1,5 +1,6 @@
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import type { FilenamePreset } from '@/types/recording';
+import { FILENAME_PRESETS as STATIC_FILENAME_PRESETS } from '@/types/recording';
 
 interface FilenamePresetsResponse {
   status: string;
@@ -7,9 +8,12 @@ interface FilenamePresetsResponse {
 }
 
 export function useFilenamePresets() {
-  const presets = ref<FilenamePreset[]>([]);
+  const presetsRef = ref<FilenamePreset[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+
+  // Computed property that returns the actual array value
+  const presets = computed(() => presetsRef.value);
 
   const loadPresets = async () => {
     isLoading.value = true;
@@ -25,7 +29,7 @@ export function useFilenamePresets() {
       const data: FilenamePresetsResponse = await response.json();
       
       if (data.status === 'success') {
-        presets.value = data.data;
+        presetsRef.value = data.data;
       } else {
         throw new Error('Failed to load filename presets');
       }
@@ -34,8 +38,7 @@ export function useFilenamePresets() {
       error.value = err instanceof Error ? err.message : 'Unknown error';
       
       // Fallback to static presets if API fails
-      const { FILENAME_PRESETS } = await import('@/types/recording');
-      presets.value = FILENAME_PRESETS;
+      presetsRef.value = [...STATIC_FILENAME_PRESETS];
     } finally {
       isLoading.value = false;
     }
