@@ -65,7 +65,7 @@
               <label>Filename Template:</label>              
               <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
                 <option value="" v-if="presetsLoading">Loading presets...</option>
-                <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
+                <option v-for="preset in FILENAME_PRESETS.value" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
                 </option>
               </select>
@@ -489,7 +489,7 @@ const data = ref<RecordingSettings>({
 });
 
 const updateFilenameTemplate = () => {
-  const preset = FILENAME_PRESETS.find((p: any) => p.value === data.value.filename_preset);
+  const preset = FILENAME_PRESETS.value.find((p: any) => p.value === data.value.filename_preset);
   if (preset) {
     data.value.filename_template = preset.description;
   }
@@ -545,7 +545,7 @@ const previewFilename = computed(() => {
 
 // Update filename template when preset changes
 const updateFilenameFromPreset = () => {
-  const selectedPreset = FILENAME_PRESETS.find((preset: any) => preset.value === data.value.filename_preset);
+  const selectedPreset = FILENAME_PRESETS.value.find((preset: any) => preset.value === data.value.filename_preset);
   if (selectedPreset) {
     data.value.filename_template = selectedPreset.description;
   }
