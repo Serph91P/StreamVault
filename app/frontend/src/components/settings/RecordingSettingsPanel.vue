@@ -63,11 +63,15 @@
 
             <div class="form-group">
               <label>Filename Template:</label>              
-              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset">
+              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
+                <option value="" v-if="presetsLoading">Loading presets...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
                 </option>
               </select>
+              <div v-if="presetsError" class="error-text">
+                Failed to load presets: {{ presetsError }}
+              </div>
               <input v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
               <div class="help-text">
                 Choose a preset or customize the filename template.
@@ -333,7 +337,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
-import { QUALITY_OPTIONS, FILENAME_VARIABLES, FILENAME_PRESETS } from '@/types/recording';
+import { useFilenamePresets } from '@/composables/useFilenamePresets';
+import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import type { GlobalSettings } from '@/types/settings';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
@@ -359,6 +364,9 @@ const tabs = [
 ];
 
 const { isLoading, error } = useRecordingSettings();
+
+// Filename presets from API
+const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsError } = useFilenamePresets();
 
 // State for streamer cleanup policy dialog
 const showStreamerPolicyDialog = ref(false);
@@ -481,7 +489,7 @@ const data = ref<RecordingSettings>({
 });
 
 const updateFilenameTemplate = () => {
-  const preset = FILENAME_PRESETS.find(p => p.value === data.value.filename_preset);
+  const preset = FILENAME_PRESETS.find((p: any) => p.value === data.value.filename_preset);
   if (preset) {
     data.value.filename_template = preset.description;
   }
@@ -537,7 +545,7 @@ const previewFilename = computed(() => {
 
 // Update filename template when preset changes
 const updateFilenameFromPreset = () => {
-  const selectedPreset = FILENAME_PRESETS.find(preset => preset.value === data.value.filename_preset);
+  const selectedPreset = FILENAME_PRESETS.find((preset: any) => preset.value === data.value.filename_preset);
   if (selectedPreset) {
     data.value.filename_template = selectedPreset.description;
   }
