@@ -1,4 +1,4 @@
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, reactive } from 'vue';
 import type { FilenamePreset } from '@/types/recording';
 import { FILENAME_PRESETS as STATIC_FILENAME_PRESETS } from '@/types/recording';
 
@@ -8,12 +8,9 @@ interface FilenamePresetsResponse {
 }
 
 export function useFilenamePresets() {
-  const presetsRef = ref<FilenamePreset[]>([]);
+  const presets = reactive<FilenamePreset[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
-
-  // Computed property that returns the actual array value
-  const presets = computed(() => presetsRef.value);
 
   const loadPresets = async () => {
     isLoading.value = true;
@@ -29,7 +26,8 @@ export function useFilenamePresets() {
       const data: FilenamePresetsResponse = await response.json();
       
       if (data.status === 'success') {
-        presetsRef.value = data.data;
+        // Clear and populate the reactive array
+        presets.splice(0, presets.length, ...data.data);
       } else {
         throw new Error('Failed to load filename presets');
       }
@@ -38,7 +36,7 @@ export function useFilenamePresets() {
       error.value = err instanceof Error ? err.message : 'Unknown error';
       
       // Fallback to static presets if API fails
-      presetsRef.value = [...STATIC_FILENAME_PRESETS];
+      presets.splice(0, presets.length, ...STATIC_FILENAME_PRESETS);
     } finally {
       isLoading.value = false;
     }
