@@ -713,6 +713,29 @@ class MetadataService:
                         
                 return str(thumbnail_path)
             
+            # Check if the file has video streams first
+            check_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(video_path_obj)
+            ]
+            
+            check_process = await asyncio.create_subprocess_exec(
+                *check_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            check_stdout, check_stderr = await check_process.communicate()
+            
+            # If no video stream detected, this is audio-only
+            if check_process.returncode != 0 or not check_stdout or "video" not in check_stdout.decode("utf-8", errors="ignore").lower():
+                logger.info(f"Audio-only file detected, skipping thumbnail extraction: {video_path}")
+                return None
+            
             # FFmpeg-Befehl zum Extrahieren des ersten Frames
             cmd = [
                 "ffmpeg",
