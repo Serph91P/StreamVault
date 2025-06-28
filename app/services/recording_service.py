@@ -11,11 +11,6 @@ import uuid
 import time
 import functools
 import aiohttp
-import asyncio
-import os
-import subprocess
-import uuid
-import functools
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Tuple, Callable
@@ -376,6 +371,14 @@ class RecordingService:
             cls._instance.metadata_service = metadata_service or MetadataService()
             cls._instance.config_manager = config_manager or ConfigManager()
             cls._instance.subprocess_manager = subprocess_manager or SubprocessManager()
+            cls._instance.media_server_service = MediaServerStructureService()
+            cls._instance.activity_logger = RecordingActivityLogger()
+            
+            # Initialize logging integration
+            cls._instance.logger = logging_service.recording_logger
+            cls._instance.streamlink_logger = logging_service.streamlink_logger
+            cls._instance.ffmpeg_logger = logging_service.ffmpeg_logger
+            
             cls._instance.initialized = True
         return cls._instance
 
@@ -390,11 +393,6 @@ class RecordingService:
             self.subprocess_manager = subprocess_manager or SubprocessManager()
             self.media_server_service = MediaServerStructureService()
             self.activity_logger = RecordingActivityLogger()
-            
-            # Initialize logging integration
-            self.logger = logging_service.recording_logger
-            self.streamlink_logger = logging_service.streamlink_logger
-            self.ffmpeg_logger = logging_service.ffmpeg_logger
             
             self.initialized = True
             logger.info("RecordingService initialized successfully with logging integration")
@@ -1010,7 +1008,6 @@ class RecordingService:
             # Query Twitch API for stream info using the API directly
             # Since we don't need websocket/event functionality, make API call directly
             from app.config.settings import settings
-            import aiohttp
             
             # Get access token for API call
             async with aiohttp.ClientSession() as session:
@@ -1454,7 +1451,6 @@ class RecordingService:
                 ts_output_path,
                 "--twitch-disable-ads",
                 "--hls-live-restart",
-                # LiveStreamDVR-inspired parameters for better proxy compatibility
                 "--hls-live-edge", "6",  # Start closer to live edge for better proxy stability
                 "--stream-segment-threads", "5",  # Multi-threading helps with proxy connections
                 "--ffmpeg-fout", "mpegts",  # Use mpegts format for better container handling
