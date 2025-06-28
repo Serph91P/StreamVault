@@ -1899,7 +1899,8 @@ class RecordingService:
                     return True
             
             # Handle audio-only streams by checking if we have audio but no video
-            elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+            elif (os.path.exists(audio_path) and os.path.getsize(audio_path) > 0 and
+                  not (os.path.exists(video_path) and os.path.getsize(video_path) > 0)):
                 logger.info("Detected audio-only stream, creating audio-only MP4")
                 audio_only_cmd = [
                     "ffmpeg",
