@@ -39,6 +39,16 @@ logger = logging.getLogger("streamvault")
 # Spezieller Logger für Recording-Aktivitäten
 recording_logger = logging.getLogger("streamvault.recording")
 
+# Filename presets for different media server structures
+FILENAME_PRESETS = {
+    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "emby": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "jellyfin": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "kodi": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
+}
+
 class RecordingActivityLogger:
     """Detailliertes Logging für alle Recording-Aktivitäten"""
     
@@ -1844,25 +1854,16 @@ class RecordingService:
                 await self.subprocess_manager.terminate_process(process_id)
 
             # Step 2: Recombine to MP4
-            if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-                combine_cmd = ["ffmpeg", "-i", video_path]
-
-                # Only add audio if it exists
-                if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                    combine_cmd.extend(["-i", audio_path])
-
-                combine_cmd.extend(
-                    [
-                        "-c:v",
-                        "copy",
-                        "-c:a",
-                        "copy",
-                        "-movflags",
-                        "+faststart",
-                        "-y",
-                        mp4_path,
-                    ]
-                )
+            if os.path.exists(f"{ts_path}.h264") and os.path.exists(f"{ts_path}.aac"):
+                combine_cmd = [
+                    "ffmpeg",
+                    "-i", f"{ts_path}.h264",
+                    "-i", f"{ts_path}.aac",
+                    "-c:v", "copy",
+                    "-c:a", "copy",
+                    "-movflags", "+faststart",
+                    "-y", mp4_path,
+                ]
 
                 process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
                 process = await self.subprocess_manager.start_process(
@@ -2288,6 +2289,21 @@ class RecordingService:
             logger.error(f"Error repairing MP4: {e}", exc_info=True)
             return False
 
+    async def _update_recording_path(self, stream_id: int, new_path: str):
+        """Update the recording path for a stream after media server structure creation"""
+        try:
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream:
+                    old_path = stream.recording_path
+                    stream.recording_path = new_path
+                    db.commit()
+                    logger.info(f"Updated recording_path for stream {stream_id}: {old_path} -> {new_path}")
+                else:
+                    logger.warning(f"Stream {stream_id} not found for recording_path update")
+        except Exception as e:
+            logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
+
     def _generate_filename(
         self, streamer: Streamer, stream_data: Dict[str, Any], template: str
     ) -> str:
@@ -2390,65 +2406,26 @@ class RecordingService:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
     async def _cleanup_temporary_files(self, mp4_path: str):
-        """Clean up temporary files after metadata generation"""
+        """Clean up temporary files after successful metadata generation"""
         try:
-            # Find and remove temporary files like .ts, .temp, .part, etc.
-            base_path = Path(mp4_path).parent
-            base_name = Path(mp4_path).stem
+            base_path = mp4_path.replace(".mp4", "")
+            temp_extensions = [".ts", ".h264", ".aac", ".temp", ".processing"]
             
-            # Common temporary file extensions to clean up
-            temp_extensions = ['.ts', '.temp', '.part', '.tmp', '.processing']
-            
-            cleaned_files = 0
-            for temp_ext in temp_extensions:
-                temp_file = base_path / f"{base_name}{temp_ext}"
-                if temp_file.exists():
+            cleaned_files = []
+            for ext in temp_extensions:
+                temp_file = base_path + ext
+                if os.path.exists(temp_file):
                     try:
-                        temp_file.unlink()
-                        cleaned_files += 1
+                        os.remove(temp_file)
+                        cleaned_files.append(temp_file)
                         logger.debug(f"Cleaned up temporary file: {temp_file}")
                     except Exception as e:
                         logger.warning(f"Failed to remove temporary file {temp_file}: {e}")
             
-            # Also look for any .ts file that matches the MP4 file
-            ts_file = Path(mp4_path.replace('.mp4', '.ts'))
-            if ts_file.exists() and ts_file != Path(mp4_path):
-                try:
-                    ts_file.unlink()
-                    cleaned_files += 1
-                    logger.debug(f"Cleaned up TS file: {ts_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to remove TS file {ts_file}: {e}")
-            
-            if cleaned_files > 0:
-                logger.info(f"Cleaned up {cleaned_files} temporary files for {Path(mp4_path).name}")
+            if cleaned_files:
+                logger.info(f"Cleaned up {len(cleaned_files)} temporary files for {os.path.basename(mp4_path)}")
             else:
-                logger.debug(f"No temporary files to clean up for {Path(mp4_path).name}")
+                logger.debug(f"No temporary files to clean up for {os.path.basename(mp4_path)}")
                 
         except Exception as e:
-            logger.error(f"Error during temporary file cleanup: {e}", exc_info=True)
-
-    async def _update_recording_path(self, stream_id: int, new_path: str):
-        """Update the recording path for a stream in the database"""
-        try:
-            with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if stream:
-                    stream.recording_path = new_path
-                    db.commit()
-                    logger.info(f"Updated recording path for stream {stream_id} to: {new_path}")
-                else:
-                    logger.warning(f"Stream {stream_id} not found for recording path update")
-        except Exception as e:
-            logger.error(f"Error updating recording path for stream {stream_id}: {e}", exc_info=True)
-
-
-# Filename presets optimized for media servers
-FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month:02d}-{day:02d}_{hour:02d}-{minute:02d}_{title}_{game}",
-    "plex": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
-    "emby": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
-    "jellyfin": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
-    "kodi": "{streamer}/Season {year}-{month:02d}/{streamer} - S{year}{month:02d}E{episode:02d} - {title}",
-    "chronological": "{year}/{month:02d}/{day:02d}/{streamer} - E{episode:02d} - {title} - {hour:02d}-{minute:02d}",
-}
+            logger.error(f"Error cleaning up temporary files: {e}", exc_info=True)
