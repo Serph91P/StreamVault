@@ -1433,11 +1433,8 @@ class RecordingService:
             # Use .ts as intermediate format for better recovery
             ts_output_path = output_path.replace(".mp4", ".ts")
 
-            # Adjust the quality string for better resolution selection
+            # Use the quality setting as specified by the user
             adjusted_quality = quality
-            if quality == "best":
-                # Use a more specific quality selection string to prioritize highest resolution
-                adjusted_quality = "1080p60,1080p,best"
 
             # Get streamlink log path for this recording session
             streamlink_log_path = logging_service.get_streamlink_log_path(streamer_name)
@@ -1626,7 +1623,7 @@ class RecordingService:
                 "-c:v", "copy",               # Copy video stream (no re-encoding)
                 "-c:a", "copy",               # Copy audio stream (preserve original timing)
                 "-avoid_negative_ts", "make_zero",  # Handle negative timestamps
-                "-map", "0:v:0",              # Map first video stream
+                "-map", "0:v:0?",             # Map first video stream (optional - may not exist)
                 "-map", "0:a:0?",             # Map first audio stream (optional)
                 "-movflags", "+faststart+frag_keyframe" if is_proxy_recording else "+faststart",  # Optimize for proxy recordings
                 "-ignore_unknown",            # Ignore unknown streams
@@ -1721,7 +1718,7 @@ class RecordingService:
                 "-b:a",
                 "160k",  # Definierter Bitrate für Audio
                 "-map",
-                "0:v:0",  # Nur den ersten Video-Stream verwenden
+                "0:v:0?",  # Ersten Video-Stream (optional - wichtig für Audio-Only Streams)
                 "-map",
                 "0:a:0?",  # Ersten Audio-Stream (optional)
                 "-ignore_unknown",
@@ -1878,11 +1875,49 @@ class RecordingService:
                     if os.path.exists(ts_path):
                         os.remove(ts_path)
                     return True
+            
+            # Handle audio-only streams by checking if we have audio but no video
+            elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                logger.info("Detected audio-only stream, creating audio-only MP4")
+                audio_only_cmd = [
+                    "ffmpeg",
+                    "-i", audio_path,
+                    "-c:a", "copy",
+                    "-movflags", "+faststart",
+                    "-y", mp4_path,
+                ]
+
+                process_id = f"ffmpeg_audio_only_{int(datetime.now().timestamp())}"
+                process = await self.subprocess_manager.start_process(
+                    audio_only_cmd, process_id
+                )
+                stdout, stderr = await process.communicate()
+                await self.subprocess_manager.terminate_process(process_id)
+
+                # Clean up temp files
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+
+                # Check if successful
+                if (
+                    process.returncode == 0
+                    and os.path.exists(mp4_path)
+                    and os.path.getsize(mp4_path) > 0
+                ):
+                    logger.info(
+                        f"Successfully created audio-only MP4: {mp4_path}"
+                    )
+
+                    # Delete original TS file
+                    if os.path.exists(ts_path):
+                        os.remove(ts_path)
+                    return True
 
             # If we're here, try the simplest possible method as last resort
             logger.warning("Advanced fallback failed, trying simple fallback method")
 
-            simple_cmd = ["ffmpeg", "-i", ts_path, "-c:v", "copy", "-y", mp4_path]
+            # Use a more flexible simple fallback that can handle both video+audio and audio-only
+            simple_cmd = ["ffmpeg", "-i", ts_path, "-c", "copy", "-y", mp4_path]
 
             process_id = f"ffmpeg_simple_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(
@@ -1966,7 +2001,7 @@ class RecordingService:
             video_stdout, video_stderr = await video_process.communicate()
             await self.subprocess_manager.terminate_process(video_process_id)
 
-            # If we got a valid duration and can read video stream, the file is properly finalized
+            # If we got a valid duration and can read any streams, the file is properly finalized
             has_valid_duration = (
                 process.returncode == 0
                 and stdout
@@ -1978,7 +2013,50 @@ class RecordingService:
                 and "video" in video_stdout.decode("utf-8", errors="ignore").strip()
             )
 
-            return has_valid_duration and has_video_stream
+            # Accept the file if it has valid duration and either video stream OR is audio-only stream
+            # Some streams might be audio-only (like music streams), which should still be valid
+            if has_valid_duration:
+                if has_video_stream:
+                    logger.debug(f"MP4 file validation: Valid duration and video stream found")
+                    return True
+                else:
+                    # Check if there's at least an audio stream for audio-only content
+                    check_audio_cmd = [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-select_streams",
+                        "a:0",
+                        "-show_entries",
+                        "stream=codec_type",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        mp4_path,
+                    ]
+
+                    audio_process_id = f"ffprobe_audio_{int(datetime.now().timestamp())}"
+                    audio_process = await self.subprocess_manager.start_process(
+                        check_audio_cmd, audio_process_id
+                    )
+
+                    audio_stdout, audio_stderr = await audio_process.communicate()
+                    await self.subprocess_manager.terminate_process(audio_process_id)
+
+                    has_audio_stream = (
+                        audio_process.returncode == 0
+                        and audio_stdout
+                        and "audio" in audio_stdout.decode("utf-8", errors="ignore").strip()
+                    )
+
+                    if has_audio_stream:
+                        logger.info(f"MP4 file validation: Valid audio-only stream detected")
+                        return True
+                    else:
+                        logger.warning(f"MP4 file validation: No video or audio streams found")
+                        return False
+            else:
+                logger.warning(f"MP4 file validation: Invalid duration")
+                return False
         except Exception as e:
             logger.error(f"Error validating MP4 file: {e}", exc_info=True)
             return False
@@ -1989,97 +2067,139 @@ class RecordingService:
             # Temporary file for the repaired version
             repaired_path = mp4_path + ".repaired.mp4"
 
-            # Extract video and audio streams separately and then combine
-            cmd = [
-                "ffmpeg",
-                "-i",
-                ts_path,
-                # Extract video (copy)
-                "-map",
-                "0:v:0",
-                "-c:v",
-                "copy",
-                "-f",
-                "h264",
-                f"{ts_path}.h264",
-                               # Extract audio and convert to AAC
-                "-map",
-                "0:a:0",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "128k",
-                "-f",
-                "adts",
-                f"{ts_path}.aac",
+            # First, check what streams are available in the TS file
+            probe_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_streams",
+                "-select_streams", "v,a",
+                "-of", "csv=p=0",
+                ts_path
             ]
+            
+            probe_process_id = f"ffprobe_streams_{int(datetime.now().timestamp())}"
+            probe_process = await self.subprocess_manager.start_process(probe_cmd, probe_process_id)
+            
+            if not probe_process:
+                logger.error("Failed to start ffprobe process for stream detection")
+                # Fall back to original repair method
+                has_video = True  # Assume video for fallback
+                has_audio = True
+            else:
+                probe_stdout, probe_stderr = await probe_process.communicate()
+                await self.subprocess_manager.terminate_process(probe_process_id)
+                
+                has_video = False
+                has_audio = False
+                
+                if probe_process.returncode == 0 and probe_stdout:
+                    streams_info = probe_stdout.decode("utf-8", errors="ignore").strip()
+                    has_video = "video" in streams_info.lower()
+                    has_audio = "audio" in streams_info.lower()
+                    logger.debug(f"Stream detection for {ts_path}: has_video={has_video}, has_audio={has_audio}")
+                else:
+                    # If probe failed, assume both for safety
+                    has_video = True
+                    has_audio = True
 
-            # First pass: extract streams
-            process_id = f"ffmpeg_extract_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(cmd, process_id)
-            await process.communicate()
-            await self.subprocess_manager.terminate_process(process_id)
-
-            # Second pass: combine streams into MP4
-            if os.path.exists(f"{ts_path}.h264") and os.path.exists(f"{ts_path}.aac"):
-                combine_cmd = [
+            # Extract streams based on what's available
+            if has_video and has_audio:
+                # Video + Audio stream
+                extract_cmd = [
                     "ffmpeg",
-                    "-i",
+                    "-i", ts_path,
+                    # Extract video (copy)
+                    "-map", "0:v:0",
+                    "-c:v", "copy",
+                    "-f", "h264",
                     f"{ts_path}.h264",
-                    "-i",
+                    # Extract audio and convert to AAC
+                    "-map", "0:a:0",
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-f", "adts",
                     f"{ts_path}.aac",
-                    "-c:v",
-                    "copy",
-                    "-c:a",
-                    "copy",
-                    "-movflags",
-                    "+faststart",
-                    "-y",
-                    repaired_path,
                 ]
+                
+                process_id = f"ffmpeg_extract_{int(datetime.now().timestamp())}"
+                process = await self.subprocess_manager.start_process(extract_cmd, process_id)
+                if process:
+                    await process.communicate()
+                    await self.subprocess_manager.terminate_process(process_id)
 
-                process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
-                process = await self.subprocess_manager.start_process(
-                    combine_cmd, process_id
-                )
-                stdout, stderr = await process.communicate()
-                await self.subprocess_manager.terminate_process(process_id)
+                # Combine streams into MP4
+                if os.path.exists(f"{ts_path}.h264") and os.path.exists(f"{ts_path}.aac"):
+                    combine_cmd = [
+                        "ffmpeg",
+                        "-i", f"{ts_path}.h264",
+                        "-i", f"{ts_path}.aac",
+                        "-c:v", "copy",
+                        "-c:a", "copy",
+                        "-movflags", "+faststart",
+                        "-y", repaired_path,
+                    ]
 
-                # Check if successful
-                if (
-                    process.returncode == 0
-                    and os.path.exists(repaired_path)
-                    and os.path.getsize(repaired_path) > 0
-                ):
-                    # Replace the original file with the repaired version
-                    os.replace(repaired_path, mp4_path)
-                    logger.info(f"Successfully repaired MP4 file: {mp4_path}")
+                    process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
+                    process = await self.subprocess_manager.start_process(combine_cmd, process_id)
+                    if process:
+                        stdout, stderr = await process.communicate()
+                        await self.subprocess_manager.terminate_process(process_id)
 
-                    # Clean up temporary files
-                    os.remove(f"{ts_path}.h264")
-                    os.remove(f"{ts_path}.aac")
+                        if (process.returncode == 0 and os.path.exists(repaired_path) and os.path.getsize(repaired_path) > 0):
+                            # Replace the original file with the repaired version
+                            os.replace(repaired_path, mp4_path)
+                            logger.info(f"Successfully repaired MP4 file (video+audio): {mp4_path}")
 
-                    # Delete the TS file if the repair was successful
-                    if os.path.exists(ts_path):
-                        os.remove(ts_path)
-                    return True
+                            # Clean up temporary files
+                            for temp_file in [f"{ts_path}.h264", f"{ts_path}.aac"]:
+                                if os.path.exists(temp_file):
+                                    os.remove(temp_file)
+
+                            # Delete the TS file if the repair was successful
+                            if os.path.exists(ts_path):
+                                os.remove(ts_path)
+                            return True
+                        
+            elif has_audio and not has_video:
+                # Audio-only stream
+                logger.info("Detected audio-only stream, creating audio-only MP4")
+                audio_only_cmd = [
+                    "ffmpeg",
+                    "-i", ts_path,
+                    "-map", "0:a:0",
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-movflags", "+faststart",
+                    "-y", repaired_path,
+                ]
+                
+                process_id = f"ffmpeg_audio_only_{int(datetime.now().timestamp())}"
+                process = await self.subprocess_manager.start_process(audio_only_cmd, process_id)
+                if process:
+                    stdout, stderr = await process.communicate()
+                    await self.subprocess_manager.terminate_process(process_id)
+
+                    if (process.returncode == 0 and os.path.exists(repaired_path) and os.path.getsize(repaired_path) > 0):
+                        # Replace the original file with the repaired version
+                        os.replace(repaired_path, mp4_path)
+                        logger.info(f"Successfully repaired MP4 file (audio-only): {mp4_path}")
+
+                        # Delete the TS file if the repair was successful
+                        if os.path.exists(ts_path):
+                            os.remove(ts_path)
+                        return True
 
             # Fallback to original repair method if the above failed
             logger.warning("Advanced repair failed, trying original repair method")
 
-            # Original repair code follows...
+            # Original repair code - use flexible mapping for unknown stream types
             cmd = [
                 "ffmpeg",
-                "-i",
-                ts_path,
-                "-c",
-                "copy",
-                "-movflags",
-                "+faststart+frag_keyframe+empty_moov+default_base_moof",
-                "-f",
-                "mp4",
-                "-y",
-                repaired_path,
+                "-i", ts_path,
+                "-c", "copy",
+                "-movflags", "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-f", "mp4",
+                "-y", repaired_path,
             ]
 
             logger.debug(f"Attempting to repair MP4: {' '.join(cmd)}")
@@ -2087,6 +2207,10 @@ class RecordingService:
             # Use subprocess manager for the repair process
             process_id = f"ffmpeg_repair_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
+
+            if not process:
+                logger.error("Failed to start ffmpeg repair process")
+                return False
 
             stdout, stderr = await process.communicate()
 
@@ -2103,7 +2227,8 @@ class RecordingService:
                 logger.info(f"Successfully repaired MP4 file: {mp4_path}")
 
                 # Delete the TS file if the repair was successful
-                os.remove(ts_path)
+                if os.path.exists(ts_path):
+                    os.remove(ts_path)
                 return True
             else:
                 stderr_text = (
@@ -2259,6 +2384,20 @@ class RecordingService:
                 
         except Exception as e:
             logger.error(f"Error during temporary file cleanup: {e}", exc_info=True)
+
+    async def _update_recording_path(self, stream_id: int, new_path: str):
+        """Update the recording path for a stream in the database"""
+        try:
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream:
+                    stream.recording_path = new_path
+                    db.commit()
+                    logger.info(f"Updated recording path for stream {stream_id} to: {new_path}")
+                else:
+                    logger.warning(f"Stream {stream_id} not found for recording path update")
+        except Exception as e:
+            logger.error(f"Error updating recording path for stream {stream_id}: {e}", exc_info=True)
 
 
 # Filename presets optimized for media servers
