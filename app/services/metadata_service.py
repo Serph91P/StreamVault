@@ -67,17 +67,40 @@ class MetadataService:
                     db.add(metadata)
                     db.commit()  # Commit here to ensure it exists for later references
                 
-                # Aufgaben parallel ausführen
-                results = await asyncio.gather(
-                    self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata),
-                    self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata),
-                    self.extract_thumbnail(mp4_path, stream_id, db),
-                    self.ensure_all_chapter_formats(stream_id, mp4_path, db)
-                )
+                # Aufgaben parallel ausführen - Aber auch bei Fehlern weitermachen
+                results = []
+                try:
+                    result_json = await self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata)
+                    results.append(result_json)
+                except Exception as e:
+                    logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
+                    results.append(False)
+                
+                try:
+                    result_nfo = await self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata)
+                    results.append(result_nfo)
+                except Exception as e:
+                    logger.error(f"Error generating NFO file: {e}", exc_info=True)
+                    results.append(False)
+                
+                try:
+                    result_thumbnail = await self.extract_thumbnail(mp4_path, stream_id, db)
+                    results.append(result_thumbnail is not None)
+                except Exception as e:
+                    logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
+                    results.append(False)
+                
+                try:
+                    result_chapters = await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
+                    results.append(result_chapters is not None)
+                except Exception as e:
+                    logger.error(f"Error generating chapters: {e}", exc_info=True)
+                    results.append(False)
                 
                 db.commit()
-                logger.info(f"Generated metadata for stream {stream_id}")
-                return all(results)
+                success_count = sum(1 for r in results if r)
+                logger.info(f"Generated metadata for stream {stream_id} - {success_count}/{len(results)} tasks successful")
+                return success_count > 0  # Success if at least one task succeeded
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
             return False
@@ -713,14 +736,37 @@ class MetadataService:
                         
                 return str(thumbnail_path)
             
-            # FFmpeg-Befehl zum Extrahieren des ersten Frames
+            # Check if the file has video streams first
+            check_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(video_path_obj)
+            ]
+            
+            check_process = await asyncio.create_subprocess_exec(
+                *check_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            check_stdout, check_stderr = await check_process.communicate()
+            
+            # If no video stream detected, this is audio-only
+            if check_process.returncode != 0 or not check_stdout or "video" not in check_stdout.decode("utf-8", errors="ignore").lower():
+                logger.info(f"Audio-only file detected, skipping thumbnail extraction: {video_path}")
+                return None
+            
+            # FFmpeg-Befehl zum Extrahieren eines Frames nach 10 Sekunden (bessere Bildqualität)
             cmd = [
                 "ffmpeg",
+                "-ss", "00:00:10",         # 10 Sekunden ins Video springen
                 "-i", str(video_path_obj),
-                "-vf", r"select=eq(n\,0)",  # Erstes Frame auswählen
+                "-vframes", "1",           # Nur ein Frame
                 "-q:v", "2",               # Hohe Qualität
                 "-f", "image2",
-                "-vframes", "1",
                 "-y",                      # Überschreiben bestehender Dateien
                 str(thumbnail_path)
             ]
@@ -846,8 +892,23 @@ class MetadataService:
                 ).order_by(StreamEvent.timestamp).all()
                 
                 if not events or len(events) < 1:
-                    logger.warning(f"No events found for stream {stream_id}, skipping chapter generation")
-                    return None
+                    logger.info(f"No events found for stream {stream_id}, creating minimal chapter file")
+                    
+                    # Erstelle ein Standard-Event für den ganzen Stream
+                    if stream.started_at:
+                        # Erstelle ein echtes StreamEvent-Objekt
+                        dummy_event = StreamEvent(
+                            stream_id=stream_id,
+                            timestamp=stream.started_at,
+                            title=stream.title or "Stream",
+                            category_name=stream.category_name or "Stream",
+                            event_type='category_change'
+                        )
+                        events = [dummy_event]
+                    else:
+                        logger.warning(f"Cannot create minimal chapters for stream {stream_id} - missing started_at")
+                        # Return None to indicate no chapters could be created
+                        return None
                 
                 # Basispfade für Kapitel
                 mp4_path_obj = Path(mp4_path)

@@ -86,7 +86,14 @@ export const FILENAME_VARIABLES = [
   { key: "episode", description: "Episode number (E01, E02, ...)" },
   { key: "unique", description: "Unique identifier" }
 ];
-export const FILENAME_PRESETS = [
+
+export interface FilenamePreset {
+  value: string;
+  label: string;
+  description: string;
+}
+
+export const FILENAME_PRESETS: FilenamePreset[] = [
   { 
     value: "default", 
     label: "Default", 

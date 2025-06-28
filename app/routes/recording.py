@@ -3,7 +3,7 @@ from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.services.recording_service import RecordingService
+from app.services.recording_service import RecordingService, FILENAME_PRESETS
 from app.services.logging_service import logging_service
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -456,4 +456,25 @@ async def update_streamer_cleanup_policy(streamer_id: int, policy: CleanupPolicy
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating streamer cleanup policy: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/filename-presets")
+async def get_filename_presets():
+    """Get all available filename presets"""
+    try:
+        # Convert the backend dictionary format to frontend array format
+        presets = []
+        for key, template in FILENAME_PRESETS.items():
+            presets.append({
+                "value": key,
+                "label": key.replace("_", " ").title(),
+                "description": template
+            })
+        
+        return {
+            "status": "success",
+            "data": presets
+        }
+    except Exception as e:
+        logger.error(f"Error getting filename presets: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

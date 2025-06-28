@@ -289,11 +289,11 @@ class MediaServerStructureService:
         try:
             episode_info = structure["episode_info"]
             
-            # Get runtime from metadata if available
-            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+            # Get runtime from stream duration if available
             runtime = ""
-            if metadata and metadata.duration:
-                runtime_minutes = int(metadata.duration / 60)
+            if stream.started_at and stream.ended_at:
+                duration_seconds = (stream.ended_at - stream.started_at).total_seconds()
+                runtime_minutes = int(duration_seconds / 60)
                 runtime = f"<runtime>{runtime_minutes}</runtime>"
             
             # Format air date
