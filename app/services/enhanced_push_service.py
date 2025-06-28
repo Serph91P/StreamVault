@@ -3,7 +3,7 @@ Enhanced Push Service using a more modern implementation
 """
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from app.config.settings import settings
 from app.services.webpush_service import ModernWebPushService, WebPushException
 
@@ -36,7 +36,7 @@ class EnhancedPushService:
     
     async def send_notification(
         self, 
-        subscription: Dict[str, Any], 
+        subscription: Union[Dict[str, Any], str], 
         notification_data: Dict[str, Any]
     ) -> bool:
         """Send a push notification to a specific subscription"""
@@ -44,7 +44,24 @@ class EnhancedPushService:
             if not self.web_push_service or not self.vapid_public_key:
                 logger.warning("VAPID keys not configured, cannot send push notifications")
                 return False
+
+            # Handle both string and dict subscription formats
+            if isinstance(subscription, str):
+                try:
+                    subscription = json.loads(subscription)
+                except json.JSONDecodeError:
+                    logger.error(f"Invalid subscription format (not JSON): {subscription[:50]}...")
+                    return False
             
+            if not isinstance(subscription, dict):
+                logger.error(f"Subscription must be a dictionary, got {type(subscription)}")
+                return False
+            
+            # Validate required subscription fields
+            if 'endpoint' not in subscription:
+                logger.error("Subscription missing required 'endpoint' field")
+                return False
+
             # Prepare the notification payload
             payload = json.dumps(notification_data)
             
@@ -67,7 +84,8 @@ class EnhancedPushService:
             # Handle different error codes
             if hasattr(e, 'response') and e.response and e.response.status == 410:
                 # Subscription is no longer valid
-                logger.info(f"Subscription expired: {subscription.get('endpoint', 'unknown')[:50]}...")
+                endpoint = subscription.get('endpoint', 'unknown') if isinstance(subscription, dict) else 'unknown'
+                logger.info(f"Subscription expired: {endpoint[:50]}...")
                 return False
             elif hasattr(e, 'response') and e.response and e.response.status == 413:
                 logger.warning("Payload too large")
@@ -89,7 +107,7 @@ class EnhancedPushService:
         stream_title: str,
         streamer_id: int,
         stream_id: Optional[int] = None,
-        category_name: str = None
+        category_name: Optional[str] = None
     ) -> bool:
         """Send a notification when a stream goes online"""
         # Use same format as Apprise notifications
