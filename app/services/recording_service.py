@@ -1713,7 +1713,12 @@ class RecordingService:
                         return True
                     else:
                         logger.warning(f"MP4 validation failed, attempting repair")
-                        return await self._repair_mp4(ts_path, mp4_path)
+                        repair_success = await self._repair_mp4(ts_path, mp4_path)
+                        if repair_success:
+                            # Only delete TS file after successful repair
+                            if os.path.exists(ts_path):
+                                os.remove(ts_path)
+                        return repair_success
                 else:
                     logger.error(f"MP4 file was not created or is empty: {mp4_path}")
                     return False
@@ -1788,7 +1793,12 @@ class RecordingService:
                         return True
                     else:
                         logger.warning(f"MP4 validation failed, attempting repair")
-                        return await self._repair_mp4(ts_path, mp4_path)
+                        repair_success = await self._repair_mp4(ts_path, mp4_path)
+                        if repair_success:
+                            # Only delete TS file after successful repair
+                            if os.path.exists(ts_path):
+                                os.remove(ts_path)
+                        return repair_success
                 else:
                     logger.error(f"MP4 file not created or empty: {mp4_path}")
                     return False
