@@ -1325,7 +1325,7 @@ class RecordingService:
             await asyncio.sleep(5)
 
         # Additional wait time to ensure the file is completely written
-        await asyncio.sleep(10)
+        await asyncio.sleep(20)  # Longer wait to ensure file is fully written
 
         # Verify that the MP4 file is valid
         if mp4_path.endswith(".mp4"):
@@ -1713,7 +1713,12 @@ class RecordingService:
                         return True
                     else:
                         logger.warning(f"MP4 validation failed, attempting repair")
-                        return await self._repair_mp4(ts_path, mp4_path)
+                        repair_success = await self._repair_mp4(ts_path, mp4_path)
+                        if repair_success:
+                            # Only delete TS file after successful repair
+                            if os.path.exists(ts_path):
+                                os.remove(ts_path)
+                        return repair_success
                 else:
                     logger.error(f"MP4 file was not created or is empty: {mp4_path}")
                     return False
@@ -1788,7 +1793,12 @@ class RecordingService:
                         return True
                     else:
                         logger.warning(f"MP4 validation failed, attempting repair")
-                        return await self._repair_mp4(ts_path, mp4_path)
+                        repair_success = await self._repair_mp4(ts_path, mp4_path)
+                        if repair_success:
+                            # Only delete TS file after successful repair
+                            if os.path.exists(ts_path):
+                                os.remove(ts_path)
+                        return repair_success
                 else:
                     logger.error(f"MP4 file not created or empty: {mp4_path}")
                     return False
@@ -1983,25 +1993,20 @@ class RecordingService:
             return False
 
     async def _validate_mp4(self, mp4_path: str) -> bool:
-        """Validate that an MP4 file is properly finalized with moov atom"""
+        """Validate that an MP4 file is properly created and readable"""
         try:
             # Check if file exists and has reasonable size
-            if (
-                not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000
-            ):  # At least 10KB
+            if not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000:
                 logger.warning(f"MP4 file does not exist or is too small: {mp4_path}")
                 return False
 
-            # Use ffprobe to check if the file has a valid duration (indicates proper moov atom)
+            # Simple validation: Can ffprobe read the file and get basic info?
             cmd = [
                 "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                mp4_path,
+                "-v", "quiet",
+                "-show_format",
+                "-show_streams",
+                mp4_path
             ]
 
             process_id = f"ffprobe_validate_{int(datetime.now().timestamp())}"
@@ -2012,96 +2017,16 @@ class RecordingService:
                 return False
 
             stdout, stderr = await process.communicate()
-
-            # Clean up the process
             await self.subprocess_manager.terminate_process(process_id)
 
-            # Additional check: Make sure we can read video streams
-            check_video_cmd = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=codec_type",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                mp4_path,
-            ]
-
-            video_process_id = f"ffprobe_video_{int(datetime.now().timestamp())}"
-            video_process = await self.subprocess_manager.start_process(
-                check_video_cmd, video_process_id
-            )
-
-            if not video_process:
-                logger.error("Failed to start ffprobe video process")
-                return False
-
-            video_stdout, video_stderr = await video_process.communicate()
-            await self.subprocess_manager.terminate_process(video_process_id)
-
-            # If we got a valid duration and can read any streams, the file is properly finalized
-            has_valid_duration = (
-                process.returncode == 0
-                and stdout
-                and float(stdout.decode("utf-8", errors="ignore").strip()) > 0
-            )
-            has_video_stream = (
-                video_process.returncode == 0
-                and video_stdout
-                and "video" in video_stdout.decode("utf-8", errors="ignore").strip()
-            )
-
-            # Accept the file if it has valid duration and either video stream OR is audio-only stream
-            # Some streams might be audio-only (like music streams), which should still be valid
-            if has_valid_duration:
-                if has_video_stream:
-                    logger.debug(f"MP4 file validation: Valid duration and video stream found")
-                    return True
-                else:
-                    # Check if there's at least an audio stream for audio-only content
-                    check_audio_cmd = [
-                        "ffprobe",
-                        "-v",
-                        "error",
-                        "-select_streams",
-                        "a:0",
-                        "-show_entries",
-                        "stream=codec_type",
-                        "-of",
-                        "default=noprint_wrappers=1:nokey=1",
-                        mp4_path,
-                    ]
-
-                    audio_process_id = f"ffprobe_audio_{int(datetime.now().timestamp())}"
-                    audio_process = await self.subprocess_manager.start_process(
-                        check_audio_cmd, audio_process_id
-                    )
-
-                    if not audio_process:
-                        logger.error("Failed to start ffprobe audio process")
-                        return False
-
-                    audio_stdout, audio_stderr = await audio_process.communicate()
-                    await self.subprocess_manager.terminate_process(audio_process_id)
-
-                    has_audio_stream = (
-                        audio_process.returncode == 0
-                        and audio_stdout
-                        and "audio" in audio_stdout.decode("utf-8", errors="ignore").strip()
-                    )
-
-                    if has_audio_stream:
-                        logger.info(f"MP4 file validation: Valid audio-only stream detected")
-                        return True
-                    else:
-                        logger.warning(f"MP4 file validation: No video or audio streams found")
-                        return False
+            # If ffprobe can read the file successfully, it's valid
+            if process.returncode == 0 and stdout:
+                logger.debug(f"MP4 file validation: File is readable and valid")
+                return True
             else:
-                logger.warning(f"MP4 file validation: Invalid duration")
+                logger.warning(f"MP4 file validation failed: ffprobe returned {process.returncode}")
                 return False
+
         except Exception as e:
             logger.error(f"Error validating MP4 file: {e}", exc_info=True)
             return False

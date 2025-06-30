@@ -118,66 +118,194 @@ async def unsubscribe_from_push(
 async def send_test_notification(db: Session = Depends(get_db)):
     """Send a test push notification to all active subscriptions"""
     try:
+        logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
+        
         from app.services.enhanced_push_service import EnhancedPushService, enhanced_push_service
+        from app.models import GlobalSettings, NotificationSettings, Streamer
+        
+        # Check VAPID configuration
+        if not settings.has_push_notifications_configured:
+            logger.warning("🧪 PUSH_TEST_FAILED: VAPID keys not configured")
+            return {
+                "success": False,
+                "message": "VAPID keys not configured",
+                "debug": {
+                    "vapid_configured": False,
+                    "active_subscriptions": 0,
+                    "global_notifications_enabled": False
+                }
+            }
         
         push_service = enhanced_push_service
         
-        notification_data = {
-            "title": "StreamVault Test",
-            "body": "This is a test notification from StreamVault",
-            "icon": "/android-icon-192x192.png",
-            "badge": "/android-icon-96x96.png",
-            "type": "test",
-            "url": "/"
-        }
+        # Check global notification settings
+        global_settings = db.query(GlobalSettings).first()
+        global_notifications_enabled = global_settings and global_settings.notifications_enabled
         
+        logger.info(f"🧪 GLOBAL_NOTIFICATIONS_ENABLED: {global_notifications_enabled}")
+        
+        # Get active subscriptions
         active_subscriptions = db.query(PushSubscription).filter(
             PushSubscription.is_active == True
         ).all()
         
+        logger.info(f"🧪 ACTIVE_SUBSCRIPTIONS_FOUND: {len(active_subscriptions)}")
+        
         if not active_subscriptions:
             return {
                 "success": False,
-                "message": "No active push subscriptions found",
-                "sent_count": 0
+                "message": "No active push subscriptions found. Please enable push notifications in a browser first.",
+                "debug": {
+                    "vapid_configured": True,
+                    "active_subscriptions": 0,
+                    "global_notifications_enabled": global_notifications_enabled,
+                    "total_subscriptions": db.query(PushSubscription).count()
+                }
             }
+        
+        notification_data = {
+            "title": "🧪 StreamVault Test",
+            "body": "This is a test notification from StreamVault. If you see this, push notifications are working!",
+            "icon": "/android-icon-192x192.png",
+            "badge": "/android-icon-96x96.png",
+            "type": "test",
+            "url": "/",
+            "requireInteraction": True,
+            "timestamp": int(time.time() * 1000)
+        }
         
         sent_count = 0
         failed_count = 0
+        failed_endpoints = []
         
         for subscription in active_subscriptions:
             try:
                 subscription_data = json.loads(subscription.subscription_data)
+                endpoint = subscription_data.get('endpoint', 'unknown')[:50]
+                
+                logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
+                
                 success = await push_service.send_notification(subscription_data, notification_data)
                 if success:
                     sent_count += 1
+                    logger.info(f"🧪 TEST_SUCCESS: {endpoint}...")
                 else:
                     failed_count += 1
+                    failed_endpoints.append(endpoint)
+                    logger.warning(f"🧪 TEST_FAILED: {endpoint}...")
+                    
             except Exception as e:
                 failed_count += 1
-                logger.warning(f"Failed to send test notification to {subscription.endpoint[:50]}: {e}")
+                endpoint = subscription.endpoint[:50] if subscription.endpoint else 'unknown'
+                failed_endpoints.append(f"{endpoint} (error: {str(e)[:30]})")
+                logger.error(f"🧪 TEST_EXCEPTION: {endpoint}: {e}")
+        
+        logger.info(f"🧪 PUSH_TEST_SUMMARY: sent={sent_count}, failed={failed_count}, total={len(active_subscriptions)}")
+        
+        debug_info = {
+            "vapid_configured": True,
+            "active_subscriptions": len(active_subscriptions),
+            "global_notifications_enabled": global_notifications_enabled,
+            "sent_count": sent_count,
+            "failed_count": failed_count,
+            "failed_endpoints": failed_endpoints if failed_endpoints else None
+        }
         
         if sent_count > 0:
             return {
                 "success": True,
                 "message": f"Test notifications sent to {sent_count} subscribers" + 
                           (f" ({failed_count} failed)" if failed_count > 0 else ""),
-                "sent_count": sent_count,
-                "failed_count": failed_count
+                "debug": debug_info
             }
         else:
             return {
                 "success": False,
-                "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration.",
-                "sent_count": 0,
-                "failed_count": failed_count,
-                "suggestion": "Try restarting the server or resetting VAPID keys"            }
+                "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration or subscription validity.",
+                "debug": debug_info,
+                "suggestion": "Check browser console for errors or try re-subscribing to push notifications"
+            }
         
     except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
         return {
             "success": False,
             "message": "Server error while sending test notification. Please contact support if the issue persists."
+        }
+
+@router.get("/debug")
+async def get_push_debug_info(db: Session = Depends(get_db)):
+    """Get debug information about push notification configuration"""
+    try:
+        from app.models import GlobalSettings, NotificationSettings, Streamer
+        
+        # Check VAPID configuration
+        vapid_configured = settings.has_push_notifications_configured
+        vapid_public_key = settings.VAPID_PUBLIC_KEY[:50] + "..." if settings.VAPID_PUBLIC_KEY else None
+        
+        # Check global settings
+        global_settings = db.query(GlobalSettings).first()
+        global_notifications_enabled = global_settings and global_settings.notifications_enabled
+        notification_url_configured = global_settings and bool(global_settings.notification_url)
+        
+        # Check subscriptions
+        total_subscriptions = db.query(PushSubscription).count()
+        active_subscriptions = db.query(PushSubscription).filter(
+            PushSubscription.is_active == True
+        ).count()
+        
+        # Check streamers and their notification settings
+        total_streamers = db.query(Streamer).count()
+        streamers_with_settings = db.query(NotificationSettings).count()
+        
+        # Get sample notification settings
+        sample_settings = db.query(NotificationSettings).first()
+        sample_notify_online = sample_settings.notify_online if sample_settings else None
+        sample_notify_offline = sample_settings.notify_offline if sample_settings else None
+        
+        debug_info = {
+            "vapid": {
+                "configured": vapid_configured,
+                "public_key_preview": vapid_public_key
+            },
+            "global_settings": {
+                "notifications_enabled": global_notifications_enabled,
+                "notification_url_configured": notification_url_configured
+            },
+            "subscriptions": {
+                "total": total_subscriptions,
+                "active": active_subscriptions
+            },
+            "streamers": {
+                "total": total_streamers,
+                "with_notification_settings": streamers_with_settings,
+                "sample_notify_online": sample_notify_online,
+                "sample_notify_offline": sample_notify_offline
+            },
+            "issues": []
+        }
+        
+        # Identify potential issues
+        if not vapid_configured:
+            debug_info["issues"].append("VAPID keys not configured")
+        if not global_notifications_enabled:
+            debug_info["issues"].append("Global notifications disabled")
+        if active_subscriptions == 0:
+            debug_info["issues"].append("No active push subscriptions")
+        if streamers_with_settings == 0:
+            debug_info["issues"].append("No streamer notification settings configured")
+        
+        return {
+            "success": True,
+            "debug": debug_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting debug info: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": "Failed to get debug information",
+            "error": str(e)
         }
 
 @router.post("/test-local")
