@@ -200,8 +200,8 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   position: relative;
   height: 80px;
   margin: 20px 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: hidden; /* Hide overflow instead of scrolling */
+  width: 100%;
 }
 
 .timeline-track {
@@ -406,7 +406,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 /* Responsive design */
 @media (max-width: 768px) {
   .horizontal-timeline {
-    overflow-x: scroll;
+    overflow: hidden; /* Keep consistent, no scrolling */
     padding-bottom: 10px;
   }
   
