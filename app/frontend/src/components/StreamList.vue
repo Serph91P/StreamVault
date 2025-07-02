@@ -593,7 +593,7 @@ const loadStreams = async () => {
     // Preload category images for all streams
     const categories = streams.value
       .map(stream => stream.category_name)
-      .filter(Boolean)
+      .filter((name: string | null): name is string => Boolean(name))
       .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
     
     if (categories.length > 0) {
