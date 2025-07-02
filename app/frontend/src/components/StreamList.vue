@@ -69,11 +69,17 @@
             <div class="stream-thumbnail">
               <div v-if="stream.category_name" class="category-image-small">
                 <img 
+                  v-if="!getCategoryImage(stream.category_name).startsWith('icon:')"
                   :src="getCategoryImage(stream.category_name)" 
                   :alt="stream.category_name" 
                   @error="handleImageError($event, stream.category_name)"
                   loading="lazy"
                 />
+                <i 
+                  v-else
+                  :class="getCategoryImage(stream.category_name).replace('icon:', '')" 
+                  class="category-icon"
+                ></i>
               </div>
               <div v-else class="category-placeholder">
                 <i class="fas fa-video"></i>
@@ -265,6 +271,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 import CategoryTimeline from './CategoryTimeline.vue'
 const route = useRoute()
 const router = useRouter()
@@ -274,6 +281,7 @@ const streamerName = computed(() => route.query.name as string)
 const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings, fetchActiveRecordings, stopRecording: stopStreamRecording } = useRecordingSettings()
 const { messages } = useWebSocket()
+const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 
 // State for recording actions
 const isStartingRecording = ref(false)
@@ -581,6 +589,16 @@ const loadStreams = async () => {
     await fetchStreams(streamerId.value);
     await fetchActiveRecordings();
     console.log("Loaded active recordings:", activeRecordings.value);
+    
+    // Preload category images for all streams
+    const categories = streams.value
+      .map(stream => stream.category_name)
+      .filter(Boolean)
+      .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
+    
+    if (categories.length > 0) {
+      preloadCategoryImages(categories);
+    }
   }
 }
 
@@ -670,40 +688,6 @@ watch(streamerId, (newId, oldId) => {
     loadStreams()
   }
 })
-
-const getCategoryImage = (categoryName: string): string => {
-  if (!categoryName) return '/images/default-category.png';
-  
-  // For common categories, use specific icons
-  const categoryIcons: { [key: string]: string } = {
-    'Just Chatting': 'fa-comments',
-    'League of Legends': 'fa-gamepad',
-    'Valorant': 'fa-crosshairs',
-    'Minecraft': 'fa-cube',
-    'Grand Theft Auto V': 'fa-car',
-    'Counter-Strike 2': 'fa-bullseye',
-    'World of Warcraft': 'fa-magic',
-    'Fortnite': 'fa-gamepad',
-    'Apex Legends': 'fa-trophy',
-    'Call of Duty': 'fa-bomb',
-    'Music': 'fa-music',
-    'Art': 'fa-palette',
-    'Science & Technology': 'fa-microscope',
-    'Sports': 'fa-football-ball',
-    'Travel & Outdoors': 'fa-mountain'
-  };
-  
-  // If it's a known category, return the icon class
-  if (categoryIcons[categoryName]) {
-    return categoryIcons[categoryName];
-  }
-  
-  // Replace spaces with hyphens and convert to lowercase for URL-friendly format
-  const formattedName = categoryName.replace(/\s+/g, '-').toLowerCase();
-  
-  // Try to get the category image from Twitch's CDN
-  return `https://static-cdn.jtvnw.net/ttv-boxart/${encodeURIComponent(categoryName)}-144x192.jpg`;
-}
 
 const handleImageError = (event: Event, categoryName: string) => {
   const img = event.target as HTMLImageElement;
