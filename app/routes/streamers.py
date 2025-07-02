@@ -639,3 +639,94 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
         chapters.append(current_chapter)
     
     return chapters
+
+@router.delete("/{streamer_id}/streams")
+async def delete_all_streams(
+    streamer_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete all streams and all associated metadata files for a streamer"""
+    try:
+        # Check if the streamer exists
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+        
+        # Get all streams for this streamer
+        streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
+        
+        if not streams:
+            return {
+                "success": True,
+                "message": f"No streams found for streamer {streamer_id}",
+                "deleted_streams": 0,
+                "deleted_files": [],
+                "deleted_files_count": 0
+            }
+        
+        # Collect all metadata files that need to be deleted
+        files_to_delete = []
+        deleted_stream_ids = []
+        
+        for stream in streams:
+            deleted_stream_ids.append(stream.id)
+            
+            # Get metadata for this stream
+            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+            
+            if metadata:
+                # Collect all metadata files that need to be deleted
+                for attr in [
+                    'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
+                    'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
+                    'chapters_srt_path', 'chapters_ffmpeg_path'
+                ]:
+                    path = getattr(metadata, attr, None)
+                    if path:
+                        files_to_delete.append(path)
+                        
+                # Delete metadata record (foreign key constraint)
+                db.delete(metadata)
+            
+            # Delete all stream events for this stream
+            db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
+            
+            # Delete the stream record itself
+            db.delete(stream)
+        
+        # Commit all database deletions
+        db.commit()
+        
+        # Now delete all the files
+        deleted_files = []
+        for file_path in files_to_delete:
+            try:
+                path_obj = Path(file_path)
+                if path_obj.exists():
+                    path_obj.unlink()
+                    deleted_files.append(str(path_obj))
+                    
+                    # Also try to delete companion files (like .vtt alongside .mp4, etc.)
+                    base_path = path_obj.with_suffix('')
+                    for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
+                        companion = base_path.with_suffix(ext)
+                        if companion.exists() and companion != path_obj:
+                            companion.unlink()
+                            deleted_files.append(str(companion))
+            except Exception as file_error:
+                logger.warning(f"Failed to delete file {file_path}: {file_error}")
+        
+        return {
+            "success": True, 
+            "message": f"All {len(deleted_stream_ids)} streams for streamer {streamer_id} deleted successfully",
+            "deleted_streams": len(deleted_stream_ids),
+            "deleted_stream_ids": deleted_stream_ids,
+            "deleted_files": deleted_files,
+            "deleted_files_count": len(deleted_files)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting all streams for streamer {streamer_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete all streams. Please try again.")
