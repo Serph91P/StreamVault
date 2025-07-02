@@ -17,27 +17,45 @@
       </div>
     </div>
     <div v-else>
-      <div class="actions-container">        
-        <button 
-          v-if="!hasLiveStreams" 
-          @click="forceOfflineRecording(parseInt(streamerId))" 
-          class="btn btn-warning"
-          :disabled="isStartingOfflineRecording"
-        >
-          {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline Mode)' }}
-        </button>
+      <!-- Header with prominent actions -->
+      <div class="streams-header">
+        <div class="header-info">
+          <h2>Streams Overview</h2>
+          <div class="streams-summary">
+            <span class="stream-count">{{ streams.length }} streams found</span>
+            <span v-if="hasLiveStreams" class="live-indicator">• Live stream active</span>
+          </div>
+        </div>
         
-        <button 
-          @click="confirmDeleteAllStreams" 
-          class="btn btn-danger"
-          :disabled="deletingAllStreams || streams.length === 0"
-        >
-          {{ deletingAllStreams ? 'Deleting All Streams...' : 'Delete All Streams' }}
-        </button>
-      </div>
-      
-      <div class="streams-summary">
-        <p>Found {{ streams.length }} streams</p>
+        <div class="header-actions">
+          <button 
+            @click="handleBack" 
+            class="btn btn-secondary back-btn"
+          >
+            <i class="fas fa-arrow-left"></i>
+            Back to Streamers
+          </button>
+          
+          <button 
+            v-if="!hasLiveStreams" 
+            @click="forceOfflineRecording(parseInt(streamerId))" 
+            class="btn btn-warning"
+            :disabled="isStartingOfflineRecording"
+          >
+            <i class="fas fa-record-vinyl"></i>
+            {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline)' }}
+          </button>
+          
+          <button 
+            @click="confirmDeleteAllStreams" 
+            class="btn btn-danger delete-all-btn"
+            :disabled="deletingAllStreams || streams.length === 0"
+            :title="`Delete all ${streams.length} streams`"
+          >
+            <i class="fas fa-trash-alt"></i>
+            {{ deletingAllStreams ? 'Deleting All...' : `Delete All (${streams.length})` }}
+          </button>
+        </div>
       </div>
       
       <div class="stream-list">
@@ -165,6 +183,17 @@
           </button>
         </div>
       </div>
+    </div>
+    
+    <!-- Floating Action Button for large lists -->
+    <div 
+      v-if="streams.length > 10 && !deletingAllStreams" 
+      class="floating-delete-btn"
+      @click="confirmDeleteAllStreams"
+      :title="`Delete all ${streams.length} streams`"
+    >
+      <i class="fas fa-trash-alt"></i>
+      <span class="fab-text">Delete All ({{ streams.length }})</span>
     </div>
   </div>
 </template>
@@ -596,6 +625,99 @@ const getCategoryImage = (categoryName: string): string => {
   padding: 40px;
 }
 
+/* Header Styles */
+.streams-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.header-info h2 {
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.streams-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stream-count {
+  color: #6c757d;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.live-indicator {
+  color: #dc3545;
+  font-size: 0.9rem;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.delete-all-btn {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border: none;
+  font-weight: 600;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.delete-all-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.delete-all-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.delete-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Responsive header */
+@media (max-width: 768px) {
+  .streams-header {
+    flex-direction: column;
+    gap: 20px;
+    text-align: center;
+  }
+  
+  .header-actions {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .actions-container {
   display: flex;
   gap: 12px;
@@ -900,6 +1022,69 @@ const getCategoryImage = (categoryName: string): string => {
 @media (min-width: 1024px) {
   .stream-list {
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+}
+
+/* Floating Action Button */
+.floating-delete-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 16px 24px;
+  box-shadow: 0 4px 20px rgba(220, 53, 69, 0.4);
+  cursor: pointer;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.floating-delete-btn:hover {
+  background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 25px rgba(220, 53, 69, 0.6);
+}
+
+.floating-delete-btn:active {
+  transform: translateY(-1px);
+}
+
+.floating-delete-btn .fab-text {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.floating-delete-btn i {
+  font-size: 1.1rem;
+}
+
+/* Hide FAB on small screens where header is always visible */
+@media (max-width: 768px) {
+  .floating-delete-btn {
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+  
+  .floating-delete-btn .fab-text {
+    display: none;
+  }
+  
+  .floating-delete-btn {
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    justify-content: center;
   }
 }
 </style>
