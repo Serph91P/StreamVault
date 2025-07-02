@@ -26,6 +26,14 @@
         >
           {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline Mode)' }}
         </button>
+        
+        <button 
+          @click="confirmDeleteAllStreams" 
+          class="btn btn-danger"
+          :disabled="deletingAllStreams || streams.length === 0"
+        >
+          {{ deletingAllStreams ? 'Deleting All Streams...' : 'Delete All Streams' }}
+        </button>
       </div>
       
       <div class="streams-summary">
@@ -141,6 +149,23 @@
         </div>
       </div>
     </div>
+    
+    <!-- Delete All Streams Confirmation Modal -->
+    <div v-if="showDeleteAllModal" class="modal-overlay" @click.self="cancelDeleteAll">
+      <div class="modal-content">
+        <h3>Delete All Streams</h3>
+        <p>Are you sure you want to delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
+        <p class="warning-text">This will permanently delete ALL stream records and associated metadata files. This action cannot be undone!</p>
+        
+        <div class="modal-actions">
+          <button @click="cancelDeleteAll" class="btn btn-secondary">Cancel</button>
+          <button @click="deleteAllStreams" class="btn btn-danger" :disabled="deletingAllStreams">
+            <span v-if="deletingAllStreams" class="loader"></span>
+            <span v-else>Delete All Streams</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -172,6 +197,8 @@ const showDeleteModal = ref(false)
 const streamToDelete = ref<any>(null)
 const deletingStreamId = ref<number | null>(null)
 const deleteResults = ref<any>(null)
+const showDeleteAllModal = ref(false)
+const deletingAllStreams = ref(false)
 
 // Computed property um zu prüfen, ob es Live-Streams gibt
 const hasLiveStreams = computed(() => {
@@ -398,6 +425,55 @@ const deleteStream = async () => {
     alert(`Failed to delete stream: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deletingStreamId.value = null
+  }
+}
+
+// New function to confirm deletion of all streams
+const confirmDeleteAllStreams = () => {
+  showDeleteAllModal.value = true
+}
+
+// Cancel deletion of all streams
+const cancelDeleteAll = () => {
+  showDeleteAllModal.value = false
+}
+
+// Delete all streams for the current streamer
+const deleteAllStreams = async () => {
+  if (!streamerId.value) return
+  
+  try {
+    deletingAllStreams.value = true
+    
+    const response = await fetch(`/api/streamers/${streamerId.value}/streams`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Failed to delete all streams')
+    }
+    
+    const result = await response.json()
+    console.log('Delete all streams result:', result)
+    
+    // Clear the streams list in the UI
+    streams.value = []
+    
+    // Close the modal
+    showDeleteAllModal.value = false
+    
+    // Show success message
+    alert(`All streams deleted successfully. Removed ${result.deleted_files_count} associated files.`)
+    
+  } catch (error) {
+    console.error('Failed to delete all streams:', error)
+    alert(`Failed to delete all streams: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    deletingAllStreams.value = false
   }
 }
 
