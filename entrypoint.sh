@@ -70,6 +70,12 @@ else
     log_msg "WARNING: Migrations directory not found!"
 fi
 
+# Ensure category images directory has correct permissions
+log_msg "Setting up category images directory permissions..."
+mkdir -p /app/frontend/public/images/categories
+chmod -R 775 /app/frontend/public/images/categories
+log_msg "Category images directory permissions set"
+
 if [ "$ENVIRONMENT" = "development" ]; then
     log_msg "Running database migrations in development mode..."
     python -c "from app.services.migration_service import MigrationService; MigrationService.run_safe_migrations()"
