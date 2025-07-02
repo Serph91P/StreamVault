@@ -172,8 +172,8 @@ const fetchCategories = async () => {
       
       // Preload category images for all categories
       const categoryNames = data.categories
-        .map(cat => cat.name)
-        .filter(Boolean);
+        .map((cat: any) => cat.name)
+        .filter((name: string | null): name is string => Boolean(name));
       
       if (categoryNames.length > 0) {
         preloadCategoryImages(categoryNames);
