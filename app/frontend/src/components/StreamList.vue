@@ -68,7 +68,12 @@
           <div class="stream-compact-header" @click="toggleStreamExpansion(stream.id)">
             <div class="stream-thumbnail">
               <div v-if="stream.category_name" class="category-image-small">
-                <img :src="getCategoryImage(stream.category_name)" :alt="stream.category_name" />
+                <img 
+                  :src="getCategoryImage(stream.category_name)" 
+                  :alt="stream.category_name" 
+                  @error="handleImageError($event, stream.category_name)"
+                  loading="lazy"
+                />
               </div>
               <div v-else class="category-placeholder">
                 <i class="fas fa-video"></i>
@@ -669,12 +674,47 @@ watch(streamerId, (newId, oldId) => {
 const getCategoryImage = (categoryName: string): string => {
   if (!categoryName) return '/images/default-category.png';
   
+  // For common categories, use specific icons
+  const categoryIcons: { [key: string]: string } = {
+    'Just Chatting': 'fa-comments',
+    'League of Legends': 'fa-gamepad',
+    'Valorant': 'fa-crosshairs',
+    'Minecraft': 'fa-cube',
+    'Grand Theft Auto V': 'fa-car',
+    'Counter-Strike 2': 'fa-bullseye',
+    'World of Warcraft': 'fa-magic',
+    'Fortnite': 'fa-gamepad',
+    'Apex Legends': 'fa-trophy',
+    'Call of Duty': 'fa-bomb',
+    'Music': 'fa-music',
+    'Art': 'fa-palette',
+    'Science & Technology': 'fa-microscope',
+    'Sports': 'fa-football-ball',
+    'Travel & Outdoors': 'fa-mountain'
+  };
+  
+  // If it's a known category, return the icon class
+  if (categoryIcons[categoryName]) {
+    return categoryIcons[categoryName];
+  }
+  
   // Replace spaces with hyphens and convert to lowercase for URL-friendly format
   const formattedName = categoryName.replace(/\s+/g, '-').toLowerCase();
   
   // Try to get the category image from Twitch's CDN
-  // This is a common pattern for Twitch category box art
-  return `https://static-cdn.jtvnw.net/ttv-boxart/${formattedName}-144x192.jpg`;
+  return `https://static-cdn.jtvnw.net/ttv-boxart/${encodeURIComponent(categoryName)}-144x192.jpg`;
+}
+
+const handleImageError = (event: Event, categoryName: string) => {
+  const img = event.target as HTMLImageElement;
+  const container = img.parentElement;
+  
+  if (container) {
+    // Replace the image with an icon
+    container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
+    container.classList.add('category-placeholder');
+    container.classList.remove('category-image-small');
+  }
 }
 </script>
 
@@ -696,10 +736,10 @@ const getCategoryImage = (categoryName: string): string => {
   align-items: flex-start;
   margin-bottom: 30px;
   padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, #1f1f23 0%, #18181b 100%);
   border-radius: 12px;
-  border: 1px solid #dee2e6;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -708,7 +748,7 @@ const getCategoryImage = (categoryName: string): string => {
 
 .header-info h2 {
   margin: 0 0 8px 0;
-  color: #2c3e50;
+  color: #fff;
   font-size: 1.5rem;
   font-weight: 600;
 }
@@ -720,7 +760,7 @@ const getCategoryImage = (categoryName: string): string => {
 }
 
 .stream-count {
-  color: #6c757d;
+  color: #aaa;
   font-size: 0.95rem;
   font-weight: 500;
 }
@@ -881,12 +921,14 @@ const getCategoryImage = (categoryName: string): string => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .category-image-small img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 6px;
 }
 
 .category-placeholder {
@@ -901,15 +943,23 @@ const getCategoryImage = (categoryName: string): string => {
   font-size: 18px;
 }
 
+.category-icon {
+  font-size: 18px;
+  color: #9146FF;
+}
+
 .stream-summary {
   flex: 1;
   min-width: 0;
+  padding-right: 8px;
+  overflow: hidden;
 }
 
 .stream-badges {
   display: flex;
   gap: 6px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 
 .stream-title {
@@ -920,6 +970,7 @@ const getCategoryImage = (categoryName: string): string => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .stream-meta {
@@ -927,6 +978,7 @@ const getCategoryImage = (categoryName: string): string => {
   gap: 8px;
   font-size: 0.8rem;
   color: #aaa;
+  flex-wrap: wrap;
 }
 
 .stream-meta .duration {
