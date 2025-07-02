@@ -74,13 +74,11 @@ RUN mkdir -p /recordings && \
     mkdir -p /app/logs/ffmpeg && \
     mkdir -p /app/logs/app && \
     mkdir -p /app/data/category_images && \
-    mkdir -p /app/frontend/public/images/categories && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
     chmod -R 775 /app/migrations && \
     chmod -R 775 /app/logs && \
-    chmod -R 775 /app/data/category_images && \
-    chmod -R 775 /app/frontend/public/images/categories
+    chmod -R 775 /app/data/category_images
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
