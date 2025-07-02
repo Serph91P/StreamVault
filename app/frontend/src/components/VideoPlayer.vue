@@ -48,7 +48,16 @@
                 </div>
               </div>
               <div class="chapter-game-icon" v-if="chapter.gameIcon">
-                <img :src="chapter.gameIcon" :alt="chapter.title" />
+                <img 
+                  v-if="!chapter.gameIcon.startsWith('icon:')"
+                  :src="chapter.gameIcon" 
+                  :alt="chapter.title" 
+                />
+                <i 
+                  v-else 
+                  :class="chapter.gameIcon.replace('icon:', '')"
+                  class="category-icon"
+                ></i>
               </div>
             </div>
           </div>
@@ -125,6 +134,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 
 interface Chapter {
   title: string
@@ -165,6 +175,9 @@ const currentTime = ref(0)
 const videoDuration = ref(0)
 const showChapterUI = ref(false)
 const chapters = ref<Chapter[]>([])
+
+// Category images composable
+const { getCategoryImage } = useCategoryImages()
 
 // Current chapter detection
 const currentChapterIndex = computed(() => {
@@ -257,7 +270,7 @@ const loadChapters = async () => {
           title: ch.category_name || ch.title || 'Stream Segment',
           startTime: ch.start_time || 0,
           duration: ch.duration || 60,
-          gameIcon: ch.category_image_url
+          gameIcon: getCategoryImage(ch.category_name)
         }))
       }
     } catch (e) {
@@ -574,6 +587,16 @@ const decodedVideoSrc = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.chapter-game-icon .category-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #9146ff;
 }
 
 /* Chapter Progress Bar */
