@@ -854,7 +854,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
 
@@ -865,6 +865,9 @@ const handleImageError = (event: Event, categoryName: string) => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
+  min-width: 0; /* Allow flex items to shrink below their content size */
+  max-width: 100%; /* Prevent cards from growing too large */
+  word-wrap: break-word; /* Break long words */
 }
 
 .stream-card:hover {
@@ -886,6 +889,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
+  min-width: 0; /* Allow flex container to shrink */
 }
 
 .stream-compact-header:hover {
@@ -894,6 +898,13 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
+  width: 40px;  /* Ensure the thumbnail has a defined width */
+  height: 53px; /* Ensure the thumbnail has a defined height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 
 .category-image-small {
@@ -906,6 +917,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   align-items: center;
   justify-content: center;
   position: relative;
+  z-index: 1;
+  border: 1px solid #333; /* Add a subtle border to make it visible */
 }
 
 .category-image-small img {
@@ -925,6 +938,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   justify-content: center;
   color: #888;
   font-size: 18px;
+  border: 1px solid #333;
+  z-index: 1;
 }
 
 .category-icon {
@@ -937,6 +952,9 @@ const handleImageError = (event: Event, categoryName: string) => {
   min-width: 0;
   padding-right: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .stream-badges {
@@ -951,10 +969,18 @@ const handleImageError = (event: Event, categoryName: string) => {
   font-size: 0.95rem;
   font-weight: 500;
   color: #fff;
-  white-space: nowrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.3;
+  max-width: 100%;
+  /* Allow title to take multiple lines on mobile */
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
 }
 
 .stream-meta {
@@ -963,15 +989,22 @@ const handleImageError = (event: Event, categoryName: string) => {
   font-size: 0.8rem;
   color: #aaa;
   flex-wrap: wrap;
+  align-items: center;
+  overflow: hidden;
 }
 
 .stream-meta .duration {
   font-weight: 500;
   color: #9146FF;
+  white-space: nowrap;
 }
 
 .stream-meta .category {
   opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
 }
 
 .expand-controls {
@@ -1211,10 +1244,12 @@ const handleImageError = (event: Event, categoryName: string) => {
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
   
   .stream-compact-header {
     padding: 10px 12px;
+    gap: 8px;
   }
   
   .category-image-small {
@@ -1230,6 +1265,16 @@ const handleImageError = (event: Event, categoryName: string) => {
   
   .stream-title {
     font-size: 0.85rem;
+    -webkit-line-clamp: 3; /* Allow more lines on mobile */
+    line-clamp: 3;
+  }
+  
+  .stream-meta {
+    font-size: 0.75rem;
+  }
+  
+  .stream-meta .category {
+    max-width: 100px;
   }
   
   .quick-actions {
@@ -1245,6 +1290,59 @@ const handleImageError = (event: Event, categoryName: string) => {
   .modal-content {
     min-width: 320px;
     padding: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stream-list {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .stream-card {
+    min-width: 280px;
+    max-width: calc(100vw - 40px); /* Ensure cards don't exceed viewport */
+  }
+  
+  .stream-compact-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  
+  .stream-summary {
+    padding-right: 4px;
+    min-width: 0; /* Allow shrinking */
+    flex: 1;
+  }
+  
+  .stream-title {
+    font-size: 0.8rem;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .stream-title {
+    font-size: 0.8rem;
+  }
+  
+  .stream-meta {
+    font-size: 0.7rem;
+    gap: 4px;
+  }
+  
+  .stream-meta .category {
+    max-width: 80px;
   }
 }
 
