@@ -34,7 +34,7 @@
             :class="check.status"
           >
             <i :class="getHealthIcon(check.status)"></i>
-            <span class="check-name">{{ formatCheckName(name) }}</span>
+            <span class="check-name">{{ formatCheckName(String(name)) }}</span>
             <span class="check-message">{{ check.message }}</span>
           </div>
         </div>
@@ -205,7 +205,7 @@
         <h3>Available Test Categories</h3>
         <div class="test-categories">
           <div v-for="(tests, category) in availableTests" :key="category" class="test-category">
-            <h4>{{ formatCategoryName(category) }}</h4>
+            <h4>{{ formatCategoryName(String(category)) }}</h4>
             <ul>
               <li v-for="test in tests" :key="test">{{ formatTestName(test) }}</li>
             </ul>
