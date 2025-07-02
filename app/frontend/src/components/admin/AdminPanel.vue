@@ -162,14 +162,14 @@
               :class="{active: resultFilter === 'failed'}"
               class="filter-btn"
             >
-              Failed ({{ testResults.results.filter(r => !r.success).length }})
+              Failed ({{ testResults.results.filter((r: any) => !r.success).length }})
             </button>
             <button 
               @click="resultFilter = 'passed'"
               :class="{active: resultFilter === 'passed'}"
               class="filter-btn"
             >
-              Passed ({{ testResults.results.filter(r => r.success).length }})
+              Passed ({{ testResults.results.filter((r: any) => r.success).length }})
             </button>
           </div>
 
