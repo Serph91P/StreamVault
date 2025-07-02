@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 import type { StreamEvent } from '@/types/streams'
 
 interface Props {
@@ -76,6 +77,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { getCategoryImage } = useCategoryImages()
 
 // Filter events to only show category changes
 const categoryEvents = computed(() => {
@@ -87,30 +89,15 @@ const categoryEvents = computed(() => {
 const getCategoryIcon = (categoryName: string | null): string => {
   if (!categoryName) return 'fas fa-video';
   
-  const categoryIcons: { [key: string]: string } = {
-    'Just Chatting': 'fas fa-comments',
-    'League of Legends': 'fas fa-gamepad',
-    'Valorant': 'fas fa-crosshairs',
-    'Minecraft': 'fas fa-cube',
-    'Grand Theft Auto V': 'fas fa-car',
-    'Counter-Strike 2': 'fas fa-bullseye',
-    'World of Warcraft': 'fas fa-magic',
-    'Fortnite': 'fas fa-gamepad',
-    'Apex Legends': 'fas fa-trophy',
-    'Call of Duty': 'fas fa-bomb',
-    'Music': 'fas fa-music',
-    'Art': 'fas fa-palette',
-    'Science & Technology': 'fas fa-microscope',
-    'Sports': 'fas fa-football-ball',
-    'Travel & Outdoors': 'fas fa-mountain',
-    'Dota 2': 'fas fa-shield-alt',
-    'Overwatch 2': 'fas fa-gamepad',
-    'Hearthstone': 'fas fa-magic',
-    'Rocket League': 'fas fa-car-side',
-    'Among Us': 'fas fa-user-astronaut'
-  };
+  const imageUrl = getCategoryImage(categoryName);
   
-  return categoryIcons[categoryName] || 'fas fa-gamepad';
+  // If it's an icon (starts with icon:), return the icon class
+  if (imageUrl.startsWith('icon:')) {
+    return imageUrl.replace('icon:', '');
+  }
+  
+  // For actual images, return a generic gaming icon as fallback for the timeline
+  return 'fas fa-gamepad';
 }
 
 const getTimelinePosition = (event: any, index: number): number => {
