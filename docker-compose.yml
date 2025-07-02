@@ -5,6 +5,7 @@ services:
     user: "1000:1000"
     volumes:
       - app_data:/app/data
+      - category_images:/app/frontend/public/images/categories
       - ./recordings:/recordings
       - ./logs:/app/logs
     ports:
@@ -43,3 +44,4 @@ services:
 volumes:
   db_data:
   app_data:
+  category_images:
