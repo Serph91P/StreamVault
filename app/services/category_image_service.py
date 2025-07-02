@@ -17,7 +17,7 @@ from app.models import Category
 logger = logging.getLogger(__name__)
 
 class CategoryImageService:
-    def __init__(self, images_dir: str = "app/frontend/public/images/categories"):
+    def __init__(self, images_dir: str = "/app/data/category_images"):
         self.images_dir = Path(images_dir)
         self.images_dir.mkdir(parents=True, exist_ok=True)
         
@@ -35,7 +35,8 @@ class CategoryImageService:
                 # Extract category name from filename
                 category_name = self._filename_to_category(image_file.stem)
                 if category_name:
-                    self._category_cache[category_name] = str(image_file.relative_to(Path("app/frontend/public")))
+                    # Use /data path for web access
+                    self._category_cache[category_name] = f"/data/category_images/{image_file.name}"
     
     def _category_to_filename(self, category_name: str) -> str:
         """Convert category name to safe filename"""
@@ -60,7 +61,7 @@ class CategoryImageService:
     def get_category_image_url(self, category_name: str) -> str:
         """Get the URL for a category image (local if cached, fallback to default)"""
         if not category_name:
-            return "/images/categories/default-category.jpg"
+            return "/data/category_images/default-category.svg"
         
         # Check if we have it cached
         if category_name in self._category_cache:
@@ -145,7 +146,7 @@ class CategoryImageService:
                                             await f.write(chunk)
                                     
                                     # Update cache
-                                    relative_path = f"/images/categories/{filename}.jpg"
+                                    relative_path = f"/data/category_images/{filename}.jpg"
                                     self._category_cache[category_name] = relative_path
                                     
                                     logger.info(f"Successfully downloaded image for category: {category_name} from {url}")
