@@ -61,84 +61,140 @@
       <div class="stream-list">
         <div v-for="stream in streams" 
              :key="stream.id"
-             class="stream-card">
-          <div class="stream-header">
-            <div class="stream-info">
-              <span class="status-badge" :class="{ 'live': !stream.ended_at }">
-                {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
-              </span>
-              <span 
-                v-if="!stream.ended_at" 
-                class="recording-badge" 
-                :class="isStreamRecording(parseInt(streamerId)) ? 'recording' : 'not-recording'"
-              >
-                {{ isStreamRecording(parseInt(streamerId)) ? 'RECORDING' : 'NOT RECORDING' }}
-              </span>
-              <h3>{{ formatDate(stream.started_at) }}</h3>
-            </div>
-          </div>
-            <!-- Category Timeline - Show complete history if events are available -->
-          <CategoryTimeline 
-            v-if="stream.events && stream.events.length > 0"
-            :events="stream.events"
-            :stream-started="stream.started_at"
-            :stream-ended="stream.ended_at"
-          />
+             class="stream-card"
+             :class="{ 'expanded': expandedStreams[stream.id] }">
           
-          <!-- Fallback: Simple category display if no events data -->
-          <div v-else-if="stream.category_name" class="category-visual">
-            <div class="category-image">
-              <img :src="getCategoryImage(stream.category_name)" :alt="stream.category_name" />
+          <!-- Compact Header -->
+          <div class="stream-compact-header" @click="toggleStreamExpansion(stream.id)">
+            <div class="stream-thumbnail">
+              <div v-if="stream.category_name" class="category-image-small">
+                <img :src="getCategoryImage(stream.category_name)" :alt="stream.category_name" />
+              </div>
+              <div v-else class="category-placeholder">
+                <i class="fas fa-video"></i>
+              </div>
             </div>
-            <div class="category-name">{{ stream.category_name }}</div>
-          </div>
-          
-          <div class="stream-content">
-            <p><strong>Title:</strong> {{ stream.title || '-' }}</p>
-            <p><strong>Duration:</strong> {{ calculateDuration(stream.started_at, stream.ended_at) }}</p>
-            <p v-if="stream.ended_at"><strong>Ended:</strong> {{ formatDate(stream.ended_at) }}</p>
-          </div>
-          <div class="stream-actions">
-            <div v-if="!stream.ended_at">
-              <button 
-                v-if="!isStreamRecording(parseInt(streamerId))" 
-                @click="startRecording(parseInt(streamerId))" 
-                class="btn btn-success" 
-                :disabled="isStartingRecording"
-              >
-                {{ isStartingRecording ? 'Starting Recording...' : 'Force Record' }}
+            
+            <div class="stream-summary">
+              <div class="stream-badges">
+                <span class="status-badge" :class="{ 'live': !stream.ended_at }">
+                  {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
+                </span>
+                <span 
+                  v-if="!stream.ended_at" 
+                  class="recording-badge" 
+                  :class="isStreamRecording(parseInt(streamerId)) ? 'recording' : 'not-recording'"
+                >
+                  {{ isStreamRecording(parseInt(streamerId)) ? 'REC' : 'OFF' }}
+                </span>
+              </div>
+              
+              <h3 class="stream-title">{{ stream.title || formatDate(stream.started_at) }}</h3>
+              <div class="stream-meta">
+                <span class="duration">{{ calculateDuration(stream.started_at, stream.ended_at) }}</span>
+                <span v-if="stream.category_name" class="category">{{ stream.category_name }}</span>
+              </div>
+            </div>
+            
+            <div class="expand-controls">
+              <div class="quick-actions">
+                <!-- Quick action buttons -->
+                <button 
+                  v-if="stream.ended_at"
+                  @click.stop="watchVideo(stream)" 
+                  class="btn-icon btn-primary"
+                  title="Watch Video"
+                >
+                  <i class="fas fa-play"></i>
+                </button>
+                
+                <button 
+                  @click.stop="confirmDeleteStream(stream)" 
+                  class="btn-icon btn-danger" 
+                  :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                  title="Delete Stream"
+                >
+                  <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
+                  <i v-else class="fas fa-trash-alt"></i>
+                </button>
+              </div>
+              
+              <button class="expand-btn" @click.stop="toggleStreamExpansion(stream.id)">
+                <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
               </button>
+            </div>
+          </div>
+          
+          <!-- Expanded Details -->
+          <div v-if="expandedStreams[stream.id]" class="stream-expanded-content">
+            <!-- Full Category Timeline -->
+            <CategoryTimeline 
+              v-if="stream.events && stream.events.length > 0"
+              :events="stream.events"
+              :stream-started="stream.started_at"
+              :stream-ended="stream.ended_at"
+            />
+            
+            <!-- Detailed Information -->
+            <div class="stream-details">
+              <div class="detail-row">
+                <span class="label">Started:</span>
+                <span class="value">{{ formatDate(stream.started_at) }}</span>
+              </div>
+              <div v-if="stream.ended_at" class="detail-row">
+                <span class="label">Ended:</span>
+                <span class="value">{{ formatDate(stream.ended_at) }}</span>
+              </div>
+              <div v-if="stream.title" class="detail-row">
+                <span class="label">Title:</span>
+                <span class="value">{{ stream.title }}</span>
+              </div>
+              <div v-if="stream.category_name" class="detail-row">
+                <span class="label">Category:</span>
+                <span class="value">{{ stream.category_name }}</span>
+              </div>
+            </div>
+            
+            <!-- Full Action Panel -->
+            <div class="stream-full-actions">
+              <div v-if="!stream.ended_at" class="recording-controls">
+                <button 
+                  v-if="!isStreamRecording(parseInt(streamerId))" 
+                  @click="startRecording(parseInt(streamerId))" 
+                  class="btn btn-success" 
+                  :disabled="isStartingRecording"
+                >
+                  {{ isStartingRecording ? 'Starting...' : 'Force Record' }}
+                </button>
+                <button 
+                  v-else 
+                  @click="stopRecording(parseInt(streamerId))"
+                  class="btn btn-danger" 
+                  :disabled="isStoppingRecording"
+                >
+                  {{ isStoppingRecording ? 'Stopping...' : 'Stop Recording' }}
+                </button>
+              </div>
+              
               <button 
-                v-else 
-                @click="stopRecording(parseInt(streamerId))"
+                v-if="stream.ended_at"
+                @click="watchVideo(stream)" 
+                class="btn btn-primary"
+              >
+                <i class="fas fa-play"></i>
+                Watch Video
+              </button>
+              
+              <button 
+                @click="confirmDeleteStream(stream)" 
                 class="btn btn-danger" 
-                :disabled="isStoppingRecording"
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
               >
-                {{ isStoppingRecording ? 'Stopping Recording...' : 'Stop Recording' }}
+                <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
+                <i v-else class="fas fa-trash-alt"></i>
+                Delete Stream
               </button>
             </div>
-            
-            <!-- Watch Video button for ended streams -->
-            <button 
-              v-if="stream.ended_at"
-              @click="watchVideo(stream)" 
-              class="btn btn-primary watch-btn"
-            >
-              Watch Video
-            </button>
-            
-            <!-- Delete Stream button - disabled while stream is recording -->
-            <button 
-              @click="confirmDeleteStream(stream)" 
-              class="btn btn-danger delete-btn" 
-              :disabled="
-                deletingStreamId === stream.id || 
-                (!stream.ended_at && isStreamRecording(parseInt(streamerId)))
-              "
-            >
-              <span v-if="deletingStreamId === stream.id" class="loader"></span>
-              <span v-else>Delete Stream</span>
-            </button>
           </div>
         </div>
       </div>
@@ -228,6 +284,9 @@ const deletingStreamId = ref<number | null>(null)
 const deleteResults = ref<any>(null)
 const showDeleteAllModal = ref(false)
 const deletingAllStreams = ref(false)
+
+// State for expandable streams
+const expandedStreams = ref<Record<number, boolean>>({})
 
 // Computed property um zu prüfen, ob es Live-Streams gibt
 const hasLiveStreams = computed(() => {
@@ -404,6 +463,11 @@ const stopRecording = async (streamerIdValue: number) => {
   } finally {
     isStoppingRecording.value = false
   }
+}
+
+// Toggle stream expansion
+const toggleStreamExpansion = (streamId: number) => {
+  expandedStreams.value[streamId] = !expandedStreams.value[streamId]
 }
 
 // Stream deletion functions
@@ -766,47 +830,251 @@ const getCategoryImage = (categoryName: string): string => {
 
 .stream-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
 }
 
 .stream-card {
   background: #1f1f23;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
+  transition: all 0.3s ease;
+  border: 1px solid #333;
 }
 
 .stream-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.stream-header {
-  background: #18181b;
-  padding: 15px;
-  border-bottom: 1px solid #333;
+.stream-card.expanded {
+  border-color: #9146FF;
 }
 
-.stream-info {
+/* Compact Header */
+.stream-compact-header {
   display: flex;
   align-items: center;
+  padding: 12px 16px;
   gap: 12px;
+  cursor: pointer;
+  background: #18181b;
+  border-bottom: 1px solid #333;
+  transition: background-color 0.2s ease;
 }
 
-.stream-info h3 {
-  margin: 0;
-  font-size: 1rem;
+.stream-compact-header:hover {
+  background: #1a1a1e;
+}
+
+.stream-thumbnail {
+  flex-shrink: 0;
+}
+
+.category-image-small {
+  width: 40px;
+  height: 53px;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: #121214;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-image-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-placeholder {
+  width: 40px;
+  height: 53px;
+  background: linear-gradient(45deg, #333, #444);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 18px;
+}
+
+.stream-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.stream-badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.stream-title {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
   font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.stream-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.stream-meta .duration {
+  font-weight: 500;
+  color: #9146FF;
+}
+
+.stream-meta .category {
+  opacity: 0.8;
+}
+
+.expand-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.btn-icon.btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.btn-icon.btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.btn-icon.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-icon.btn-danger:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.expand-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #aaa;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.expand-btn:hover {
+  background: #333;
+  color: #fff;
+}
+
+.expand-btn i.rotated {
+  transform: rotate(180deg);
+}
+
+/* Expanded Content */
+.stream-expanded-content {
+  padding: 16px;
+  background: #1a1a1e;
+  border-top: 1px solid #333;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}
+
+.stream-details {
+  margin-bottom: 16px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.detail-row .label {
+  width: 80px;
+  color: #aaa;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.detail-row .value {
+  color: #fff;
+  word-break: break-word;
+}
+
+.stream-full-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.recording-controls {
+  display: flex;
+  gap: 8px;
+}
+
+/* Status badges - smaller versions */
 .status-badge {
   background-color: #444;
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
   font-weight: bold;
+  text-transform: uppercase;
 }
 
 .status-badge.live {
@@ -815,11 +1083,11 @@ const getCategoryImage = (categoryName: string): string => {
 }
 
 .recording-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
   font-weight: bold;
-  margin-right: 0.5rem;
+  text-transform: uppercase;
 }
 
 .recording-badge.recording {
@@ -831,52 +1099,6 @@ const getCategoryImage = (categoryName: string): string => {
 .recording-badge.not-recording {
   background-color: var(--danger-color);
   color: white;
-}
-
-.stream-content {
-  padding: 15px;
-}
-
-.stream-content p {
-  margin: 8px 0;
-}
-
-.stream-actions {
-  padding: 15px;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.watch-btn {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.watch-btn:hover {
-  background-color: #0056b3;
-}
-
-.delete-btn {
-  margin-left: auto;
-}
-
-.offline-recording-section {
-  margin-top: var(--spacing-lg);
-  padding: var(--spacing-md);
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: var(--border-radius);
-}
-
-.help-text {
-  margin-top: var(--spacing-sm);
-  color: var(--text-muted-color);
 }
 
 /* Modal styles */
@@ -891,15 +1113,23 @@ const getCategoryImage = (categoryName: string): string => {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .modal-content {
   background-color: #1f1f23;
-  border-radius: 8px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 24px;
   min-width: 400px;
   max-width: 90%;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  border: 1px solid #333;
+  /* Ensure modal is always visible */
+  position: relative;
+  transform: translateY(0);
 }
 
 .modal-content h3 {
@@ -914,14 +1144,14 @@ const getCategoryImage = (categoryName: string): string => {
   margin-bottom: 20px;
 }
 
-.stream-details {
+.stream-stream {
   background-color: #18181b;
   padding: 10px;
   border-radius: 4px;
   margin-bottom: 20px;
 }
 
-.stream-details p {
+.stream-stream p {
   margin: 5px 0;
 }
 
@@ -941,87 +1171,44 @@ const getCategoryImage = (categoryName: string): string => {
   background-color: #555;
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.8;
-  }
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
   }
   
-  .stream-actions {
-    flex-direction: column;
+  .stream-compact-header {
+    padding: 10px 12px;
   }
   
-  .delete-btn {
-    margin-left: 0;
-    margin-top: 10px;
+  .category-image-small {
+    width: 32px;
+    height: 42px;
+  }
+  
+  .category-placeholder {
+    width: 32px;
+    height: 42px;
+    font-size: 14px;
+  }
+  
+  .stream-title {
+    font-size: 0.85rem;
+  }
+  
+  .quick-actions {
+    gap: 2px;
+  }
+  
+  .btn-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
   }
   
   .modal-content {
     min-width: 320px;
     padding: 15px;
-  }
-}
-
-/* Add this to your existing CSS */
-.category-visual {
-  display: flex;
-  align-items: center;
-  padding: 10px 15px;
-  background: rgba(24, 24, 27, 0.5);
-  border-radius: 4px;
-  margin: 0 15px 15px;
-}
-
-.category-image {
-  width: 50px;
-  height: 66px;
-  overflow: hidden;
-  border-radius: 4px;
-  flex-shrink: 0;
-  margin-right: 12px;
-  background-color: #121214;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.category-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.2s ease;
-}
-
-.category-visual:hover .category-image img {
-  transform: scale(1.1);
-}
-
-.category-name {
-  font-weight: 500;
-  color: #9146FF;
-}
-
-/* Adjust stream-content padding to account for the category visual */
-.stream-content {
-  padding-top: 0;
-}
-
-/* Grid layout adjustments for better fit with category visuals */
-@media (min-width: 1024px) {
-  .stream-list {
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
 }
 
