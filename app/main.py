@@ -226,6 +226,10 @@ app.include_router(videos.router)  # Router already has /api prefix
 from app.routes import push as push_router
 app.include_router(push_router.router)
 
+# Admin routes
+from app.routes import admin as admin_router
+app.include_router(admin_router.router)
+
 # Explicit SPA routes - these must come after API routes but before static files
 @app.get("/streamers")
 @app.get("/videos") 

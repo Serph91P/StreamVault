@@ -171,7 +171,10 @@ class EventHandlerRegistry:
             return False
 
     async def handle_stream_online(self, data: dict):
+        logger.info(f"🎬 STREAM_ONLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}, started_at={data.get('started_at')}")
+        
         if self._is_duplicate_event(data):
+            logger.info(f"🎬 DUPLICATE_STREAM_ONLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}")
             return
             
         try:
@@ -224,22 +227,25 @@ class EventHandlerRegistry:
                     db.commit()
 
                     # Send notification only via notification_service to avoid duplicates
+                    logger.info(f"🎬 SENDING_STREAM_ONLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}")
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="online",
                         details={
                             "streamer_id": streamer.id,
+                            "stream_id": stream.id,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "started_at": data["started_at"],
                             "title": streamer.title,
                             "category_name": streamer.category_name,
                             "language": streamer.language,
                             "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"]
+                            "twitch_login": data["broadcaster_user_login"],
+                            "is_live": True
                         }
                     )
                     
-                    logger.debug("Notifications sent successfully")
+                    logger.info(f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}")
 
                     streamer_id = streamer.id
                     await self.recording_service.start_recording(streamer_id, {
@@ -256,8 +262,11 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
             
     async def handle_stream_offline(self, data: dict):
+        logger.info(f"🎬 STREAM_OFFLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}")
+        
         # Event-Deduplizierung
         if self._is_duplicate_event(data):
+            logger.info(f"🎬 DUPLICATE_STREAM_OFFLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}")
             return
             
         try:
@@ -283,17 +292,22 @@ class EventHandlerRegistry:
                     db.commit()
             
                     # Send notification only via notification_service to avoid duplicates
+                    logger.info(f"🎬 SENDING_STREAM_OFFLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}")
                     await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
                         event_type="offline",
                         details={
                             "streamer_id": streamer.id,
+                            "stream_id": stream.id if stream else None,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
                             "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data['broadcaster_user_login']
+                            "twitch_login": data['broadcaster_user_login'],
+                            "is_live": False
                         }
                     )
-
+                    
+                    logger.info(f"🎬 STREAM_OFFLINE_NOTIFICATION_SENT: streamer={streamer.username}")
+                    logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
                     await self.recording_service.stop_recording(streamer.id)
             
         except Exception as e:
