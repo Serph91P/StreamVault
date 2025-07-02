@@ -10,6 +10,9 @@ from urllib.parse import quote
 import hashlib
 import logging
 from pathlib import Path
+from sqlalchemy.orm import Session
+from app.database import SessionLocal
+from app.models import Category
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +102,30 @@ class CategoryImageService:
     async def _download_category_image(self, category_name: str) -> bool:
         """Download category image from Twitch CDN"""
         try:
-            # Try multiple URL formats for Twitch box art
-            urls_to_try = [
+            # First try to get the box art URL from database
+            db = SessionLocal()
+            try:
+                category = db.query(Category).filter(Category.name == category_name).first()
+                box_art_url = category.box_art_url if category else None
+            finally:
+                db.close()
+            
+            # Prepare URLs to try
+            urls_to_try = []
+            
+            # If we have a box art URL from database, use it first
+            if box_art_url:
+                # Replace template size with our desired size
+                actual_url = box_art_url.replace('{width}', '144').replace('{height}', '192')
+                urls_to_try.append(actual_url)
+                logger.debug(f"Using database box art URL for {category_name}: {actual_url}")
+            
+            # Fallback URLs based on category name (old method)
+            urls_to_try.extend([
                 f"https://static-cdn.jtvnw.net/ttv-boxart/{quote(category_name)}-144x192.jpg",
                 f"https://static-cdn.jtvnw.net/ttv-boxart/{quote(category_name, safe='')}-144x192.jpg",
                 f"https://static-cdn.jtvnw.net/ttv-boxart/{category_name.replace(' ', '%20')}-144x192.jpg",
-            ]
+            ])
             
             filename = self._category_to_filename(category_name)
             file_path = self.images_dir / f"{filename}.jpg"
@@ -112,6 +133,7 @@ class CategoryImageService:
             async with aiohttp.ClientSession() as session:
                 for url in urls_to_try:
                     try:
+                        logger.debug(f"Trying to download {category_name} from: {url}")
                         async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                             if response.status == 200:
                                 # Check if it's actually an image
@@ -126,15 +148,17 @@ class CategoryImageService:
                                     relative_path = f"/images/categories/{filename}.jpg"
                                     self._category_cache[category_name] = relative_path
                                     
-                                    logger.info(f"Successfully downloaded image for category: {category_name}")
+                                    logger.info(f"Successfully downloaded image for category: {category_name} from {url}")
                                     return True
+                            else:
+                                logger.debug(f"HTTP {response.status} for {url}")
                     except Exception as e:
                         logger.debug(f"Failed to download from {url}: {e}")
                         continue
             
             # If we get here, all downloads failed
             self._failed_downloads.add(category_name)
-            logger.warning(f"Failed to download image for category: {category_name}")
+            logger.warning(f"Failed to download image for category: {category_name} from all URLs")
             return False
             
         except Exception as e:
