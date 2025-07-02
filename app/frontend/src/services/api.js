@@ -125,6 +125,14 @@ export const streamerApi = {
 
   async getStreamChapters(streamerId, streamId) {
     return api.get(`/api/streamers/${streamerId}/streams/${streamId}/chapters`)
+  },
+
+  async deleteStream(streamerId, streamId) {
+    return api.delete(`/api/streamers/${streamerId}/streams/${streamId}`)
+  },
+
+  async deleteAllStreams(streamerId) {
+    return api.delete(`/api/streamers/${streamerId}/streams`)
   }
 }
 
