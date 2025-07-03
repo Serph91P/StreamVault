@@ -1651,6 +1651,7 @@ class RecordingService:
                 # Output settings - preserve everything possible
                 "-c:v", "copy",               # Copy video stream (no re-encoding)
                 "-c:a", "copy",               # Copy audio stream (preserve original timing)
+                "-bsf:a", "aac_adtstoasc",    # Fix AAC bitstream format for MP4 container
                 "-avoid_negative_ts", "make_zero",    # Handle negative timestamps
                 "-map", "0:v:0?",             # Map first video stream (optional)
                 "-map", "0:a:0?",             # Map first audio stream (optional)
@@ -1664,7 +1665,7 @@ class RecordingService:
                 
                 # Sync and timing - be more lenient
                 "-async", "1" if not is_proxy_recording else "0",  # No audio sync correction for proxy recordings
-                "-vsync", "passthrough" if is_proxy_recording else "cfr",  # Pass through timing for proxy recordings
+                "-fps_mode", "passthrough" if is_proxy_recording else "cfr",  # Replace deprecated -vsync
                 
                 # Metadata and output
                 "-metadata", "encoded_by=StreamVault",
@@ -1685,6 +1686,18 @@ class RecordingService:
             # Set environment variable for FFmpeg report
             env = os.environ.copy()
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
+
+            # Ensure output directory has correct permissions
+            output_dir = os.path.dirname(mp4_path)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, mode=0o755, exist_ok=True)
+            
+            # Remove any existing partial MP4 file
+            if os.path.exists(mp4_path):
+                try:
+                    os.remove(mp4_path)
+                except OSError as e:
+                    logger.warning(f"Could not remove existing MP4 file {mp4_path}: {e}")
 
             # Log the command start
             self.ffmpeg_logger.info(f"[FFMPEG_REMUX_START] {streamer_name} - {ts_path} -> {mp4_path}")
@@ -1759,6 +1772,14 @@ class RecordingService:
                 logger.error(f"FFmpeg remux failed with exit code {exit_code}")
                 stderr_text = stderr.decode("utf-8", errors="ignore") if stderr else "No error output"
                 logger.error(f"FFmpeg stderr: {stderr_text[:1000]}...")  # Log first 1000 chars of stderr
+                
+                # Check for specific error patterns
+                if "Operation not permitted" in stderr_text:
+                    logger.warning("Detected 'Operation not permitted' error - trying with different approach")
+                    # Wait a moment and retry with fallback
+                    await asyncio.sleep(2)
+                elif "Malformed AAC bitstream" in stderr_text:
+                    logger.warning("Detected malformed AAC bitstream - fallback should handle this")
                 
                 # Try with fallback method if the first attempt failed
                 return await self._remux_to_mp4_fallback(ts_path, mp4_path)
@@ -1878,6 +1899,7 @@ class RecordingService:
                 # Safe output settings
                 "-c:v", "copy",
                 "-c:a", "copy", 
+                "-bsf:a", "aac_adtstoasc",  # Fix AAC bitstream format
                 "-avoid_negative_ts", "make_zero",
                 "-map", "0:v:0?",
                 "-map", "0:a:0?",
@@ -1890,7 +1912,7 @@ class RecordingService:
                 "-fflags", "+discardcorrupt",
                 
                 # No sync correction - just copy everything as-is
-                "-vsync", "passthrough",
+                "-fps_mode", "passthrough",  # Replace deprecated -vsync
                 "-async", "0",  # No audio sync correction
                 "-copyts",      # Copy timestamps exactly
                 
@@ -1976,12 +1998,19 @@ class RecordingService:
             # Step 2: Recombine to MP4
             if os.path.exists(video_path) and os.path.exists(audio_path):
                 logger.info("Step 2: Recombining streams...")
+                
+                # Ensure output directory permissions
+                output_dir = os.path.dirname(mp4_path)
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir, mode=0o755, exist_ok=True)
+                
                 combine_cmd = [
                     "ffmpeg",
                     "-i", video_path,
                     "-i", audio_path,
                     "-c:v", "copy",
                     "-c:a", "copy",
+                    "-bsf:a", "aac_adtstoasc",  # Ensure proper AAC format
                     "-movflags", "+faststart",
                     "-y", mp4_path,
                     "-v", "warning"
