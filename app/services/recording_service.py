@@ -2315,7 +2315,7 @@ class RecordingService:
             "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
             "id": stream_data.get("id", ""),
             "season": f"S{now.year}{now.month:02d}",  # Saison ohne Bindestrich
-            "episode": f"E{episode}",  # Präfix E zur Episodennummer hinzufügen
+            "episode": episode,  # Nur die Nummer, ohne E-Prefix (wird im Template hinzugefügt)
         }
 
         # Check if template is a preset name
@@ -2325,16 +2325,37 @@ class RecordingService:
         # Replace all variables in template
         filename = template
         for key, value in values.items():
-            placeholder = f"{{{key}}}"
-            if placeholder in filename:  # Prüfen, ob der Platzhalter vorhanden ist
-                filename = filename.replace(placeholder, str(value))
+            # Handle both simple placeholders {key} and formatted placeholders {key:format}
+            import re
+            
+            # Pattern for {key} or {key:format}
+            pattern = r'\{' + re.escape(key) + r'(?::[^}]*)?\}'
+            
+            if re.search(pattern, filename):
+                # If it's a numeric value and has formatting, apply the formatting
+                if key == "episode" and "{episode:" in filename:
+                    # Extract the format specification
+                    episode_match = re.search(r'\{episode:([^}]*)\}', filename)
+                    if episode_match:
+                        format_spec = episode_match.group(1)
+                        try:
+                            # Apply the format to the numeric episode value
+                            episode_num = int(episode) if isinstance(episode, int) else int(str(episode).lstrip('E'))
+                            formatted_value = f"{episode_num:{format_spec}}"  # Don't add E prefix, it's in the template
+                            filename = re.sub(r'\{episode:[^}]*\}', formatted_value, filename)
+                        except (ValueError, TypeError):
+                            # Fallback to simple replacement
+                            filename = re.sub(pattern, str(value), filename)
+                else:
+                    # Simple replacement for all other cases
+                    filename = re.sub(pattern, str(value), filename)
 
         # Ensure the filename ends with .mp4
         if not filename.lower().endswith(".mp4"):
             filename += ".mp4"
         return filename
 
-    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
+    def _get_episode_number(self, streamer_id: int, now: datetime) -> int:
         """Get episode number (count of streams in current month)"""
         try:
             with SessionLocal() as db:
@@ -2353,11 +2374,11 @@ class RecordingService:
                 logger.debug(
                     f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number}"
                 )
-                return f"{episode_number:02d}"  # Format with leading zero
+                return episode_number  # Return as integer for proper formatting
 
         except Exception as e:
             logger.error(f"Error getting episode number: {e}", exc_info=True)
-            return "01"  # Default value
+            return 1  # Default value
 
     def _sanitize_filename(self, name: str) -> str:
         """Remove illegal characters from filename"""
