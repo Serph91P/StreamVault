@@ -1651,6 +1651,7 @@ class RecordingService:
                 # Output settings - preserve everything possible
                 "-c:v", "copy",               # Copy video stream (no re-encoding)
                 "-c:a", "copy",               # Copy audio stream (preserve original timing)
+                "-bsf:a", "aac_adtstoasc",    # Fix AAC bitstream format for MP4 container
                 "-avoid_negative_ts", "make_zero",    # Handle negative timestamps
                 "-map", "0:v:0?",             # Map first video stream (optional)
                 "-map", "0:a:0?",             # Map first audio stream (optional)
@@ -1664,7 +1665,7 @@ class RecordingService:
                 
                 # Sync and timing - be more lenient
                 "-async", "1" if not is_proxy_recording else "0",  # No audio sync correction for proxy recordings
-                "-vsync", "passthrough" if is_proxy_recording else "cfr",  # Pass through timing for proxy recordings
+                "-fps_mode", "passthrough" if is_proxy_recording else "cfr",  # Replace deprecated -vsync
                 
                 # Metadata and output
                 "-metadata", "encoded_by=StreamVault",
@@ -1685,6 +1686,18 @@ class RecordingService:
             # Set environment variable for FFmpeg report
             env = os.environ.copy()
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
+
+            # Ensure output directory has correct permissions
+            output_dir = os.path.dirname(mp4_path)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, mode=0o755, exist_ok=True)
+            
+            # Remove any existing partial MP4 file
+            if os.path.exists(mp4_path):
+                try:
+                    os.remove(mp4_path)
+                except OSError as e:
+                    logger.warning(f"Could not remove existing MP4 file {mp4_path}: {e}")
 
             # Log the command start
             self.ffmpeg_logger.info(f"[FFMPEG_REMUX_START] {streamer_name} - {ts_path} -> {mp4_path}")
@@ -1759,6 +1772,14 @@ class RecordingService:
                 logger.error(f"FFmpeg remux failed with exit code {exit_code}")
                 stderr_text = stderr.decode("utf-8", errors="ignore") if stderr else "No error output"
                 logger.error(f"FFmpeg stderr: {stderr_text[:1000]}...")  # Log first 1000 chars of stderr
+                
+                # Check for specific error patterns
+                if "Operation not permitted" in stderr_text:
+                    logger.warning("Detected 'Operation not permitted' error - trying with different approach")
+                    # Wait a moment and retry with fallback
+                    await asyncio.sleep(2)
+                elif "Malformed AAC bitstream" in stderr_text:
+                    logger.warning("Detected malformed AAC bitstream - fallback should handle this")
                 
                 # Try with fallback method if the first attempt failed
                 return await self._remux_to_mp4_fallback(ts_path, mp4_path)
@@ -1878,6 +1899,7 @@ class RecordingService:
                 # Safe output settings
                 "-c:v", "copy",
                 "-c:a", "copy", 
+                "-bsf:a", "aac_adtstoasc",  # Fix AAC bitstream format
                 "-avoid_negative_ts", "make_zero",
                 "-map", "0:v:0?",
                 "-map", "0:a:0?",
@@ -1890,7 +1912,7 @@ class RecordingService:
                 "-fflags", "+discardcorrupt",
                 
                 # No sync correction - just copy everything as-is
-                "-vsync", "passthrough",
+                "-fps_mode", "passthrough",  # Replace deprecated -vsync
                 "-async", "0",  # No audio sync correction
                 "-copyts",      # Copy timestamps exactly
                 
@@ -1976,12 +1998,19 @@ class RecordingService:
             # Step 2: Recombine to MP4
             if os.path.exists(video_path) and os.path.exists(audio_path):
                 logger.info("Step 2: Recombining streams...")
+                
+                # Ensure output directory permissions
+                output_dir = os.path.dirname(mp4_path)
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir, mode=0o755, exist_ok=True)
+                
                 combine_cmd = [
                     "ffmpeg",
                     "-i", video_path,
                     "-i", audio_path,
                     "-c:v", "copy",
                     "-c:a", "copy",
+                    "-bsf:a", "aac_adtstoasc",  # Ensure proper AAC format
                     "-movflags", "+faststart",
                     "-y", mp4_path,
                     "-v", "warning"
@@ -2286,7 +2315,7 @@ class RecordingService:
             "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
             "id": stream_data.get("id", ""),
             "season": f"S{now.year}{now.month:02d}",  # Saison ohne Bindestrich
-            "episode": f"E{episode}",  # Präfix E zur Episodennummer hinzufügen
+            "episode": episode,  # Nur die Nummer, ohne E-Prefix (wird im Template hinzugefügt)
         }
 
         # Check if template is a preset name
@@ -2296,16 +2325,37 @@ class RecordingService:
         # Replace all variables in template
         filename = template
         for key, value in values.items():
-            placeholder = f"{{{key}}}"
-            if placeholder in filename:  # Prüfen, ob der Platzhalter vorhanden ist
-                filename = filename.replace(placeholder, str(value))
+            # Handle both simple placeholders {key} and formatted placeholders {key:format}
+            import re
+            
+            # Pattern for {key} or {key:format}
+            pattern = r'\{' + re.escape(key) + r'(?::[^}]*)?\}'
+            
+            if re.search(pattern, filename):
+                # If it's a numeric value and has formatting, apply the formatting
+                if key == "episode" and "{episode:" in filename:
+                    # Extract the format specification
+                    episode_match = re.search(r'\{episode:([^}]*)\}', filename)
+                    if episode_match:
+                        format_spec = episode_match.group(1)
+                        try:
+                            # Apply the format to the numeric episode value
+                            episode_num = int(episode) if isinstance(episode, int) else int(str(episode).lstrip('E'))
+                            formatted_value = f"{episode_num:{format_spec}}"  # Don't add E prefix, it's in the template
+                            filename = re.sub(r'\{episode:[^}]*\}', formatted_value, filename)
+                        except (ValueError, TypeError):
+                            # Fallback to simple replacement
+                            filename = re.sub(pattern, str(value), filename)
+                else:
+                    # Simple replacement for all other cases
+                    filename = re.sub(pattern, str(value), filename)
 
         # Ensure the filename ends with .mp4
         if not filename.lower().endswith(".mp4"):
             filename += ".mp4"
         return filename
 
-    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
+    def _get_episode_number(self, streamer_id: int, now: datetime) -> int:
         """Get episode number (count of streams in current month)"""
         try:
             with SessionLocal() as db:
@@ -2324,11 +2374,11 @@ class RecordingService:
                 logger.debug(
                     f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number}"
                 )
-                return f"{episode_number:02d}"  # Format with leading zero
+                return episode_number  # Return as integer for proper formatting
 
         except Exception as e:
             logger.error(f"Error getting episode number: {e}", exc_info=True)
-            return "01"  # Default value
+            return 1  # Default value
 
     def _sanitize_filename(self, name: str) -> str:
         """Remove illegal characters from filename"""

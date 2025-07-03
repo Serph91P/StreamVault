@@ -68,7 +68,19 @@
           
           <div v-if="notification.data?.game_name || notification.data?.category_name" class="notification-meta">
             <span class="category-tag">
-              <span class="tag-icon">🎮</span>
+              <span class="category-image-small">
+                <img 
+                  v-if="!getCategoryImage(notification.data?.game_name || notification.data?.category_name || '').startsWith('icon:')"
+                  :src="getCategoryImage(notification.data?.game_name || notification.data?.category_name || '')" 
+                  :alt="notification.data?.game_name || notification.data?.category_name"
+                  loading="lazy"
+                />
+                <i 
+                  v-else 
+                  :class="getCategoryImage(notification.data?.game_name || notification.data?.category_name || '').replace('icon:', '')"
+                  class="category-icon"
+                ></i>
+              </span>
               {{ notification.data?.game_name || notification.data?.category_name }}
             </span>
           </div>
@@ -85,6 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 
 const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all'])
 
@@ -103,6 +116,7 @@ interface Notification {
 
 const notifications = ref<Notification[]>([])
 const { messages } = useWebSocket()
+const { getCategoryImage } = useCategoryImages()
 
 const MAX_NOTIFICATIONS = 100
 
@@ -871,6 +885,27 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.category-image-small {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-image-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-image-small .category-icon {
+  font-size: 12px;
+  color: #9146ff;
 }
 
 .tag-icon {

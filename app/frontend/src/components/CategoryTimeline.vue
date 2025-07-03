@@ -1,44 +1,56 @@
 <template>
   <div class="category-timeline" v-if="categoryEvents.length > 0">
     <div class="timeline-header">
-      <h4>Category History</h4>
-      <span class="category-count">{{ categoryEvents.length }} changes</span>
+      <h4><i class="fas fa-history"></i> Category Timeline</h4>
+      <span class="category-count">{{ categoryEvents.length }} {{ categoryEvents.length === 1 ? 'category' : 'categories' }}</span>
     </div>
     
-    <div class="timeline-container">
-      <div class="timeline-line"></div>
+    <!-- Horizontal Timeline -->
+    <div class="horizontal-timeline">
+      <div class="timeline-track"></div>
       
       <div 
         v-for="(event, index) in categoryEvents" 
         :key="event.id"
-        class="timeline-event"
-        :class="{ 'first': index === 0, 'last': index === categoryEvents.length - 1 }"
+        class="timeline-item"
+        :style="{ left: getTimelinePosition(event, index) + '%' }"
       >
         <div class="timeline-marker">
-          <div class="marker-dot"></div>
+          <div class="marker-content">
+            <div class="category-icon-wrapper">
+              <i :class="getCategoryIcon(event.category_name)" class="category-icon"></i>
+            </div>
+          </div>
         </div>
         
-        <div class="timeline-content">
-          <div class="event-header">
-            <div class="category-info">
-              <img 
-                :src="getCategoryImage(event.category_name)" 
-                :alt="event.category_name || 'Unknown Category'"
-                class="category-icon"
-              />
-              <span class="category-name">{{ event.category_name || 'Unknown Category' }}</span>
-            </div>
-            <span class="event-time">{{ formatTime(event.timestamp) }}</span>
+        <div class="timeline-tooltip">
+          <div class="tooltip-header">
+            <strong>{{ event.category_name || 'Unknown Category' }}</strong>
           </div>
-          
-          <div class="event-details" v-if="event.title">
-            <span class="event-title">{{ event.title }}</span>
+          <div class="tooltip-time">{{ formatTime(event.timestamp) }}</div>
+          <div v-if="event.title" class="tooltip-title">{{ event.title }}</div>
+          <div v-if="index < categoryEvents.length - 1" class="tooltip-duration">
+            Duration: {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
           </div>
-          
-          <div class="duration-info" v-if="index < categoryEvents.length - 1">
-            <span class="duration">
-              Duration: {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
-            </span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Category List (compact) -->
+    <div class="category-list">
+      <div 
+        v-for="(event, index) in categoryEvents" 
+        :key="event.id"
+        class="category-item"
+      >
+        <div class="category-marker">
+          <i :class="getCategoryIcon(event.category_name)" class="category-icon"></i>
+        </div>
+        <div class="category-details">
+          <div class="category-name">{{ event.category_name || 'Unknown' }}</div>
+          <div class="category-time">{{ formatTime(event.timestamp) }}</div>
+          <div v-if="index < categoryEvents.length - 1" class="category-duration">
+            {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
           </div>
         </div>
       </div>
@@ -46,12 +58,16 @@
   </div>
   
   <div v-else class="no-category-history">
-    <p>No category changes recorded for this stream</p>
+    <div class="no-data-content">
+      <i class="fas fa-info-circle"></i>
+      <p>No category changes recorded for this stream</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 import type { StreamEvent } from '@/types/streams'
 
 interface Props {
@@ -61,6 +77,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { getCategoryImage } = useCategoryImages()
 
 // Filter events to only show category changes
 const categoryEvents = computed(() => {
@@ -69,26 +86,29 @@ const categoryEvents = computed(() => {
     .sort((a, b) => new Date(a.timestamp || '').getTime() - new Date(b.timestamp || '').getTime())
 })
 
-const getCategoryImage = (categoryName: string | null): string => {
-  if (!categoryName) return '/images/default-category.png'
+const getCategoryIcon = (categoryName: string | null): string => {
+  if (!categoryName) return 'fas fa-video';
   
-  // Simple hash function to generate consistent colors
-  let hash = 0
-  for (let i = 0; i < categoryName.length; i++) {
-    hash = categoryName.charCodeAt(i) + ((hash << 5) - hash)
+  const imageUrl = getCategoryImage(categoryName);
+  
+  // If it's an icon (starts with icon:), return the icon class
+  if (imageUrl.startsWith('icon:')) {
+    return imageUrl.replace('icon:', '');
   }
   
-  const hue = Math.abs(hash % 360)
+  // For actual images, return a generic gaming icon as fallback for the timeline
+  return 'fas fa-gamepad';
+}
+
+const getTimelinePosition = (event: any, index: number): number => {
+  if (categoryEvents.value.length <= 1) return 50;
   
-  // Generate a placeholder image URL or use a generic game icon
-  return `data:image/svg+xml;base64,${btoa(`
-    <svg width="40" height="40" xmlns="http://www.w3.org/2000/svg">
-      <rect width="40" height="40" fill="hsl(${hue}, 70%, 50%)" rx="4"/>
-      <text x="20" y="25" text-anchor="middle" fill="white" font-family="Arial" font-size="12" font-weight="bold">
-        ${categoryName.substring(0, 2).toUpperCase()}
-      </text>
-    </svg>
-  `)}`
+  // Calculate position based on chronological order
+  const totalEvents = categoryEvents.value.length;
+  const margin = 5; // 5% margin on each side
+  const usableWidth = 100 - (margin * 2);
+  
+  return margin + (index * (usableWidth / (totalEvents - 1)));
 }
 
 const formatTime = (timestamp: string | null): string => {
@@ -135,194 +155,276 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 
 <style scoped>
 .category-timeline {
-  background: var(--background-card, #1f1f23);
-  border-radius: 8px;
-  padding: 16px;
-  margin: 12px 0;
-  border: 1px solid var(--border-color, #333);
+  background: #1f1f23;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .timeline-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color, #333);
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #333;
 }
 
 .timeline-header h4 {
   margin: 0;
-  color: var(--text-primary, #ffffff);
-  font-size: 16px;
+  color: #ffffff;
+  font-size: 1.1rem;
   font-weight: 600;
-}
-
-.category-count {
-  background: var(--accent-color, #9146ff);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.timeline-container {
-  position: relative;
-  padding-left: 24px;
-}
-
-.timeline-line {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: linear-gradient(to bottom, var(--accent-color, #9146ff), var(--accent-color-light, #b876ff));
-  border-radius: 1px;
-}
-
-.timeline-event {
-  position: relative;
-  margin-bottom: 16px;
-  min-height: 60px;
-}
-
-.timeline-event.last {
-  margin-bottom: 0;
-}
-
-.timeline-marker {
-  position: absolute;
-  left: -20px;
-  top: 8px;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.marker-dot {
-  width: 12px;
-  height: 12px;
-  background: var(--accent-color, #9146ff);
-  border-radius: 50%;
-  border: 2px solid var(--background-card, #1f1f23);
-  box-shadow: 0 0 0 2px var(--accent-color, #9146ff);
-}
-
-.timeline-content {
-  background: var(--background-secondary, #2a2a2e);
-  border-radius: 6px;
-  padding: 12px;
-  border-left: 3px solid var(--accent-color, #9146ff);
-  transition: all 0.2s ease;
-}
-
-.timeline-content:hover {
-  background: var(--background-hover, #353539);
-  transform: translateX(2px);
-}
-
-.event-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.category-info {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.category-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
+.timeline-header h4 i {
+  color: #9146FF;
 }
 
-.category-name {
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
-  font-size: 14px;
-}
-
-.event-time {
-  font-size: 12px;
-  color: var(--text-secondary, #b3b3b3);
-  font-family: monospace;
-}
-
-.event-details {
-  margin-bottom: 6px;
-}
-
-.event-title {
-  font-size: 13px;
-  color: var(--text-secondary, #b3b3b3);
-  font-style: italic;
-}
-
-.duration-info {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border-color, #333);
-}
-
-.duration {
-  font-size: 11px;
-  color: var(--text-tertiary, #888);
+.category-count {
+  background: #9146FF;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
-.no-category-history {
-  background: var(--background-card, #1f1f23);
+/* Horizontal Timeline */
+.horizontal-timeline {
+  position: relative;
+  height: 80px;
+  margin: 20px 0;
+  overflow: hidden; /* Hide overflow instead of scrolling */
+  width: 100%;
+}
+
+.timeline-track {
+  position: absolute;
+  top: 40px;
+  left: 5%;
+  right: 5%;
+  height: 2px;
+  background: linear-gradient(90deg, #9146FF, #6441A5);
+  border-radius: 2px;
+}
+
+.timeline-item {
+  position: absolute;
+  top: 20px;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.timeline-marker {
+  position: relative;
+  z-index: 2;
+}
+
+.marker-content {
+  width: 40px;
+  height: 40px;
+  background: #9146FF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(145, 70, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.timeline-item:hover .marker-content {
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(145, 70, 255, 0.6);
+}
+
+.category-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-icon {
+  color: white;
+  font-size: 16px;
+}
+
+/* Tooltip */
+.timeline-tooltip {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #18181b;
+  border: 1px solid #333;
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
+  min-width: 180px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.timeline-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #333;
+}
+
+.timeline-item:hover .timeline-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tooltip-header {
+  color: #9146FF;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.tooltip-time {
+  color: #aaa;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.tooltip-title {
+  color: #fff;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.tooltip-duration {
+  color: #9146FF;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Compact Category List */
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #18181b;
+  border-radius: 8px;
+  border: 1px solid #333;
+  transition: all 0.2s ease;
+}
+
+.category-item:hover {
+  background: #1a1a1e;
+  border-color: #9146FF;
+}
+
+.category-marker {
+  width: 32px;
+  height: 32px;
+  background: #9146FF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.category-marker .category-icon {
+  color: white;
+  font-size: 14px;
+}
+
+.category-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.category-name {
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 2px;
+}
+
+.category-time {
+  color: #aaa;
+  font-size: 0.8rem;
+}
+
+.category-duration {
+  color: #9146FF;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* No data state */
+.no-category-history {
+  background: #1f1f23;
+  border-radius: 12px;
+  padding: 40px 20px;
+  margin: 16px 0;
+  border: 1px solid #333;
   text-align: center;
-  border: 1px solid var(--border-color, #333);
-  margin: 12px 0;
 }
 
-.no-category-history p {
+.no-data-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #888;
+}
+
+.no-data-content i {
+  font-size: 2rem;
+  color: #555;
+}
+
+.no-data-content p {
   margin: 0;
-  color: var(--text-secondary, #b3b3b3);
-  font-style: italic;
+  font-size: 0.9rem;
 }
 
-/* Mobile responsive */
+/* Responsive design */
 @media (max-width: 768px) {
-  .timeline-container {
-    padding-left: 20px;
+  .horizontal-timeline {
+    overflow: hidden; /* Keep consistent, no scrolling */
+    padding-bottom: 10px;
   }
   
-  .timeline-marker {
-    left: -16px;
+  .timeline-tooltip {
+    min-width: 150px;
+    font-size: 0.85rem;
   }
   
-  .marker-dot {
-    width: 10px;
-    height: 10px;
+  .category-list {
+    gap: 6px;
   }
   
-  .category-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+  .category-item {
+    padding: 6px 10px;
   }
   
-  .event-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-  
-  .timeline-content {
-    padding: 10px;
+  .category-name {
+    font-size: 0.85rem;
   }
 }
 </style>
