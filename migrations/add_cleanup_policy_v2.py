@@ -7,6 +7,7 @@ Created: 2025-05-25
 """
 
 from sqlalchemy import Column, Text
+from alembic import op
 
 
 # revision identifiers, used by Alembic.
