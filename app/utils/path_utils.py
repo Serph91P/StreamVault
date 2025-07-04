@@ -99,20 +99,39 @@ def generate_filename(
         "timestamp": now.strftime("%Y%m%d_%H%M%S"),
         "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
         "id": stream_data.get("id", ""),
-        "season": f"S{now.year}{now.month:02d}",  # Saison ohne Bindestrich
-        "episode": f"E{episode}",  # Präfix E zur Episodennummer hinzufügen
+        "season": f"S{now.year}{now.month:02d}",  # Season without hyphen
+        "episode": f"E{episode}",  # Add prefix E to episode number
     }
 
     # Check if template is a preset name
     if template in FILENAME_PRESETS:
         template = FILENAME_PRESETS[template]
         
-    # Replace all variables in template
-    filename = template
-    for key, value in values.items():
-        placeholder = f"{{{key}}}"
-        if placeholder in filename:  # Prüfen, ob der Platzhalter vorhanden ist
-            filename = filename.replace(placeholder, str(value))
+    # Use Python's format string system for replacements
+    # This allows for complex formatting like {episode:02d}
+    filename = template  # Initialize filename variable
+    try:
+        # First try Python's format method for complex placeholders
+        filename = template.format(**values)
+    except Exception as e:
+        logger.warning(f"Error in format creation, trying fallback method: {e}")
+        # Fallback in case complex formatting fails
+        filename = template
+        for key, value in values.items():
+            # Try different possible format strings
+            formats_to_try = [
+                f"{{{key}}}",                # {episode}
+                f"{{{key}:02d}}",            # {episode:02d}
+                f"{{{key}:2d}}",             # {episode:2d}
+                f"{{{key}:d}}",              # {episode:d}
+            ]
+            for fmt in formats_to_try:
+                if fmt in filename:
+                    if fmt.endswith(':02d}') and isinstance(value, str) and value.isdigit():
+                        # For numbers as strings with 02d format
+                        filename = filename.replace(fmt, f"{int(value):02d}")
+                    else:
+                        filename = filename.replace(fmt, str(value))
 
     # Ensure the filename ends with .mp4
     if not filename.lower().endswith(".mp4"):
