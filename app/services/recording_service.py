@@ -1317,11 +1317,6 @@ class RecordingService:
         while not os.path.exists(mp4_path):
             if (datetime.now() - start_time).total_seconds() > 300:  # 5 minute timeout
                 logger.warning(f"Timed out waiting for MP4 file: {mp4_path}")
-                # Try using TS file directly if MP4 wasn't created
-                if os.path.exists(output_path) and output_path.endswith(".ts"):
-                    mp4_path = output_path
-                    logger.info(f"Using TS file directly for metadata: {mp4_path}")
-                    break
                 return None
             await asyncio.sleep(5)
 
@@ -1330,23 +1325,14 @@ class RecordingService:
 
         # Verify that the MP4 file is valid
         if mp4_path.endswith(".mp4"):
-            is_valid = await self._validate_mp4(mp4_path)
+            # Use the function from ffmpeg_utils module
+            from app.utils.ffmpeg_utils import validate_mp4
+            is_valid = await validate_mp4(mp4_path)
+            
             if not is_valid:
-                logger.warning(f"MP4 file is not valid, attempting repair: {mp4_path}")
-                repaired = await self._repair_mp4(
-                    (
-                        output_path.replace(".mp4", ".ts")
-                        if os.path.exists(output_path.replace(".mp4", ".ts"))
-                        else output_path
-                    ),
-                    mp4_path,
-                )
-                if not repaired:
-                    logger.error(f"Could not repair MP4 file: {mp4_path}")
-                    return None
-
-                # Wait after repair
-                await asyncio.sleep(5)
+                logger.error(f"MP4 file validation failed: {mp4_path}")
+                # No fallback or repair attempts - just fail cleanly
+                return None
 
         return mp4_path
 
@@ -1467,22 +1453,19 @@ class RecordingService:
                 proxy_settings=proxy_settings,
                 force_mode=force_mode
             )
+            
+            # Define ts_output_path for use in _monitor_process
+            ts_output_path = output_path.replace(".mp4", ".ts") if output_path.endswith(".mp4") else output_path
 
             # Log the command start
             self.streamlink_logger.info(f"[STREAMLINK_START] {streamer_name} - Quality: {quality}")
             self.streamlink_logger.info(f"[STREAMLINK_CMD] {' '.join(cmd)}")
             logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
 
-            logger.debug(f"Starting streamlink: {' '.join(cmd)}")
-
             # Special logging for force mode
             if force_mode:
                 logger.info(f"Starting streamlink in FORCE MODE for {streamer_name} with enhanced retry settings")
-                logger.info(f"Force mode uses longer timeouts and more retry attempts to increase success chance")
-                
-            # Log the command being executed for debugging
-            logger.debug(f"Executing streamlink command: {' '.join(cmd)}")
-
+            
             # Use subprocess manager to start the process
             process_id = f"streamlink_{streamer_name}_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
@@ -1543,166 +1526,64 @@ class RecordingService:
                 logger.error(
                     f"Streamlink process for {streamer_name} exited with code {exit_code}: {stderr_text}"
                 )
-                # Try to remux anyway if file exists, it might be partially usable
-                if (
-                    os.path.exists(ts_path) and os.path.getsize(ts_path) > 1000000
-                ):  # At least 1MB
-                    logging_service.log_recording_activity("PARTIAL_RECOVERY", streamer_name, "Attempting to recover partial recording")
-                    logger.info(
-                        f"Attempting to remux partial recording for {streamer_name}"
-                    )
-                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)            # Remove the process from subprocess manager
+                
+                # Note: In our new clean approach, we don't attempt to remux partial recordings
+                # If streamlink failed, we fail the whole process and don't try to recover partial files
+                
+            # Remove the process from subprocess manager
             await self.subprocess_manager.terminate_process(process_id)
         except Exception as e:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 with enhanced logging and sync preservation"""
+        """Remux TS file to MP4 using the new remux_file method without repair attempts"""
         try:
-            # Check if the recording was made through a proxy by looking at active recording info
-            is_proxy_recording = False
-            from app.models import GlobalSettings
-            with SessionLocal() as proxy_db:
-                global_settings = proxy_db.query(GlobalSettings).first()
-                if global_settings and (global_settings.http_proxy or global_settings.https_proxy):
-                    is_proxy_recording = True
+            logger.info(f"Starting remux of {ts_path} to {mp4_path} using new method")
             
-            # Enhanced remux settings optimized for sync preservation, especially for proxy recordings
-            cmd = [
-                "ffmpeg",
-                "-fflags", "+genpts+igndts+ignidx",  # Generate PTS, ignore DTS and index for better sync recovery
-                "-analyzeduration", "20M" if is_proxy_recording else "10M",     # Analyze more data for proxy recordings
-                "-probesize", "20M" if is_proxy_recording else "10M",          # Probe more data for stream analysis
-                "-i", ts_path,
-                "-c:v", "copy",               # Copy video stream (no re-encoding)
-                "-c:a", "copy",               # Copy audio stream (preserve original timing)
-                "-avoid_negative_ts", "make_zero",  # Handle negative timestamps
-                "-map", "0:v:0?",             # Map first video stream (optional - may not exist)
-                "-map", "0:a:0?",             # Map first audio stream (optional)
-                "-movflags", "+faststart+frag_keyframe" if is_proxy_recording else "+faststart",  # Optimize for proxy recordings
-                "-ignore_unknown",            # Ignore unknown streams
-                "-max_muxing_queue_size", "8192" if is_proxy_recording else "4096",  # Larger queue for proxy recordings
-                "-async", "1",                # Audio sync method for better audio/video alignment
-                "-vsync", "cfr",              # Constant frame rate for better sync
-                "-metadata", "encoded_by=StreamVault",
-                "-metadata", "encoding_tool=StreamVault",
-                "-y", mp4_path,
-            ]
-
-            # Get FFmpeg log path for this operation
-            ffmpeg_log_path = logging_service.get_ffmpeg_log_path("remux", streamer_name)
+            # Add metadata for the file
+            metadata = {
+                "encoded_by": "StreamVault",
+                "encoding_tool": "StreamVault"
+            }
             
-            # Add logging to FFmpeg command
-            cmd.extend([
-                "-report",
-                "-v", "verbose",
-                "-stats"
-            ])
+            # Create a temporary metadata file
+            meta_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
+                    meta_path = f.name
+                    f.write(";FFMETADATA1\n")
+                    for key, value in metadata.items():
+                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
+                        f.write(f"{key}={value_escaped}\n")
+            except Exception as e:
+                logger.error(f"Failed to create metadata file: {e}")
             
-            # Set environment variable for FFmpeg report
-            env = os.environ.copy()
-            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=32"
-
-            # Log the command start
-            self.ffmpeg_logger.info(f"[FFMPEG_REMUX_START] {streamer_name} - {ts_path} -> {mp4_path}")
-            self.ffmpeg_logger.info(f"[FFMPEG_CMD] {' '.join(cmd)}")
-            logging_service.log_ffmpeg_start("remux", cmd, streamer_name)
-
-            logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
-
-            # Use subprocess manager for the remux process
-            process_id = f"ffmpeg_remux_{streamer_name}_{int(datetime.now().timestamp())}"
-            
-            # Start process with custom environment
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
+            # Call the remux_file method
+            result = await self.remux_file(
+                input_path=ts_path,
+                output_path=mp4_path,
+                overwrite=True,
+                metadata_file=meta_path,
+                streamer_name=streamer_name
             )
-
-            stdout, stderr = await process.communicate()
-            exit_code = process.returncode or 0
-
-            # Log the process output
-            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
-
-            if exit_code == 0:
+            
+            # Clean up the temporary metadata file
+            if meta_path and os.path.exists(meta_path):
+                os.remove(meta_path)
+            
+            # If remux was successful, delete the original TS file
+            if result["success"]:
                 logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-
-                # Verify that the MP4 file was correctly created
-                if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                    # Check if the moov atom is present
-                    is_valid = await self._validate_mp4(mp4_path)
-
-                    if is_valid:
-                        # Delete TS file after successful conversion to save space
-                        if os.path.exists(ts_path):
-                            os.remove(ts_path)
-                        return True
-                    else:
-                        logger.warning(f"MP4 validation failed, attempting repair")
-                        repair_success = await self._repair_mp4(ts_path, mp4_path)
-                        if repair_success:
-                            # Only delete TS file after successful repair
-                            if os.path.exists(ts_path):
-                                os.remove(ts_path)
-                        return repair_success
-                else:
-                    logger.error(f"MP4 file was not created or is empty: {mp4_path}")
-                    return False
+                if os.path.exists(ts_path):
+                    os.remove(ts_path)
+                return True
             else:
-                logger.error(f"FFmpeg remux failed with exit code {exit_code}")
-                # Try with fallback method if the first attempt failed
-                return await self._remux_to_mp4_fallback(ts_path, mp4_path)
-                
+                logger.error(f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}")
+                return False
+            process_id = f"ffmpeg_remux_{streamer_name}_{int(datetime.now().timestamp())}"
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
-
-    async def _remux_to_mp4(self, ts_path: str, mp4_path: str, streamer_name: str = "unknown") -> bool:
-        """Remux TS file to MP4 without re-encoding to preserve quality"""
-        try:
-            # Enhanced remux settings with guaranteed working audio handling
-            cmd = [
-                "ffmpeg",
-                "-fflags",
-                "+genpts",  # Generate presentation timestamps
-                "-i",
-                ts_path,
-                "-c:v",
-                "copy",  # Copy video stream
-                "-c:a",
-                "aac",  # WICHTIGE ÄNDERUNG: Re-encode audio to AAC
-                "-b:a",
-                "160k",  # Definierter Bitrate für Audio
-                "-map",
-                "0:v:0?",  # Ersten Video-Stream (optional - wichtig für Audio-Only Streams)
-                "-map",
-                "0:a:0?",  # Ersten Audio-Stream (optional)
-                "-ignore_unknown",
-                "-movflags",
-                "+faststart",
-                "-metadata",
-                "encoded_by=StreamVault",
-                "-metadata",
-                "encoding_tool=StreamVault",
-                "-y",
-                mp4_path,
-            ]
-
-            logger.debug(f"Starting enhanced FFmpeg remux: {' '.join(cmd)}")
-
-            # Use subprocess manager for the remux process
-            process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(cmd, process_id)
-
-            if not process:
-                logger.error(f"Failed to start FFmpeg remux process")
-                return False
-
-            stdout, stderr = await process.communicate()
-            exit_code = process.returncode or 0
 
             # Log the process output
             logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
@@ -1752,254 +1633,10 @@ class RecordingService:
                 f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             )
 
-    async def _remux_to_mp4_fallback(self, ts_path: str, mp4_path: str) -> bool:
-        """Fallback remux method with more aggressive recovery settings"""
-        try:
-            logger.info(f"Attempting fallback remux for {ts_path}")
-            
-            # Use even more aggressive settings for problematic files
-            cmd = [
-                "ffmpeg",
-                # Very tolerant input handling
-                "-fflags", "+genpts+igndts+ignidx+discardcorrupt+nobuffer",
-                "-err_detect", "ignore_err",
-                "-analyzeduration", "100M",  # Analyze even more data
-                "-probesize", "100M",       # Probe even more data
-                "-thread_queue_size", "8192",  # Larger thread queue
-                "-i", ts_path,
-                
-                # Safe output settings
-                "-c:v", "copy",
-                "-c:a", "copy", 
-                "-bsf:a", "aac_adtstoasc",  # Fix AAC bitstream format
-                "-avoid_negative_ts", "make_zero",
-                "-map", "0:v:0?",
-                "-map", "0:a:0?",
-                
-                # Very lenient container settings
-                "-movflags", "+faststart+empty_moov+separate_moof",
-                "-ignore_unknown",
-                "-max_muxing_queue_size", "32768",  # Very large queue
-                "-max_interleave_delta", "0",
-                "-fflags", "+discardcorrupt",
-                
-                # No sync correction - just copy everything as-is
-                "-fps_mode", "passthrough",  # Replace deprecated -vsync
-                "-async", "0",  # No audio sync correction
-                "-copyts",      # Copy timestamps exactly
-                
-                "-metadata", "encoded_by=StreamVault_Fallback",
-                "-y", mp4_path,
-                "-v", "warning"  # Less verbose output
-            ]
-            
-            logger.info(f"Running fallback remux: {' '.join(cmd[:10])}...")
-            
-            # Run with longer timeout for fallback
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), 
-                    timeout=28800  # 8 hours for fallback
-                )
-                exit_code = process.returncode or 0
-            except asyncio.TimeoutError:
-                logger.error(f"Fallback remux also timed out for {ts_path}")
-                process.kill()
-                await process.wait()
-                return False
-            
-            if exit_code == 0 and os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                mp4_size_mb = os.path.getsize(mp4_path) / (1024 * 1024)
-                logger.info(f"Fallback remux successful: {mp4_path} ({mp4_size_mb:.1f} MB)")
-                
-                # Delete TS file after successful fallback conversion
-                if os.path.exists(ts_path):
-                    os.remove(ts_path)
-                return True
-            else:
-                stderr_text = stderr.decode("utf-8", errors="ignore") if stderr else "No error output"
-                logger.error(f"Fallback remux failed with exit code {exit_code}: {stderr_text[:500]}...")
-                
-                # If fallback also fails, try the two-step process
-                return await self._remux_to_mp4_two_step(ts_path, mp4_path)
-                
-        except Exception as e:
-            logger.error(f"Error during fallback remux: {e}", exc_info=True)
-            return await self._remux_to_mp4_two_step(ts_path, mp4_path)
+    # We've removed all fallback remux methods as part of our clean approach
+    # No more fallback/repair logic - we simply fail if remux fails
+    # This is done through the new modular approach in app/utils/file_utils.py
 
-    async def _remux_to_mp4_two_step(self, ts_path: str, mp4_path: str) -> bool:
-        """Two-step fallback: extract streams then recombine"""
-        try:
-            logger.info("Using two-step method for problematic TS file")
-
-            # Try two-step process: extract streams then recombine
-            video_path = f"{ts_path}.h264"
-            audio_path = f"{ts_path}.aac"
-
-            # Step 1: Extract streams
-            extract_cmd = [
-                "ffmpeg",
-                "-fflags", "+discardcorrupt",
-                "-i", ts_path,
-                "-map", "0:v:0?",
-                "-c:v", "copy",
-                "-f", "h264",
-                video_path,
-                "-map", "0:a:0?",
-                "-c:a", "aac",
-                "-b:a", "128k",
-                "-f", "adts",
-                audio_path,
-                "-y", "-v", "warning"
-            ]
-
-            logger.info("Step 1: Extracting streams...")
-            process = await asyncio.create_subprocess_exec(
-                *extract_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-
-            # Step 2: Recombine to MP4
-            if os.path.exists(video_path) and os.path.exists(audio_path):
-                logger.info("Step 2: Recombining streams...")
-                
-                # Ensure output directory permissions
-                output_dir = os.path.dirname(mp4_path)
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir, mode=0o755, exist_ok=True)
-                
-                combine_cmd = [
-                    "ffmpeg",
-                    "-i", video_path,
-                    "-i", audio_path,
-                    "-c:v", "copy",
-                    "-c:a", "copy",
-                    "-bsf:a", "aac_adtstoasc",  # Ensure proper AAC format
-                    "-movflags", "+faststart",
-                    "-y", mp4_path,
-                ]
-
-                process_id = f"ffmpeg_combine_{int(datetime.now().timestamp())}"
-                process = await self.subprocess_manager.start_process(
-                    combine_cmd, process_id
-                )
-                if process:
-                    stdout, stderr = await process.communicate()
-                    await self.subprocess_manager.terminate_process(process_id)
-                else:
-                    logger.error("Failed to start ffmpeg combine process")
-                    return False
-
-                # Clean up temp files
-                if os.path.exists(video_path):
-                    os.remove(video_path)
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-
-                # Check if successful
-                if (
-                    process and
-                    process.returncode == 0
-                    and os.path.exists(mp4_path)
-                    and os.path.getsize(mp4_path) > 0
-                ):
-                    logger.info(
-                        f"Successfully remuxed using advanced fallback method: {mp4_path}"
-                    )
-
-                    # Delete original TS file
-                    if os.path.exists(ts_path):
-                        os.remove(ts_path)
-                    return True
-            
-            # Handle audio-only streams by checking if we have audio but no video
-            elif (os.path.exists(audio_path) and os.path.getsize(audio_path) > 0 and
-                  not (os.path.exists(video_path) and os.path.getsize(video_path) > 0)):
-                logger.info("Detected audio-only stream, creating audio-only MP4")
-                audio_only_cmd = [
-                    "ffmpeg",
-                    "-i", audio_path,
-                    "-c:a", "copy",
-                    "-movflags", "+faststart",
-                    "-y", mp4_path,
-                ]
-
-                process_id = f"ffmpeg_audio_only_{int(datetime.now().timestamp())}"
-                process = await self.subprocess_manager.start_process(
-                    audio_only_cmd, process_id
-                )
-                if process:
-                    stdout, stderr = await process.communicate()
-                    await self.subprocess_manager.terminate_process(process_id)
-                else:
-                    logger.error("Failed to start ffmpeg audio only process")
-                    return False
-
-                # Clean up temp files
-                if os.path.exists(audio_path):
-
-                    os.remove(audio_path)
-
-                # Check if successful
-                if (
-                    process and
-                    process.returncode == 0
-                    and os.path.exists(mp4_path)
-                    and os.path.getsize(mp4_path) > 0
-                ):
-                    logger.info(
-                        f"Successfully created audio-only MP4: {mp4_path}"
-                    )
-
-                    # Delete original TS file
-                    if os.path.exists(ts_path):
-                        os.remove(ts_path)
-                    return True
-
-            # If we're here, try the simplest possible method as last resort
-            logger.warning("Advanced fallback failed, trying simple fallback method")
-
-            # Use a more flexible simple fallback that can handle both video+audio and audio-only
-            simple_cmd = ["ffmpeg", "-i", ts_path, "-c", "copy", "-y", mp4_path]
-
-            process_id = f"ffmpeg_simple_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(
-                simple_cmd, process_id
-            )
-            if process:
-                stdout, stderr = await process.communicate()
-                
-                # Clean up temporary files
-                for temp_file in [video_path, audio_path]:
-                    if os.path.exists(temp_file):
-                        os.remove(temp_file)
-
-                if process.returncode == 0 and os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                    mp4_size_mb = os.path.getsize(mp4_path) / (1024 * 1024)
-                    logger.info(f"Two-step remux successful: {mp4_path} ({mp4_size_mb:.1f} MB)")
-                    
-                    # Delete TS file after successful conversion
-                    if os.path.exists(ts_path):
-                        os.remove(ts_path)
-                    return True
-                else:
-                    logger.error("Two-step remux failed")
-                    return False
-            else:
-                logger.error("Failed to extract streams in step 1")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error during two-step remux: {e}", exc_info=True)
-            return False
 
     async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown") -> Dict[str, Any]:
         """
