@@ -1636,35 +1636,32 @@ class MetadataService:
                 else:
                     logger.warning(f"No valid chapters file available: {chapters_path}")
             
-            # Use a simpler FFmpeg command that guarantees at least the metadata gets embedded
-            logger.info(f"Embedding metadata with simplified command...")
-            basic_cmd = [
-                "ffmpeg",
-                "-i", str(mp4_path_obj),
-                "-i", str(meta_path),
-                "-map_metadata", "1",  # Take metadata from metadata file
-                "-codec", "copy",      # Don't re-encode
-                "-y",                  # Overwrite
-                f"{str(mp4_path_obj)}.temp.mp4"
-            ]
+            # Use the remux_file utility that follows TypeScript implementation
+            logger.info(f"Embedding metadata with remux_file method...")
             
-            process = await asyncio.create_subprocess_exec(
-                *basic_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            # Import remux function from utilities
+            from app.utils.file_utils import remux_file
+            
+            temp_output = f"{str(mp4_path_obj)}.temp.mp4"
+            streamer_name = streamer.username if streamer else "unknown"
+            
+            # Call the remux_file utility
+            result = await remux_file(
+                input_path=str(mp4_path_obj), 
+                output_path=temp_output,
+                overwrite=True, 
+                metadata_file=str(meta_path),
+                streamer_name=streamer_name
             )
             
-            stdout, stderr = await process.communicate()
-            
             success = False
-            if process.returncode == 0 and os.path.exists(f"{str(mp4_path_obj)}.temp.mp4") and os.path.getsize(f"{str(mp4_path_obj)}.temp.mp4") > 0:
+            if result["success"] and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                 # Replace original with temp file
-                os.replace(f"{str(mp4_path_obj)}.temp.mp4", str(mp4_path_obj))
+                os.replace(temp_output, str(mp4_path_obj))
                 logger.info(f"Successfully embedded metadata into {mp4_path}")
                 success = True
             else:
-                stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else "No error output"
-                logger.error(f"Failed to embed metadata: {stderr_text}")
+                logger.error(f"Failed to embed metadata: {result['stderr']}")
             
             # Delete temporary metadata file
             if os.path.exists(meta_path):
