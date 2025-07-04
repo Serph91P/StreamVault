@@ -12,10 +12,36 @@ on:
       - 'Dockerfile'
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
+      - 'import_test.py'
+      - 'ci_import_test.py'
 
 jobs:
+  python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 mypy
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run a simple import test to catch missing imports before building
+        run: |
+          python ci_import_test.py
+          
+      - name: Run flake8 basic syntax check
+        run: |
+          flake8 --select=F821,F822,E999,F401 app/ migrations/
   version:
     runs-on: ubuntu-latest
+    needs: python-checks
     permissions:
       contents: write  # Needed to create tags
     outputs:
@@ -126,19 +152,13 @@ jobs:
       run: |
         # Stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        
-    - name: Check for import errors
-      run: |
-        # Run a simple import test to catch missing imports before building
-        echo "import sys; sys.path.insert(0, '.'); import app.main" > import_test.py
-        python import_test.py
       
     - name: Static type checking with mypy
       run: |
         mypy app --ignore-missing-imports
 
   build:
-    needs: [version, check_changes]
+    needs: [version, check_changes, python-checks]
     runs-on: ubuntu-latest
     permissions:
       contents: read  # Needed to checkout code
