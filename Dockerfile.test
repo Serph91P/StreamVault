@@ -1,23 +1,27 @@
-# Beispiel Dockerfile für den lokalen Python-Test
+# Dockerfile for local Python testing
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# System-Abhängigkeiten installieren
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Python-Abhängigkeiten installieren
+# Create temporary directories with proper permissions
+RUN mkdir -p /tmp/logs/streamlink /tmp/logs/ffmpeg /tmp/logs/app && \
+    mkdir -p /app/logs/streamlink /app/logs/ffmpeg /app/logs/app && \
+    chmod -R 777 /tmp/logs /app/logs
+
+# Install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install types-aiofiles mypy sqlalchemy-stubs
 
-# Code kopieren
+# Copy code
 COPY . /app/
+RUN chmod -R 777 /app
 
-# Temporäre Verzeichnisse erstellen
-RUN mkdir -p /tmp/logs/streamlink /tmp/logs/ffmpeg /tmp/logs/app
-
-# Import-Test ausführen
+# Run tests
 CMD ["python", "local_test.py"]
