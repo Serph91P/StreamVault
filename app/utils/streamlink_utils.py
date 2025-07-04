@@ -12,8 +12,25 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from app.models import GlobalSettings
-# Korrektur des Imports - nur die logging_service-Instanz importieren, nicht die Methode direkt
-from app.services.logging_service import logging_service
+
+# Handle CI mode gracefully
+try:
+    # Korrektur des Imports - nur die logging_service-Instanz importieren, nicht die Methode direkt
+    from app.services.logging_service import logging_service
+except (ImportError, PermissionError) as e:
+    if os.environ.get("CI_MODE") == "true":
+        # In CI mode, create a mock logging_service
+        class MockLoggingService:
+            def get_streamlink_log_path(self, streamer_name: str) -> str:
+                return f"/tmp/logs/streamlink/{streamer_name}.log"
+            
+            def get_ffmpeg_log_path(self, operation: str, identifier: Optional[str] = None) -> str:
+                return f"/tmp/logs/ffmpeg/{operation}.log"
+        
+        logging_service = MockLoggingService()
+    else:
+        # Re-raise in non-CI mode
+        raise
 
 # Get the logger
 logger = logging.getLogger(__name__)
