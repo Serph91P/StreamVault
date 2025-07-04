@@ -16,17 +16,27 @@ from app.models import GlobalSettings
 # Handle CI mode gracefully
 try:
     # Korrektur des Imports - nur die logging_service-Instanz importieren, nicht die Methode direkt
-    from app.services.logging_service import logging_service
+    from app.services.logging_service import logging_service, LoggingService
 except (ImportError, PermissionError) as e:
     if os.environ.get("CI_MODE") == "true":
         # In CI mode, create a mock logging_service
-        class MockLoggingService:
+        # Define LoggingService for type compatibility
+        class LoggingService:
+            """Mock definition of LoggingService for type checking"""
+            logs_base_dir: Path
+            
+            def __init__(self, logs_base_dir: Optional[str] = None): 
+                pass
+                
+        # Create a compatible mock
+        class MockLoggingService(LoggingService):
             def get_streamlink_log_path(self, streamer_name: str) -> str:
                 return f"/tmp/logs/streamlink/{streamer_name}.log"
             
             def get_ffmpeg_log_path(self, operation: str, identifier: Optional[str] = None) -> str:
                 return f"/tmp/logs/ffmpeg/{operation}.log"
         
+        # This is now properly typed as LoggingService subclass
         logging_service = MockLoggingService()
     else:
         # Re-raise in non-CI mode
