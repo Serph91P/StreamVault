@@ -7,19 +7,35 @@ It should be used to ensure proper type checking in the codebase.
 
 from typing import TypeVar, Generic, Type, Any, Dict, List, Optional, Union, cast
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import Session
 
-# Handle different SQLAlchemy versions properly
+# We only need relationship in some specific places
+# Import it only where needed to avoid mypy errors
 try:
-    from sqlalchemy.orm.decl_api import DeclarativeMeta  # SQLAlchemy 1.4+
+    from sqlalchemy.orm import relationship
+except ImportError:
+    pass
+
+# Import a universally typed version of DeclarativeMeta that works across SQLAlchemy versions
+# Define it as a type alias to avoid redefinition conflicts
+from typing import Protocol
+
+# Define a protocol for DeclarativeMeta to avoid import issues
+class DeclarativeMeta(Protocol):
+    """Protocol representing SQLAlchemy's DeclarativeMeta for type checking"""
+    pass
+
+# Import the specific version only for runtime use, not for type checking
+_DeclarativeMeta = None
+try:
+    from sqlalchemy.orm.decl_api import DeclarativeMeta as _DeclarativeMeta  # SQLAlchemy 1.4+
 except ImportError:
     try:
-        from sqlalchemy.ext.declarative.api import DeclarativeMeta  # SQLAlchemy 1.3
+        from sqlalchemy.ext.declarative.api import DeclarativeMeta as _DeclarativeMeta  # SQLAlchemy 1.3
     except ImportError:
-        # For mypy, define a placeholder type when neither import works
-        class DeclarativeMeta(type):
-            """Placeholder for SQLAlchemy's DeclarativeMeta for type checking"""
-            pass
+        pass  # The protocol definition above will be used for type checking
+
+# Import other SQLAlchemy components
 from sqlalchemy.sql.expression import ClauseElement
 from datetime import datetime
 
