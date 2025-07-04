@@ -112,6 +112,12 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      - name: Prepare directories for testing
+        run: |
+          mkdir -p /tmp/logs/streamlink /tmp/logs/ffmpeg /tmp/logs/app
+          sudo mkdir -p /app
+          sudo chmod -R 777 /tmp/logs /app
+
       - name: Run import test
         run: |
           python ci_import_test.py
