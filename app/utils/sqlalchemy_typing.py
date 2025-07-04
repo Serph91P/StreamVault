@@ -7,7 +7,11 @@ It should be used to ensure proper type checking in the codebase.
 
 from typing import TypeVar, Generic, Type, Any, Dict, List, Optional, Union, cast
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import Session, relationship, DeclarativeMeta
+from sqlalchemy.orm import Session, relationship
+try:
+    from sqlalchemy.orm.decl_api import DeclarativeMeta  # SQLAlchemy 1.4+
+except ImportError:
+    from sqlalchemy.ext.declarative.api import DeclarativeMeta  # SQLAlchemy 1.3
 from sqlalchemy.sql.expression import ClauseElement
 from datetime import datetime
 
@@ -72,7 +76,7 @@ class ExampleTypedUser(TypedModel):
               password: str,
               is_admin: bool = False) -> 'ExampleTypedUser':
         """Create a new user with proper typing"""
-        user = cls()  # type: ignore
+        user = cls.__new__(cls)
         user.username = username
         user.password = password
         user.is_admin = is_admin
@@ -85,4 +89,4 @@ class ExampleTypedUser(TypedModel):
                        session: Session,
                        username: str) -> Optional['ExampleTypedUser']:
         """Get a user by username with proper typing"""
-        return session.query(cls).filter(cls.username == username).first()  # type: ignore
+        return session.query(cls).filter_by(username=username).first()
