@@ -2,9 +2,15 @@ from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, U
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
-from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional, TYPE_CHECKING
+
+# Import type annotation helpers
+if TYPE_CHECKING:
+    # These imports are only used for type checking
+    from app.utils.model_types import (
+        NotificationSettings, Stream, StreamMetadata, FavoriteCategory, 
+        Streamer, User, Category, StreamEvent
+    )
 
 class Streamer(Base):
     __tablename__ = "streamers"
@@ -21,7 +27,7 @@ class Streamer(Base):
     profile_image_url = Column(String)
     original_profile_image_url = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    notification_settings = relationship("NotificationSettings", back_populates="streamer")
+    notification_settings: List["NotificationSettings"] = relationship("NotificationSettings", back_populates="streamer")
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = {'extend_existing': True}
@@ -37,7 +43,7 @@ class Stream(Base):
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     
     # Relationships
-    stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
+    stream_metadata: Optional["StreamMetadata"] = relationship("StreamMetadata", back_populates="stream", uselist=False)
     
     @property
     def is_live(self):
@@ -64,7 +70,7 @@ class User(Base):
     password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    favorite_categories = relationship("FavoriteCategory", back_populates="user", cascade="all, delete-orphan")
+    favorite_categories: List["FavoriteCategory"] = relationship("FavoriteCategory", back_populates="user", cascade="all, delete-orphan")
 
 class Session(Base):
     __tablename__ = "sessions"
@@ -85,7 +91,7 @@ class NotificationSettings(Base):
     notify_offline = Column(Boolean, default=True)
     notify_update = Column(Boolean, default=True)
     notify_favorite_category = Column(Boolean, default=True)
-    streamer = relationship("Streamer", back_populates="notification_settings")
+    streamer: "Streamer" = relationship("Streamer", back_populates="notification_settings")
 
 class Category(Base):
     __tablename__ = "categories"
@@ -97,7 +103,7 @@ class Category(Base):
     box_art_url = Column(String, nullable=True)
     first_seen = Column(DateTime(timezone=True), server_default=func.now())
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    favorites = relationship("FavoriteCategory", back_populates="category", cascade="all, delete-orphan")
+    favorites: List["FavoriteCategory"] = relationship("FavoriteCategory", back_populates="category", cascade="all, delete-orphan")
 
 class FavoriteCategory(Base):
     __tablename__ = "favorite_categories"
@@ -107,8 +113,8 @@ class FavoriteCategory(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     category_id = Column(Integer, ForeignKey("categories.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    user = relationship("User", back_populates="favorite_categories")
-    category = relationship("Category", back_populates="favorites")
+    user: "User" = relationship("User", back_populates="favorite_categories")
+    category: "Category" = relationship("Category", back_populates="favorites")
 
     
 class GlobalSettings(Base):
@@ -152,7 +158,7 @@ class StreamerRecordingSettings(Base):
     max_streams = Column(Integer, nullable=True)  # Per-streamer override for max recordings
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
     
-    streamer = relationship("Streamer", back_populates="recording_settings")
+    streamer: "Streamer" = relationship("Streamer", back_populates="recording_settings")
 
 Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
 
@@ -187,7 +193,7 @@ class StreamMetadata(Base):
     follower_count = Column(Integer)
     
     # Beziehung zum Stream
-    stream = relationship("Stream", back_populates="stream_metadata")
+    stream: "Stream" = relationship("Stream", back_populates="stream_metadata")
 
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
