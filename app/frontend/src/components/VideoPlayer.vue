@@ -48,7 +48,16 @@
                 </div>
               </div>
               <div class="chapter-game-icon" v-if="chapter.gameIcon">
-                <img :src="chapter.gameIcon" :alt="chapter.title" />
+                <img 
+                  v-if="!chapter.gameIcon.startsWith('icon:')"
+                  :src="chapter.gameIcon" 
+                  :alt="chapter.title" 
+                />
+                <i 
+                  v-else 
+                  :class="chapter.gameIcon.replace('icon:', '')"
+                  class="category-icon"
+                ></i>
               </div>
             </div>
           </div>
@@ -125,6 +134,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 
 interface Chapter {
   title: string
@@ -165,6 +175,9 @@ const currentTime = ref(0)
 const videoDuration = ref(0)
 const showChapterUI = ref(false)
 const chapters = ref<Chapter[]>([])
+
+// Category images composable
+const { getCategoryImage } = useCategoryImages()
 
 // Current chapter detection
 const currentChapterIndex = computed(() => {
@@ -257,7 +270,7 @@ const loadChapters = async () => {
           title: ch.category_name || ch.title || 'Stream Segment',
           startTime: ch.start_time || 0,
           duration: ch.duration || 60,
-          gameIcon: ch.category_image_url
+          gameIcon: getCategoryImage(ch.category_name)
         }))
       }
     } catch (e) {
@@ -506,20 +519,24 @@ const decodedVideoSrc = computed(() => {
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   gap: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .chapter-item:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateX(-4px);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
 .chapter-item.active {
   border-color: #9146ff;
   background: rgba(145, 70, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(145, 70, 255, 0.3);
 }
 
 .chapter-thumbnail {
@@ -576,6 +593,16 @@ const decodedVideoSrc = computed(() => {
   object-fit: cover;
 }
 
+.chapter-game-icon .category-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #9146ff;
+}
+
 /* Chapter Progress Bar */
 .chapter-progress-bar {
   position: absolute;
@@ -601,12 +628,13 @@ const decodedVideoSrc = computed(() => {
 
 /* Video Controls Extension */
 .video-controls-extension {
-  background: #1a1a1a;
+  background: linear-gradient(to bottom, #1a1a1a, #2d2d2d);
   padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid #333;
+  border-top: 2px solid #444;
+  box-shadow: 0 -4px 8px rgba(0,0,0,0.3);
 }
 
 .chapter-controls {

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PushSubscription
 from app.config.settings import get_settings
+from app.utils.error_handler import handle_api_error, create_error_response, ERRORS
 import json
 import logging
 from typing import Dict, Any
@@ -79,8 +80,7 @@ async def subscribe_to_push(
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error subscribing to push: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise handle_api_error(e, "subscribing to push notifications", 500, ERRORS["SUBSCRIPTION_FAILED"])
 
 @router.post("/unsubscribe")
 async def unsubscribe_from_push(
@@ -111,8 +111,7 @@ async def unsubscribe_from_push(
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error unsubscribing from push: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise handle_api_error(e, "unsubscribing from push notifications", 500, ERRORS["UNSUBSCRIPTION_FAILED"])
 
 @router.post("/test")
 async def send_test_notification(db: Session = Depends(get_db)):
@@ -128,12 +127,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
             logger.warning("🧪 PUSH_TEST_FAILED: VAPID keys not configured")
             return {
                 "success": False,
-                "message": "VAPID keys not configured",
-                "debug": {
-                    "vapid_configured": False,
-                    "active_subscriptions": 0,
-                    "global_notifications_enabled": False
-                }
+                "message": "Push notification service is not properly configured. Please contact an administrator."
             }
         
         push_service = enhanced_push_service
@@ -154,13 +148,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
         if not active_subscriptions:
             return {
                 "success": False,
-                "message": "No active push subscriptions found. Please enable push notifications in a browser first.",
-                "debug": {
-                    "vapid_configured": True,
-                    "active_subscriptions": 0,
-                    "global_notifications_enabled": global_notifications_enabled,
-                    "total_subscriptions": db.query(PushSubscription).count()
-                }
+                "message": "No active push subscriptions found. Please enable push notifications in a browser first."
             }
         
         notification_data = {
@@ -202,92 +190,69 @@ async def send_test_notification(db: Session = Depends(get_db)):
         
         logger.info(f"🧪 PUSH_TEST_SUMMARY: sent={sent_count}, failed={failed_count}, total={len(active_subscriptions)}")
         
-        debug_info = {
-            "vapid_configured": True,
-            "active_subscriptions": len(active_subscriptions),
-            "global_notifications_enabled": global_notifications_enabled,
-            "sent_count": sent_count,
-            "failed_count": failed_count,
-            "failed_endpoints": failed_endpoints if failed_endpoints else None
-        }
+        # Only include debug info in development mode or for admin users
+        # Remove sensitive debug information for production
         
         if sent_count > 0:
             return {
                 "success": True,
                 "message": f"Test notifications sent to {sent_count} subscribers" + 
                           (f" ({failed_count} failed)" if failed_count > 0 else ""),
-                "debug": debug_info
+                "sent_count": sent_count,
+                "failed_count": failed_count
             }
         else:
             return {
                 "success": False,
                 "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration or subscription validity.",
-                "debug": debug_info,
                 "suggestion": "Check browser console for errors or try re-subscribing to push notifications"
             }
         
     except Exception as e:
-        logger.error(f"Error sending test notification: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": "Server error while sending test notification. Please contact support if the issue persists."
-        }
+        return create_error_response(
+            success=False,
+            message="Server error while sending test notification. Please contact support if the issue persists.",
+            error_code="NOTIFICATION_TEST_FAILED"
+        )
 
 @router.get("/debug")
 async def get_push_debug_info(db: Session = Depends(get_db)):
-    """Get debug information about push notification configuration"""
+    """Get debug information about push notification configuration - Admin only"""
     try:
+        # Note: This endpoint should ideally be protected by authentication
+        # For security, we'll limit the information returned
+        
         from app.models import GlobalSettings, NotificationSettings, Streamer
         
-        # Check VAPID configuration
+        # Check basic configuration status
         vapid_configured = settings.has_push_notifications_configured
-        vapid_public_key = settings.VAPID_PUBLIC_KEY[:50] + "..." if settings.VAPID_PUBLIC_KEY else None
         
         # Check global settings
         global_settings = db.query(GlobalSettings).first()
         global_notifications_enabled = global_settings and global_settings.notifications_enabled
-        notification_url_configured = global_settings and bool(global_settings.notification_url)
         
-        # Check subscriptions
-        total_subscriptions = db.query(PushSubscription).count()
+        # Check subscriptions count
         active_subscriptions = db.query(PushSubscription).filter(
             PushSubscription.is_active == True
         ).count()
         
-        # Check streamers and their notification settings
-        total_streamers = db.query(Streamer).count()
+        # Check streamers count
         streamers_with_settings = db.query(NotificationSettings).count()
         
-        # Get sample notification settings
-        sample_settings = db.query(NotificationSettings).first()
-        sample_notify_online = sample_settings.notify_online if sample_settings else None
-        sample_notify_offline = sample_settings.notify_offline if sample_settings else None
-        
+        # Build a minimal debug response
         debug_info = {
-            "vapid": {
-                "configured": vapid_configured,
-                "public_key_preview": vapid_public_key
-            },
-            "global_settings": {
-                "notifications_enabled": global_notifications_enabled,
-                "notification_url_configured": notification_url_configured
-            },
-            "subscriptions": {
-                "total": total_subscriptions,
-                "active": active_subscriptions
-            },
-            "streamers": {
-                "total": total_streamers,
-                "with_notification_settings": streamers_with_settings,
-                "sample_notify_online": sample_notify_online,
-                "sample_notify_offline": sample_notify_offline
+            "configuration_status": {
+                "vapid_configured": vapid_configured,
+                "global_notifications_enabled": global_notifications_enabled,
+                "has_active_subscriptions": active_subscriptions > 0,
+                "has_streamer_settings": streamers_with_settings > 0
             },
             "issues": []
         }
         
         # Identify potential issues
         if not vapid_configured:
-            debug_info["issues"].append("VAPID keys not configured")
+            debug_info["issues"].append("Push notification service not configured")
         if not global_notifications_enabled:
             debug_info["issues"].append("Global notifications disabled")
         if active_subscriptions == 0:
@@ -301,12 +266,11 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
         }
         
     except Exception as e:
-        logger.error(f"Error getting debug info: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": "Failed to get debug information",
-            "error": str(e)
-        }
+        return create_error_response(
+            success=False,
+            message="Failed to get debug information",
+            error_code="DEBUG_INFO_FAILED"
+        )
 
 @router.post("/test-local")
 async def send_test_local_notification():

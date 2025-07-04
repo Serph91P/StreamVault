@@ -10,10 +10,10 @@ psycopg-pool==3.2.4
 python-multipart==0.0.19
 python-jose[cryptography]==3.4.0
 pydantic-settings==2.6.1
-argon2-cffi==23.1.0
 apprise==1.9.2
 aiohttp==3.11.12
-pillow==11.2.1
+aiofiles==24.1.0
+pillow==11.3.0
 alembic==1.13.1
 py-vapid==1.9.2
 cryptography==45.0.4

@@ -59,16 +59,20 @@
           >
             <div class="category-image-wrapper">
               <img 
-                v-if="category.box_art_url" 
-                :src="formatImageUrl(category.box_art_url, 144, 192)" 
+                v-if="!getCategoryImage(category.name).startsWith('icon:')" 
+                :src="getCategoryImage(category.name)" 
                 alt="Game box art"
                 class="category-image"
                 loading="lazy"
                 @error="handleImageError"
               />
               <div v-else class="category-image-placeholder">
-                <span>No image</span>
-              </div>            </div>
+                <i 
+                  :class="getCategoryImage(category.name).replace('icon:', '')"
+                  class="category-icon"
+                ></i>
+              </div>
+            </div>
             <div class="category-content">
               <h4 class="category-name">{{ category.name }}</h4>
               <div class="category-meta">
@@ -102,6 +106,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useCategoryImages } from '@/composables/useCategoryImages';
 
 interface Category {
   id: string;
@@ -121,6 +126,9 @@ const categories = ref<Category[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const imageErrors = ref<Set<string>>(new Set());
+
+// Use category images composable
+const { getCategoryImage, preloadCategoryImages } = useCategoryImages();
 
 // Computed properties
 const filteredCategories = computed(() => {
@@ -161,6 +169,15 @@ const fetchCategories = async () => {
     if (data.categories && Array.isArray(data.categories)) {
       console.log(`Received ${data.categories.length} categories from API`);
       categories.value = data.categories;
+      
+      // Preload category images for all categories
+      const categoryNames = data.categories
+        .map((cat: any) => cat.name)
+        .filter((name: string | null): name is string => Boolean(name));
+      
+      if (categoryNames.length > 0) {
+        preloadCategoryImages(categoryNames);
+      }
     } else {
       console.error('Unexpected API response format:', data);
       throw new Error('Unexpected API response format');
@@ -493,6 +510,16 @@ watch(categories, (newCategories) => {
   align-items: center;
   background-color: #18181b;
   color: #9e9e9e;
+}
+
+.category-icon {
+  font-size: 2rem;
+  color: #9146FF;
+  opacity: 0.7;
+}
+
+.category-image-placeholder .category-icon {
+  font-size: 2.5rem;
 }
 
 .category-content {

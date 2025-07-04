@@ -464,16 +464,27 @@ onMounted(() => {
 
 .video-card {
   background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  position: relative;
 }
 
 .video-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  border-color: var(--primary-color);
+}
+
+.video-card:nth-child(odd) {
+  background: var(--bg-secondary);
+}
+
+.video-card:nth-child(even) {
+  background: var(--bg-tertiary);
 }
 
 .video-thumbnail {
@@ -495,8 +506,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-tertiary);
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, #404040 100%);
   color: var(--text-secondary);
+  border: 2px dashed var(--border-color);
 }
 
 .video-duration {
@@ -536,6 +548,8 @@ onMounted(() => {
 
 .video-info {
   padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .video-title {
@@ -675,7 +689,7 @@ onMounted(() => {
   :root {
     --bg-primary: #1a1a1a;
     --bg-secondary: #2d2d2d;
-    --bg-tertiary: #404040;
+    --bg-tertiary: #383838;
     --text-primary: #ffffff;
     --text-secondary: #b0b0b0;
     --border-color: #404040;
@@ -687,6 +701,14 @@ onMounted(() => {
 
 /* Light mode support */
 :root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --primary-color: #6f42c1;
+  --primary-hover: #5a359a;
   --accent-color: #28a745;
 }
 </style>

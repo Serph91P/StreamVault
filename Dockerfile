@@ -18,13 +18,25 @@ RUN apt-get update && apt-get install -y \
     gcc \
     python3-dev \
     libpq-dev \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install streamlink==7.4.0 \
-    && apt-get remove -y gcc python3-dev \
-    && apt-get autoremove -y \
+    build-essential \
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install streamlink==7.4.0
+
+# Clean up build dependencies
+RUN apt-get autoremove -y \
+    && apt-get autoclean
 
 # Setup frontend dependencies
 WORKDIR /app/frontend
@@ -61,10 +73,12 @@ RUN mkdir -p /recordings && \
     mkdir -p /app/logs/streamlink && \
     mkdir -p /app/logs/ffmpeg && \
     mkdir -p /app/logs/app && \
+    mkdir -p /app/data/category_images && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
     chmod -R 775 /app/migrations && \
-    chmod -R 775 /app/logs
+    chmod -R 775 /app/logs && \
+    chmod -R 775 /app/data/category_images
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
