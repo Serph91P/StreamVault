@@ -43,6 +43,15 @@ jobs:
       - name: Check undefined variables and imports
         run: |
           python -m flake8 app migrations --count --select=F821,F822,E999,F401 --show-source --statistics
+          
+      - name: Generate unused imports report
+        run: |
+          # Create a report for manual review
+          python -m flake8 app migrations --select=F401 --output-file=unused_imports_report.txt
+          echo "Unused imports report generated: unused_imports_report.txt"
+          # Count total unused imports
+          UNUSED_COUNT=$(grep -c "F401" unused_imports_report.txt || echo "0")
+          echo "Found $UNUSED_COUNT unused imports that should be addressed"
 
   type-check:
     runs-on: ubuntu-latest
