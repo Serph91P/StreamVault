@@ -8,10 +8,18 @@ It should be used to ensure proper type checking in the codebase.
 from typing import TypeVar, Generic, Type, Any, Dict, List, Optional, Union, cast
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Session, relationship
+
+# Handle different SQLAlchemy versions properly
 try:
     from sqlalchemy.orm.decl_api import DeclarativeMeta  # SQLAlchemy 1.4+
 except ImportError:
-    from sqlalchemy.ext.declarative.api import DeclarativeMeta  # SQLAlchemy 1.3
+    try:
+        from sqlalchemy.ext.declarative.api import DeclarativeMeta  # SQLAlchemy 1.3
+    except ImportError:
+        # For mypy, define a placeholder type when neither import works
+        class DeclarativeMeta(type):
+            """Placeholder for SQLAlchemy's DeclarativeMeta for type checking"""
+            pass
 from sqlalchemy.sql.expression import ClauseElement
 from datetime import datetime
 
