@@ -197,9 +197,7 @@ def get_streamlink_vod_command(
         List of command arguments for streamlink
     """
     # Find ffmpeg binary path
-    ffmpeg_bin = "ffmpeg"  # Default, should be overridden by environment variable
-    if os.environ.get("FFMPEG_PATH"):
-        ffmpeg_bin = os.environ.get("FFMPEG_PATH")
+    ffmpeg_bin = os.environ.get("FFMPEG_PATH", "ffmpeg")  # Use environment variable or default to "ffmpeg"
     
     # Core command for VOD download
     cmd = [
@@ -243,9 +241,7 @@ def get_streamlink_clip_command(
         List of command arguments for streamlink
     """
     # Find ffmpeg binary path
-    ffmpeg_bin = "ffmpeg"  # Default, should be overridden by environment variable
-    if os.environ.get("FFMPEG_PATH"):
-        ffmpeg_bin = os.environ.get("FFMPEG_PATH")
+    ffmpeg_bin = os.environ.get("FFMPEG_PATH", "ffmpeg")  # Use environment variable or default to "ffmpeg"
     
     # Core command for clip download
     cmd = [
