@@ -1580,50 +1580,6 @@ class RecordingService:
             else:
                 logger.error(f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}")
                 return False
-            process_id = f"ffmpeg_remux_{streamer_name}_{int(datetime.now().timestamp())}"
-        except Exception as e:
-            logger.error(f"Error during remux: {e}", exc_info=True)
-            return False
-
-            # Log the process output
-            logging_service.log_ffmpeg_output("remux", stdout, stderr, exit_code, streamer_name)
-
-            if exit_code == 0:
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-
-                # Verify that the MP4 file was correctly created
-                if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                    # Check if the moov atom is present
-                    is_valid = await self._validate_mp4(mp4_path)
-
-                    if is_valid:
-                        # Delete TS file after successful conversion to save space
-                        if os.path.exists(ts_path):
-                            os.remove(ts_path)
-                        return True
-                    else:
-                        logger.warning(f"MP4 validation failed, attempting repair")
-                        repair_success = await self._repair_mp4(ts_path, mp4_path)
-                        if repair_success:
-                            # Only delete TS file after successful repair
-                            if os.path.exists(ts_path):
-                                os.remove(ts_path)
-                        return repair_success
-                else:
-                    logger.error(f"MP4 file not created or empty: {mp4_path}")
-                    return False
-            else:
-                stderr_text = (
-                    stderr.decode("utf-8", errors="ignore")
-                    if stderr
-                    else "No error output"
-                )
-                logger.error(
-                    f"FFmpeg remux failed with code {process.returncode}: {stderr_text}"
-                )
-
-                # Try with fallback method if the first attempt failed
-                return await self._remux_to_mp4_fallback(ts_path, mp4_path)
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
             return False
@@ -1662,7 +1618,6 @@ class RecordingService:
             metadata_file=metadata_file,
             streamer_name=streamer_name,
             logging_service=logging_service
-
         )
 
     async def cleanup(self):
