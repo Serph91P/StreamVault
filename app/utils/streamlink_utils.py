@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from app.models import GlobalSettings
+# Korrektur des Imports - nur die logging_service-Instanz importieren, nicht die Methode direkt
 from app.services.logging_service import logging_service
 
 # Get the logger
@@ -51,6 +52,8 @@ def get_streamlink_command(
     
     # Use the streamlink log path for this recording session if not provided
     if not log_path:
+        # Wichtig: Nutze die Methode über die importierte logging_service-Instanz
+        # Nicht direkt importieren mit: from app.services.logging_service import get_streamlink_log_path
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
