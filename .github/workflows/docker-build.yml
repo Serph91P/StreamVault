@@ -13,7 +13,6 @@ on:
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
       - 'import_test.py'
-      - 'ci_import_test.py'
 
 jobs:
   python-checks:
@@ -24,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13' # Match with python-code-quality.yml
+          python-version: '3.13'
           
       - name: Install dependencies
         run: |
@@ -39,7 +38,7 @@ jobs:
           
       - name: Run import test to verify all dependencies are available
         run: |
-          python ci_import_test.py
+          python import_test.py
   version:
     runs-on: ubuntu-latest
     needs: python-checks
@@ -131,21 +130,10 @@ jobs:
               - 'Dockerfile'
               - 'requirements.txt'
               
-  code_quality:
-    runs-on: ubuntu-latest
-    needs: [check_changes]
-    if: needs.check_changes.outputs.backend_changed == 'true'
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run code quality checks
-      run: |
-        echo "Running comprehensive code quality checks in the python-code-quality.yml workflow"
-        echo "This is now just a placeholder to maintain workflow dependencies"
-        exit 0
+
 
   build:
-    needs: [version, check_changes, python-checks]
+    needs: [version, check_changes]
     runs-on: ubuntu-latest
     permissions:
       contents: read  # Needed to checkout code
