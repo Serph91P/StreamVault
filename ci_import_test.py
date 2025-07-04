@@ -26,8 +26,13 @@ os.environ["LOGS_DIR"] = "/tmp/logs"  # Use /tmp for logs in CI environment
 sys.path.insert(0, '.')
 
 # Create directories that might be accessed during import
-for dir_path in ['/tmp/logs', '/tmp/logs/streamlink', '/tmp/logs/ffmpeg', '/tmp/logs/app']:
+for dir_path in ['/tmp/logs', '/tmp/logs/streamlink', '/tmp/logs/ffmpeg', '/tmp/logs/app', '/app']:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
+    try:
+        # Make directories writable by all
+        os.chmod(dir_path, 0o777)
+    except:
+        print(f"Warning: Could not chmod {dir_path}, but continuing anyway")
 
 # Mock external dependencies
 modules_to_mock = [
