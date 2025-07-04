@@ -11,6 +11,7 @@ import os
 import sys
 import logging
 from unittest import mock
+from pathlib import Path
 
 # Suppress SQLAlchemy warnings and errors
 logging.getLogger('sqlalchemy').setLevel(logging.CRITICAL)
@@ -19,9 +20,14 @@ logging.getLogger('sqlalchemy').setLevel(logging.CRITICAL)
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["TESTING"] = "true"
 os.environ["SQLALCHEMY_SILENCE_UBER_WARNING"] = "1"  # Silence SQLAlchemy warnings
+os.environ["LOGS_DIR"] = "/tmp/logs"  # Use /tmp for logs in CI environment
 
 # Add the current directory to the path
 sys.path.insert(0, '.')
+
+# Create directories that might be accessed during import
+for dir_path in ['/tmp/logs', '/tmp/logs/streamlink', '/tmp/logs/ffmpeg', '/tmp/logs/app']:
+    Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # Mock external dependencies
 modules_to_mock = [
@@ -57,10 +63,44 @@ class MockVapid:
 if 'py_vapid' in sys.modules:
     sys.modules['py_vapid'].Vapid = MockVapid
 
+# Patch the LoggingService class to avoid file system access issues
+def patch_logging_service():
+    from app.services.logging_service import LoggingService
+    
+    # Override the constructor to use /tmp
+    original_init = LoggingService.__init__
+    def safe_init(self, logs_base_dir=None):
+        logs_base_dir = "/tmp/logs"
+        original_init(self, logs_base_dir)
+    LoggingService.__init__ = safe_init
+    
+    # Override filesystem operations that might cause issues
+    LoggingService.get_streamlink_log_path = lambda self, streamer_name: f"/tmp/logs/streamlink/{streamer_name}.log"
+    LoggingService.get_ffmpeg_log_path = lambda self, operation, identifier=None: f"/tmp/logs/ffmpeg/{operation}.log"
+
 # Mock SQLAlchemy operations
 with mock.patch('sqlalchemy.orm.Query.first', return_value=None), \
      mock.patch('sqlalchemy.orm.Query.scalar', return_value=None), \
      mock.patch('sqlalchemy.engine.Engine.connect'):
+
+    # Patch the logging service before imports
+    try:
+        # Import the module first to patch it
+        from app.services.logging_service import LoggingService, logging_service
+        patch_logging_service()
+        
+        # Re-patch the global instance
+        from app.services.logging_service import logging_service
+        logging_service.logs_base_dir = Path("/tmp/logs")
+        logging_service.streamlink_logs_dir = Path("/tmp/logs/streamlink")
+        logging_service.ffmpeg_logs_dir = Path("/tmp/logs/ffmpeg")
+        logging_service.app_logs_dir = Path("/tmp/logs/app")
+        
+        # Override instance methods
+        logging_service.get_streamlink_log_path = lambda streamer_name: f"/tmp/logs/streamlink/{streamer_name}.log"
+        logging_service.get_ffmpeg_log_path = lambda operation, identifier=None: f"/tmp/logs/ffmpeg/{operation}.log"
+    except Exception as e:
+        print(f"Warning: Could not patch logging service: {e}")
 
     # List of modules to test import
     modules_to_test = [
