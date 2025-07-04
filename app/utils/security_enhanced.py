@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Optional
 from fastapi import HTTPException
 
 logger = logging.getLogger("streamvault")
@@ -187,7 +188,7 @@ def safe_error_message(error: Exception, default_message: str = "An error occurr
     return default_message
 
 
-def list_safe_directory(base_dir: str, subdir: str = None) -> list:
+def list_safe_directory(base_dir: str, subdir: Optional[str] = None) -> list:
     """
     Safely list directory contents with no user data in path operations.
     
