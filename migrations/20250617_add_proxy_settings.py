@@ -8,6 +8,7 @@ to the global_settings table for Streamlink proxy support.
 
 import logging
 import sqlalchemy as sa
+from alembic import op
 
 logger = logging.getLogger(__name__)
 
