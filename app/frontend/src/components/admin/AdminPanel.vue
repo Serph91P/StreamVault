@@ -451,12 +451,12 @@ onMounted(() => {
 }
 
 .header h1 {
-  color: #2c3e50;
+  color: var(--color-heading);
   margin-bottom: 5px;
 }
 
 .subtitle {
-  color: #7f8c8d;
+  color: var(--color-text-light);
   font-size: 1.1em;
 }
 
@@ -468,7 +468,7 @@ onMounted(() => {
 }
 
 .section-header h2 {
-  color: #34495e;
+  color: var(--color-heading);
   margin: 0;
 }
 
@@ -502,11 +502,11 @@ onMounted(() => {
 
 /* Health Status */
 .health-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .health-status {
@@ -547,11 +547,11 @@ onMounted(() => {
 
 /* System Info */
 .system-info-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .system-info-grid {
@@ -561,7 +561,7 @@ onMounted(() => {
 }
 
 .info-card {
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   padding: 15px;
   border-radius: 5px;
   border-left: 4px solid #3498db;
@@ -569,7 +569,7 @@ onMounted(() => {
 
 .info-card h3 {
   margin-top: 0;
-  color: #2c3e50;
+  color: var(--color-heading);
 }
 
 .info-card ul {
@@ -584,11 +584,11 @@ onMounted(() => {
 
 /* Test Suite */
 .test-suite-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .test-controls {
@@ -670,7 +670,7 @@ onMounted(() => {
 }
 
 .test-result-item {
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   margin-bottom: 10px;
   overflow: hidden;
@@ -684,7 +684,7 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 12px 15px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
 }
 
 .test-name {
@@ -709,7 +709,8 @@ onMounted(() => {
   width: 100%;
   padding: 8px 15px;
   border: none;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
   display: flex;
@@ -719,7 +720,7 @@ onMounted(() => {
 
 .details-content {
   padding: 15px;
-  background: #f1f3f4;
+  background: var(--color-background-mute);
   max-height: 300px;
   overflow-y: auto;
 }
@@ -733,7 +734,7 @@ onMounted(() => {
 .available-tests {
   margin-top: 20px;
   padding: 20px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   border-radius: 5px;
 }
 
@@ -744,7 +745,7 @@ onMounted(() => {
 }
 
 .test-category h4 {
-  color: #2c3e50;
+  color: var(--color-heading);
   margin-bottom: 10px;
 }
 
@@ -760,11 +761,11 @@ onMounted(() => {
 
 /* Maintenance */
 .maintenance-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .maintenance-actions {
@@ -800,7 +801,7 @@ onMounted(() => {
 }
 
 .modal {
-  background: white;
+  background: var(--color-background);
   border-radius: 8px;
   width: 90%;
   max-width: 800px;
@@ -814,7 +815,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .close-btn {
