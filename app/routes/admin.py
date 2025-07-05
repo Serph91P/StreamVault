@@ -167,8 +167,9 @@ async def quick_health_check() -> Dict[str, Any]:
         
         # Database check
         try:
+            from sqlalchemy import text
             with SessionLocal() as db:
-                db.execute("SELECT 1")
+                db.execute(text("SELECT 1"))
             health["checks"]["database"] = {"status": "healthy", "message": "Connection successful"}
         except Exception as e:
             health["checks"]["database"] = {"status": "error", "message": str(e)}
