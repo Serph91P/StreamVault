@@ -5,6 +5,18 @@
       <span class="category-count">{{ categoryEvents.length }} {{ categoryEvents.length === 1 ? 'category' : 'categories' }}</span>
     </div>
     
+    <!-- Timeline Label for better understanding -->
+    <div class="timeline-legend">
+      <div class="legend-item">
+        <div class="legend-marker"></div>
+        <span>Category change points</span>
+      </div>
+      <div class="legend-note">
+        <i class="fas fa-info-circle"></i>
+        <span>The timeline shows when the stream changed categories</span>
+      </div>
+    </div>
+    
     <!-- Horizontal Timeline -->
     <div class="horizontal-timeline">
       <div class="timeline-track"></div>
@@ -37,6 +49,9 @@
     </div>
     
     <!-- Category List (compact) -->
+    <div class="category-list-header">
+      <h5><i class="fas fa-list"></i> Stream Categories Timeline</h5>
+    </div>
     <div class="category-list">
       <div 
         v-for="(event, index) in categoryEvents" 
@@ -48,9 +63,11 @@
         </div>
         <div class="category-details">
           <div class="category-name">{{ event.category_name || 'Unknown' }}</div>
-          <div class="category-time">{{ formatTime(event.timestamp) }}</div>
+          <div class="category-time">
+            <i class="far fa-clock"></i> {{ formatTime(event.timestamp) }}
+          </div>
           <div v-if="index < categoryEvents.length - 1" class="category-duration">
-            {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
+            <i class="fas fa-hourglass-half"></i> Duration: {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
           </div>
         </div>
       </div>
@@ -61,6 +78,7 @@
     <div class="no-data-content">
       <i class="fas fa-info-circle"></i>
       <p>No category changes recorded for this stream</p>
+      <p class="help-text">When a streamer changes games or activities during a stream, they appear as purple markers on the timeline</p>
     </div>
   </div>
 </template>
@@ -195,6 +213,46 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   font-weight: 500;
 }
 
+/* Timeline Legend */
+.timeline-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: rgba(25, 25, 30, 0.5);
+  border-radius: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ddd;
+  font-size: 0.8rem;
+}
+
+.legend-marker {
+  width: 20px;
+  height: 20px;
+  background: #9146FF;
+  border-radius: 50%;
+}
+
+.legend-note {
+  color: #aaa;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-note i {
+  color: #9146FF;
+}
+
 /* Horizontal Timeline */
 .horizontal-timeline {
   position: relative;
@@ -311,6 +369,27 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   font-weight: 500;
 }
 
+/* Category List Header */
+.category-list-header {
+  margin: 24px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.category-list-header h5 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-list-header h5 i {
+  color: #9146FF;
+}
+
 /* Compact Category List */
 .category-list {
   display: flex;
@@ -366,13 +445,23 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 .category-time {
   color: #aaa;
   font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.category-time i {
+  color: #6441A5;
 }
 
 .category-duration {
   color: #9146FF;
   font-size: 0.8rem;
   font-weight: 500;
-  margin-top: 2px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 /* No data state */
@@ -401,6 +490,14 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 .no-data-content p {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.help-text {
+  margin-top: 8px !important;
+  font-size: 0.8rem !important;
+  color: #666;
+  font-style: italic;
+  max-width: 80%;
 }
 
 /* Responsive design */
