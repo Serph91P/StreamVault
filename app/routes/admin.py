@@ -86,12 +86,19 @@ async def get_system_info() -> Dict[str, Any]:
     Get comprehensive system information
     """
     import platform
-    import psutil
     import os
     from pathlib import Path
     from app.config.settings import settings
     
     try:
+        # Try to import psutil - handle gracefully if not available
+        try:
+            import psutil
+            has_psutil = True
+        except ImportError:
+            has_psutil = False
+            logger.error("psutil module not installed - some system info will be unavailable")
+        
         # System info
         info = {
             "system": {
@@ -99,7 +106,7 @@ async def get_system_info() -> Dict[str, Any]:
                 "python_version": platform.python_version(),
                 "architecture": platform.architecture()[0]
             },
-            "resources": {
+            "resources": {} if not has_psutil else {
                 "cpu_count": psutil.cpu_count(),
                 "cpu_percent": psutil.cpu_percent(interval=1),
                 "memory": {
@@ -110,7 +117,7 @@ async def get_system_info() -> Dict[str, Any]:
             },
             "storage": {},
             "settings": {
-                "recording_directory": settings.RECORDING_OUTPUT_DIRECTORY,
+                "recording_directory": "/recordings",  # Hard-coded path based on Docker mount
                 "vapid_configured": hasattr(settings, 'VAPID_PUBLIC_KEY') and bool(settings.VAPID_PUBLIC_KEY),
                 "proxy_configured": hasattr(settings, 'HTTP_PROXY') and bool(settings.HTTP_PROXY)
             },
@@ -121,7 +128,7 @@ async def get_system_info() -> Dict[str, Any]:
         
         # Storage info for recording directory
         try:
-            recording_path = Path(settings.RECORDING_OUTPUT_DIRECTORY)
+            recording_path = Path("/recordings")  # Hard-coded path based on Docker mount
             if recording_path.exists():
                 stat = os.statvfs(recording_path)
                 free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
@@ -196,7 +203,7 @@ async def quick_health_check() -> Dict[str, Any]:
             import os
             from pathlib import Path
             
-            recording_dir = Path(settings.RECORDING_OUTPUT_DIRECTORY)
+            recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
             stat = os.statvfs(recording_dir)
             free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
             
@@ -231,7 +238,7 @@ async def cleanup_temp_files() -> Dict[str, Any]:
         from pathlib import Path
         import glob
         
-        recording_dir = Path(settings.RECORDING_OUTPUT_DIRECTORY)
+        recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
         cleanup_stats = {
             "files_removed": 0,
             "space_freed_mb": 0,
