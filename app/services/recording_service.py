@@ -1572,11 +1572,20 @@ class RecordingService:
                 os.remove(meta_path)
             
             # If remux was successful, delete the original TS file
-            if result["success"]:
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                if os.path.exists(ts_path):
-                    os.remove(ts_path)
-                return True
+            # IMPORTANT: Only delete TS file if MP4 exists and has reasonable size
+            if result["success"] and os.path.exists(mp4_path):
+                # Verify MP4 file has reasonable size (at least 80% of TS size)
+                ts_size = os.path.getsize(ts_path) if os.path.exists(ts_path) else 0
+                mp4_size = os.path.getsize(mp4_path)
+                
+                if mp4_size > 0 and (ts_size == 0 or mp4_size >= ts_size * 0.8):
+                    logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+                    if os.path.exists(ts_path):
+                        os.remove(ts_path)
+                    return True
+                else:
+                    logger.error(f"MP4 file size ({mp4_size}) is too small compared to TS file ({ts_size})")
+                    return False
             else:
                 logger.error(f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}")
                 return False
@@ -1589,37 +1598,113 @@ class RecordingService:
                 f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             )
 
-    # We've removed all fallback remux methods as part of our clean approach
-    # No more fallback/repair logic - we simply fail if remux fails
-    # This is done through the new modular approach in app/utils/file_utils.py
-
-
     async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown") -> Dict[str, Any]:
-        """
-        Remux an input file to an output file without repair attempts.
-        Uses the file_utils implementation to avoid code duplication.
-        
-        Args:
-            input_path: Path to the input file
-            output_path: Path to the output file
-            overwrite: Whether to overwrite the output file if it exists
-            metadata_file: Optional path to a metadata file to embed
-            streamer_name: Name of the streamer for logging purposes
+        """Remux file with proper error handling and AAC bitstream conversion"""
+        try:
+            # Create output directory if it doesn't exist
+            output_dir = os.path.dirname(output_path)
+            os.makedirs(output_dir, exist_ok=True)
             
-        Returns:
-            Dict containing success status, return code, stdout, and stderr
-        """
-        # Use the function from file_utils module
-        from app.utils.file_utils import remux_file as util_remux_file
-        return await util_remux_file(
-            input_path=input_path,
-            output_path=output_path,
-            overwrite=overwrite,
-            metadata_file=metadata_file,
-            streamer_name=streamer_name,
-            logging_service=logging_service
-        )
-
+            # Set proper permissions on the directory to ensure we can write files
+            os.chmod(output_dir, 0o755)
+            
+            # Delete existing output file if overwrite is True
+            if os.path.exists(output_path) and overwrite:
+                os.remove(output_path)
+            
+            # Base FFmpeg command with enhanced stability parameters
+            cmd = [
+                "ffmpeg",
+                "-fflags", "+genpts+igndts+ignidx+discardcorrupt",
+                "-err_detect", "ignore_err",
+                "-analyzeduration", "50M",
+                "-probesize", "50M",
+                "-i", input_path,
+                "-c:v", "copy",
+                "-c:a", "copy",
+                # AAC bitstream filter is crucial for Twitch streams
+                "-bsf:a", "aac_adtstoasc",
+                "-avoid_negative_ts", "make_zero",
+                "-map", "0:v:0?",
+                "-map", "0:a:0?",
+                "-movflags", "+faststart+empty_moov+frag_keyframe",
+                "-ignore_unknown",
+                "-max_muxing_queue_size", "16384",
+                "-max_interleave_delta", "0",
+                "-fflags", "+discardcorrupt",
+                "-async", "0",
+                "-fps_mode", "passthrough",  # Modern replacement for -vsync
+                "-metadata", f"encoded_by=StreamVault",
+                "-metadata", f"encoding_tool=StreamVault",
+                "-y", output_path,
+                # Add reporting options for better logging
+                "-report",
+                "-v", "info",
+                "-stats_period", "30"
+            ]
+            
+            # Add metadata file if provided
+            if metadata_file and os.path.exists(metadata_file):
+                cmd.insert(cmd.index("-i"), "-i")
+                cmd.insert(cmd.index("-i") + 1, metadata_file)
+                cmd.insert(cmd.index("-map", 1) + 2, "-map_metadata")
+                cmd.insert(cmd.index("-map_metadata") + 1, "1")
+            
+            # Log file path for debugging
+            log_file = f"/app/logs/ffmpeg/remux_{streamer_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
+            logging_service.log_recording_activity("REMUX_COMMAND", streamer_name, f"Command: {' '.join(cmd)}")
+            
+            # Start FFmpeg process
+            process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
+            process = await self.subprocess_manager.start_process(cmd, process_id)
+            
+            # Wait for process to complete
+            stdout, stderr = await process.communicate()
+            exit_code = process.returncode
+            
+            # Get file sizes for metrics
+            input_size_mb = os.path.getsize(input_path) / (1024 * 1024) if os.path.exists(input_path) else 0
+            output_size_mb = os.path.getsize(output_path) / (1024 * 1024) if os.path.exists(output_path) else 0
+            
+            # Log detailed performance metrics
+            metrics = {
+                "exit_code": exit_code,
+                "input_size_mb": round(input_size_mb, 2),
+                "output_size_mb": round(output_size_mb, 2),
+                "compression_ratio": round(1 - (output_size_mb / input_size_mb), 3) if input_size_mb > 0 else 0,
+            }
+            
+            # Check if output file exists and has content
+            success = exit_code == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
+            
+            # Additional check for truncated files
+            if success and input_size_mb > 0 and output_size_mb < input_size_mb * 0.8:
+                logging_service.log_recording_error(0, streamer_name, "FILE_SIZE_MISMATCH", 
+                    f"MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
+                success = False
+            
+            # Log outcome
+            operation = "REMUX_SUCCESS" if success else "REMUX_FAILURE"
+            logging_service.log_file_operation(operation, output_path, success, 
+                f"Remux {'completed successfully' if success else 'failed'}", output_size_mb)
+            
+            return {
+                "success": success,
+                "exit_code": exit_code,
+                "stdout": stdout.decode("utf-8", errors="ignore") if stdout else "",
+                "stderr": stderr.decode("utf-8", errors="ignore") if stderr else "",
+                "metrics": metrics
+            }
+        except Exception as e:
+            logger.error(f"Exception during remux operation: {e}", exc_info=True)
+            return {
+                "success": False,
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": str(e),
+                "metrics": {}
+            }
+    
     async def cleanup(self):
         """Clean up all resources when shutting down"""
 
