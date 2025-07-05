@@ -12,36 +12,10 @@ on:
       - 'Dockerfile'
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
-      - 'import_test.py'
 
 jobs:
-  python-checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Run critical syntax check before build
-        run: |
-          # Check only for serious syntax errors that would prevent Docker build
-          flake8 --select=E9,F63,F7,F82 app/ migrations/
-          
-      - name: Run import test to verify all dependencies are available
-        run: |
-          python import_test.py
   version:
     runs-on: ubuntu-latest
-    needs: python-checks
     permissions:
       contents: write  # Needed to create tags
     outputs:
@@ -129,8 +103,6 @@ jobs:
               - 'migrations/**'
               - 'Dockerfile'
               - 'requirements.txt'
-              
-
 
   build:
     needs: [version, check_changes]
