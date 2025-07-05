@@ -151,7 +151,7 @@ class StreamVaultTestService:
     async def _test_file_permissions(self):
         """Test file system permissions in recording directory"""
         try:
-            recording_dir = Path(settings.RECORDING_OUTPUT_DIRECTORY)
+            recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
             
             # Create test directory
             test_dir = recording_dir / "test_permissions"
@@ -620,7 +620,7 @@ class StreamVaultTestService:
     async def _test_disk_space(self):
         """Test available disk space"""
         try:
-            recording_dir = Path(settings.RECORDING_OUTPUT_DIRECTORY)
+            recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
             stat = os.statvfs(recording_dir)
             
             # Calculate space in GB
