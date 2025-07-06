@@ -1540,10 +1540,29 @@ class RecordingService:
         try:
             logger.info(f"Starting remux of {ts_path} to {mp4_path} using new method")
             
+            # Ensure the TS file exists and has content
+            if not os.path.exists(ts_path):
+                logger.error(f"TS file does not exist: {ts_path}")
+                return False
+                
+            ts_size = os.path.getsize(ts_path)
+            if ts_size == 0:
+                logger.error(f"TS file is empty: {ts_path}")
+                return False
+                
+            logger.info(f"TS file validation passed: {ts_path}, size: {ts_size} bytes")
+            
+            # Ensure the output directory exists
+            mp4_dir = os.path.dirname(mp4_path)
+            os.makedirs(mp4_dir, exist_ok=True)
+            
             # Add metadata for the file
             metadata = {
                 "encoded_by": "StreamVault",
-                "encoding_tool": "StreamVault"
+                "encoding_tool": "StreamVault",
+                "streamer": streamer_name,
+                "original_format": "TS",
+                "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             }
             
             # Create a temporary metadata file
@@ -1558,36 +1577,118 @@ class RecordingService:
             except Exception as e:
                 logger.error(f"Failed to create metadata file: {e}")
             
-            # Call the remux_file method
+            # Generate a unique timestamp for this remux operation
+            remux_timestamp = int(datetime.now().timestamp())
+            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
+                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
+            
+            # Import the logging service
+            from app.services.logging_service import logging_service
+            
+            # Call the remux_file method with logging service
             result = await self.remux_file(
                 input_path=ts_path,
                 output_path=mp4_path,
                 overwrite=True,
                 metadata_file=meta_path,
-                streamer_name=streamer_name
+                streamer_name=streamer_name,
+                logging_service=logging_service
             )
             
             # Clean up the temporary metadata file
             if meta_path and os.path.exists(meta_path):
                 os.remove(meta_path)
-            
-            # If remux was successful, delete the original TS file
-            # IMPORTANT: Only delete TS file if MP4 exists and has reasonable size
+                
+            # If remux was successful, validate the MP4 file before deleting the TS file
             if result["success"] and os.path.exists(mp4_path):
-                # Verify MP4 file has reasonable size (at least 80% of TS size)
+                # Step 1: Verify MP4 file has reasonable size (at least 80% of TS size)
                 ts_size = os.path.getsize(ts_path) if os.path.exists(ts_path) else 0
                 mp4_size = os.path.getsize(mp4_path)
                 
-                if mp4_size > 0 and (ts_size == 0 or mp4_size >= ts_size * 0.8):
-                    logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                    if os.path.exists(ts_path):
-                        os.remove(ts_path)
-                    return True
-                else:
-                    logger.error(f"MP4 file size ({mp4_size}) is too small compared to TS file ({ts_size})")
+                if mp4_size == 0:
+                    logger.error(f"MP4 file is empty: {mp4_path}")
+                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Output file is empty")
                     return False
+                    
+                size_ratio = mp4_size / ts_size if ts_size > 0 else 1
+                logger.info(f"Size ratio MP4/TS: {size_ratio:.2f} ({mp4_size}/{ts_size} bytes)")
+                
+                if size_ratio < 0.8:
+                    logger.error(f"MP4 file size ({mp4_size} bytes) is too small compared to TS file ({ts_size} bytes), ratio: {size_ratio:.2f}")
+                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, 
+                                                          f"Output file too small: {mp4_size} bytes, ratio: {size_ratio:.2f}")
+                    return False
+                
+                # Step 2: Verify the MP4 file is valid with ffprobe
+                logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
+                valid_mp4 = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+                
+                if not valid_mp4:
+                    logger.error(f"MP4 file validation failed: {mp4_path}")
+                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "FFprobe validation failed")
+                    return False
+                
+                # Step 3: Check if the MP4 has a proper duration
+                duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
+                
+                if not duration_result["valid"]:
+                    logger.error(f"MP4 duration check failed: {duration_result['message']}")
+                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, duration_result["message"])
+                    return False
+                
+                # Step 4: Additional validation to ensure MP4 is playable (check for mdat atom)
+                try:
+                    playability_cmd = [
+                        "ffprobe", 
+                        "-v", "error", 
+                        "-show_entries", "format=format_name,duration", 
+                        "-of", "json", 
+                        mp4_path
+                    ]
+                    playability_process = await asyncio.create_subprocess_exec(
+                        *playability_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    play_stdout, play_stderr = await playability_process.communicate()
+                    if playability_process.returncode != 0 or "Invalid data found" in play_stderr.decode('utf-8', errors='ignore'):
+                        logger.error(f"MP4 file playability check failed: {mp4_path}")
+                        self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "MP4 playability check failed")
+                        return False
+                    
+                    # Parse output to confirm it's an MP4 container
+                    play_output = play_stdout.decode('utf-8', errors='ignore')
+                    if '"format_name"' not in play_output or "mp4" not in play_output.lower():
+                        logger.error(f"MP4 container validation failed: {mp4_path}")
+                        self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Invalid MP4 container format")
+                        return False
+                        
+                    logger.info(f"MP4 playability check passed: {mp4_path}")
+                except Exception as e:
+                    logger.error(f"Error during MP4 playability check: {e}")
+                    # Don't fail the process for this check, as it's an additional safeguard
+                
+                # All checks passed
+                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
+                self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
+                                                       f"Size: {mp4_size/1024/1024:.2f} MB, Duration: {duration_result['duration']:.2f}s")
+                
+                # Log successful validation
+                logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
+                                                  f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
+                
+                # Only delete original TS file if all checks passed
+                if os.path.exists(ts_path):
+                    logger.info(f"All validation checks passed. Deleting original TS file: {ts_path}")
+                    os.remove(ts_path)
+                    logging_service.ffmpeg_logger.info(f"[TS_DELETE] Deleted original TS file: {ts_path}")
+                    self.activity_logger.log_file_operation("TS_DELETE", ts_path, True, "TS file deleted after successful MP4 validation")
+                
+                return True
             else:
-                logger.error(f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}")
+                error_msg = f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}"
+                logger.error(error_msg)
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, result.get("stderr", "Unknown error"))
                 return False
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
@@ -1598,7 +1699,7 @@ class RecordingService:
                 f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             )
 
-    async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown") -> Dict[str, Any]:
+    async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown", logging_service=None) -> Dict[str, Any]:
         """Remux file with proper error handling and AAC bitstream conversion"""
         try:
             # Create output directory if it doesn't exist
@@ -1652,7 +1753,9 @@ class RecordingService:
             
             # Log file path for debugging
             log_file = f"/app/logs/ffmpeg/remux_{streamer_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
-            logging_service.log_recording_activity("REMUX_COMMAND", streamer_name, f"Command: {' '.join(cmd)}")
+            logger.info(f"Command: {' '.join(cmd)}")
+            if logging_service:
+                logging_service.recording_logger.info(f"[REMUX_COMMAND] {streamer_name} - Command: {' '.join(cmd)}")
             
             # Start FFmpeg process
             process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
@@ -1679,14 +1782,16 @@ class RecordingService:
             
             # Additional check for truncated files
             if success and input_size_mb > 0 and output_size_mb < input_size_mb * 0.8:
-                logging_service.log_recording_error(0, streamer_name, "FILE_SIZE_MISMATCH", 
-                    f"MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
+                logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
+                if logging_service:
+                    logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
                 success = False
             
             # Log outcome
             operation = "REMUX_SUCCESS" if success else "REMUX_FAILURE"
-            logging_service.log_file_operation(operation, output_path, success, 
-                f"Remux {'completed successfully' if success else 'failed'}", output_size_mb)
+            logger.info(f"{operation}: {output_path} - Remux {'completed successfully' if success else 'failed'}")
+            if logging_service:
+                logging_service.recording_logger.info(f"[{operation}] {streamer_name} - {output_path} - Size: {output_size_mb:.2f} MB")
             
             return {
                 "success": success,
@@ -1761,3 +1866,201 @@ class RecordingService:
         """Remove illegal characters from filename"""
         from app.utils.file_utils import sanitize_filename
         return sanitize_filename(name)
+
+    async def _validate_mp4_with_ffprobe(self, mp4_path: str, streamer_name: str) -> bool:
+        """Validate the MP4 file using ffprobe to ensure it's not corrupted.
+        
+        Args:
+            mp4_path: Path to the MP4 file
+            streamer_name: Name of the streamer for logging
+            
+        Returns:
+            bool: True if the MP4 file is valid, False otherwise
+        """
+        try:
+            # Import logging service if needed
+            from app.services.logging_service import logging_service
+            
+            # Build ffprobe command
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name,width,height,duration",
+                "-of", "json",
+                mp4_path
+            ]
+            
+            # Log the command
+            logger.debug(f"Running ffprobe validation: {' '.join(cmd)}")
+            self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_START", f"Validating {mp4_path}")
+            
+            # Create unique log file for this validation
+            validation_timestamp = int(datetime.now().timestamp())
+            ffprobe_log_path = logging_service.get_ffmpeg_log_path(f"validate_{validation_timestamp}", streamer_name)
+            
+            # Set environment for logging
+            env = os.environ.copy()
+            if ffprobe_log_path:
+                env["FFREPORT"] = f"file={ffprobe_log_path}:level=32"
+            
+            # Run ffprobe
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
+            
+            stdout, stderr = await process.communicate()
+            stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
+            stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
+            exit_code = process.returncode or 0
+            
+            # Log results
+            if exit_code == 0 and stdout_str and len(stdout_str.strip()) > 10:  # Ensure we got meaningful output
+                try:
+                    # Parse JSON output
+                    import json
+                    data = json.loads(stdout_str)
+                    
+                    # Check for video stream
+                    if "streams" in data and len(data["streams"]) > 0:
+                        stream = data["streams"][0]
+                        codec = stream.get("codec_name", "unknown")
+                        width = stream.get("width", 0)
+                        height = stream.get("height", 0)
+                        
+                        logger.info(f"MP4 validation passed: {mp4_path}, codec: {codec}, resolution: {width}x{height}")
+                        self.activity_logger.log_process_monitoring(
+                            streamer_name, 
+                            "FFPROBE_SUCCESS", 
+                            f"Codec: {codec}, Resolution: {width}x{height}"
+                        )
+                        return True
+                    else:
+                        logger.error(f"No video streams found in {mp4_path}")
+                        self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_FAILED", "No video streams found")
+                        return False
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse ffprobe output as JSON: {stdout_str}")
+                    self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_FAILED", "Invalid JSON output")
+                    return False
+            else:
+                logger.error(f"ffprobe validation failed with exit code {exit_code}: {stderr_str}")
+                self.activity_logger.log_process_monitoring(
+                    streamer_name, 
+                    "FFPROBE_FAILED", 
+                    f"Exit code: {exit_code}, Error: {stderr_str}"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"Error validating MP4 with ffprobe: {e}", exc_info=True)
+            self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_ERROR", str(e))
+            return False
+            
+    async def _check_mp4_duration(self, mp4_path: str, ts_path: str, streamer_name: str) -> Dict[str, Any]:
+        """Check if the MP4 file has a reasonable duration.
+        
+        Args:
+            mp4_path: Path to the MP4 file
+            ts_path: Path to the original TS file
+            streamer_name: Name of the streamer for logging
+            
+        Returns:
+            Dict with keys: valid (bool), duration (float), message (str)
+        """
+        try:
+            # Get MP4 duration
+            mp4_duration = await self._get_media_duration(mp4_path)
+            
+            # Also check TS duration if possible
+            ts_duration = await self._get_media_duration(ts_path) if os.path.exists(ts_path) else None
+            
+            if mp4_duration is None:
+                return {
+                    "valid": False,
+                    "duration": 0,
+                    "message": f"Could not determine MP4 duration for {mp4_path}"
+                }
+            
+            # If we have both durations, compare them
+            if ts_duration and ts_duration > 0:
+                # Allow some tolerance (5% difference)
+                ratio = mp4_duration / ts_duration
+                
+                if ratio < 0.95:
+                    return {
+                        "valid": False,
+                        "duration": mp4_duration,
+                        "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s)"
+                    }
+            
+            # If the duration is too short (less than 10 seconds), it's probably not a valid recording
+            if mp4_duration < 10:
+                return {
+                    "valid": False,
+                    "duration": mp4_duration,
+                    "message": f"MP4 duration is too short: {mp4_duration:.2f}s"
+                }
+                
+            logger.info(f"MP4 duration check passed: {mp4_duration:.2f}s")
+            self.activity_logger.log_process_monitoring(
+                streamer_name, 
+                "DURATION_CHECK_SUCCESS", 
+                f"MP4: {mp4_duration:.2f}s, TS: {ts_duration:.2f if ts_duration else 'unknown'}s"
+            )
+            
+            return {
+                "valid": True,
+                "duration": mp4_duration,
+                "message": "Duration check passed"
+            }
+        except Exception as e:
+            logger.error(f"Error checking MP4 duration: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "duration": 0,
+                "message": f"Error checking duration: {str(e)}"
+            }
+            
+    async def _get_media_duration(self, file_path: str) -> Optional[float]:
+        """Get the duration of a media file using ffprobe.
+        
+        Args:
+            file_path: Path to the media file
+            
+        Returns:
+            Optional[float]: Duration in seconds, or None if it couldn't be determined
+        """
+        try:
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path
+            ]
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
+            
+            if process.returncode == 0 and stdout_str.strip():
+                try:
+                    duration = float(stdout_str.strip())
+                    return duration
+                except ValueError:
+                    logger.error(f"Could not parse duration from ffprobe output: {stdout_str}")
+                    return None
+            else:
+                logger.error(f"ffprobe failed to get duration: {stderr.decode('utf-8', errors='ignore') if stderr else ''}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting media duration: {e}")
+            return None

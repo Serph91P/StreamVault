@@ -1527,15 +1527,20 @@ class MetadataService:
             logger.info(f"Starting metadata embedding for stream {stream_id}, mp4: {mp4_path}")
             mp4_path_obj = Path(mp4_path)
             
+            # Import logging service
+            from app.services.logging_service import logging_service
+            
             # Validate source file exists and has reasonable size
             if not mp4_path_obj.exists():
                 logger.error(f"MP4 file does not exist: {mp4_path}")
+                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4 file does not exist: {mp4_path}")
                 return False
                 
             # Check file size to ensure it's not empty or corrupted
             mp4_size = mp4_path_obj.stat().st_size
             if mp4_size < 10000:
                 logger.error(f"MP4 file is too small ({mp4_size} bytes), likely corrupted: {mp4_path}")
+                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4 file too small: {mp4_path}, {mp4_size} bytes")
                 return False
                 
             logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
@@ -1544,30 +1549,68 @@ class MetadataService:
             chapters_path_obj = Path(chapters_path) if chapters_path else None
             logger.debug(f"Using chapters file: {chapters_path}")
             
+            # Create unique log file for validation
+            timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            validation_log_path = logging_service.get_ffmpeg_log_path(f"metadata_validate_{timestamp_str}", f"stream_{stream_id}")
+            
             # Validate the MP4 file using ffprobe to ensure it's not corrupted
             logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
             validate_cmd = [
                 "ffprobe",
                 "-v", "error",
                 "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name",
+                "-show_entries", "stream=codec_name,duration,width,height",
                 "-of", "json",
                 str(mp4_path_obj)
             ]
             
+            # Log the validation command
+            logging_service.ffmpeg_logger.info(f"[METADATA_VALIDATION_START] Validating MP4: {mp4_path}")
+            logging_service.ffmpeg_logger.info(f"[FFPROBE_CMD] {' '.join(validate_cmd)}")
+            
+            # Set up environment for ffprobe log
+            env = os.environ.copy()
+            env["FFREPORT"] = f"file={validation_log_path}:level=32"
+            
             validate_process = await asyncio.create_subprocess_exec(
                 *validate_cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                env=env
             )
             
             validate_stdout, validate_stderr = await validate_process.communicate()
             
             if validate_process.returncode != 0:
-                logger.error(f"MP4 file validation failed: {validate_stderr.decode('utf-8', errors='ignore')}")
+                error_message = validate_stderr.decode('utf-8', errors='ignore')
+                logger.error(f"MP4 file validation failed: {error_message}")
+                logging_service.ffmpeg_logger.error(f"[METADATA_VALIDATION_FAILED] MP4 validation failed: {error_message}")
                 return False
                 
-            logger.info(f"MP4 file validation successful with ffprobe")
+            # Parse the validation output to confirm video stream is present
+            try:
+                import json
+                validation_data = json.loads(validate_stdout.decode('utf-8', errors='ignore'))
+                if "streams" not in validation_data or len(validation_data["streams"]) == 0:
+                    logger.error(f"No video streams found in MP4: {mp4_path}")
+                    logging_service.ffmpeg_logger.error(f"[METADATA_VALIDATION_FAILED] No video streams found: {mp4_path}")
+                    return False
+                
+                # Log video details
+                stream = validation_data["streams"][0]
+                codec = stream.get("codec_name", "unknown")
+                width = stream.get("width", "unknown")
+                height = stream.get("height", "unknown")
+                duration = stream.get("duration", "unknown")
+                
+                logger.info(f"MP4 file validation successful: {codec}, {width}x{height}, duration: {duration}s")
+                logging_service.ffmpeg_logger.info(
+                    f"[METADATA_VALIDATION_SUCCESS] MP4 validated: {mp4_path}, codec: {codec}, "
+                    f"resolution: {width}x{height}, duration: {duration}s"
+                )
+            except Exception as e:
+                logger.error(f"Error parsing validation result: {e}")
+                # Continue even if parsing fails as the ffprobe command succeeded
             
             # Get stream and streamer information
             with SessionLocal() as db:
@@ -1590,7 +1633,7 @@ class MetadataService:
                 logger.info(f"No chapters file found at: {chapters_path}")
             
             # Create temporary metadata file with all metadata
-            meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata.txt")
+            meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata-{timestamp_str}.txt")
             logger.info(f"Creating combined metadata file: {meta_path}")
             
             with open(str(meta_path), 'w', encoding='utf-8') as f:
@@ -1620,6 +1663,7 @@ class MetadataService:
                 # Add encoding metadata
                 f.write("encoded_by=StreamVault\n")
                 f.write("encoding_tool=StreamVault\n")
+                f.write(f"metadata_date={datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
                 
                 # Add chapters if available
                 if has_chapters:
@@ -1641,7 +1685,7 @@ class MetadataService:
             # Import remux function from utilities
             from app.utils.file_utils import remux_file
             
-            temp_output = f"{str(mp4_path_obj)}.temp.mp4"
+            temp_output = f"{str(mp4_path_obj)}.temp_{timestamp_str}.mp4"
             streamer_name = streamer.username if streamer else "unknown"
             
             # Call the remux_file utility with logging service
@@ -1649,7 +1693,7 @@ class MetadataService:
             logger.debug(f"Starting remux process: input={mp4_path}, output={temp_output}, metadata={meta_path}")
             
             # Log metadata operation through the logging service
-            logging_service.ffmpeg_logger.info(f"Starting metadata embedding for {streamer_name}, file: {mp4_path}")
+            logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_START] {streamer_name}, stream ID: {stream_id}, file: {mp4_path}")
             
             # Log command details to ffmpeg log
             ffmpeg_cmd = [
@@ -1662,14 +1706,15 @@ class MetadataService:
                 "-y", 
                 temp_output
             ]
-            logging_service.log_ffmpeg_start("metadata_embed", ffmpeg_cmd, streamer_name)
+            logging_service.log_ffmpeg_start("metadata_embed", ffmpeg_cmd, f"{streamer_name}_stream{stream_id}")
             
+            # Call remux with detailed logging
             result = await remux_file(
                 input_path=str(mp4_path_obj), 
                 output_path=temp_output,
                 overwrite=True, 
                 metadata_file=str(meta_path),
-                streamer_name=streamer_name,
+                streamer_name=f"{streamer_name}_stream{stream_id}",
                 logging_service=logging_service
             )
             
@@ -1680,29 +1725,54 @@ class MetadataService:
                     temp_file_size = os.path.getsize(temp_output)
                     logger.info(f"Remux completed, temp file size: {temp_file_size} bytes")
                     
+                    # Validate the output MP4 file with ffprobe
+                    validate_output_cmd = [
+                        "ffprobe",
+                        "-v", "error",
+                        "-show_entries", "format=duration",
+                        "-of", "json",
+                        temp_output
+                    ]
+                    
+                    validate_output_process = await asyncio.create_subprocess_exec(
+                        *validate_output_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    
+                    validate_output_stdout, validate_output_stderr = await validate_output_process.communicate()
+                    
+                    if validate_output_process.returncode != 0:
+                        error_msg = f"Output file validation failed: {validate_output_stderr.decode('utf-8', errors='ignore')}"
+                        logger.error(error_msg)
+                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] {error_msg}")
+                        if os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        return False
+                    
                     # Check if output file is not too small (which would indicate corruption)
                     if temp_file_size > (mp4_size * 0.9):  # Should be at least 90% of original
                         # Replace original with temp file
                         logger.info(f"Temp file passed validation, replacing original file")
                         os.replace(temp_output, str(mp4_path_obj))
                         logger.info(f"Successfully embedded metadata into {mp4_path}")
-                        logging_service.ffmpeg_logger.info(f"Successfully embedded metadata for {streamer_name}: {mp4_path}")
+                        logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] {streamer_name}: {mp4_path}")
                         success = True
                     else:
                         error_msg = f"Output file appears corrupted: size {temp_file_size} bytes is significantly smaller than original {mp4_size} bytes"
                         logger.error(error_msg)
-                        logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
+                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] {streamer_name}: {error_msg}")
                         # Keep the original file, don't replace it
                         if os.path.exists(temp_output):
                             os.remove(temp_output)
                 else:
                     error_msg = "Temp output file was not created"
                     logger.error(error_msg)
-                    logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
+                    logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] {streamer_name}: {error_msg}")
             else:
                 error_msg = f"Failed to embed metadata: {result.get('stderr', 'Unknown error')}"
                 logger.error(error_msg)
-                logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
+                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] {streamer_name}: {error_msg}")
                 # Clean up temp file if it exists despite failure
                 if os.path.exists(temp_output):
                     os.remove(temp_output)
@@ -1722,25 +1792,27 @@ class MetadataService:
                         stream_metadata.metadata_embedded_at = datetime.now(timezone.utc)
                         db.commit()
                         logger.info(f"Updated database for stream {stream_id}, metadata marked as embedded")
-                        logging_service.ffmpeg_logger.info(f"Database updated for {streamer_name}, metadata marked as embedded for stream {stream_id}")
+                        logging_service.ffmpeg_logger.info(f"[DATABASE_UPDATE] {streamer_name}, metadata marked as embedded for stream {stream_id}")
                     else:
                         logger.warning(f"No metadata record found for stream {stream_id}")
-                        logging_service.ffmpeg_logger.warning(f"No metadata record found for stream {stream_id} ({streamer_name})")
+                        logging_service.ffmpeg_logger.warning(f"[DATABASE_WARNING] No metadata record found for stream {stream_id} ({streamer_name})")
             
             # Create additional chapter files for various media servers
             if success:
                 logger.info(f"Creating additional chapter files for media servers")
                 await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title=False)
-                logging_service.ffmpeg_logger.info(f"Created additional chapter files for stream {stream_id} ({streamer_name})")
+                logging_service.ffmpeg_logger.info(f"[CHAPTERS_CREATED] Additional chapter files for stream {stream_id} ({streamer_name})")
             
             status_str = 'Success' if success else 'Failed'
             logger.info(f"Metadata embedding process completed with status: {status_str}")
-            logging_service.ffmpeg_logger.info(f"Metadata embedding process for {streamer_name} completed with status: {status_str}")
+            logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_COMPLETE] {streamer_name} - Status: {status_str}")
             return success
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
+            from app.services.logging_service import logging_service
+            logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_EXCEPTION] Unhandled error: {str(e)}")
             return False
-            
+    
     async def _create_media_server_chapters(self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False) -> None:
         """Create additional chapter files for better media server compatibility
         
