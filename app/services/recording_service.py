@@ -1896,26 +1896,61 @@ class RecordingService:
             self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_START", f"Validating {mp4_path}")
             
             # Create unique log file for this validation
-            validation_timestamp = int(datetime.now().timestamp())
-            ffprobe_log_path = logging_service.get_ffmpeg_log_path(f"validate_{validation_timestamp}", streamer_name)
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Make sure we have a valid streamer name
+            if not streamer_name or streamer_name.lower() == "none":
+                streamer_name = "unknown"
+            ffprobe_log_path = logging_service.get_ffmpeg_log_path(f"validate_{timestamp_str}", streamer_name)
             
             # Set environment for logging
             env = os.environ.copy()
             if ffprobe_log_path:
                 env["FFREPORT"] = f"file={ffprobe_log_path}:level=32"
             
-            # Run ffprobe
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
-            
-            stdout, stderr = await process.communicate()
-            stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
-            stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
-            exit_code = process.returncode or 0
+            # Create temporary files for stdout/stderr to avoid container logs
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stdout_", suffix=".log") as stdout_file, \
+                 tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stderr_", suffix=".log") as stderr_file:
+                
+                # Set additional environment variables to suppress console output
+                env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
+                env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
+                
+                # Add quiet loglevel to prevent container logs
+                cmd = [cmd[0]] + ["-loglevel", "quiet"] + cmd[1:]
+                
+                # Run ffprobe with redirected output
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=stdout_file.fileno(),
+                    stderr=stderr_file.fileno(),
+                    env=env
+                )
+                
+                # Wait for process to complete
+                await process.wait()
+                exit_code = process.returncode or 0
+                
+                # Read output from temporary files
+                with open(stdout_file.name, 'r', errors='ignore') as f:
+                    stdout_str = f.read()
+                with open(stderr_file.name, 'r', errors='ignore') as f:
+                    stderr_str = f.read()
+                
+                # Append output to log file
+                if ffprobe_log_path:
+                    with open(ffprobe_log_path, 'a', errors='ignore') as f:
+                        f.write("\n\n--- STDOUT ---\n")
+                        f.write(stdout_str)
+                        f.write("\n\n--- STDERR ---\n")
+                        f.write(stderr_str)
+                
+                # Clean up temporary files
+                try:
+                    os.unlink(stdout_file.name)
+                    os.unlink(stderr_file.name)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary ffprobe files: {e}")
             
             # Log results
             if exit_code == 0 and stdout_str and len(stdout_str.strip()) > 10:  # Ensure we got meaningful output
