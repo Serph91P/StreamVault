@@ -3,6 +3,7 @@ import json
 import aiohttp
 import asyncio
 import logging
+import tempfile
 import copy  # Add missing import for copy module
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -772,24 +773,73 @@ class MetadataService:
                 str(thumbnail_path)
             ]
             
-            # Create a unique log file for this thumbnail extraction
+            # Create a unique log file for this thumbnail extraction using the logging service
             streamer_name = video_path_obj.stem.split('-')[0] if '-' in video_path_obj.stem else 'unknown'
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ffmpeg_log_path = os.path.join('logs', 'ffmpeg', f"thumbnail_{streamer_name}_{timestamp}.log")
+            ffmpeg_log_path = logging_service.get_ffmpeg_log_path(f"thumbnail_{timestamp}", streamer_name)
             
             # Ensure the log directory exists
             os.makedirs(os.path.dirname(ffmpeg_log_path), exist_ok=True)
             
-            # Set up environment for FFmpeg log
+            # Set up environment for FFmpeg log and redirect output to file only
             env = os.environ.copy()
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
+            env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
+            env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
+            # Add quiet logging level to prevent output to console/container logs
+            cmd.extend(["-loglevel", "quiet"])
+            
+            # Create temporary files for stdout and stderr
+            import tempfile
+            stdout_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stdout_", suffix=".log")
+            stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stderr_", suffix=".log")
+            
+            try:
+                # Start the process with output redirected to temp files
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=stdout_file.fileno(),
+                    stderr=stderr_file.fileno(),
+                    env=env
+                )
+                
+                # Close our file handles (subprocess still has them open)
+                stdout_file.close()
+                stderr_file.close()
+                
+                # Wait for process to complete
+                await process.wait()
+                
+                # Read output from temporary files
+                with open(stdout_file.name, 'r', errors='ignore') as f:
+                    stdout_str = f.read()
+                with open(stderr_file.name, 'r', errors='ignore') as f:
+                    stderr_str = f.read()
+                
+                # Append the output to the FFmpeg log file
+                with open(ffmpeg_log_path, 'a', errors='ignore') as f:
+                    f.write("\n\n--- STDOUT ---\n")
+                    f.write(stdout_str)
+                    f.write("\n\n--- STDERR ---\n")
+                    f.write(stderr_str)
+                
+                # Clean up temporary files
+                try:
+                    os.unlink(stdout_file.name)
+                    os.unlink(stderr_file.name)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary thumbnail stdout/stderr files: {e}")
+            except Exception as e:
+                logger.error(f"Error during thumbnail extraction process: {e}", exc_info=True)
+                
+                # Clean up temp files if they exist
+                for temp_file in [stdout_file, stderr_file]:
+                    try:
+                        if temp_file and os.path.exists(temp_file.name):
+                            os.unlink(temp_file.name)
+                    except Exception:
+                        pass
             
             stdout, stderr = await process.communicate()
             
@@ -1562,9 +1612,15 @@ class MetadataService:
             chapters_path_obj = Path(chapters_path) if chapters_path else None
             logger.debug(f"Using chapters file: {chapters_path}")
             
-            # Create unique log file for validation
+            # Create unique log file for validation with streamer name
             timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            validation_log_path = logging_service.get_ffmpeg_log_path(f"metadata_validate_{timestamp_str}", f"stream_{stream_id}")
+            # Extract streamer name from file path if possible
+            streamer_name = "unknown"
+            if mp4_path_obj.name:
+                name_parts = mp4_path_obj.stem.split('-')
+                if name_parts:
+                    streamer_name = name_parts[0]
+            validation_log_path = logging_service.get_ffmpeg_log_path(f"metadata_validate_{timestamp_str}", streamer_name)
             
             # Validate the MP4 file using ffprobe to ensure it's not corrupted
             logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
@@ -1581,16 +1637,39 @@ class MetadataService:
             logging_service.ffmpeg_logger.info(f"[METADATA_VALIDATION_START] Validating MP4: {mp4_path}")
             logging_service.ffmpeg_logger.info(f"[FFPROBE_CMD] {' '.join(validate_cmd)}")
             
-            # Set up environment for ffprobe log
+            # Set up environment for ffprobe log - ensure logs go only to file
             env = os.environ.copy()
             env["FFREPORT"] = f"file={validation_log_path}:level=32"
+            env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
+            env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
             
-            validate_process = await asyncio.create_subprocess_exec(
-                *validate_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
+            # Add quiet logging level to command to prevent output to console
+            validate_cmd = [validate_cmd[0]] + ["-loglevel", "quiet"] + validate_cmd[1:]
+            
+            # Create temporary files for stdout/stderr to prevent console logging
+            with tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stdout_", suffix=".log") as stdout_file, \
+                 tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stderr_", suffix=".log") as stderr_file:
+                
+                # Start process with redirected output
+                validate_process = await asyncio.create_subprocess_exec(
+                    *validate_cmd,
+                    stdout=stdout_file.fileno(),
+                    stderr=stderr_file.fileno(),
+                    env=env
+                )
+                
+                # Wait for process to complete
+                await validate_process.wait()
+                
+                # Read output from temporary files
+                with open(stdout_file.name, 'r', errors='ignore') as f:
+                    stdout = f.read().encode('utf-8')
+                with open(stderr_file.name, 'r', errors='ignore') as f:
+                    stderr = f.read().encode('utf-8')
+                
+                # Clean up temporary files
+                os.unlink(stdout_file.name)
+                os.unlink(stderr_file.name)
             
             validate_stdout, validate_stderr = await validate_process.communicate()
             
