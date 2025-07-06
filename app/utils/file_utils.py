@@ -163,7 +163,7 @@ async def remux_file(
             os.makedirs(log_dir, exist_ok=True)
             
             # Configure FFmpeg to create a detailed report - ensure higher log level
-            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40:append=true"
+            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
             logger.info(f"FFmpeg log will be written to: {ffmpeg_log_path}")
         
         # Start the process
