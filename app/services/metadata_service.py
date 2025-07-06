@@ -4,7 +4,7 @@ import aiohttp
 import asyncio
 import logging
 import copy  # Add missing import for copy module
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
 
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.config.settings import settings
+from app.services.logging_service import logging_service
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
@@ -1472,7 +1473,7 @@ class MetadataService:
                         
                         # Zeit in Millisekunden umrechnen
                         total_seconds = (hrs * 3600) + (mins * 60) + secs
-                        timestamp_ms = total_seconds * 1000
+                        timestamp_ms = total_seconds * 1000;
                         
                         chapters.append({
                             "title": title,
@@ -1523,16 +1524,28 @@ class MetadataService:
     async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
         """Embed both chapters and all other metadata in one pass."""
         try:
+            logger.info(f"Starting metadata embedding for stream {stream_id}, mp4: {mp4_path}")
             mp4_path_obj = Path(mp4_path)
             
+            # Validate source file exists and has reasonable size
             if not mp4_path_obj.exists():
-                logger.warning(f"MP4 file not found for metadata embedding: {mp4_path}")
+                logger.error(f"MP4 file does not exist: {mp4_path}")
                 return False
+                
+            # Check file size to ensure it's not empty or corrupted
+            mp4_size = mp4_path_obj.stat().st_size
+            if mp4_size < 10000:
+                logger.error(f"MP4 file is too small ({mp4_size} bytes), likely corrupted: {mp4_path}")
+                return False
+                
+            logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
             
             # Initialize chapters_path_obj
             chapters_path_obj = Path(chapters_path) if chapters_path else None
+            logger.debug(f"Using chapters file: {chapters_path}")
             
-            # Validate the MP4 file first
+            # Validate the MP4 file using ffprobe to ensure it's not corrupted
+            logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
             validate_cmd = [
                 "ffprobe",
                 "-v", "error",
@@ -1551,93 +1564,79 @@ class MetadataService:
             validate_stdout, validate_stderr = await validate_process.communicate()
             
             if validate_process.returncode != 0:
-                logger.error(f"MP4 file validation failed: {validate_stderr.decode('utf-8')}")
+                logger.error(f"MP4 file validation failed: {validate_stderr.decode('utf-8', errors='ignore')}")
                 return False
+                
+            logger.info(f"MP4 file validation successful with ffprobe")
             
             # Get stream and streamer information
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream {stream_id} not found for metadata embedding")
+                    logger.error(f"Stream not found with ID {stream_id}")
                     return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                if not streamer:
-                    logger.warning(f"Streamer not found for stream {stream_id}")
-                    return False
-                
-                # Get global settings to check if use_category_as_chapter_title is enabled
-                recording_settings = db.query(RecordingSettings).first()
-                use_category_as_chapter_title = False
-                if recording_settings and hasattr(recording_settings, 'use_category_as_chapter_title'):
-                    use_category_as_chapter_title = recording_settings.use_category_as_chapter_title
-                    logger.debug(f"Using category as chapter title: {use_category_as_chapter_title}")
+                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
             
             # Check if the chapters file exists and is valid
             has_chapters = False
-            if chapters_path_obj and chapters_path_obj.exists() and chapters_path_obj.stat().st_size > 0:
-                with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
-                    chapter_content = cf.read()
-                    # Check if the file actually contains chapters
-                    has_chapters = "[CHAPTER]" in chapter_content
-                
-                if not has_chapters:
-                    logger.warning(f"Chapters file exists but contains no chapters: {chapters_path}")
+            if chapters_path_obj and chapters_path_obj.exists():
+                with open(str(chapters_path_obj), 'r', encoding='utf-8') as f:
+                    chapter_lines = f.readlines()
+                has_chapters = len(chapter_lines) > 0
+                logger.info(f"Found chapters file with {len(chapter_lines)} lines")
+            else:
+                logger.info(f"No chapters file found at: {chapters_path}")
             
             # Create temporary metadata file with all metadata
             meta_path = mp4_path_obj.with_name(f"{mp4_path_obj.stem}-combined-metadata.txt")
+            logger.info(f"Creating combined metadata file: {meta_path}")
             
-            with open(meta_path, 'w', encoding='utf-8') as f:
+            with open(str(meta_path), 'w', encoding='utf-8') as f:
                 f.write(";FFMETADATA1\n")
-            
-                # Basic metadata
-                metadata = {
-                    "title": stream.title or f"{streamer.username} Stream",
-                    "artist": streamer.username,
-                    "album_artist": streamer.username,
-                    "album": f"{streamer.username} Streams",
-                    "genre": stream.category_name or "Livestream",
-                    "date": stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d"),
-                    "comment": f"Stream recorded by StreamVault | Category: {stream.category_name or 'Unknown'}",
-                    "show": f"{streamer.username} Streams",
-                    "network": "Twitch",
-                    "language": stream.language or "en",
-                    # Plex-specific tags
-                    "media_type": "tvshow",
-                    "year": stream.started_at.strftime("%Y") if stream.started_at else datetime.now().strftime("%Y"),
-                    "episode_id": f"S{stream.started_at.strftime('%Y%m%d') if stream.started_at else datetime.now().strftime('%Y%m%d')}",
-                    "season_number": stream.started_at.strftime("%Y%m") if stream.started_at else datetime.now().strftime("%Y%m"),
-                    "episode_sort": stream.started_at.strftime("%d") if stream.started_at else datetime.now().strftime("%d"),
-                    "encoded_by": "StreamVault",
-                    "encoding_tool": "StreamVault"
-                }
-            
-                # Write metadata
-                for key, value in metadata.items():
-                    if value:  # Only write if a value exists
-                        # Escape special characters
-                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
-                        f.write(f"{key}={value_escaped}\n")
-            
-                # Add chapters if the chapters file exists and is valid
-                if has_chapters:
-                    logger.info(f"Adding chapters from {chapters_path} to the metadata file")
-                    with open(chapters_path_obj, 'r', encoding='utf-8') as cf:
-                        chapter_lines = cf.readlines()
+                
+                # Add basic metadata
+                if stream:
+                    if stream.title:
+                        title = self._escape_ffmpeg_metadata(stream.title)
+                        f.write(f"title={title}\n")
                     
-                    # Only add [CHAPTER] sections, skip header
+                    if metadata and metadata.stream_id:
+                        f.write(f"comment=Stream ID: {metadata.stream_id}\n")
+                    
+                    if stream.started_at:
+                        date_str = stream.started_at.strftime("%Y-%m-%d")
+                        f.write(f"date={date_str}\n")
+                    
+                    if stream.category_name:
+                        genre = self._escape_ffmpeg_metadata(stream.category_name)
+                        f.write(f"genre={genre}\n")
+                
+                if streamer and streamer.username:
+                    artist = self._escape_ffmpeg_metadata(streamer.username)
+                    f.write(f"artist={artist}\n")
+                
+                # Add encoding metadata
+                f.write("encoded_by=StreamVault\n")
+                f.write("encoding_tool=StreamVault\n")
+                
+                # Add chapters if available
+                if has_chapters:
+                    f.write("\n")
                     in_header = True
+                    chapter_count = 0
                     for line in chapter_lines:
                         if line.strip() == "[CHAPTER]":  # New chapter begins
                             in_header = False
+                            chapter_count += 1
                         
                         if not in_header or line.strip() == "":  # Empty lines or chapter content
                             f.write(line)
+                    
+                    logger.info(f"Added {chapter_count} chapters to metadata file")
                 else:
                     logger.warning(f"No valid chapters file available: {chapters_path}")
-            
-            # Use the remux_file utility that follows TypeScript implementation
-            logger.info(f"Embedding metadata with remux_file method...")
             
             # Import remux function from utilities
             from app.utils.file_utils import remux_file
@@ -1645,40 +1644,98 @@ class MetadataService:
             temp_output = f"{str(mp4_path_obj)}.temp.mp4"
             streamer_name = streamer.username if streamer else "unknown"
             
-            # Call the remux_file utility
+            # Call the remux_file utility with logging service
+            logger.info(f"Embedding metadata with remux_file method...")
+            logger.debug(f"Starting remux process: input={mp4_path}, output={temp_output}, metadata={meta_path}")
+            
+            # Log metadata operation through the logging service
+            logging_service.ffmpeg_logger.info(f"Starting metadata embedding for {streamer_name}, file: {mp4_path}")
+            
+            # Log command details to ffmpeg log
+            ffmpeg_cmd = [
+                "ffmpeg", 
+                "-i", str(mp4_path_obj), 
+                "-i", str(meta_path), 
+                "-map_metadata", "1", 
+                "-c", "copy", 
+                "-movflags", "faststart", 
+                "-y", 
+                temp_output
+            ]
+            logging_service.log_ffmpeg_start("metadata_embed", ffmpeg_cmd, streamer_name)
+            
             result = await remux_file(
                 input_path=str(mp4_path_obj), 
                 output_path=temp_output,
                 overwrite=True, 
                 metadata_file=str(meta_path),
-                streamer_name=streamer_name
+                streamer_name=streamer_name,
+                logging_service=logging_service
             )
             
             success = False
-            if result["success"] and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
-                # Replace original with temp file
-                os.replace(temp_output, str(mp4_path_obj))
-                logger.info(f"Successfully embedded metadata into {mp4_path}")
-                success = True
+            if result["success"]:
+                # Verify the temp file exists and has reasonable size
+                if os.path.exists(temp_output):
+                    temp_file_size = os.path.getsize(temp_output)
+                    logger.info(f"Remux completed, temp file size: {temp_file_size} bytes")
+                    
+                    # Check if output file is not too small (which would indicate corruption)
+                    if temp_file_size > (mp4_size * 0.9):  # Should be at least 90% of original
+                        # Replace original with temp file
+                        logger.info(f"Temp file passed validation, replacing original file")
+                        os.replace(temp_output, str(mp4_path_obj))
+                        logger.info(f"Successfully embedded metadata into {mp4_path}")
+                        logging_service.ffmpeg_logger.info(f"Successfully embedded metadata for {streamer_name}: {mp4_path}")
+                        success = True
+                    else:
+                        error_msg = f"Output file appears corrupted: size {temp_file_size} bytes is significantly smaller than original {mp4_size} bytes"
+                        logger.error(error_msg)
+                        logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
+                        # Keep the original file, don't replace it
+                        if os.path.exists(temp_output):
+                            os.remove(temp_output)
+                else:
+                    error_msg = "Temp output file was not created"
+                    logger.error(error_msg)
+                    logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
             else:
-                logger.error(f"Failed to embed metadata: {result['stderr']}")
+                error_msg = f"Failed to embed metadata: {result.get('stderr', 'Unknown error')}"
+                logger.error(error_msg)
+                logging_service.ffmpeg_logger.error(f"Metadata embedding failed for {streamer_name}: {error_msg}")
+                # Clean up temp file if it exists despite failure
+                if os.path.exists(temp_output):
+                    os.remove(temp_output)
             
             # Delete temporary metadata file
-            if os.path.exists(meta_path):
-                os.remove(meta_path)
+            if os.path.exists(str(meta_path)):
+                os.remove(str(meta_path))
+                logger.debug(f"Deleted temporary metadata file: {meta_path}")
             
             # Update database
             if success:
+                logger.info(f"Updating database to mark metadata as embedded for stream {stream_id}")
                 with SessionLocal() as db:
-                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                    if metadata:
-                        metadata.metadata_embedded = True
+                    stream_metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if stream_metadata:
+                        stream_metadata.metadata_embedded = True
+                        stream_metadata.metadata_embedded_at = datetime.now(timezone.utc)
                         db.commit()
+                        logger.info(f"Updated database for stream {stream_id}, metadata marked as embedded")
+                        logging_service.ffmpeg_logger.info(f"Database updated for {streamer_name}, metadata marked as embedded for stream {stream_id}")
+                    else:
+                        logger.warning(f"No metadata record found for stream {stream_id}")
+                        logging_service.ffmpeg_logger.warning(f"No metadata record found for stream {stream_id} ({streamer_name})")
             
             # Create additional chapter files for various media servers
             if success:
-                await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title)
+                logger.info(f"Creating additional chapter files for media servers")
+                await self._create_media_server_chapters(stream_id, mp4_path, use_category_as_chapter_title=False)
+                logging_service.ffmpeg_logger.info(f"Created additional chapter files for stream {stream_id} ({streamer_name})")
             
+            status_str = 'Success' if success else 'Failed'
+            logger.info(f"Metadata embedding process completed with status: {status_str}")
+            logging_service.ffmpeg_logger.info(f"Metadata embedding process for {streamer_name} completed with status: {status_str}")
             return success
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
