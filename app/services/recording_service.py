@@ -2005,10 +2005,13 @@ class RecordingService:
                 }
                 
             logger.info(f"MP4 duration check passed: {mp4_duration:.2f}s")
+            
+            # Format the TS duration message properly with conditional
+            ts_duration_msg = f"{ts_duration:.2f}s" if ts_duration is not None else "unknown"
             self.activity_logger.log_process_monitoring(
                 streamer_name, 
                 "DURATION_CHECK_SUCCESS", 
-                f"MP4: {mp4_duration:.2f}s, TS: {ts_duration:.2f if ts_duration is not None else 'unknown'}s"
+                f"MP4: {mp4_duration:.2f}s, TS: {ts_duration_msg}"
             )
             
             return {
