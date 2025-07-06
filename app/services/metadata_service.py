@@ -772,10 +772,23 @@ class MetadataService:
                 str(thumbnail_path)
             ]
             
+            # Create a unique log file for this thumbnail extraction
+            streamer_name = video_path_obj.stem.split('-')[0] if '-' in video_path_obj.stem else 'unknown'
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ffmpeg_log_path = os.path.join('logs', 'ffmpeg', f"thumbnail_{streamer_name}_{timestamp}.log")
+            
+            # Ensure the log directory exists
+            os.makedirs(os.path.dirname(ffmpeg_log_path), exist_ok=True)
+            
+            # Set up environment for FFmpeg log
+            env = os.environ.copy()
+            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
+            
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                env=env
             )
             
             stdout, stderr = await process.communicate()
