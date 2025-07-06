@@ -94,12 +94,15 @@ async def remux_file(
         # Copy streams without re-encoding
         cmd.extend(["-c", "copy"])
         
-        # Add aac bitstream filter for non-audio containers
-        if not output_path.endswith('.aac'):
-            cmd.extend(["-bsf:a", "aac_adtstoasc"])
+        # Determine if this is a metadata embedding operation (MP4 to MP4)
+        is_metadata_embedding = metadata_file and input_path.endswith('.mp4') and output_path.endswith('.mp4')
         
         # Optimize for mp4 files with advanced options to prevent corruption
         if output_path.endswith('.mp4'):
+            # For TS to MP4 conversions, add the aac bitstream filter (needed for ADTS to ASC conversion)
+            if input_path.endswith('.ts') and not is_metadata_embedding:
+                cmd.extend(["-bsf:a", "aac_adtstoasc"])
+                
             # Better handling of timestamp issues and muxing
             cmd.extend(["-avoid_negative_ts", "make_zero"])  
             cmd.extend(["-map", "0:v:0?"])  # Map video if exists
