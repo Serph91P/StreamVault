@@ -119,31 +119,46 @@ async def remux_file(
         if overwrite or empty_file:
             cmd.append("-y")
         
-        # Add proper logging level with details
-        cmd.extend(["-loglevel", "info"])
-        cmd.extend(["-stats_period", "30"]) # Show stats every 30 seconds
-        
-        # Add report flag for detailed logs
-        cmd.extend(["-report"])
-        
-        # Add output path
-        cmd.append(output_path)
-        
-        # Generate a unique timestamp for this operation
+        # Generate a unique timestamp for this operation with more precision
         remux_timestamp = int(datetime.now().timestamp())
-        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         operation_id = f"remux_{streamer_name}_{timestamp_str}"
+        
+        # Make sure we have a valid streamer name
+        if not streamer_name or streamer_name.lower() == "none":
+            # Try to extract streamer name from input path
+            input_filename = os.path.basename(input_path)
+            name_parts = os.path.splitext(input_filename)[0].split('-')
+            if name_parts:
+                streamer_name = name_parts[0]
+            else:
+                streamer_name = "unknown"
         
         # Set up logging if the service is available
         ffmpeg_log_path = None
+        
+        # Add stats period for reporting
+        cmd.extend(["-stats_period", "30"]) # Show stats every 30 seconds
+        
+        # Add output path
+        cmd.append(output_path)
         if logging_service:
             # Create a unique log file for each remux operation with timestamp and streamer name
             log_prefix = "metadata" if metadata_file else "remux"
-            ffmpeg_log_path = logging_service.get_ffmpeg_log_path(f"{log_prefix}_{streamer_name}", streamer_name)
+            ffmpeg_log_path = logging_service.get_ffmpeg_log_path(f"{log_prefix}_{timestamp_str}", streamer_name)
+            
+            # Configure logging level based on whether we have a log file
+            if ffmpeg_log_path:
+                # Silent in the container, everything goes to log files
+                cmd.extend(["-loglevel", "quiet"])
+            else:
+                # If no log file, use info level for debugging
+                cmd.extend(["-loglevel", "info"])
             
             # Log the command in different formats for better traceability
             logging_service.ffmpeg_logger.info(f"[FFMPEG_{log_prefix.upper()}_START] {streamer_name} - {input_path} -> {output_path}")
-            logging_service.ffmpeg_logger.info(f"[FFMPEG_CMD] {' '.join(cmd)}")
+            logging_service.ffmpeg_logger.info(f"[FFMPEG_CMD] {streamer_name} - {' '.join(cmd)}")
+            # The log_ffmpeg_start will return a log path, but we already have one
             logging_service.log_ffmpeg_start(f"{log_prefix}", cmd, streamer_name)
             
             operation_type = "METADATA_EMBED_START" if metadata_file else "REMUX_START"
@@ -154,8 +169,11 @@ async def remux_file(
             if os.path.exists(input_path):
                 input_size = os.path.getsize(input_path)
                 logging_service.ffmpeg_logger.info(f"Input file: {input_path}, size: {input_size} bytes ({input_size/1024/1024:.2f} MB)")
+        else:
+            # No logging service, use info level for direct output
+            cmd.extend(["-loglevel", "info"])
         
-        logger.info(f"Starting FFmpeg {log_prefix if metadata_file else 'remux'}: {operation_id}")
+        logger.info(f"Starting FFmpeg {log_prefix if 'log_prefix' in locals() else 'remux'}: {operation_id}")
         logger.debug(f"Command: {' '.join(cmd)}")
         
         # Set environment variable for FFmpeg report - ensure the directory exists
@@ -165,23 +183,78 @@ async def remux_file(
             log_dir = os.path.dirname(ffmpeg_log_path)
             os.makedirs(log_dir, exist_ok=True)
             
-            # Configure FFmpeg to create a detailed report - ensure higher log level
+            # Configure FFmpeg to create a detailed report - ensure higher log level and no console output
+            # Remove 'append' parameter which causes warnings and ensure file path is properly formatted
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
+            
+            # Add specific environment variables to redirect logs to file only
+            env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
+            env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
+            
             logger.info(f"FFmpeg log will be written to: {ffmpeg_log_path}")
         
-        # Start the process
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env
-        )
+        # Create temporary files for stdout and stderr if needed to avoid logs in container
+        stdout_file = None
+        stderr_file = None
+        if ffmpeg_log_path:
+            # Create temporary files to capture stdout/stderr
+            stdout_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_stdout_", suffix=".log")
+            stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_stderr_", suffix=".log")
+            stdout_fd = stdout_file.fileno()
+            stderr_fd = stderr_file.fileno()
+            
+            # Start the process with redirected output
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=stdout_fd,
+                stderr=stderr_fd,
+                env=env
+            )
+            
+            # Close our file handles (subprocess still has them open)
+            stdout_file.close()
+            stderr_file.close()
+        else:
+            # Start the process with piped output if no log file is specified
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
         
         # Use a timeout to avoid hanging forever
         try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=7200)  # 2 hours timeout
-            stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
-            stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
+            if stdout_file and stderr_file:
+                # When using files, we still need to wait for the process to complete
+                exit_code = await asyncio.wait_for(process.wait(), timeout=7200)  # 2 hours timeout
+                
+                # Read output from the temporary files
+                with open(stdout_file.name, 'r', errors='ignore') as f:
+                    stdout_str = f.read()
+                with open(stderr_file.name, 'r', errors='ignore') as f:
+                    stderr_str = f.read()
+                    
+                # Append the output to the FFmpeg log file
+                if ffmpeg_log_path:
+                    with open(ffmpeg_log_path, 'a', errors='ignore') as f:
+                        f.write("\n\n--- STDOUT ---\n")
+                        f.write(stdout_str)
+                        f.write("\n\n--- STDERR ---\n")
+                        f.write(stderr_str)
+                        
+                # Clean up temporary files
+                try:
+                    os.unlink(stdout_file.name)
+                    os.unlink(stderr_file.name)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary stdout/stderr files: {e}")
+            else:
+                # Original method for piped output
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=7200)  # 2 hours timeout
+                stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
+                stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
+                
             exit_code = process.returncode or 0
         except asyncio.TimeoutError:
             logger.error(f"FFmpeg remux timed out after 2 hours: {input_path} to {output_path}")
@@ -190,6 +263,19 @@ async def remux_file(
                     process.kill()
                 except:
                     pass
+                    
+            # Clean up temp files if they exist
+            if stdout_file and os.path.exists(stdout_file.name):
+                try:
+                    os.unlink(stdout_file.name)
+                except Exception:
+                    pass
+            if stderr_file and os.path.exists(stderr_file.name):
+                try:
+                    os.unlink(stderr_file.name)
+                except Exception:
+                    pass
+                    
             stdout_str = ""
             stderr_str = "Process timed out after 2 hours"
             exit_code = -1
@@ -197,7 +283,8 @@ async def remux_file(
         # Log the process output if logging service available
         if logging_service:
             log_prefix = "metadata" if metadata_file else "remux"
-            logging_service.log_ffmpeg_output(f"{log_prefix}_{timestamp_str}", stdout, stderr, exit_code, streamer_name)
+            # Use the updated method that ensures streamer name is included
+            logging_service.log_ffmpeg_output(f"{log_prefix}", stdout_str, stderr_str, exit_code, streamer_name)
         
         # Basic success check
         basic_success = exit_code == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
