@@ -1877,6 +1877,11 @@ class RecordingService:
         Returns:
             bool: True if the MP4 file is valid, False otherwise
         """
+        # First, check if the file exists to avoid creating logs for non-existent files
+        if not os.path.isfile(mp4_path):
+            logger.warning(f"Cannot validate MP4: File does not exist: {mp4_path}")
+            return False
+            
         try:
             # Import logging service if needed
             from app.services.logging_service import logging_service
@@ -2071,7 +2076,31 @@ class RecordingService:
         Returns:
             Optional[float]: Duration in seconds, or None if it couldn't be determined
         """
+        # First check if file exists to avoid creating logs for non-existent files
+        if not os.path.isfile(file_path):
+            logger.warning(f"Cannot get duration: File does not exist: {file_path}")
+            return None
+            
         try:
+            # Extract streamer name from path if possible, fallback to system
+            path_parts = file_path.split(os.sep)
+            streamer_name = "system"
+            for part in path_parts:
+                if part and not part.startswith(".") and os.path.isdir(os.path.join("/", part)):
+                    streamer_name = part
+                    break
+                    
+            # Get a unique log file path for this ffprobe operation
+            from app.services.logging_service import LoggingService
+            log_service = LoggingService()
+            log_path = log_service.get_ffmpeg_log_path(
+                f"ffprobe_duration",
+                streamer_name
+            )
+            
+            # Ensure the log directory exists
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            
             cmd = [
                 "ffprobe",
                 "-v", "error",
@@ -2080,25 +2109,39 @@ class RecordingService:
                 file_path
             ]
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
-            
-            if process.returncode == 0 and stdout_str.strip():
-                try:
-                    duration = float(stdout_str.strip())
-                    return duration
-                except ValueError:
-                    logger.error(f"Could not parse duration from ffprobe output: {stdout_str}")
+            with open(log_path, "a") as log_file:
+                log_file.write(f"=== Duration check for {file_path} ===\n")
+                log_file.write(f"Command: {' '.join(cmd)}\n")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
+                stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
+                
+                # Log all output to the file
+                if stdout_str:
+                    log_file.write(f"STDOUT:\n{stdout_str}\n")
+                if stderr_str:
+                    log_file.write(f"STDERR:\n{stderr_str}\n")
+                
+                if process.returncode == 0 and stdout_str.strip():
+                    try:
+                        duration = float(stdout_str.strip())
+                        log_file.write(f"SUCCESS: Duration = {duration} seconds\n")
+                        return duration
+                    except ValueError:
+                        log_file.write(f"ERROR: Could not parse duration: {stdout_str}\n")
+                        logger.error(f"Could not parse duration from ffprobe output: {stdout_str}")
+                        return None
+                else:
+                    log_file.write(f"ERROR: ffprobe failed with return code {process.returncode}\n")
+                    logger.error(f"ffprobe failed to get duration: {stderr_str}")
                     return None
-            else:
-                logger.error(f"ffprobe failed to get duration: {stderr.decode('utf-8', errors='ignore') if stderr else ''}")
-                return None
         except Exception as e:
             logger.error(f"Error getting media duration: {e}")
             return None
