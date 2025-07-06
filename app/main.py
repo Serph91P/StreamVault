@@ -79,6 +79,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start log cleanup service: {e}")
     
+    # Start the recordings cleanup service
+    try:
+        from app.services.cleanup_service import CleanupService
+        
+        async def scheduled_recording_cleanup():
+            while True:
+                try:
+                    await CleanupService.run_scheduled_cleanup()
+                except Exception as e:
+                    logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
+                
+                # Run every 12 hours
+                await asyncio.sleep(12 * 3600)
+                
+        # Run the cleanup task - first cleanup and then schedule regular cleanups
+        logger.info("Starting scheduled recording cleanup service")
+        asyncio.create_task(scheduled_recording_cleanup())
+    except Exception as e:
+        logger.error(f"Failed to start recording cleanup service: {e}")
+    
     # Initialize EventSub subscriptions
     await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
