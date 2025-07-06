@@ -113,11 +113,11 @@ class Settings(BaseSettings):
     TWITCH_APP_SECRET: str
     BASE_URL: str
     WEBHOOK_URL: Optional[str] = None
-    DATABASE_URL: str
+    DATABASE_URL: Optional[str] = None
     LOG_LEVEL: str = "INFO"
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str    
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_DB: Optional[str] = None
     EVENTSUB_PORT: int = 8080
     EVENTSUB_SECRET: str = secrets.token_urlsafe(32)
     APPRISE_URLS: List[str] = []

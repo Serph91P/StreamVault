@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Optional
 from fastapi import HTTPException
 
 logger = logging.getLogger("streamvault")
@@ -143,7 +144,7 @@ def validate_and_resolve_path(path_string: str, base_dir: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
 
-def safe_file_access(base_dir: str, streamer_name: str, filename: str = None) -> Path:
+def safe_file_access(base_dir: str, streamer_name: str, filename: Optional[str] = None) -> Path:
     """
     Safely access a file with complete data flow isolation.
     This is the main function to use for file access with user input.
@@ -187,7 +188,7 @@ def safe_error_message(error: Exception, default_message: str = "An error occurr
     return default_message
 
 
-def list_safe_directory(base_dir: str, subdir: str = None) -> list:
+def list_safe_directory(base_dir: str, subdir: Optional[str] = None) -> list:
     """
     Safely list directory contents with no user data in path operations.
     

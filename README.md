@@ -308,6 +308,23 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+### Code Quality Tools
+
+We maintain high code quality standards with automated checks:
+
+```bash
+# Run all code quality checks locally
+python check_code_quality.py
+
+# Run specific checks
+python -m flake8 app            # Syntax checking
+python -m isort app/. --check   # Import order
+python -m black app --check     # Code formatting
+python -m mypy app/utils        # Type checking
+```
+
+All checks are automatically run in our GitHub Actions workflow, but you should verify your code passes locally before submitting PRs.
+
 ## 🔧 Configuration Reference
 
 ### Environment Variables

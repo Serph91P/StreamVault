@@ -18,6 +18,9 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, Base, engine
 from app.models import Stream, Streamer
 from app.services.recording_service import RecordingService
+import os
+import tempfile
+import shutil
 
 # Ensure the test database is clean before running tests
 
@@ -136,7 +139,138 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
         mock_find_mp4.assert_called_once()
         mock_ensure_ended.assert_called_once_with(self.stream_id, False)
         mock_generate_metadata.assert_called_once_with(self.stream_id, self.mock_mp4_path)
+        class TestRemuxToMp4WithLogging(unittest.TestCase):
+            
+            def setUp(self):
+                # Create a fresh recording service instance for each test
+                self.recording_service = RecordingService(config_manager=None, metadata_service=None, subprocess_manager=None)
+                
+                # Create temporary directory for test files
+                self.temp_dir = tempfile.mkdtemp()
+                # Create test TS file
+                self.test_ts_path = os.path.join(self.temp_dir, "test_stream.ts")
+                with open(self.test_ts_path, 'wb') as f:
+                    # Create a 2MB dummy file
+                    f.write(b'0' * (2 * 1024 * 1024))
+                
+                self.test_mp4_path = os.path.join(self.temp_dir, "test_stream.mp4")
 
+            def tearDown(self):
+                # Clean up temporary directory after tests
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+            
+            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording_service.os.remove')
+            async def test_successful_remux_removes_original_ts(self, mock_remove, mock_remux_file):
+                # Setup mock for successful remux
+                mock_remux_file.return_value = {"success": True, "exit_code": 0, "stderr": ""}
+                
+                # Create MP4 file with reasonable size (90% of TS size)
+                mp4_size = os.path.getsize(self.test_ts_path) * 0.9
+                with open(self.test_mp4_path, 'wb') as f:
+                    f.write(b'0' * int(mp4_size))
+                    
+                # Run the method
+                result = await self.recording_service._remux_to_mp4_with_logging(
+                    ts_path=self.test_ts_path,
+                    mp4_path=self.test_mp4_path,
+                    streamer_name="test_streamer"
+                )
+                
+                # Verify result
+                self.assertTrue(result)
+                mock_remux_file.assert_called_once()
+                mock_remove.assert_called_once_with(self.test_ts_path)
+            
+            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording_service.os.remove')
+            async def test_truncated_mp4_preserves_original_ts(self, mock_remove, mock_remux_file):
+                # Setup mock for successful remux but small output file
+                mock_remux_file.return_value = {"success": True, "exit_code": 0, "stderr": ""}
+                
+                # Create MP4 file with too small size (only 20% of TS)
+                mp4_size = os.path.getsize(self.test_ts_path) * 0.2
+                with open(self.test_mp4_path, 'wb') as f:
+                    f.write(b'0' * int(mp4_size))
+                    
+                # Run the method
+                result = await self.recording_service._remux_to_mp4_with_logging(
+                    ts_path=self.test_ts_path,
+                    mp4_path=self.test_mp4_path,
+                    streamer_name="test_streamer"
+                )
+                
+                # Verify result - should return False and not delete TS
+                self.assertFalse(result)
+                mock_remux_file.assert_called_once()
+                mock_remove.assert_not_called()
+            
+            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording_service.os.remove')
+            async def test_failed_remux_preserves_original_ts(self, mock_remove, mock_remux_file):
+                # Setup mock for failed remux
+                mock_remux_file.return_value = {
+                    "success": False, 
+                    "exit_code": 1, 
+                    "stderr": "Error: Malformed AAC bitstream detected"
+                }
+                
+                # Run the method
+                result = await self.recording_service._remux_to_mp4_with_logging(
+                    ts_path=self.test_ts_path,
+                    mp4_path=self.test_mp4_path,
+                    streamer_name="test_streamer"
+                )
+                
+                # Verify result - should return False and not delete TS
+                self.assertFalse(result)
+                mock_remux_file.assert_called_once()
+                mock_remove.assert_not_called()
+            
+            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording_service.logger.error')
+            async def test_exception_during_remux_handled_properly(self, mock_logger, mock_remux_file):
+                # Setup mock to raise exception
+                mock_remux_file.side_effect = Exception("Unexpected error during remux")
+                
+                # Run the method
+                result = await self.recording_service._remux_to_mp4_with_logging(
+                    ts_path=self.test_ts_path,
+                    mp4_path=self.test_mp4_path,
+                    streamer_name="test_streamer"
+                )
+                
+                # Verify result - should return False
+                self.assertFalse(result)
+                mock_remux_file.assert_called_once()
+                mock_logger.assert_called_once()
+                self.assertIn("Error during remux", mock_logger.call_args[0][0])
+            
+            @patch('app.services.recording_service.RecordingService.subprocess_manager.terminate_process', new_callable=AsyncMock)
+            async def test_subprocess_cleanup_after_remux(self, mock_terminate):
+                # Setup mock for terminate_process
+                mock_terminate.return_value = True
+                
+                # Patch remux_file to return success
+                with patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock) as mock_remux:
+                    mock_remux.return_value = {"success": True, "exit_code": 0, "stderr": ""}
+                    
+                    # Create MP4 file with reasonable size
+                    mp4_size = os.path.getsize(self.test_ts_path) * 0.9
+                    with open(self.test_mp4_path, 'wb') as f:
+                        f.write(b'0' * int(mp4_size))
+                        
+                    # Run the method
+                    await self.recording_service._remux_to_mp4_with_logging(
+                        ts_path=self.test_ts_path,
+                        mp4_path=self.test_mp4_path,
+                        streamer_name="test_streamer"
+                    )
+                    
+                    # Verify subprocess termination was called
+                    self.assertTrue(mock_terminate.called)
+                    # Check that the process_id starts with ffmpeg_remux
+                    self.assertTrue(mock_terminate.call_args[0][0].startswith("ffmpeg_remux_"))
 
 if __name__ == "__main__":
     # This is to ensure that asyncio event loop is managed correctly if tests are run directly

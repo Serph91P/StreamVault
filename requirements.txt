@@ -17,3 +17,4 @@ pillow==11.3.0
 alembic==1.13.1
 py-vapid==1.9.2
 cryptography==45.0.4
+psutil>=7.0.0

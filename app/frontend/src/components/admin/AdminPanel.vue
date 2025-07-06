@@ -26,6 +26,18 @@
           <span class="timestamp">{{ formatTime(healthStatus.timestamp) }}</span>
         </div>
         
+        <div class="health-legend">
+          <div class="legend-item">
+            <i class="fas fa-check-circle text-green"></i> Healthy
+          </div>
+          <div class="legend-item">
+            <i class="fas fa-exclamation-triangle text-yellow"></i> Warning
+          </div>
+          <div class="legend-item">
+            <i class="fas fa-times-circle text-red"></i> Error
+          </div>
+        </div>
+        
         <div class="health-checks">
           <div 
             v-for="(check, name) in healthStatus.checks" 
@@ -123,7 +135,7 @@
       <!-- Test Results -->
       <div v-if="testResults" class="test-results">
         <div class="results-summary">
-          <h3>Test Results Summary</h3>
+          <h3 class="summary-title">Test Results Summary</h3>
           <div class="summary-stats">
             <div class="stat passed">
               <i class="fas fa-check-circle"></i>
@@ -439,6 +451,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+:root {
+  --color-border-light: rgba(127, 127, 127, 0.2);
+  --color-text-dark: #222;
+}
+
 .admin-panel {
   padding: 20px;
   max-width: 1200px;
@@ -451,12 +468,12 @@ onMounted(() => {
 }
 
 .header h1 {
-  color: #2c3e50;
+  color: var(--color-heading);
   margin-bottom: 5px;
 }
 
 .subtitle {
-  color: #7f8c8d;
+  color: var(--color-text-light);
   font-size: 1.1em;
 }
 
@@ -468,7 +485,7 @@ onMounted(() => {
 }
 
 .section-header h2 {
-  color: #34495e;
+  color: var(--color-heading);
   margin: 0;
 }
 
@@ -502,11 +519,11 @@ onMounted(() => {
 
 /* Health Status */
 .health-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .health-status {
@@ -515,9 +532,21 @@ onMounted(() => {
   border-radius: 5px;
 }
 
-.health-status.healthy { background: #d4edda; border-left: 4px solid #27ae60; }
-.health-status.warning { background: #fff3cd; border-left: 4px solid #f39c12; }
-.health-status.unhealthy { background: #f8d7da; border-left: 4px solid #e74c3c; }
+.health-status.healthy { 
+  background: rgba(39, 174, 96, 0.2); 
+  border-left: 4px solid #27ae60; 
+  color: var(--color-text);
+}
+.health-status.warning { 
+  background: rgba(243, 156, 18, 0.2); 
+  border-left: 4px solid #f39c12; 
+  color: var(--color-text);
+}
+.health-status.unhealthy { 
+  background: rgba(231, 76, 60, 0.2); 
+  border-left: 4px solid #e74c3c; 
+  color: var(--color-text);
+}
 
 .status-indicator {
   display: flex;
@@ -525,6 +554,34 @@ onMounted(() => {
   gap: 10px;
   margin-bottom: 15px;
   font-weight: 600;
+  font-size: 1.2em;
+}
+
+.status-text {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.timestamp {
+  font-weight: normal;
+  font-size: 0.8em;
+  opacity: 0.8;
+  margin-left: 15px;
+}
+
+.health-legend {
+  display: flex;
+  gap: 15px;
+  margin: 5px 0 15px;
+  justify-content: flex-end;
+  font-size: 0.9em;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.8;
 }
 
 .health-checks {
@@ -537,21 +594,43 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
+  padding: 10px;
   border-radius: 4px;
+  margin-bottom: 5px;
 }
 
-.health-check.healthy { background: rgba(39, 174, 96, 0.1); }
-.health-check.warning { background: rgba(243, 156, 18, 0.1); }
-.health-check.error { background: rgba(231, 76, 60, 0.1); }
+.check-name {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.check-message {
+  opacity: 0.9;
+}
+
+.health-check.healthy { 
+  background: rgba(39, 174, 96, 0.15); 
+  border-left: 3px solid #27ae60;
+  padding-left: 10px;
+}
+.health-check.warning { 
+  background: rgba(243, 156, 18, 0.15); 
+  border-left: 3px solid #f39c12;
+  padding-left: 10px;
+}
+.health-check.error { 
+  background: rgba(231, 76, 60, 0.15); 
+  border-left: 3px solid #e74c3c;
+  padding-left: 10px;
+}
 
 /* System Info */
 .system-info-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .system-info-grid {
@@ -561,7 +640,7 @@ onMounted(() => {
 }
 
 .info-card {
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   padding: 15px;
   border-radius: 5px;
   border-left: 4px solid #3498db;
@@ -569,7 +648,7 @@ onMounted(() => {
 
 .info-card h3 {
   margin-top: 0;
-  color: #2c3e50;
+  color: var(--color-heading);
 }
 
 .info-card ul {
@@ -584,11 +663,11 @@ onMounted(() => {
 
 /* Test Suite */
 .test-suite-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .test-controls {
@@ -618,6 +697,13 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.summary-title {
+  color: var(--color-heading);
+  font-size: 1.4em;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
 .summary-stats {
   display: flex;
   gap: 20px;
@@ -631,17 +717,40 @@ onMounted(() => {
   padding: 15px;
   border-radius: 5px;
   min-width: 80px;
+  color: var(--color-text-dark);
+  font-weight: 500;
 }
 
-.stat.passed { background: #d4edda; }
-.stat.failed { background: #f8d7da; }
-.stat.total { background: #e2e3e5; }
-.stat.success-rate { background: #cce5ff; }
+.stat.passed { 
+  background: rgba(39, 174, 96, 0.25); 
+  border: 1px solid rgba(39, 174, 96, 0.5);
+}
+.stat.failed { 
+  background: rgba(231, 76, 60, 0.25);
+  border: 1px solid rgba(231, 76, 60, 0.5);
+}
+.stat.total { 
+  background: rgba(52, 73, 94, 0.25);
+  border: 1px solid rgba(52, 73, 94, 0.5);
+}
+.stat.success-rate { 
+  background: rgba(52, 152, 219, 0.25);
+  border: 1px solid rgba(52, 152, 219, 0.5);
+}
 
 .stat .count {
-  font-size: 1.5em;
+  font-size: 1.8em;
   font-weight: bold;
   margin: 5px 0;
+  color: var(--color-text-dark);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.stat .label {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.5px;
 }
 
 .results-filters {
@@ -652,16 +761,24 @@ onMounted(() => {
 
 .filter-btn {
   padding: 8px 16px;
-  border: 1px solid #ddd;
-  background: white;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
   border-radius: 4px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: var(--color-background-soft);
 }
 
 .filter-btn.active {
   background: #3498db;
   color: white;
-  border-color: #3498db;
+  border-color: #2980b9;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .test-results-list {
@@ -670,46 +787,63 @@ onMounted(() => {
 }
 
 .test-result-item {
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  margin-bottom: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  margin-bottom: 15px;
   overflow: hidden;
+  transition: transform 0.2s ease-in-out;
 }
 
-.test-result-item.passed { border-left: 4px solid #27ae60; }
-.test-result-item.failed { border-left: 4px solid #e74c3c; }
+.test-result-item:hover {
+  transform: translateY(-2px);
+}
+
+.test-result-item.passed { 
+  border-left: 4px solid #27ae60; 
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.test-result-item.failed { 
+  border-left: 4px solid #e74c3c;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
 
 .result-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 15px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
 }
 
 .test-name {
-  font-weight: 500;
+  font-weight: 600;
   flex: 1;
+  color: var(--color-heading);
 }
 
 .test-time {
   font-size: 0.9em;
-  color: #6c757d;
+  color: var(--color-text-light);
+  font-weight: 500;
 }
 
 .result-message {
-  padding: 10px 15px;
+  padding: 12px 15px;
+  font-size: 1.05em;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .result-details {
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--color-border-light);
 }
 
 .details-toggle {
   width: 100%;
   padding: 8px 15px;
   border: none;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
   display: flex;
@@ -719,7 +853,7 @@ onMounted(() => {
 
 .details-content {
   padding: 15px;
-  background: #f1f3f4;
+  background: var(--color-background-mute);
   max-height: 300px;
   overflow-y: auto;
 }
@@ -733,7 +867,7 @@ onMounted(() => {
 .available-tests {
   margin-top: 20px;
   padding: 20px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   border-radius: 5px;
 }
 
@@ -744,7 +878,7 @@ onMounted(() => {
 }
 
 .test-category h4 {
-  color: #2c3e50;
+  color: var(--color-heading);
   margin-bottom: 10px;
 }
 
@@ -760,11 +894,11 @@ onMounted(() => {
 
 /* Maintenance */
 .maintenance-section {
-  background: white;
+  background: var(--color-background-soft);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .maintenance-actions {
@@ -774,10 +908,11 @@ onMounted(() => {
 }
 
 .cleanup-result {
-  background: #e8f5e8;
+  background: rgba(46, 204, 113, 0.15);
   padding: 15px;
   border-radius: 5px;
-  border-left: 4px solid #27ae60;
+  border-left: 4px solid #2ecc71;
+  color: var(--color-text);
 }
 
 .error-list {
@@ -800,7 +935,7 @@ onMounted(() => {
 }
 
 .modal {
-  background: white;
+  background: var(--color-background);
   border-radius: 8px;
   width: 90%;
   max-width: 800px;
@@ -814,7 +949,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .close-btn {
@@ -864,10 +999,10 @@ onMounted(() => {
 }
 
 /* Utility classes */
-.text-green { color: #27ae60; }
-.text-yellow { color: #f39c12; }
+.text-green { color: #2ecc71; }
+.text-yellow { color: #f1c40f; }
 .text-red { color: #e74c3c; }
-.text-gray { color: #6c757d; }
+.text-gray { color: #95a5a6; }
 
 .error {
   color: #e74c3c;

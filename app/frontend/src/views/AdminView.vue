@@ -11,7 +11,8 @@ import AdminPanel from '../components/admin/AdminPanel.vue'
 <style scoped>
 .admin-view {
   min-height: 100vh;
-  background: #f8f9fa;
+  background: var(--color-background);
+  color: var(--color-text);
   padding-top: 20px;
 }
 </style>
