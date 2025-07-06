@@ -1,7 +1,9 @@
 import os
 import logging
 import asyncio
-from datetime import datetime, timezone
+import time
+import re
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
@@ -18,11 +20,18 @@ class LoggingService:
         self.ffmpeg_logs_dir = self.logs_base_dir / "ffmpeg"
         self.app_logs_dir = self.logs_base_dir / "app"
         
+        # Log retention settings
+        self.streamer_log_retention_days = 14  # Keep streamer-specific logs for 14 days
+        self.system_log_retention_days = 30    # Keep system logs for 30 days
+        
         # Create directories
         self._ensure_log_directories()
         
         # Initialize loggers
         self._setup_loggers()
+        
+        # Clean up old logs on initialization
+        self.cleanup_old_logs()
     
     def _ensure_log_directories(self):
         """Create log directories if they don't exist"""
@@ -81,16 +90,23 @@ class LoggingService:
     def get_streamlink_log_path(self, streamer_name: str) -> str:
         """Get log file path for a specific streamer's streamlink session"""
         today = datetime.now().strftime("%Y-%m-%d")
-        log_file = self.streamlink_logs_dir / f"{streamer_name}_{today}.log"
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Format consistently with FFmpeg logs: streamer_streamlink_timestamp_date.log
+        streamer_name = streamer_name.replace(" ", "_")  # Remove spaces from streamer name
+        log_file = self.streamlink_logs_dir / f"{streamer_name}_streamlink_{timestamp_str}_{today}.log"
         return str(log_file)
     
     def get_ffmpeg_log_path(self, operation: str, streamer_name: str) -> str:
         """Get log file path for FFmpeg operations with mandatory streamer name"""
         today = datetime.now().strftime("%Y-%m-%d")
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Always include the streamer name in the log file path for better organization
-        # Add timestamp to ensure unique files even for same-day operations
-        log_file = self.ffmpeg_logs_dir / f"{operation}_{streamer_name}_{today}_{timestamp_str}.log"
+        
+        # Place streamer name first for better organization and visual scanning
+        # Format: streamer_operation_timestamp_date.log
+        # This makes it easier to find logs for a specific streamer
+        streamer_name = streamer_name.replace(" ", "_")  # Remove spaces from streamer name
+        log_file = self.ffmpeg_logs_dir / f"{streamer_name}_{operation}_{timestamp_str}_{today}.log"
         return str(log_file)
     
     def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
@@ -138,19 +154,116 @@ class LoggingService:
             else:
                 self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
     
-    def cleanup_old_logs(self, days_to_keep: int = 30):
-        """Clean up log files older than specified days"""
+    def cleanup_old_logs(self):
+        """Clean up old log files based on retention settings.
+        
+        This removes:
+        - Old streamer-specific FFmpeg log files older than streamer_log_retention_days
+        - Old streamer-specific Streamlink log files older than streamer_log_retention_days
+        - Keeps main system logs according to system_log_retention_days
+        """
         try:
-            import time
-            cutoff_time = time.time() - (days_to_keep * 24 * 60 * 60)
+            logger.info(f"Starting log cleanup. Retention: streamer logs={self.streamer_log_retention_days} days, system logs={self.system_log_retention_days} days")
             
-            for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
-                for log_file in log_dir.glob("*.log*"):
-                    if log_file.stat().st_mtime < cutoff_time:
-                        log_file.unlink()
-                        logger.info(f"Cleaned up old log file: {log_file}")
+            # Clean FFmpeg logs
+            self._cleanup_directory(
+                self.ffmpeg_logs_dir, 
+                self.streamer_log_retention_days,
+                self.system_log_retention_days
+            )
+            
+            # Clean Streamlink logs
+            self._cleanup_directory(
+                self.streamlink_logs_dir, 
+                self.streamer_log_retention_days,
+                self.system_log_retention_days
+            )
+            
+            # Clean App logs (all considered system logs)
+            self._cleanup_directory(
+                self.app_logs_dir, 
+                self.system_log_retention_days,
+                self.system_log_retention_days
+            )
+            
+            logger.info("Log cleanup completed")
         except Exception as e:
-            logger.error(f"Error cleaning up old logs: {e}", exc_info=True)
+            logger.error(f"Error during log cleanup: {e}", exc_info=True)
+    
+    def _is_system_log(self, filename: str) -> bool:
+        """Determine if a file is a system log or a streamer-specific log.
+        
+        Args:
+            filename: The filename to check
+            
+        Returns:
+            bool: True if it's a system log, False if it's a streamer-specific log
+        """
+        system_log_patterns = [
+            r"ffmpeg_system",
+            r"streamlink\.log",
+            r"recording_activity",
+        ]
+        
+        for pattern in system_log_patterns:
+            if re.search(pattern, filename):
+                return True
+                
+        return False
+
+    def _cleanup_directory(self, directory: Path, streamer_retention_days: int, system_retention_days: int):
+        """Clean up log files in a directory based on retention days.
+        
+        Args:
+            directory: Directory to clean up
+            streamer_retention_days: Days to retain streamer-specific logs
+            system_retention_days: Days to retain system logs
+        """
+        if not directory.exists():
+            return
+            
+        now = datetime.now()
+        streamer_cutoff = now - timedelta(days=streamer_retention_days)
+        system_cutoff = now - timedelta(days=system_retention_days)
+        
+        deleted_count = 0
+        skipped_count = 0
+        
+        for log_file in directory.glob("*.log*"):
+            try:
+                # Check file modification time
+                mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
+                
+                # Determine if this is a system log or a streamer log
+                is_system = self._is_system_log(log_file.name)
+                
+                # Check against the appropriate cutoff date
+                cutoff = system_cutoff if is_system else streamer_cutoff
+                
+                if mtime < cutoff:
+                    # Log file is older than the cutoff, delete it
+                    os.remove(log_file)
+                    deleted_count += 1
+                else:
+                    skipped_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error processing log file {log_file}: {e}", exc_info=True)
+        
+        logger.info(f"Cleaned {directory}: deleted {deleted_count} log files, kept {skipped_count}")
+    
+    async def _schedule_cleanup(self, interval_hours: int = 24):
+        """Schedule periodic log cleanup.
+        
+        Args:
+            interval_hours: How often to run cleanup (in hours)
+        """
+        while True:
+            # Sleep for the specified interval
+            await asyncio.sleep(interval_hours * 3600)
+            
+            # Run cleanup
+            self.cleanup_old_logs()
     
     # === Recording Activity Logging Methods ===
     
