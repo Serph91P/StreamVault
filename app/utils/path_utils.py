@@ -100,7 +100,7 @@ def generate_filename(
         "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
         "id": stream_data.get("id", ""),
         "season": f"S{now.year}{now.month:02d}",  # Season without hyphen
-        "episode": f"E{episode}",  # Add prefix E to episode number
+        "episode": episode,  # Episode number without prefix, templates already include E
     }
 
     # Check if template is a preset name

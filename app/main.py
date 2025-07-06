@@ -68,6 +68,17 @@ async def lifespan(app: FastAPI):
     
     event_registry = await get_event_registry()
     
+    # Start log cleanup service
+    try:
+        from app.services.logging_service import LoggingService
+        logging_service = LoggingService()
+        # Run cleanup once on startup and schedule daily cleanups
+        asyncio.create_task(asyncio.to_thread(logging_service.cleanup_old_logs))
+        asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
+        logger.info("Scheduled log cleanup service started (will run daily)")
+    except Exception as e:
+        logger.error(f"Failed to start log cleanup service: {e}")
+    
     # Initialize EventSub subscriptions
     await event_registry.initialize_eventsub()
     logger.info("Application startup complete")
