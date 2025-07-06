@@ -48,10 +48,10 @@ class LoggingService:
         self.streamlink_logger.addHandler(streamlink_handler)
         self.streamlink_logger.setLevel(logging.DEBUG)
         
-        # FFmpeg logger
+        # FFmpeg logger (now streamer-specific, so this is for general/fallback messages only)
         self.ffmpeg_logger = logging.getLogger("streamvault.ffmpeg")
         ffmpeg_handler = TimedRotatingFileHandler(
-            self.ffmpeg_logs_dir / "ffmpeg.log",
+            self.ffmpeg_logs_dir / "ffmpeg_system.log",  # Changed from generic ffmpeg.log
             when="midnight",
             interval=1,
             backupCount=30,
@@ -84,13 +84,13 @@ class LoggingService:
         log_file = self.streamlink_logs_dir / f"{streamer_name}_{today}.log"
         return str(log_file)
     
-    def get_ffmpeg_log_path(self, operation: str, identifier: Optional[str] = None) -> str:
-        """Get log file path for FFmpeg operations"""
+    def get_ffmpeg_log_path(self, operation: str, streamer_name: str) -> str:
+        """Get log file path for FFmpeg operations with mandatory streamer name"""
         today = datetime.now().strftime("%Y-%m-%d")
-        if identifier:
-            log_file = self.ffmpeg_logs_dir / f"{operation}_{identifier}_{today}.log"
-        else:
-            log_file = self.ffmpeg_logs_dir / f"{operation}_{today}.log"
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Always include the streamer name in the log file path for better organization
+        # Add timestamp to ensure unique files even for same-day operations
+        log_file = self.ffmpeg_logs_dir / f"{operation}_{streamer_name}_{today}_{timestamp_str}.log"
         return str(log_file)
     
     def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
@@ -113,21 +113,26 @@ class LoggingService:
             else:
                 self.streamlink_logger.error(f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}")
     
-    def log_ffmpeg_start(self, operation: str, cmd: List[str], identifier: Optional[str] = None):
-        """Log FFmpeg command start"""
-        self.ffmpeg_logger.info(f"Starting {operation} operation" + (f" for {identifier}" if identifier else ""))
+    def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
+        """Log FFmpeg command start with mandatory streamer name"""
+        self.ffmpeg_logger.info(f"Starting {operation} operation for streamer: {streamer_name}")
         self.ffmpeg_logger.info(f"Command: {' '.join(cmd)}")
+        
+        # Generate a streamer-specific log filename for this operation
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = self.get_ffmpeg_log_path(f"{operation}_{timestamp_str}", streamer_name)
+        return log_path
     
-    def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, identifier: Optional[str] = None):
-        """Log FFmpeg process output"""
-        prefix = f"[{operation}" + (f"_{identifier}" if identifier else "") + "]"
+    def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, streamer_name: str):
+        """Log FFmpeg process output with mandatory streamer name"""
+        prefix = f"[{operation}_{streamer_name}]"
         
         if stdout:
-            stdout_text = stdout.decode("utf-8", errors="ignore")
+            stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
             self.ffmpeg_logger.info(f"{prefix} STDOUT:\n{stdout_text}")
         
         if stderr:
-            stderr_text = stderr.decode("utf-8", errors="ignore")
+            stderr_text = stderr.decode("utf-8", errors="ignore") if isinstance(stderr, bytes) else stderr
             if exit_code == 0:
                 self.ffmpeg_logger.info(f"{prefix} STDERR:\n{stderr_text}")
             else:
