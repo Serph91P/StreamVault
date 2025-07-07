@@ -109,14 +109,15 @@
             
             <div class="expand-controls">
               <div class="quick-actions">
-                <!-- Quick action buttons -->
+                <!-- Action buttons with larger, more visible icons -->
                 <button 
                   v-if="stream.ended_at"
                   @click.stop="watchVideo(stream)" 
                   class="btn-icon btn-primary"
                   title="Watch Video"
+                  aria-label="Watch Video"
                 >
-                  <i class="fas fa-play"></i>
+                  <i class="fas fa-play fa-lg"></i>
                 </button>
                 
                 <button 
@@ -124,15 +125,22 @@
                   class="btn-icon btn-danger" 
                   :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
                   title="Delete Stream"
+                  aria-label="Delete Stream"
                 >
-                  <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
-                  <i v-else class="fas fa-trash-alt"></i>
+                  <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin fa-lg"></i>
+                  <i v-else class="fas fa-trash-alt fa-lg"></i>
+                </button>
+                
+                <button
+                  class="btn-icon btn-secondary"
+                  @click.stop="toggleStreamExpansion(stream.id)" 
+                  title="Toggle Details" 
+                  aria-label="Toggle Details"
+                >
+                  <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
                 </button>
               </div>
-              
-              <button class="expand-btn" @click.stop="toggleStreamExpansion(stream.id)">
-                <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
-              </button>
+
             </div>
           </div>
           
@@ -883,13 +891,13 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-compact-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  gap: 12px;
+  padding: 14px 16px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
   min-width: 0; /* Allow flex container to shrink */
+  position: relative;
 }
 
 .stream-compact-header:hover {
@@ -898,18 +906,19 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 40px;  /* Ensure the thumbnail has a defined width */
-  height: 53px; /* Ensure the thumbnail has a defined height */
+  width: 48px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
+  margin-right: 12px;
 }
 
 .category-image-small {
-  width: 40px;
-  height: 53px;
+  width: 48px;
+  height: 64px;
   overflow: hidden;
   border-radius: 6px;
   background-color: #121214;
@@ -918,14 +927,16 @@ const handleImageError = (event: Event, categoryName: string) => {
   justify-content: center;
   position: relative;
   z-index: 1;
-  border: 1px solid #333; /* Add a subtle border to make it visible */
+  border: 1px solid #333;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .category-image-small img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  border-radius: 6px;
+  object-fit: cover; /* Changed to cover to maintain aspect ratio and fill container */
+  border-radius: 5px;
+  padding: 0; /* Removed padding to use full space */
 }
 
 .category-placeholder {
@@ -1010,44 +1021,65 @@ const handleImageError = (event: Event, categoryName: string) => {
 .expand-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .quick-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  align-items: center;
 }
 
 .btn-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: 1.1rem;
   transition: all 0.2s ease;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
 .btn-icon.btn-primary {
-  background: #007bff;
+  background: #1a73e8;
   color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .btn-icon.btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: #1557b0;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
 }
 
 .btn-icon.btn-danger {
-  background: #dc3545;
+  background: #e02c40;
   color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .btn-icon.btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: #ba1f30;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn-icon.btn-secondary {
+  background: #323232;
+  color: #e0e0e0;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-icon.btn-secondary:hover:not(:disabled) {
+  background: #3d3d3d;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
 }
 
 .btn-icon:disabled {
