@@ -69,19 +69,22 @@
             <!-- Left: Category Image -->
             <div class="stream-thumbnail">
               <div v-if="stream.category_name" class="category-image-container">
-                <!-- Always try to show the image first -->
-                <img 
-                  :src="`/images/categories/${stream.category_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.jpg`"
-                  :alt="stream.category_name" 
-                  @error="handleImageError($event, stream.category_name)"
-                  loading="lazy"
-                  class="category-image"
-                />
-                <!-- Fallback icon (hidden by default) -->
-                <i 
-                  class="category-icon-fallback fas fa-gamepad"
-                  style="display: none;"
-                ></i>
+                <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
+                  <!-- Icon fallback -->
+                  <div class="category-icon-wrapper">
+                    <i :class="`fas ${getCategoryImageSrc(stream.category_name).replace('icon:', '')}`"></i>
+                  </div>
+                </template>
+                <template v-else>
+                  <!-- Real image -->
+                  <img 
+                    :src="getCategoryImageSrc(stream.category_name)"
+                    :alt="stream.category_name" 
+                    @error="handleImageError($event, stream.category_name)"
+                    loading="lazy"
+                    class="category-image"
+                  />
+                </template>
               </div>
               <div v-else class="category-placeholder">
                 <i class="fas fa-video"></i>
@@ -317,6 +320,11 @@ const expandedStreams = ref<Record<number, boolean>>({})
 const hasLiveStreams = computed(() => {
   return streams.value.some(stream => !stream.ended_at)
 })
+
+// Category image handling
+const getCategoryImageSrc = (categoryName: string): string => {
+  return getCategoryImage(categoryName)
+}
 
 // Formatierungsfunktionen
 const formatDate = (date: string | undefined | null): string => {
@@ -707,14 +715,19 @@ const handleImageError = (event: Event, categoryName: string) => {
   
   console.error(`Failed to load category image for: ${categoryName}`);
   
-  // Hide the image and show the fallback icon
+  // Hide the image
   img.style.display = 'none';
   
+  // Show fallback icon by replacing the image with an icon wrapper
   if (container) {
-    const fallbackIcon = container.querySelector('.category-icon-fallback') as HTMLElement;
-    if (fallbackIcon) {
-      fallbackIcon.style.display = 'block';
-    }
+    const iconWrapper = document.createElement('div');
+    iconWrapper.className = 'category-icon-wrapper';
+    
+    const icon = document.createElement('i');
+    icon.className = `fas ${getCategoryImage(categoryName).replace('icon:', '')}`;
+    
+    iconWrapper.appendChild(icon);
+    container.appendChild(iconWrapper);
   }
 }
 </script>
@@ -924,8 +937,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-container {
-  width: 80px;
-  height: 80px;
+  width: 120px;  /* Increased width for 16:9 ratio */
+  height: 68px;  /* 120 * 9/16 = 67.5, rounded to 68 */
   border-radius: 8px;
   overflow: hidden;
   background-color: #121214;
@@ -934,6 +947,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .category-image {
@@ -943,22 +957,29 @@ const handleImageError = (event: Event, categoryName: string) => {
   display: block;
 }
 
-.category-icon-fallback {
-  font-size: 32px;
-  color: #9146FF;
+.category-icon-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6441a5, #9146ff);
+  color: white;
+  font-size: 24px;
 }
 
 .category-placeholder {
-  width: 80px;
-  height: 80px;
+  width: 120px;  /* Match the new container width */
+  height: 68px;   /* Match the new container height */
   background: linear-gradient(45deg, #333, #444);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #aaa;
-  font-size: 28px;
+  font-size: 20px;
   border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Center: Stream Info */
@@ -1273,13 +1294,17 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
   
   .stream-thumbnail {
-    width: 60px;
-    height: 60px;
+    width: 100px;   /* Increased for mobile 16:9 */
+    height: 56px;   /* 100 * 9/16 = 56.25, rounded to 56 */
   }
   
   .category-image-container, .category-placeholder {
-    width: 60px;
-    height: 60px;
+    width: 100px;   /* Match thumbnail width */
+    height: 56px;   /* Match thumbnail height */
+  }
+  
+  .category-icon-wrapper {
+    font-size: 20px;  /* Smaller icon for mobile */
   }
   
   .stream-title {
