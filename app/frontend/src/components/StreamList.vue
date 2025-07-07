@@ -126,7 +126,7 @@
                 v-if="stream.ended_at"
                 @click.stop="watchVideo(stream)" 
                 class="action-btn play-btn"
-                title="Watch Video"
+                title="Video abspielen"
               >
                 <i class="fas fa-play"></i>
               </button>
@@ -135,16 +135,16 @@
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
                 :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
-                title="Delete Stream"
+                title="Stream löschen"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
-                <i v-else class="fas fa-trash-alt"></i>
+                <i v-else class="fas fa-trash"></i>
               </button>
               
               <button
                 class="action-btn expand-btn"
                 @click.stop="toggleStreamExpansion(stream.id)" 
-                title="Toggle Details"
+                :title="expandedStreams[stream.id] ? 'Details einklappen' : 'Details anzeigen'"
               >
                 <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
               </button>
@@ -1058,7 +1058,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 .action-btn {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
   display: flex;
@@ -1066,49 +1066,73 @@ const handleImageError = (event: Event, categoryName: string) => {
   justify-content: center;
   font-size: 1rem;
   transition: all 0.2s ease;
-  background: #333;
+  background: #444;
   color: #fff;
+  position: relative;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .play-btn {
-  background: #1a73e8;
+  background: #28a745;
+  color: white;
 }
 
-.play-btn:hover {
-  background: #1557b0;
-  transform: translateY(-1px);
+.play-btn:hover:not(:disabled) {
+  background: #218838;
 }
 
 .delete-btn {
-  background: #e02c40;
+  background: #dc3545;
+  color: white;
 }
 
 .delete-btn:hover:not(:disabled) {
-  background: #ba1f30;
-  transform: translateY(-1px);
+  background: #c82333;
 }
 
 .expand-btn {
-  background: #444;
+  background: #6c757d;
+  color: white;
 }
 
 .expand-btn:hover {
-  background: #555;
-  transform: translateY(-1px);
-}
-
-.expand-btn .rotated {
-  transform: rotate(180deg);
+  background: #5a6268;
 }
 
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 /* Icon animations */
-.fa-play, .fa-trash-alt, .fa-chevron-down {
+.fa-play, .fa-trash, .fa-chevron-down {
   transition: transform 0.2s ease;
+}
+
+.expand-btn .fa-chevron-down.rotated {
+  transform: rotate(180deg);
+}
+
+/* Tooltip improvements */
+.action-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
 }
 
 /* Expanded Content */
