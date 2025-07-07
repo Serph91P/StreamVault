@@ -66,19 +66,21 @@
           
           <!-- Compact Header -->
           <div class="stream-compact-header" @click="toggleStreamExpansion(stream.id)">
+            <!-- Left: Category Image -->
             <div class="stream-thumbnail">
-              <div v-if="stream.category_name" class="category-image-small">
+              <div v-if="stream.category_name" class="category-image-container">
+                <!-- Always try to show the image first -->
                 <img 
-                  v-if="!getCategoryImage(stream.category_name).startsWith('icon:')"
-                  :src="getCategoryImage(stream.category_name)" 
+                  :src="`/images/categories/${stream.category_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.jpg`"
                   :alt="stream.category_name" 
                   @error="handleImageError($event, stream.category_name)"
                   loading="lazy"
+                  class="category-image"
                 />
+                <!-- Fallback icon (hidden by default) -->
                 <i 
-                  v-else
-                  :class="getCategoryImage(stream.category_name).replace('icon:', 'fas ')" 
-                  class="category-icon"
+                  class="category-icon-fallback fas fa-gamepad"
+                  style="display: none;"
                 ></i>
               </div>
               <div v-else class="category-placeholder">
@@ -86,7 +88,8 @@
               </div>
             </div>
             
-            <div class="stream-summary">
+            <!-- Center: Stream Info -->
+            <div class="stream-info">
               <div class="stream-badges">
                 <span class="status-badge" :class="{ 'live': !stream.ended_at }">
                   {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
@@ -101,47 +104,49 @@
               </div>
               
               <h3 class="stream-title">{{ stream.title || formatDate(stream.started_at) }}</h3>
+              
               <div class="stream-meta">
-                <span class="duration">{{ calculateDuration(stream.started_at, stream.ended_at) }}</span>
-                <span v-if="stream.category_name" class="category">{{ stream.category_name }}</span>
+                <div class="meta-item duration-item">
+                  <i class="fas fa-clock"></i>
+                  <span>{{ calculateDuration(stream.started_at, stream.ended_at) }}</span>
+                </div>
+                <div v-if="stream.category_name" class="meta-item category-item">
+                  <i class="fas fa-gamepad"></i>
+                  <span>{{ stream.category_name }}</span>
+                </div>
               </div>
             </div>
             
-            <div class="expand-controls">
-              <div class="quick-actions">
-                <!-- Action buttons with larger, more visible icons -->
-                <button 
-                  v-if="stream.ended_at"
-                  @click.stop="watchVideo(stream)" 
-                  class="btn-icon btn-primary"
-                  title="Watch Video"
-                  aria-label="Watch Video"
-                >
-                  <i class="fas fa-play fa-lg"></i>
-                </button>
-                
-                <button 
-                  @click.stop="confirmDeleteStream(stream)" 
-                  class="btn-icon btn-danger" 
-                  :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
-                  title="Delete Stream"
-                  aria-label="Delete Stream"
-                >
-                  <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin fa-lg"></i>
-                  <i v-else class="fas fa-trash-alt fa-lg"></i>
-                </button>
-                
-                <button
-                  class="btn-icon btn-secondary"
-                  @click.stop="toggleStreamExpansion(stream.id)" 
-                  title="Toggle Details" 
-                  aria-label="Toggle Details"
-                >
-                  <i class="fas fa-chevron-down fa-lg" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
-                </button>
-              </div>
-
+            <!-- Right: Action Buttons -->
+            <div class="stream-actions">
+              <button 
+                v-if="stream.ended_at"
+                @click.stop="watchVideo(stream)" 
+                class="action-btn play-btn"
+                title="Watch Video"
+              >
+                <i class="fas fa-play"></i>
+              </button>
+              
+              <button 
+                @click.stop="confirmDeleteStream(stream)" 
+                class="action-btn delete-btn" 
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                title="Delete Stream"
+              >
+                <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
+                <i v-else class="fas fa-trash-alt"></i>
+              </button>
+              
+              <button
+                class="action-btn expand-btn"
+                @click.stop="toggleStreamExpansion(stream.id)" 
+                title="Toggle Details"
+              >
+                <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
+              </button>
             </div>
+          </div>
           </div>
           
           <!-- Expanded Details -->
@@ -701,22 +706,17 @@ const handleImageError = (event: Event, categoryName: string) => {
   const img = event.target as HTMLImageElement;
   const container = img.parentElement;
   
-  // Log the error for debugging
-  console.error(`Failed to load image for category: ${categoryName}`, event);
+  console.error(`Failed to load category image for: ${categoryName}`);
   
-  // Set a fallback icon in case the default image also fails
-  img.onerror = () => {
-    // If default image also fails, replace with an icon
-    if (container) {
-      container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
-      container.classList.add('category-placeholder');
-      container.classList.remove('category-image-small');
+  // Hide the image and show the fallback icon
+  img.style.display = 'none';
+  
+  if (container) {
+    const fallbackIcon = container.querySelector('.category-icon-fallback') as HTMLElement;
+    if (fallbackIcon) {
+      fallbackIcon.style.display = 'block';
     }
-  };
-  
-  // Try the default image
-  console.log("Attempting to load default category image");
-  img.src = '/images/categories/default-category.svg';
+  }
 }
 </script>
 
@@ -872,8 +872,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
 }
 
 .stream-card {
@@ -899,276 +899,196 @@ const handleImageError = (event: Event, categoryName: string) => {
   border-color: #9146FF;
 }
 
-/* Compact Header */
+/* Compact Header - New Layout */
 .stream-compact-header {
   display: flex;
-  align-items: flex-start; /* Align items at the top */
-  padding: 20px;
+  align-items: stretch;
+  padding: 16px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
-  min-width: 0;
-  position: relative;
-  min-height: 180px; /* Much taller height to accommodate content */
-  flex-wrap: nowrap; /* Prevent wrapping */
-  gap: 20px; /* More space between elements */
+  min-height: 120px;
+  gap: 16px;
 }
 
 .stream-compact-header:hover {
   background: #1a1a1e;
 }
 
+/* Left: Category Image */
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 90px;
-  height: 125px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  z-index: 1;
-  margin-right: 0;
+  width: 80px;
+  height: 80px;
+  align-self: center;
 }
 
-.category-image-small {
-  width: 90px;
-  height: 125px;
-  overflow: hidden;
+.category-image-container {
+  width: 80px;
+  height: 80px;
   border-radius: 8px;
+  overflow: hidden;
   background-color: #121214;
+  border: 1px solid #333;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  z-index: 1;
-  border: 1px solid #333;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-.category-image-small img {
+.category-image {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* Changed to cover to ensure the image fills the container */
-  border-radius: 7px;
-  padding: 0; /* Remove padding to allow full image display */
+  object-fit: cover;
+  display: block;
+}
+
+.category-icon-fallback {
+  font-size: 32px;
+  color: #9146FF;
 }
 
 .category-placeholder {
-  width: 90px;
-  height: 125px;
+  width: 80px;
+  height: 80px;
   background: linear-gradient(45deg, #333, #444);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #aaa;
-  font-size: 32px;
+  font-size: 28px;
   border: 1px solid #333;
-  z-index: 1;
 }
 
-.category-icon {
-  font-size: 32px;
-  color: #9146FF;
-}
-
-.stream-summary {
+/* Center: Stream Info */
+.stream-info {
   flex: 1;
-  min-width: 0;
-  padding-right: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start; /* Align at top */
-  padding-top: 4px;
+  justify-content: space-between;
+  min-width: 0;
+  padding-right: 16px;
 }
 
 .stream-badges {
   display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
 .stream-title {
-  margin: 10px 0 15px 0;
-  font-size: 1.35rem;
-  font-weight: 700;
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
   color: #fff;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
-  line-height: 1.5;
-  max-width: 100%;
-  white-space: normal;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 1); /* Stronger text shadow for better contrast */
-  padding-right: 50px; /* More space for expand controls */
-  letter-spacing: 0.3px;
 }
 
 .stream-meta {
   display: flex;
-  gap: 15px;
-  font-size: 1.1rem;
-  color: #aaa;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.meta-item {
+  display: flex;
   align-items: center;
-  overflow: hidden;
-  margin-top: auto; /* Push to bottom of container */
-  position: relative;
-  padding-top: 10px;
-  margin-top: 10px;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
-.stream-meta .duration {
-  font-weight: 700;
-  color: #a366ff;
-  white-space: nowrap;
-  background-color: rgba(145, 70, 255, 0.15);
-  padding: 3px 8px;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+.meta-item i {
+  font-size: 0.8rem;
 }
 
-.stream-meta .category {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 180px;
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 3px 8px;
-  border-radius: 4px;
+.duration-item {
+  background: rgba(145, 70, 255, 0.2);
+  color: #b379ff;
+}
+
+.category-item {
+  background: rgba(255, 255, 255, 0.1);
   color: #ddd;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.expand-controls {
+/* Right: Action Buttons */
+.stream-actions {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  min-width: auto;
-  justify-content: flex-end;
-  z-index: 10; /* Higher z-index to ensure visibility */
-}
-
-.quick-actions {
-  display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.btn-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 8px;
+.action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1rem;
   transition: all 0.2s ease;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  opacity: 1;
-}
-
-.btn-icon.btn-primary {
-  background: #1a73e8;
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.btn-icon.btn-primary:hover:not(:disabled) {
-  background: #1557b0;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
-  opacity: 1;
-}
-
-.btn-icon.btn-danger {
-  background: #e02c40;
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.btn-icon.btn-danger:hover:not(:disabled) {
-  background: #ba1f30;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
-  opacity: 1;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
-}
-
-.btn-icon.btn-secondary {
-  background: #3a3a3a;
-  color: #e0e0e0;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-}
-
-.btn-icon.btn-secondary:hover:not(:disabled) {
-  background: #4a4a4a;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
-  opacity: 1;
-}
-
-.btn-icon:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.expand-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #555;
-  background: transparent;
-  color: #aaa;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.expand-btn:hover {
   background: #333;
   color: #fff;
 }
 
-.expand-btn i.rotated {
+.play-btn {
+  background: #1a73e8;
+}
+
+.play-btn:hover {
+  background: #1557b0;
+  transform: translateY(-1px);
+}
+
+.delete-btn {
+  background: #e02c40;
+}
+
+.delete-btn:hover:not(:disabled) {
+  background: #ba1f30;
+  transform: translateY(-1px);
+}
+
+.expand-btn {
+  background: #444;
+}
+
+.expand-btn:hover {
+  background: #555;
+  transform: translateY(-1px);
+}
+
+.expand-btn .rotated {
   transform: rotate(180deg);
 }
 
-/* Add icon animations */
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icon animations */
 .fa-play, .fa-trash-alt, .fa-chevron-down {
   transition: transform 0.2s ease;
-}
-
-.btn-icon:hover:not(:disabled) .fa-play {
-  transform: scale(1.2);
-}
-
-.btn-icon:hover:not(:disabled) .fa-trash-alt {
-  transform: scale(1.2);
-}
-
-.btn-icon:hover:not(:disabled) .fa-chevron-down {
-  transform: scale(1.2);
 }
 
 /* Expanded Content */
@@ -1344,59 +1264,42 @@ const handleImageError = (event: Event, categoryName: string) => {
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 16px;
   }
   
   .stream-compact-header {
     padding: 12px;
-    gap: 10px;
-    min-height: 80px;
-  }
-  
-  .category-image-small {
-    width: 50px;
-    height: 65px;
+    min-height: 100px;
+    gap: 12px;
   }
   
   .stream-thumbnail {
-    width: 50px;
-    height: 65px;
-    margin-right: 12px;
+    width: 60px;
+    height: 60px;
   }
   
-  .category-placeholder {
-    width: 50px;
-    height: 65px;
-    font-size: 14px;
+  .category-image-container, .category-placeholder {
+    width: 60px;
+    height: 60px;
   }
   
   .stream-title {
     font-size: 1rem;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
   }
   
   .stream-meta {
-    font-size: 0.75rem;
+    gap: 8px;
   }
   
-  .stream-meta .category {
-    max-width: 100px;
+  .meta-item {
+    font-size: 0.8rem;
+    padding: 3px 6px;
   }
   
-  .quick-actions {
-    gap: 2px;
-  }
-  
-  .btn-icon {
-    width: 28px;
-    height: 28px;
-    font-size: 0.7rem;
-  }
-  
-  .modal-content {
-    min-width: 320px;
-    padding: 15px;
+  .action-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
   }
 }
 
