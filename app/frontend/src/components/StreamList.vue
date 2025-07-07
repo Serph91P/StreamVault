@@ -891,7 +891,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-card {
   background: #1f1f23;
   border-radius: 12px;
-  overflow: visible; /* Changed from hidden to visible for tooltips */
+  overflow: hidden;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
@@ -899,14 +899,13 @@ const handleImageError = (event: Event, categoryName: string) => {
   max-width: 100%;
   word-wrap: break-word;
   height: auto;
-  min-height: 200px; /* Much taller for better content display */
-  margin-bottom: 20px; /* Extra margin for tooltips */
+  min-height: 200px;
+  margin-bottom: 40px; /* Extra space for tooltips */
 }
 
 .stream-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  z-index: 5; /* Ensure hovered cards are above others */
 }
 
 .stream-card.expanded {
@@ -1053,69 +1052,67 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-  padding-bottom: 10px; /* Extra space for tooltips */
+  width: 50px;
+  padding: 8px 5px;
 }
 
 .action-btn {
-  width: 40px;
-  height: 40px;
+  width: 40px !important;
+  height: 40px !important;
   border-radius: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
   position: relative;
-  backdrop-filter: blur(10px);
+  margin: 0;
+  padding: 0;
 }
 
-.action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  border-color: rgba(255, 255, 255, 0.6);
+.action-btn i {
+  font-size: 14px;
+  color: white;
+  z-index: 1;
 }
 
 .play-btn {
-  background: rgba(40, 167, 69, 0.9);
-  border-color: #28a745;
-  color: white;
+  background: #28a745 !important;
 }
 
 .play-btn:hover:not(:disabled) {
-  background: rgba(40, 167, 69, 1);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+  background: #218838 !important;
+  transform: translateY(-1px);
 }
 
 .delete-btn {
-  background: rgba(220, 53, 69, 0.9);
-  border-color: #dc3545;
-  color: white;
+  background: #dc3545 !important;
 }
 
 .delete-btn:hover:not(:disabled) {
-  background: rgba(220, 53, 69, 1);
-  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+  background: #c82333 !important;
+  transform: translateY(-1px);
 }
 
 .expand-btn {
-  background: rgba(108, 117, 125, 0.9);
-  border-color: #6c757d;
-  color: white;
+  background: #6c757d !important;
 }
 
 .expand-btn:hover {
-  background: rgba(108, 117, 125, 1);
-  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+  background: #5a6268 !important;
+  transform: translateY(-1px);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
 }
 
 /* Icon animations and states */
@@ -1143,66 +1140,21 @@ const handleImageError = (event: Event, categoryName: string) => {
   background: rgba(100, 100, 100, 0.5) !important;
 }
 
-/* Icon styling to ensure visibility */
-.action-btn i {
-  font-size: 14px;
-  font-weight: 900;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  z-index: 2;
-}
-
-.action-btn .fa-play {
-  margin-left: 2px; /* Optical alignment for play triangle */
-}
-
-/* Tooltip system - using data-tooltip attribute */
-.action-btn[data-tooltip] {
-  position: relative;
-}
-
-.action-btn[data-tooltip]:before {
+/* Simple tooltip system */
+.action-btn[data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: -45px;
+  bottom: -35px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.95);
+  background: #000;
   color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
   white-space: nowrap;
-  z-index: 9999;
+  z-index: 1000;
   pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
-}
-
-.action-btn[data-tooltip]:after {
-  content: '';
-  position: absolute;
-  bottom: -37px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 6px solid rgba(0, 0, 0, 0.95);
-  z-index: 9999;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.2s ease;
-}
-
-.action-btn[data-tooltip]:hover:before,
-.action-btn[data-tooltip]:hover:after {
-  opacity: 1;
-  visibility: visible;
 }
 
 /* Expanded Content */
