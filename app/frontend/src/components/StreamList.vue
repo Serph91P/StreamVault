@@ -1172,7 +1172,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   position: relative;
 }
 
-.action-btn[data-tooltip]:hover::before {
+.action-btn[data-tooltip]:hover:not(:disabled)::before {
   content: attr(data-tooltip);
   position: absolute;
   top: -40px; /* Position above button instead of below */
@@ -1192,7 +1192,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 /* Tooltip arrow pointing down */
-.action-btn[data-tooltip]:hover::after {
+.action-btn[data-tooltip]:hover:not(:disabled)::after {
   content: '';
   position: absolute;
   top: -8px; /* Position arrow below tooltip */
@@ -1208,15 +1208,15 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 /* Prevent tooltips from overlapping by staggering positions */
-.play-btn[data-tooltip]:hover::before {
+.play-btn[data-tooltip]:hover:not(:disabled)::before {
   left: 40%; /* Slightly left */
 }
 
-.delete-btn[data-tooltip]:hover::before {
+.delete-btn[data-tooltip]:hover:not(:disabled)::before {
   left: 50%; /* Center */
 }
 
-.expand-btn[data-tooltip]:hover::before {
+.expand-btn[data-tooltip]:hover:not(:disabled)::before {
   left: 60%; /* Slightly right */
 }
 
