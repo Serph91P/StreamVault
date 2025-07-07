@@ -1,6 +1,9 @@
 @use 'sass:map';
 @use 'sass:color';
 
+// Import FontAwesome
+@import '@fortawesome/fontawesome-free/css/all.css';
+
 @use 'variables' as v;
 @use 'mixins' as m;
 @forward 'variables';
