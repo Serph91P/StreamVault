@@ -126,7 +126,7 @@
                 v-if="stream.ended_at"
                 @click.stop="watchVideo(stream)" 
                 class="action-btn play-btn"
-                title="Video abspielen"
+                title="Play Video"
               >
                 <i class="fas fa-play"></i>
               </button>
@@ -135,7 +135,7 @@
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
                 :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
-                title="Stream löschen"
+                title="Delete Stream"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
                 <i v-else class="fas fa-trash"></i>
@@ -144,7 +144,7 @@
               <button
                 class="action-btn expand-btn"
                 @click.stop="toggleStreamExpansion(stream.id)" 
-                :title="expandedStreams[stream.id] ? 'Details einklappen' : 'Details anzeigen'"
+                :title="expandedStreams[stream.id] ? 'Collapse Details' : 'Show Details'"
               >
                 <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
               </button>
@@ -891,7 +891,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-card {
   background: #1f1f23;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to visible for tooltips */
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
@@ -900,11 +900,13 @@ const handleImageError = (event: Event, categoryName: string) => {
   word-wrap: break-word;
   height: auto;
   min-height: 200px; /* Much taller for better content display */
+  margin-bottom: 20px; /* Extra margin for tooltips */
 }
 
 .stream-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 5; /* Ensure hovered cards are above others */
 }
 
 .stream-card.expanded {
@@ -922,6 +924,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   transition: background-color 0.2s ease;
   min-height: 120px;
   gap: 16px;
+  border-radius: 12px 12px 0 0; /* Keep rounded corners only at top */
+  overflow: hidden; /* Clip content within header */
 }
 
 .stream-compact-header:hover {
@@ -1053,6 +1057,9 @@ const handleImageError = (event: Event, categoryName: string) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  padding-bottom: 10px; /* Extra space for tooltips */
 }
 
 .action-btn {
@@ -1118,21 +1125,41 @@ const handleImageError = (event: Event, categoryName: string) => {
   transform: rotate(180deg);
 }
 
-/* Tooltip improvements */
-.action-btn[title]:hover::after {
+/* Tooltip improvements - Fix overlapping issues */
+.action-btn {
+  position: relative;
+}
+
+.action-btn::before {
   content: attr(title);
   position: absolute;
-  bottom: -35px;
+  bottom: -40px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.95);
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-size: 0.75rem;
   white-space: nowrap;
-  z-index: 1000;
+  z-index: 9999;
   pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.action-btn:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Ensure tooltips don't get cut off */
+.stream-actions {
+  position: relative;
+  z-index: 10;
 }
 
 /* Expanded Content */
