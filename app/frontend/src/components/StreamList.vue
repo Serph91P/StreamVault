@@ -77,7 +77,7 @@
                 />
                 <i 
                   v-else
-                  :class="getCategoryImage(stream.category_name).replace('icon:', '')" 
+                  :class="getCategoryImage(stream.category_name).replace('icon:', 'fas ')" 
                   class="category-icon"
                 ></i>
               </div>
@@ -701,12 +701,19 @@ const handleImageError = (event: Event, categoryName: string) => {
   const img = event.target as HTMLImageElement;
   const container = img.parentElement;
   
+  // Log the error for debugging
+  console.error(`Failed to load image for category: ${categoryName}`, event);
+  
   if (container) {
     // Replace the image with an icon
     container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
     container.classList.add('category-placeholder');
     container.classList.remove('category-image-small');
   }
+  
+  // Try again with a default image
+  img.onerror = null; // Prevent infinite loops
+  img.src = '/images/categories/default-category.svg';
 }
 </script>
 
@@ -891,14 +898,14 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-compact-header {
   display: flex;
   align-items: center;
-  padding: 16px;
+  padding: 14px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
   min-width: 0; /* Allow flex container to shrink */
   position: relative;
-  min-height: 100px; /* Ensure minimum height for content */
+  min-height: 80px; /* Ensure minimum height for content */
 }
 
 .stream-compact-header:hover {
@@ -907,21 +914,21 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 60px;
-  height: 80px;
+  width: 50px;
+  height: 65px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
-  margin-right: 16px;
+  margin-right: 12px;
 }
 
 .category-image-small {
-  width: 60px;
-  height: 80px;
+  width: 50px;
+  height: 65px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 4px;
   background-color: #121214;
   display: flex;
   align-items: center;
@@ -933,20 +940,17 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-small img {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain; /* Changed back to contain to prevent cropping */
-  border-radius: 5px;
-  padding: 4px; /* Added some padding */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 3px;
 }
 
 .category-placeholder {
-  width: 40px;
-  height: 53px;
+  width: 50px;
+  height: 65px;
   background: linear-gradient(45deg, #333, #444);
-  border-radius: 6px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -957,7 +961,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-icon {
-  font-size: 18px;
+  font-size: 24px;
   color: #9146FF;
 }
 
@@ -969,6 +973,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  width: calc(100% - 200px); /* Ensure enough space for stream summary */
 }
 
 .stream-badges {
@@ -979,16 +984,16 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .stream-title {
-  margin: 0 0 6px 0;
-  font-size: 1rem;
-  font-weight: 500;
+  margin: 2px 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
   color: #fff;
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  line-height: 1.4;
+  line-height: 1.3;
   max-width: 100%;
-  /* Allow title to take multiple lines on mobile */
+  /* Allow title to take multiple lines */
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1311,24 +1316,24 @@ const handleImageError = (event: Event, categoryName: string) => {
   
   .category-image-small {
     width: 50px;
-    height: 66px;
+    height: 65px;
   }
   
   .stream-thumbnail {
     width: 50px;
-    height: 66px;
+    height: 65px;
     margin-right: 12px;
   }
   
   .category-placeholder {
     width: 50px;
-    height: 66px;
+    height: 65px;
     font-size: 14px;
   }
   
   .stream-title {
-    font-size: 0.9rem;
-    -webkit-line-clamp: 2; /* Allow more lines on mobile */
+    font-size: 1rem;
+    -webkit-line-clamp: 2;
     line-clamp: 2;
   }
   
