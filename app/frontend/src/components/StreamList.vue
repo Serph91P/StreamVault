@@ -937,8 +937,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-container {
-  width: 120px;  /* Increased width for 16:9 ratio */
-  height: 68px;  /* 120 * 9/16 = 67.5, rounded to 68 */
+  width: 90px;   /* Adjusted for 3:4 aspect ratio like Twitch category images */
+  height: 120px; /* 90 * 4/3 = 120 for proper 3:4 ratio (285x380) */
   border-radius: 8px;
   overflow: hidden;
   background-color: #121214;
@@ -1299,8 +1299,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
   
   .category-image-container, .category-placeholder {
-    width: 100px;   /* Match thumbnail width */
-    height: 56px;   /* Match thumbnail height */
+    width: 75px;    /* Smaller but maintain 3:4 portrait ratio for mobile */
+    height: 100px;  /* 75 * 4/3 = 100 for proper 3:4 ratio */
   }
   
   .category-icon-wrapper {
