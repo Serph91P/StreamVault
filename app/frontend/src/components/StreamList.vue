@@ -137,7 +137,7 @@
                   title="Toggle Details" 
                   aria-label="Toggle Details"
                 >
-                  <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
+                  <i class="fas fa-chevron-down fa-lg" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
                 </button>
               </div>
 
@@ -891,13 +891,14 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-compact-header {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
+  padding: 16px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
   min-width: 0; /* Allow flex container to shrink */
   position: relative;
+  min-height: 100px; /* Ensure minimum height for content */
 }
 
 .stream-compact-header:hover {
@@ -906,19 +907,19 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 48px;
-  height: 64px;
+  width: 60px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
-  margin-right: 12px;
+  margin-right: 16px;
 }
 
 .category-image-small {
-  width: 48px;
-  height: 64px;
+  width: 60px;
+  height: 80px;
   overflow: hidden;
   border-radius: 6px;
   background-color: #121214;
@@ -932,11 +933,13 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-small img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* Changed to cover to maintain aspect ratio and fill container */
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* Changed back to contain to prevent cropping */
   border-radius: 5px;
-  padding: 0; /* Removed padding to use full space */
+  padding: 4px; /* Added some padding */
 }
 
 .category-placeholder {
@@ -961,7 +964,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-summary {
   flex: 1;
   min-width: 0;
-  padding-right: 8px;
+  padding-right: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -976,14 +979,14 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .stream-title {
-  margin: 0 0 4px 0;
-  font-size: 0.95rem;
+  margin: 0 0 6px 0;
+  font-size: 1rem;
   font-weight: 500;
   color: #fff;
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  line-height: 1.3;
+  line-height: 1.4;
   max-width: 100%;
   /* Allow title to take multiple lines on mobile */
   white-space: normal;
@@ -992,6 +995,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stream-meta {
@@ -1024,6 +1028,9 @@ const handleImageError = (event: Event, categoryName: string) => {
   gap: 10px;
   flex-shrink: 0;
   margin-left: auto;
+  position: relative;
+  min-width: 140px; /* Ensure minimum width for buttons */
+  justify-content: flex-end;
 }
 
 .quick-actions {
@@ -1108,6 +1115,23 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .expand-btn i.rotated {
   transform: rotate(180deg);
+}
+
+/* Add icon animations */
+.fa-play, .fa-trash-alt, .fa-chevron-down {
+  transition: transform 0.2s ease;
+}
+
+.btn-icon:hover:not(:disabled) .fa-play {
+  transform: scale(1.2);
+}
+
+.btn-icon:hover:not(:disabled) .fa-trash-alt {
+  transform: scale(1.2);
+}
+
+.btn-icon:hover:not(:disabled) .fa-chevron-down {
+  transform: scale(1.2);
 }
 
 /* Expanded Content */
@@ -1280,25 +1304,32 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
   
   .stream-compact-header {
-    padding: 10px 12px;
-    gap: 8px;
+    padding: 12px;
+    gap: 10px;
+    min-height: 80px;
   }
   
   .category-image-small {
-    width: 32px;
-    height: 42px;
+    width: 50px;
+    height: 66px;
+  }
+  
+  .stream-thumbnail {
+    width: 50px;
+    height: 66px;
+    margin-right: 12px;
   }
   
   .category-placeholder {
-    width: 32px;
-    height: 42px;
+    width: 50px;
+    height: 66px;
     font-size: 14px;
   }
   
   .stream-title {
-    font-size: 0.85rem;
-    -webkit-line-clamp: 3; /* Allow more lines on mobile */
-    line-clamp: 3;
+    font-size: 0.9rem;
+    -webkit-line-clamp: 2; /* Allow more lines on mobile */
+    line-clamp: 2;
   }
   
   .stream-meta {
@@ -1337,44 +1368,48 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
   
   .stream-compact-header {
-    padding: 8px 10px;
-    gap: 6px;
+    flex-wrap: nowrap;
+    min-height: 90px;
+    padding: 10px;
+    position: relative;
+  }
+  
+  .stream-thumbnail {
+    width: 45px;
+    height: 60px;
+    margin-right: 10px;
+  }
+  
+  .category-image-small {
+    width: 45px;
+    height: 60px;
   }
   
   .stream-summary {
-    padding-right: 4px;
-    min-width: 0; /* Allow shrinking */
-    flex: 1;
+    max-width: calc(100% - 160px);
+    padding-right: 0;
+  }
+  
+  .expand-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    min-width: auto;
+  }
+  
+  .quick-actions {
+    gap: 5px;
+  }
+  
+  .btn-icon {
+    width: 36px;
+    height: 36px;
   }
   
   .stream-title {
-    font-size: 0.8rem;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-  }
-  
-  .header-actions {
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-  }
-  
-  .header-actions .btn {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .stream-title {
-    font-size: 0.8rem;
-  }
-  
-  .stream-meta {
-    font-size: 0.7rem;
-    gap: 4px;
-  }
-  
-  .stream-meta .category {
-    max-width: 80px;
+    font-size: 0.85rem;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 
