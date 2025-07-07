@@ -40,10 +40,6 @@
               <input type="checkbox" v-model="policy.preserve_favorites" />
               Preserve favorites
             </label>
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="policy.delete_silently" />
-              Delete silently (no confirmation)
-            </label>
           </div>
         </div>
 
@@ -209,8 +205,7 @@ const policy = ref<CleanupPolicy>({
   type: CleanupPolicyType.COUNT,
   threshold: 10,
   preserve_favorites: true,
-  preserve_categories: [],
-  delete_silently: false
+  preserve_categories: []
 });
 
 // Options
@@ -459,8 +454,7 @@ function ensureCompletePolicy(policyObj: CleanupPolicy): CleanupPolicy {
     type: policyObj.type || CleanupPolicyType.COUNT,
     threshold: policyObj.threshold || 10,
     preserve_favorites: policyObj.preserve_favorites !== undefined ? policyObj.preserve_favorites : true,
-    preserve_categories: policyObj.preserve_categories || [],
-    delete_silently: policyObj.delete_silently !== undefined ? policyObj.delete_silently : false
+    preserve_categories: policyObj.preserve_categories || []
   };
 }
 
