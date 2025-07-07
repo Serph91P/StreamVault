@@ -6,7 +6,7 @@
       <form @submit.prevent="savePolicy">
         <!-- Policy Type Selection -->
         <div class="form-group">
-          <label>Policy Type:</label>
+          <label>Cleanup Policy:</label>
           <div class="form-row">
             <select v-model="policy.type" class="form-control">
               <option v-for="type in policyTypes" :key="type.value" :value="type.value">
@@ -58,13 +58,14 @@
           <div class="help-text">Hold Ctrl/Cmd to select multiple categories</div>
         </div>
 
+        <!-- Form Actions -->
         <div class="form-actions">
           <button 
             type="submit" 
-            class="btn btn-primary"
+            class="btn btn-primary" 
             :disabled="isSaving"
           >
-            {{ isSaving ? 'Saving...' : 'Save Policy' }}
+            {{ isSaving ? 'Saving...' : 'Save Cleanup Policy' }}
           </button>
         </div>
       </form>
@@ -80,7 +81,7 @@
         </div>
         <div class="stat-item">
           <div class="stat-label">Recording Count</div>
-          <div class="stat-value">{{ storageStats.recordingCount }} recordings</div>
+          <div class="stat-value">{{ storageStats.recordingCount }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Oldest Recording</div>
@@ -94,18 +95,18 @@
 
       <div class="form-actions">
         <button 
-          class="btn btn-secondary"
-          @click="runCustomCleanupTest"
+          class="btn btn-danger" 
+          @click="runCleanupNow" 
           :disabled="isRunningCleanup"
         >
-          {{ isRunningCleanup ? 'Testing...' : 'Test Current Policy' }}
+          {{ isRunningCleanup ? 'Cleaning...' : 'Run Cleanup Now' }}
         </button>
         <button 
-          class="btn btn-warning"
-          @click="runCleanupNow"
+          class="btn btn-warning" 
+          @click="runCustomCleanupTest" 
           :disabled="isRunningCleanup"
         >
-          {{ isRunningCleanup ? 'Running...' : 'Run Cleanup Now' }}
+          Test Current Settings
         </button>
       </div>
     </div>
@@ -125,6 +126,8 @@
         </div>
         <div class="modal-body">
           <p>{{ cleanupResults.message }}</p>
+          <p><strong>Recordings Deleted:</strong> {{ cleanupResults.deleted_count }}</p>
+          
           <div v-if="cleanupResults.deleted_paths && cleanupResults.deleted_paths.length > 0">
             <h4>Deleted Files:</h4>
             <ul class="deleted-files-list">
@@ -135,9 +138,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-primary" @click="closeCleanupResults">
-            Close
-          </button>
+          <button @click="closeCleanupResults" class="btn btn-primary">Close</button>
         </div>
       </div>
     </div>
@@ -354,13 +355,13 @@ async function runCleanupNow() {
   try {
     isRunningCleanup.value = true;
     
-    const result = await recordingSettings.cleanupOldRecordings(props.streamerId);
+    const response = await recordingSettings.cleanupOldRecordings(props.streamerId);
     
-    // Show results dialog - cleanupOldRecordings returns boolean, need to handle differently
+    // Show results dialog with the response from the server
     cleanupResults.value = {
-      message: result ? 'Cleanup completed successfully' : 'No recordings were deleted',
-      deleted_count: 0,
-      deleted_paths: []
+      message: response.message || 'Cleanup completed successfully',
+      deleted_count: response.deleted_count || 0,
+      deleted_paths: response.deleted_paths || []
     };
     showCleanupResults.value = true;
     
@@ -388,9 +389,9 @@ async function runCustomCleanupTest() {
     
     // Show results dialog
     cleanupResults.value = {
-      message: `Test cleanup would delete ${result.deletedCount} recordings`,
-      deleted_count: result.deletedCount,
-      deleted_paths: result.deletedPaths
+      message: result.message || `Test cleanup would delete ${result.deleted_count} recordings`,
+      deleted_count: result.deleted_count || 0,
+      deleted_paths: result.deleted_paths || []
     };
     showCleanupResults.value = true;
     
