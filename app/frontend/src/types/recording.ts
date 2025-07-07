@@ -27,7 +27,6 @@ export interface CleanupPolicy {
   preserve_favorites: boolean;
   preserve_categories: string[];
   preserve_timeframe?: PreserveTimeframe; // Made optional to simplify
-  delete_silently: boolean; // Whether to delete without confirmation
 }
 
 export enum CleanupPolicyType {
