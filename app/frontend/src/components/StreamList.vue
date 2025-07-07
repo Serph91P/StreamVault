@@ -1064,49 +1064,58 @@ const handleImageError = (event: Event, categoryName: string) => {
   width: 40px !important;
   height: 40px !important;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 16px;
   transition: all 0.2s ease;
   position: relative;
   margin: 0;
   padding: 0;
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(5px);
 }
 
 .action-btn i {
-  font-size: 14px;
-  color: white;
+  font-size: 16px;
+  font-weight: 900;
   z-index: 1;
+  transition: color 0.2s ease;
 }
 
-.play-btn {
-  background: #28a745 !important;
-}
-
-.play-btn:hover:not(:disabled) {
-  background: #218838 !important;
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
   transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-.delete-btn {
-  background: #dc3545 !important;
+/* Play button - Green play icon */
+.play-btn i {
+  color: #28a745;
 }
 
-.delete-btn:hover:not(:disabled) {
-  background: #c82333 !important;
-  transform: translateY(-1px);
+.play-btn:hover i {
+  color: #20c437;
 }
 
-.expand-btn {
-  background: #6c757d !important;
+/* Delete button - Red trash icon */
+.delete-btn i {
+  color: #dc3545;
 }
 
-.expand-btn:hover {
-  background: #5a6268 !important;
-  transform: translateY(-1px);
+.delete-btn:hover:not(:disabled) i {
+  color: #ff4757;
+}
+
+/* Expand button - Blue chevron icon */
+.expand-btn i {
+  color: #007bff;
+}
+
+.expand-btn:hover i {
+  color: #0056b3;
 }
 
 .action-btn:disabled {
@@ -1134,27 +1143,81 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .action-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none !important;
-  background: rgba(100, 100, 100, 0.5) !important;
+  background: rgba(100, 100, 100, 0.3) !important;
 }
 
-/* Simple tooltip system */
-.action-btn[data-tooltip]:hover::after {
+.action-btn:disabled i {
+  color: #666 !important;
+}
+
+/* Enhanced icon animations */
+.fa-play, .fa-trash, .fa-chevron-down {
+  transition: all 0.2s ease;
+}
+
+.fa-chevron-down.rotated {
+  transform: rotate(180deg);
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
+  color: #ffc107 !important; /* Yellow spinner for visibility */
+}
+
+/* Tooltip system with proper positioning */
+.action-btn[data-tooltip] {
+  position: relative;
+}
+
+.action-btn[data-tooltip]:hover::before {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: -35px;
+  top: -40px; /* Position above button instead of below */
   left: 50%;
   transform: translateX(-50%);
-  background: #000;
+  background: rgba(0, 0, 0, 0.9);
   color: white;
-  padding: 4px 8px;
+  padding: 6px 10px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
-  z-index: 1000;
+  z-index: 10000; /* Very high z-index */
   pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Tooltip arrow pointing down */
+.action-btn[data-tooltip]:hover::after {
+  content: '';
+  position: absolute;
+  top: -8px; /* Position arrow below tooltip */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.9);
+  z-index: 10001;
+  pointer-events: none;
+}
+
+/* Prevent tooltips from overlapping by staggering positions */
+.play-btn[data-tooltip]:hover::before {
+  left: 40%; /* Slightly left */
+}
+
+.delete-btn[data-tooltip]:hover::before {
+  left: 50%; /* Center */
+}
+
+.expand-btn[data-tooltip]:hover::before {
+  left: 60%; /* Slightly right */
 }
 
 /* Expanded Content */
