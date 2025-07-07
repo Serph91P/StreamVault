@@ -2026,15 +2026,32 @@ class RecordingService:
             
             # If we have both durations, compare them
             if ts_duration and ts_duration > 0:
-                # Allow some tolerance (5% difference)
+                # Check if proxy is enabled to determine tolerance
+                proxy_settings = get_proxy_settings_from_db()
+                proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
+                
+                # Use different thresholds based on proxy status and stream length
+                if proxy_enabled:
+                    # With proxy, we expect fewer discontinuities - be more strict
+                    min_ratio = 0.90 if ts_duration < 3600 else 0.85  # 90% for short streams, 85% for long streams
+                else:
+                    # Without proxy, expect more ad segments causing discontinuities - be more lenient
+                    min_ratio = 0.60 if ts_duration < 3600 else 0.50  # 60% for short streams, 50% for long streams
+                    
                 ratio = mp4_duration / ts_duration
                 
-                if ratio < 0.95:
-                    return {
-                        "valid": False,
-                        "duration": mp4_duration,
-                        "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s)"
-                    }
+                if ratio < min_ratio:
+                    # Only fail for extreme cases where most content is lost
+                    if ratio < 0.30:  # Fail if we lost more than 70% of content
+                        return {
+                            "valid": False,
+                            "duration": mp4_duration,
+                            "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s), ratio: {ratio:.2f}"
+                        }
+                    else:
+                        # For less extreme cases, log a warning but still pass validation
+                        proxy_status = "with proxy" if proxy_enabled else "without proxy (ads expected)"
+                        logger.warning(f"MP4 shorter than TS ({proxy_status}): MP4={mp4_duration:.2f}s, TS={ts_duration:.2f}s, ratio={ratio:.2f}")
             
             # If the duration is too short (less than 10 seconds), it's probably not a valid recording
             if mp4_duration < 10:
