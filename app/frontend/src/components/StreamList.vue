@@ -704,7 +704,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   // Log the error for debugging
   console.error(`Failed to load image for category: ${categoryName}`, event);
   
-  // Try to load default image
+  // Set a fallback icon in case the default image also fails
   img.onerror = () => {
     // If default image also fails, replace with an icon
     if (container) {
@@ -714,7 +714,8 @@ const handleImageError = (event: Event, categoryName: string) => {
     }
   };
   
-  // Prevent infinite loops and try the default image
+  // Try the default image
+  console.log("Attempting to load default category image");
   img.src = '/images/categories/default-category.svg';
 }
 </script>
@@ -886,7 +887,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   max-width: 100%;
   word-wrap: break-word;
   height: auto;
-  min-height: 160px; /* Increased minimum height */
+  min-height: 200px; /* Much taller for better content display */
 }
 
 .stream-card:hover {
@@ -902,16 +903,16 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-compact-header {
   display: flex;
   align-items: flex-start; /* Align items at the top */
-  padding: 16px;
+  padding: 20px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
   min-width: 0;
   position: relative;
-  min-height: 140px; /* Increased height to accommodate content */
+  min-height: 180px; /* Much taller height to accommodate content */
   flex-wrap: nowrap; /* Prevent wrapping */
-  gap: 16px; /* Increased space between elements */
+  gap: 20px; /* More space between elements */
 }
 
 .stream-compact-header:hover {
@@ -920,8 +921,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 65px;
-  height: 90px;
+  width: 90px;
+  height: 125px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -931,10 +932,10 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-small {
-  width: 65px;
-  height: 90px;
+  width: 90px;
+  height: 125px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: #121214;
   display: flex;
   align-items: center;
@@ -942,33 +943,33 @@ const handleImageError = (event: Event, categoryName: string) => {
   position: relative;
   z-index: 1;
   border: 1px solid #333;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .category-image-small img {
-  width: 100%; /* Fill the width */
-  height: 100%; /* Fill the height */
-  object-fit: contain; /* Keep aspect ratio and show full image */
-  border-radius: 5px;
-  padding: 2px; /* Small padding to ensure no edge clipping */
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Changed to cover to ensure the image fills the container */
+  border-radius: 7px;
+  padding: 0; /* Remove padding to allow full image display */
 }
 
 .category-placeholder {
-  width: 65px;
-  height: 90px;
+  width: 90px;
+  height: 125px;
   background: linear-gradient(45deg, #333, #444);
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
-  font-size: 24px;
+  color: #aaa;
+  font-size: 32px;
   border: 1px solid #333;
   z-index: 1;
 }
 
 .category-icon {
-  font-size: 24px;
+  font-size: 32px;
   color: #9146FF;
 }
 
@@ -985,20 +986,20 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-badges {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
 .stream-title {
-  margin: 8px 0 12px 0;
-  font-size: 1.25rem;
+  margin: 10px 0 15px 0;
+  font-size: 1.35rem;
   font-weight: 700;
   color: #fff;
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  line-height: 1.4;
+  line-height: 1.5;
   max-width: 100%;
   white-space: normal;
   display: -webkit-box;
@@ -1007,21 +1008,23 @@ const handleImageError = (event: Event, categoryName: string) => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); /* Enhanced text shadow for better contrast */
-  padding-right: 30px; /* Make space for expand controls */
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 1); /* Stronger text shadow for better contrast */
+  padding-right: 50px; /* More space for expand controls */
+  letter-spacing: 0.3px;
 }
 
 .stream-meta {
   display: flex;
-  gap: 12px;
-  font-size: 1rem;
+  gap: 15px;
+  font-size: 1.1rem;
   color: #aaa;
   flex-wrap: wrap;
   align-items: center;
   overflow: hidden;
   margin-top: auto; /* Push to bottom of container */
   position: relative;
-  padding-top: 6px;
+  padding-top: 10px;
+  margin-top: 10px;
 }
 
 .stream-meta .duration {
@@ -1050,36 +1053,36 @@ const handleImageError = (event: Event, categoryName: string) => {
 .expand-controls {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
   margin-left: auto;
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
   min-width: auto;
   justify-content: flex-end;
-  z-index: 5;
+  z-index: 10; /* Higher z-index to ensure visibility */
 }
 
 .quick-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 
 .btn-icon {
-  width: 44px;
-  height: 44px;
+  width: 50px;
+  height: 50px;
   border-radius: 8px;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   transition: all 0.2s ease;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .btn-icon.btn-primary {
@@ -1229,40 +1232,42 @@ const handleImageError = (event: Event, categoryName: string) => {
 .status-badge {
   background-color: #444;
   color: white;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 0.9rem;
   font-weight: bold;
   text-transform: uppercase;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
 }
 
 .status-badge.live {
   background-color: #e91916;
   animation: pulse 2s infinite;
-  box-shadow: 0 1px 5px rgba(233, 25, 22, 0.5);
+  box-shadow: 0 2px 6px rgba(233, 25, 22, 0.6);
 }
 
 .recording-badge {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 0.9rem;
   font-weight: bold;
   text-transform: uppercase;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
 }
 
 .recording-badge.recording {
-  background-color: var(--success-color);
+  background-color: #28a745;
   color: white;
   animation: pulse 2s infinite;
+  box-shadow: 0 2px 6px rgba(40, 167, 69, 0.6);
 }
 
 .recording-badge.not-recording {
-  background-color: var(--danger-color);
+  background-color: #dc3545;
   color: white;
+  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.6);
 }
 
 /* Modal styles */
@@ -1398,36 +1403,36 @@ const handleImageError = (event: Event, categoryName: string) => {
 @media (max-width: 480px) {
   .stream-list {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 20px;
   }
   
   .stream-card {
     min-width: 280px;
     max-width: calc(100vw - 40px);
-    min-height: 180px; /* Taller on mobile */
+    min-height: 220px; /* Much taller on mobile */
   }
   
   .stream-compact-header {
     flex-direction: row;
-    padding: 16px;
-    min-height: 160px; /* Taller header on mobile */
+    padding: 20px;
+    min-height: 200px; /* Much taller header on mobile */
     align-items: flex-start;
   }
   
   .stream-thumbnail {
-    width: 65px;
-    height: 90px;
-    margin-right: 12px;
+    width: 80px;
+    height: 112px;
+    margin-right: 16px;
   }
   
   .category-image-small {
-    width: 65px;
-    height: 90px;
+    width: 80px;
+    height: 112px;
   }
   
   .category-placeholder {
-    width: 65px;
-    height: 90px;
+    width: 80px;
+    height: 112px;
   }
   
   .stream-summary {
@@ -1447,8 +1452,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
   
   .btn-icon {
-    width: 40px;
-    height: 40px;
+    width: 46px;
+    height: 46px;
   }
   
   .stream-title {
