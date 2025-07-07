@@ -60,8 +60,7 @@ class CleanupService:
             "type": CleanupPolicyType.COUNT.value,
             "threshold": max_streams if max_streams > 0 else 10,
             "preserve_favorites": True,
-            "preserve_categories": [],
-            "delete_silently": False
+            "preserve_categories": []
         }
     
     @staticmethod
