@@ -147,7 +147,6 @@
               </button>
             </div>
           </div>
-          </div>
           
           <!-- Expanded Details -->
           <div v-if="expandedStreams[stream.id]" class="stream-expanded-content">
