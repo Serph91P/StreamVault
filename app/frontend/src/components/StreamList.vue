@@ -277,6 +277,17 @@
       <i class="fas fa-trash-alt"></i>
       <span class="fab-text">Delete All ({{ streams.length }})</span>
     </div>
+    
+    <!-- DEBUG: Test tooltip to see if our CSS works -->
+    <div style="position: fixed; bottom: 100px; right: 20px; z-index: 9999;">
+      <button 
+        class="action-btn test-tooltip-btn" 
+        data-tooltip="Test Tooltip Works!"
+        style="background: #333; color: white; border: 1px solid #555; padding: 10px;"
+      >
+        TEST
+      </button>
+    </div>
   </div>
 </template>
 
@@ -1178,11 +1189,12 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 /* Tooltip system with proper positioning */
-.action-btn[data-tooltip] {
+.action-btn[data-tooltip], .test-tooltip-btn[data-tooltip] {
   position: relative;
 }
 
-.action-btn[data-tooltip]:hover:not(:disabled)::before {
+.action-btn[data-tooltip]:hover:not(:disabled)::before,
+.test-tooltip-btn[data-tooltip]:hover::before {
   content: attr(data-tooltip);
   position: absolute;
   top: -40px; /* Position above button instead of below */
@@ -1202,7 +1214,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 /* Tooltip arrow pointing down */
-.action-btn[data-tooltip]:hover:not(:disabled)::after {
+.action-btn[data-tooltip]:hover:not(:disabled)::after,
+.test-tooltip-btn[data-tooltip]:hover::after {
   content: '';
   position: absolute;
   top: -8px; /* Position arrow below tooltip */
