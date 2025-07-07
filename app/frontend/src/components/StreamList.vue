@@ -1100,12 +1100,22 @@ const handleImageError = (event: Event, categoryName: string) => {
   color: #20c437;
 }
 
-/* Delete button - Red trash icon */
-.delete-btn i {
+/* Delete button - Red trash icon, override global styles */
+.action-btn.delete-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.action-btn.delete-btn i {
   color: #dc3545;
 }
 
-.delete-btn:hover:not(:disabled) i {
+.action-btn.delete-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.action-btn.delete-btn:hover:not(:disabled) i {
   color: #ff4757;
 }
 
