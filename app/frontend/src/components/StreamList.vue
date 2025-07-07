@@ -126,7 +126,7 @@
                 v-if="stream.ended_at"
                 @click.stop="watchVideo(stream)" 
                 class="action-btn play-btn"
-                title="Play Video"
+                data-tooltip="Play Video"
               >
                 <i class="fas fa-play"></i>
               </button>
@@ -135,7 +135,7 @@
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
                 :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
-                title="Delete Stream"
+                data-tooltip="Delete Stream"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
                 <i v-else class="fas fa-trash"></i>
@@ -144,7 +144,7 @@
               <button
                 class="action-btn expand-btn"
                 @click.stop="toggleStreamExpansion(stream.id)" 
-                :title="expandedStreams[stream.id] ? 'Collapse Details' : 'Show Details'"
+                :data-tooltip="expandedStreams[stream.id] ? 'Collapse Details' : 'Show Details'"
               >
                 <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
               </button>
@@ -1066,100 +1066,143 @@ const handleImageError = (event: Event, categoryName: string) => {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  border: none;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 16px;
   transition: all 0.2s ease;
-  background: #444;
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
   position: relative;
+  backdrop-filter: blur(10px);
 }
 
 .action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .play-btn {
-  background: #28a745;
+  background: rgba(40, 167, 69, 0.9);
+  border-color: #28a745;
   color: white;
 }
 
 .play-btn:hover:not(:disabled) {
-  background: #218838;
+  background: rgba(40, 167, 69, 1);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
 }
 
 .delete-btn {
-  background: #dc3545;
+  background: rgba(220, 53, 69, 0.9);
+  border-color: #dc3545;
   color: white;
 }
 
 .delete-btn:hover:not(:disabled) {
-  background: #c82333;
+  background: rgba(220, 53, 69, 1);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
 }
 
 .expand-btn {
-  background: #6c757d;
+  background: rgba(108, 117, 125, 0.9);
+  border-color: #6c757d;
   color: white;
 }
 
 .expand-btn:hover {
-  background: #5a6268;
+  background: rgba(108, 117, 125, 1);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+/* Icon animations and states */
+.fa-play, .fa-trash, .fa-chevron-down {
+  transition: transform 0.2s ease;
+}
+
+.fa-chevron-down.rotated {
+  transform: rotate(180deg);
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
+  background: rgba(100, 100, 100, 0.5) !important;
 }
 
-/* Icon animations */
-.fa-play, .fa-trash, .fa-chevron-down {
-  transition: transform 0.2s ease;
+/* Icon styling to ensure visibility */
+.action-btn i {
+  font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  z-index: 2;
 }
 
-.expand-btn .fa-chevron-down.rotated {
-  transform: rotate(180deg);
+.action-btn .fa-play {
+  margin-left: 2px; /* Optical alignment for play triangle */
 }
 
-/* Tooltip improvements - Fix overlapping issues */
-.action-btn {
+/* Tooltip system - using data-tooltip attribute */
+.action-btn[data-tooltip] {
   position: relative;
 }
 
-.action-btn::before {
-  content: attr(title);
+.action-btn[data-tooltip]:before {
+  content: attr(data-tooltip);
   position: absolute;
-  bottom: -40px;
+  bottom: -45px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.95);
   color: white;
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  transition: all 0.2s ease;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
 }
 
-.action-btn:hover::before {
+.action-btn[data-tooltip]:after {
+  content: '';
+  position: absolute;
+  bottom: -37px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(0, 0, 0, 0.95);
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.action-btn[data-tooltip]:hover:before,
+.action-btn[data-tooltip]:hover:after {
   opacity: 1;
   visibility: visible;
-}
-
-/* Ensure tooltips don't get cut off */
-.stream-actions {
-  position: relative;
-  z-index: 10;
 }
 
 /* Expanded Content */
