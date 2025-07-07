@@ -135,6 +135,7 @@
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
                 :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                data-tooltip="Delete Stream"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
                 <i v-else class="fas fa-trash"></i>
@@ -1099,13 +1100,9 @@ const handleImageError = (event: Event, categoryName: string) => {
   color: #20c437;
 }
 
-/* Delete button - Red trash icon with red shadow on hover */
+/* Delete button - Red trash icon */
 .delete-btn i {
   color: #dc3545;
-}
-
-.delete-btn:hover:not(:disabled) {
-  box-shadow: 0 0 8px rgba(220, 53, 69, 0.6);
 }
 
 .delete-btn:hover:not(:disabled) i {
@@ -1213,6 +1210,10 @@ const handleImageError = (event: Event, categoryName: string) => {
 /* Prevent tooltips from overlapping by staggering positions */
 .play-btn[data-tooltip]:hover::before {
   left: 40%; /* Slightly left */
+}
+
+.delete-btn[data-tooltip]:hover::before {
+  left: 50%; /* Center */
 }
 
 .expand-btn[data-tooltip]:hover::before {
