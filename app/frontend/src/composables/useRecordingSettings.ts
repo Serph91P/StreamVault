@@ -204,7 +204,12 @@ export function useRecordingSettings() {
     }
   };
 
-  const cleanupOldRecordings = async (streamerId: number): Promise<boolean> => {
+  const cleanupOldRecordings = async (streamerId: number): Promise<{
+    status: string;
+    message: string;
+    deleted_count: number;
+    deleted_paths: string[];
+  }> => {
     try {
       isLoading.value = true;
       
@@ -217,11 +222,11 @@ export function useRecordingSettings() {
       }
       
       const data = await response.json();
-      return true;
+      return data;
     } catch (err) {
       console.error('Error cleaning up recordings:', err);
       error.value = err instanceof Error ? err.message : String(err);
-      return false;
+      throw err;
     } finally {
       isLoading.value = false;
     }
@@ -294,7 +299,12 @@ export function useRecordingSettings() {
   const runCustomCleanup = async (
     streamerId: number,
     customPolicy?: CleanupPolicy
-  ): Promise<{ deletedCount: number, deletedPaths: string[] }> => {
+  ): Promise<{ 
+    status: string;
+    message: string;
+    deleted_count: number; 
+    deleted_paths: string[];
+  }> => {
     try {
       isLoading.value = true;
       
@@ -314,15 +324,11 @@ export function useRecordingSettings() {
         throw new Error(`Failed to run cleanup: ${response.statusText}`);
       }
       
-      const data = await response.json();
-      return {
-        deletedCount: data.deleted_count || 0,
-        deletedPaths: data.deleted_paths || []
-      };
+      return await response.json();
     } catch (err) {
       console.error('Error running custom cleanup:', err);
       error.value = err instanceof Error ? err.message : String(err);
-      return { deletedCount: 0, deletedPaths: [] };
+      throw err;
     } finally {
       isLoading.value = false;
     }
