@@ -704,15 +704,17 @@ const handleImageError = (event: Event, categoryName: string) => {
   // Log the error for debugging
   console.error(`Failed to load image for category: ${categoryName}`, event);
   
-  if (container) {
-    // Replace the image with an icon
-    container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
-    container.classList.add('category-placeholder');
-    container.classList.remove('category-image-small');
-  }
+  // Try to load default image
+  img.onerror = () => {
+    // If default image also fails, replace with an icon
+    if (container) {
+      container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
+      container.classList.add('category-placeholder');
+      container.classList.remove('category-image-small');
+    }
+  };
   
-  // Try again with a default image
-  img.onerror = null; // Prevent infinite loops
+  // Prevent infinite loops and try the default image
   img.src = '/images/categories/default-category.svg';
 }
 </script>
@@ -880,9 +882,11 @@ const handleImageError = (event: Event, categoryName: string) => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
-  min-width: 0; /* Allow flex items to shrink below their content size */
-  max-width: 100%; /* Prevent cards from growing too large */
-  word-wrap: break-word; /* Break long words */
+  min-width: 0;
+  max-width: 100%;
+  word-wrap: break-word;
+  height: auto;
+  min-height: 160px; /* Increased minimum height */
 }
 
 .stream-card:hover {
@@ -897,15 +901,17 @@ const handleImageError = (event: Event, categoryName: string) => {
 /* Compact Header */
 .stream-compact-header {
   display: flex;
-  align-items: center;
-  padding: 14px;
+  align-items: flex-start; /* Align items at the top */
+  padding: 16px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
-  min-width: 0; /* Allow flex container to shrink */
+  min-width: 0;
   position: relative;
-  min-height: 80px; /* Ensure minimum height for content */
+  min-height: 140px; /* Increased height to accommodate content */
+  flex-wrap: nowrap; /* Prevent wrapping */
+  gap: 16px; /* Increased space between elements */
 }
 
 .stream-compact-header:hover {
@@ -914,21 +920,21 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 50px;
-  height: 65px;
+  width: 65px;
+  height: 90px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
-  margin-right: 12px;
+  margin-right: 0;
 }
 
 .category-image-small {
-  width: 50px;
-  height: 65px;
+  width: 65px;
+  height: 90px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: #121214;
   display: flex;
   align-items: center;
@@ -940,22 +946,23 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .category-image-small img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 3px;
+  width: 100%; /* Fill the width */
+  height: 100%; /* Fill the height */
+  object-fit: contain; /* Keep aspect ratio and show full image */
+  border-radius: 5px;
+  padding: 2px; /* Small padding to ensure no edge clipping */
 }
 
 .category-placeholder {
-  width: 50px;
-  height: 65px;
+  width: 65px;
+  height: 90px;
   background: linear-gradient(45deg, #333, #444);
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #888;
-  font-size: 18px;
+  font-size: 24px;
   border: 1px solid #333;
   z-index: 1;
 }
@@ -968,32 +975,31 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-summary {
   flex: 1;
   min-width: 0;
-  padding-right: 16px;
+  padding-right: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  width: calc(100% - 200px); /* Ensure enough space for stream summary */
+  justify-content: flex-start; /* Align at top */
+  padding-top: 4px;
 }
 
 .stream-badges {
   display: flex;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
 .stream-title {
-  margin: 2px 0 8px 0;
-  font-size: 1.1rem;
-  font-weight: 600;
+  margin: 8px 0 12px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
   color: #fff;
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  line-height: 1.3;
+  line-height: 1.4;
   max-width: 100%;
-  /* Allow title to take multiple lines */
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1001,61 +1007,79 @@ const handleImageError = (event: Event, categoryName: string) => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); /* Enhanced text shadow for better contrast */
+  padding-right: 30px; /* Make space for expand controls */
 }
 
 .stream-meta {
   display: flex;
-  gap: 8px;
-  font-size: 0.8rem;
+  gap: 12px;
+  font-size: 1rem;
   color: #aaa;
   flex-wrap: wrap;
   align-items: center;
   overflow: hidden;
+  margin-top: auto; /* Push to bottom of container */
+  position: relative;
+  padding-top: 6px;
 }
 
 .stream-meta .duration {
-  font-weight: 500;
-  color: #9146FF;
+  font-weight: 700;
+  color: #a366ff;
   white-space: nowrap;
+  background-color: rgba(145, 70, 255, 0.15);
+  padding: 3px 8px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .stream-meta .category {
-  opacity: 0.8;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 150px;
+  max-width: 180px;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: #ddd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .expand-controls {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   flex-shrink: 0;
   margin-left: auto;
-  position: relative;
-  min-width: 140px; /* Ensure minimum width for buttons */
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: auto;
   justify-content: flex-end;
+  z-index: 5;
 }
 
 .quick-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
 .btn-icon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   transition: all 0.2s ease;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  opacity: 0.9;
 }
 
 .btn-icon.btn-primary {
@@ -1067,7 +1091,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 .btn-icon.btn-primary:hover:not(:disabled) {
   background: #1557b0;
   transform: translateY(-2px);
-  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
+  opacity: 1;
 }
 
 .btn-icon.btn-danger {
@@ -1079,19 +1104,23 @@ const handleImageError = (event: Event, categoryName: string) => {
 .btn-icon.btn-danger:hover:not(:disabled) {
   background: #ba1f30;
   transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  transform: translateY(-2px);
   box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
 }
 
 .btn-icon.btn-secondary {
-  background: #323232;
+  background: #3a3a3a;
   color: #e0e0e0;
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn-icon.btn-secondary:hover:not(:disabled) {
-  background: #3d3d3d;
+  background: #4a4a4a;
   transform: translateY(-2px);
-  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.5);
+  opacity: 1;
 }
 
 .btn-icon:disabled {
@@ -1196,28 +1225,33 @@ const handleImageError = (event: Event, categoryName: string) => {
   gap: 8px;
 }
 
-/* Status badges - smaller versions */
+/* Status badges */
 .status-badge {
   background-color: #444;
   color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.7rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
   font-weight: bold;
   text-transform: uppercase;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  letter-spacing: 0.5px;
 }
 
 .status-badge.live {
   background-color: #e91916;
   animation: pulse 2s infinite;
+  box-shadow: 0 1px 5px rgba(233, 25, 22, 0.5);
 }
 
 .recording-badge {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.7rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
   font-weight: bold;
   text-transform: uppercase;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  letter-spacing: 0.5px;
 }
 
 .recording-badge.recording {
@@ -1364,57 +1398,75 @@ const handleImageError = (event: Event, categoryName: string) => {
 @media (max-width: 480px) {
   .stream-list {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 16px;
   }
   
   .stream-card {
     min-width: 280px;
-    max-width: calc(100vw - 40px); /* Ensure cards don't exceed viewport */
+    max-width: calc(100vw - 40px);
+    min-height: 180px; /* Taller on mobile */
   }
   
   .stream-compact-header {
-    flex-wrap: nowrap;
-    min-height: 90px;
-    padding: 10px;
-    position: relative;
+    flex-direction: row;
+    padding: 16px;
+    min-height: 160px; /* Taller header on mobile */
+    align-items: flex-start;
   }
   
   .stream-thumbnail {
-    width: 45px;
-    height: 60px;
-    margin-right: 10px;
+    width: 65px;
+    height: 90px;
+    margin-right: 12px;
   }
   
   .category-image-small {
-    width: 45px;
-    height: 60px;
+    width: 65px;
+    height: 90px;
+  }
+  
+  .category-placeholder {
+    width: 65px;
+    height: 90px;
   }
   
   .stream-summary {
-    max-width: calc(100% - 160px);
-    padding-right: 0;
+    max-width: calc(100% - 100px);
+    padding-right: 40px; /* Make room for action buttons */
   }
   
   .expand-controls {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    min-width: auto;
+    top: 12px;
+    right: 12px;
   }
   
   .quick-actions {
-    gap: 5px;
+    flex-direction: column;
+    gap: 10px;
   }
   
   .btn-icon {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
   
   .stream-title {
-    font-size: 0.85rem;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    font-size: 1rem;
+    margin-top: 6px;
+    margin-bottom: 10px;
+    -webkit-line-clamp: 3; /* Show more lines on mobile */
+    line-clamp: 3;
+    padding-right: 10px;
+  }
+  
+  .stream-badges {
+    margin-bottom: 8px;
+  }
+  
+  .stream-meta {
+    margin-top: 10px;
+    font-size: 0.95rem;
   }
 }
 
