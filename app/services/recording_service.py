@@ -618,23 +618,8 @@ class RecordingService:
                     # Update our recording info with stream ID
                     self.active_recordings[streamer_id]["stream_id"] = stream.id
                     
-                    # Schedule delayed thumbnail download with video fallback
-                    output_dir = os.path.dirname(output_path)
-                    ts_path = output_path.replace(".mp4", ".ts")  # TS file path for fallback
-                    
-                    # Import thumbnail service
-                    from app.services.thumbnail_service import ThumbnailService
-                    thumbnail_service = ThumbnailService()
-                    
-                    asyncio.create_task(
-                        thumbnail_service.delayed_thumbnail_download(
-                            streamer.username, 
-                            stream.id, 
-                            output_dir,
-                            video_path=ts_path,  # Use TS file for extraction
-                            delay_minutes=5  # Wait 5 minutes for stream to stabilize
-                        )
-                    )
+                    # Note: Thumbnail generation is now handled after MP4 creation
+                    # in _delayed_metadata_generation() method for better quality
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
             
@@ -998,15 +983,8 @@ class RecordingService:
 
                 # Save the stream ID in the recording information
                 if recording_started and streamer_id in self.active_recordings:
-                    # Try to download a Twitch thumbnail
-                    output_dir = os.path.dirname(
-                        self.active_recordings[streamer_id]["output_path"]
-                    )
-                    asyncio.create_task(
-                        self.metadata_service.download_twitch_thumbnail(
-                            streamer.username, stream.id, output_dir
-                        )
-                    )
+                    # Note: Thumbnail generation is now handled after MP4 creation
+                    # for better quality and consistency
 
                     logger.info(
                         f"Force offline recording started for {streamer.username}, stream_id: {stream.id}"
@@ -1275,6 +1253,10 @@ class RecordingService:
             # Generate metadata
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
             await self._generate_stream_metadata(stream_id, mp4_path)
+
+            # Generate thumbnail from MP4 after metadata is complete
+            logger.info(f"Generating thumbnail from MP4 for stream {stream_id}")
+            await self._generate_thumbnail_from_mp4(stream_id, mp4_path)
 
             # Create optimized media server structure
             logger.info(f"Creating media server structure for stream {stream_id}")
@@ -2308,3 +2290,115 @@ class RecordingService:
             
         except Exception as e:
             logger.error(f"Error during TS backup cleanup: {e}", exc_info=True)
+    
+    async def _generate_thumbnail_from_mp4(self, stream_id: int, mp4_path: str):
+        """Generate thumbnail from MP4 file instead of Twitch stream"""
+        try:
+            # Get stream info from database
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.warning(f"Stream {stream_id} not found for thumbnail generation")
+                    return
+                
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if not streamer:
+                    logger.warning(f"Streamer for stream {stream_id} not found for thumbnail generation")
+                    return
+            
+            # Import thumbnail service
+            from app.services.thumbnail_service import ThumbnailService
+            thumbnail_service = ThumbnailService()
+            
+            try:
+                # Create output directory for thumbnail
+                output_dir = os.path.dirname(mp4_path)
+                
+                # Generate thumbnail path
+                thumbnail_path = os.path.join(output_dir, f"{streamer.username}_thumbnail.jpg")
+                
+                # Try different timestamps to find a good frame
+                timestamps = ["00:02:00", "00:05:00", "00:01:00", "00:10:00", "00:00:30"]
+                
+                for timestamp in timestamps:
+                    logger.info(f"Attempting to extract thumbnail from MP4 at {timestamp} for {streamer.username}")
+                    
+                    success = await thumbnail_service.extract_thumbnail_from_video(
+                        video_path=mp4_path,
+                        output_path=thumbnail_path,
+                        timestamp=timestamp
+                    )
+                    
+                    if success and os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
+                        logger.info(f"Successfully extracted thumbnail from MP4 at {timestamp}: {thumbnail_path}")
+                        
+                        # Update database with thumbnail path
+                        with SessionLocal() as db:
+                            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                            if not metadata:
+                                metadata = StreamMetadata(stream_id=stream_id)
+                                db.add(metadata)
+                            
+                            metadata.thumbnail_path = thumbnail_path
+                            db.commit()
+                        
+                        # Create Plex-compatible thumbnail files
+                        await self._create_plex_thumbnails(mp4_path, thumbnail_path)
+                        
+                        # Log successful thumbnail generation
+                        self.activity_logger.log_process_monitoring(
+                            streamer.username,
+                            "THUMBNAIL_SUCCESS",
+                            f"Generated from MP4 at {timestamp}"
+                        )
+                        
+                        break
+                else:
+                    # If all timestamps failed, try Twitch thumbnail as fallback
+                    logger.warning(f"Failed to extract thumbnail from MP4, trying Twitch fallback for {streamer.username}")
+                    
+                    twitch_thumbnail = await thumbnail_service.download_thumbnail(stream_id, output_dir)
+                    if twitch_thumbnail:
+                        logger.info(f"Successfully downloaded Twitch fallback thumbnail: {twitch_thumbnail}")
+                        await self._create_plex_thumbnails(mp4_path, twitch_thumbnail)
+                    else:
+                        logger.error(f"Both MP4 extraction and Twitch download failed for {streamer.username}")
+                        
+            finally:
+                await thumbnail_service.close()
+                
+        except Exception as e:
+            logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
+
+    async def _create_plex_thumbnails(self, mp4_path: str, thumbnail_path: str):
+        """Create Plex-compatible thumbnail files"""
+        try:
+            if not os.path.exists(thumbnail_path):
+                logger.warning(f"Source thumbnail does not exist: {thumbnail_path}")
+                return
+                
+            video_dir = os.path.dirname(mp4_path)
+            base_filename = os.path.splitext(os.path.basename(mp4_path))[0]
+            
+            # Create various thumbnail formats for different media servers
+            thumbnail_formats = [
+                f"{base_filename}-thumb.jpg",  # Plex thumbnail
+                f"{base_filename}.jpg",        # Alternative format
+                "poster.jpg",                  # Plex poster
+                "folder.jpg",                  # Generic folder image
+            ]
+            
+            import shutil
+            for format_name in thumbnail_formats:
+                target_path = os.path.join(video_dir, format_name)
+                try:
+                    if not os.path.exists(target_path) or os.path.getsize(target_path) < 1000:
+                        shutil.copy2(thumbnail_path, target_path)
+                        logger.debug(f"Created thumbnail format: {target_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to create thumbnail format {format_name}: {e}")
+                    
+            logger.info(f"Created Plex-compatible thumbnails in {video_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error creating Plex thumbnails: {e}")
