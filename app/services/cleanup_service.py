@@ -40,6 +40,7 @@ class CleanupService:
         if streamer_settings and streamer_settings.cleanup_policy:
             policy = CleanupService._parse_cleanup_policy(streamer_settings.cleanup_policy)
             if policy:
+                logger.debug(f"Using streamer-specific cleanup policy for streamer {streamer_id}")
                 return policy
         
         # Fall back to global settings
@@ -47,6 +48,7 @@ class CleanupService:
         if global_settings and global_settings.cleanup_policy:
             policy = CleanupService._parse_cleanup_policy(global_settings.cleanup_policy)
             if policy:
+                logger.debug(f"Using global cleanup policy for streamer {streamer_id}")
                 return policy
                 
         # If no policy is set, fall back to the max_streams setting
@@ -58,6 +60,7 @@ class CleanupService:
             "type": CleanupPolicyType.COUNT.value,
             "threshold": max_streams if max_streams > 0 else 10,
             "preserve_favorites": True,
+            "preserve_categories": [],
             "delete_silently": False
         }
     
@@ -107,7 +110,9 @@ class CleanupService:
             streams_query = db.query(Stream).filter(
                 Stream.streamer_id == streamer_id,
                 Stream.recording_path.isnot(None)
-            )            # Log which policy is being applied for debugging
+            )
+            
+            # Log which policy is being applied for debugging
             logger.info(f"Applying cleanup policy for streamer {streamer_id}: type={policy_type}, threshold={threshold}")
             
             # Apply different logic based on policy type
@@ -127,8 +132,11 @@ class CleanupService:
                     preserve_timeframe, favorite_category_ids, streams_query, db
                 )
             else:
-                logger.warning(f"Unsupported cleanup policy type: {policy_type}")
-                return (0, [])
+                logger.warning(f"Unknown cleanup policy type: {policy_type}, falling back to COUNT")
+                return await CleanupService._apply_count_policy(
+                    streamer_id, 10, preserve_favorites, preserve_categories,
+                    preserve_timeframe, favorite_category_ids, streams_query, db
+                )
                 
         except Exception as e:
             logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
@@ -238,7 +246,7 @@ class CleanupService:
                     preserved_streams.add(stream.id)
                     
                 # Check if we should preserve based on specified categories
-                if preserve_categories and stream.category_name in preserve_categories:
+                if preserve_categories and hasattr(stream, 'category_name') and stream.category_name in preserve_categories:
                     preserved_streams.add(stream.id)
         
         # Preserve streams based on timeframe if specified
@@ -306,7 +314,7 @@ class CleanupService:
                     preserved_streams.add(stream.id)
                     
                 # Check if we should preserve based on specified categories
-                if preserve_categories and stream.category_name in preserve_categories:
+                if preserve_categories and hasattr(stream, 'category_name') and stream.category_name in preserve_categories:
                     preserved_streams.add(stream.id)
         
         # Preserve streams based on timeframe if specified
