@@ -236,8 +236,7 @@ export function useRecordingSettings() {
       type: CleanupPolicyType.COUNT,
       threshold: 10,
       preserve_favorites: true,
-      preserve_categories: [],
-      delete_silently: false
+      preserve_categories: []
     };
   };
 
