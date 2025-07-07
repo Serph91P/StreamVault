@@ -66,27 +66,33 @@
           
           <!-- Compact Header -->
           <div class="stream-compact-header" @click="toggleStreamExpansion(stream.id)">
+            <!-- Left: Category Image -->
             <div class="stream-thumbnail">
-              <div v-if="stream.category_name" class="category-image-small">
-                <img 
-                  v-if="!getCategoryImage(stream.category_name).startsWith('icon:')"
-                  :src="getCategoryImage(stream.category_name)" 
-                  :alt="stream.category_name" 
-                  @error="handleImageError($event, stream.category_name)"
-                  loading="lazy"
-                />
-                <i 
-                  v-else
-                  :class="getCategoryImage(stream.category_name).replace('icon:', '')" 
-                  class="category-icon"
-                ></i>
+              <div v-if="stream.category_name" class="category-image-container">
+                <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
+                  <!-- Icon fallback -->
+                  <div class="category-icon-wrapper">
+                    <i :class="`fas ${getCategoryImageSrc(stream.category_name).replace('icon:', '')}`"></i>
+                  </div>
+                </template>
+                <template v-else>
+                  <!-- Real image -->
+                  <img 
+                    :src="getCategoryImageSrc(stream.category_name)"
+                    :alt="stream.category_name" 
+                    @error="handleImageError($event, stream.category_name)"
+                    loading="lazy"
+                    class="category-image"
+                  />
+                </template>
               </div>
               <div v-else class="category-placeholder">
                 <i class="fas fa-video"></i>
               </div>
             </div>
             
-            <div class="stream-summary">
+            <!-- Center: Stream Info -->
+            <div class="stream-info">
               <div class="stream-badges">
                 <span class="status-badge" :class="{ 'live': !stream.ended_at }">
                   {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
@@ -101,36 +107,45 @@
               </div>
               
               <h3 class="stream-title">{{ stream.title || formatDate(stream.started_at) }}</h3>
+              
               <div class="stream-meta">
-                <span class="duration">{{ calculateDuration(stream.started_at, stream.ended_at) }}</span>
-                <span v-if="stream.category_name" class="category">{{ stream.category_name }}</span>
+                <div class="meta-item duration-item">
+                  <i class="fas fa-clock"></i>
+                  <span>{{ calculateDuration(stream.started_at, stream.ended_at) }}</span>
+                </div>
+                <div v-if="stream.category_name" class="meta-item category-item">
+                  <i class="fas fa-gamepad"></i>
+                  <span>{{ stream.category_name }}</span>
+                </div>
               </div>
             </div>
             
-            <div class="expand-controls">
-              <div class="quick-actions">
-                <!-- Quick action buttons -->
-                <button 
-                  v-if="stream.ended_at"
-                  @click.stop="watchVideo(stream)" 
-                  class="btn-icon btn-primary"
-                  title="Watch Video"
-                >
-                  <i class="fas fa-play"></i>
-                </button>
-                
-                <button 
-                  @click.stop="confirmDeleteStream(stream)" 
-                  class="btn-icon btn-danger" 
-                  :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
-                  title="Delete Stream"
-                >
-                  <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
-                  <i v-else class="fas fa-trash-alt"></i>
-                </button>
-              </div>
+            <!-- Right: Action Buttons -->
+            <div class="stream-actions">
+              <button 
+                v-if="stream.ended_at"
+                @click.stop="watchVideo(stream)" 
+                class="action-btn play-btn"
+                data-tooltip="Play Video"
+              >
+                <i class="fas fa-play"></i>
+              </button>
               
-              <button class="expand-btn" @click.stop="toggleStreamExpansion(stream.id)">
+              <button 
+                @click.stop="confirmDeleteStream(stream)" 
+                class="action-btn delete-btn" 
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                data-tooltip="Delete Stream"
+              >
+                <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
+                <i v-else class="fas fa-trash"></i>
+              </button>
+              
+              <button
+                class="action-btn expand-btn"
+                @click.stop="toggleStreamExpansion(stream.id)" 
+                :data-tooltip="expandedStreams[stream.id] ? 'Collapse Details' : 'Show Details'"
+              >
                 <i class="fas fa-chevron-down" :class="{ 'rotated': expandedStreams[stream.id] }"></i>
               </button>
             </div>
@@ -262,6 +277,17 @@
       <i class="fas fa-trash-alt"></i>
       <span class="fab-text">Delete All ({{ streams.length }})</span>
     </div>
+    
+    <!-- DEBUG: Test tooltip to see if our CSS works -->
+    <div style="position: fixed; bottom: 100px; right: 20px; z-index: 9999;">
+      <button 
+        class="action-btn test-tooltip-btn" 
+        data-tooltip="Test Tooltip Works!"
+        style="background: #333; color: white; border: 1px solid #555; padding: 10px;"
+      >
+        TEST
+      </button>
+    </div>
   </div>
 </template>
 
@@ -305,6 +331,11 @@ const expandedStreams = ref<Record<number, boolean>>({})
 const hasLiveStreams = computed(() => {
   return streams.value.some(stream => !stream.ended_at)
 })
+
+// Category image handling
+const getCategoryImageSrc = (categoryName: string): string => {
+  return getCategoryImage(categoryName)
+}
 
 // Formatierungsfunktionen
 const formatDate = (date: string | undefined | null): string => {
@@ -693,11 +724,21 @@ const handleImageError = (event: Event, categoryName: string) => {
   const img = event.target as HTMLImageElement;
   const container = img.parentElement;
   
+  console.error(`Failed to load category image for: ${categoryName}`);
+  
+  // Hide the image
+  img.style.display = 'none';
+  
+  // Show fallback icon by replacing the image with an icon wrapper
   if (container) {
-    // Replace the image with an icon
-    container.innerHTML = `<i class="fas fa-gamepad category-icon"></i>`;
-    container.classList.add('category-placeholder');
-    container.classList.remove('category-image-small');
+    const iconWrapper = document.createElement('div');
+    iconWrapper.className = 'category-icon-wrapper';
+    
+    const icon = document.createElement('i');
+    icon.className = `fas ${getCategoryImage(categoryName).replace('icon:', '')}`;
+    
+    iconWrapper.appendChild(icon);
+    container.appendChild(iconWrapper);
   }
 }
 </script>
@@ -854,8 +895,8 @@ const handleImageError = (event: Event, categoryName: string) => {
 
 .stream-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
 }
 
 .stream-card {
@@ -865,9 +906,12 @@ const handleImageError = (event: Event, categoryName: string) => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
-  min-width: 0; /* Allow flex items to shrink below their content size */
-  max-width: 100%; /* Prevent cards from growing too large */
-  word-wrap: break-word; /* Break long words */
+  min-width: 0;
+  max-width: 100%;
+  word-wrap: break-word;
+  height: auto;
+  min-height: 200px;
+  margin-bottom: 40px; /* Extra space for tooltips */
 }
 
 .stream-card:hover {
@@ -879,203 +923,324 @@ const handleImageError = (event: Event, categoryName: string) => {
   border-color: #9146FF;
 }
 
-/* Compact Header */
+/* Compact Header - New Layout */
 .stream-compact-header {
   display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  gap: 12px;
+  align-items: stretch;
+  padding: 16px;
   cursor: pointer;
   background: #18181b;
   border-bottom: 1px solid #333;
   transition: background-color 0.2s ease;
-  min-width: 0; /* Allow flex container to shrink */
+  min-height: 120px;
+  gap: 16px;
+  border-radius: 12px 12px 0 0; /* Keep rounded corners only at top */
+  overflow: hidden; /* Clip content within header */
 }
 
 .stream-compact-header:hover {
   background: #1a1a1e;
 }
 
+/* Left: Category Image */
 .stream-thumbnail {
   flex-shrink: 0;
-  width: 40px;  /* Ensure the thumbnail has a defined width */
-  height: 53px; /* Ensure the thumbnail has a defined height */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  z-index: 1;
+  width: 80px;
+  height: 80px;
+  align-self: center;
 }
 
-.category-image-small {
-  width: 40px;
-  height: 53px;
+.category-image-container {
+  width: 90px;   /* Adjusted for 3:4 aspect ratio like Twitch category images */
+  height: 120px; /* 90 * 4/3 = 120 for proper 3:4 ratio (285x380) */
+  border-radius: 8px;
   overflow: hidden;
-  border-radius: 6px;
   background-color: #121214;
+  border: 1px solid #333;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  z-index: 1;
-  border: 1px solid #333; /* Add a subtle border to make it visible */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.category-image-small img {
+.category-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 6px;
+  display: block;
 }
 
-.category-placeholder {
-  width: 40px;
-  height: 53px;
-  background: linear-gradient(45deg, #333, #444);
-  border-radius: 6px;
+.category-icon-wrapper {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
-  font-size: 18px;
+  background: linear-gradient(135deg, #6441a5, #9146ff);
+  color: white;
+  font-size: 24px;
+}
+
+.category-placeholder {
+  width: 120px;  /* Match the new container width */
+  height: 68px;   /* Match the new container height */
+  background: linear-gradient(45deg, #333, #444);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 20px;
   border: 1px solid #333;
-  z-index: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.category-icon {
-  font-size: 18px;
-  color: #9146FF;
-}
-
-.stream-summary {
+/* Center: Stream Info */
+.stream-info {
   flex: 1;
-  min-width: 0;
-  padding-right: 8px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding-right: 16px;
 }
 
 .stream-badges {
   display: flex;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
 .stream-title {
-  margin: 0 0 4px 0;
-  font-size: 0.95rem;
-  font-weight: 500;
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
   color: #fff;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
   line-height: 1.3;
-  max-width: 100%;
-  /* Allow title to take multiple lines on mobile */
-  white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stream-meta {
   display: flex;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: #aaa;
+  gap: 12px;
   flex-wrap: wrap;
-  align-items: center;
-  overflow: hidden;
+  margin-top: auto;
 }
 
-.stream-meta .duration {
-  font-weight: 500;
-  color: #9146FF;
-  white-space: nowrap;
-}
-
-.stream-meta .category {
-  opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 150px;
-}
-
-.expand-controls {
+.meta-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.quick-actions {
-  display: flex;
   gap: 4px;
+  font-size: 0.85rem;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
-.btn-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: none;
+.meta-item i {
+  font-size: 0.8rem;
+}
+
+.duration-item {
+  background: rgba(145, 70, 255, 0.2);
+  color: #b379ff;
+}
+
+.category-item {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ddd;
+}
+
+/* Right: Action Buttons */
+.stream-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 50px;
+  padding: 8px 5px;
+}
+
+.action-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: 16px;
   transition: all 0.2s ease;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(5px);
 }
 
-.btn-icon.btn-primary {
-  background: #007bff;
-  color: white;
+.action-btn i {
+  font-size: 16px;
+  font-weight: 900;
+  z-index: 1;
+  transition: color 0.2s ease;
 }
 
-.btn-icon.btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-.btn-icon.btn-danger {
-  background: #dc3545;
-  color: white;
+/* Play button - Green play icon */
+.play-btn i {
+  color: #28a745;
 }
 
-.btn-icon.btn-danger:hover:not(:disabled) {
-  background: #c82333;
+.play-btn:hover i {
+  color: #20c437;
 }
 
-.btn-icon:disabled {
+/* Delete button - Red trash icon, override global styles */
+.action-btn.delete-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.action-btn.delete-btn i {
+  color: #dc3545;
+}
+
+.action-btn.delete-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.action-btn.delete-btn:hover:not(:disabled) i {
+  color: #ff4757;
+}
+
+/* Expand button - Blue chevron icon */
+.expand-btn i {
+  color: #007bff;
+}
+
+.expand-btn:hover i {
+  color: #0056b3;
+}
+
+.action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
 }
 
-.expand-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #555;
-  background: transparent;
-  color: #aaa;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Icon animations and states */
+.fa-play, .fa-trash, .fa-chevron-down {
+  transition: transform 0.2s ease;
+}
+
+.fa-chevron-down.rotated {
+  transform: rotate(180deg);
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+  background: rgba(100, 100, 100, 0.3) !important;
+}
+
+.action-btn:disabled i {
+  color: #666 !important;
+}
+
+/* Enhanced icon animations */
+.fa-play, .fa-trash, .fa-chevron-down {
   transition: all 0.2s ease;
 }
 
-.expand-btn:hover {
-  background: #333;
-  color: #fff;
+.fa-chevron-down.rotated {
+  transform: rotate(180deg);
 }
 
-.expand-btn i.rotated {
-  transform: rotate(180deg);
+.fa-spinner {
+  animation: spin 1s linear infinite;
+  color: #ffc107 !important; /* Yellow spinner for visibility */
+}
+
+/* Tooltip system with proper positioning */
+.action-btn[data-tooltip], .test-tooltip-btn[data-tooltip] {
+  position: relative;
+}
+
+.action-btn[data-tooltip]:hover:not(:disabled)::before,
+.test-tooltip-btn[data-tooltip]:hover::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: -40px; /* Position above button instead of below */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 10000; /* Very high z-index */
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Tooltip arrow pointing down */
+.action-btn[data-tooltip]:hover:not(:disabled)::after,
+.test-tooltip-btn[data-tooltip]:hover::after {
+  content: '';
+  position: absolute;
+  top: -8px; /* Position arrow below tooltip */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.9);
+  z-index: 10001;
+  pointer-events: none;
+}
+
+/* Prevent tooltips from overlapping by staggering positions */
+.play-btn[data-tooltip]:hover:not(:disabled)::before {
+  left: 40%; /* Slightly left */
+}
+
+.delete-btn[data-tooltip]:hover:not(:disabled)::before {
+  left: 50%; /* Center */
+}
+
+.expand-btn[data-tooltip]:hover:not(:disabled)::before {
+  left: 60%; /* Slightly right */
 }
 
 /* Expanded Content */
@@ -1135,39 +1300,46 @@ const handleImageError = (event: Event, categoryName: string) => {
   gap: 8px;
 }
 
-/* Status badges - smaller versions */
+/* Status badges */
 .status-badge {
   background-color: #444;
   color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.7rem;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 0.9rem;
   font-weight: bold;
   text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  letter-spacing: 0.5px;
 }
 
 .status-badge.live {
   background-color: #e91916;
   animation: pulse 2s infinite;
+  box-shadow: 0 2px 6px rgba(233, 25, 22, 0.6);
 }
 
 .recording-badge {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.7rem;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 0.9rem;
   font-weight: bold;
   text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  letter-spacing: 0.5px;
 }
 
 .recording-badge.recording {
-  background-color: var(--success-color);
+  background-color: #28a745;
   color: white;
   animation: pulse 2s infinite;
+  box-shadow: 0 2px 6px rgba(40, 167, 69, 0.6);
 }
 
 .recording-badge.not-recording {
-  background-color: var(--danger-color);
+  background-color: #dc3545;
   color: white;
+  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.6);
 }
 
 /* Modal styles */
@@ -1244,105 +1416,121 @@ const handleImageError = (event: Event, categoryName: string) => {
 @media (max-width: 768px) {
   .stream-list {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 16px;
   }
   
   .stream-compact-header {
-    padding: 10px 12px;
-    gap: 8px;
+    padding: 12px;
+    min-height: 100px;
+    gap: 12px;
   }
   
-  .category-image-small {
-    width: 32px;
-    height: 42px;
+  .stream-thumbnail {
+    width: 100px;   /* Increased for mobile 16:9 */
+    height: 56px;   /* 100 * 9/16 = 56.25, rounded to 56 */
   }
   
-  .category-placeholder {
-    width: 32px;
-    height: 42px;
-    font-size: 14px;
+  .category-image-container, .category-placeholder {
+    width: 75px;    /* Smaller but maintain 3:4 portrait ratio for mobile */
+    height: 100px;  /* 75 * 4/3 = 100 for proper 3:4 ratio */
+  }
+  
+  .category-icon-wrapper {
+    font-size: 20px;  /* Smaller icon for mobile */
   }
   
   .stream-title {
-    font-size: 0.85rem;
-    -webkit-line-clamp: 3; /* Allow more lines on mobile */
-    line-clamp: 3;
+    font-size: 1rem;
   }
   
   .stream-meta {
-    font-size: 0.75rem;
+    gap: 8px;
   }
   
-  .stream-meta .category {
-    max-width: 100px;
+  .meta-item {
+    font-size: 0.8rem;
+    padding: 3px 6px;
   }
   
-  .quick-actions {
-    gap: 2px;
-  }
-  
-  .btn-icon {
-    width: 28px;
-    height: 28px;
-    font-size: 0.7rem;
-  }
-  
-  .modal-content {
-    min-width: 320px;
-    padding: 15px;
+  .action-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
   }
 }
 
 @media (max-width: 480px) {
   .stream-list {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 20px;
   }
   
   .stream-card {
     min-width: 280px;
-    max-width: calc(100vw - 40px); /* Ensure cards don't exceed viewport */
+    max-width: calc(100vw - 40px);
+    min-height: 220px; /* Much taller on mobile */
   }
   
   .stream-compact-header {
-    padding: 8px 10px;
-    gap: 6px;
+    flex-direction: row;
+    padding: 20px;
+    min-height: 200px; /* Much taller header on mobile */
+    align-items: flex-start;
+  }
+  
+  .stream-thumbnail {
+    width: 80px;
+    height: 112px;
+    margin-right: 16px;
+  }
+  
+  .category-image-small {
+    width: 80px;
+    height: 112px;
+  }
+  
+  .category-placeholder {
+    width: 80px;
+    height: 112px;
   }
   
   .stream-summary {
-    padding-right: 4px;
-    min-width: 0; /* Allow shrinking */
-    flex: 1;
+    max-width: calc(100% - 100px);
+    padding-right: 40px; /* Make room for action buttons */
   }
   
-  .stream-title {
-    font-size: 0.8rem;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+  .expand-controls {
+    position: absolute;
+    top: 12px;
+    right: 12px;
   }
   
-  .header-actions {
+  .quick-actions {
     flex-direction: column;
-    gap: 8px;
-    width: 100%;
+    gap: 10px;
   }
   
-  .header-actions .btn {
-    width: 100%;
-    justify-content: center;
+  .btn-icon {
+    width: 46px;
+    height: 46px;
   }
   
   .stream-title {
-    font-size: 0.8rem;
+    font-size: 1rem;
+    margin-top: 6px;
+    margin-bottom: 10px;
+    -webkit-line-clamp: 3; /* Show more lines on mobile */
+    line-clamp: 3;
+    padding-right: 10px;
+  }
+  
+  .stream-badges {
+    margin-bottom: 8px;
   }
   
   .stream-meta {
-    font-size: 0.7rem;
-    gap: 4px;
-  }
-  
-  .stream-meta .category {
-    max-width: 80px;
+    margin-top: 10px;
+    font-size: 0.95rem;
   }
 }
 

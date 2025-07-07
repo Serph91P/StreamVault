@@ -52,8 +52,6 @@ def get_streamlink_command(
     
     # Use the streamlink log path for this recording session if not provided
     if not log_path:
-        # Wichtig: Nutze die Methode über die importierte logging_service-Instanz
-        # Nicht direkt importieren mit: from app.services.logging_service import get_streamlink_log_path
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
@@ -62,31 +60,34 @@ def get_streamlink_command(
         f"twitch.tv/{streamer_name}",
         quality,
         "-o", ts_output_path,
-        "--twitch-disable-ads",
         "--hls-live-restart",
-        "--hls-live-edge", "6",  # Start closer to live edge for better stability
-        "--stream-segment-threads", "5",  # Multi-threading helps with connections
-        "--ffmpeg-fout", "mpegts",  # Use mpegts format for better container handling
-        # Timeout parameters with enhanced values
+        "--hls-live-edge", "6",
+        "--stream-segment-threads", "5",
+        "--ffmpeg-fout", "mpegts",
         "--stream-segment-timeout", "30" if not force_mode else "45",
-        "--stream-timeout", "180" if not force_mode else "240", 
+        "--stream-timeout", "180" if not force_mode else "240",
         "--stream-segment-attempts", "8" if not force_mode else "12",
-        "--retry-streams", "10",  # More retries for stability
+        "--retry-streams", "10",
         "--retry-max", "5",
         "--retry-open", "5" if not force_mode else "8",
-        # Buffer management for connections
         "--ringbuffer-size", "256M",
         "--hls-segment-queue-threshold", "5",
         "--force",
-        # Logging parameters
         "--loglevel", "debug",
         "--logfile", log_path,
         "--logformat", "[{asctime}][{name}][{levelname}] {message}",
         "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
     
+    # Only add ad-disabling flags if NO proxy is set
+    proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
+    if not proxy_enabled:
+        cmd.extend([
+            "--twitch-disable-ads",
+        ])
+    
     # Add proxy settings if provided
-    if proxy_settings:
+    if proxy_enabled and proxy_settings:
         cmd = _add_proxy_settings(cmd, proxy_settings, force_mode)
     
     return cmd

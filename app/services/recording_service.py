@@ -618,23 +618,8 @@ class RecordingService:
                     # Update our recording info with stream ID
                     self.active_recordings[streamer_id]["stream_id"] = stream.id
                     
-                    # Schedule delayed thumbnail download with video fallback
-                    output_dir = os.path.dirname(output_path)
-                    ts_path = output_path.replace(".mp4", ".ts")  # TS file path for fallback
-                    
-                    # Import thumbnail service
-                    from app.services.thumbnail_service import ThumbnailService
-                    thumbnail_service = ThumbnailService()
-                    
-                    asyncio.create_task(
-                        thumbnail_service.delayed_thumbnail_download(
-                            streamer.username, 
-                            stream.id, 
-                            output_dir,
-                            video_path=ts_path,  # Use TS file for extraction
-                            delay_minutes=5  # Wait 5 minutes for stream to stabilize
-                        )
-                    )
+                    # Note: Thumbnail generation is now handled after MP4 creation
+                    # in _delayed_metadata_generation() method for better quality
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
             
@@ -998,15 +983,8 @@ class RecordingService:
 
                 # Save the stream ID in the recording information
                 if recording_started and streamer_id in self.active_recordings:
-                    # Try to download a Twitch thumbnail
-                    output_dir = os.path.dirname(
-                        self.active_recordings[streamer_id]["output_path"]
-                    )
-                    asyncio.create_task(
-                        self.metadata_service.download_twitch_thumbnail(
-                            streamer.username, stream.id, output_dir
-                        )
-                    )
+                    # Note: Thumbnail generation is now handled after MP4 creation
+                    # for better quality and consistency
 
                     logger.info(
                         f"Force offline recording started for {streamer.username}, stream_id: {stream.id}"
@@ -1275,6 +1253,10 @@ class RecordingService:
             # Generate metadata
             logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
             await self._generate_stream_metadata(stream_id, mp4_path)
+
+            # Generate thumbnail from MP4 after metadata is complete
+            logger.info(f"Generating thumbnail from MP4 for stream {stream_id}")
+            await self._generate_thumbnail_from_mp4(stream_id, mp4_path)
 
             # Create optimized media server structure
             logger.info(f"Creating media server structure for stream {stream_id}")
@@ -1677,18 +1659,31 @@ class RecordingService:
                 logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
                                                   f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
                 
-                # Only delete original TS file if all checks passed
-                if os.path.exists(ts_path):
-                    logger.info(f"All validation checks passed. Deleting original TS file: {ts_path}")
-                    os.remove(ts_path)
-                    logging_service.ffmpeg_logger.info(f"[TS_DELETE] Deleted original TS file: {ts_path}")
-                    self.activity_logger.log_file_operation("TS_DELETE", ts_path, True, "TS file deleted after successful MP4 validation")
+                # IMPORTANT: Keep TS file as backup until we're 100% sure MP4 works
+                # We will clean it up later during the cleanup process, not immediately
+                logger.info(f"Keeping TS file as backup until final cleanup: {ts_path}")
+                logging_service.ffmpeg_logger.info(f"[TS_BACKUP] Keeping TS file as backup: {ts_path}")
+                self.activity_logger.log_file_operation("TS_BACKUP", ts_path, True, "TS file kept as backup until final cleanup")
                 
                 return True
             else:
                 error_msg = f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}"
                 logger.error(error_msg)
                 self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, result.get("stderr", "Unknown error"))
+                
+                # FALLBACK: If MP4 creation failed completely, keep TS file as final recording
+                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
+                    logger.warning(f"MP4 conversion failed, keeping TS file as final recording: {ts_path}")
+                    # Rename TS to indicate it's the final version
+                    fallback_path = ts_path.replace(".ts", "_FINAL.ts")
+                    try:
+                        os.rename(ts_path, fallback_path)
+                        self.activity_logger.log_file_operation("TS_FALLBACK", fallback_path, True, 
+                                                              "TS file renamed as final recording due to MP4 failure")
+                        logger.info(f"TS file saved as fallback recording: {fallback_path}")
+                    except Exception as rename_error:
+                        logger.error(f"Failed to rename TS fallback file: {rename_error}")
+                
                 return False
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
@@ -1835,10 +1830,59 @@ class RecordingService:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
     async def _cleanup_temporary_files(self, mp4_path: str):
-        """Clean up temporary files after successful metadata generation"""
-        # Use the function from file_utils module
-        from app.utils.file_utils import cleanup_temporary_files
-        await cleanup_temporary_files(mp4_path)
+        """Clean up temporary files after successful metadata generation with final MP4 validation"""
+        try:
+            # Extract streamer name for logging
+            path_parts = mp4_path.split(os.sep)
+            streamer_name = "unknown"
+            for part in path_parts:
+                if part and not part.startswith("."):
+                    streamer_name = part
+                    break
+            
+            # First, do a final MP4 validation to ensure it still works after all processing
+            logger.info(f"Performing final MP4 validation before TS cleanup: {mp4_path}")
+            
+            # Check if MP4 still exists and is playable
+            if not os.path.exists(mp4_path):
+                logger.error(f"MP4 file does not exist during cleanup: {mp4_path}")
+                return
+                
+            # Final validation with ffprobe
+            is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+            if not is_valid:
+                logger.error(f"Final MP4 validation failed during cleanup: {mp4_path}")
+                # Don't delete TS file if MP4 is invalid
+                return
+                
+            # Check if corresponding TS file exists
+            ts_path = mp4_path.replace(".mp4", ".ts")
+            if os.path.exists(ts_path):
+                # Do one final duration check to make sure MP4 is still good
+                final_duration_check = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
+                
+                if final_duration_check["valid"]:
+                    # MP4 is confirmed good, safe to delete TS
+                    logger.info(f"Final validation passed. Now safe to delete TS file: {ts_path}")
+                    try:
+                        os.remove(ts_path)
+                        self.activity_logger.log_file_operation("TS_FINAL_DELETE", ts_path, True, 
+                                                              "TS file deleted after final MP4 validation")
+                        logger.info(f"Successfully deleted TS backup file: {ts_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete TS file during cleanup: {e}")
+                else:
+                    # MP4 validation failed, keep TS as backup
+                    logger.warning(f"Final MP4 validation failed, keeping TS backup: {ts_path}")
+                    self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                          f"TS kept as backup due to MP4 validation failure: {final_duration_check['message']}")
+            
+            # Clean up other temporary files (logs, metadata, etc.)
+            from app.utils.file_utils import cleanup_temporary_files
+            await cleanup_temporary_files(mp4_path)
+            
+        except Exception as e:
+            logger.error(f"Error during temporary files cleanup: {e}", exc_info=True)
 
     async def _update_recording_path(self, stream_id: int, new_path: str):
         """Update the recording path for a stream after media server structure creation"""
@@ -2026,15 +2070,32 @@ class RecordingService:
             
             # If we have both durations, compare them
             if ts_duration and ts_duration > 0:
-                # Allow some tolerance (5% difference)
+                # Check if proxy is enabled to determine tolerance
+                proxy_settings = get_proxy_settings_from_db()
+                proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
+                
+                # Use different thresholds based on proxy status and stream length
+                if proxy_enabled:
+                    # With proxy, we expect fewer discontinuities - be more strict
+                    min_ratio = 0.90 if ts_duration < 3600 else 0.85  # 90% for short streams, 85% for long streams
+                else:
+                    # Without proxy, expect more ad segments causing discontinuities - be more lenient
+                    min_ratio = 0.60 if ts_duration < 3600 else 0.50  # 60% for short streams, 50% for long streams
+                    
                 ratio = mp4_duration / ts_duration
                 
-                if ratio < 0.95:
-                    return {
-                        "valid": False,
-                        "duration": mp4_duration,
-                        "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s)"
-                    }
+                if ratio < min_ratio:
+                    # Only fail for extreme cases where most content is lost
+                    if ratio < 0.30:  # Fail if we lost more than 70% of content
+                        return {
+                            "valid": False,
+                            "duration": mp4_duration,
+                            "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s), ratio: {ratio:.2f}"
+                        }
+                    else:
+                        # For less extreme cases, log a warning but still pass validation
+                        proxy_status = "with proxy" if proxy_enabled else "without proxy (ads expected)"
+                        logger.warning(f"MP4 shorter than TS ({proxy_status}): MP4={mp4_duration:.2f}s, TS={ts_duration:.2f}s, ratio={ratio:.2f}")
             
             # If the duration is too short (less than 10 seconds), it's probably not a valid recording
             if mp4_duration < 10:
@@ -2145,3 +2206,116 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error getting media duration: {e}")
             return None
+
+    async def cleanup_old_ts_backups(self, max_age_hours: int = 72):
+        """Clean up old TS backup files that are older than specified hours
+        
+        Args:
+            max_age_hours: Maximum age in hours before TS backups are removed (default 72h = 3 days)
+        """
+        try:
+            logger.info(f"Starting cleanup of TS backup files older than {max_age_hours} hours")
+            
+            # Get recording directory from settings
+            with SessionLocal() as db:
+                settings = db.query(RecordingSettings).first()
+                if not settings:
+                    logger.warning("No recording settings found, skipping TS backup cleanup")
+                    return
+                    
+                base_dir = settings.output_directory
+            
+            if not os.path.exists(base_dir):
+                logger.warning(f"Recording directory does not exist: {base_dir}")
+                return
+            
+            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            cleaned_count = 0
+            freed_space = 0
+            
+            # Walk through all subdirectories looking for TS files
+            for root, dirs, files in os.walk(base_dir):
+                for file in files:
+                    if file.endswith('.ts'):
+                        file_path = os.path.join(root, file)
+                        try:
+                            # Check file modification time
+                            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                            
+                            if file_mtime < cutoff_time:
+                                # Check if corresponding MP4 exists and is valid
+                                mp4_path = file_path.replace('.ts', '.mp4')
+                                
+                                if os.path.exists(mp4_path):
+                                    # Extract streamer name for validation
+                                    path_parts = file_path.split(os.sep)
+                                    streamer_name = "unknown"
+                                    for part in path_parts:
+                                        if part and not part.startswith("."):
+                                            streamer_name = part
+                                            break
+                                    
+                                    # Validate MP4 before deleting TS backup
+                                    is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+                                    
+                                    if is_valid:
+                                        # MP4 is valid, safe to delete old TS backup
+                                        file_size = os.path.getsize(file_path)
+                                        os.remove(file_path)
+                                        cleaned_count += 1
+                                        freed_space += file_size
+                                        
+                                        logger.info(f"Cleaned up old TS backup: {file_path}")
+                                        self.activity_logger.log_file_operation("TS_CLEANUP", file_path, True, 
+                                                                              f"Old backup removed after {max_age_hours}h")
+                                    else:
+                                        logger.warning(f"Keeping TS backup - MP4 validation failed: {file_path}")
+                                else:
+                                    # No MP4 exists, this might be a _FINAL.ts file, keep it for now
+                                    if "_FINAL.ts" in file:
+                                        logger.info(f"Keeping final TS recording: {file_path}")
+                                    else:
+                                        # Orphaned TS file, can be cleaned up
+                                        file_size = os.path.getsize(file_path)
+                                        os.remove(file_path)
+                                        cleaned_count += 1
+                                        freed_space += file_size
+                                        logger.info(f"Cleaned up orphaned TS file: {file_path}")
+                                        
+                        except Exception as e:
+                            logger.error(f"Error processing TS file {file_path}: {e}")
+            
+            freed_mb = freed_space / (1024 * 1024)
+            logger.info(f"TS backup cleanup completed: {cleaned_count} files removed, {freed_mb:.2f} MB freed")
+            
+        except Exception as e:
+            logger.error(f"Error during TS backup cleanup: {e}", exc_info=True)
+    
+    async def _generate_thumbnail_from_mp4(self, stream_id: int, mp4_path: str):
+        """Generate thumbnail from MP4 file using thumbnail service"""
+        try:
+            # Import and use thumbnail service
+            from app.services.thumbnail_service import ThumbnailService
+            thumbnail_service = ThumbnailService()
+            
+            try:
+                # Use the comprehensive thumbnail generation method
+                thumbnail_path = await thumbnail_service.generate_thumbnail_from_mp4(stream_id, mp4_path)
+                
+                if thumbnail_path:
+                    # Log successful thumbnail generation
+                    self.activity_logger.log_process_monitoring(
+                        "recording",
+                        "THUMBNAIL_SUCCESS",
+                        f"Generated from MP4: {thumbnail_path}"
+                    )
+                    logger.info(f"Successfully generated thumbnail from MP4: {thumbnail_path}")
+                else:
+                    logger.warning(f"Failed to generate thumbnail from MP4: {mp4_path}")
+                        
+            finally:
+                await thumbnail_service.close()
+                
+        except Exception as e:
+            logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
+

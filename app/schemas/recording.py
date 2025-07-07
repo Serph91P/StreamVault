@@ -20,7 +20,6 @@ class CleanupPolicySchema(BaseModel):
     preserve_favorites: bool = Field(default=True, description="Preserve recordings of favorite categories")
     preserve_categories: Optional[List[str]] = Field(default=None, description="Categories to preserve")
     preserve_timeframe: Optional[PreserveTimeframeSchema] = Field(default=None, description="Timeframe to preserve")
-    delete_silently: bool = Field(default=False, description="Delete without confirmation")
 
 class RecordingSettingsSchema(BaseModel):
     enabled: bool = Field(default=True, description="Enable recording globally")
