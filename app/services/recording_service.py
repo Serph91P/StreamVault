@@ -1708,21 +1708,41 @@ class RecordingService:
             if os.path.exists(output_path) and overwrite:
                 os.remove(output_path)
             
-            # Base FFmpeg command with enhanced stability parameters
+            # Base FFmpeg command - SIMPLIFIED for pure remux
             cmd = [
                 "ffmpeg",
                 "-fflags", "+genpts+igndts+ignidx+discardcorrupt",
                 "-err_detect", "ignore_err",
                 "-analyzeduration", "50M",
                 "-probesize", "50M",
-                "-i", input_path,
+                "-i", input_path
+            ]
+            
+            # Add metadata file if provided (as second input)
+            if metadata_file and os.path.exists(metadata_file):
+                cmd.extend(["-i", metadata_file])
+                # Map metadata from second input
+                metadata_mapping = ["-map_metadata", "1"]
+            else:
+                metadata_mapping = []
+            
+            # Continue with codec and mapping settings
+            cmd.extend([
                 "-c:v", "copy",
                 "-c:a", "copy",
                 # AAC bitstream filter is crucial for Twitch streams
                 "-bsf:a", "aac_adtstoasc",
                 "-avoid_negative_ts", "make_zero",
+                # Map video and audio from FIRST input (the TS file)
                 "-map", "0:v:0?",
                 "-map", "0:a:0?",
+            ])
+            
+            # Add metadata mapping if we have a metadata file
+            cmd.extend(metadata_mapping)
+            
+            # Continue with container settings
+            cmd.extend([
                 "-movflags", "+faststart+empty_moov+frag_keyframe",
                 "-ignore_unknown",
                 "-max_muxing_queue_size", "16384",
@@ -1737,14 +1757,7 @@ class RecordingService:
                 "-report",
                 "-v", "info",
                 "-stats_period", "30"
-            ]
-            
-            # Add metadata file if provided
-            if metadata_file and os.path.exists(metadata_file):
-                cmd.insert(cmd.index("-i"), "-i")
-                cmd.insert(cmd.index("-i") + 1, metadata_file)
-                cmd.insert(cmd.index("-map", 1) + 2, "-map_metadata")
-                cmd.insert(cmd.index("-map_metadata") + 1, "1")
+            ])
             
             # Log file path for debugging
             log_file = f"/app/logs/ffmpeg/remux_{streamer_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
