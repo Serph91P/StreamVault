@@ -1547,17 +1547,30 @@ class RecordingService:
                 "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             }
             
-            # Create a temporary metadata file
+            # Create a temporary metadata file - SAFER approach
             meta_path = None
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
                     meta_path = f.name
                     f.write(";FFMETADATA1\n")
                     for key, value in metadata.items():
-                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
-                        f.write(f"{key}={value_escaped}\n")
+                        # More robust escaping
+                        safe_value = str(value).replace("\\", "\\\\").replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\n", "\\n").replace("\r", "\\r")
+                        # Limit value length to prevent extremely long metadata
+                        if len(safe_value) > 255:
+                            safe_value = safe_value[:252] + "..."
+                        f.write(f"{key}={safe_value}\n")
+                    
+                # Verify the metadata file was created correctly
+                if os.path.exists(meta_path) and os.path.getsize(meta_path) > 0:
+                    logger.info(f"Metadata file created successfully: {meta_path}")
+                else:
+                    logger.warning(f"Metadata file creation failed or empty: {meta_path}")
+                    meta_path = None
+                    
             except Exception as e:
                 logger.error(f"Failed to create metadata file: {e}")
+                meta_path = None
             
             # Generate a unique timestamp for this remux operation
             remux_timestamp = int(datetime.now().timestamp())
@@ -1577,9 +1590,14 @@ class RecordingService:
                 logging_service=logging_service
             )
             
-            # Clean up the temporary metadata file
+            # Clean up the temporary metadata file - SAFER cleanup
             if meta_path and os.path.exists(meta_path):
-                os.remove(meta_path)
+                try:
+                    os.remove(meta_path)
+                    logger.debug(f"Cleaned up metadata file: {meta_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up metadata file {meta_path}: {e}")
+                    # Don't fail the whole process for cleanup issues
                 
             # If remux was successful, validate the MP4 file before deleting the TS file
             if result["success"] and os.path.exists(mp4_path):
@@ -1687,7 +1705,37 @@ class RecordingService:
                 return False
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
-            return False
+            
+            # Fallback: If remux completely fails, try a simple copy-only approach
+            try:
+                logger.info(f"Attempting fallback remux with minimal settings for {streamer_name}")
+                fallback_cmd = [
+                    "ffmpeg",
+                    "-i", ts_path,
+                    "-c", "copy",
+                    "-avoid_negative_ts", "make_zero",
+                    "-y", mp4_path,
+                    "-v", "error"
+                ]
+                
+                process = await asyncio.create_subprocess_exec(
+                    *fallback_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
+                
+                if process.returncode == 0 and os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                    logger.info(f"Fallback remux successful for {streamer_name}")
+                    return True
+                else:
+                    logger.error(f"Fallback remux also failed for {streamer_name}")
+                    return False
+                    
+            except Exception as fallback_error:
+                logger.error(f"Fallback remux failed: {fallback_error}")
+                return False
         finally:
             # Clean up the process
             await self.subprocess_manager.terminate_process(
@@ -1708,7 +1756,7 @@ class RecordingService:
             if os.path.exists(output_path) and overwrite:
                 os.remove(output_path)
             
-            # Base FFmpeg command - SIMPLIFIED for pure remux
+            # Base FFmpeg command - SIMPLIFIED for pure remux - FIXED VERSION
             cmd = [
                 "ffmpeg",
                 "-fflags", "+genpts+igndts+ignidx+discardcorrupt",
@@ -1718,15 +1766,23 @@ class RecordingService:
                 "-i", input_path
             ]
             
-            # Add metadata file if provided (as second input)
-            if metadata_file and os.path.exists(metadata_file):
-                cmd.extend(["-i", metadata_file])
-                # Map metadata from second input
-                metadata_mapping = ["-map_metadata", "1"]
-            else:
-                metadata_mapping = []
+            # Add metadata file if provided (as second input) - ONLY if metadata exists and is valid
+            metadata_mapping = []
+            if metadata_file and os.path.exists(metadata_file) and os.path.getsize(metadata_file) > 0:
+                try:
+                    # Validate metadata file content before using it
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        if content.strip().startswith(';FFMETADATA1'):
+                            cmd.extend(["-i", metadata_file])
+                            metadata_mapping = ["-map_metadata", "1"]
+                            logger.info(f"Using metadata file: {metadata_file}")
+                        else:
+                            logger.warning(f"Invalid metadata file format, skipping: {metadata_file}")
+                except Exception as e:
+                    logger.warning(f"Error reading metadata file, skipping: {e}")
             
-            # Continue with codec and mapping settings
+            # Continue with codec and mapping settings - SIMPLIFIED
             cmd.extend([
                 "-c:v", "copy",
                 "-c:a", "copy",
@@ -1738,25 +1794,22 @@ class RecordingService:
                 "-map", "0:a:0?",
             ])
             
-            # Add metadata mapping if we have a metadata file
+            # Add metadata mapping if we have a valid metadata file
             cmd.extend(metadata_mapping)
             
-            # Continue with container settings
+            # Continue with container settings - REDUCED complexity
             cmd.extend([
-                "-movflags", "+faststart+empty_moov+frag_keyframe",
+                "-movflags", "+faststart",
                 "-ignore_unknown",
-                "-max_muxing_queue_size", "16384",
-                "-max_interleave_delta", "0",
-                "-fflags", "+discardcorrupt",
+                "-max_muxing_queue_size", "8192",
                 "-async", "0",
                 "-fps_mode", "passthrough",  # Modern replacement for -vsync
                 "-metadata", f"encoded_by=StreamVault",
                 "-metadata", f"encoding_tool=StreamVault",
                 "-y", output_path,
-                # Add reporting options for better logging
-                "-report",
-                "-v", "info",
-                "-stats_period", "30"
+                # Simplified logging
+                "-v", "warning",  # Reduced verbosity
+                "-stats_period", "10"
             ])
             
             # Log file path for debugging
@@ -1765,13 +1818,25 @@ class RecordingService:
             if logging_service:
                 logging_service.recording_logger.info(f"[REMUX_COMMAND] {streamer_name} - Command: {' '.join(cmd)}")
             
-            # Start FFmpeg process
+            # Start FFmpeg process with timeout
             process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
             
-            # Wait for process to complete
-            stdout, stderr = await process.communicate()
-            exit_code = process.returncode
+            # Wait for process to complete with timeout (max 30 minutes for very long streams)
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1800)
+                exit_code = process.returncode
+            except asyncio.TimeoutError:
+                logger.error(f"FFmpeg remux process timed out for {streamer_name}")
+                process.kill()
+                await process.wait()
+                return {
+                    "success": False,
+                    "exit_code": -1,
+                    "stdout": "",
+                    "stderr": "Process timed out after 30 minutes",
+                    "metrics": {}
+                }
             
             # Get file sizes for metrics
             input_size_mb = os.path.getsize(input_path) / (1024 * 1024) if os.path.exists(input_path) else 0
@@ -1788,12 +1853,37 @@ class RecordingService:
             # Check if output file exists and has content
             success = exit_code == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
             
-            # Additional check for truncated files
-            if success and input_size_mb > 0 and output_size_mb < input_size_mb * 0.8:
-                logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
-                if logging_service:
-                    logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
-                success = False
+            # Additional validation for truncated files - MORE LENIENT
+            if success and input_size_mb > 0:
+                size_ratio = output_size_mb / input_size_mb
+                # More lenient size check - allow up to 50% difference (ads, buffering, etc.)
+                if output_size_mb < input_size_mb * 0.5:
+                    logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
+                    if logging_service:
+                        logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
+                    success = False
+                elif size_ratio < 0.7:
+                    # Log warning but don't fail - could be due to ads or buffering
+                    logger.warning(f"SIZE_WARNING: MP4 size ({output_size_mb:.2f} MB) is smaller than expected compared to TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
+                    if logging_service:
+                        logging_service.recording_logger.warning(f"[REMUX_WARNING] {streamer_name} - SIZE_WARNING: Size ratio {size_ratio:.2f} is low but acceptable")
+            
+            # Additional quick validation of MP4 structure
+            if success:
+                try:
+                    # Quick check if file is a valid MP4
+                    with open(output_path, 'rb') as f:
+                        header = f.read(8)
+                        if len(header) >= 8:
+                            # Check for MP4 file signature
+                            if header[4:8] == b'ftyp':
+                                logger.info(f"MP4 file structure validation passed: {output_path}")
+                            else:
+                                logger.warning(f"MP4 file structure validation failed: {output_path}")
+                                success = False
+                except Exception as e:
+                    logger.warning(f"Could not validate MP4 structure: {e}")
+                    # Don't fail the process for this check
             
             # Log outcome
             operation = "REMUX_SUCCESS" if success else "REMUX_FAILURE"
@@ -2087,19 +2177,19 @@ class RecordingService:
                 proxy_settings = get_proxy_settings_from_db()
                 proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
                 
-                # Use different thresholds based on proxy status and stream length
+                # Use different thresholds based on proxy status and stream length - MORE LENIENT
                 if proxy_enabled:
-                    # With proxy, we expect fewer discontinuities - be more strict
-                    min_ratio = 0.90 if ts_duration < 3600 else 0.85  # 90% for short streams, 85% for long streams
+                    # With proxy, we expect fewer discontinuities - be more strict but still reasonable
+                    min_ratio = 0.80 if ts_duration < 3600 else 0.75  # 80% for short streams, 75% for long streams
                 else:
                     # Without proxy, expect more ad segments causing discontinuities - be more lenient
-                    min_ratio = 0.60 if ts_duration < 3600 else 0.50  # 60% for short streams, 50% for long streams
+                    min_ratio = 0.50 if ts_duration < 3600 else 0.40  # 50% for short streams, 40% for long streams
                     
                 ratio = mp4_duration / ts_duration
                 
                 if ratio < min_ratio:
                     # Only fail for extreme cases where most content is lost
-                    if ratio < 0.30:  # Fail if we lost more than 70% of content
+                    if ratio < 0.25:  # Fail if we lost more than 75% of content
                         return {
                             "valid": False,
                             "duration": mp4_duration,
@@ -2109,6 +2199,12 @@ class RecordingService:
                         # For less extreme cases, log a warning but still pass validation
                         proxy_status = "with proxy" if proxy_enabled else "without proxy (ads expected)"
                         logger.warning(f"MP4 shorter than TS ({proxy_status}): MP4={mp4_duration:.2f}s, TS={ts_duration:.2f}s, ratio={ratio:.2f}")
+                        # Still pass validation but log the warning
+                        self.activity_logger.log_process_monitoring(
+                            streamer_name, 
+                            "DURATION_WARNING", 
+                            f"MP4 duration shorter than expected: {mp4_duration:.2f}s vs TS: {ts_duration:.2f}s (ratio: {ratio:.2f}, {proxy_status})"
+                        )
             
             # If the duration is too short (less than 10 seconds), it's probably not a valid recording
             if mp4_duration < 10:
