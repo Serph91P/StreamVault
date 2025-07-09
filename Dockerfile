@@ -15,6 +15,7 @@ COPY requirements.txt ./
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
+    gpac \
     gcc \
     python3-dev \
     libpq-dev \
