@@ -623,7 +623,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
             
-    async def stop_recording(self, streamer_id: int) -> bool:
+    async def stop_recording(self, streamer_id: int, reason: str = "automatic") -> bool:
         """Stop an active recording and ensure metadata generation"""
         async with self.lock:
             if streamer_id not in self.active_recordings:
@@ -643,13 +643,16 @@ class RecordingService:
                 if start_time and isinstance(start_time, datetime):
                     duration = (datetime.now() - start_time).total_seconds()
 
+                # Determine stop reason - use the parameter if provided, otherwise check the recording info
+                stop_reason = reason if reason != "automatic" else recording_info.get("stop_reason", "automatic")
+                
                 # Log recording stop
                 logging_service.log_recording_stop(
                     streamer_id, 
                     recording_info['streamer_name'], 
                     duration, 
                     recording_info.get('output_path', 'Unknown'),
-                    "manual"
+                    stop_reason
                 )
 
                 # Use subprocess manager to terminate the process
@@ -685,6 +688,11 @@ class RecordingService:
                             stream_id, recording_info["output_path"], force_started
                         )
                     )
+                    
+                    # Also ensure cleanup happens if recording was manually stopped
+                    if output_path:
+                        # Schedule a cleanup in case the delayed metadata generation doesn't complete
+                        asyncio.create_task(self._delayed_cleanup_on_manual_stop(output_path, 120))  # 2 minutes delay
                     
                     # Send recording.completed notification
                     await websocket_manager.send_notification(
@@ -1864,10 +1872,10 @@ class RecordingService:
         """Clean up all resources when shutting down"""
 
         try:
-            # Stop all active recordings
+            # Stop all active recordings (automatic stop during shutdown)
             streamer_ids = list(self.active_recordings.keys())
             for streamer_id in streamer_ids:
-                await self.stop_recording(streamer_id)
+                await self.stop_recording(streamer_id, reason="automatic")
 
             # Clean up all subprocess manager processes
             await self.subprocess_manager.cleanup_all()
@@ -1884,6 +1892,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
+      
     async def _cleanup_temporary_files(self, mp4_path: str):
         """Clean up temporary files after successful metadata generation with final MP4 validation"""
         try:
@@ -2389,4 +2398,44 @@ class RecordingService:
                 
         except Exception as e:
             logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
+
+    async def _delayed_cleanup_on_manual_stop(self, output_path: str, delay: int = 120):
+        """Ensure cleanup happens when recording is manually stopped"""
+        try:
+            await asyncio.sleep(delay)  # Wait for metadata generation to complete
+            
+            # Find the MP4 path
+            mp4_path = output_path
+            if output_path.endswith(".ts"):
+                mp4_path = output_path.replace(".ts", ".mp4")
+            
+            # Check if MP4 exists and is valid before cleanup
+            if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                logger.info(f"Manual stop cleanup: Validating MP4 before TS cleanup: {mp4_path}")
+                
+                # Extract streamer name for validation
+                path_parts = mp4_path.split(os.sep)
+                streamer_name = "unknown"
+                for part in path_parts:
+                    if part and not part.startswith("."):
+                        streamer_name = part
+                        break
+                
+                # Final validation
+                is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+                
+                if is_valid:
+                    await self._cleanup_temporary_files(mp4_path)
+                    logger.info(f"Manual stop cleanup completed for: {mp4_path}")
+                else:
+                    logger.warning(f"Manual stop cleanup skipped - MP4 validation failed: {mp4_path}")
+            else:
+                logger.warning(f"Manual stop cleanup skipped - MP4 does not exist or is empty: {mp4_path}")
+                
+        except Exception as e:
+            logger.error(f"Error during manual stop cleanup: {e}", exc_info=True)
+
+    async def stop_recording_manual(self, streamer_id: int) -> bool:
+        """Stop a recording manually (called from UI/API)"""
+        return await self.stop_recording(streamer_id, reason="manual")
 
