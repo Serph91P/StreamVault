@@ -121,6 +121,20 @@ class ModernWebPushService:
         logger.debug(f"Received subscription_info type: {type(subscription_info)}")
         logger.debug(f"Subscription_info content: {subscription_info}")
         
+        # Handle case where subscription_info might be a string (JSON)
+        if isinstance(subscription_info, str):
+            try:
+                subscription_info = json.loads(subscription_info)
+                logger.debug(f"Parsed subscription_info from string: {subscription_info}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse subscription_info JSON: {e}")
+                return False
+        
+        # Ensure subscription_info is a dictionary
+        if not isinstance(subscription_info, dict):
+            logger.error(f"subscription_info must be a dictionary, got {type(subscription_info)}")
+            return False
+        
         endpoint = subscription_info.get("endpoint")
         if not endpoint:
             logger.error(f"No endpoint provided in subscription info: {subscription_info}")
