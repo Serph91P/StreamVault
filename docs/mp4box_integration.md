@@ -61,23 +61,48 @@ TS Recording → FFmpeg Remux → MP4 File → MP4Box Metadata → Final MP4 wit
 ## Installation
 
 ### Docker (Recommended):
-The Dockerfile has been updated. Simply rebuild:
+The Dockerfile has been updated with multiple installation methods for GPAC. Simply rebuild:
 
 ```bash
 docker build -t streamvault .
 ```
 
+Note: The Docker build will try multiple methods to install GPAC:
+1. Standard repository (if available)
+2. Official GPAC repository
+3. Compile from source as fallback
+
 ### Manual:
 ```bash
-# Ubuntu/Debian
+# Ubuntu/Debian - Method 1 (Standard repo)
 sudo apt-get update
 sudo apt-get install -y gpac
+
+# Ubuntu/Debian - Method 2 (Official repo)
+wget -O - https://download.tsi.telecom-paristech.fr/gpac/gpac_public.key | sudo apt-key add -
+echo "deb https://download.tsi.telecom-paristech.fr/gpac/ubuntu/ focal main" | sudo tee /etc/apt/sources.list.d/gpac.list
+sudo apt-get update
+sudo apt-get install -y gpac
+
+# Ubuntu/Debian - Method 3 (Compile from source)
+sudo apt-get install -y git cmake build-essential zlib1g-dev
+git clone https://github.com/gpac/gpac.git
+cd gpac
+./configure --static-mp4box
+make -j$(nproc)
+sudo make install
 
 # macOS
 brew install gpac
 
 # Windows
 winget install GPAC.GPAC
+# Or download from: https://gpac.io/downloads/gpac-nightly-builds/
+```
+
+### Verify Installation:
+```bash
+MP4Box -version
 ```
 
 ## Migration
@@ -172,9 +197,16 @@ thumbnail_path = await metadata_service.extract_thumbnail(
 - Detailed performance metrics
 
 ### Troubleshooting:
-1. Check MP4Box installation: `MP4Box -version`
-2. Check log files in `logs/ffmpeg/`
-3. Use fallback mechanism for issues
+1. **Check MP4Box installation**: `MP4Box -version`
+2. **Check log files**: `logs/ffmpeg/` for detailed error messages
+3. **Fallback behavior**: If MP4Box is not available, the system will automatically fall back to FFmpeg
+4. **Docker build issues**: If GPAC installation fails, try rebuilding with `--no-cache`
+5. **Manual compilation**: If package installation fails, the Dockerfile will attempt to compile from source
+
+### Common Issues:
+- **"MP4Box not found"**: System falls back to FFmpeg automatically
+- **"Package gpac has no installation candidate"**: Docker build will try multiple installation methods
+- **Slow Docker build**: Source compilation takes longer but ensures compatibility
 
 ## Technical Details
 
