@@ -17,6 +17,7 @@ from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.config.settings import settings
 from app.services.logging_service import logging_service
+from app.services.artwork_service import artwork_service
 from app.utils.mp4box_utils import (
     embed_metadata_with_mp4box,
     get_mp4_duration,
@@ -216,22 +217,26 @@ class MetadataService:
             ET.SubElement(show_root, "studio").text = "Twitch"
             ET.SubElement(show_root, "plot").text = f"Streams by {streamer.username} on Twitch."
             
-            # Important for Plex: Correct paths for images
-            # Plex expects specific filenames, not just in NFO files
+            # Important for Plex: Use artwork service instead of local images
+            # Store artwork in separate directory to avoid Emby/Plex confusion
             if streamer.profile_image_url:
-                # Images for the show
+                # Save artwork to dedicated artwork directory (not in recordings)
+                await artwork_service.save_streamer_artwork(streamer)
+                await artwork_service.save_streamer_metadata(streamer)
+                
+                # Get artwork directory path for NFO references
+                artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
+                
+                # Images for the show - reference artwork directory
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
-                poster_element.text = "poster.jpg"
+                poster_element.text = str(artwork_dir / "poster.jpg")
                 
                 banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
-                banner_element.text = "banner.jpg"
+                banner_element.text = str(artwork_dir / "banner.jpg")
                 
                 # Fanart (background image)
                 fanart = ET.SubElement(show_root, "fanart")
-                ET.SubElement(fanart, "thumb").text = "fanart.jpg"
-                
-                # Save streamer images in different formats
-                await self._save_streamer_images(streamer, streamer_dir)
+                ET.SubElement(fanart, "thumb").text = str(artwork_dir / "fanart.jpg")
                 
             # Genre/Category
             if streamer.category_name:
@@ -243,16 +248,9 @@ class MetadataService:
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                # Korrekte Pfade für verschiedene Strukturen
-                if is_in_season_dir:
-                    ET.SubElement(actor, "thumb").text = f"../actors/{streamer.username}.jpg"
-                else:
-                    ET.SubElement(actor, "thumb").text = f"actors/{streamer.username}.jpg"
-                
-                # Create actors directory and download image
-                actors_dir = streamer_dir / "actors"
-                actors_dir.mkdir(exist_ok=True)
-                await self._download_image(streamer.profile_image_url, actors_dir / f"{streamer.username}.jpg")
+                # Reference actor image from artwork directory
+                artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
+                ET.SubElement(actor, "thumb").text = str(artwork_dir / "poster.jpg")
                 
             ET.SubElement(actor, "role").text = "Streamer"
             
@@ -271,12 +269,10 @@ class MetadataService:
                 # Season title
                 ET.SubElement(season_root, "title").text = f"Season {stream.started_at.strftime('%Y-%m')}"
                 
-                # Season poster
+                # Season poster - reference artwork directory
                 if streamer.profile_image_url:
-                    ET.SubElement(season_root, "thumb").text = "poster.jpg"
-                    # Save season image im Streamer-Ordner
-                    await self._download_image(streamer.profile_image_url, streamer_dir / "poster.jpg")
-                    await self._download_image(streamer.profile_image_url, streamer_dir / "season.jpg")
+                    artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
+                    ET.SubElement(season_root, "thumb").text = str(artwork_dir / "season.jpg")
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
@@ -467,50 +463,6 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error processing episode thumbnail: {e}", exc_info=True)
             return None
-        
-    async def _save_streamer_images(self, streamer: Streamer, streamer_dir: Path) -> bool:
-        """Saves streamer profile image in different formats for media servers
-        
-        Returns:
-            bool: True on success, False on error
-        """
-        try:
-            if not streamer.profile_image_url:
-                logger.warning(f"No profile image URL for streamer {streamer.username}")
-                return False
-                
-            # Standard media server image names - alle verwenden das gleiche Bild
-            image_files = {
-                "poster.jpg": "Main poster for the show",
-                "banner.jpg": "Banner image (same as poster for streamers)",
-                "fanart.jpg": "Background image (same as poster for streamers)", 
-                "logo.jpg": "Logo image (same as poster for streamers)",
-                "clearlogo.jpg": "Clear logo image (same as poster for streamers)",
-                "season.jpg": "Season poster (same as poster for streamers)",
-                "season-poster.jpg": "Season poster alternative name",
-                "folder.jpg": "Folder image for Windows",
-                "show.jpg": "Show image (same as poster for streamers)"
-            }
-            
-            # Download and save each image format (alle verwenden das gleiche Quellbild)
-            success_count = 0
-            for filename, description in image_files.items():
-                target_path = streamer_dir / filename
-                if await self._download_image(streamer.profile_image_url, target_path):
-                    success_count += 1
-                    logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
-            
-            # Create specific media server directories if needed
-            artwork_dir = streamer_dir / "artwork"
-            artwork_dir.mkdir(exist_ok=True)
-            
-            # Save additional copies in artwork directory
-            await self._download_image(streamer.profile_image_url, artwork_dir / "poster.jpg")
-            
-            return success_count > 0
-        except Exception as e:
-            logger.error(f"Error saving streamer images: {e}", exc_info=True)
-            return False
 
     async def _download_image(self, url: str, target_path: Path) -> bool:
         """Downloads an image from a URL to a target path
