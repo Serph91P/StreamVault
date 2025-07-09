@@ -1518,7 +1518,8 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 using the new remux_file method without repair attempts"""
+        """Remux TS file to MP4 using the new remux_file method without repair attempts.
+        Now with improved MP4Box metadata handling."""
         try:
             logger.info(f"Starting remux of {ts_path} to {mp4_path} using new method")
             
@@ -1538,7 +1539,43 @@ class RecordingService:
             mp4_dir = os.path.dirname(mp4_path)
             os.makedirs(mp4_dir, exist_ok=True)
             
-            # Add metadata for the file
+            # Generate a unique timestamp for this remux operation
+            remux_timestamp = int(datetime.now().timestamp())
+            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
+                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
+            
+            # First, remux the TS file to MP4 without metadata
+            from app.utils.file_utils import remux_file
+            
+            # Remux without metadata first (FFmpeg is still better for TS->MP4 conversion)
+            result = await remux_file(
+                ts_path, 
+                mp4_path, 
+                overwrite=True,
+                metadata_file=None,  # Don't embed metadata during remux
+                streamer_name=streamer_name,
+                logging_service=logging_service
+            )
+            
+            if not result["success"]:
+                logger.error(f"Remux failed: {result['stderr']}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, 
+                                                       f"Remux failed: {result['stderr']}")
+                return False
+            
+            # Validate the remuxed MP4 file
+            from app.utils.ffmpeg_utils import validate_mp4
+            is_valid = await validate_mp4(mp4_path)
+            if not is_valid:
+                logger.error(f"Remuxed MP4 file validation failed: {mp4_path}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, 
+                                                       "MP4 validation failed")
+                return False
+            
+            # Now add metadata using MP4Box (more reliable for MP4 metadata)
+            logger.info(f"Adding metadata to MP4 file using MP4Box: {mp4_path}")
+            
+            # Prepare metadata for MP4Box
             metadata = {
                 "encoded_by": "StreamVault",
                 "encoding_tool": "StreamVault",
@@ -1547,37 +1584,47 @@ class RecordingService:
                 "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             }
             
-            # Create a temporary metadata file - SAFER approach
-            meta_path = None
+            # Create temporary output file for MP4Box
+            temp_output = f"{mp4_path}.metadata.tmp"
+            
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
-                    meta_path = f.name
-                    f.write(";FFMETADATA1\n")
-                    for key, value in metadata.items():
-                        # More robust escaping
-                        safe_value = str(value).replace("\\", "\\\\").replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\n", "\\n").replace("\r", "\\r")
-                        # Limit value length to prevent extremely long metadata
-                        if len(safe_value) > 255:
-                            safe_value = safe_value[:252] + "..."
-                        f.write(f"{key}={safe_value}\n")
-                    
-                # Verify the metadata file was created correctly
-                if os.path.exists(meta_path) and os.path.getsize(meta_path) > 0:
-                    logger.info(f"Metadata file created successfully: {meta_path}")
+                # Use MP4Box for metadata embedding
+                from app.utils.file_utils import embed_metadata_with_mp4box_wrapper
+                
+                metadata_result = await embed_metadata_with_mp4box_wrapper(
+                    mp4_path,
+                    temp_output,
+                    metadata,
+                    None,  # No chapters during remux
+                    streamer_name,
+                    logging_service
+                )
+                
+                if metadata_result["success"] and os.path.exists(temp_output):
+                    # Replace original with metadata-embedded version
+                    import shutil
+                    shutil.move(temp_output, mp4_path)
+                    logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
+                    self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
+                                                           f"Remux and metadata embedding successful")
                 else:
-                    logger.warning(f"Metadata file creation failed or empty: {meta_path}")
-                    meta_path = None
-                    
+                    logger.warning(f"MP4Box metadata embedding failed, but remux was successful: {mp4_path}")
+                    # Clean up temp file if it exists
+                    if os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    # Still consider this a success since the remux worked
+                    self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
+                                                           f"Remux successful, metadata embedding failed")
+                
             except Exception as e:
-                logger.error(f"Failed to create metadata file: {e}")
-                meta_path = None
+                logger.error(f"Error during MP4Box metadata embedding: {e}")
+                # Clean up temp file if it exists
+                if os.path.exists(temp_output):
+                    os.remove(temp_output)
+                # Still consider this a success since the remux worked
+                logger.warning(f"Remux successful but metadata embedding failed: {mp4_path}")
             
-            # Generate a unique timestamp for this remux operation
-            remux_timestamp = int(datetime.now().timestamp())
-            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
-                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
-            
-            # Import the logging service
+            return True
             from app.services.logging_service import logging_service
             
             # Call the remux_file method with logging service
