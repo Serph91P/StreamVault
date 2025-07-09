@@ -15,7 +15,6 @@ COPY requirements.txt ./
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
-    gpac \
     gcc \
     python3-dev \
     libpq-dev \
@@ -23,7 +22,25 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libffi-dev \
     libssl-dev \
+    wget \
+    git \
+    cmake \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install GPAC - try multiple methods for maximum compatibility
+RUN (apt-get update && apt-get install -y gpac) || \
+    (wget -q -O - https://download.tsi.telecom-paristech.fr/gpac/gpac_public.key | apt-key add - && \
+     echo "deb https://download.tsi.telecom-paristech.fr/gpac/ubuntu/ focal main" > /etc/apt/sources.list.d/gpac.list && \
+     apt-get update && apt-get install -y gpac) || \
+    (cd /tmp && \
+     git clone https://github.com/gpac/gpac.git && \
+     cd gpac && \
+     ./configure --static-mp4box && \
+     make -j$(nproc) && \
+     make install && \
+     cd / && rm -rf /tmp/gpac) && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
