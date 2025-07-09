@@ -7,7 +7,6 @@ services:
       - app_data:/app/data
       - ./recordings:/recordings
       - ./logs:/app/logs
-      - ./artwork:/recordings/.artwork
     ports:
       - "7000:7000"    
     environment:
