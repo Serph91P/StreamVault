@@ -14,6 +14,27 @@ class MP4BoxError(Exception):
     """Custom exception for MP4Box operations."""
     pass
 
+class MP4BoxNotAvailableError(MP4BoxError):
+    """Exception raised when MP4Box is not available."""
+    pass
+
+async def check_mp4box_availability() -> bool:
+    """Check if MP4Box is available on the system."""
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "MP4Box", "-version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        return process.returncode == 0
+    except FileNotFoundError:
+        logger.warning("MP4Box not found - falling back to FFmpeg for metadata operations")
+        return False
+    except Exception as e:
+        logger.error(f"Error checking MP4Box availability: {e}")
+        return False
+
 async def validate_mp4_with_mp4box(mp4_path: str) -> bool:
     """
     Validate MP4 file using MP4Box.
@@ -25,6 +46,11 @@ async def validate_mp4_with_mp4box(mp4_path: str) -> bool:
         True if valid, False otherwise
     """
     try:
+        # Check if MP4Box is available
+        if not await check_mp4box_availability():
+            logger.warning("MP4Box not available, cannot validate with MP4Box")
+            raise MP4BoxNotAvailableError("MP4Box is not available")
+            
         if not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000:
             logger.warning(f"MP4 file does not exist or is too small: {mp4_path}")
             return False
@@ -47,6 +73,8 @@ async def validate_mp4_with_mp4box(mp4_path: str) -> bool:
             logger.warning(f"MP4 file validation failed: {stderr.decode()}")
             return False
             
+    except MP4BoxNotAvailableError:
+        raise
     except Exception as e:
         logger.error(f"Error validating MP4 file with MP4Box: {e}")
         return False
