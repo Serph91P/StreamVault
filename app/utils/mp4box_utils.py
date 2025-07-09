@@ -232,6 +232,9 @@ async def _add_metadata_to_mp4(mp4_path: str, metadata: Dict[str, Any]) -> bool:
         
         cmd.append(mp4_path)
         
+        # Log the command for debugging
+        logger.info(f"MP4Box metadata command: {' '.join(cmd)}")
+        
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -240,11 +243,20 @@ async def _add_metadata_to_mp4(mp4_path: str, metadata: Dict[str, Any]) -> bool:
         
         stdout, stderr = await process.communicate()
         
+        # Log both stdout and stderr for debugging
+        stdout_text = stdout.decode('utf-8', errors='ignore') if stdout else ""
+        stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else ""
+        
+        if stdout_text:
+            logger.info(f"MP4Box stdout: {stdout_text}")
+        if stderr_text:
+            logger.info(f"MP4Box stderr: {stderr_text}")
+        
         if process.returncode == 0:
-            logger.debug(f"Successfully added metadata to {mp4_path}")
+            logger.info(f"Successfully added metadata to {mp4_path}")
             return True
         else:
-            logger.error(f"Failed to add metadata: {stderr.decode()}")
+            logger.error(f"Failed to add metadata (exit code {process.returncode}): {stderr_text}")
             return False
             
     except Exception as e:
@@ -277,6 +289,9 @@ async def _add_chapters_to_mp4(mp4_path: str, chapters: List[Dict[str, Any]]) ->
         # Add chapters using MP4Box
         cmd = ["MP4Box", "-chap", chapter_file, mp4_path]
         
+        # Log the command for debugging
+        logger.info(f"MP4Box chapter command: {' '.join(cmd)}")
+        
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -285,14 +300,23 @@ async def _add_chapters_to_mp4(mp4_path: str, chapters: List[Dict[str, Any]]) ->
         
         stdout, stderr = await process.communicate()
         
+        # Log both stdout and stderr for debugging
+        stdout_text = stdout.decode('utf-8', errors='ignore') if stdout else ""
+        stderr_text = stderr.decode('utf-8', errors='ignore') if stderr else ""
+        
+        if stdout_text:
+            logger.info(f"MP4Box chapter stdout: {stdout_text}")
+        if stderr_text:
+            logger.info(f"MP4Box chapter stderr: {stderr_text}")
+        
         # Clean up chapter file
         os.unlink(chapter_file)
         
         if process.returncode == 0:
-            logger.debug(f"Successfully added chapters to {mp4_path}")
+            logger.info(f"Successfully added chapters to {mp4_path}")
             return True
         else:
-            logger.error(f"Failed to add chapters: {stderr.decode()}")
+            logger.error(f"Failed to add chapters (exit code {process.returncode}): {stderr_text}")
             return False
             
     except Exception as e:
