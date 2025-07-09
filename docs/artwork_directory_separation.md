@@ -6,14 +6,17 @@ This document describes the implementation of separated artwork and metadata dir
 
 Previously, artwork files (banner.jpg, poster.jpg, fanart.jpg, etc.) and metadata files (tvshow.nfo, season.nfo) were created in the `/recordings` directory alongside streamer folders. This caused issues with media servers like Emby and Plex, which would interpret these files as additional "series" or media content.
 
+**Additional Challenge**: NFO files need to reference artwork images, but if artwork is stored separately from recordings, media servers might not be able to access the images.
+
 ## Solution
 
-The solution separates artwork and metadata files from the recordings directory by:
+The solution separates artwork and metadata files from the recordings directory while ensuring media servers can still access the artwork:
 
-1. **Dedicated Artwork Directory**: Created `/app/artwork` for all artwork and metadata files
-2. **Docker Volume Mount**: Added a new volume mount in docker-compose.yml
+1. **Dedicated Artwork Directory**: Created `/recordings/.artwork` for all artwork and metadata files
+2. **Docker Volume Mount**: Mounted `./artwork:/recordings/.artwork` (accessible within recordings mount)
 3. **Artwork Service**: New service to manage artwork and metadata separately
-4. **Updated References**: All NFO files now reference the separated artwork directory
+4. **Relative Path References**: NFO files use relative paths to access artwork (e.g., `../.artwork/streamer/poster.jpg`)
+5. **Media Server Compatibility**: Both recordings and artwork are accessible through the same volume mount
 
 ## Directory Structure
 
@@ -34,24 +37,26 @@ The solution separates artwork and metadata files from the recordings directory 
 ```
 /recordings/
 └── teststreamer/                   # Only streamer folders
-    └── Season 2025-01/            # Only season folders
-        └── episode.mp4            # Only recording files
-
-/app/artwork/
-└── teststreamer/                   # Artwork for each streamer
-    ├── poster.jpg                 # All artwork files
-    ├── banner.jpg
-    ├── fanart.jpg
-    ├── logo.jpg
-    ├── clearlogo.jpg
-    ├── season.jpg
-    ├── season-poster.jpg
-    ├── folder.jpg
-    ├── show.jpg
-    └── metadata/                  # Metadata files
-        ├── tvshow.nfo
-        └── Season_2025-01/
-            └── season.nfo
+    ├── Season 2025-01/            # Only season folders
+    │   ├── episode.mp4            # Recording files
+    │   ├── episode.nfo            # References: ../../.artwork/teststreamer/
+    │   └── season.nfo             # References: ../../.artwork/teststreamer/
+    ├── tvshow.nfo                 # References: ../.artwork/teststreamer/
+    └── .artwork/                  # Hidden artwork directory (mounted from host)
+        └── teststreamer/          # Streamer artwork
+            ├── poster.jpg         # All artwork files
+            ├── banner.jpg
+            ├── fanart.jpg
+            ├── logo.jpg
+            ├── clearlogo.jpg
+            ├── season.jpg
+            ├── season-poster.jpg
+            ├── folder.jpg
+            ├── show.jpg
+            └── metadata/          # Additional metadata files
+                ├── tvshow.nfo
+                └── Season_2025-01/
+                    └── season.nfo
 ```
 
 ## Implementation Details
@@ -67,8 +72,13 @@ services:
       - app_data:/app/data
       - ./recordings:/recordings
       - ./logs:/app/logs
-      - ./artwork:/app/artwork  # NEW: Artwork directory
+      - ./artwork:/recordings/.artwork  # NEW: Artwork within recordings mount
 ```
+
+**Key Points:**
+- Artwork is mounted as a subdirectory within the recordings mount
+- Media servers accessing `/recordings` can also access `/recordings/.artwork`
+- The `.artwork` directory is hidden but accessible via relative paths in NFO files
 
 ### 2. Settings Configuration
 
@@ -76,8 +86,8 @@ Added new setting in `app/config/settings.py`:
 
 ```python
 class Settings(BaseSettings):
-    # Artwork and metadata directory (separate from recordings)
-    ARTWORK_BASE_PATH: str = "/app/artwork"
+    # Artwork and metadata directory (within recordings for media server access)
+    ARTWORK_BASE_PATH: str = "/recordings/.artwork"
 ```
 
 ### 3. Artwork Service
@@ -99,8 +109,10 @@ Key methods:
 
 #### MetadataService
 - **Removed**: `_save_streamer_images()` function
-- **Updated**: NFO files now reference artwork service paths
+- **Updated**: NFO files now use relative paths to reference artwork
 - **Added**: Integration with artwork service
+- **Example**: `../.artwork/streamer/poster.jpg` for streamer-level NFO
+- **Example**: `../../.artwork/streamer/poster.jpg` for season-level NFO
 
 #### MediaServerStructureService
 - **Removed**: `_organize_images()` and `_download_streamer_poster()` functions
@@ -109,11 +121,55 @@ Key methods:
 
 ## Benefits
 
-1. **Clean Recordings Directory**: Only contains streamer folders and recordings
-2. **Media Server Compatibility**: Emby/Plex no longer see extra "series"
-3. **Centralized Artwork**: All artwork managed in one location
-4. **Maintainable**: Clear separation of concerns
-5. **Scalable**: Easy to add new artwork formats or metadata
+1. **Clean Recordings Directory**: Only contains streamer folders and recordings (no extra files)
+2. **Media Server Compatibility**: Emby/Plex no longer see extra "series" 
+3. **Artwork Accessibility**: NFO files can reference artwork via relative paths
+4. **Single Volume Mount**: Both recordings and artwork accessible through one mount point
+5. **Hidden Artwork**: `.artwork` directory is hidden but functional
+6. **Standard Compliance**: Uses standard NFO format with working image references
+7. **Centralized Management**: All artwork managed in one location
+8. **Maintainable**: Clear separation of concerns
+9. **Scalable**: Easy to add new artwork formats or metadata
+
+## Relative Path Examples
+
+The system uses relative paths in NFO files to reference artwork. Here are the patterns:
+
+### tvshow.nfo (in streamer directory)
+```xml
+<tvshow>
+    <title>teststreamer Streams</title>
+    <thumb aspect="poster">../.artwork/teststreamer/poster.jpg</thumb>
+    <thumb aspect="banner">../.artwork/teststreamer/banner.jpg</thumb>
+    <fanart>
+        <thumb>../.artwork/teststreamer/fanart.jpg</thumb>
+    </fanart>
+    <actor>
+        <name>teststreamer</name>
+        <thumb>../.artwork/teststreamer/poster.jpg</thumb>
+    </actor>
+</tvshow>
+```
+
+### episode.nfo (in season directory)
+```xml
+<episodedetails>
+    <title>Stream Episode</title>
+    <thumb>../../.artwork/teststreamer/poster.jpg</thumb>
+</episodedetails>
+```
+
+### season.nfo (in season directory)
+```xml
+<season>
+    <title>Season 2025-01</title>
+    <thumb>../../.artwork/teststreamer/season.jpg</thumb>
+</season>
+```
+
+**Path Resolution:**
+- From `/recordings/streamer/`: Use `../.artwork/streamer/image.jpg`
+- From `/recordings/streamer/season/`: Use `../../.artwork/streamer/image.jpg`
 
 ## Migration
 
