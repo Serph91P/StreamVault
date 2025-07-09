@@ -1724,9 +1724,9 @@ class RecordingService:
             logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
                                               f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
             
-            # Keep TS file as backup - will be deleted later during cleanup
-            logger.info(f"Keeping TS file as backup for now: {ts_path}")
-            self.activity_logger.log_file_operation("TS_BACKUP", ts_path, True, "TS file kept as backup until final cleanup")
+            # Schedule TS cleanup after a short delay to ensure MP4 is fully written
+            logger.info(f"Scheduling TS cleanup in 10 seconds: {ts_path}")
+            asyncio.create_task(self._delayed_ts_cleanup(ts_path, mp4_path, streamer_name, 10))
             
             return True
         
@@ -1965,8 +1965,8 @@ class RecordingService:
                         # Double-check that MP4 file still exists before deleting TS
                         if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
                             os.remove(ts_path)
-                            self.activity_logger.log_file_operation("TS_FINAL_DELETE", ts_path, True, 
-                                                                  "TS file deleted after final MP4 validation")
+                            self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
+                                                       "TS file deleted after successful validation")
                             logger.info(f"Successfully deleted TS backup file: {ts_path}")
                         else:
                             logger.error(f"MP4 file is missing or empty during cleanup, keeping TS backup: {mp4_path}")
@@ -2468,7 +2468,53 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during manual stop cleanup: {e}", exc_info=True)
 
-    async def stop_recording_manual(self, streamer_id: int) -> bool:
-        """Stop a recording manually (called from UI/API)"""
-        return await self.stop_recording(streamer_id, reason="manual")
+    async def _delayed_ts_cleanup(self, ts_path: str, mp4_path: str, streamer_name: str, delay: int = 10):
+        """Clean up TS file after a delay to ensure MP4 is fully written and stable"""
+        try:
+            logger.info(f"Waiting {delay} seconds before TS cleanup for {streamer_name}")
+            await asyncio.sleep(delay)
+            
+            # Final checks before deleting TS
+            if not os.path.exists(ts_path):
+                logger.debug(f"TS file already deleted: {ts_path}")
+                return
+                
+            if not os.path.exists(mp4_path):
+                logger.warning(f"MP4 file missing, keeping TS as backup: {mp4_path}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       "TS kept as backup - MP4 file missing")
+                return
+                
+            # Validate MP4 one final time
+            is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+            if not is_valid:
+                logger.warning(f"MP4 validation failed during cleanup, keeping TS backup: {mp4_path}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       "TS kept as backup - MP4 validation failed")
+                return
+                
+            # Check duration consistency
+            duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
+            if not duration_result["valid"]:
+                logger.warning(f"MP4 duration check failed, keeping TS backup: {duration_result['message']}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       f"TS kept as backup - {duration_result['message']}")
+                return
+                
+            # All checks passed, safe to delete TS
+            logger.info(f"All validation checks passed, deleting TS file: {ts_path}")
+            try:
+                os.remove(ts_path)
+                self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
+                                                       "TS file deleted after successful validation")
+                logger.info(f"Successfully deleted TS backup file: {ts_path}")
+            except Exception as e:
+                logger.error(f"Failed to delete TS file: {e}")
+                self.activity_logger.log_file_operation("TS_CLEANUP_FAILED", ts_path, False, 
+                                                       f"Failed to delete TS file: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Error during delayed TS cleanup: {e}", exc_info=True)
+
+    # ...existing code...
 
