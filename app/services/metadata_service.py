@@ -17,6 +17,13 @@ from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.config.settings import settings
 from app.services.logging_service import logging_service
+from app.utils.mp4box_utils import (
+    embed_metadata_with_mp4box,
+    get_mp4_duration,
+    extract_thumbnail_with_mp4box,
+    validate_mp4_with_mp4box
+)
+from app.utils.file_utils import embed_metadata_with_mp4box_wrapper
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
@@ -708,6 +715,7 @@ class MetadataService:
         db: Optional[Session] = None
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
+        Now uses MP4Box for MP4 files and FFmpeg for other formats.
         
         Args:
             video_path: Pfad zur Videodatei
@@ -735,8 +743,41 @@ class MetadataService:
                     if metadata and not metadata.thumbnail_path:
                         metadata.thumbnail_path = str(thumbnail_path)
                         db.commit()
-                        
+                
                 return str(thumbnail_path)
+            
+            # Check if this is an MP4 file - prefer MP4Box for MP4 files
+            if video_path.lower().endswith('.mp4'):
+                logger.info(f"Using MP4Box for thumbnail extraction from MP4 file: {video_path}")
+                
+                # First validate the MP4 file
+                is_valid = await validate_mp4_with_mp4box(video_path)
+                if not is_valid:
+                    logger.warning(f"MP4 file validation failed, falling back to FFmpeg: {video_path}")
+                else:
+                    # Try MP4Box thumbnail extraction
+                    success = await extract_thumbnail_with_mp4box(
+                        video_path,
+                        str(thumbnail_path),
+                        10.0  # 10 seconds offset
+                    )
+                    
+                    if success and thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
+                        logger.info(f"Successfully extracted thumbnail with MP4Box: {thumbnail_path}")
+                        
+                        # Update metadata if provided
+                        if stream_id and db:
+                            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                            if metadata:
+                                metadata.thumbnail_path = str(thumbnail_path)
+                                db.commit()
+                        
+                        return str(thumbnail_path)
+                    else:
+                        logger.warning(f"MP4Box thumbnail extraction failed, falling back to FFmpeg")
+            
+            # Fallback to FFmpeg for non-MP4 files or if MP4Box fails
+            logger.info(f"Using FFmpeg for thumbnail extraction: {video_path}")
             
             # Check if the file has video streams first
             check_cmd = [
@@ -1585,7 +1626,8 @@ class MetadataService:
             return None
 
     async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
-        """Embed both chapters and all other metadata in one pass."""
+        """Embed both chapters and all other metadata in one pass.
+        Now uses MP4Box for better MP4 metadata handling."""
         try:
             logger.info(f"Starting metadata embedding for stream {stream_id}, mp4: {mp4_path}")
             mp4_path_obj = Path(mp4_path)
@@ -1608,34 +1650,58 @@ class MetadataService:
                 
             logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
             
-            # Initialize chapters_path_obj
-            chapters_path_obj = Path(chapters_path) if chapters_path else None
-            logger.debug(f"Using chapters file: {chapters_path}")
+            # Validate MP4 file using MP4Box (more reliable than ffprobe)
+            logger.info(f"Validating MP4 file with MP4Box: {mp4_path}")
+            is_valid = await validate_mp4_with_mp4box(mp4_path)
+            if not is_valid:
+                logger.error(f"MP4 file validation failed with MP4Box: {mp4_path}")
+                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4 validation failed: {mp4_path}")
+                return False
             
-            # Create unique log file for validation with streamer name
-            timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            # Extract streamer name from file path if possible
-            streamer_name = "unknown"
-            if mp4_path_obj.name:
-                name_parts = mp4_path_obj.stem.split('-')
-                if name_parts:
-                    streamer_name = name_parts[0]
-            validation_log_path = logging_service.get_ffmpeg_log_path(f"metadata_validate_{timestamp_str}", streamer_name)
-            
-            # Validate the MP4 file using ffprobe to ensure it's not corrupted
-            logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
-            validate_cmd = [
-                "ffprobe",
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name,duration,width,height",
-                "-of", "json",
-                str(mp4_path_obj)
-            ]
-            
-            # Log the validation command
-            logging_service.ffmpeg_logger.info(f"[METADATA_VALIDATION_START] Validating MP4: {mp4_path}")
-            logging_service.ffmpeg_logger.info(f"[FFPROBE_CMD] {' '.join(validate_cmd)}")
+            # Get stream and streamer information
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    logger.error(f"Stream not found: {stream_id}")
+                    return False
+                    
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {stream.streamer_id}")
+                    return False
+                
+                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                if not metadata:
+                    logger.error(f"Metadata not found for stream: {stream_id}")
+                    return False
+                
+                # Create temporary output file for MP4Box
+                temp_output = f"{mp4_path}.metadata.tmp"
+                
+                try:
+                    # Use MP4Box-based metadata embedding
+                    success = await self.embed_metadata_with_mp4box_service(
+                        db, stream, streamer, mp4_path, temp_output, metadata
+                    )
+                    
+                    if success and os.path.exists(temp_output):
+                        # Replace original file with the metadata-embedded version
+                        import shutil
+                        shutil.move(temp_output, mp4_path)
+                        logger.info(f"Successfully embedded metadata using MP4Box for stream {stream_id}")
+                        logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] MP4Box metadata embedding successful: {mp4_path}")
+                        return True
+                    else:
+                        logger.error(f"MP4Box metadata embedding failed for stream {stream_id}")
+                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4Box metadata embedding failed: {mp4_path}")
+                        return False
+                
+                except Exception as e:
+                    logger.error(f"Error during MP4Box metadata embedding: {e}")
+                    # Clean up temp file if it exists
+                    if os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    return False
             
             # Set up environment for ffprobe log - ensure logs go only to file
             env = os.environ.copy()
@@ -1819,6 +1885,7 @@ class MetadataService:
                     
                     # Validate the output MP4 file with ffprobe
                     validate_output_cmd = [
+
                         "ffprobe",
                         "-v", "error",
                         "-show_entries", "format=duration",
@@ -2052,3 +2119,108 @@ class MetadataService:
         minutes = int((seconds % 3600) // 60)
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:09.6f}"
+    
+    async def embed_metadata_with_mp4box_service(
+        self,
+        db: Session,
+        stream: Stream,
+        streamer: Streamer,
+        input_path: str,
+        output_path: str,
+        metadata: StreamMetadata
+    ) -> bool:
+        """
+        Embed metadata into MP4 file using MP4Box instead of FFmpeg.
+        This is the new preferred method for metadata embedding.
+        
+        Args:
+            db: Database session
+            stream: Stream object
+            streamer: Streamer object
+            input_path: Path to input MP4 file
+            output_path: Path to output MP4 file
+            metadata: StreamMetadata object
+            
+        Returns:
+            bool: True on success, False on error
+        """
+        try:
+            logger.info(f"Embedding metadata using MP4Box for stream {stream.id}")
+            
+            # Prepare metadata dictionary for MP4Box
+            metadata_dict = {
+                "title": stream.title or "Stream Recording",
+                "artist": streamer.username,
+                "album": f"{streamer.username} Streams",
+                "year": str(stream.started_at.year) if stream.started_at else str(datetime.now().year),
+                "genre": stream.category_name or "Gaming",
+                "comment": f"Recorded stream from {streamer.username}",
+                "description": stream.title or "Twitch stream recording",
+                "streamer": streamer.username,
+                "game": stream.category_name,
+                "stream_date": stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d")
+            }
+            
+            # Get chapter information if available
+            chapters = await self._get_chapters_for_mp4box(db, stream)
+            
+            # Use the wrapper function for embedding
+            result = await embed_metadata_with_mp4box_wrapper(
+                input_path,
+                output_path,
+                metadata_dict,
+                chapters,
+                streamer.username,
+                logging_service
+            )
+            
+            if result["success"]:
+                logger.info(f"Successfully embedded metadata using MP4Box for stream {stream.id}")
+                return True
+            else:
+                logger.error(f"Failed to embed metadata using MP4Box: {result['stderr']}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error embedding metadata with MP4Box: {e}", exc_info=True)
+            return False
+    
+    async def _get_chapters_for_mp4box(self, db: Session, stream: Stream) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get chapter information formatted for MP4Box.
+        
+        Args:
+            db: Database session
+            stream: Stream object
+            
+        Returns:
+            List of chapter dictionaries or None
+        """
+        try:
+            events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).order_by(StreamEvent.timestamp).all()
+            
+            if not events:
+                return None
+            
+            chapters = []
+            for i, event in enumerate(events):
+                # Calculate start time relative to stream start
+                start_time = 0
+                if stream.started_at and event.timestamp:
+                    start_time = (event.timestamp - stream.started_at).total_seconds()
+                    if start_time < 0:
+                        start_time = 0
+                
+                chapter = {
+                    "start_time": start_time,
+                    "title": event.category_name or f"Chapter {i+1}"
+                }
+                chapters.append(chapter)
+            
+            return chapters
+            
+        except Exception as e:
+            logger.error(f"Error getting chapters for MP4Box: {e}")
+            return None
+
+    # ...existing code...
