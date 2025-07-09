@@ -1794,7 +1794,7 @@ class MetadataService:
                 "-i", str(meta_path), 
                 "-map_metadata", "1", 
                 "-c", "copy", 
-                "-movflags", "faststart", 
+                "-movflags", "+faststart+co64",
                 "-y", 
                 temp_output
             ]
