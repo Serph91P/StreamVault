@@ -7,6 +7,13 @@ import tempfile
 from datetime import datetime
 from typing import Dict, Optional, Any
 
+# Import MP4Box utilities
+from .mp4box_utils import (
+    embed_metadata_with_mp4box,
+    optimize_mp4_with_mp4box,
+    validate_mp4_with_mp4box
+)
+
 logger = logging.getLogger("streamvault")
 
 async def remux_file(
@@ -107,7 +114,7 @@ async def remux_file(
             cmd.extend(["-avoid_negative_ts", "make_zero"])  
             cmd.extend(["-map", "0:v:0?"])  # Map video if exists
             cmd.extend(["-map", "0:a:0?"])  # Map audio if exists
-            cmd.extend(["-movflags", "+faststart+empty_moov+frag_keyframe"])
+            cmd.extend(["-movflags", "+faststart+frag_keyframe+separate_moof+omit_tfhd_offset"])
             cmd.extend(["-ignore_unknown"])
             cmd.extend(["-max_muxing_queue_size", "16384"])
             cmd.extend(["-max_interleave_delta", "0"])
@@ -428,3 +435,132 @@ async def cleanup_temporary_files(mp4_path: str):
             
     except Exception as e:
         logger.error(f"Error cleaning up temporary files: {e}", exc_info=True)
+
+async def embed_metadata_with_mp4box_wrapper(
+    input_path: str,
+    output_path: str, 
+    metadata: Dict[str, Any],
+    chapters: Optional[list] = None,
+    streamer_name: str = "unknown",
+    logging_service=None
+) -> Dict[str, Any]:
+    """
+    Embed metadata into MP4 file using MP4Box instead of FFmpeg.
+    This is more efficient and reliable for MP4 metadata operations.
+    
+    Args:
+        input_path: Path to the input MP4 file
+        output_path: Path to the output MP4 file
+        metadata: Dictionary with metadata to embed
+        chapters: Optional list of chapter information
+        streamer_name: Name of the streamer for logging purposes
+        logging_service: Optional logging service for more detailed logging
+        
+    Returns:
+        Dict containing success status and details
+    """
+    try:
+        logger.info(f"Starting MP4Box metadata embedding for {streamer_name}: {input_path} -> {output_path}")
+        
+        # Validate input file exists and has content
+        if not os.path.exists(input_path):
+            logger.error(f"Input file {input_path} does not exist")
+            return {
+                "success": False,
+                "code": -1,
+                "stdout": "",
+                "stderr": "Input file does not exist"
+            }
+            
+        input_size = os.path.getsize(input_path)
+        if input_size == 0:
+            logger.error(f"Input file {input_path} is empty")
+            return {
+                "success": False,
+                "code": -1,
+                "stdout": "",
+                "stderr": "Input file is empty"
+            }
+        
+        # Check if output file already exists
+        if os.path.exists(output_path):
+            if os.path.getsize(output_path) == 0:
+                os.remove(output_path)
+            else:
+                logger.error(f"Output file {output_path} already exists and is not empty")
+                return {
+                    "success": False,
+                    "code": -1,
+                    "stdout": "",
+                    "stderr": "Output file already exists"
+                }
+        
+        # Generate operation ID for logging
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        operation_id = f"mp4box_metadata_{streamer_name}_{timestamp_str}"
+        
+        # Log the operation start
+        if logging_service:
+            logging_service.ffmpeg_logger.info(f"[MP4BOX_METADATA_START] {streamer_name} - {input_path} -> {output_path}")
+        
+        # Use MP4Box for metadata embedding
+        success = await embed_metadata_with_mp4box(
+            input_path, 
+            output_path, 
+            metadata, 
+            chapters
+        )
+        
+        if success:
+            # Validate the output file
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                # Additional validation with MP4Box
+                is_valid = await validate_mp4_with_mp4box(output_path)
+                
+                if is_valid:
+                    logger.info(f"MP4Box metadata embedding successful: {operation_id}")
+                    if logging_service:
+                        logging_service.ffmpeg_logger.info(f"[MP4BOX_METADATA_SUCCESS] {streamer_name} - {output_path}")
+                    
+                    return {
+                        "success": True,
+                        "code": 0,
+                        "stdout": f"Successfully embedded metadata using MP4Box",
+                        "stderr": ""
+                    }
+                else:
+                    logger.error(f"MP4Box metadata embedding failed validation: {operation_id}")
+                    return {
+                        "success": False,
+                        "code": 1,
+                        "stdout": "",
+                        "stderr": "Output file failed validation"
+                    }
+            else:
+                logger.error(f"MP4Box metadata embedding failed - no output file: {operation_id}")
+                return {
+                    "success": False,
+                    "code": 1,
+                    "stdout": "",
+                    "stderr": "No output file generated"
+                }
+        else:
+            logger.error(f"MP4Box metadata embedding failed: {operation_id}")
+            if logging_service:
+                logging_service.ffmpeg_logger.error(f"[MP4BOX_METADATA_FAILED] {streamer_name} - {input_path}")
+            
+            return {
+                "success": False,
+                "code": 1,
+                "stdout": "",
+                "stderr": "MP4Box metadata embedding failed"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error during MP4Box metadata embedding: {e}", exc_info=True)
+        return {
+            "success": False,
+            "code": -1,
+            "stdout": "",
+            "stderr": str(e)
+        }

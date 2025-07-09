@@ -623,7 +623,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
             
-    async def stop_recording(self, streamer_id: int) -> bool:
+    async def stop_recording(self, streamer_id: int, reason: str = "automatic") -> bool:
         """Stop an active recording and ensure metadata generation"""
         async with self.lock:
             if streamer_id not in self.active_recordings:
@@ -643,13 +643,16 @@ class RecordingService:
                 if start_time and isinstance(start_time, datetime):
                     duration = (datetime.now() - start_time).total_seconds()
 
-                # Log recording stop
+                # The stop reason is now passed as parameter
+                stop_reason = reason
+                
+                # Log recording stop with the correct reason
                 logging_service.log_recording_stop(
                     streamer_id, 
                     recording_info['streamer_name'], 
                     duration, 
                     recording_info.get('output_path', 'Unknown'),
-                    "manual"
+                    stop_reason
                 )
 
                 # Use subprocess manager to terminate the process
@@ -685,6 +688,11 @@ class RecordingService:
                             stream_id, recording_info["output_path"], force_started
                         )
                     )
+                    
+                    # Also ensure cleanup happens if recording was manually stopped
+                    if output_path:
+                        # Schedule a cleanup in case the delayed metadata generation doesn't complete
+                        asyncio.create_task(self._delayed_cleanup_on_manual_stop(output_path, 120))  # 2 minutes delay
                     
                     # Send recording.completed notification
                     await websocket_manager.send_notification(
@@ -1483,13 +1491,18 @@ class RecordingService:
             # Log the process output
             logging_service.log_streamlink_output(streamer_name, stdout, stderr, exit_code)
 
-            if exit_code == 0 or exit_code == 130:  # 130 is SIGINT (user interruption)
-                reason = "completed" if exit_code == 0 else "user_interrupted"
-                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} ({reason})")
+            # Find the streamer_id for this recording
+            streamer_id = None
+            for sid, info in self.active_recordings.items():
+                if info.get("streamer_name") == streamer_name:
+                    streamer_id = sid
+                    break
+
+            if exit_code == 0:  # Streamlink finished normally (stream ended)
+                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (stream ended naturally)")
                 
-                logger.info(
-                    f"Streamlink finished for {streamer_name}, converting TS to MP4"
-                )
+                logger.info(f"Streamlink finished normally for {streamer_name} - stream ended, converting TS to MP4")
+                
                 # Only remux if TS file exists and has content
                 if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
                     file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
@@ -1498,6 +1511,29 @@ class RecordingService:
                 else:
                     logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
                     logger.warning(f"No valid TS file found at {ts_path} for remuxing")
+                
+                # Automatically stop the recording (stream ended naturally)
+                if streamer_id and streamer_id in self.active_recordings:
+                    logger.info(f"Automatically stopping recording for {streamer_name} due to stream end")
+                    await self.stop_recording(streamer_id, reason="automatic")
+                
+            elif exit_code == 130:  # SIGINT (user interruption or manual stop)
+                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (interrupted/stopped)")
+                
+                logger.info(f"Streamlink was interrupted for {streamer_name}, converting TS to MP4")
+                
+                # Only remux if TS file exists and has content
+                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
+                    file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
+                    logging_service.log_file_operation("REMUX_START", ts_path, True, f"Starting conversion to MP4", file_size_mb)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
+                else:
+                    logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
+                    logger.warning(f"No valid TS file found at {ts_path} for remuxing")
+                
+                # Don't call stop_recording here - it was already called manually
+                # The reason was already set when stop_recording was called
+                
             else:
                 stderr_text = (
                     stderr.decode("utf-8", errors="ignore")
@@ -1509,6 +1545,11 @@ class RecordingService:
                     f"Streamlink process for {streamer_name} exited with code {exit_code}: {stderr_text}"
                 )
                 
+                # Automatically stop the recording due to streamlink failure
+                if streamer_id and streamer_id in self.active_recordings:
+                    logger.info(f"Automatically stopping recording for {streamer_name} due to streamlink failure")
+                    await self.stop_recording(streamer_id, reason="automatic")
+                
                 # Note: In our new clean approach, we don't attempt to remux partial recordings
                 # If streamlink failed, we fail the whole process and don't try to recover partial files
                 
@@ -1518,7 +1559,8 @@ class RecordingService:
             logger.error(f"Error monitoring process: {e}", exc_info=True)
 
     async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 using the new remux_file method without repair attempts"""
+        """Remux TS file to MP4 using the new remux_file method without repair attempts.
+        Now with improved MP4Box metadata handling."""
         try:
             logger.info(f"Starting remux of {ts_path} to {mp4_path} using new method")
             
@@ -1538,7 +1580,43 @@ class RecordingService:
             mp4_dir = os.path.dirname(mp4_path)
             os.makedirs(mp4_dir, exist_ok=True)
             
-            # Add metadata for the file
+            # Generate a unique timestamp for this remux operation
+            remux_timestamp = int(datetime.now().timestamp())
+            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
+                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
+            
+            # First, remux the TS file to MP4 without metadata
+            from app.utils.file_utils import remux_file
+            
+            # Remux without metadata first (FFmpeg is still better for TS->MP4 conversion)
+            result = await remux_file(
+                ts_path, 
+                mp4_path, 
+                overwrite=True,
+                metadata_file=None,  # Don't embed metadata during remux
+                streamer_name=streamer_name,
+                logging_service=logging_service
+            )
+            
+            if not result["success"]:
+                logger.error(f"Remux failed: {result['stderr']}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, 
+                                                       f"Remux failed: {result['stderr']}")
+                return False
+            
+            # Validate the remuxed MP4 file
+            from app.utils.ffmpeg_utils import validate_mp4
+            is_valid = await validate_mp4(mp4_path)
+            if not is_valid:
+                logger.error(f"Remuxed MP4 file validation failed: {mp4_path}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, 
+                                                       "MP4 validation failed")
+                return False
+            
+            # Now add metadata using MP4Box (more reliable for MP4 metadata)
+            logger.info(f"Adding metadata to MP4 file using MP4Box: {mp4_path}")
+            
+            # Prepare metadata for MP4Box
             metadata = {
                 "encoded_by": "StreamVault",
                 "encoding_tool": "StreamVault",
@@ -1547,152 +1625,115 @@ class RecordingService:
                 "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             }
             
-            # Create a temporary metadata file
-            meta_path = None
+            # Create temporary output file for MP4Box
+            temp_output = f"{mp4_path}.metadata.tmp"
+            
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
-                    meta_path = f.name
-                    f.write(";FFMETADATA1\n")
-                    for key, value in metadata.items():
-                        value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
-                        f.write(f"{key}={value_escaped}\n")
+                # Use MP4Box for metadata embedding
+                from app.utils.file_utils import embed_metadata_with_mp4box_wrapper
+                
+                metadata_result = await embed_metadata_with_mp4box_wrapper(
+                    mp4_path,
+                    temp_output,
+                    metadata,
+                    None,  # No chapters during remux
+                    streamer_name,
+                    logging_service
+                )
+                
+                if metadata_result["success"] and os.path.exists(temp_output):
+                    # Validate temp file before replacing original
+                    temp_size = os.path.getsize(temp_output)
+                    original_size = os.path.getsize(mp4_path) if os.path.exists(mp4_path) else 0
+                    
+                    if temp_size > 0 and temp_size >= original_size * 0.9:  # At least 90% of original size
+                        # Replace original with metadata-embedded version
+                        import shutil
+                        shutil.move(temp_output, mp4_path)
+                        logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
+                        self.activity_logger.log_file_operation("METADATA_SUCCESS", mp4_path, True, 
+                                                               f"Metadata embedding successful")
+                    else:
+                        logger.warning(f"MP4Box temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
+                        # Clean up temp file but keep original
+                        if os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        self.activity_logger.log_file_operation("METADATA_SKIPPED", mp4_path, True, 
+                                                               f"Metadata embedding skipped due to invalid temp file")
+                else:
+                    logger.warning(f"MP4Box metadata embedding failed, but remux was successful: {mp4_path}")
+                    # Clean up temp file if it exists
+                    if os.path.exists(temp_output):
+                        os.remove(temp_output)
+                    # Still consider this a success since the remux worked
+                    self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
+                                                           f"Remux successful, metadata embedding failed")
+                
             except Exception as e:
-                logger.error(f"Failed to create metadata file: {e}")
+                logger.error(f"Error during MP4Box metadata embedding: {e}")
+                # Clean up temp file if it exists
+                if os.path.exists(temp_output):
+                    os.remove(temp_output)
+                # Still consider this a success since the remux worked
+                logger.warning(f"Remux successful but metadata embedding failed: {mp4_path}")
             
-            # Generate a unique timestamp for this remux operation
-            remux_timestamp = int(datetime.now().timestamp())
-            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
-                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
+            # Additional validation before considering the remux successful
+            logger.info(f"Performing final validation of remuxed file: {mp4_path}")
             
-            # Import the logging service
-            from app.services.logging_service import logging_service
+            # Step 1: Verify MP4 file has reasonable size (at least 70% of TS size)
+            ts_size = os.path.getsize(ts_path) if os.path.exists(ts_path) else 0
+            mp4_size = os.path.getsize(mp4_path)
             
-            # Call the remux_file method with logging service
-            result = await self.remux_file(
-                input_path=ts_path,
-                output_path=mp4_path,
-                overwrite=True,
-                metadata_file=meta_path,
-                streamer_name=streamer_name,
-                logging_service=logging_service
-            )
-            
-            # Clean up the temporary metadata file
-            if meta_path and os.path.exists(meta_path):
-                os.remove(meta_path)
-                
-            # If remux was successful, validate the MP4 file before deleting the TS file
-            if result["success"] and os.path.exists(mp4_path):
-                # Step 1: Verify MP4 file has reasonable size (at least 80% of TS size)
-                ts_size = os.path.getsize(ts_path) if os.path.exists(ts_path) else 0
-                mp4_size = os.path.getsize(mp4_path)
-                
-                if mp4_size == 0:
-                    logger.error(f"MP4 file is empty: {mp4_path}")
-                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Output file is empty")
-                    return False
-                    
-                size_ratio = mp4_size / ts_size if ts_size > 0 else 1
-                logger.info(f"Size ratio MP4/TS: {size_ratio:.2f} ({mp4_size}/{ts_size} bytes)")
-                
-                if size_ratio < 0.8:
-                    logger.error(f"MP4 file size ({mp4_size} bytes) is too small compared to TS file ({ts_size} bytes), ratio: {size_ratio:.2f}")
-                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, 
-                                                          f"Output file too small: {mp4_size} bytes, ratio: {size_ratio:.2f}")
-                    return False
-                
-                # Step 2: Verify the MP4 file is valid with ffprobe
-                logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
-                valid_mp4 = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-                
-                if not valid_mp4:
-                    logger.error(f"MP4 file validation failed: {mp4_path}")
-                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "FFprobe validation failed")
-                    return False
-                
-                # Step 3: Check if the MP4 has a proper duration
-                duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
-                
-                if not duration_result["valid"]:
-                    logger.error(f"MP4 duration check failed: {duration_result['message']}")
-                    self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, duration_result["message"])
-                    return False
-                
-                # Step 4: Additional validation to ensure MP4 is playable (check for mdat atom)
-                try:
-                    playability_cmd = [
-                        "ffprobe", 
-                        "-v", "error", 
-                        "-show_entries", "format=format_name,duration", 
-                        "-of", "json", 
-                        mp4_path
-                    ]
-                    playability_process = await asyncio.create_subprocess_exec(
-                        *playability_cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    play_stdout, play_stderr = await playability_process.communicate()
-                    if playability_process.returncode != 0 or "Invalid data found" in play_stderr.decode('utf-8', errors='ignore'):
-                        logger.error(f"MP4 file playability check failed: {mp4_path}")
-                        self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "MP4 playability check failed")
-                        return False
-                    
-                    # Parse output to confirm it's an MP4 container
-                    play_output = play_stdout.decode('utf-8', errors='ignore')
-                    if '"format_name"' not in play_output or "mp4" not in play_output.lower():
-                        logger.error(f"MP4 container validation failed: {mp4_path}")
-                        self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Invalid MP4 container format")
-                        return False
-                        
-                    logger.info(f"MP4 playability check passed: {mp4_path}")
-                except Exception as e:
-                    logger.error(f"Error during MP4 playability check: {e}")
-                    # Don't fail the process for this check, as it's an additional safeguard
-                
-                # All checks passed
-                logger.info(f"Successfully remuxed {ts_path} to {mp4_path}")
-                self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
-                                                       f"Size: {mp4_size/1024/1024:.2f} MB, Duration: {duration_result['duration']:.2f}s")
-                
-                # Log successful validation
-                logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
-                                                  f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
-                
-                # IMPORTANT: Keep TS file as backup until we're 100% sure MP4 works
-                # We will clean it up later during the cleanup process, not immediately
-                logger.info(f"Keeping TS file as backup until final cleanup: {ts_path}")
-                logging_service.ffmpeg_logger.info(f"[TS_BACKUP] Keeping TS file as backup: {ts_path}")
-                self.activity_logger.log_file_operation("TS_BACKUP", ts_path, True, "TS file kept as backup until final cleanup")
-                
-                return True
-            else:
-                error_msg = f"Failed to remux {ts_path} to {mp4_path}: {result.get('stderr', '')}"
-                logger.error(error_msg)
-                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, result.get("stderr", "Unknown error"))
-                
-                # FALLBACK: If MP4 creation failed completely, keep TS file as final recording
-                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
-                    logger.warning(f"MP4 conversion failed, keeping TS file as final recording: {ts_path}")
-                    # Rename TS to indicate it's the final version
-                    fallback_path = ts_path.replace(".ts", "_FINAL.ts")
-                    try:
-                        os.rename(ts_path, fallback_path)
-                        self.activity_logger.log_file_operation("TS_FALLBACK", fallback_path, True, 
-                                                              "TS file renamed as final recording due to MP4 failure")
-                        logger.info(f"TS file saved as fallback recording: {fallback_path}")
-                    except Exception as rename_error:
-                        logger.error(f"Failed to rename TS fallback file: {rename_error}")
-                
+            if mp4_size == 0:
+                logger.error(f"MP4 file is empty: {mp4_path}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Output file is empty")
                 return False
+                
+            size_ratio = mp4_size / ts_size if ts_size > 0 else 1
+            logger.info(f"Size ratio MP4/TS: {size_ratio:.2f} ({mp4_size}/{ts_size} bytes)")
+            
+            if size_ratio < 0.7:  # More lenient than original 0.8
+                logger.warning(f"MP4 file size ({mp4_size} bytes) is smaller than expected compared to TS file ({ts_size} bytes), ratio: {size_ratio:.2f}")
+                self.activity_logger.log_file_operation("REMUX_WARNING", mp4_path, True, 
+                                                      f"Size ratio {size_ratio:.2f} is low but acceptable")
+                # Don't fail for this, just log warning
+            
+            # Step 2: Verify the MP4 file is valid with ffprobe
+            logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
+            valid_mp4 = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+            
+            if not valid_mp4:
+                logger.error(f"MP4 file validation failed: {mp4_path}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "FFprobe validation failed")
+                return False
+            
+            # Step 3: Check if the MP4 has a proper duration
+            duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
+            
+            if not duration_result["valid"]:
+                logger.error(f"MP4 duration check failed: {duration_result['message']}")
+                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, duration_result["message"])
+                return False
+            
+            # All checks passed
+            logger.info(f"Successfully remuxed and validated {ts_path} to {mp4_path}")
+            self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
+                                                   f"Size: {mp4_size/1024/1024:.2f} MB, Duration: {duration_result['duration']:.2f}s")
+            
+            # Log successful validation
+            logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
+                                              f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
+            
+            # Schedule TS cleanup after a short delay to ensure MP4 is fully written
+            logger.info(f"Scheduling TS cleanup in 10 seconds: {ts_path}")
+            asyncio.create_task(self._delayed_ts_cleanup(ts_path, mp4_path, streamer_name, 10))
+            
+            return True
+        
         except Exception as e:
             logger.error(f"Error during remux: {e}", exc_info=True)
+            self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, f"Exception during remux: {str(e)}")
             return False
-        finally:
-            # Clean up the process
-            await self.subprocess_manager.terminate_process(
-                f"ffmpeg_remux_{int(datetime.now().timestamp())}"
-            )
 
     async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown", logging_service=None) -> Dict[str, Any]:
         """Remux file with proper error handling and AAC bitstream conversion"""
@@ -1708,43 +1749,61 @@ class RecordingService:
             if os.path.exists(output_path) and overwrite:
                 os.remove(output_path)
             
-            # Base FFmpeg command with enhanced stability parameters
+            # Base FFmpeg command - SIMPLIFIED for pure remux - FIXED VERSION
             cmd = [
                 "ffmpeg",
                 "-fflags", "+genpts+igndts+ignidx+discardcorrupt",
                 "-err_detect", "ignore_err",
                 "-analyzeduration", "50M",
                 "-probesize", "50M",
-                "-i", input_path,
+                "-i", input_path
+            ]
+            
+            # Add metadata file if provided (as second input) - ONLY if metadata exists and is valid
+            metadata_mapping = []
+            if metadata_file and os.path.exists(metadata_file) and os.path.getsize(metadata_file) > 0:
+                try:
+                    # Validate metadata file content before using it
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        if content.strip().startswith(';FFMETADATA1'):
+                            cmd.extend(["-i", metadata_file])
+                            metadata_mapping = ["-map_metadata", "1"]
+                            logger.info(f"Using metadata file: {metadata_file}")
+                        else:
+                            logger.warning(f"Invalid metadata file format, skipping: {metadata_file}")
+                except Exception as e:
+                    logger.warning(f"Error reading metadata file, skipping: {e}")
+            
+            # Continue with codec and mapping settings - SIMPLIFIED
+            cmd.extend([
                 "-c:v", "copy",
                 "-c:a", "copy",
                 # AAC bitstream filter is crucial for Twitch streams
                 "-bsf:a", "aac_adtstoasc",
                 "-avoid_negative_ts", "make_zero",
+                # Map video and audio from FIRST input (the TS file)
                 "-map", "0:v:0?",
                 "-map", "0:a:0?",
-                "-movflags", "+faststart+empty_moov+frag_keyframe",
+            ])
+            
+            # Add metadata mapping if we have a valid metadata file
+            cmd.extend(metadata_mapping)
+            
+            # Continue with container settings - REDUCED complexity
+            cmd.extend([
+                "-movflags", "+faststart",
                 "-ignore_unknown",
-                "-max_muxing_queue_size", "16384",
-                "-max_interleave_delta", "0",
-                "-fflags", "+discardcorrupt",
+                "-max_muxing_queue_size", "8192",
                 "-async", "0",
                 "-fps_mode", "passthrough",  # Modern replacement for -vsync
                 "-metadata", f"encoded_by=StreamVault",
                 "-metadata", f"encoding_tool=StreamVault",
                 "-y", output_path,
-                # Add reporting options for better logging
-                "-report",
-                "-v", "info",
-                "-stats_period", "30"
-            ]
-            
-            # Add metadata file if provided
-            if metadata_file and os.path.exists(metadata_file):
-                cmd.insert(cmd.index("-i"), "-i")
-                cmd.insert(cmd.index("-i") + 1, metadata_file)
-                cmd.insert(cmd.index("-map", 1) + 2, "-map_metadata")
-                cmd.insert(cmd.index("-map_metadata") + 1, "1")
+                # Simplified logging
+                "-v", "warning",  # Reduced verbosity
+                "-stats_period", "10"
+            ])
             
             # Log file path for debugging
             log_file = f"/app/logs/ffmpeg/remux_{streamer_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
@@ -1752,13 +1811,25 @@ class RecordingService:
             if logging_service:
                 logging_service.recording_logger.info(f"[REMUX_COMMAND] {streamer_name} - Command: {' '.join(cmd)}")
             
-            # Start FFmpeg process
+            # Start FFmpeg process with timeout
             process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
             process = await self.subprocess_manager.start_process(cmd, process_id)
             
-            # Wait for process to complete
-            stdout, stderr = await process.communicate()
-            exit_code = process.returncode
+            # Wait for process to complete with timeout (max 30 minutes for very long streams)
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1800)
+                exit_code = process.returncode
+            except asyncio.TimeoutError:
+                logger.error(f"FFmpeg remux process timed out for {streamer_name}")
+                process.kill()
+                await process.wait()
+                return {
+                    "success": False,
+                    "exit_code": -1,
+                    "stdout": "",
+                    "stderr": "Process timed out after 30 minutes",
+                    "metrics": {}
+                }
             
             # Get file sizes for metrics
             input_size_mb = os.path.getsize(input_path) / (1024 * 1024) if os.path.exists(input_path) else 0
@@ -1775,12 +1846,37 @@ class RecordingService:
             # Check if output file exists and has content
             success = exit_code == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
             
-            # Additional check for truncated files
-            if success and input_size_mb > 0 and output_size_mb < input_size_mb * 0.8:
-                logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
-                if logging_service:
-                    logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
-                success = False
+            # Additional validation for truncated files - MORE LENIENT
+            if success and input_size_mb > 0:
+                size_ratio = output_size_mb / input_size_mb
+                # More lenient size check - allow up to 50% difference (ads, buffering, etc.)
+                if output_size_mb < input_size_mb * 0.5:
+                    logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
+                    if logging_service:
+                        logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
+                    success = False
+                elif size_ratio < 0.7:
+                    # Log warning but don't fail - could be due to ads or buffering
+                    logger.warning(f"SIZE_WARNING: MP4 size ({output_size_mb:.2f} MB) is smaller than expected compared to TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
+                    if logging_service:
+                        logging_service.recording_logger.warning(f"[REMUX_WARNING] {streamer_name} - SIZE_WARNING: Size ratio {size_ratio:.2f} is low but acceptable")
+            
+            # Additional quick validation of MP4 structure
+            if success:
+                try:
+                    # Quick check if file is a valid MP4
+                    with open(output_path, 'rb') as f:
+                        header = f.read(8)
+                        if len(header) >= 8:
+                            # Check for MP4 file signature
+                            if header[4:8] == b'ftyp':
+                                logger.info(f"MP4 file structure validation passed: {output_path}")
+                            else:
+                                logger.warning(f"MP4 file structure validation failed: {output_path}")
+                                success = False
+                except Exception as e:
+                    logger.warning(f"Could not validate MP4 structure: {e}")
+                    # Don't fail the process for this check
             
             # Log outcome
             operation = "REMUX_SUCCESS" if success else "REMUX_FAILURE"
@@ -1809,10 +1905,10 @@ class RecordingService:
         """Clean up all resources when shutting down"""
 
         try:
-            # Stop all active recordings
+            # Stop all active recordings (automatic stop during shutdown)
             streamer_ids = list(self.active_recordings.keys())
             for streamer_id in streamer_ids:
-                await self.stop_recording(streamer_id)
+                await self.stop_recording(streamer_id, reason="automatic")
 
             # Clean up all subprocess manager processes
             await self.subprocess_manager.cleanup_all()
@@ -1829,6 +1925,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
 
+      
     async def _cleanup_temporary_files(self, mp4_path: str):
         """Clean up temporary files after successful metadata generation with final MP4 validation"""
         try:
@@ -1865,17 +1962,27 @@ class RecordingService:
                     # MP4 is confirmed good, safe to delete TS
                     logger.info(f"Final validation passed. Now safe to delete TS file: {ts_path}")
                     try:
-                        os.remove(ts_path)
-                        self.activity_logger.log_file_operation("TS_FINAL_DELETE", ts_path, True, 
-                                                              "TS file deleted after final MP4 validation")
-                        logger.info(f"Successfully deleted TS backup file: {ts_path}")
+                        # Double-check that MP4 file still exists before deleting TS
+                        if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                            os.remove(ts_path)
+                            self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
+                                                       "TS file deleted after successful validation")
+                            logger.info(f"Successfully deleted TS backup file: {ts_path}")
+                        else:
+                            logger.error(f"MP4 file is missing or empty during cleanup, keeping TS backup: {mp4_path}")
+                            self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                                  "TS kept as backup because MP4 file is missing or empty")
                     except Exception as e:
                         logger.error(f"Failed to delete TS file during cleanup: {e}")
+                        # Keep TS file if deletion fails
                 else:
                     # MP4 validation failed, keep TS as backup
                     logger.warning(f"Final MP4 validation failed, keeping TS backup: {ts_path}")
                     self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
                                                           f"TS kept as backup due to MP4 validation failure: {final_duration_check['message']}")
+            else:
+                logger.info(f"No TS file found for cleanup: {ts_path}")
+                # This is normal if TS was already deleted or never existed
             
             # Clean up other temporary files (logs, metadata, etc.)
             from app.utils.file_utils import cleanup_temporary_files
@@ -2074,19 +2181,19 @@ class RecordingService:
                 proxy_settings = get_proxy_settings_from_db()
                 proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
                 
-                # Use different thresholds based on proxy status and stream length
+                # Use different thresholds based on proxy status and stream length - MORE LENIENT
                 if proxy_enabled:
-                    # With proxy, we expect fewer discontinuities - be more strict
-                    min_ratio = 0.90 if ts_duration < 3600 else 0.85  # 90% for short streams, 85% for long streams
+                    # With proxy, we expect fewer discontinuities - be more strict but still reasonable
+                    min_ratio = 0.80 if ts_duration < 3600 else 0.75  # 80% for short streams, 75% for long streams
                 else:
                     # Without proxy, expect more ad segments causing discontinuities - be more lenient
-                    min_ratio = 0.60 if ts_duration < 3600 else 0.50  # 60% for short streams, 50% for long streams
+                    min_ratio = 0.50 if ts_duration < 3600 else 0.40  # 50% for short streams, 40% for long streams
                     
                 ratio = mp4_duration / ts_duration
                 
                 if ratio < min_ratio:
                     # Only fail for extreme cases where most content is lost
-                    if ratio < 0.30:  # Fail if we lost more than 70% of content
+                    if ratio < 0.25:  # Fail if we lost more than 75% of content
                         return {
                             "valid": False,
                             "duration": mp4_duration,
@@ -2096,6 +2203,12 @@ class RecordingService:
                         # For less extreme cases, log a warning but still pass validation
                         proxy_status = "with proxy" if proxy_enabled else "without proxy (ads expected)"
                         logger.warning(f"MP4 shorter than TS ({proxy_status}): MP4={mp4_duration:.2f}s, TS={ts_duration:.2f}s, ratio={ratio:.2f}")
+                        # Still pass validation but log the warning
+                        self.activity_logger.log_process_monitoring(
+                            streamer_name, 
+                            "DURATION_WARNING", 
+                            f"MP4 duration shorter than expected: {mp4_duration:.2f}s vs TS: {ts_duration:.2f}s (ratio: {ratio:.2f}, {proxy_status})"
+                        )
             
             # If the duration is too short (less than 10 seconds), it's probably not a valid recording
             if mp4_duration < 10:
@@ -2318,4 +2431,90 @@ class RecordingService:
                 
         except Exception as e:
             logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
+
+    async def _delayed_cleanup_on_manual_stop(self, output_path: str, delay: int = 120):
+        """Ensure cleanup happens when recording is manually stopped"""
+        try:
+            await asyncio.sleep(delay)  # Wait for metadata generation to complete
+            
+            # Find the MP4 path
+            mp4_path = output_path
+            if output_path.endswith(".ts"):
+                mp4_path = output_path.replace(".ts", ".mp4")
+            
+            # Check if MP4 exists and is valid before cleanup
+            if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                logger.info(f"Manual stop cleanup: Validating MP4 before TS cleanup: {mp4_path}")
+                
+                # Extract streamer name for validation
+                path_parts = mp4_path.split(os.sep)
+                streamer_name = "unknown"
+                for part in path_parts:
+                    if part and not part.startswith("."):
+                        streamer_name = part
+                        break
+                
+                # Final validation
+                is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+                
+                if is_valid:
+                    await self._cleanup_temporary_files(mp4_path)
+                    logger.info(f"Manual stop cleanup completed for: {mp4_path}")
+                else:
+                    logger.warning(f"Manual stop cleanup skipped - MP4 validation failed: {mp4_path}")
+            else:
+                logger.warning(f"Manual stop cleanup skipped - MP4 does not exist or is empty: {mp4_path}")
+                
+        except Exception as e:
+            logger.error(f"Error during manual stop cleanup: {e}", exc_info=True)
+
+    async def _delayed_ts_cleanup(self, ts_path: str, mp4_path: str, streamer_name: str, delay: int = 10):
+        """Clean up TS file after a delay to ensure MP4 is fully written and stable"""
+        try:
+            logger.info(f"Waiting {delay} seconds before TS cleanup for {streamer_name}")
+            await asyncio.sleep(delay)
+            
+            # Final checks before deleting TS
+            if not os.path.exists(ts_path):
+                logger.debug(f"TS file already deleted: {ts_path}")
+                return
+                
+            if not os.path.exists(mp4_path):
+                logger.warning(f"MP4 file missing, keeping TS as backup: {mp4_path}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       "TS kept as backup - MP4 file missing")
+                return
+                
+            # Validate MP4 one final time
+            is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
+            if not is_valid:
+                logger.warning(f"MP4 validation failed during cleanup, keeping TS backup: {mp4_path}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       "TS kept as backup - MP4 validation failed")
+                return
+                
+            # Check duration consistency
+            duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
+            if not duration_result["valid"]:
+                logger.warning(f"MP4 duration check failed, keeping TS backup: {duration_result['message']}")
+                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                       f"TS kept as backup - {duration_result['message']}")
+                return
+                
+            # All checks passed, safe to delete TS
+            logger.info(f"All validation checks passed, deleting TS file: {ts_path}")
+            try:
+                os.remove(ts_path)
+                self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
+                                                       "TS file deleted after successful validation")
+                logger.info(f"Successfully deleted TS backup file: {ts_path}")
+            except Exception as e:
+                logger.error(f"Failed to delete TS file: {e}")
+                self.activity_logger.log_file_operation("TS_CLEANUP_FAILED", ts_path, False, 
+                                                       f"Failed to delete TS file: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Error during delayed TS cleanup: {e}", exc_info=True)
+
+    # ...existing code...
 

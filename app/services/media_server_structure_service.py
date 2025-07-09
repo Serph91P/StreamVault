@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, Streamer, StreamEvent
 from app.config.settings import settings
+from app.services.artwork_service import artwork_service
 
 logger = logging.getLogger("streamvault")
 
@@ -92,8 +93,12 @@ class MediaServerStructureService:
                 # Create all metadata files
                 await self._create_all_metadata_files(stream, streamer, new_structure, db)
                 
-                # Download and organize images
-                await self._organize_images(stream, streamer, new_structure)
+                # Save artwork and metadata to dedicated directories (not in recordings)
+                await artwork_service.save_streamer_artwork(streamer)
+                await artwork_service.save_streamer_metadata(streamer)
+                
+                # Download episode thumbnail (only for the recording)
+                await self._create_episode_thumbnail(stream, streamer, new_structure["episode_thumb"])
                 
                 logger.info(f"Successfully created media server structure for {streamer.username}")
                 return new_mp4_path
@@ -140,11 +145,6 @@ class MediaServerStructureService:
                 "episode_thumb": str(season_dir / f"{episode_filename}-thumb.jpg"),
                 "episode_chapters_vtt": str(season_dir / f"{episode_filename}.chapters.vtt"),
                 "episode_chapters_xml": str(season_dir / f"{episode_filename}.chapters.xml"),
-                "tvshow_nfo": str(streamer_dir / "tvshow.nfo"),
-                "season_nfo": str(season_dir / "season.nfo"),
-                "show_poster": str(streamer_dir / "poster.jpg"),
-                "show_folder": str(streamer_dir / "folder.jpg"),
-                "season_poster": str(season_dir / "poster.jpg"),
                 "episode_info": {
                     "filename": episode_filename,
                     "episode_id": episode_id,
@@ -421,53 +421,7 @@ class MediaServerStructureService:
             
         except Exception as e:
             logger.error(f"Error creating XML chapters: {e}", exc_info=True)
-    
-    async def _organize_images(self, stream: Stream, streamer: Streamer, structure: Dict[str, Any]):
-        """Download and organize all required images"""
-        try:
-            # Download streamer profile image as show poster
-            await self._download_streamer_poster(streamer, structure["show_poster"])
-            
-            # Create folder.jpg copy for Emby/Jellyfin
-            if os.path.exists(structure["show_poster"]):
-                shutil.copy2(structure["show_poster"], structure["show_folder"])
-                logger.debug(f"Created folder.jpg copy")
-            
-            # Create season poster (copy of show poster)
-            if os.path.exists(structure["show_poster"]):
-                shutil.copy2(structure["show_poster"], structure["season_poster"])
-                logger.debug(f"Created season poster")
-            
-            # Download/extract episode thumbnail
-            await self._create_episode_thumbnail(stream, streamer, structure["episode_thumb"])
-            
-        except Exception as e:
-            logger.error(f"Error organizing images: {e}", exc_info=True)
-    
-    async def _download_streamer_poster(self, streamer: Streamer, poster_path: str):
-        """Download streamer profile image as poster"""
-        try:
-            if os.path.exists(poster_path):
-                logger.debug(f"Poster already exists: {poster_path}")
-                return
-            
-            if not streamer.profile_image_url:
-                logger.warning(f"No profile image URL for streamer {streamer.username}")
-                return
-            
-            session = await self._get_session()
-            async with session.get(streamer.profile_image_url) as response:
-                if response.status == 200:
-                    content = await response.read()
-                    with open(poster_path, 'wb') as f:
-                        f.write(content)
-                    logger.debug(f"Downloaded streamer poster: {poster_path}")
-                else:
-                    logger.warning(f"Failed to download streamer poster: {response.status}")
-                    
-        except Exception as e:
-            logger.error(f"Error downloading streamer poster: {e}", exc_info=True)
-    
+
     async def _create_episode_thumbnail(self, stream: Stream, streamer: Streamer, thumb_path: str):
         """Create episode thumbnail from Twitch or video extraction"""
         try:

@@ -223,7 +223,7 @@ async def stop_recording(streamer_id: int):
         # Log the stop request
         logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
         
-        result = await recording_service.stop_recording(streamer_id)
+        result = await recording_service.stop_recording_manual(streamer_id)
         if result:
             logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
             return {"status": "success", "message": "Recording stopped successfully"}

@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     HTTP_PROXY: Optional[str] = None
     HTTPS_PROXY: Optional[str] = None
     
+    # Artwork and metadata directory (within recordings directory)
+    ARTWORK_BASE_PATH: str = "/recordings/.artwork"
+    
     # PWA and Push Notification settings (server-global, not per-user)
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None

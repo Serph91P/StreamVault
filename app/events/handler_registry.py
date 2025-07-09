@@ -308,7 +308,8 @@ class EventHandlerRegistry:
                     
                     logger.info(f"🎬 STREAM_OFFLINE_NOTIFICATION_SENT: streamer={streamer.username}")
                     logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
-                    await self.recording_service.stop_recording(streamer.id)
+                    # Automatic stop when stream goes offline
+                    await self.recording_service.stop_recording(streamer.id, reason="automatic")
             
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
