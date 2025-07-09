@@ -107,7 +107,7 @@ async def remux_file(
             cmd.extend(["-avoid_negative_ts", "make_zero"])  
             cmd.extend(["-map", "0:v:0?"])  # Map video if exists
             cmd.extend(["-map", "0:a:0?"])  # Map audio if exists
-            cmd.extend(["-movflags", "+faststart+frag_keyframe+separate_moof+omit_tfhd_offset+co64"])
+            cmd.extend(["-movflags", "+faststart+frag_keyframe+separate_moof+omit_tfhd_offset"])
             cmd.extend(["-ignore_unknown"])
             cmd.extend(["-max_muxing_queue_size", "16384"])
             cmd.extend(["-max_interleave_delta", "0"])
