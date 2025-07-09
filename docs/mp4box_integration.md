@@ -26,6 +26,20 @@ StreamVault has been successfully migrated to use GPAC/MP4Box for metadata proce
 
 ## Functionality
 
+### Two-Phase Processing Pipeline:
+
+**Phase 1: Format Conversion (FFmpeg)**
+- TS files are remuxed to MP4 format using FFmpeg
+- FFmpeg handles the container conversion efficiently
+- No metadata embedding during this phase
+- Results in a clean MP4 file ready for metadata processing
+
+**Phase 2: Metadata Processing (MP4Box)**
+- MP4Box adds metadata to the converted MP4 file
+- Chapters, thumbnails, and stream information are embedded
+- Optimized for MP4 container metadata operations
+- Streaming optimization applied
+
 ### MP4Box Functions:
 1. **Metadata Embedding**: Direct embedding of metadata into MP4 files
 2. **Chapter Support**: Better handling of chapter information
@@ -33,9 +47,15 @@ StreamVault has been successfully migrated to use GPAC/MP4Box for metadata proce
 4. **Thumbnail Extraction**: Optimized thumbnail generation for MP4 files
 5. **Streaming Optimization**: Better file structure for streaming
 
+### Processing Flow:
+```
+TS Recording → FFmpeg Remux → MP4 File → MP4Box Metadata → Final MP4 with Metadata
+```
+
 ### Fallback Mechanism:
-- FFmpeg is still used for TS->MP4 conversion
-- Fallback to FFmpeg when MP4Box is not available
+- FFmpeg is used for TS->MP4 conversion (Phase 1)
+- MP4Box is used for metadata operations (Phase 2)
+- Fallback to FFmpeg for metadata if MP4Box fails
 - Combination of both tools for optimal results
 
 ## Installation
@@ -70,6 +90,31 @@ python migrate_to_mp4box.py
 
 ## Usage
 
+### Two-Phase Processing Example:
+
+```python
+# Phase 1: TS to MP4 conversion (FFmpeg)
+from app.utils.file_utils import remux_file
+
+result = await remux_file(
+    input_path="stream.ts",
+    output_path="stream.mp4",
+    overwrite=True,
+    metadata_file=None,  # No metadata during remux
+    streamer_name="example_streamer"
+)
+
+# Phase 2: Add metadata (MP4Box)
+from app.utils.mp4box_utils import embed_metadata_with_mp4box
+
+await embed_metadata_with_mp4box(
+    input_path="stream.mp4",
+    output_path="stream_with_metadata.mp4",
+    metadata={"title": "Stream Title", "artist": "Streamer"},
+    chapters=[{"start_time": 0, "title": "Chapter 1"}]
+)
+```
+
 ### New API Functions:
 
 ```python
@@ -100,10 +145,11 @@ thumbnail_path = await metadata_service.extract_thumbnail(
 
 ## Performance Improvements
 
-1. **Faster Metadata Operations**: Up to 70% faster than FFmpeg
+1. **Faster Metadata Operations**: Up to 70% faster than FFmpeg for MP4 metadata
 2. **Lower Memory Usage**: More efficient handling of large MP4 files
 3. **Better Error Handling**: More robust processing of corrupted files
 4. **Streaming Optimization**: Optimized file structure for better streaming performance
+5. **Separation of Concerns**: FFmpeg handles conversion, MP4Box handles metadata - each tool optimized for its task
 
 ## Compatibility
 
@@ -114,9 +160,9 @@ thumbnail_path = await metadata_service.extract_thumbnail(
 - **Kodi**: Better NFO file generation
 
 ### File Formats:
-- **MP4**: Primarily processed via MP4Box
-- **TS**: Still converted to MP4 via FFmpeg
-- **Others**: Fallback to FFmpeg
+- **TS**: Converted to MP4 via FFmpeg (Phase 1), then metadata via MP4Box (Phase 2)
+- **MP4**: Metadata operations handled directly by MP4Box
+- **Others**: Fallback to FFmpeg for both conversion and metadata
 
 ## Monitoring
 
