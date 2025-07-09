@@ -1601,12 +1601,24 @@ class RecordingService:
                 )
                 
                 if metadata_result["success"] and os.path.exists(temp_output):
-                    # Replace original with metadata-embedded version
-                    import shutil
-                    shutil.move(temp_output, mp4_path)
-                    logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
-                    self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
-                                                           f"Remux and metadata embedding successful")
+                    # Validate temp file before replacing original
+                    temp_size = os.path.getsize(temp_output)
+                    original_size = os.path.getsize(mp4_path) if os.path.exists(mp4_path) else 0
+                    
+                    if temp_size > 0 and temp_size >= original_size * 0.9:  # At least 90% of original size
+                        # Replace original with metadata-embedded version
+                        import shutil
+                        shutil.move(temp_output, mp4_path)
+                        logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
+                        self.activity_logger.log_file_operation("METADATA_SUCCESS", mp4_path, True, 
+                                                               f"Metadata embedding successful")
+                    else:
+                        logger.warning(f"MP4Box temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
+                        # Clean up temp file but keep original
+                        if os.path.exists(temp_output):
+                            os.remove(temp_output)
+                        self.activity_logger.log_file_operation("METADATA_SKIPPED", mp4_path, True, 
+                                                               f"Metadata embedding skipped due to invalid temp file")
                 else:
                     logger.warning(f"MP4Box metadata embedding failed, but remux was successful: {mp4_path}")
                     # Clean up temp file if it exists
@@ -1671,8 +1683,8 @@ class RecordingService:
             logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
                                               f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
             
-            # Keep TS file as backup until final cleanup
-            logger.info(f"Keeping TS file as backup until final cleanup: {ts_path}")
+            # Keep TS file as backup - will be deleted later during cleanup
+            logger.info(f"Keeping TS file as backup for now: {ts_path}")
             self.activity_logger.log_file_operation("TS_BACKUP", ts_path, True, "TS file kept as backup until final cleanup")
             
             return True
@@ -1908,17 +1920,27 @@ class RecordingService:
                     # MP4 is confirmed good, safe to delete TS
                     logger.info(f"Final validation passed. Now safe to delete TS file: {ts_path}")
                     try:
-                        os.remove(ts_path)
-                        self.activity_logger.log_file_operation("TS_FINAL_DELETE", ts_path, True, 
-                                                              "TS file deleted after final MP4 validation")
-                        logger.info(f"Successfully deleted TS backup file: {ts_path}")
+                        # Double-check that MP4 file still exists before deleting TS
+                        if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+                            os.remove(ts_path)
+                            self.activity_logger.log_file_operation("TS_FINAL_DELETE", ts_path, True, 
+                                                                  "TS file deleted after final MP4 validation")
+                            logger.info(f"Successfully deleted TS backup file: {ts_path}")
+                        else:
+                            logger.error(f"MP4 file is missing or empty during cleanup, keeping TS backup: {mp4_path}")
+                            self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
+                                                                  "TS kept as backup because MP4 file is missing or empty")
                     except Exception as e:
                         logger.error(f"Failed to delete TS file during cleanup: {e}")
+                        # Keep TS file if deletion fails
                 else:
                     # MP4 validation failed, keep TS as backup
                     logger.warning(f"Final MP4 validation failed, keeping TS backup: {ts_path}")
                     self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
                                                           f"TS kept as backup due to MP4 validation failure: {final_duration_check['message']}")
+            else:
+                logger.info(f"No TS file found for cleanup: {ts_path}")
+                # This is normal if TS was already deleted or never existed
             
             # Clean up other temporary files (logs, metadata, etc.)
             from app.utils.file_utils import cleanup_temporary_files
