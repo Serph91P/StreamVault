@@ -207,6 +207,11 @@ thumbnail_path = await metadata_service.extract_thumbnail(
 - **"MP4Box not found"**: System falls back to FFmpeg automatically
 - **"Package gpac has no installation candidate"**: Docker build will try multiple installation methods
 - **Slow Docker build**: Source compilation takes longer but ensures compatibility
+- **Push notification errors**: Fixed issue with subscription data parsing in webpush service
+
+### Recent Fixes:
+- **v1.1**: Fixed push notification error where subscription data was incorrectly parsed as string instead of dictionary
+- **v1.0**: Initial MP4Box integration with robust fallback mechanisms
 
 ## Technical Details
 
