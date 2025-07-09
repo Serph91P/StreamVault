@@ -643,10 +643,10 @@ class RecordingService:
                 if start_time and isinstance(start_time, datetime):
                     duration = (datetime.now() - start_time).total_seconds()
 
-                # Determine stop reason - use the parameter if provided, otherwise check the recording info
-                stop_reason = reason if reason != "automatic" else recording_info.get("stop_reason", "automatic")
+                # The stop reason is now passed as parameter
+                stop_reason = reason
                 
-                # Log recording stop
+                # Log recording stop with the correct reason
                 logging_service.log_recording_stop(
                     streamer_id, 
                     recording_info['streamer_name'], 
@@ -1491,13 +1491,18 @@ class RecordingService:
             # Log the process output
             logging_service.log_streamlink_output(streamer_name, stdout, stderr, exit_code)
 
-            if exit_code == 0 or exit_code == 130:  # 130 is SIGINT (user interruption)
-                reason = "completed" if exit_code == 0 else "user_interrupted"
-                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} ({reason})")
+            # Find the streamer_id for this recording
+            streamer_id = None
+            for sid, info in self.active_recordings.items():
+                if info.get("streamer_name") == streamer_name:
+                    streamer_id = sid
+                    break
+
+            if exit_code == 0:  # Streamlink finished normally (stream ended)
+                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (stream ended naturally)")
                 
-                logger.info(
-                    f"Streamlink finished for {streamer_name}, converting TS to MP4"
-                )
+                logger.info(f"Streamlink finished normally for {streamer_name} - stream ended, converting TS to MP4")
+                
                 # Only remux if TS file exists and has content
                 if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
                     file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
@@ -1506,6 +1511,29 @@ class RecordingService:
                 else:
                     logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
                     logger.warning(f"No valid TS file found at {ts_path} for remuxing")
+                
+                # Automatically stop the recording (stream ended naturally)
+                if streamer_id and streamer_id in self.active_recordings:
+                    logger.info(f"Automatically stopping recording for {streamer_name} due to stream end")
+                    await self.stop_recording(streamer_id, reason="automatic")
+                
+            elif exit_code == 130:  # SIGINT (user interruption or manual stop)
+                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (interrupted/stopped)")
+                
+                logger.info(f"Streamlink was interrupted for {streamer_name}, converting TS to MP4")
+                
+                # Only remux if TS file exists and has content
+                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
+                    file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
+                    logging_service.log_file_operation("REMUX_START", ts_path, True, f"Starting conversion to MP4", file_size_mb)
+                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
+                else:
+                    logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
+                    logger.warning(f"No valid TS file found at {ts_path} for remuxing")
+                
+                # Don't call stop_recording here - it was already called manually
+                # The reason was already set when stop_recording was called
+                
             else:
                 stderr_text = (
                     stderr.decode("utf-8", errors="ignore")
@@ -1516,6 +1544,11 @@ class RecordingService:
                 logger.error(
                     f"Streamlink process for {streamer_name} exited with code {exit_code}: {stderr_text}"
                 )
+                
+                # Automatically stop the recording due to streamlink failure
+                if streamer_id and streamer_id in self.active_recordings:
+                    logger.info(f"Automatically stopping recording for {streamer_name} due to streamlink failure")
+                    await self.stop_recording(streamer_id, reason="automatic")
                 
                 # Note: In our new clean approach, we don't attempt to remux partial recordings
                 # If streamlink failed, we fail the whole process and don't try to recover partial files
