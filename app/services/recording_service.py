@@ -1799,7 +1799,7 @@ class RecordingService:
             
             # Continue with container settings - REDUCED complexity
             cmd.extend([
-                "-movflags", "+faststart",
+                "-movflags", "+faststart+co64",
                 "-ignore_unknown",
                 "-max_muxing_queue_size", "8192",
                 "-async", "0",
