@@ -227,16 +227,17 @@ class MetadataService:
                 # Get artwork directory path for NFO references
                 artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
                 
-                # Images for the show - reference artwork directory
+                # Images for the show - use relative paths for media server access
+                # Media servers can access both /recordings and /recordings/.artwork
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
-                poster_element.text = str(artwork_dir / "poster.jpg")
+                poster_element.text = f"../.artwork/{streamer.username}/poster.jpg"
                 
                 banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
-                banner_element.text = str(artwork_dir / "banner.jpg")
+                banner_element.text = f"../.artwork/{streamer.username}/banner.jpg"
                 
                 # Fanart (background image)
                 fanart = ET.SubElement(show_root, "fanart")
-                ET.SubElement(fanart, "thumb").text = str(artwork_dir / "fanart.jpg")
+                ET.SubElement(fanart, "thumb").text = f"../.artwork/{streamer.username}/fanart.jpg"
                 
             # Genre/Category
             if streamer.category_name:
@@ -248,9 +249,8 @@ class MetadataService:
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                # Reference actor image from artwork directory
-                artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
-                ET.SubElement(actor, "thumb").text = str(artwork_dir / "poster.jpg")
+                # Reference actor image from artwork directory with relative path
+                ET.SubElement(actor, "thumb").text = f"../.artwork/{streamer.username}/poster.jpg"
                 
             ET.SubElement(actor, "role").text = "Streamer"
             
@@ -269,10 +269,9 @@ class MetadataService:
                 # Season title
                 ET.SubElement(season_root, "title").text = f"Season {stream.started_at.strftime('%Y-%m')}"
                 
-                # Season poster - reference artwork directory
+                # Season poster - reference artwork directory with relative path
                 if streamer.profile_image_url:
-                    artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
-                    ET.SubElement(season_root, "thumb").text = str(artwork_dir / "season.jpg")
+                    ET.SubElement(season_root, "thumb").text = f"../../.artwork/{streamer.username}/season.jpg"
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
