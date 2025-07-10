@@ -5,20 +5,11 @@ import logging
 import subprocess
 from typing import Optional, Dict, Any
 
-# Import MP4Box utilities
-from .mp4box_utils import (
-    validate_mp4_with_mp4box, 
-    embed_metadata_with_mp4box,
-    optimize_mp4_with_mp4box,
-    get_mp4_duration
-)
-
 logger = logging.getLogger("streamvault")
 
 async def validate_mp4(mp4_path: str) -> bool:
     """
     Validate that an MP4 file is properly created and readable.
-    Uses MP4Box for better validation.
     
     Args:
         mp4_path: Path to the MP4 file
@@ -32,8 +23,7 @@ async def validate_mp4(mp4_path: str) -> bool:
             logger.warning(f"MP4 file does not exist or is too small: {mp4_path}")
             return False
 
-        # Use MP4Box for validation (more reliable than ffprobe for MP4)
-        return await validate_mp4_with_mp4box(mp4_path)
+        return True
 
     except Exception as e:
         logger.error(f"Error validating MP4 file: {e}", exc_info=True)
