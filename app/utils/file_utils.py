@@ -584,3 +584,67 @@ async def embed_metadata_with_ffmpeg_wrapper(
             "stdout": "",
             "stderr": f"Error in FFmpeg metadata embedding: {str(e)}"
         }
+
+async def create_ffmpeg_chapters_file(
+    chapters: list, 
+    output_path: str, 
+    title: Optional[str] = None,
+    artist: Optional[str] = None,
+    date: Optional[str] = None,
+    overwrite: bool = False
+) -> bool:
+    """
+    Create an FFmpeg-compatible chapters metadata file.
+    
+    Args:
+        chapters: List of chapter dictionaries with start_time, end_time, and title
+        output_path: Path to write the chapters metadata file
+        title: Optional video title
+        artist: Optional artist/creator name
+        date: Optional date in YYYY-MM-DD format
+        overwrite: Whether to overwrite an existing file
+        
+    Returns:
+        True on success, False on error
+    """
+    try:
+        if os.path.exists(output_path) and not overwrite:
+            logger.warning(f"Chapters file already exists: {output_path}")
+            return False
+            
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # FFmpeg metadata header
+            f.write(";FFMETADATA1\n")
+            
+            # Global metadata
+            if title:
+                f.write(f"title={title}\n")
+            if artist:
+                f.write(f"artist={artist}\n")
+            if date:
+                f.write(f"date={date}\n")
+                f.write(f"year={date.split('-')[0] if '-' in date else date}\n")
+                f.write(f"creation_time={date}\n")
+                
+            # Chapter information
+            if chapters:
+                for chapter in chapters:
+                    f.write("\n[CHAPTER]\n")
+                    f.write("TIMEBASE=1/1000\n")
+                    # Convert times to milliseconds
+                    start_ms = int(float(chapter['start_time']) * 1000)
+                    end_ms = int(float(chapter['end_time']) * 1000)
+                    f.write(f"START={start_ms}\n")
+                    f.write(f"END={end_ms}\n")
+                    # Escape special characters in chapter title
+                    chapter_title = chapter.get('title', 'Chapter').replace('=', '\\=')
+                    f.write(f"title={chapter_title}\n")
+                    
+        logger.info(f"Created FFmpeg chapters file with {len(chapters)} chapters: {output_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating chapters file: {e}", exc_info=True)
+        return False
