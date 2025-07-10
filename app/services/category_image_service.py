@@ -301,7 +301,7 @@ class CategoryImageService:
         except Exception as e:
             logger.error(f"Error generating missing images report: {e}")
             return {
-                "error": str(e),
+                "error": "An internal error occurred while generating the report.",
                 "total_categories": 0,
                 "have_images": 0,
                 "missing_images": 0,
