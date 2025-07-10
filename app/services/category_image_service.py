@@ -32,11 +32,31 @@ class CategoryImageService:
         """Load information about already cached images"""
         if self.images_dir.exists():
             for image_file in self.images_dir.glob("*.jpg"):
-                # Extract category name from filename
+                # Extract category name from filename - this is tricky with the hash system
                 category_name = self._filename_to_category(image_file.stem)
                 if category_name:
                     # Use /data path for web access
                     self._category_cache[category_name] = f"/data/category_images/{image_file.name}"
+            
+            # Also check if we have any categories in database that match our cache
+            try:
+                db = SessionLocal()
+                try:
+                    db_categories = db.query(Category).all()
+                    for category in db_categories:
+                        if category.name not in self._category_cache:
+                            # Check if we have an image file for this category
+                            filename = self._category_to_filename(category.name)
+                            file_path = self.images_dir / f"{filename}.jpg"
+                            if file_path.exists():
+                                self._category_cache[category.name] = f"/data/category_images/{filename}.jpg"
+                                logger.debug(f"Found cached image for {category.name}")
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.warning(f"Could not load database categories for cache: {e}")
+        
+        logger.info(f"Loaded {len(self._category_cache)} cached category images")
     
     def _category_to_filename(self, category_name: str) -> str:
         """Convert category name to safe filename"""
@@ -51,11 +71,27 @@ class CategoryImageService:
     def _filename_to_category(self, filename: str) -> Optional[str]:
         """Try to extract category name from filename (for cache loading)"""
         # This is a reverse lookup - not perfect but helps with cache loading
-        parts = filename.split('_')
-        if len(parts) >= 2:
-            # Remove the hash part and reconstruct
-            category_parts = parts[:-1]  # Remove hash
-            return ' '.join(part.replace('_', ' ').title() for part in category_parts)
+        # Try to match with database categories by filename patterns
+        try:
+            db = SessionLocal()
+            try:
+                all_categories = db.query(Category).all()
+                for category in all_categories:
+                    expected_filename = self._category_to_filename(category.name)
+                    if expected_filename == filename:
+                        return category.name
+                
+                # Fallback: try to parse from filename structure
+                parts = filename.split('_')
+                if len(parts) >= 2:
+                    # Remove the hash part and reconstruct
+                    category_parts = parts[:-1]  # Remove hash
+                    return ' '.join(part.replace('_', ' ').title() for part in category_parts)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug(f"Could not lookup category name for filename {filename}: {e}")
+        
         return None
     
     def get_category_image_url(self, category_name: str) -> str:
@@ -175,7 +211,37 @@ class CategoryImageService:
                 tasks.append(self._download_category_image(category_name))
         
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            successful_downloads = sum(1 for result in results if result is True)
+            logger.info(f"Preloaded {successful_downloads}/{len(tasks)} category images")
+    
+    async def refresh_category_images(self, category_names: list[str]):
+        """Re-download category images even if they exist (for fixing missing/broken images)"""
+        tasks = []
+        for category_name in category_names:
+            if category_name:
+                # Remove from failed downloads to retry
+                self._failed_downloads.discard(category_name)
+                # Remove from cache to force re-download
+                self._category_cache.pop(category_name, None)
+                # Delete existing file if it exists
+                filename = self._category_to_filename(category_name)
+                file_path = self.images_dir / f"{filename}.jpg"
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Deleted existing image for re-download: {category_name}")
+                    except Exception as e:
+                        logger.warning(f"Could not delete existing image {file_path}: {e}")
+                
+                tasks.append(self._download_category_image(category_name))
+        
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            successful_downloads = sum(1 for result in results if result is True)
+            logger.info(f"Refreshed {successful_downloads}/{len(tasks)} category images")
+            return successful_downloads
+        return 0
     
     def cleanup_old_images(self, days_old: int = 30):
         """Clean up old cached images that haven't been accessed recently"""
@@ -197,6 +263,51 @@ class CategoryImageService:
                         logger.error(f"Error cleaning up {image_file}: {e}")
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
+    
+    def get_missing_images_report(self):
+        """Get a report of categories that are missing images"""
+        try:
+            db = SessionLocal()
+            try:
+                all_categories = db.query(Category).all()
+                
+                missing_images = []
+                have_images = []
+                
+                for category in all_categories:
+                    if category.name in self._category_cache:
+                        # Check if the file actually exists
+                        cache_path = self._category_cache[category.name]
+                        filename = cache_path.split('/')[-1]  # Get filename from path
+                        file_path = self.images_dir / filename
+                        if file_path.exists():
+                            have_images.append(category.name)
+                        else:
+                            # Image in cache but file missing - remove from cache
+                            del self._category_cache[category.name]
+                            missing_images.append(category.name)
+                    else:
+                        missing_images.append(category.name)
+                
+                return {
+                    "total_categories": len(all_categories),
+                    "have_images": len(have_images),
+                    "missing_images": len(missing_images),
+                    "categories_with_images": have_images,
+                    "categories_missing_images": missing_images
+                }
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error generating missing images report: {e}")
+            return {
+                "error": str(e),
+                "total_categories": 0,
+                "have_images": 0,
+                "missing_images": 0,
+                "categories_with_images": [],
+                "categories_missing_images": []
+            }
 
 # Global instance
 category_image_service = CategoryImageService()
