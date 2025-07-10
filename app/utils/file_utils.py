@@ -81,46 +81,16 @@ async def remux_file(
             os.remove(output_path)
             
         # Build comprehensive ffmpeg command with robust error handling
-        cmd = ["ffmpeg"]
-        
-        # Add error resilience flags for corrupted inputs
-        cmd.extend(["-fflags", "+genpts+igndts+ignidx+discardcorrupt"])
-        cmd.extend(["-err_detect", "ignore_err"])
-        cmd.extend(["-analyzeduration", "50M"])
-        cmd.extend(["-probesize", "50M"])
-        
-        # Input file
-        cmd.extend(["-i", input_path])
-        
-        # Add metadata file if provided
-        if metadata_file and os.path.exists(metadata_file):
-            cmd.extend(["-i", metadata_file, "-map_metadata", "1"])
-        elif metadata_file:
-            logger.warning(f"Metadata file {metadata_file} does not exist for remuxing {input_path}")
-        
-        # Copy streams without re-encoding
-        cmd.extend(["-c", "copy"])
-        
-        # Determine if this is a metadata embedding operation (MP4 to MP4)
-        is_metadata_embedding = metadata_file and input_path.endswith('.mp4') and output_path.endswith('.mp4')
-        
-        # Optimize for mp4 files with advanced options to prevent corruption
-        if output_path.endswith('.mp4'):
-            # For TS to MP4 conversions, add the aac bitstream filter (needed for ADTS to ASC conversion)
-            if input_path.endswith('.ts') and not is_metadata_embedding:
-                cmd.extend(["-bsf:a", "aac_adtstoasc"])
-                
-            # Better handling of timestamp issues and muxing
-            cmd.extend(["-avoid_negative_ts", "make_zero"])  
-            cmd.extend(["-map", "0:v:0?"])  # Map video if exists
-            cmd.extend(["-map", "0:a:0?"])  # Map audio if exists
-            cmd.extend(["-movflags", "+faststart+frag_keyframe+separate_moof+omit_tfhd_offset"])
-            cmd.extend(["-ignore_unknown"])
-            cmd.extend(["-max_muxing_queue_size", "16384"])
-            cmd.extend(["-max_interleave_delta", "0"])
-            cmd.extend(["-fflags", "+discardcorrupt"])
-            cmd.extend(["-async", "0"])
-            cmd.extend(["-fps_mode", "passthrough"])
+        cmd = [
+            "ffmpeg",
+            "-i", input_path,
+            "-i", metadata_file,
+            "-map_metadata", "1",
+            "-c", "copy",
+            "-bsf:a", "aac_adtstoasc",
+            "-movflags", "faststart",
+            output_path
+        ]
         
         # Overwrite if specified
         if overwrite or empty_file:
