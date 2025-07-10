@@ -79,15 +79,11 @@ def get_streamlink_command(
         "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
     
-    # Only add ad-disabling flags if NO proxy is set
-    proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
-    if not proxy_enabled:
-        cmd.extend([
-            "--twitch-disable-ads",
-        ])
+    # Immer Adblock-Flags hinzufügen, unabhängig vom Proxy
+    cmd.extend(["--twitch-disable-ads"])
     
     # Add proxy settings if provided
-    if proxy_enabled and proxy_settings:
+    if proxy_settings:
         cmd = _add_proxy_settings(cmd, proxy_settings, force_mode)
     
     return cmd
