@@ -31,8 +31,7 @@ async def validate_mp4(mp4_path: str) -> bool:
 
 async def create_metadata_file(metadata: dict) -> Optional[str]:
     """
-    Create a temporary metadata file for FFmpeg.
-    Note: This is kept for compatibility, but MP4Box metadata embedding is preferred.
+    Create a temporary metadata file for FFmpeg in the correct format.
     
     Args:
         metadata: Dictionary with metadata key-value pairs
@@ -97,19 +96,82 @@ async def embed_metadata_in_mp4(
         logger.error(f"Error embedding metadata: {e}")
         return False
 
-async def optimize_mp4_for_streaming(input_path: str, output_path: str) -> bool:
+async def convert_ts_to_mp4(
+    input_path: str, 
+    output_path: str, 
+    metadata_file: Optional[str] = None,
+    overwrite: bool = False,
+    logging_service = None
+) -> Dict[str, Any]:
     """
-    Optimize MP4 file for streaming using MP4Box.
+    Convert TS file to MP4 using FFmpeg with proper settings.
+    This function follows the approach used in lsdvr for maximum compatibility and quality.
     
     Args:
-        input_path: Path to input MP4 file
+        input_path: Path to input TS file
         output_path: Path to output MP4 file
+        metadata_file: Optional path to FFmpeg metadata file with chapters
+        overwrite: Whether to overwrite existing output file
+        logging_service: Optional logging service for more detailed logs
         
     Returns:
-        True on success, False on error
+        Dict with success status, return code and output information
     """
     try:
-        return await optimize_mp4_with_mp4box(input_path, output_path)
+        if not os.path.exists(input_path):
+            logger.error(f"Input file does not exist: {input_path}")
+            return {"success": False, "code": -1, "stderr": "Input file does not exist"}
+            
+        if os.path.exists(output_path) and not overwrite:
+            logger.error(f"Output file already exists: {output_path}")
+            return {"success": False, "code": -1, "stderr": "Output file already exists"}
+            
+        # Create FFmpeg command with optimal settings
+        cmd = ["ffmpeg", "-i", input_path]
+        
+        # Add metadata file if provided
+        if metadata_file and os.path.exists(metadata_file):
+            cmd.extend(["-i", metadata_file, "-map_metadata", "1"])
+            
+        # Add encoding parameters - copy streams without re-encoding
+        cmd.extend([
+            "-c", "copy", 
+            "-bsf:a", "aac_adtstoasc",  # Fix for AAC audio in TS container
+            "-movflags", "faststart",    # Optimize for web streaming
+        ])
+        
+        # Add overwrite flag if needed
+        if overwrite:
+            cmd.append("-y")
+            
+        cmd.append(output_path)
+        
+        # Execute the command
+        logger.info(f"Converting {input_path} to {output_path}")
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            logger.info(f"Successfully converted {input_path} to {output_path}")
+            return {
+                "success": True, 
+                "code": 0, 
+                "stdout": stdout.decode('utf-8', errors='replace'),
+                "stderr": stderr.decode('utf-8', errors='replace')
+            }
+        else:
+            logger.error(f"Failed to convert {input_path} to {output_path}")
+            return {
+                "success": False, 
+                "code": process.returncode, 
+                "stdout": stdout.decode('utf-8', errors='replace'),
+                "stderr": stderr.decode('utf-8', errors='replace')
+            }
     except Exception as e:
-        logger.error(f"Error optimizing MP4: {e}")
-        return False
+        logger.error(f"Error during TS to MP4 conversion: {e}", exc_info=True)
+        return {"success": False, "code": -1, "stderr": str(e)}
