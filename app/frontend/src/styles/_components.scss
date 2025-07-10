@@ -961,20 +961,9 @@ nav {
   border-radius: v.$border-radius-sm;
   transition: all 0.2s v.$vue-ease;
 
-  &::before {
-    content: "←";
-    margin-right: v.$spacing-xs;
-    display: inline-block;
-    transition: transform 0.2s v.$vue-ease;
-  }
-
   &:hover {
     color: v.$primary-color;
     background: rgba(v.$primary-color, 0.05);
-
-    &::before {
-      transform: translateX(-3px);
-    }
   }
 }
 
