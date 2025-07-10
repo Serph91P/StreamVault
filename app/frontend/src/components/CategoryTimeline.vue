@@ -179,6 +179,8 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   margin: 16px 0;
   border: 1px solid #333;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: visible; /* Allow tooltips to extend outside component */
+  position: relative; /* Needed for tooltip positioning */
 }
 
 .timeline-header {
@@ -258,8 +260,9 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   position: relative;
   height: 80px;
   margin: 20px 0;
-  overflow: hidden; /* Hide overflow instead of scrolling */
+  overflow: visible; /* Allow tooltips to extend outside timeline */
   width: 100%;
+  padding-top: 50px; /* Extra space for tooltips above */
 }
 
 .timeline-track {
@@ -315,19 +318,21 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 /* Tooltip */
 .timeline-tooltip {
   position: absolute;
-  top: -120px;
+  top: -130px;
   left: 50%;
   transform: translateX(-50%);
-  background: #18181b;
-  border: 1px solid #333;
+  background: rgba(24, 24, 27, 0.98);
+  border: 1px solid #444;
   border-radius: 8px;
   padding: 12px;
   min-width: 180px;
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  z-index: 10;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
+  z-index: 99999; /* Very high z-index to ensure tooltip is always visible */
+  backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
 .timeline-tooltip::after {
@@ -336,13 +341,15 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: #333;
+  border: 8px solid transparent;
+  border-top-color: #444;
+  z-index: 99998;
 }
 
 .timeline-item:hover .timeline-tooltip {
   opacity: 1;
   visibility: visible;
+  transform: translateX(-50%) translateY(-5px);
 }
 
 .tooltip-header {

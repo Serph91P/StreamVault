@@ -169,6 +169,24 @@ async def preload_category_images(
         logger.error(f"Error preloading category images: {e}")
         raise HTTPException(status_code=500, detail="Failed to start preloading")
 
+@router.post("/refresh-images")
+async def refresh_category_images(
+    background_tasks: BackgroundTasks,
+    category_names: List[str]
+):
+    """Refresh/re-download category images even if they exist"""
+    try:
+        # Start the refresh in the background
+        background_tasks.add_task(category_image_service.refresh_category_images, category_names)
+        
+        return {
+            "message": f"Started refreshing {len(category_names)} category images",
+            "categories": category_names
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing category images: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start refresh")
+
 @router.post("/cleanup-images")
 async def cleanup_old_images(days_old: int = 30):
     """Clean up old cached category images"""
@@ -193,3 +211,15 @@ async def get_cache_status():
     except Exception as e:
         logger.error(f"Error getting cache status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get cache status")
+
+@router.get("/missing-images")
+async def get_missing_images_report():
+    """Get a report of categories that are missing images"""
+    try:
+        report = category_image_service.get_missing_images_report()
+        if "error" in report:
+            raise HTTPException(status_code=500, detail="An internal error occurred while generating the missing images report")
+        return report
+    except Exception as e:
+        logger.error(f"Error getting missing images report: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get missing images report")

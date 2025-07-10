@@ -8,11 +8,13 @@
       <p>No streams found for this streamer.</p>
       <div class="action-buttons">
         <button @click="handleBack" class="btn btn-primary back-btn">
-          Back to streamers
+          <i class="fas fa-arrow-left"></i>
+          <span>Back to streamers</span>
         </button>
         
         <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
-          Force Recording (Offline Mode)
+          <i class="fas fa-record-vinyl"></i>
+          <span>Force Recording (Offline Mode)</span>
         </button>
       </div>
     </div>
@@ -33,7 +35,7 @@
             class="btn btn-secondary back-btn"
           >
             <i class="fas fa-arrow-left"></i>
-            Back to Streamers
+            <span>Back to Streamers</span>
           </button>
           
           <button 
@@ -43,7 +45,7 @@
             :disabled="isStartingOfflineRecording"
           >
             <i class="fas fa-record-vinyl"></i>
-            {{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline)' }}
+            <span>{{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline)' }}</span>
           </button>
           
           <button 
@@ -53,7 +55,7 @@
             :title="`Delete all ${streams.length} streams`"
           >
             <i class="fas fa-trash-alt"></i>
-            {{ deletingAllStreams ? 'Deleting All...' : `Delete All (${streams.length})` }}
+            <span>{{ deletingAllStreams ? 'Deleting All...' : `Delete All (${streams.length})` }}</span>
           </button>
         </div>
       </div>
@@ -809,6 +811,40 @@ const handleImageError = (event: Event, categoryName: string) => {
   flex-wrap: wrap;
 }
 
+/* Standardize all header buttons */
+.header-actions .btn {
+  height: 44px;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Ensure consistent spacing for icons and text */
+.header-actions .btn i {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.header-actions .btn span {
+  display: inline-block;
+}
+
+/* Back button specific styling */
+.back-btn {
+  min-width: 160px;
+}
+
+/* Delete all button specific styling */
+.delete-all-btn {
+  min-width: 140px;
+}
+
 .delete-all-btn {
   background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
   border: none;
@@ -845,6 +881,20 @@ const handleImageError = (event: Event, categoryName: string) => {
     justify-content: center;
     width: 100%;
   }
+  
+  /* Mobile button adjustments */
+  .header-actions .btn {
+    min-width: 140px;
+    font-size: 0.85rem;
+  }
+  
+  .back-btn {
+    min-width: 140px;
+  }
+  
+  .delete-all-btn {
+    min-width: 120px;
+  }
 }
 
 .actions-container {
@@ -860,6 +910,27 @@ const handleImageError = (event: Event, categoryName: string) => {
   gap: 12px;
   justify-content: center;
   margin-top: 20px;
+}
+
+/* Ensure consistent button styling across all contexts */
+.action-buttons .btn {
+  height: 44px;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.action-buttons .btn i {
+  font-size: 0.9rem;
+}
+
+.action-buttons .btn span {
+  display: inline-block;
 }
 
 .back-btn {
@@ -902,7 +973,7 @@ const handleImageError = (event: Event, categoryName: string) => {
 .stream-card {
   background: #1f1f23;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible; /* Allow tooltips to be visible outside card bounds */
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   border: 1px solid #333;
@@ -911,7 +982,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   word-wrap: break-word;
   height: auto;
   min-height: 200px;
-  margin-bottom: 40px; /* Extra space for tooltips */
+  margin-bottom: 60px; /* Increased space for tooltips */
+  position: relative; /* Needed for tooltip positioning */
 }
 
 .stream-card:hover {
@@ -935,7 +1007,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   min-height: 120px;
   gap: 16px;
   border-radius: 12px 12px 0 0; /* Keep rounded corners only at top */
-  overflow: hidden; /* Clip content within header */
+  overflow: visible; /* Allow tooltips to show outside header */
+  position: relative; /* Needed for tooltip positioning */
 }
 
 .stream-compact-header:hover {
@@ -1188,7 +1261,7 @@ const handleImageError = (event: Event, categoryName: string) => {
   color: #ffc107 !important; /* Yellow spinner for visibility */
 }
 
-/* Tooltip system with proper positioning */
+/* Tooltip system with proper positioning and high z-index */
 .action-btn[data-tooltip], .test-tooltip-btn[data-tooltip] {
   position: relative;
 }
@@ -1197,20 +1270,22 @@ const handleImageError = (event: Event, categoryName: string) => {
 .test-tooltip-btn[data-tooltip]:hover::before {
   content: attr(data-tooltip);
   position: absolute;
-  top: -40px; /* Position above button instead of below */
+  top: -45px; /* Position above button */
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.95);
   color: white;
-  padding: 6px 10px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
-  z-index: 10000; /* Very high z-index */
+  z-index: 99999; /* Very high z-index to ensure visibility */
   pointer-events: none;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  animation: tooltipFadeIn 0.2s ease-out;
 }
 
 /* Tooltip arrow pointing down */
@@ -1218,21 +1293,33 @@ const handleImageError = (event: Event, categoryName: string) => {
 .test-tooltip-btn[data-tooltip]:hover::after {
   content: '';
   position: absolute;
-  top: -8px; /* Position arrow below tooltip */
+  top: -10px; /* Position arrow below tooltip */
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 5px solid rgba(0, 0, 0, 0.9);
-  z-index: 10001;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(0, 0, 0, 0.95);
+  z-index: 99998;
   pointer-events: none;
+  animation: tooltipFadeIn 0.2s ease-out;
 }
 
-/* Prevent tooltips from overlapping by staggering positions */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Prevent tooltips from overlapping by staggering positions slightly */
 .play-btn[data-tooltip]:hover:not(:disabled)::before {
-  left: 40%; /* Slightly left */
+  left: 45%; /* Slightly left */
 }
 
 .delete-btn[data-tooltip]:hover:not(:disabled)::before {
@@ -1240,7 +1327,19 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .expand-btn[data-tooltip]:hover:not(:disabled)::before {
-  left: 60%; /* Slightly right */
+  left: 55%; /* Slightly right */
+}
+
+.play-btn[data-tooltip]:hover:not(:disabled)::after {
+  left: 45%;
+}
+
+.delete-btn[data-tooltip]:hover:not(:disabled)::after {
+  left: 50%;
+}
+
+.expand-btn[data-tooltip]:hover:not(:disabled)::after {
+  left: 55%;
 }
 
 /* Expanded Content */
@@ -1300,17 +1399,23 @@ const handleImageError = (event: Event, categoryName: string) => {
   gap: 8px;
 }
 
-/* Status badges */
+/* Status badges - standardized sizing */
 .status-badge {
   background-color: #444;
   color: white;
-  padding: 5px 12px;
-  border-radius: 5px;
-  font-size: 0.9rem;
-  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
   box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
+  min-width: 50px;
+  text-align: center;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status-badge.live {
@@ -1320,13 +1425,19 @@ const handleImageError = (event: Event, categoryName: string) => {
 }
 
 .recording-badge {
-  padding: 5px 12px;
-  border-radius: 5px;
-  font-size: 0.9rem;
-  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
   box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
+  min-width: 50px;
+  text-align: center;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .recording-badge.recording {

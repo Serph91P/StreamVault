@@ -107,11 +107,48 @@ export function useCategoryImages() {
     }
   }
 
+  const refreshImages = async (categoryNames: string[]) => {
+    try {
+      const response = await fetch('/api/categories/refresh-images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(categoryNames)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Refreshing category images:', data.message)
+        
+        // Clear local cache for these categories to force reload
+        categoryNames.forEach(name => {
+          if (categoryImageCache[name]) {
+            delete categoryImageCache[name]
+          }
+        })
+        
+        return data
+      }
+    } catch (error) {
+      console.warn('Failed to refresh category images:', error)
+    }
+  }
+
+  const clearCache = () => {
+    Object.keys(categoryImageCache).forEach(key => {
+      delete categoryImageCache[key]
+    })
+    console.log('Category image cache cleared')
+  }
+
   return {
     getCategoryImage,
     getIconFallback,
     preloadCategoryImages,
     getCacheStatus,
+    refreshImages,
+    clearCache,
     categoryImageCache
   }
 }

@@ -25,6 +25,14 @@
             <span class="button-icon">↻</span>
             <span class="button-text">Refresh</span>
           </button>
+          <button @click="downloadMissingImages" class="btn btn-info" :disabled="isDownloadingImages">
+            <span class="button-icon">{{ isDownloadingImages ? '⏳' : '📥' }}</span>
+            <span class="button-text">{{ isDownloadingImages ? 'Downloading...' : 'Get Images' }}</span>
+          </button>
+          <button @click="checkMissingImages" class="btn btn-warning">
+            <span class="button-icon">🔍</span>
+            <span class="button-text">Check Missing</span>
+          </button>
         </div>
       </div>
     </div>
@@ -126,9 +134,10 @@ const categories = ref<Category[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const imageErrors = ref<Set<string>>(new Set());
+const isDownloadingImages = ref(false);
 
 // Use category images composable
-const { getCategoryImage, preloadCategoryImages } = useCategoryImages();
+const { getCategoryImage, preloadCategoryImages, refreshImages, clearCache } = useCategoryImages();
 
 // Computed properties
 const filteredCategories = computed(() => {
@@ -245,6 +254,78 @@ const handleImageError = (event: Event) => {
     
     // Platzhalter für fehlerhafte Bilder
     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDQiIGhlaWdodD0iMTkyIiBmaWxsPSJub25lIiB2aWV3Qm94PSIwIDAgMTQ0IDE5MiI+PHJlY3Qgd2lkdGg9IjE0NCIgaGVpZ2h0PSIxOTIiIGZpbGw9IiMyZDJkMzUiLz48dGV4dCB4PSI3MiIgeT0iOTYiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2VmZWZmMSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
+  }
+};
+
+const downloadMissingImages = async () => {
+  try {
+    isDownloadingImages.value = true;
+    error.value = null;
+    
+    // Get all category names that don't have proper images (those using icon: fallbacks)
+    const categoriesNeedingImages = categories.value.filter(category => {
+      const imageUrl = getCategoryImage(category.name);
+      return imageUrl.startsWith('icon:') || imageUrl.includes('default-category.svg');
+    }).map(category => category.name);
+    
+    if (categoriesNeedingImages.length === 0) {
+      console.log('All categories already have images');
+      return;
+    }
+    
+    console.log(`Downloading images for ${categoriesNeedingImages.length} categories:`, categoriesNeedingImages);
+    
+    // Use the refresh function to force re-download even if images exist but are broken
+    const refreshResponse = await refreshImages(categoriesNeedingImages);
+    
+    if (!refreshResponse) {
+      throw new Error('Failed to start image refresh');
+    }
+    
+    console.log('Image refresh started:', refreshResponse.message);
+    
+    // Wait a bit for the downloads to complete
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Clear local cache and force reload
+    clearCache();
+    
+    // Force a re-render to pick up new images  
+    await fetchCategories();
+    
+    // Preload the new images to update our local cache
+    await preloadCategoryImages(categoriesNeedingImages);
+    
+    console.log('Image download process completed');
+  } catch (err: any) {
+    error.value = err.message || 'Failed to download category images';
+    console.error('Error downloading category images:', err);
+  } finally {
+    isDownloadingImages.value = false;
+  }
+};
+
+const checkMissingImages = async () => {
+  try {
+    const response = await fetch('/api/categories/missing-images');
+    if (response.ok) {
+      const report = await response.json();
+      console.log('Missing images report:', report);
+      
+      const message = `Images Report:
+Total categories: ${report.total_categories}
+Have images: ${report.have_images}
+Missing images: ${report.missing_images}
+
+Missing categories: ${report.categories_missing_images.join(', ')}`;
+      
+      alert(message);
+    } else {
+      throw new Error('Failed to get missing images report');
+    }
+  } catch (err: any) {
+    error.value = err.message || 'Failed to check missing images';
+    console.error('Error checking missing images:', err);
   }
 };
 
@@ -636,6 +717,30 @@ watch(categories, (newCategories) => {
 .btn-secondary:hover:not(:disabled) {
   background-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+  border: 1px solid #17a2b8;
+}
+
+.btn-info:hover:not(:disabled) {
+  background-color: #138496;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(23, 162, 184, 0.25);
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  color: #000;
+  border: 1px solid #ffc107;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #e0a800;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(255, 193, 7, 0.25);
 }
 
 .form-control {
