@@ -1627,6 +1627,7 @@ class RecordingService:
             
             # Create temporary output file for MP4Box
             temp_output = f"{mp4_path}.metadata.tmp"
+            metadata_success = False
             
             try:
                 # Use MP4Box for metadata embedding
@@ -1653,6 +1654,7 @@ class RecordingService:
                         logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
                         self.activity_logger.log_file_operation("METADATA_SUCCESS", mp4_path, True, 
                                                                f"Metadata embedding successful")
+                        metadata_success = True
                     else:
                         logger.warning(f"MP4Box temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
                         # Clean up temp file but keep original
@@ -1665,17 +1667,22 @@ class RecordingService:
                     # Clean up temp file if it exists
                     if os.path.exists(temp_output):
                         os.remove(temp_output)
-                    # Still consider this a success since the remux worked
-                    self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
-                                                           f"Remux successful, metadata embedding failed")
+                    self.activity_logger.log_file_operation("METADATA_FAILED", mp4_path, True, 
+                                                           f"Metadata embedding failed but remux successful")
                 
             except Exception as e:
-                logger.error(f"Error during MP4Box metadata embedding: {e}")
+                logger.warning(f"Error during MP4Box metadata embedding: {e}")
                 # Clean up temp file if it exists
                 if os.path.exists(temp_output):
-                    os.remove(temp_output)
-                # Still consider this a success since the remux worked
+                    try:
+                        os.remove(temp_output)
+                    except Exception as cleanup_e:
+                        logger.debug(f"Could not clean up temp file: {cleanup_e}")
+                
+                # Log the metadata failure but don't fail the entire remux
                 logger.warning(f"Remux successful but metadata embedding failed: {mp4_path}")
+                self.activity_logger.log_file_operation("METADATA_FAILED", mp4_path, True, 
+                                                       f"Metadata embedding failed: {str(e)}")
             
             # Additional validation before considering the remux successful
             logger.info(f"Performing final validation of remuxed file: {mp4_path}")
@@ -1723,6 +1730,12 @@ class RecordingService:
             # Log successful validation
             logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
                                               f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
+            
+            # Clean up any temporary files from MP4Box operations
+            try:
+                await self._cleanup_temporary_files(mp4_path)
+            except Exception as cleanup_e:
+                logger.warning(f"Could not clean up temporary files: {cleanup_e}")
             
             # Schedule TS cleanup after a short delay to ensure MP4 is fully written
             logger.info(f"Scheduling TS cleanup in 10 seconds: {ts_path}")
@@ -1937,7 +1950,39 @@ class RecordingService:
                     streamer_name = part
                     break
             
-            # First, do a final MP4 validation to ensure it still works after all processing
+            # First, clean up any MP4Box temporary files that might be left behind
+            mp4box_temp_patterns = [
+                f"{mp4_path}.tmp",
+                f"{mp4_path}.metadata.tmp",
+                f"{mp4_path}.mp4box.tmp",
+                f"{mp4_path}.temp"
+            ]
+            
+            for temp_pattern in mp4box_temp_patterns:
+                if os.path.exists(temp_pattern):
+                    try:
+                        os.remove(temp_pattern)
+                        logger.info(f"Cleaned up MP4Box temporary file: {temp_pattern}")
+                    except Exception as temp_cleanup_e:
+                        logger.warning(f"Could not clean up temporary file {temp_pattern}: {temp_cleanup_e}")
+            
+            # Also clean up any .tmp files in the same directory
+            mp4_dir = os.path.dirname(mp4_path)
+            mp4_basename = os.path.basename(mp4_path)
+            
+            try:
+                for file in os.listdir(mp4_dir):
+                    if file.startswith(mp4_basename) and (".tmp" in file or ".temp" in file):
+                        temp_file_path = os.path.join(mp4_dir, file)
+                        try:
+                            os.remove(temp_file_path)
+                            logger.debug(f"Cleaned up orphaned temporary file: {temp_file_path}")
+                        except Exception as orphan_cleanup_e:
+                            logger.debug(f"Could not clean up orphaned temp file {temp_file_path}: {orphan_cleanup_e}")
+            except Exception as dir_cleanup_e:
+                logger.debug(f"Could not scan directory for temp files: {dir_cleanup_e}")
+            
+            # Now do the final MP4 validation to ensure it still works after all processing
             logger.info(f"Performing final MP4 validation before TS cleanup: {mp4_path}")
             
             # Check if MP4 still exists and is playable
