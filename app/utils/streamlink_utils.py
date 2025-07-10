@@ -55,6 +55,7 @@ def get_streamlink_command(
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
+    # Basierend auf den lsdvr-Einstellungen für maximale Stabilität und Ad-Blocking
     cmd = [
         "streamlink",
         f"twitch.tv/{streamer_name}",
@@ -65,7 +66,7 @@ def get_streamlink_command(
         "--stream-segment-timeout", "200",
         "--stream-segment-threads", "5",
         "--ffmpeg-fout", "mpegts",
-        "--twitch-disable-ads",
+        "--twitch-disable-ads",  # Ad-Blocking immer aktiviert, unabhängig vom Proxy
         "--retry-streams", "10",
         "--retry-max", "5",
         "--loglevel", "debug",
@@ -73,9 +74,6 @@ def get_streamlink_command(
         "--logformat", "[{asctime}][{name}][{levelname}] {message}",
         "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
-    
-    # Immer Adblock-Flags hinzufügen, unabhängig vom Proxy
-    cmd.extend(["--twitch-disable-ads"])
     
     # Add proxy settings if provided
     if proxy_settings:
