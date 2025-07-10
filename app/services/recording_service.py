@@ -1613,10 +1613,10 @@ class RecordingService:
                                                        "MP4 validation failed")
                 return False
             
-            # Now add metadata using MP4Box (more reliable for MP4 metadata)
-            logger.info(f"Adding metadata to MP4 file using MP4Box: {mp4_path}")
+            # Now add metadata using FFmpeg
+            logger.info(f"Adding metadata to MP4 file using FFmpeg: {mp4_path}")
             
-            # Prepare metadata for MP4Box
+            # Prepare metadata for FFmpeg
             metadata = {
                 "encoded_by": "StreamVault",
                 "encoding_tool": "StreamVault",
@@ -1625,15 +1625,15 @@ class RecordingService:
                 "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             }
             
-            # Create temporary output file for MP4Box
+            # Create temporary output file for FFmpeg
             temp_output = f"{mp4_path}.metadata.tmp"
             metadata_success = False
             
             try:
-                # Use MP4Box for metadata embedding
-                from app.utils.file_utils import embed_metadata_with_mp4box_wrapper
+                # Use FFmpeg for metadata embedding
+                from app.utils.file_utils import embed_metadata_with_ffmpeg_wrapper
                 
-                metadata_result = await embed_metadata_with_mp4box_wrapper(
+                metadata_result = await embed_metadata_with_ffmpeg_wrapper(
                     mp4_path,
                     temp_output,
                     metadata,
@@ -1651,19 +1651,19 @@ class RecordingService:
                         # Replace original with metadata-embedded version
                         import shutil
                         shutil.move(temp_output, mp4_path)
-                        logger.info(f"Successfully added metadata using MP4Box: {mp4_path}")
+                        logger.info(f"Successfully added metadata using FFmpeg: {mp4_path}")
                         self.activity_logger.log_file_operation("METADATA_SUCCESS", mp4_path, True, 
                                                                f"Metadata embedding successful")
                         metadata_success = True
                     else:
-                        logger.warning(f"MP4Box temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
+                        logger.warning(f"FFmpeg temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
                         # Clean up temp file but keep original
                         if os.path.exists(temp_output):
                             os.remove(temp_output)
                         self.activity_logger.log_file_operation("METADATA_SKIPPED", mp4_path, True, 
                                                                f"Metadata embedding skipped due to invalid temp file")
                 else:
-                    logger.warning(f"MP4Box metadata embedding failed, but remux was successful: {mp4_path}")
+                    logger.warning(f"FFmpeg metadata embedding failed, but remux was successful: {mp4_path}")
                     # Clean up temp file if it exists
                     if os.path.exists(temp_output):
                         os.remove(temp_output)
@@ -1671,7 +1671,7 @@ class RecordingService:
                                                            f"Metadata embedding failed but remux successful")
                 
             except Exception as e:
-                logger.warning(f"Error during MP4Box metadata embedding: {e}")
+                logger.warning(f"Error during FFmpeg metadata embedding: {e}")
                 # Clean up temp file if it exists
                 if os.path.exists(temp_output):
                     try:
@@ -1731,7 +1731,7 @@ class RecordingService:
             logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
                                               f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
             
-            # Clean up any temporary files from MP4Box operations
+            # Clean up any temporary files from FFmpeg operations
             try:
                 await self._cleanup_temporary_files(mp4_path)
             except Exception as cleanup_e:
@@ -1950,19 +1950,18 @@ class RecordingService:
                     streamer_name = part
                     break
             
-            # First, clean up any MP4Box temporary files that might be left behind
-            mp4box_temp_patterns = [
+            # First, clean up any temporary files that might be left behind
+            temp_patterns = [
                 f"{mp4_path}.tmp",
                 f"{mp4_path}.metadata.tmp",
-                f"{mp4_path}.mp4box.tmp",
                 f"{mp4_path}.temp"
             ]
             
-            for temp_pattern in mp4box_temp_patterns:
+            for temp_pattern in temp_patterns:
                 if os.path.exists(temp_pattern):
                     try:
                         os.remove(temp_pattern)
-                        logger.info(f"Cleaned up MP4Box temporary file: {temp_pattern}")
+                        logger.info(f"Cleaned up temporary file: {temp_pattern}")
                     except Exception as temp_cleanup_e:
                         logger.warning(f"Could not clean up temporary file {temp_pattern}: {temp_cleanup_e}")
             
