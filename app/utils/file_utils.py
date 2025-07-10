@@ -7,13 +7,6 @@ import tempfile
 from datetime import datetime
 from typing import Dict, Optional, Any
 
-# Import MP4Box utilities
-from .mp4box_utils import (
-    embed_metadata_with_mp4box,
-    optimize_mp4_with_mp4box,
-    validate_mp4_with_mp4box
-)
-
 logger = logging.getLogger("streamvault")
 
 async def remux_file(
@@ -406,7 +399,7 @@ async def cleanup_temporary_files(mp4_path: str):
     except Exception as e:
         logger.error(f"Error cleaning up temporary files: {e}", exc_info=True)
 
-async def embed_metadata_with_mp4box_wrapper(
+async def embed_metadata_with_ffmpeg_wrapper(
     input_path: str,
     output_path: str, 
     metadata: Dict[str, Any],
@@ -415,8 +408,7 @@ async def embed_metadata_with_mp4box_wrapper(
     logging_service=None
 ) -> Dict[str, Any]:
     """
-    Embed metadata into MP4 file using MP4Box instead of FFmpeg.
-    This is more efficient and reliable for MP4 metadata operations.
+    Embed metadata into MP4 file using FFmpeg.
     
     Args:
         input_path: Path to the input MP4 file
@@ -431,7 +423,7 @@ async def embed_metadata_with_mp4box_wrapper(
     """
     operation_id = None
     try:
-        logger.info(f"Starting MP4Box metadata embedding for {streamer_name}: {input_path} -> {output_path}")
+        logger.info(f"Starting FFmpeg metadata embedding for {streamer_name}: {input_path} -> {output_path}")
         
         # Validate input file exists and has content
         if not os.path.exists(input_path):
@@ -472,21 +464,67 @@ async def embed_metadata_with_mp4box_wrapper(
         
         # Generate operation ID for logging
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        operation_id = f"mp4box_metadata_{streamer_name}_{timestamp_str}"
+        operation_id = f"ffmpeg_metadata_{streamer_name}_{timestamp_str}"
         
         # Log the operation start
         if logging_service:
-            logging_service.ffmpeg_logger.info(f"[MP4BOX_METADATA_START] {streamer_name} - {input_path} -> {output_path}")
+            logging_service.ffmpeg_logger.info(f"[FFMPEG_METADATA_START] {streamer_name} - {input_path} -> {output_path}")
+            
+        # Create a temporary file for FFmpeg chapters
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            metadata_file = f.name
+            # Write global metadata
+            f.write(";FFMETADATA1\n")
+            if "title" in metadata:
+                f.write(f"title={metadata['title']}\n")
+            if "artist" in metadata:
+                f.write(f"artist={metadata['artist']}\n")
+            if "date" in metadata:
+                f.write(f"date={metadata['date']}\n")
+                f.write(f"year={metadata['date'].split('-')[0] if '-' in metadata['date'] else metadata['date']}\n")
+            if "creation_time" in metadata:
+                f.write(f"creation_time={metadata['creation_time']}\n")
+                
+            # Write chapter information if available
+            if chapters:
+                for chapter in chapters:
+                    f.write("\n[CHAPTER]\n")
+                    f.write(f"TIMEBASE=1/1000\n")
+                    f.write(f"START={int(float(chapter.get('start_time', 0)) * 1000)}\n")
+                    f.write(f"END={int(float(chapter.get('end_time', 0)) * 1000)}\n")
+                    f.write(f"title={chapter.get('title', 'Chapter')}\n")
         
-        # Use MP4Box for metadata embedding with improved error handling
-        success = await embed_metadata_with_mp4box(
-            input_path, 
-            output_path, 
-            metadata, 
-            chapters
+        # Use FFmpeg to remux with metadata
+        cmd = [
+            "ffmpeg",
+            "-i", input_path,
+            "-i", metadata_file,
+            "-map_metadata", "1",
+            "-c", "copy",
+            "-bsf:a", "aac_adtstoasc",
+            "-movflags", "faststart",
+            "-y",
+            output_path
+        ]
+        
+        # Execute FFmpeg command
+        logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
         
-        if success:
+        stdout, stderr = await process.communicate()
+        success_code = process.returncode == 0
+        
+        # Clean up temporary metadata file
+        try:
+            os.unlink(metadata_file)
+        except Exception as e:
+            logger.warning(f"Could not remove temporary metadata file: {e}")
+        
+        if success_code:
             # Validate the output file
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 # Perform basic size check
@@ -494,70 +532,55 @@ async def embed_metadata_with_mp4box_wrapper(
                 size_ratio = output_size / input_size if input_size > 0 else 0
                 
                 if size_ratio < 0.8:  # Output is significantly smaller than input
-                    logger.warning(f"Output file size seems small (ratio: {size_ratio:.2f}), but continuing since MP4Box succeeded")
+                    logger.warning(f"Output file size seems small (ratio: {size_ratio:.2f}), but continuing since FFmpeg succeeded")
                 
-                # Additional validation with MP4Box (but don't fail if this fails)
-                try:
-                    is_valid = await validate_mp4_with_mp4box(output_path)
-                    if not is_valid:
-                        logger.warning(f"MP4Box validation failed, but file exists and has content: {output_path}")
-                        # Don't fail - just log the warning
-                except Exception as validation_e:
-                    logger.warning(f"Could not perform MP4Box validation: {validation_e}")
-                    # Continue anyway
-                
-                logger.info(f"MP4Box metadata embedding successful: {operation_id}")
-                if logging_service:
-                    logging_service.ffmpeg_logger.info(f"[MP4BOX_METADATA_SUCCESS] {streamer_name} - {output_path}")
-                
-                return {
-                    "success": True,
-                    "code": 0,
-                    "stdout": f"Successfully embedded metadata using MP4Box",
-                    "stderr": ""
-                }
+                # Basic check - file exists and has size
+                logger.info(f"FFmpeg metadata embedding successful: {output_path} (size: {output_size} bytes)")
             else:
-                logger.error(f"MP4Box metadata embedding failed - no valid output file: {operation_id}")
-                return {
-                    "success": False,
-                    "code": 1,
-                    "stdout": "",
-                    "stderr": "No valid output file generated"
-                }
-        else:
-            logger.warning(f"MP4Box metadata embedding failed: {operation_id}")
+                logger.error(f"FFmpeg output file {output_path} is missing or empty")
+                success_code = False
+        
+        if success_code:
+            logger.info(f"FFmpeg metadata embedding successful: {operation_id}")
             if logging_service:
-                logging_service.ffmpeg_logger.error(f"[MP4BOX_METADATA_FAILED] {streamer_name} - {input_path}")
+                logging_service.ffmpeg_logger.info(f"[FFMPEG_METADATA_SUCCESS] {streamer_name} - {output_path}")
+            
+            return {
+                "success": True,
+                "code": 0,
+                "stdout": stdout.decode('utf-8', errors='replace'),
+                "stderr": stderr.decode('utf-8', errors='replace')
+            }
+        else:
+            logger.error(f"FFmpeg metadata embedding failed - no valid output file: {operation_id}")
+            if logging_service:
+                logging_service.ffmpeg_logger.error(f"[FFMPEG_METADATA_FAILED] {streamer_name} - {input_path}")
             
             # Check if at least we have a partial output file
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                logger.info(f"MP4Box failed but output file exists, checking if it's usable")
+                logger.warning(f"FFmpeg failed but output file exists with size {os.path.getsize(output_path)}")
+                # We'll just warn but not try to recover - better to re-process properly
                 try:
-                    # Try basic validation
-                    is_valid = await validate_mp4_with_mp4box(output_path)
-                    if is_valid:
-                        logger.info(f"Output file is valid despite MP4Box reporting failure - considering success")
-                        return {
-                            "success": True,
-                            "code": 0,
-                            "stdout": "MP4Box reported failure but output is valid",
-                            "stderr": "MP4Box operation had issues but result is usable"
-                        }
-                except Exception as validation_e:
-                    logger.debug(f"Failed to validate partial output: {validation_e}")
+                    # Remove the partial file to avoid confusion
+                    os.remove(output_path)
+                    logger.debug(f"Removed partial output file: {output_path}")
+                except Exception as remove_e:
+                    logger.warning(f"Could not remove partial output file: {remove_e}")
             
             return {
                 "success": False,
-                "code": 1,
-                "stdout": "",
-                "stderr": "MP4Box metadata embedding failed"
+                "code": process.returncode,
+                "stdout": stdout.decode('utf-8', errors='replace'),
+                "stderr": stderr.decode('utf-8', errors='replace')
             }
             
     except Exception as e:
-        logger.error(f"Error during MP4Box metadata embedding: {e}", exc_info=True)
+        logger.error(f"Error during FFmpeg metadata embedding: {e}", exc_info=True)
+        if logging_service:
+            logging_service.ffmpeg_logger.error(f"[FFMPEG_METADATA_ERROR] {streamer_name} - {str(e)}")
         return {
             "success": False,
             "code": -1,
             "stdout": "",
-            "stderr": str(e)
+            "stderr": f"Error in FFmpeg metadata embedding: {str(e)}"
         }
