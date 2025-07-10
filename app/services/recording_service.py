@@ -1087,7 +1087,7 @@ class RecordingService:
                 "language": stream_info.get("language") or streamer.language,
             }
         else:
-            # Streamer appears offline or API failed, create default data
+            # Streamer erscheint offline oder API fehlgeschlagen, erstelle Standarddaten
             return {
                 "id": f"manual_{int(datetime.now().timestamp())}",
                 "broadcaster_user_id": streamer.twitch_id,
@@ -2560,6 +2560,4 @@ class RecordingService:
                 
         except Exception as e:
             logger.error(f"Error during delayed TS cleanup: {e}", exc_info=True)
-
-    # ...existing code...
 
