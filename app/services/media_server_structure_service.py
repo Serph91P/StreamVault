@@ -130,17 +130,22 @@ class MediaServerStructureService:
             # Clean title
             safe_title = self._sanitize_filename(stream.title or "Stream")
             
-            # Generate filename
+            # Generate filename (detect extension from actual file)
+            original_ext = os.path.splitext(original_mp4_path)[1].lower()
+            if original_ext not in ['.mp4', '.mkv']:
+                # Default to mp4 if extension is unexpected
+                original_ext = '.mp4'
+            
             episode_filename = f"{safe_streamer_name} - {episode_id} - {safe_title}"
             
-            # Build paths
+            # Build paths with correct extension
             streamer_dir = self.recordings_base / safe_streamer_name
             season_dir = streamer_dir / season_name
             
             return {
                 "streamer_dir": str(streamer_dir),
                 "season_dir": str(season_dir),
-                "episode_file": str(season_dir / f"{episode_filename}.mp4"),
+                "episode_file": str(season_dir / f"{episode_filename}{original_ext}"),
                 "episode_nfo": str(season_dir / f"{episode_filename}.nfo"),
                 "episode_thumb": str(season_dir / f"{episode_filename}-thumb.jpg"),
                 "episode_chapters_vtt": str(season_dir / f"{episode_filename}.chapters.vtt"),
@@ -153,7 +158,8 @@ class MediaServerStructureService:
                     "season_name": season_name,
                     "episode_num": episode_num,
                     "year": year,
-                    "month": month
+                    "month": month,
+                    "format": original_ext[1:]  # Remove the dot
                 }
             }
             
@@ -456,27 +462,13 @@ class MediaServerStructureService:
     
     def _get_episode_number(self, streamer_id: int, stream_date: datetime) -> int:
         """
-        Get episode number for a stream within its month based on chronological order.
-        First stream in month = E01, second = E02, etc., regardless of the actual date.
+        Get episode number for a stream within its month based on the actual stream.
+        Uses the same logic as path_utils.get_episode_number to ensure consistency.
         """
         try:
-            with SessionLocal() as db:
-                # Count streams from the same streamer in the same month that started BEFORE this stream
-                previous_streams_count = db.query(Stream).filter(
-                    Stream.streamer_id == streamer_id,
-                    Stream.started_at.isnot(None),
-                    extract("year", Stream.started_at) == stream_date.year,
-                    extract("month", Stream.started_at) == stream_date.month,
-                    Stream.started_at < stream_date  # Only count streams that started BEFORE this one
-                ).count()
-                
-                # Return count + 1 (first stream = 1, second stream = 2, etc.)
-                episode_number = previous_streams_count + 1
-                
-                logger.debug(f"Episode number for streamer {streamer_id} on {stream_date}: E{episode_number:02d} "
-                           f"(found {previous_streams_count} previous streams in {stream_date.year}-{stream_date.month:02d})")
-                
-                return episode_number
+            from app.utils.path_utils import get_episode_number
+            episode_str = get_episode_number(streamer_id, stream_date)
+            return int(episode_str)
                 
         except Exception as e:
             logger.error(f"Error getting episode number: {e}", exc_info=True)
