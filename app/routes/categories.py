@@ -217,6 +217,8 @@ async def get_missing_images_report():
     """Get a report of categories that are missing images"""
     try:
         report = category_image_service.get_missing_images_report()
+        if "error" in report:
+            raise HTTPException(status_code=500, detail="An internal error occurred while generating the missing images report")
         return report
     except Exception as e:
         logger.error(f"Error getting missing images report: {e}")
