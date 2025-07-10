@@ -690,24 +690,11 @@ class MetadataService:
                 
                 return str(thumbnail_path)
             
-            # Check if this is an MP4 file - prefer MP4Box for MP4 files
-            if video_path.lower().endswith('.mp4'):
-                logger.info(f"Using MP4Box for thumbnail extraction from MP4 file: {video_path}")
+            # For all video files, use FFmpeg to extract thumbnails
+            if video_path.lower().endswith(('.mp4', '.ts', '.mkv', '.avi')):
+                logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
                 
-                # First validate the MP4 file
-                is_valid = await validate_mp4_with_mp4box(video_path)
-                if not is_valid:
-                    logger.warning(f"MP4 file validation failed, falling back to FFmpeg: {video_path}")
-                else:
-                    # Try MP4Box thumbnail extraction
-                    success = await extract_thumbnail_with_mp4box(
-                        video_path,
-                        str(thumbnail_path),
-                        10.0  # 10 seconds offset
-                    )
-                    
-                    if success and thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
-                        logger.info(f"Successfully extracted thumbnail with MP4Box: {thumbnail_path}")
+                # FFmpeg will be used below for all video formats
                         
                         # Update metadata if provided
                         if stream_id and db:
