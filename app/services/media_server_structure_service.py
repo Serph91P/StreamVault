@@ -145,6 +145,8 @@ class MediaServerStructureService:
                 "episode_thumb": str(season_dir / f"{episode_filename}-thumb.jpg"),
                 "episode_chapters_vtt": str(season_dir / f"{episode_filename}.chapters.vtt"),
                 "episode_chapters_xml": str(season_dir / f"{episode_filename}.chapters.xml"),
+                "tvshow_nfo": str(streamer_dir / "tvshow.nfo"),
+                "season_nfo": str(season_dir / "season.nfo"),
                 "episode_info": {
                     "filename": episode_filename,
                     "episode_id": episode_id,
@@ -198,16 +200,22 @@ class MediaServerStructureService:
     ):
         """Create all NFO and metadata files"""
         try:
-            # Create tvshow.nfo
-            await self._create_tvshow_nfo(streamer, structure["tvshow_nfo"])
+            # Create tvshow.nfo (defensive check)
+            if "tvshow_nfo" in structure:
+                await self._create_tvshow_nfo(streamer, structure["tvshow_nfo"])
+            else:
+                logger.warning("tvshow_nfo path not found in structure")
             
-            # Create season.nfo
-            await self._create_season_nfo(
-                streamer, 
-                structure["episode_info"]["year"], 
-                structure["episode_info"]["month"],
-                structure["season_nfo"]
-            )
+            # Create season.nfo (defensive check)
+            if "season_nfo" in structure and "episode_info" in structure:
+                await self._create_season_nfo(
+                    streamer, 
+                    structure["episode_info"]["year"], 
+                    structure["episode_info"]["month"],
+                    structure["season_nfo"]
+                )
+            else:
+                logger.warning("season_nfo or episode_info not found in structure")
             
             # Create episode.nfo
             await self._create_episode_nfo(stream, streamer, structure, db)
