@@ -11,6 +11,7 @@ import uuid
 import time
 import functools
 import aiohttp
+import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Tuple, Callable
@@ -250,7 +251,7 @@ class ConfigManager:
                     self._streamer_settings[streamer_id] = settings
                     self.last_refresh = datetime.now()
                 else:
-                    return None
+                    self._streamer_settings[streamer_id] = None
         return self._streamer_settings.get(streamer_id)
 
     def is_recording_enabled(self, streamer_id: int) -> bool:
@@ -343,6 +344,18 @@ class SubprocessManager:
             try:
                 # Try graceful termination first
                 process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    # Force kill if graceful termination doesn't work
+                    process.kill()
+                    await process.wait()
+                
+                self.active_processes.pop(process_id)
+                return True
+            except Exception as e:
+                logger.error(f"Failed to terminate process {process_id}: {e}")
+                return False
                 try:
                     await asyncio.wait_for(process.wait(), timeout=timeout)
                 except asyncio.TimeoutError:
@@ -1014,60 +1027,20 @@ class RecordingService:
         try:
             # Import here to avoid circular dependencies
             from app.services.streamer_service import StreamerService
-
-            # Query Twitch API for stream info using the API directly
-            # Since we don't need websocket/event functionality, make API call directly
-            from app.config.settings import settings
+            streamer_service = StreamerService()
             
-            # Get access token for API call
-            async with aiohttp.ClientSession() as session:
-                # First get access token
-                async with session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": settings.TWITCH_APP_ID,
-                        "client_secret": settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials"
-                    }
-                ) as token_response:
-                    if token_response.status != 200:
-                        token_error = await token_response.text()
-                        logger.error(f"Failed to get Twitch OAuth token: Status {token_response.status}, Response: {token_error}")
-                        return None
-                        
-                    token_data = await token_response.json()
-                    access_token = token_data["access_token"]
-                    
-                    # Get stream info
-                    async with session.get(
-                        "https://api.twitch.tv/helix/streams",
-                        params={"user_id": streamer.twitch_id},
-                        headers={
-                            "Client-ID": settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}"
-                        }
-                    ) as stream_response:
-                        if stream_response.status != 200:
-                            stream_error = await stream_response.text()
-                            logger.error(f"Twitch API error when checking if {streamer.username} is live: Status {stream_response.status}, Response: {stream_error}")
-                            return None
-                            
-                        stream_data = await stream_response.json()
-                        stream_info = stream_data["data"][0] if stream_data["data"] else None
-
-            if stream_info:
-                logger.info(f"Confirmed {streamer.username} is live via Twitch API")
+            # Use the existing method to check if streamer is live
+            is_live = await streamer_service.is_streamer_live(streamer.twitch_id)
+            
+            if is_live:
+                # Get detailed stream information
+                stream_info = await streamer_service.get_stream_info(streamer.twitch_id)
                 return stream_info
             else:
-                logger.warning(
-                    f"Streamer {streamer.username} appears to be offline according to Twitch API"
-                )
-                # Log the full API response for debugging
-                logger.debug(f"Twitch API response for {streamer.username}: {stream_data}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error checking stream status via API: {e}", exc_info=True)
+            logger.error(f"Error getting stream info from API: {e}", exc_info=True)
             return None
 
     def _create_stream_data(
@@ -1588,10 +1561,10 @@ class RecordingService:
             # First, remux the TS file to MP4 without metadata
             from app.utils.file_utils import remux_file
             
-            # Remux without metadata first (FFmpeg is still better for TS->MP4 conversion)
+            # Remux without metadata first (FFmpeg handles TS->MP4 conversion)
             result = await remux_file(
-                ts_path, 
-                mp4_path, 
+                input_path=ts_path, 
+                output_path=mp4_path, 
                 overwrite=True,
                 metadata_file=None,  # Don't embed metadata during remux
                 streamer_name=streamer_name,
@@ -1631,15 +1604,15 @@ class RecordingService:
             
             try:
                 # Use FFmpeg for metadata embedding
-                from app.utils.file_utils import embed_metadata_with_ffmpeg_wrapper
+                from app.utils.file_utils import embed_metadata_with_ffmpeg
                 
-                metadata_result = await embed_metadata_with_ffmpeg_wrapper(
-                    mp4_path,
-                    temp_output,
-                    metadata,
-                    None,  # No chapters during remux
-                    streamer_name,
-                    logging_service
+                metadata_result = await embed_metadata_with_ffmpeg(
+                    input_path=mp4_path,
+                    output_path=temp_output,
+                    metadata=metadata,
+                    chapters_file=None,  # No chapters during remux
+                    streamer_name=streamer_name,
+                    logging_service=logging_service
                 )
                 
                 if metadata_result["success"] and os.path.exists(temp_output):
@@ -1748,172 +1721,6 @@ class RecordingService:
             self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, f"Exception during remux: {str(e)}")
             return False
 
-    async def remux_file(self, input_path: str, output_path: str, overwrite: bool = False, metadata_file: Optional[str] = None, streamer_name: str = "unknown", logging_service=None) -> Dict[str, Any]:
-        """Remux file with proper error handling and AAC bitstream conversion"""
-        try:
-            # Create output directory if it doesn't exist
-            output_dir = os.path.dirname(output_path)
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Set proper permissions on the directory to ensure we can write files
-            os.chmod(output_dir, 0o755)
-            
-            # Delete existing output file if overwrite is True
-            if os.path.exists(output_path) and overwrite:
-                os.remove(output_path)
-            
-            # Base FFmpeg command - SIMPLIFIED for pure remux - FIXED VERSION
-            cmd = [
-                "ffmpeg",
-                "-fflags", "+genpts+igndts+ignidx+discardcorrupt",
-                "-err_detect", "ignore_err",
-                "-analyzeduration", "50M",
-                "-probesize", "50M",
-                "-i", input_path
-            ]
-            
-            # Add metadata file if provided (as second input) - ONLY if metadata exists and is valid
-            metadata_mapping = []
-            if metadata_file and os.path.exists(metadata_file) and os.path.getsize(metadata_file) > 0:
-                try:
-                    # Validate metadata file content before using it
-                    with open(metadata_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        if content.strip().startswith(';FFMETADATA1'):
-                            cmd.extend(["-i", metadata_file])
-                            metadata_mapping = ["-map_metadata", "1"]
-                            logger.info(f"Using metadata file: {metadata_file}")
-                        else:
-                            logger.warning(f"Invalid metadata file format, skipping: {metadata_file}")
-                except Exception as e:
-                    logger.warning(f"Error reading metadata file, skipping: {e}")
-            
-            # Continue with codec and mapping settings - SIMPLIFIED
-            cmd.extend([
-                "-c:v", "copy",
-                "-c:a", "copy",
-                # AAC bitstream filter is crucial for Twitch streams
-                "-bsf:a", "aac_adtstoasc",
-                "-avoid_negative_ts", "make_zero",
-                # Map video and audio from FIRST input (the TS file)
-                "-map", "0:v:0?",
-                "-map", "0:a:0?",
-            ])
-            
-            # Add metadata mapping if we have a valid metadata file
-            cmd.extend(metadata_mapping)
-            
-            # Continue with container settings - REDUCED complexity
-            cmd.extend([
-                "-movflags", "+faststart",
-                "-ignore_unknown",
-                "-max_muxing_queue_size", "8192",
-                "-async", "0",
-                "-fps_mode", "passthrough",  # Modern replacement for -vsync
-                "-metadata", f"encoded_by=StreamVault",
-                "-metadata", f"encoding_tool=StreamVault",
-                "-y", output_path,
-                # Simplified logging
-                "-v", "warning",  # Reduced verbosity
-                "-stats_period", "10"
-            ])
-            
-            # Log file path for debugging
-            log_file = f"/app/logs/ffmpeg/remux_{streamer_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
-            logger.info(f"Command: {' '.join(cmd)}")
-            if logging_service:
-                logging_service.recording_logger.info(f"[REMUX_COMMAND] {streamer_name} - Command: {' '.join(cmd)}")
-            
-            # Start FFmpeg process with timeout
-            process_id = f"ffmpeg_remux_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(cmd, process_id)
-            
-            # Wait for process to complete with timeout (max 30 minutes for very long streams)
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1800)
-                exit_code = process.returncode
-            except asyncio.TimeoutError:
-                logger.error(f"FFmpeg remux process timed out for {streamer_name}")
-                process.kill()
-                await process.wait()
-                return {
-                    "success": False,
-                    "exit_code": -1,
-                    "stdout": "",
-                    "stderr": "Process timed out after 30 minutes",
-                    "metrics": {}
-                }
-            
-            # Get file sizes for metrics
-            input_size_mb = os.path.getsize(input_path) / (1024 * 1024) if os.path.exists(input_path) else 0
-            output_size_mb = os.path.getsize(output_path) / (1024 * 1024) if os.path.exists(output_path) else 0
-            
-            # Log detailed performance metrics
-            metrics = {
-                "exit_code": exit_code,
-                "input_size_mb": round(input_size_mb, 2),
-                "output_size_mb": round(output_size_mb, 2),
-                "compression_ratio": round(1 - (output_size_mb / input_size_mb), 3) if input_size_mb > 0 else 0,
-            }
-            
-            # Check if output file exists and has content
-            success = exit_code == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
-            
-            # Additional validation for truncated files - MORE LENIENT
-            if success and input_size_mb > 0:
-                size_ratio = output_size_mb / input_size_mb
-                # More lenient size check - allow up to 50% difference (ads, buffering, etc.)
-                if output_size_mb < input_size_mb * 0.5:
-                    logger.error(f"FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
-                    if logging_service:
-                        logging_service.recording_logger.error(f"[REMUX_ERROR] {streamer_name} - FILE_SIZE_MISMATCH: MP4 size ({output_size_mb:.2f} MB) is significantly smaller than TS size ({input_size_mb:.2f} MB)")
-                    success = False
-                elif size_ratio < 0.7:
-                    # Log warning but don't fail - could be due to ads or buffering
-                    logger.warning(f"SIZE_WARNING: MP4 size ({output_size_mb:.2f} MB) is smaller than expected compared to TS size ({input_size_mb:.2f} MB), ratio: {size_ratio:.2f}")
-                    if logging_service:
-                        logging_service.recording_logger.warning(f"[REMUX_WARNING] {streamer_name} - SIZE_WARNING: Size ratio {size_ratio:.2f} is low but acceptable")
-            
-            # Additional quick validation of MP4 structure
-            if success:
-                try:
-                    # Quick check if file is a valid MP4
-                    with open(output_path, 'rb') as f:
-                        header = f.read(8)
-                        if len(header) >= 8:
-                            # Check for MP4 file signature
-                            if header[4:8] == b'ftyp':
-                                logger.info(f"MP4 file structure validation passed: {output_path}")
-                            else:
-                                logger.warning(f"MP4 file structure validation failed: {output_path}")
-                                success = False
-                except Exception as e:
-                    logger.warning(f"Could not validate MP4 structure: {e}")
-                    # Don't fail the process for this check
-            
-            # Log outcome
-            operation = "REMUX_SUCCESS" if success else "REMUX_FAILURE"
-            logger.info(f"{operation}: {output_path} - Remux {'completed successfully' if success else 'failed'}")
-            if logging_service:
-                logging_service.recording_logger.info(f"[{operation}] {streamer_name} - {output_path} - Size: {output_size_mb:.2f} MB")
-            
-            return {
-                "success": success,
-                "exit_code": exit_code,
-                "stdout": stdout.decode("utf-8", errors="ignore") if stdout else "",
-                "stderr": stderr.decode("utf-8", errors="ignore") if stderr else "",
-                "metrics": metrics
-            }
-        except Exception as e:
-            logger.error(f"Exception during remux operation: {e}", exc_info=True)
-            return {
-                "success": False,
-                "exit_code": -1,
-                "stdout": "",
-                "stderr": str(e),
-                "metrics": {}
-            }
-    
     async def cleanup(self):
         """Clean up all resources when shutting down"""
 
@@ -2061,6 +1868,7 @@ class RecordingService:
         """Remove illegal characters from filename"""
         from app.utils.file_utils import sanitize_filename
         return sanitize_filename(name)
+
 
     async def _validate_mp4_with_ffprobe(self, mp4_path: str, streamer_name: str) -> bool:
         """Validate the MP4 file using ffprobe to ensure it's not corrupted.
@@ -2464,17 +2272,32 @@ class RecordingService:
                     self.activity_logger.log_process_monitoring(
                         "recording",
                         "THUMBNAIL_SUCCESS",
-                        f"Generated from MP4: {thumbnail_path}"
+                        f"Generated thumbnail: {thumbnail_path}"
                     )
-                    logger.info(f"Successfully generated thumbnail from MP4: {thumbnail_path}")
+                    logger.info(f"Successfully generated thumbnail for stream {stream_id}: {thumbnail_path}")
+                    return thumbnail_path
                 else:
-                    logger.warning(f"Failed to generate thumbnail from MP4: {mp4_path}")
+                    self.activity_logger.log_process_monitoring(
+                        "recording",
+                        "THUMBNAIL_FAILED",
+                        f"Failed to generate thumbnail for {mp4_path}"
+                    )
+                    logger.warning(f"Failed to generate thumbnail for stream {stream_id}")
+                    return None
                         
             finally:
-                await thumbnail_service.close()
+                # Always close the thumbnail service to free resources
+                if hasattr(thumbnail_service, 'close'):
+                    await thumbnail_service.close()
                 
         except Exception as e:
             logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
+            self.activity_logger.log_process_monitoring(
+                "recording",
+                "THUMBNAIL_ERROR", 
+                f"Exception during thumbnail generation: {str(e)}"
+            )
+            return None
 
     async def _delayed_cleanup_on_manual_stop(self, output_path: str, delay: int = 120):
         """Ensure cleanup happens when recording is manually stopped"""
