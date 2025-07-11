@@ -11,6 +11,7 @@ Note: This is now a compatibility wrapper that forwards to the new modular imple
 
 import logging
 import asyncio
+import uuid
 from typing import Optional, Dict, Any, List, Tuple, Set
 
 # Import from the new location
@@ -83,7 +84,7 @@ FILENAME_PRESETS = {
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
 }
 
-class RecordingActivityLogger:
+class RecordingLogger:
     """Detailliertes Logging für alle Recording-Aktivitäten"""
     
     def __init__(self):
@@ -441,7 +442,7 @@ class RecordingService:
             cls._instance.config_manager = config_manager or ConfigManager()
             cls._instance.subprocess_manager = subprocess_manager or SubprocessManager()
             cls._instance.media_server_service = MediaServerStructureService()
-            cls._instance.activity_logger = RecordingActivityLogger()
+            cls._instance.activity_logger = RecordingLogger()
             
             # Initialize logging integration
             cls._instance.logger = logging_service.recording_logger
@@ -461,7 +462,7 @@ class RecordingService:
             self.config_manager = config_manager or ConfigManager()
             self.subprocess_manager = subprocess_manager or SubprocessManager()
             self.media_server_service = MediaServerStructureService()
-            self.activity_logger = RecordingActivityLogger()
+            self.activity_logger = RecordingLogger()
             
             self.initialized = True
             logger.info("RecordingService initialized successfully with logging integration")
