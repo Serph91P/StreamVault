@@ -91,3 +91,4 @@ Thumbs.db
 *.ipr
 *.iws
 /lsdvr
+/temp_logs
