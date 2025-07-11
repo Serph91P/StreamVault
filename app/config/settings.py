@@ -4,6 +4,8 @@ import secrets
 from typing import List
 import logging
 import base64
+import os
+from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 
 logger = logging.getLogger("streamvault")
@@ -114,6 +116,8 @@ class Settings(BaseSettings):
     BASE_URL: str
     WEBHOOK_URL: Optional[str] = None
     DATABASE_URL: Optional[str] = None
+    # Base directory for the application
+    BASE_DIR: str = str(Path(__file__).parent.parent.parent.absolute())
     LOG_LEVEL: str = "INFO"
     POSTGRES_USER: Optional[str] = None
     POSTGRES_PASSWORD: Optional[str] = None
