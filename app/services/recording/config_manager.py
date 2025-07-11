@@ -1,0 +1,120 @@
+"""
+Configuration manager for the recording service.
+
+This module handles all configuration access with efficient caching.
+"""
+import logging
+from datetime import datetime
+from typing import Optional
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal
+from app.models import RecordingSettings, StreamerRecordingSettings
+
+logger = logging.getLogger("streamvault")
+
+# Filename presets for different media server structures
+FILENAME_PRESETS = {
+    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "emby": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "jellyfin": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "kodi": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
+}
+
+class ConfigManager:
+    """Manages and caches recording configuration settings"""
+
+    def __init__(self):
+        self.cache_timeout = 300  # 5 minutes cache timeout
+        self.last_refresh = datetime.min
+        self._global_settings = None
+        self._streamer_settings = {}
+
+    def _is_cache_valid(self) -> bool:
+        """Check if the cached settings are still valid"""
+        return (datetime.now() - self.last_refresh).total_seconds() < self.cache_timeout
+
+    def invalidate_cache(self):
+        """Force invalidation of the cache"""
+        self._global_settings = None
+        self._streamer_settings = {}
+        self.last_refresh = datetime.min
+
+    def get_global_settings(self) -> Optional[RecordingSettings]:
+        """Get global recording settings, using cache if valid"""
+        if not self._global_settings or not self._is_cache_valid():
+            with SessionLocal() as db:
+                self._global_settings = db.query(RecordingSettings).first()
+                self.last_refresh = datetime.now()
+        return self._global_settings
+
+    def get_streamer_settings(
+        self, streamer_id: int
+    ) -> Optional[StreamerRecordingSettings]:
+        """Get streamer-specific recording settings, using cache if valid"""
+        if streamer_id not in self._streamer_settings or not self._is_cache_valid():
+            with SessionLocal() as db:
+                self._streamer_settings[streamer_id] = (
+                    db.query(StreamerRecordingSettings)
+                    .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+                    .first()
+                )
+                self.last_refresh = datetime.now()
+        return self._streamer_settings.get(streamer_id)
+
+    def is_recording_enabled(self, streamer_id: int) -> bool:
+        """Check if recording is enabled for a streamer"""
+        global_settings = self.get_global_settings()
+        if not global_settings or not global_settings.enabled:
+            return False
+
+        streamer_settings = self.get_streamer_settings(streamer_id)
+        if not streamer_settings or not streamer_settings.enabled:
+            return False
+
+        return True
+
+    def get_quality_setting(self, streamer_id: int) -> str:
+        """Get the quality setting for a streamer"""
+        global_settings = self.get_global_settings()
+        streamer_settings = self.get_streamer_settings(streamer_id)
+
+        if streamer_settings and streamer_settings.quality:
+            return streamer_settings.quality
+        elif global_settings:
+            return global_settings.quality or "best"
+        else:
+            return "best"
+
+    def get_filename_template(self, streamer_id: int) -> str:
+        """Get the filename template for a streamer"""
+        global_settings = self.get_global_settings()
+        streamer_settings = self.get_streamer_settings(streamer_id)
+
+        if streamer_settings and streamer_settings.custom_filename:
+            return streamer_settings.custom_filename
+        elif global_settings:
+            return global_settings.filename_template or FILENAME_PRESETS["default"]
+        else:
+            return FILENAME_PRESETS["default"]
+
+    def get_max_streams(self, streamer_id: int) -> int:
+        """Get the maximum number of streams for a streamer"""
+        streamer_settings = self.get_streamer_settings(streamer_id)
+        if streamer_settings and streamer_settings.max_streams is not None and streamer_settings.max_streams > 0:
+            return streamer_settings.max_streams
+            
+        global_settings = self.get_global_settings()
+        if global_settings and global_settings.max_streams_per_streamer:
+            return global_settings.max_streams_per_streamer
+            
+        return 0  # 0 means unlimited
+        
+    def get_output_directory(self) -> str:
+        """Get the output directory for recordings"""
+        global_settings = self.get_global_settings()
+        if global_settings and global_settings.output_directory:
+            return global_settings.output_directory
+        return "/recordings"  # Default directory
