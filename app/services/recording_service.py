@@ -4,20 +4,42 @@ StreamVault Recording Service
 This service handles the complete recording lifecycle for Twitch streams,
 including process management, file conversion, and metadata generation.
 
-Last updated: 2025-07-11 - Fixed metadata service integration
+Last updated: 2025-07-11 - Using modular implementation
+
+Note: This is now a compatibility wrapper that forwards to the new modular implementation.
 """
 
-import os
-import asyncio
 import logging
-import subprocess
-import re
-import signal
-import json
-import tempfile
-import copy
-import uuid
-import time
+from typing import Optional, Dict, Any, List, Tuple, Set
+
+# Import from the new location
+from app.services.recording.recording_service import RecordingService
+from app.services.recording.config_manager import ConfigManager
+from app.services.recording.process_manager import ProcessManager
+from app.services.recording.recording_logger import RecordingLogger
+from app.services.recording.file_operations import find_and_validate_mp4, intelligent_ts_cleanup
+from app.services.recording.notification_manager import NotificationManager
+from app.services.recording.stream_info_manager import StreamInfoManager
+from app.services.recording.exceptions import (
+    RecordingError, ProcessError, ConfigurationError, 
+    StreamUnavailableError, FileOperationError
+)
+
+# Re-export all the components
+__all__ = [
+    'RecordingService', 
+    'ConfigManager',
+    'ProcessManager', 
+    'RecordingLogger',
+    'RecordingError',
+    'ProcessError', 
+    'ConfigurationError',
+    'StreamUnavailableError', 
+    'FileOperationError'
+]
+
+# Set up logger
+logger = logging.getLogger("streamvault")
 import functools
 import aiohttp
 import shutil
