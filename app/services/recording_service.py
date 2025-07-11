@@ -644,6 +644,113 @@ class RecordingService:
                     # in _delayed_metadata_generation() method for better quality
         except Exception as e:
             logger.error(f"Error setting up stream metadata: {e}")
+
+    def _generate_filename(
+        self, streamer: Streamer, stream_data: Dict[str, Any], template: str
+    ) -> str:
+        """Generate filename from template using path utilities"""
+        from app.utils.path_utils import generate_filename
+        return generate_filename(streamer, stream_data, template)
+
+    async def _start_streamlink(self, streamer_name: str, quality: str, output_path: str):
+        """Start a Streamlink process to record a stream."""
+        from app.utils.streamlink_utils import get_streamlink_command
+        command = get_streamlink_command(streamer_name, quality, output_path)
+        process = await asyncio.create_subprocess_exec(*command)
+        return process
+
+    async def _delayed_metadata_generation(self, stream_id: int, output_path: str, force_started: bool = False, delay: int = 60):
+        """Generate metadata for a stream after a delay to ensure recording is complete."""
+        if not force_started:
+            await asyncio.sleep(delay)
+        
+        try:
+            # Find the actual MP4 file
+            mp4_path = await self._find_and_validate_mp4(output_path)
+            if mp4_path:
+                # Ensure stream is marked as ended
+                await self._ensure_stream_ended(stream_id)
+                # Generate metadata
+                await self._generate_stream_metadata(stream_id, mp4_path)
+                logger.info(f"Delayed metadata generation completed for stream {stream_id}")
+            else:
+                logger.warning(f"Could not find valid MP4 file for stream {stream_id}")
+        except Exception as e:
+            logger.error(f"Error in delayed metadata generation for stream {stream_id}: {e}", exc_info=True)
+
+    async def _ensure_stream_metadata(self, stream_id: int, db: Session):
+        """Ensure stream metadata exists and is properly set up."""
+        try:
+            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            if not stream:
+                logger.warning(f"Stream {stream_id} not found for metadata setup")
+                return
+            
+            # Check if metadata entry exists
+            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+            if not metadata:
+                # Create metadata entry
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+                db.commit()
+                logger.debug(f"Created metadata entry for stream {stream_id}")
+        except Exception as e:
+            logger.error(f"Error ensuring stream metadata for stream {stream_id}: {e}", exc_info=True)
+
+    async def _find_and_validate_mp4(self, output_path: str) -> Optional[str]:
+        """Find and validate the MP4 file from the output path."""
+        try:
+            output_path_obj = Path(output_path)
+            
+            # If it's already an MP4, check if it exists
+            if output_path.endswith('.mp4') and output_path_obj.exists():
+                return output_path
+            
+            # If it's a TS file, look for corresponding MP4
+            if output_path.endswith('.ts'):
+                mp4_path = output_path.replace('.ts', '.mp4')
+                if Path(mp4_path).exists():
+                    return mp4_path
+            
+            # Search for MP4 files in the same directory
+            directory = output_path_obj.parent
+            stem = output_path_obj.stem
+            
+            for mp4_file in directory.glob(f"{stem}*.mp4"):
+                if mp4_file.exists() and mp4_file.stat().st_size > 0:
+                    return str(mp4_file)
+            
+            logger.warning(f"No valid MP4 file found for output path: {output_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Error finding MP4 file for {output_path}: {e}", exc_info=True)
+            return None
+
+    async def _ensure_stream_ended(self, stream_id: int):
+        """Ensure the stream is marked as ended in the database."""
+        try:
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream and not stream.ended_at:
+                    stream.ended_at = datetime.now(timezone.utc)
+                    db.commit()
+                    logger.debug(f"Marked stream {stream_id} as ended")
+        except Exception as e:
+            logger.error(f"Error ensuring stream ended for stream {stream_id}: {e}", exc_info=True)
+
+    async def _generate_stream_metadata(self, stream_id: int, mp4_path: str):
+        """Generate all metadata for a completed stream."""
+        try:
+            if self.metadata_service:
+                success = await self.metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
+                if success:
+                    logger.info(f"Successfully generated metadata for stream {stream_id}")
+                else:
+                    logger.warning(f"Failed to generate metadata for stream {stream_id}")
+            else:
+                logger.warning(f"No metadata service available for stream {stream_id}")
+        except Exception as e:
+            logger.error(f"Error generating metadata for stream {stream_id}: {e}", exc_info=True)
             
     async def stop_recording(self, streamer_id: int, reason: str = "automatic") -> bool:
         """Stop an active recording and ensure metadata generation"""
