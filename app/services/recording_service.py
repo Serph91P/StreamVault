@@ -906,6 +906,80 @@ class RecordingService:
             logger.error(f"Error force starting recording: {e}", exc_info=True)
             return False
 
+    async def force_start_recording_offline_test(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Force start a recording even when the streamer is definitely offline.
+        
+        WARNING: This method is intended for testing purposes only and will likely fail
+        to produce any actual recording content since the streamer is not streaming.
+        
+        Use force_start_recording_with_api_check() for normal force recording operations.
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will create test data)
+            
+        Returns:
+            bool: True if recording process started, False otherwise
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                logger.warning(f"TESTING MODE: Starting offline recording for {streamer.username} without API check")
+                logger.warning("This will likely fail to produce content since the streamer is not live")
+                
+                # Create test stream data if none provided
+                if not stream_data:
+                    stream_data = {
+                        "id": f"test_{int(datetime.now().timestamp())}",
+                        "broadcaster_user_id": streamer.twitch_id,
+                        "broadcaster_user_name": streamer.username,
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                        "title": f"TEST RECORDING - {streamer.username}",
+                        "category_name": "Testing",
+                        "language": "en",
+                    }
+
+                # Update streamer status (for our internal tracking)
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Create stream record
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send notification
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt recording (will likely fail)
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["test_recording"] = True
+                    
+                    logger.warning(f"Test offline recording started for {streamer.username}. Expect it to fail quickly.")
+                    return True
+                else:
+                    logger.error(f"Failed to start test recording for {streamer.username}")
+                    return False
+
+        except RecordingError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in test offline recording: {e}", exc_info=True)
+            return False
+
     async def _find_or_create_stream(
         self, streamer_id: int, streamer: Streamer, db
     ) -> Stream:
@@ -964,12 +1038,24 @@ class RecordingService:
             "language": stream.language,
         }
 
-    async def force_start_recording_offline(
+    async def force_start_recording_with_api_check(
         self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
-        Start a recording for a stream, even if the online event wasn't detected.
-        Creates all necessary database entries as if the application had received the event.
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
         """
         try:
             with SessionLocal() as db:
@@ -978,14 +1064,30 @@ class RecordingService:
                     logger.error(f"Streamer not found: {streamer_id}")
                     raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
 
-                # Check if the streamer is actually live (API query)
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
                 stream_info = await self._get_stream_info_from_api(streamer, db)
 
-                # If no stream data was provided, use the API result or create default data
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
                 if not stream_data:
-                    stream_data = self._create_stream_data(streamer, stream_info)
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
 
-                # Update streamer status to "live"
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
                 self._update_streamer_status(streamer, stream_data, db)
 
                 # Find existing stream or create a new one
@@ -996,21 +1098,23 @@ class RecordingService:
                 # Create metadata entry if it doesn't exist
                 await self._ensure_stream_metadata(stream.id, db)
 
-                # Send WebSocket notification
+                # Send WebSocket notification (even though it's an offline recording attempt)
                 await self._send_stream_online_notification(streamer, stream_data)
 
-                # Start the recording with the existing method
-                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=False)
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
 
-                # Save the stream ID in the recording information
                 if recording_started and streamer_id in self.active_recordings:
-                    # Note: Thumbnail generation is now handled after MP4 creation
-                    # for better quality and consistency
-
-                    logger.info(
-                        f"Force offline recording started for {streamer.username}, stream_id: {stream.id}"
-                    )
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
                     return True
+                else:
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
 
                 return recording_started
 
