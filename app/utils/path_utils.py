@@ -174,10 +174,22 @@ def generate_filename(
             ]
             for fmt in formats_to_try:
                 if fmt in filename:
-                    if fmt.endswith(':02d}') and isinstance(value, str) and value.isdigit():
-                        # For numbers as strings with 02d format
-                        filename = filename.replace(fmt, f"{int(value):02d}")
-                    else:
+                    try:
+                        if fmt.endswith(':02d}') and isinstance(value, str) and value.isdigit():
+                            # For numbers as strings with 02d format
+                            filename = filename.replace(fmt, f"{int(value):02d}")
+                        elif fmt.endswith(':d}') and isinstance(value, str) and value.isdigit():
+                            # For numbers as strings with simple d format
+                            filename = filename.replace(fmt, f"{int(value)}")
+                        elif fmt.endswith(':2d}') and isinstance(value, str) and value.isdigit():
+                            # For numbers as strings with 2d format
+                            filename = filename.replace(fmt, f"{int(value):2d}")
+                        else:
+                            # Just replace with string value
+                            filename = filename.replace(fmt, str(value))
+                    except Exception as format_error:
+                        # Last resort, just use the string value
+                        logger.warning(f"Format replacement error with {fmt}: {format_error}")
                         filename = filename.replace(fmt, str(value))
 
     # Ensure the filename ends with .mp4
