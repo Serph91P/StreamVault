@@ -37,6 +37,8 @@ from app.models import (
     Stream,
     StreamEvent,
     StreamMetadata,
+    Recording,
+    RecordingVideo,
 )
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
@@ -1133,1366 +1135,1017 @@ class RecordingService:
             logger.error(f"Error force starting offline recording: {e}", exc_info=True)
             return False
 
-    async def _get_stream_info_from_api(
-        self, streamer: Streamer, db
-    ) -> Optional[Dict[str, Any]]:
-        """Get stream information from Twitch API to verify if streamer is live"""
-        try:
-            # Import here to avoid circular dependencies
-            from app.services.streamer_service import StreamerService
-            streamer_service = StreamerService()
-            
-            # Use the existing method to check if streamer is live
-            is_live = await streamer_service.is_streamer_live(streamer.twitch_id)
-            
-            if is_live:
-                # Get detailed stream information
-                stream_info = await streamer_service.get_stream_info(streamer.twitch_id)
-                return stream_info
-            else:
-                return None
-
-        except Exception as e:
-            logger.error(f"Error getting stream info from API: {e}", exc_info=True)
-            return None
-
-    def _create_stream_data(
-        self, streamer: Streamer, stream_info: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Create stream data from streamer and API info"""
-        if stream_info:
-            # Streamer is actually live, use API data
-            return {
-                "id": stream_info.get("id"),
-                "broadcaster_user_id": streamer.twitch_id,
-                "broadcaster_user_name": streamer.username,
-                "started_at": stream_info.get("started_at")
-                or datetime.now(timezone.utc).isoformat(),
-                "title": stream_info.get("title") or streamer.title,
-                "category_name": stream_info.get("game_name") or streamer.category_name,
-                "language": stream_info.get("language") or streamer.language,
-            }
-        else:
-            # Streamer erscheint offline oder API fehlgeschlagen, erstelle Standarddaten
-            return {
-                "id": f"manual_{int(datetime.now().timestamp())}",
-                "broadcaster_user_id": streamer.twitch_id,
-                "broadcaster_user_name": streamer.username,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-                "title": streamer.title or f"{streamer.username} Stream",
-                "category_name": streamer.category_name or "Unknown",
-                "language": streamer.language or "en",
-            }
-
-    def _update_streamer_status(
-        self, streamer: Streamer, stream_data: Dict[str, Any], db
-    ):
-        """Update streamer status and information"""
-        # Update streamer status to "live"
-        streamer.is_live = True
-        streamer.last_updated = datetime.now(timezone.utc)
-
-        # Update streamer information if available
-        if "title" in stream_data and stream_data["title"]:
-            streamer.title = stream_data["title"]
-        if "category_name" in stream_data and stream_data["category_name"]:
-            streamer.category_name = stream_data["category_name"]
-        if "language" in stream_data and stream_data["language"]:
-            streamer.language = stream_data["language"]
-
-        db.commit()
-
-    async def _find_or_create_offline_stream(
-        self, streamer_id: int, streamer: Streamer, stream_data: Dict[str, Any], db
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
     ) -> Stream:
-        """Find existing active stream or create a new one"""
-        # Check if an active stream already exists
-        existing_stream = (
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
             db.query(Stream)
             .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
             .order_by(Stream.started_at.desc())
             .first()
         )
 
-        if existing_stream:
-            logger.info(
-                f"Found existing active stream for {streamer.username}, using it"
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
             )
-            return existing_stream
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
 
-        # Create a new stream entry        
-        started_at = (
-            datetime.fromisoformat(stream_data["started_at"].replace("Z", "+00:00"))
-            if "started_at" in stream_data
-            else datetime.now(timezone.utc)
-        )
-        
-        stream = Stream(
-            streamer_id=streamer_id,
-            twitch_stream_id=stream_data.get(
-                "id", f"manual_{int(datetime.now().timestamp())}"
-            ),
-            title=stream_data.get("title") or f"{streamer.username} Stream",
-            category_name=stream_data.get("category_name"),
-            language=stream_data.get("language"),
-            started_at=started_at,
-        )
-        db.add(stream)
-        db.flush()  # To get the stream ID
-
-        # Create stream events
-        # 1. Stream-Online-Event
-        stream_online_event = StreamEvent(
-            stream_id=stream.id,
-            event_type="stream.online",
-            title=stream_data.get("title"),
-            category_name=stream_data.get("category_name"),
-            language=stream_data.get("language"),
-            timestamp=started_at,
-        )
-        db.add(stream_online_event)
-
-        # 2. Category-Event (1 second before stream start)
-        if stream_data.get("category_name"):
-            category_event = StreamEvent(
+            # Create stream event for the start
+            stream_event = StreamEvent(
                 stream_id=stream.id,
-                event_type="channel.update",
-                title=stream_data.get("title"),
-                category_name=stream_data.get("category_name"),
-                language=stream_data.get("language"),
-                timestamp=started_at - timedelta(seconds=1),
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
             )
-            db.add(category_event)
+            db.add(stream_event)
+            db.commit()
 
-        db.commit()
         return stream
 
-    async def _ensure_stream_metadata(self, stream_id: int, db):
-        """Ensure metadata entry exists for a stream"""
-        metadata = (
-            db.query(StreamMetadata)
-            .filter(StreamMetadata.stream_id == stream_id)
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
+                else:
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
+
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
             .first()
         )
 
-        if not metadata:
-            metadata = StreamMetadata(stream_id=stream_id)
-            db.add(metadata)
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
+            )
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
+
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
             db.commit()
 
-        return metadata
+        return stream
 
-    async def _send_stream_online_notification(
-        self, streamer: Streamer, stream_data: Dict[str, Any]
-    ):
-        """Send WebSocket notification for stream online event"""
-        await websocket_manager.send_notification(
-            {
-                "type": "stream.online",
-                "data": {
-                    "streamer_id": streamer.id,
-                    "twitch_id": streamer.twitch_id,
-                    "streamer_name": streamer.username,
-                    "started_at": stream_data.get(
-                        "started_at", datetime.now(timezone.utc).isoformat()
-                    ),
-                    "title": stream_data.get("title"),
-                    "category_name": stream_data.get("category_name"),
-                    "language": stream_data.get("language"),
-                },
-            }
-        )
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
 
-    async def _delayed_metadata_generation(
-        self,
-        stream_id: int,
-        output_path: str,
-        force_started: bool = False,
-        delay: int = 5,
-    ):
-        """Wait for remuxing to complete before generating metadata"""
-        try:
-            await asyncio.sleep(delay)  # Short delay to ensure remuxing has started
-
-            # Find and validate the MP4 file
-            mp4_path = await self._find_and_validate_mp4(output_path)
-            if not mp4_path:
-                return
-
-            # Update Stream.recording_path
-            if stream_id and mp4_path:
-                db_session: Optional[Session] = None
-                try:
-                    logger.debug(f"Attempting to update recording_path for stream_id: {stream_id} with path: {mp4_path}")
-                    db_session = SessionLocal()
-                    if db_session:
-                        stream_to_update = db_session.query(Stream).filter(Stream.id == stream_id).first()
-                        if stream_to_update:
-                            stream_to_update.recording_path = mp4_path
-                            db_session.commit()
-                            logger.info(f"Successfully updated stream {stream_id} with recording_path: {mp4_path}")
-                        else:
-                            logger.warning(f"Stream with id {stream_id} not found for recording_path update.")
-                except Exception as e:
-                    if db_session:
-                        db_session.rollback()
-                    logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
-                finally:
-                    if db_session:
-                        db_session.close()
-
-            # Ensure stream is properly marked as ended
-            await self._ensure_stream_ended(stream_id, force_started)
-
-            # Generate metadata
-            logger.info(f"Generating metadata for stream {stream_id} at {mp4_path}")
-            await self._generate_stream_metadata(stream_id, mp4_path)
-
-            # Generate thumbnail from MP4 after metadata is complete
-            logger.info(f"Generating thumbnail from MP4 for stream {stream_id}")
-            await self._generate_thumbnail_from_mp4(stream_id, mp4_path)
-
-            # Create optimized media server structure
-            logger.info(f"Creating media server structure for stream {stream_id}")
-            media_server_service = MediaServerStructureService()
-            try:
-                new_mp4_path = await media_server_service.create_media_server_structure(
-                    stream_id, mp4_path
-                )
-                if new_mp4_path:
-                    logger.info(f"Successfully created media server structure for stream {stream_id}")
-                    # Update the recording path to the new location
-                    await self._update_recording_path(stream_id, new_mp4_path)
-                else:
-                    logger.warning(f"Failed to create media server structure for stream {stream_id}")
-            finally:
-                await media_server_service.close()
-
-            # Clean up all temporary files after successful metadata generation
-            if mp4_path:
-                await self._cleanup_temporary_files(mp4_path)
-            
-        except Exception as e:
-            logger.error(f"Error generating metadata for stream {stream_id}: {e}", exc_info=True)
-            # Still attempt to clean up temporary files even if metadata generation failed
-            try:
-                if mp4_path:
-                    await self._cleanup_temporary_files(mp4_path)
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to clean up temporary files: {cleanup_error}")
-
-    async def _find_and_validate_mp4(self, output_path: str) -> Optional[str]:
-        """Find and validate the MP4 file after remuxing"""
-        # Check if MP4 file exists (remuxing completed)
-        mp4_path = output_path
-        if output_path.endswith(".ts"):
-            mp4_path = output_path.replace(".ts", ".mp4")
-
-        # Wait for the MP4 file to exist with a timeout
-        start_time = datetime.now()
-        while not os.path.exists(mp4_path):
-            if (datetime.now() - start_time).total_seconds() > 300:  # 5 minute timeout
-                logger.warning(f"Timed out waiting for MP4 file: {mp4_path}")
-                return None
-            await asyncio.sleep(5)
-
-        # Additional wait time to ensure the file is completely written
-        await asyncio.sleep(20)  # Longer wait to ensure file is fully written
-
-        # Verify that the MP4 file is valid
-        if mp4_path.endswith(".mp4"):
-            # Use the function from ffmpeg_utils module
-            from app.utils.ffmpeg_utils import validate_mp4
-            is_valid = await validate_mp4(mp4_path)
-            
-            if not is_valid:
-                logger.error(f"MP4 file validation failed: {mp4_path}")
-                # No fallback or repair attempts - just fail cleanly
-                return None
-
-        return mp4_path
-
-    async def _ensure_stream_ended(self, stream_id: int, force_started: bool):
-        """Ensure stream is properly marked as ended and has events"""
-        with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream:
-                logger.error(f"Stream {stream_id} not found for metadata generation")
-                raise StreamNotFoundError(
-                    f"Stream {stream_id} not found for metadata generation"
-                )            # Ensure stream is marked as ended
-            if force_started or not stream.ended_at:
-                stream.ended_at = datetime.now(timezone.utc)
-                # stream.status = "offline"  # Remove - status is not a field in the Stream model
-
-                # Check if there are any stream events
-                events_count = (
-                    db.query(StreamEvent)
-                    .filter(StreamEvent.stream_id == stream_id)
-                    .count()
-                )
-
-                # If no events, add at least one event for the stream's category
-                if events_count == 0 and stream.category_name:
-                    logger.info(
-                        f"No events found for stream {stream_id}, adding initial category event"
-                    )
-
-                    # Add an event for the stream's category at stream start time
-                    category_event = StreamEvent(
-                        stream_id=stream_id,
-                        event_type="channel.update",
-                        title=stream.title,
-                        category_name=stream.category_name,
-                        language=stream.language,
-                        timestamp=stream.started_at,
-                    )
-                    db.add(category_event)
-
-                    # And also add the stream.online event
-                    start_event = StreamEvent(
-                        stream_id=stream_id,
-                        event_type="stream.online",
-                        title=stream.title,
-                        category_name=stream.category_name,
-                        language=stream.language,
-                        timestamp=stream.started_at
-                        + timedelta(seconds=1),  # 1 second after start
-                    )
-                    db.add(start_event)
-                db.commit()
-                logger.info(
-                    f"Stream {stream_id} marked as ended for metadata generation"
-                )
-
-    async def _generate_stream_metadata(self, stream_id: int, mp4_path: str):
-        """Generate all metadata for a stream"""
-        # Use a new MetadataService instance
-        metadata_service = MetadataService()
-
-        try:
-            # Generate all metadata in one go
-            await metadata_service.generate_metadata_for_stream(stream_id, mp4_path)
-
-            # Wait briefly to allow all chapter files to be written
-            await asyncio.sleep(2)
-
-            # Find the FFmpeg chapters file
-            ffmpeg_chapters_path = mp4_path.replace(".mp4", "-ffmpeg-chapters.txt")
-
-            # Embed all metadata (including chapters if available) in one step
-            if (
-                os.path.exists(ffmpeg_chapters_path)
-                and os.path.getsize(ffmpeg_chapters_path) > 0
-            ):
-                logger.info(
-                    f"Embedding all metadata and chapters into MP4 file for stream {stream_id}"
-                )
-                await metadata_service.embed_all_metadata(
-                    mp4_path, ffmpeg_chapters_path, stream_id
-                )
-            else:
-                logger.warning(
-                    f"FFmpeg chapters file not found or empty: {ffmpeg_chapters_path}"
-                )
-                logger.info(f"Embedding basic metadata without chapters")
-                await metadata_service.embed_all_metadata(mp4_path, "", stream_id)
-
-        finally:
-            # Close the metadata session
-            await metadata_service.close()
-
-    async def _start_streamlink(
-        self, streamer_name: str, quality: str, output_path: str, force_mode: bool = False
-    ) -> Optional[asyncio.subprocess.Process]:
-        """Start streamlink process for recording with TS format and post-processing to MP4
-        
-        Args:
-            streamer_name: Name of the streamer
-            quality: Video quality to record
-            output_path: Path where to save the recording
-            force_mode: If True, uses more aggressive streamlink settings (only for manual force recording)
-                       Not used for automatic EventSub recordings
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
         """
-        try:
-            # Ensure output directory exists
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            
-            # Get proxy settings from the database
-            proxy_settings = get_proxy_settings_from_db()
-            
-            # Generate streamlink command using our utility function
-            cmd = get_streamlink_command(
-                streamer_name=streamer_name,
-                quality=quality,
-                output_path=output_path,
-                proxy_settings=proxy_settings,
-                force_mode=force_mode
-            )
-            
-            # Define ts_output_path for use in _monitor_process
-            ts_output_path = output_path.replace(".mp4", ".ts") if output_path.endswith(".mp4") else output_path
-
-            # Log the command start
-            self.streamlink_logger.info(f"[STREAMLINK_START] {streamer_name} - Quality: {quality}")
-            self.streamlink_logger.info(f"[STREAMLINK_CMD] {' '.join(cmd)}")
-            logging_service.log_streamlink_start(streamer_name, quality, output_path, cmd)
-
-            # Special logging for force mode
-            if force_mode:
-                logger.info(f"Starting streamlink in FORCE MODE for {streamer_name} with enhanced retry settings")
-            
-            # Use subprocess manager to start the process
-            process_id = f"streamlink_{streamer_name}_{int(datetime.now().timestamp())}"
-            process = await self.subprocess_manager.start_process(cmd, process_id)
-
-            if process:
-                # Start monitoring the process output in the background
-                asyncio.create_task(
-                    self._monitor_process(
-                        process, process_id, streamer_name, ts_output_path, output_path
-                    )
-                )
-
-            return process
-        except Exception as e:
-            logger.error(f"Failed to start streamlink: {e}", exc_info=True)
-            return None
-
-    async def _monitor_process(
-        self,
-        process: asyncio.subprocess.Process,
-        process_id: str,
-        streamer_name: str,
-        ts_path: str,
-        mp4_path: str,
-    ) -> None:
-        """Monitor recording process and convert TS to MP4 when finished"""
-        try:
-            logging_service.log_recording_activity("PROCESS_MONITORING", streamer_name, "Starting to monitor streamlink process", "debug")
-            
-            stdout, stderr = await process.communicate()
-            exit_code = process.returncode or 0
-
-            # Log the process output
-            logging_service.log_streamlink_output(streamer_name, stdout, stderr, exit_code)
-
-            # Find the streamer_id for this recording
-            streamer_id = None
-            for sid, info in self.active_recordings.items():
-                if info.get("streamer_name") == streamer_name:
-                    streamer_id = sid
-                    break
-
-            if exit_code == 0:  # Streamlink finished normally (stream ended)
-                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (stream ended naturally)")
-                
-                logger.info(f"Streamlink finished normally for {streamer_name} - stream ended, converting TS to MP4")
-                
-                # Only remux if TS file exists and has content
-                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
-                    file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
-                    logging_service.log_file_operation("REMUX_START", ts_path, True, f"Starting conversion to MP4", file_size_mb)
-                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
-                else:
-                    logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
-                    logger.warning(f"No valid TS file found at {ts_path} for remuxing")
-                
-                # Automatically stop the recording (stream ended naturally)
-                if streamer_id and streamer_id in self.active_recordings:
-                    logger.info(f"Automatically stopping recording for {streamer_name} due to stream end")
-                    await self.stop_recording(streamer_id, reason="automatic")
-                
-            elif exit_code == 130:  # SIGINT (user interruption or manual stop)
-                logging_service.log_recording_activity("STREAMLINK_FINISHED", streamer_name, f"Exit code: {exit_code} (interrupted/stopped)")
-                
-                logger.info(f"Streamlink was interrupted for {streamer_name}, converting TS to MP4")
-                
-                # Only remux if TS file exists and has content
-                if os.path.exists(ts_path) and os.path.getsize(ts_path) > 0:
-                    file_size_mb = os.path.getsize(ts_path) / (1024 * 1024)
-                    logging_service.log_file_operation("REMUX_START", ts_path, True, f"Starting conversion to MP4", file_size_mb)
-                    await self._remux_to_mp4_with_logging(ts_path, mp4_path, streamer_name)
-                else:
-                    logging_service.log_recording_error(0, streamer_name, "FILE_NOT_FOUND", f"No valid TS file found at {ts_path}")
-                    logger.warning(f"No valid TS file found at {ts_path} for remuxing")
-                
-                # Don't call stop_recording here - it was already called manually
-                # The reason was already set when stop_recording was called
-                
-            else:
-                stderr_text = (
-                    stderr.decode("utf-8", errors="ignore")
-                    if stderr
-                    else "No error output"
-                )
-                logging_service.log_recording_error(0, streamer_name, "STREAMLINK_FAILED", f"Exit code {exit_code}: {stderr_text}")
-                logger.error(
-                    f"Streamlink process for {streamer_name} exited with code {exit_code}: {stderr_text}"
-                )
-                
-                # Automatically stop the recording due to streamlink failure
-                if streamer_id and streamer_id in self.active_recordings:
-                    logger.info(f"Automatically stopping recording for {streamer_name} due to streamlink failure")
-                    await self.stop_recording(streamer_id, reason="automatic")
-                
-                # Note: In our new clean approach, we don't attempt to remux partial recordings
-                # If streamlink failed, we fail the whole process and don't try to recover partial files
-                
-            # Remove the process from subprocess manager
-            await self.subprocess_manager.terminate_process(process_id)
-        except Exception as e:
-            logger.error(f"Error monitoring process: {e}", exc_info=True)
-
-    async def _remux_to_mp4_with_logging(self, ts_path: str, mp4_path: str, streamer_name: str) -> bool:
-        """Remux TS file to MP4 using the new remux_file method without repair attempts.
-        Now with improved MP4Box metadata handling."""
-        try:
-            logger.info(f"Starting remux of {ts_path} to {mp4_path} using new method")
-            
-            # Ensure the TS file exists and has content
-            if not os.path.exists(ts_path):
-                logger.error(f"TS file does not exist: {ts_path}")
-                return False
-                
-            ts_size = os.path.getsize(ts_path)
-            if ts_size == 0:
-                logger.error(f"TS file is empty: {ts_path}")
-                return False
-                
-            logger.info(f"TS file validation passed: {ts_path}, size: {ts_size} bytes")
-            
-            # Ensure the output directory exists
-            mp4_dir = os.path.dirname(mp4_path)
-            os.makedirs(mp4_dir, exist_ok=True)
-            
-            # Generate a unique timestamp for this remux operation
-            remux_timestamp = int(datetime.now().timestamp())
-            self.activity_logger.log_file_operation("REMUX_START", ts_path, True, 
-                                                   f"Starting remux to {mp4_path} (Size: {ts_size/1024/1024:.2f} MB)")
-            
-            # First, remux the TS file to MP4 without metadata
-            from app.utils.file_utils import remux_file
-            
-            # Remux without metadata first (FFmpeg handles TS->MP4 conversion)
-            result = await remux_file(
-                input_path=ts_path, 
-                output_path=mp4_path, 
-                overwrite=True,
-                metadata_file=None,  # Don't embed metadata during remux
-                streamer_name=streamer_name,
-                logging_service=logging_service
-            )
-            
-            if not result["success"]:
-                logger.error(f"Remux failed: {result['stderr']}")
-                self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, 
-                                                       f"Remux failed: {result['stderr']}")
-                return False
-            
-            # Validate the remuxed MP4 file
-            from app.utils.ffmpeg_utils import validate_mp4
-            is_valid = await validate_mp4(mp4_path)
-            if not is_valid:
-                logger.error(f"Remuxed MP4 file validation failed: {mp4_path}")
-                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, 
-                                                       "MP4 validation failed")
-                return False
-            
-            # Now add metadata using FFmpeg
-            logger.info(f"Adding metadata to MP4 file using FFmpeg: {mp4_path}")
-            
-            # Prepare metadata for FFmpeg
-            metadata = {
-                "encoded_by": "StreamVault",
-                "encoding_tool": "StreamVault",
-                "streamer": streamer_name,
-                "original_format": "TS",
-                "remux_date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-            }
-            
-            # Create temporary output file for FFmpeg
-            temp_output = f"{mp4_path}.metadata.tmp"
-            metadata_success = False
-            
-            try:
-                # Use FFmpeg for metadata embedding
-                from app.utils.file_utils import embed_metadata_with_ffmpeg
-                
-                metadata_result = await embed_metadata_with_ffmpeg(
-                    input_path=mp4_path,
-                    output_path=temp_output,
-                    metadata=metadata,
-                    chapters_file=None,  # No chapters during remux
-                    streamer_name=streamer_name,
-                    logging_service=logging_service
-                )
-                
-                if metadata_result["success"] and os.path.exists(temp_output):
-                    # Validate temp file before replacing original
-                    temp_size = os.path.getsize(temp_output)
-                    original_size = os.path.getsize(mp4_path) if os.path.exists(mp4_path) else 0
-                    
-                    if temp_size > 0 and temp_size >= original_size * 0.9:  # At least 90% of original size
-                        # Replace original with metadata-embedded version
-                        import shutil
-                        shutil.move(temp_output, mp4_path)
-                        logger.info(f"Successfully added metadata using FFmpeg: {mp4_path}")
-                        self.activity_logger.log_file_operation("METADATA_SUCCESS", mp4_path, True, 
-                                                               f"Metadata embedding successful")
-                        metadata_success = True
-                    else:
-                        logger.warning(f"FFmpeg temp file seems invalid (size: {temp_size}, original: {original_size}), keeping original")
-                        # Clean up temp file but keep original
-                        if os.path.exists(temp_output):
-                            os.remove(temp_output)
-                        self.activity_logger.log_file_operation("METADATA_SKIPPED", mp4_path, True, 
-                                                               f"Metadata embedding skipped due to invalid temp file")
-                else:
-                    logger.warning(f"FFmpeg metadata embedding failed, but remux was successful: {mp4_path}")
-                    # Clean up temp file if it exists
-                    if os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    self.activity_logger.log_file_operation("METADATA_FAILED", mp4_path, True, 
-                                                           f"Metadata embedding failed but remux successful")
-                
-            except Exception as e:
-                logger.warning(f"Error during FFmpeg metadata embedding: {e}")
-                # Clean up temp file if it exists
-                if os.path.exists(temp_output):
-                    try:
-                        os.remove(temp_output)
-                    except Exception as cleanup_e:
-                        logger.debug(f"Could not clean up temp file: {cleanup_e}")
-                
-                # Log the metadata failure but don't fail the entire remux
-                logger.warning(f"Remux successful but metadata embedding failed: {mp4_path}")
-                self.activity_logger.log_file_operation("METADATA_FAILED", mp4_path, True, 
-                                                       f"Metadata embedding failed: {str(e)}")
-            
-            # Additional validation before considering the remux successful
-            logger.info(f"Performing final validation of remuxed file: {mp4_path}")
-            
-            # Step 1: Verify MP4 file has reasonable size (at least 70% of TS size)
-            ts_size = os.path.getsize(ts_path) if os.path.exists(ts_path) else 0
-            mp4_size = os.path.getsize(mp4_path)
-            
-            if mp4_size == 0:
-                logger.error(f"MP4 file is empty: {mp4_path}")
-                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "Output file is empty")
-                return False
-                
-            size_ratio = mp4_size / ts_size if ts_size > 0 else 1
-            logger.info(f"Size ratio MP4/TS: {size_ratio:.2f} ({mp4_size}/{ts_size} bytes)")
-            
-            if size_ratio < 0.7:  # More lenient than original 0.8
-                logger.warning(f"MP4 file size ({mp4_size} bytes) is smaller than expected compared to TS file ({ts_size} bytes), ratio: {size_ratio:.2f}")
-                self.activity_logger.log_file_operation("REMUX_WARNING", mp4_path, True, 
-                                                      f"Size ratio {size_ratio:.2f} is low but acceptable")
-                # Don't fail for this, just log warning
-            
-            # Step 2: Verify the MP4 file is valid with ffprobe
-            logger.info(f"Validating MP4 file with ffprobe: {mp4_path}")
-            valid_mp4 = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-            
-            if not valid_mp4:
-                logger.error(f"MP4 file validation failed: {mp4_path}")
-                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, "FFprobe validation failed")
-                return False
-            
-            # Step 3: Check if the MP4 has a proper duration
-            duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
-            
-            if not duration_result["valid"]:
-                logger.error(f"MP4 duration check failed: {duration_result['message']}")
-                self.activity_logger.log_file_operation("REMUX_FAILED", mp4_path, False, duration_result["message"])
-                return False
-            
-            # All checks passed
-            logger.info(f"Successfully remuxed and validated {ts_path} to {mp4_path}")
-            self.activity_logger.log_file_operation("REMUX_SUCCESS", mp4_path, True, 
-                                                   f"Size: {mp4_size/1024/1024:.2f} MB, Duration: {duration_result['duration']:.2f}s")
-            
-            # Log successful validation
-            logging_service.ffmpeg_logger.info(f"[VALIDATION_SUCCESS] All checks passed for {mp4_path}: " +
-                                              f"Size ratio: {size_ratio:.2f}, Duration: {duration_result['duration']:.2f}s")
-            
-            # Clean up any temporary files from FFmpeg operations
-            try:
-                await self._cleanup_temporary_files(mp4_path)
-            except Exception as cleanup_e:
-                logger.warning(f"Could not clean up temporary files: {cleanup_e}")
-            
-            # Schedule TS cleanup after a short delay to ensure MP4 is fully written
-            logger.info(f"Scheduling TS cleanup in 10 seconds: {ts_path}")
-            asyncio.create_task(self._delayed_ts_cleanup(ts_path, mp4_path, streamer_name, 10))
-            
-            return True
+        Intelligently start a recording by first checking if the streamer is actually online via API.
         
-        except Exception as e:
-            logger.error(f"Error during remux: {e}", exc_info=True)
-            self.activity_logger.log_file_operation("REMUX_FAILED", ts_path, False, f"Exception during remux: {str(e)}")
-            return False
-
-    async def cleanup(self):
-        """Clean up all resources when shutting down"""
-
-        try:
-            # Stop all active recordings (automatic stop during shutdown)
-            streamer_ids = list(self.active_recordings.keys())
-            for streamer_id in streamer_ids:
-                await self.stop_recording(streamer_id, reason="automatic")
-
-            # Clean up all subprocess manager processes
-            await self.subprocess_manager.cleanup_all()
-
-            # Close metadata service
-            await self.metadata_service.close()
-            
-            # Close media server structure service
-            if hasattr(self, 'media_server_service'):
-                await self.media_server_service.close()
-                
-            logger.info("Recording service cleanup completed")
-
-        except Exception as e:
-            logger.error(f"Error during recording service cleanup: {e}", exc_info=True)
-
-      
-    async def _cleanup_temporary_files(self, mp4_path: str):
-        """Clean up temporary files after successful metadata generation with final MP4 validation"""
-        try:
-            # Extract streamer name for logging
-            path_parts = mp4_path.split(os.sep)
-            streamer_name = "unknown"
-            for part in path_parts:
-                if part and not part.startswith("."):
-                    streamer_name = part
-                    break
-            
-            # First, clean up any temporary files that might be left behind
-            temp_patterns = [
-                f"{mp4_path}.tmp",
-                f"{mp4_path}.metadata.tmp",
-                f"{mp4_path}.temp"
-            ]
-            
-            for temp_pattern in temp_patterns:
-                if os.path.exists(temp_pattern):
-                    try:
-                        os.remove(temp_pattern)
-                        logger.info(f"Cleaned up temporary file: {temp_pattern}")
-                    except Exception as temp_cleanup_e:
-                        logger.warning(f"Could not clean up temporary file {temp_pattern}: {temp_cleanup_e}")
-            
-            # Also clean up any .tmp files in the same directory
-            mp4_dir = os.path.dirname(mp4_path)
-            mp4_basename = os.path.basename(mp4_path)
-            
-            try:
-                for file in os.listdir(mp4_dir):
-                    if file.startswith(mp4_basename) and (".tmp" in file or ".temp" in file):
-                        temp_file_path = os.path.join(mp4_dir, file)
-                        try:
-                            os.remove(temp_file_path)
-                            logger.debug(f"Cleaned up orphaned temporary file: {temp_file_path}")
-                        except Exception as orphan_cleanup_e:
-                            logger.debug(f"Could not clean up orphaned temp file {temp_file_path}: {orphan_cleanup_e}")
-            except Exception as dir_cleanup_e:
-                logger.debug(f"Could not scan directory for temp files: {dir_cleanup_e}")
-            
-            # Now do the final MP4 validation to ensure it still works after all processing
-            logger.info(f"Performing final MP4 validation before TS cleanup: {mp4_path}")
-            
-            # Check if MP4 still exists and is playable
-            if not os.path.exists(mp4_path):
-                logger.error(f"MP4 file does not exist during cleanup: {mp4_path}")
-                return
-                
-            # Final validation with ffprobe
-            is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-            if not is_valid:
-                logger.error(f"Final MP4 validation failed during cleanup: {mp4_path}")
-                # Don't delete TS file if MP4 is invalid
-                return
-                
-            # Check if corresponding TS file exists
-            ts_path = mp4_path.replace(".mp4", ".ts")
-            if os.path.exists(ts_path):
-                # Do one final duration check to make sure MP4 is still good
-                final_duration_check = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
-                
-                if final_duration_check["valid"]:
-                    # MP4 is confirmed good, safe to delete TS
-                    logger.info(f"Final validation passed. Now safe to delete TS file: {ts_path}")
-                    try:
-                        # Double-check that MP4 file still exists before deleting TS
-                        if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                            os.remove(ts_path)
-                            self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
-                                                       "TS file deleted after successful validation")
-                            logger.info(f"Successfully deleted TS backup file: {ts_path}")
-                        else:
-                            logger.error(f"MP4 file is missing or empty during cleanup, keeping TS backup: {mp4_path}")
-                            self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
-                                                                  "TS kept as backup because MP4 file is missing or empty")
-                    except Exception as e:
-                        logger.error(f"Failed to delete TS file during cleanup: {e}")
-                        # Keep TS file if deletion fails
-                else:
-                    # MP4 validation failed, keep TS as backup
-                    logger.warning(f"Final MP4 validation failed, keeping TS backup: {ts_path}")
-                    self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
-                                                          f"TS kept as backup due to MP4 validation failure: {final_duration_check['message']}")
-            else:
-                logger.info(f"No TS file found for cleanup: {ts_path}")
-                # This is normal if TS was already deleted or never existed
-            
-            # Clean up other temporary files (logs, metadata, etc.)
-            from app.utils.file_utils import cleanup_temporary_files
-            await cleanup_temporary_files(mp4_path)
-            
-        except Exception as e:
-            logger.error(f"Error during temporary files cleanup: {e}", exc_info=True)
-
-    async def _update_recording_path(self, stream_id: int, new_path: str):
-        """Update the recording path for a stream after media server structure creation"""
-        from app.utils.path_utils import update_recording_path
-        await update_recording_path(stream_id, new_path)
-
-    def _generate_filename(
-        self, streamer: Streamer, stream_data: Dict[str, Any], template: str
-    ) -> str:
-        """Generate a filename from template with variables"""
-        from app.utils.path_utils import generate_filename
-        return generate_filename(
-            streamer=streamer, 
-            stream_data=stream_data, 
-            template=template,
-            sanitize_func=self._sanitize_filename
-        )
-
-    def _get_episode_number(self, streamer_id: int, now: datetime) -> str:
-        """Get episode number (count of streams in current month)"""
-        from app.utils.path_utils import get_episode_number
-        return get_episode_number(streamer_id, now)
-
-    def _sanitize_filename(self, name: str) -> str:
-        """Remove illegal characters from filename"""
-        from app.utils.file_utils import sanitize_filename
-        return sanitize_filename(name)
-
-
-    async def _validate_mp4_with_ffprobe(self, mp4_path: str, streamer_name: str) -> bool:
-        """Validate the MP4 file using ffprobe to ensure it's not corrupted.
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
         
         Args:
-            mp4_path: Path to the MP4 file
-            streamer_name: Name of the streamer for logging
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
             
         Returns:
-            bool: True if the MP4 file is valid, False otherwise
-        """
-        # First, check if the file exists to avoid creating logs for non-existent files
-        if not os.path.isfile(mp4_path):
-            logger.warning(f"Cannot validate MP4: File does not exist: {mp4_path}")
-            return False
-            
-        try:
-            # Import logging service if needed
-            from app.services.logging_service import logging_service
-            
-            # Build ffprobe command
-            cmd = [
-                "ffprobe",
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name,width,height,duration",
-                "-of", "json",
-                mp4_path
-            ]
-            
-            # Log the command
-            logger.debug(f"Running ffprobe validation: {' '.join(cmd)}")
-            self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_START", f"Validating {mp4_path}")
-            
-            # Create unique log file for this validation
-            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-            # Make sure we have a valid streamer name
-            if not streamer_name or streamer_name.lower() == "none":
-                streamer_name = "unknown"
-            ffprobe_log_path = logging_service.get_ffmpeg_log_path(f"validate_{timestamp_str}", streamer_name)
-            
-            # Set environment for logging
-            env = os.environ.copy()
-            if ffprobe_log_path:
-                env["FFREPORT"] = f"file={ffprobe_log_path}:level=32"
-            
-            # Create temporary files for stdout/stderr to avoid container logs
-            import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stdout_", suffix=".log") as stdout_file, \
-                 tempfile.NamedTemporaryFile(delete=False, prefix="ffprobe_stderr_", suffix=".log") as stderr_file:
-                
-                # Set additional environment variables to suppress console output
-                env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
-                env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
-                
-                # Add quiet loglevel to prevent container logs
-                cmd = [cmd[0]] + ["-loglevel", "quiet"] + cmd[1:]
-                
-                # Run ffprobe with redirected output
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=stdout_file.fileno(),
-                    stderr=stderr_file.fileno(),
-                    env=env
-                )
-                
-                # Wait for process to complete
-                await process.wait()
-                exit_code = process.returncode or 0
-                
-                # Read output from temporary files
-                with open(stdout_file.name, 'r', errors='ignore') as f:
-                    stdout_str = f.read()
-                with open(stderr_file.name, 'r', errors='ignore') as f:
-                    stderr_str = f.read()
-                
-                # Append output to log file
-                if ffprobe_log_path:
-                    with open(ffprobe_log_path, 'a', errors='ignore') as f:
-                        f.write("\n\n--- STDOUT ---\n")
-                        f.write(stdout_str)
-                        f.write("\n\n--- STDERR ---\n")
-                        f.write(stderr_str)
-                
-                # Clean up temporary files
-                try:
-                    os.unlink(stdout_file.name)
-                    os.unlink(stderr_file.name)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary ffprobe files: {e}")
-            
-            # Log results
-            if exit_code == 0 and stdout_str and len(stdout_str.strip()) > 10:  # Ensure we got meaningful output
-                try:
-                    # Parse JSON output
-                    import json
-                    data = json.loads(stdout_str)
-                    
-                    # Check for video stream
-                    if "streams" in data and len(data["streams"]) > 0:
-                        stream = data["streams"][0]
-                        codec = stream.get("codec_name", "unknown")
-                        width = stream.get("width", 0)
-                        height = stream.get("height", 0)
-                        
-                        logger.info(f"MP4 validation passed: {mp4_path}, codec: {codec}, resolution: {width}x{height}")
-                        self.activity_logger.log_process_monitoring(
-                            streamer_name, 
-                            "FFPROBE_SUCCESS", 
-                            f"Codec: {codec}, Resolution: {width}x{height}"
-                        )
-                        return True
-                    else:
-                        logger.error(f"No video streams found in {mp4_path}")
-                        self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_FAILED", "No video streams found")
-                        return False
-                except json.JSONDecodeError:
-                    logger.error(f"Failed to parse ffprobe output as JSON: {stdout_str}")
-                    self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_FAILED", "Invalid JSON output")
-                    return False
-            else:
-                logger.error(f"ffprobe validation failed with exit code {exit_code}: {stderr_str}")
-                self.activity_logger.log_process_monitoring(
-                    streamer_name, 
-                    "FFPROBE_FAILED", 
-                    f"Exit code: {exit_code}, Error: {stderr_str}"
-                )
-                return False
-        except Exception as e:
-            logger.error(f"Error validating MP4 with ffprobe: {e}", exc_info=True)
-            self.activity_logger.log_process_monitoring(streamer_name, "FFPROBE_ERROR", str(e))
-            return False
-            
-    async def _check_mp4_duration(self, mp4_path: str, ts_path: str, streamer_name: str) -> Dict[str, Any]:
-        """Check if the MP4 file has a reasonable duration.
-        
-        Args:
-            mp4_path: Path to the MP4 file
-            ts_path: Path to the original TS file
-            streamer_name: Name of the streamer for logging
-            
-        Returns:
-            Dict with keys: valid (bool), duration (float), message (str)
+            bool: True if recording started successfully, False otherwise
         """
         try:
-            # Get MP4 duration
-            mp4_duration = await self._get_media_duration(mp4_path)
-            
-            # Also check TS duration if possible
-            ts_duration = await self._get_media_duration(ts_path) if os.path.exists(ts_path) else None
-            
-            if mp4_duration is None:
-                return {
-                    "valid": False,
-                    "duration": 0,
-                    "message": f"Could not determine MP4 duration for {mp4_path}"
-                }
-            
-            # If we have both durations, compare them
-            if ts_duration and ts_duration > 0:
-                # Check if proxy is enabled to determine tolerance
-                proxy_settings = get_proxy_settings_from_db()
-                proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
-                
-                # Use different thresholds based on proxy status and stream length - MORE LENIENT
-                if proxy_enabled:
-                    # With proxy, we expect fewer discontinuities - be more strict but still reasonable
-                    min_ratio = 0.80 if ts_duration < 3600 else 0.75  # 80% for short streams, 75% for long streams
-                else:
-                    # Without proxy, expect more ad segments causing discontinuities - be more lenient
-                    min_ratio = 0.50 if ts_duration < 3600 else 0.40  # 50% for short streams, 40% for long streams
-                    
-                ratio = mp4_duration / ts_duration
-                
-                if ratio < min_ratio:
-                    # Only fail for extreme cases where most content is lost
-                    if ratio < 0.25:  # Fail if we lost more than 75% of content
-                        return {
-                            "valid": False,
-                            "duration": mp4_duration,
-                            "message": f"MP4 duration ({mp4_duration:.2f}s) is significantly shorter than TS duration ({ts_duration:.2f}s), ratio: {ratio:.2f}"
-                        }
-                    else:
-                        # For less extreme cases, log a warning but still pass validation
-                        proxy_status = "with proxy" if proxy_enabled else "without proxy (ads expected)"
-                        logger.warning(f"MP4 shorter than TS ({proxy_status}): MP4={mp4_duration:.2f}s, TS={ts_duration:.2f}s, ratio={ratio:.2f}")
-                        # Still pass validation but log the warning
-                        self.activity_logger.log_process_monitoring(
-                            streamer_name, 
-                            "DURATION_WARNING", 
-                            f"MP4 duration shorter than expected: {mp4_duration:.2f}s vs TS: {ts_duration:.2f}s (ratio: {ratio:.2f}, {proxy_status})"
-                        )
-            
-            # If the duration is too short (less than 10 seconds), it's probably not a valid recording
-            if mp4_duration < 10:
-                return {
-                    "valid": False,
-                    "duration": mp4_duration,
-                    "message": f"MP4 duration is too short: {mp4_duration:.2f}s"
-                }
-                
-            logger.info(f"MP4 duration check passed: {mp4_duration:.2f}s")
-            
-            # Format the TS duration message properly with conditional
-            ts_duration_msg = f"{ts_duration:.2f}s" if ts_duration is not None else "unknown"
-            self.activity_logger.log_process_monitoring(
-                streamer_name, 
-                "DURATION_CHECK_SUCCESS", 
-                f"MP4: {mp4_duration:.2f}s, TS: {ts_duration_msg}"
-            )
-            
-            return {
-                "valid": True,
-                "duration": mp4_duration,
-                "message": "Duration check passed"
-            }
-        except Exception as e:
-            logger.error(f"Error checking MP4 duration: {e}", exc_info=True)
-            return {
-                "valid": False,
-                "duration": 0,
-                "message": f"Error checking duration: {str(e)}"
-            }
-            
-    async def _get_media_duration(self, file_path: str) -> Optional[float]:
-        """Get the duration of a media file using ffprobe.
-        
-        Args:
-            file_path: Path to the media file
-            
-        Returns:
-            Optional[float]: Duration in seconds, or None if it couldn't be determined
-        """
-        # First check if file exists to avoid creating logs for non-existent files
-        if not os.path.isfile(file_path):
-            logger.warning(f"Cannot get duration: File does not exist: {file_path}")
-            return None
-            
-        try:
-            # Extract streamer name from path if possible, fallback to system
-            path_parts = file_path.split(os.sep)
-            streamer_name = "system"
-            for part in path_parts:
-                if part and not part.startswith(".") and os.path.isdir(os.path.join("/", part)):
-                    streamer_name = part
-                    break
-                    
-            # Get a unique log file path for this ffprobe operation
-            from app.services.logging_service import LoggingService
-            log_service = LoggingService()
-            log_path = log_service.get_ffmpeg_log_path(
-                f"ffprobe_duration",
-                streamer_name
-            )
-            
-            # Ensure the log directory exists
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            
-            cmd = [
-                "ffprobe",
-                "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                file_path
-            ]
-            
-            with open(log_path, "a") as log_file:
-                log_file.write(f"=== Duration check for {file_path} ===\n")
-                log_file.write(f"Command: {' '.join(cmd)}\n")
-                
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                
-                stdout, stderr = await process.communicate()
-                stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
-                stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
-                
-                # Log all output to the file
-                if stdout_str:
-                    log_file.write(f"STDOUT:\n{stdout_str}\n")
-                if stderr_str:
-                    log_file.write(f"STDERR:\n{stderr_str}\n")
-                
-                if process.returncode == 0 and stdout_str.strip():
-                    try:
-                        duration = float(stdout_str.strip())
-                        log_file.write(f"SUCCESS: Duration = {duration} seconds\n")
-                        return duration
-                    except ValueError:
-                        log_file.write(f"ERROR: Could not parse duration: {stdout_str}\n")
-                        logger.error(f"Could not parse duration from ffprobe output: {stdout_str}")
-                        return None
-                else:
-                    log_file.write(f"ERROR: ffprobe failed with return code {process.returncode}\n")
-                    logger.error(f"ffprobe failed to get duration: {stderr_str}")
-                    return None
-        except Exception as e:
-            logger.error(f"Error getting media duration: {e}")
-            return None
-
-    async def cleanup_old_ts_backups(self, max_age_hours: int = 72):
-        """Clean up old TS backup files that are older than specified hours
-        
-        Args:
-            max_age_hours: Maximum age in hours before TS backups are removed (default 72h = 3 days)
-        """
-        try:
-            logger.info(f"Starting cleanup of TS backup files older than {max_age_hours} hours")
-            
-            # Get recording directory from settings
             with SessionLocal() as db:
-                settings = db.query(RecordingSettings).first()
-                if not settings:
-                    logger.warning("No recording settings found, skipping TS backup cleanup")
-                    return
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
                     
-                base_dir = settings.output_directory
-            
-            if not os.path.exists(base_dir):
-                logger.warning(f"Recording directory does not exist: {base_dir}")
-                return
-            
-            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-            cleaned_count = 0
-            freed_space = 0
-            
-            # Walk through all subdirectories looking for TS files
-            for root, dirs, files in os.walk(base_dir):
-                for file in files:
-                    if file.endswith('.ts'):
-                        file_path = os.path.join(root, file)
-                        try:
-                            # Check file modification time
-                            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
-                            
-                            if file_mtime < cutoff_time:
-                                # Check if corresponding MP4 exists and is valid
-                                mp4_path = file_path.replace('.ts', '.mp4')
-                                
-                                if os.path.exists(mp4_path):
-                                    # Extract streamer name for validation
-                                    path_parts = file_path.split(os.sep)
-                                    streamer_name = "unknown"
-                                    for part in path_parts:
-                                        if part and not part.startswith("."):
-                                            streamer_name = part
-                                            break
-                                    
-                                    # Validate MP4 before deleting TS backup
-                                    is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-                                    
-                                    if is_valid:
-                                        # MP4 is valid, safe to delete old TS backup
-                                        file_size = os.path.getsize(file_path)
-                                        os.remove(file_path)
-                                        cleaned_count += 1
-                                        freed_space += file_size
-                                        
-                                        logger.info(f"Cleaned up old TS backup: {file_path}")
-                                        self.activity_logger.log_file_operation("TS_CLEANUP", file_path, True, 
-                                                                              f"Old backup removed after {max_age_hours}h")
-                                    else:
-                                        logger.warning(f"Keeping TS backup - MP4 validation failed: {file_path}")
-                                else:
-                                    # No MP4 exists, this might be a _FINAL.ts file, keep it for now
-                                    if "_FINAL.ts" in file:
-                                        logger.info(f"Keeping final TS recording: {file_path}")
-                                    else:
-                                        # Orphaned TS file, can be cleaned up
-                                        file_size = os.path.getsize(file_path)
-                                        os.remove(file_path)
-                                        cleaned_count += 1
-                                        freed_space += file_size
-                                        logger.info(f"Cleaned up orphaned TS file: {file_path}")
-                                        
-                        except Exception as e:
-                            logger.error(f"Error processing TS file {file_path}: {e}")
-            
-            freed_mb = freed_space / (1024 * 1024)
-            logger.info(f"TS backup cleanup completed: {cleaned_count} files removed, {freed_mb:.2f} MB freed")
-            
-        except Exception as e:
-            logger.error(f"Error during TS backup cleanup: {e}", exc_info=True)
-    
-    async def _generate_thumbnail_from_mp4(self, stream_id: int, mp4_path: str):
-        """Generate thumbnail from MP4 file using thumbnail service"""
-        try:
-            # Import and use thumbnail service
-            from app.services.thumbnail_service import ThumbnailService
-            thumbnail_service = ThumbnailService()
-            
-            try:
-                # Use the comprehensive thumbnail generation method
-                thumbnail_path = await thumbnail_service.generate_thumbnail_from_mp4(stream_id, mp4_path)
-                
-                if thumbnail_path:
-                    # Log successful thumbnail generation
-                    self.activity_logger.log_process_monitoring(
-                        "recording",
-                        "THUMBNAIL_SUCCESS",
-                        f"Generated thumbnail: {thumbnail_path}"
-                    )
-                    logger.info(f"Successfully generated thumbnail for stream {stream_id}: {thumbnail_path}")
-                    return thumbnail_path
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
                 else:
-                    self.activity_logger.log_process_monitoring(
-                        "recording",
-                        "THUMBNAIL_FAILED",
-                        f"Failed to generate thumbnail for {mp4_path}"
-                    )
-                    logger.warning(f"Failed to generate thumbnail for stream {stream_id}")
-                    return None
-                        
-            finally:
-                # Always close the thumbnail service to free resources
-                if hasattr(thumbnail_service, 'close'):
-                    await thumbnail_service.close()
-                
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
+
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
         except Exception as e:
-            logger.error(f"Error generating thumbnail from MP4: {e}", exc_info=True)
-            self.activity_logger.log_process_monitoring(
-                "recording",
-                "THUMBNAIL_ERROR", 
-                f"Exception during thumbnail generation: {str(e)}"
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
             )
-            return None
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
 
-    async def _delayed_cleanup_on_manual_stop(self, output_path: str, delay: int = 120):
-        """Ensure cleanup happens when recording is manually stopped"""
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
+            db.commit()
+
+        return stream
+
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
+        """
         try:
-            await asyncio.sleep(delay)  # Wait for metadata generation to complete
-            
-            # Find the MP4 path
-            mp4_path = output_path
-            if output_path.endswith(".ts"):
-                mp4_path = output_path.replace(".ts", ".mp4")
-            
-            # Check if MP4 exists and is valid before cleanup
-            if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
-                logger.info(f"Manual stop cleanup: Validating MP4 before TS cleanup: {mp4_path}")
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
                 
-                # Extract streamer name for validation
-                path_parts = mp4_path.split(os.sep)
-                streamer_name = "unknown"
-                for part in path_parts:
-                    if part and not part.startswith("."):
-                        streamer_name = part
-                        break
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
                 
-                # Final validation
-                is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-                
-                if is_valid:
-                    await self._cleanup_temporary_files(mp4_path)
-                    logger.info(f"Manual stop cleanup completed for: {mp4_path}")
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
                 else:
-                    logger.warning(f"Manual stop cleanup skipped - MP4 validation failed: {mp4_path}")
-            else:
-                logger.warning(f"Manual stop cleanup skipped - MP4 does not exist or is empty: {mp4_path}")
-                
-        except Exception as e:
-            logger.error(f"Error during manual stop cleanup: {e}", exc_info=True)
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
 
-    async def _delayed_ts_cleanup(self, ts_path: str, mp4_path: str, streamer_name: str, delay: int = 10):
-        """Clean up TS file after a delay to ensure MP4 is fully written and stable"""
-        try:
-            logger.info(f"Waiting {delay} seconds before TS cleanup for {streamer_name}")
-            await asyncio.sleep(delay)
-            
-            # Final checks before deleting TS
-            if not os.path.exists(ts_path):
-                logger.debug(f"TS file already deleted: {ts_path}")
-                return
-                
-            if not os.path.exists(mp4_path):
-                logger.warning(f"MP4 file missing, keeping TS as backup: {mp4_path}")
-                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
-                                                       "TS kept as backup - MP4 file missing")
-                return
-                
-            # Validate MP4 one final time
-            is_valid = await self._validate_mp4_with_ffprobe(mp4_path, streamer_name)
-            if not is_valid:
-                logger.warning(f"MP4 validation failed during cleanup, keeping TS backup: {mp4_path}")
-                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
-                                                       "TS kept as backup - MP4 validation failed")
-                return
-                
-            # Check duration consistency
-            duration_result = await self._check_mp4_duration(mp4_path, ts_path, streamer_name)
-            if not duration_result["valid"]:
-                logger.warning(f"MP4 duration check failed, keeping TS backup: {duration_result['message']}")
-                self.activity_logger.log_file_operation("TS_KEEP_BACKUP", ts_path, True, 
-                                                       f"TS kept as backup - {duration_result['message']}")
-                return
-                
-            # All checks passed, safe to delete TS
-            logger.info(f"All validation checks passed, deleting TS file: {ts_path}")
-            try:
-                os.remove(ts_path)
-                self.activity_logger.log_file_operation("TS_CLEANUP_SUCCESS", ts_path, True, 
-                                                       "TS file deleted after successful validation")
-                logger.info(f"Successfully deleted TS backup file: {ts_path}")
-            except Exception as e:
-                logger.error(f"Failed to delete TS file: {e}")
-                self.activity_logger.log_file_operation("TS_CLEANUP_FAILED", ts_path, False, 
-                                                       f"Failed to delete TS file: {str(e)}")
-                
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
         except Exception as e:
-            logger.error(f"Error during delayed TS cleanup: {e}", exc_info=True)
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
+            )
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
+
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
+            db.commit()
+
+        return stream
+
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
+                else:
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
+
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
+            )
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
+
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
+            db.commit()
+
+        return stream
+
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
+                else:
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
+
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
+            )
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
+
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
+            db.commit()
+
+        return stream
+
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+
+    async def force_start_recording_with_api_check(
+        self, streamer_id: int, stream_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Intelligently start a recording by first checking if the streamer is actually online via API.
+        
+        This method will:
+        1. First check the Twitch API to see if the streamer is actually live
+        2. If they are live, start a normal force recording
+        3. If they are offline but user still wants to force record (for testing/special cases),
+           attempt an offline recording with appropriate warnings
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Optional stream data (if None, will be created based on API response)
+            
+        Returns:
+            bool: True if recording started successfully, False otherwise
+        """
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if not streamer:
+                    logger.error(f"Streamer not found: {streamer_id}")
+                    raise StreamerNotFoundError(f"Streamer not found: {streamer_id}")
+
+                # FIRST: Check if the streamer is actually live via Twitch API
+                logger.info(f"Checking Twitch API to see if {streamer.username} is actually live...")
+                stream_info = await self._get_stream_info_from_api(streamer, db)
+
+                if stream_info:
+                    # Streamer is actually live! Use the normal force recording method
+                    logger.info(f"API confirms {streamer.username} is live. Using normal force recording.")
+                    return await self.force_start_recording(streamer_id)
+                
+                # If we get here, the streamer appears to be offline according to the API
+                logger.warning(f"API indicates {streamer.username} is offline. Proceeding with offline force recording (this is unusual and may fail).")
+                
+                # If no stream data was provided, create default data for offline recording
+                if not stream_data:
+                    stream_data = self._create_stream_data(streamer, None)  # Pass None since they're offline
+
+                # Warn about potential issues with offline recording
+                logger.warning(f"Attempting to start recording for {streamer.username} while they appear offline. This may fail because:")
+                logger.warning("1. Streamlink may not be able to connect to a non-existent stream")
+                logger.warning("2. No actual video content may be available to record")
+                logger.warning("3. This should only be used for testing or very special circumstances")
+
+                # Update streamer status to "live" in our database (even though API says offline)
+                # This is necessary for our internal logic to work
+                self._update_streamer_status(streamer, stream_data, db)
+
+                # Find existing stream or create a new one
+                stream = await self._find_or_create_offline_stream(
+                    streamer_id, streamer, stream_data, db
+                )
+
+                # Create metadata entry if it doesn't exist
+                await self._ensure_stream_metadata(stream.id, db)
+
+                # Send WebSocket notification (even though it's an offline recording attempt)
+                await self._send_stream_online_notification(streamer, stream_data)
+
+                # Attempt to start the recording (this will likely fail since the stream is offline)
+                # Use force_mode=True to give it the best chance of working
+                recording_started = await self.start_recording(streamer_id, stream_data, force_mode=True)
+
+                if recording_started and streamer_id in self.active_recordings:
+                    self.active_recordings[streamer_id]["stream_id"] = stream.id
+                    self.active_recordings[streamer_id]["force_started"] = True
+                    self.active_recordings[streamer_id]["offline_recording"] = True  # Mark as offline recording
+                    
+                    logger.warning(f"Offline force recording started for {streamer.username} (stream_id: {stream.id}). This is unusual and may produce no content.")
+                    return True
+                else:
+                    logger.error(f"Failed to start offline recording for {streamer.username}. This is expected since they appear to be offline.")
+                    return False
+
+                return recording_started
+
+        except RecordingError:            # Re-raise specific domain exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Error force starting offline recording: {e}", exc_info=True)
+            return False
+
+    async def _find_or_create_stream(
+        self, streamer_id: int, streamer: Streamer, db
+    ) -> Stream:
+        """Find an existing stream or create a new one"""
+        # Find current stream
+        stream = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id, Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+        if not stream:            # Create stream entry if none exists
+            logger.info(f"Creating new stream record for {streamer.username}")
+            stream = Stream(
+                streamer_id=streamer_id,
+                twitch_stream_id=f"manual_{int(datetime.now().timestamp())}",
+                title=streamer.title or f"{streamer.username} Stream",
+                category_name=streamer.category_name,
+                language=streamer.language,
+                started_at=datetime.now(timezone.utc)
+                # 'status' is not a field in the Stream model - it uses is_live property based on ended_at
+            )
+            db.add(stream)
+            db.commit()
+            db.refresh(stream)
+
+            # Create stream event for the start
+            stream_event = StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                timestamp=stream.started_at,
+                title=stream.title,
+                category_name=stream.category_name,
+            )
+            db.add(stream_event)
+            db.commit()
+
+        return stream
+
+    def _prepare_stream_data(
+        self, streamer: Streamer, stream: Stream
+    ) -> Dict[str, Any]:
+        """Prepare stream data for recording"""
+        return {
+            "id": stream.twitch_stream_id,
+            "broadcaster_user_id": streamer.twitch_id,
+            "broadcaster_user_name": streamer.username,
+            "started_at": (
+                stream.started_at.isoformat()
+                if stream.started_at
+                else datetime.now().isoformat()
+            ),
+            "title": stream.title,
+            "category_name": stream.category_name,
+            "language": stream.language,
+        }
+
+    async def _generate_chapters_file_for_stream(self, stream_id: int, chapters_path: str, streamer_name: str):
+        """Generate FFmpeg chapters file from stream events."""
+        try:
+            logger.info(f"Generating chapters file for stream {stream_id}: {chapters_path}")
+            
+            # Get stream events from database
+            with next(get_db()) as db:
+                events = db.query(StreamEvent).filter(
+                    StreamEvent.stream_id == stream_id
+                ).order_by(StreamEvent.timestamp).all()
+            
+            if not events:
+                logger.info(f"No events found for stream {stream_id}, creating basic chapters file")
+                await self._create_basic_chapters_file(chapters_path, streamer_name)
+                return
+            
+            logger.info(f"Found {len(events)} events for stream {stream_id}")
+            
+            # Create FFmpeg chapters format
+            chapters_content = ";FFMETADATA1\n"
+            chapters_content += f"title={streamer_name} Stream\n"
+            chapters_content += f"encoder=StreamVault\n\n"
+            
+            # Process events to create chapters
+            for i, event in enumerate(events):
+                # Calculate timebase (FFmpeg uses milliseconds * 1000 for timebase)
+                timestamp_ms = int(event.timestamp.timestamp() * 1000)
+                timebase = timestamp_ms * 1000  # Convert to FFmpeg timebase
+                
+                chapters_content += "[CHAPTER]\n"
+                chapters_content += "TIMEBASE=1/1000000\n"  # Microseconds
+                chapters_content += f"START={timebase}\n"
+                
+                # Calculate end time (next event or add 30 seconds for last event)
+                if i + 1 < len(events):
+                    next_timestamp_ms = int(events[i + 1].timestamp.timestamp() * 1000)
+                    end_timebase = next_timestamp_ms * 1000
+                else:
+                    # For last event, add 30 seconds
+                    end_timebase = timebase + (30 * 1000 * 1000)  # 30 seconds in microseconds
+                
+                chapters_content += f"END={end_timebase}\n"
+                chapters_content += f"title={event.event_type}: {event.event_data.get('title', 'Event')}\n\n"
+            
+            # Write chapters file
+            with open(chapters_path, 'w', encoding='utf-8') as f:
+                f.write(chapters_content)
+            
+            logger.info(f"Successfully generated chapters file with {len(events)} chapters: {chapters_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate chapters file for stream {stream_id}: {e}")
+            # Fallback to basic chapters file
+            await self._create_basic_chapters_file(chapters_path, streamer_name)
+
+    async def _create_basic_chapters_file(self, chapters_path: str, streamer_name: str):
+        """Create a basic FFmpeg chapters file with minimal metadata."""
+        try:
+            logger.info(f"Creating basic chapters file: {chapters_path}")
+            
+            # Create basic FFmpeg metadata format
+            chapters_content = ";FFMETADATA1\n"
+            chapters_content += f"title={streamer_name} Stream\n"
+            chapters_content += f"encoder=StreamVault\n"
+            chapters_content += f"artist={streamer_name}\n"
+            chapters_content += f"date={datetime.now().strftime('%Y-%m-%d')}\n"
+            chapters_content += f"comment=Recorded by StreamVault\n\n"
+            
+            # Add one basic chapter for the entire stream
+            chapters_content += "[CHAPTER]\n"
+            chapters_content += "TIMEBASE=1/1000000\n"  # Microseconds
+            chapters_content += "START=0\n"
+            chapters_content += "END=9999999999\n"  # Large end time to cover entire stream
+            chapters_content += f"title={streamer_name} Stream Recording\n\n"
+            
+            # Write chapters file
+            with open(chapters_path, 'w', encoding='utf-8') as f:
+                f.write(chapters_content)
+            
+            logger.info(f"Successfully created basic chapters file: {chapters_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create basic chapters file: {e}")
+            # Create empty file as absolute fallback
+            try:
+                with open(chapters_path, 'w', encoding='utf-8') as f:
+                    f.write(";FFMETADATA1\n")
+                logger.info(f"Created minimal chapters file as fallback: {chapters_path}")
+            except Exception as fallback_e:
+                logger.error(f"Even fallback chapters file creation failed: {fallback_e}")
 
