@@ -8,7 +8,9 @@ quality settings, and other parameters to ensure reliable stream capture.
 
 import os
 import logging
-from typing import List, Optional, Dict, Any
+import subprocess
+import json
+from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
 from app.models import GlobalSettings
@@ -18,6 +20,74 @@ from app.services.logging_service import logging_service
 # Get the logger
 logger = logging.getLogger(__name__)
 
+def get_streamlink_version() -> str:
+    """
+    Get the installed version of Streamlink.
+    
+    Returns:
+        String containing the version of Streamlink
+    """
+    try:
+        result = subprocess.run(
+            ["streamlink", "--version"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        # Extract version number from the output
+        version_line = result.stdout.strip()
+        # Usually outputs something like "streamlink 5.5.1"
+        if version_line:
+            parts = version_line.split()
+            if len(parts) >= 2:
+                return parts[1]  # Return just the version number
+        return version_line
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get Streamlink version: {e}")
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Error getting Streamlink version: {e}")
+        return "Error"
+
+def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Get information about a stream using Streamlink.
+    
+    Args:
+        streamer_name: The streamer's username
+        proxy_settings: Optional dictionary containing "http" and/or "https" proxy URLs
+        
+    Returns:
+        Tuple of (success: bool, info: dict)
+        where info contains stream details if successful
+    """
+    cmd = ["streamlink", "--json", f"twitch.tv/{streamer_name}"]
+    
+    # Add proxy settings if provided
+    if proxy_settings:
+        if "http" in proxy_settings and proxy_settings["http"].strip():
+            cmd.extend(["--http-proxy", proxy_settings["http"].strip()])
+        if "https" in proxy_settings and proxy_settings["https"].strip():
+            cmd.extend(["--https-proxy", proxy_settings["https"].strip()])
+    
+    try:
+        logger.debug(f"Running stream info command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Parse the JSON output
+        stream_info = json.loads(result.stdout)
+        return True, stream_info
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get stream info for {streamer_name}: {e}")
+        logger.debug(f"Command output: {e.stdout}")
+        logger.debug(f"Command error: {e.stderr}")
+        return False, {"error": str(e), "stderr": e.stderr if hasattr(e, 'stderr') else "No error output"}
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON output from Streamlink: {e}")
+        return False, {"error": f"JSON parse error: {e}", "raw_output": result.stdout if 'result' in locals() else "No output"}
+    except Exception as e:
+        logger.error(f"Unexpected error getting stream info: {e}")
+        return False, {"error": str(e)}
 
 def get_streamlink_command(
     streamer_name: str,
