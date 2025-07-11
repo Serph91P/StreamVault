@@ -652,10 +652,23 @@ class RecordingService:
         from app.utils.path_utils import generate_filename
         return generate_filename(streamer, stream_data, template)
 
-    async def _start_streamlink(self, streamer_name: str, quality: str, output_path: str):
+    async def _start_streamlink(self, streamer_name: str, quality: str, output_path: str, force_mode: bool = False):
         """Start a Streamlink process to record a stream."""
-        from app.utils.streamlink_utils import get_streamlink_command
-        command = get_streamlink_command(streamer_name, quality, output_path)
+        from app.utils.streamlink_utils import get_streamlink_command, get_proxy_settings_from_db
+        
+        # Get proxy settings from database
+        proxy_settings = get_proxy_settings_from_db()
+        
+        # Generate streamlink command with all parameters
+        command = get_streamlink_command(
+            streamer_name=streamer_name,
+            quality=quality,
+            output_path=output_path,
+            proxy_settings=proxy_settings if proxy_settings else None,
+            force_mode=force_mode
+        )
+        
+        # Start the process
         process = await asyncio.create_subprocess_exec(*command)
         return process
 
