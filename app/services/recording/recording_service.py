@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, List, Tuple, Set
 
 # Import database models
-from app.models import Stream, Recording, SystemConfiguration
+from app.models import Stream, Recording, SystemConfig
 from app.database import get_db
 
 # Import manager modules
