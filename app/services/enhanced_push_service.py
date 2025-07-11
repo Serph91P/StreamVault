@@ -3,6 +3,8 @@ Enhanced Push Service using a more modern implementation
 """
 import json
 import logging
+import urllib.parse
+import http.client
 from typing import Dict, Any, Optional, Union
 from app.config.settings import settings
 from app.services.webpush_service import ModernWebPushService, WebPushException
