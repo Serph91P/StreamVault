@@ -15,6 +15,7 @@ logger = logging.getLogger("streamvault")
 
 # Use a global variable to store the push service
 _enhanced_push_service = None
+# We'll use lazy imports to avoid circular dependencies
 
 async def send_push_notification(
     title: str = "",
@@ -52,7 +53,9 @@ async def send_push_notification(
         global _enhanced_push_service
         if _enhanced_push_service is None:
             try:
-                from app.services.enhanced_push_service import enhanced_push_service
+                # Lazy import to avoid circular dependencies
+                from importlib import import_module
+                enhanced_push_service = import_module("app.services.enhanced_push_service").enhanced_push_service
                 _enhanced_push_service = enhanced_push_service
                 logger.debug("Successfully loaded enhanced_push_service")
             except ImportError as e:
