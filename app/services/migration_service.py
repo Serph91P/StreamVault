@@ -102,6 +102,11 @@ class MigrationService:
                 "function": MigrationService._run_system_config_migration
             },
             {
+                "name": "20250625_add_recording_model",
+                "description": "Create recordings table for the new modular recording service",
+                "function": MigrationService._run_recording_model_migration
+            },
+            {
                 "name": "20250702_setup_category_images",
                 "description": "Setup category image caching system and preload existing categories",
                 "function": MigrationService._run_category_images_migration
@@ -345,6 +350,25 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Category images migration failed: {e}")
             raise
+
+    @staticmethod
+    def _run_recording_model_migration():
+        """Create recordings table for the new modular recording service"""
+        try:
+            # Import our migration module
+            migration_path = os.path.join(settings.BASE_DIR, "migrations", "20250625_add_recording_model.py")
+            spec = importlib.util.spec_from_file_location("migration_20250625", migration_path)
+            migration_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(migration_module)
+            
+            # Execute the upgrade function
+            migration_module.upgrade(engine)
+            
+            logger.info("✅ Successfully created recordings table")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to create recordings table: {e}")
+            return False
 
     # LEGACY METHODS - Keep for backward compatibility
     
