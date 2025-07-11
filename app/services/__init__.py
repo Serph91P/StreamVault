@@ -6,6 +6,16 @@ This module exports all available services in the StreamVault application.
 
 # Import the new modular RecordingService implementation to make it available at the old import path
 from app.services.recording.recording_service import RecordingService
+from app.services.recording.config_manager import ConfigManager
+from app.services.recording.process_manager import ProcessManager
+from app.services.recording.recording_logger import RecordingLogger
+from app.services.recording.file_operations import find_and_validate_mp4, intelligent_ts_cleanup
+from app.services.recording.notification_manager import NotificationManager
+from app.services.recording.stream_info_manager import StreamInfoManager
+from app.services.recording.exceptions import (
+    RecordingError, ProcessError, ConfigurationError, 
+    StreamUnavailableError, FileOperationError
+)
 
 # Re-export other services to maintain consistent imports
 from app.services.auth_service import AuthService
