@@ -74,16 +74,51 @@ async def remux_file(
             os.remove(output_path)
             
         # Build comprehensive ffmpeg command with robust error handling
-        cmd = [
-            "ffmpeg",
-            "-i", input_path,
-            "-i", metadata_file,
-            "-map_metadata", "1",
-            "-c", "copy",
-            "-bsf:a", "aac_adtstoasc",
-            "-movflags", "faststart",
-            output_path
-        ]
+        if metadata_file and os.path.exists(metadata_file):
+            # Check if this is a chapters file (FFmpeg metadata format)
+            is_chapters_file = False
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    if content.startswith(";FFMETADATA1"):
+                        is_chapters_file = True
+            except Exception as e:
+                logger.warning(f"Could not read metadata file {metadata_file}: {e}")
+            
+            if is_chapters_file:
+                # FFmpeg chapters/metadata file
+                cmd = [
+                    "ffmpeg",
+                    "-i", input_path,
+                    "-i", metadata_file,
+                    "-map_metadata", "1",
+                    "-map_chapters", "1",  # Include chapters
+                    "-c", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    "-movflags", "faststart"
+                ]
+                logger.info(f"Using FFmpeg chapters file: {metadata_file}")
+            else:
+                # Regular metadata file
+                cmd = [
+                    "ffmpeg",
+                    "-i", input_path,
+                    "-i", metadata_file,
+                    "-map_metadata", "1",
+                    "-c", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    "-movflags", "faststart"
+                ]
+                logger.info(f"Using regular metadata file: {metadata_file}")
+        else:
+            # Without metadata file - simple remux
+            cmd = [
+                "ffmpeg",
+                "-i", input_path,
+                "-c", "copy",
+                "-bsf:a", "aac_adtstoasc",
+                "-movflags", "faststart"
+            ]
         
         # Overwrite if specified
         if overwrite or empty_file:
