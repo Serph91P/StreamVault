@@ -6,12 +6,25 @@ This module is responsible for sending various notifications about recording sta
 import logging
 import asyncio
 from typing import Dict, Optional, Any, List
+import importlib.util
+import os
+import sys
 
-# Import existing utilities if available
-from app.utils.notification_utils import send_push_notification
-from app.models import Stream
-
+# Try to import notification utilities
 logger = logging.getLogger("streamvault")
+
+# Check if notification_utils module is available
+try:
+    from app.utils.notification_utils import send_push_notification
+    logger.info("Successfully imported notification_utils")
+except ImportError as e:
+    logger.warning(f"Could not import notification_utils: {e}")
+    # Define a fallback notification function
+    async def send_push_notification(title="", body="", data=None, **kwargs):
+        logger.info(f"[FALLBACK] Would send notification: {title} - {body}")
+        return {"sent": 0, "failed": 0, "skipped": 1, "fallback": True}
+
+from app.models import Stream
 
 class NotificationManager:
     """Manager for sending notifications about recordings"""
