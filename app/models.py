@@ -6,6 +6,21 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
+class Recording(Base):
+    __tablename__ = "recordings"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, nullable=False)  # "recording", "completed", "error"
+    duration = Column(Integer, nullable=True)  # Duration in seconds
+    path = Column(String, nullable=True)  # Path to the recording file
+    
+    # Relationship to Stream
+    stream = relationship("Stream", backref="recordings")
+
 class Streamer(Base):
     __tablename__ = "streamers"
     __table_args__ = {'extend_existing': True}
