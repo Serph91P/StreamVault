@@ -18,6 +18,26 @@ class StreamNotFoundError(RecordingError):
     pass
 
 
+class ProcessError(RecordingError):
+    """Raised when there's an issue with a recording process"""
+    pass
+
+
+class ConfigurationError(RecordingError):
+    """Raised when there's an issue with configuration"""
+    pass
+
+
+class StreamUnavailableError(RecordingError):
+    """Raised when a stream is unavailable"""
+    pass
+
+
+class FileOperationError(RecordingError):
+    """Raised when there's an issue with file operations"""
+    pass
+
+
 class RecordingAlreadyActiveError(RecordingError):
     """Raised when attempting to start a recording that's already active"""
     pass
