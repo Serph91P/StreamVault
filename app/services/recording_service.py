@@ -10,6 +10,7 @@ Note: This is now a compatibility wrapper that forwards to the new modular imple
 """
 
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List, Tuple, Set
 
 # Import from the new location
