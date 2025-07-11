@@ -659,7 +659,7 @@ class MetadataService:
         db: Optional[Session] = None
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
-        Now uses MP4Box for MP4 files and FFmpeg for other formats.
+        Uses FFmpeg for all video formats.
         
         Args:
             video_path: Pfad zur Videodatei
@@ -693,7 +693,7 @@ class MetadataService:
             # For all video files, use FFmpeg to extract thumbnails
             logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
             
-            # Fallback to FFmpeg for non-MP4 files or if MP4Box fails
+            # Use FFmpeg for all video files
             logger.info(f"Using FFmpeg for thumbnail extraction: {video_path}")
             
             # Check if the file has video streams first
@@ -2018,7 +2018,7 @@ class MetadataService:
         return text.replace('=', '\\=').replace(';', '\\;').replace('#', '\\#').replace('\\', '\\\\')
     
     def _format_xml_time(self, seconds: float) -> str:
-        """Formatiert Sekunden in das XML-Format für MP4Box/Matroska: HH:MM:SS.nnnnnnnnn.
+        """Formatiert Sekunden in das XML-Format für FFmpeg/Matroska: HH:MM:SS.nnnnnnnnn.
         
         Returns:
             str: Formatierter Zeitstempel
