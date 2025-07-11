@@ -10,12 +10,13 @@ from app.services.logging_service import logging_service
 
 recording_logger = logging.getLogger("streamvault.recording")
 
-class RecordingActivityLogger:
+class RecordingLogger:
     """Detailed logging for all recording activities"""
     
-    def __init__(self):
+    def __init__(self, config_manager=None):
         self.session_id = str(uuid.uuid4())[:8]
         self.logger = logging_service.recording_logger
+        self.config_manager = config_manager
     
     def log_recording_start(self, streamer_id: int, streamer_name: str, quality: str, output_path: str):
         """Log the start of a recording session"""
