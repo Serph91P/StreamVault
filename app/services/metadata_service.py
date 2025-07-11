@@ -691,21 +691,7 @@ class MetadataService:
                 return str(thumbnail_path)
             
             # For all video files, use FFmpeg to extract thumbnails
-            if video_path.lower().endswith(('.mp4', '.ts', '.mkv', '.avi')):
-                logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
-                
-                # FFmpeg will be used below for all video formats
-                        
-                        # Update metadata if provided
-                        if stream_id and db:
-                            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                            if metadata:
-                                metadata.thumbnail_path = str(thumbnail_path)
-                                db.commit()
-                        
-                        return str(thumbnail_path)
-                    else:
-                        logger.warning(f"MP4Box thumbnail extraction failed, falling back to FFmpeg")
+            logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
             
             # Fallback to FFmpeg for non-MP4 files or if MP4Box fails
             logger.info(f"Using FFmpeg for thumbnail extraction: {video_path}")
