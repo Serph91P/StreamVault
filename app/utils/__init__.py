@@ -1,2 +1,2 @@
 # Utils package for StreamVault
-from . import notification_utils
+# Do not import modules here to avoid circular imports
