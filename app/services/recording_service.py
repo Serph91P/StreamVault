@@ -37,8 +37,6 @@ from app.models import (
     Stream,
     StreamEvent,
     StreamMetadata,
-    Recording,
-    RecordingVideo,
 )
 from app.config.settings import settings
 from app.services.metadata_service import MetadataService
