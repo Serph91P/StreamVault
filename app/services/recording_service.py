@@ -718,8 +718,56 @@ class RecordingService:
             # Give a short delay for any final file operations
             await asyncio.sleep(5)
             
-            # Start intelligent cleanup now that Streamlink is done
-            if os.path.exists(output_path):
+            # Only proceed if the output TS file exists and has content
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                # Define the MP4 output path
+                mp4_path = output_path.replace('.ts', '.mp4')
+                
+                # Import the function here to avoid circular imports
+                from app.utils.ffmpeg_utils import convert_ts_to_mp4
+                
+                # Perform the TS to MP4 conversion
+                logger.info(f"Converting TS to MP4: {output_path} -> {mp4_path}")
+                conversion_result = await convert_ts_to_mp4(
+                    input_path=output_path,
+                    output_path=mp4_path,
+                    overwrite=True,
+                    logging_service=logging_service
+                )
+                
+                if conversion_result.get("success", False):
+                    logger.info(f"Successfully converted {output_path} to {mp4_path}")
+                    
+                    # Get the stream ID from the file path if possible
+                    try:
+                        # Extract stream ID from the file path if it's in the expected format
+                        file_name = os.path.basename(output_path)
+                        stream_id = None
+                        
+                        # Try to extract stream ID from database based on the file path
+                        async with AsyncSessionLocal() as session:
+                            stream = await session.execute(
+                                select(Stream).filter(Stream.recording_path == output_path)
+                            )
+                            stream = stream.scalars().first()
+                            if stream:
+                                stream_id = stream.id
+                        
+                        # If we have a stream ID, trigger metadata generation
+                        if stream_id:
+                            # Set a small delay before metadata generation to ensure file is ready
+                            asyncio.create_task(self._delayed_metadata_generation(
+                                stream_id=stream_id, 
+                                output_path=mp4_path,
+                                force_started=True,
+                                delay=10  # Short delay
+                            ))
+                    except Exception as e:
+                        logger.error(f"Error extracting stream ID for metadata generation: {e}", exc_info=True)
+                else:
+                    logger.error(f"Failed to convert {output_path} to {mp4_path}: {conversion_result.get('stderr', 'Unknown error')}")
+                    
+                # Start intelligent cleanup now that Streamlink is done
                 logger.info(f"Streamlink finished, starting immediate intelligent cleanup for {output_path}")
                 # Use a shorter timeout since we know Streamlink is done
                 asyncio.create_task(self._intelligent_ts_cleanup(output_path, max_wait_time=600))  # 10 minutes max
