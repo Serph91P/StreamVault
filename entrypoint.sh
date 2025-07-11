@@ -78,6 +78,11 @@ log_msg "Category images directory permissions set"
 
 if [ "$ENVIRONMENT" = "development" ]; then
     log_msg "Running database migrations in development mode..."
+    
+    # Debug Python path and modules
+    log_msg "Python module structure debug:"
+    python -c "import sys, os; print(f'Python Path: {sys.path}'); print(f'App utils exists: {os.path.exists(\"/app/app/utils\")}'); print(f'notification_utils.py exists: {os.path.exists(\"/app/app/utils/notification_utils.py\")}'); print(f'Files in utils: {os.listdir(\"/app/app/utils\") if os.path.exists(\"/app/app/utils\") else \"Directory not found\"}');" || log_msg "Debug command failed"
+    
     python -c "from app.services.migration_service import MigrationService; MigrationService.run_safe_migrations()"
     migration_status=$?
     if [ $migration_status -ne 0 ]; then
