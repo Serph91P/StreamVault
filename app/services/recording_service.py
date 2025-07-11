@@ -1,3 +1,12 @@
+"""
+StreamVault Recording Service
+
+This service handles the complete recording lifecycle for Twitch streams,
+including process management, file conversion, and metadata generation.
+
+Last updated: 2025-07-11 - Fixed metadata service integration
+"""
+
 import os
 import asyncio
 import logging
@@ -1123,7 +1132,7 @@ class RecordingService:
         except Exception as e:
             logger.error(f"Error force starting offline recording: {e}", exc_info=True)
             return False
-            
+
     async def _get_stream_info_from_api(
         self, streamer: Streamer, db
     ) -> Optional[Dict[str, Any]]:
