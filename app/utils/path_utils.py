@@ -129,7 +129,8 @@ def generate_filename(
     streamer_name = sanitize(streamer.username)
 
     # Get episode number (count of streams in current month)
-    episode = get_episode_number(streamer.id, now)
+    episode_str = get_episode_number(streamer.id, now)
+    episode_int = int(episode_str)  # Convert to int for formatting
 
     # Create a dictionary of replaceable values
     values = {
@@ -147,7 +148,7 @@ def generate_filename(
         "datetime": now.strftime("%Y-%m-%d_%H-%M-%S"),
         "id": stream_data.get("id", ""),
         "season": f"S{now.year}{now.month:02d}",  # Season without hyphen
-        "episode": episode,  # Episode number without prefix, templates already include E
+        "episode": episode_int,  # Episode number as integer for formatting
     }
 
     # Check if template is a preset name
