@@ -25,7 +25,7 @@ This caused Python to treat `logging_service` as a local variable that needed to
 3. **Preserved global import**: The global import `from app.services.logging_service import logging_service` remains at the top of the file and is used correctly throughout the method.
 
 ## Files Modified
-- `app/services/recording_service.py`: Fixed `_remux_to_mp4_with_logging` method by removing dead code and duplicate imports.
+- `app/services/recording/recording_service.py`: Fixed `_remux_to_mp4_with_logging` method by removing dead code and duplicate imports.
 
 ## Testing
 - Python syntax compilation: ✅ No syntax errors

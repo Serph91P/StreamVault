@@ -22,7 +22,7 @@ StreamVault has been successfully migrated to use GPAC/MP4Box for metadata proce
 - `app/utils/ffmpeg_utils.py` - MP4Box integration
 - `app/utils/file_utils.py` - New MP4Box wrapper functions
 - `app/services/metadata_service.py` - MP4Box-based metadata processing
-- `app/services/recording_service.py` - Improved remux pipeline
+- `app/services/recording/recording_service.py` - Improved remux pipeline
 
 ## Functionality
 

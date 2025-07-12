@@ -97,7 +97,7 @@ class StreamerService:
         # Try to get recording status - fail gracefully if not available
         recording_streamer_ids = set()
         try:
-            from app.services.recording_service import RecordingService
+            from app.services.recording.recording_service import RecordingService
             recording_service = RecordingService()
             active_recordings = await recording_service.get_active_recordings()
             recording_streamer_ids = {info['streamer_id'] for info in active_recordings}
@@ -109,7 +109,7 @@ class StreamerService:
             # Check if recording is enabled for this streamer
             recording_enabled = False
             try:
-                from app.services.recording_service import RecordingService
+                from app.services.recording.recording_service import RecordingService
                 recording_service = RecordingService()
                 recording_enabled = recording_service.config_manager.is_recording_enabled(streamer.id)
             except Exception as e:

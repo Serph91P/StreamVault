@@ -9,7 +9,7 @@ from sqlalchemy import desc, asc, func
 
 from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSettings, FavoriteCategory
 from app.database import SessionLocal
-from app.services.recording_service import ConfigManager
+from app.services.recording.recording_service import ConfigManager
 from app.schemas.recording import CleanupPolicyType
 
 logger = logging.getLogger("streamvault")

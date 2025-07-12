@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Stream, Streamer, StreamEvent, StreamMetadata, RecordingSettings, PushSubscription
-from app.services.recording_service import RecordingService
+from app.services.recording.recording_service import RecordingService
 from app.services.metadata_service import MetadataService
 from app.services.enhanced_push_service import EnhancedPushService
 from app.services.media_server_structure_service import MediaServerStructureService

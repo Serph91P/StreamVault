@@ -3,7 +3,7 @@ from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.services.recording_service import RecordingService, FILENAME_PRESETS
+from app.services.recording.recording_service import RecordingService, FILENAME_PRESETS
 from app.services.logging_service import logging_service
 from sqlalchemy.orm import Session, joinedload
 import logging

@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
-from app.services.recording_service import RecordingService
+from app.services.recording.recording_service import RecordingService
 from app.models import (
     Streamer, 
     Stream, 

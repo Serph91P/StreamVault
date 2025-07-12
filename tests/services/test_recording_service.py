@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 # Now import app modules after setting env vars
 from app.database import SessionLocal, Base, engine
 from app.models import Stream, Streamer
-from app.services.recording_service import RecordingService
+from app.services.recording.recording_service import RecordingService
 import os
 import tempfile
 import shutil
@@ -109,9 +109,9 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
             self.recording_service.config_manager.invalidate_cache()
 
 
-    @patch('app.services.recording_service.RecordingService._generate_stream_metadata', new_callable=AsyncMock)
-    @patch('app.services.recording_service.RecordingService._ensure_stream_ended', new_callable=AsyncMock)
-    @patch('app.services.recording_service.RecordingService._find_and_validate_mp4', new_callable=AsyncMock)
+    @patch('app.services.recording.recording_service.RecordingService._generate_stream_metadata', new_callable=AsyncMock)
+    @patch('app.services.recording.recording_service.RecordingService._ensure_stream_ended', new_callable=AsyncMock)
+    @patch('app.services.recording.recording_service.RecordingService._find_and_validate_mp4', new_callable=AsyncMock)
     def test_updates_stream_recording_path(self, mock_find_mp4, mock_ensure_ended, mock_generate_metadata):
         # Configure mocks
         mock_find_mp4.return_value = self.mock_mp4_path
@@ -159,8 +159,8 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
                 # Clean up temporary directory after tests
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
             
-            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
-            @patch('app.services.recording_service.os.remove')
+            @patch('app.services.recording.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording.recording_service.os.remove')
             async def test_successful_remux_removes_original_ts(self, mock_remove, mock_remux_file):
                 # Setup mock for successful remux
                 mock_remux_file.return_value = {"success": True, "exit_code": 0, "stderr": ""}
@@ -182,8 +182,8 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
                 mock_remux_file.assert_called_once()
                 mock_remove.assert_called_once_with(self.test_ts_path)
             
-            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
-            @patch('app.services.recording_service.os.remove')
+            @patch('app.services.recording.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording.recording_service.os.remove')
             async def test_truncated_mp4_preserves_original_ts(self, mock_remove, mock_remux_file):
                 # Setup mock for successful remux but small output file
                 mock_remux_file.return_value = {"success": True, "exit_code": 0, "stderr": ""}
@@ -205,8 +205,8 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
                 mock_remux_file.assert_called_once()
                 mock_remove.assert_not_called()
             
-            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
-            @patch('app.services.recording_service.os.remove')
+            @patch('app.services.recording.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording.recording_service.os.remove')
             async def test_failed_remux_preserves_original_ts(self, mock_remove, mock_remux_file):
                 # Setup mock for failed remux
                 mock_remux_file.return_value = {
@@ -227,8 +227,8 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
                 mock_remux_file.assert_called_once()
                 mock_remove.assert_not_called()
             
-            @patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
-            @patch('app.services.recording_service.logger.error')
+            @patch('app.services.recording.recording_service.RecordingService.remux_file', new_callable=AsyncMock)
+            @patch('app.services.recording.recording_service.logger.error')
             async def test_exception_during_remux_handled_properly(self, mock_logger, mock_remux_file):
                 # Setup mock to raise exception
                 mock_remux_file.side_effect = Exception("Unexpected error during remux")
@@ -246,13 +246,13 @@ class TestRecordingServiceDelayedMetadata(unittest.TestCase):
                 mock_logger.assert_called_once()
                 self.assertIn("Error during remux", mock_logger.call_args[0][0])
             
-            @patch('app.services.recording_service.RecordingService.subprocess_manager.terminate_process', new_callable=AsyncMock)
+            @patch('app.services.recording.recording_service.RecordingService.subprocess_manager.terminate_process', new_callable=AsyncMock)
             async def test_subprocess_cleanup_after_remux(self, mock_terminate):
                 # Setup mock for terminate_process
                 mock_terminate.return_value = True
                 
                 # Patch remux_file to return success
-                with patch('app.services.recording_service.RecordingService.remux_file', new_callable=AsyncMock) as mock_remux:
+                with patch('app.services.recording.recording_service.RecordingService.remux_file', new_callable=AsyncMock) as mock_remux:
                     mock_remux.return_value = {"success": True, "exit_code": 0, "stderr": ""}
                     
                     # Create MP4 file with reasonable size
