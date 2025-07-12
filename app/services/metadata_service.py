@@ -48,10 +48,12 @@ class MetadataService:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
+                    logger.error(f"Stream {stream_id} not found")
                     return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
+                    logger.error(f"Streamer {stream.streamer_id} not found")
                     return False
                 
                 base_path_obj = Path(base_path)
@@ -70,13 +72,27 @@ class MetadataService:
                 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                # Log any errors but continue
+                # Count successes and log errors
+                successes = 0
                 for i, result in enumerate(results):
                     if isinstance(result, Exception):
-                        logger.error(f"Metadata task {i} failed: {result}")
+                        task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
+                        logger.error(f"{task_names[i]} failed: {result}")
+                    elif result is True:
+                        successes += 1
+                    else:
+                        # If result is not True and not an exception, it might be None or False
+                        logger.warning(f"Task {i} returned unexpected result: {result}")
                 
-                return True
+                # Return True only if at least one task succeeded
+                success = successes > 0
+                if success:
+                    logger.info(f"Generated metadata for stream {stream_id}: {successes}/{len(tasks)} tasks succeeded")
+                else:
+                    logger.error(f"All metadata generation tasks failed for stream {stream_id}")
                 
+                return success
+            
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
             return False
@@ -1819,7 +1835,7 @@ class MetadataService:
             
             # Delete temporary metadata file
             if os.path.exists(str(meta_path)):
-                os.remove(str(meta_path))
+                               os.remove(str(meta_path))
                 logger.debug(f"Deleted temporary metadata file: {meta_path}")
             
             # Update database
@@ -2122,68 +2138,3 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error getting chapters for FFmpeg: {e}")
             return None
-        
-async def create_ffmpeg_chapters_file(
-    chapters: list, 
-    output_path: str, 
-    title: Optional[str] = None,
-    artist: Optional[str] = None,
-    date: Optional[str] = None,
-    overwrite: bool = False
-) -> bool:
-    """
-    Create an FFmpeg-compatible chapters metadata file.
-    
-    Args:
-        chapters: List of chapter dictionaries with start_time, end_time, and title
-        output_path: Path to write the chapters metadata file
-        title: Optional video title
-        artist: Optional artist/creator name
-        date: Optional date in YYYY-MM-DD format
-        overwrite: Whether to overwrite an existing file
-        
-    Returns:
-        True on success, False on error
-    """
-    try:
-        if os.path.exists(output_path) and not overwrite:
-            logger.warning(f"Chapters file already exists: {output_path}")
-            return False
-            
-        # Create the directory if it doesn't exist
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            
-        with open(output_path, 'w', encoding='utf-8') as f:
-            # FFmpeg metadata header
-            f.write(";FFMETADATA1\n")
-            
-            # Global metadata
-            if title:
-                f.write(f"title={title}\n")
-            if artist:
-                f.write(f"artist={artist}\n")
-            if date:
-                f.write(f"date={date}\n")
-                f.write(f"year={date.split('-')[0] if '-' in date else date}\n")
-                f.write(f"creation_time={date}\n")
-                
-            # Chapter information
-            if chapters:
-                for chapter in chapters:
-                    f.write("\n[CHAPTER]\n")
-                    f.write("TIMEBASE=1/1000\n")
-                    # Convert times to milliseconds
-                    start_ms = int(float(chapter['start_time']) * 1000)
-                    end_ms = int(float(chapter['end_time']) * 1000)
-                    f.write(f"START={start_ms}\n")
-                    f.write(f"END={end_ms}\n")
-                    # Escape special characters in chapter title
-                    chapter_title = chapter.get('title', 'Chapter').replace('=', '\\=')
-                    f.write(f"title={chapter_title}\n")
-                    
-        logger.info(f"Created FFmpeg chapters file with {len(chapters)} chapters: {output_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Error creating chapters file: {e}", exc_info=True)
-        return False
-
