@@ -4,9 +4,9 @@ Main recording service coordinator.
 This module coordinates recording activities triggered by Twitch EventSub webhooks.
 The workflow is: Webhook → Start Recording → Post-processing with existing utils.
 """
-import os
-import asyncio
 import logging
+import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
@@ -26,6 +26,10 @@ from app.services.recording.exceptions import (
     RecordingError, ProcessError, ConfigurationError, 
     StreamUnavailableError, FileOperationError
 )
+
+# Import utils for filename generation
+from app.utils.path_utils import generate_filename
+from app.utils.file_utils import sanitize_filename
 
 logger = logging.getLogger("streamvault")
 
@@ -61,214 +65,6 @@ class RecordingService:
         """Ensure we have a valid database session"""
         if not self.db:
             self.db = next(get_db())
-    
-    async def start_recording_for_stream(self, stream: Stream) -> bool:
-        """Start recording for a specific stream (called by webhook handler)
-        
-        Args:
-            stream: Stream model object (populated by webhook)
-            
-        Returns:
-            True if recording started successfully, False otherwise
-        """
-        try:
-            # Check if already recording this stream
-            if stream.id in self.active_recordings:
-                logger.warning(f"Stream {stream.streamer.username} is already being recorded")
-                return False
-            
-            # Check concurrent recording limits
-            current_recordings = len([t for t in self.recording_tasks.values() if not t.done()])
-            if current_recordings >= self.max_concurrent_recordings:
-                logger.warning(f"Maximum concurrent recordings reached ({self.max_concurrent_recordings}), cannot start recording for {stream.streamer.username}")
-                return False
-            
-            # Start recording task
-            task = asyncio.create_task(self.record_stream(stream))
-            self.recording_tasks[stream.id] = task
-            
-            logger.info(f"Started recording task for stream {stream.streamer.username}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error starting recording for stream {stream.streamer.username}: {e}", exc_info=True)
-            return False
-    
-    async def record_stream(self, stream: Stream) -> None:
-        """Record a specific stream with complete post-processing workflow
-        
-        Args:
-            stream: Stream model object (populated by webhook)
-        """
-        recording_id = None
-        ts_output_path = None
-        start_time = datetime.now()
-        success = False
-        
-        try:
-            # Ensure we have a database session
-            self._ensure_db_session()
-            
-            logger.info(f"Starting recording for {stream.streamer.username}")
-            
-            # Get quality setting
-            quality = self.stream_info_manager.get_preferred_quality()
-            
-            # Generate TS output path (simple timestamp-based for now)
-            # Post-processing will handle the final naming using path_utils
-            ts_filename = f"{stream.streamer.username}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.ts"
-            streamer_dir = Path(self.recordings_directory) / stream.streamer.username
-            streamer_dir.mkdir(parents=True, exist_ok=True)
-            ts_output_path = str(streamer_dir / ts_filename)
-            
-            # Create recording record in database
-            recording = Recording(
-                stream_id=stream.id,
-                start_time=start_time,
-                status="recording",
-                path=ts_output_path
-            )
-            
-            self.db.add(recording)
-            self.db.commit()
-            recording_id = recording.id
-            
-            # Get stream metadata for notifications
-            metadata = await self.stream_info_manager.get_stream_metadata(stream)
-            
-            # Start streamlink recording process
-            logger.info(f"Starting streamlink recording for {stream.streamer.username} at quality {quality}")
-            logger.info(f"TS output path: {ts_output_path}")
-            
-            process = await self.process_manager.start_recording_process(
-                stream=stream,
-                output_path=ts_output_path,
-                quality=quality
-            )
-            
-            # Check if process was created successfully
-            if not process:
-                logger.error(f"Failed to start recording process for {stream.streamer.username}")
-                await self._update_recording_status(recording_id, "error", ts_output_path, 0)
-                return
-            
-            # Send start notification
-            await self.notification_manager.notify_recording_started(stream, metadata)
-            
-            # Add to active recordings
-            self.active_recordings[stream.id] = {
-                'process': process,
-                'start_time': start_time,
-                'ts_output_path': ts_output_path,
-                'recording_id': recording_id
-            }
-            
-            # Monitor the recording
-            exit_code = await self.process_manager.monitor_process(process)
-            
-            # Process completed, handle post-processing
-            duration_seconds = int((datetime.now() - start_time).total_seconds())
-            
-            if exit_code == 0 and os.path.exists(ts_output_path) and os.path.getsize(ts_output_path) > 1024:
-                logger.info(f"Recording for {stream.streamer.username} completed successfully (duration: {duration_seconds}s)")
-                
-                # Run complete post-processing workflow using existing utils
-                try:
-                    logger.info(f"Starting post-processing for {stream.streamer.username}")
-                    processing_results = await self.post_processing_manager.process_completed_recording(
-                        stream_id=stream.id,
-                        ts_path=ts_output_path
-                    )
-                    
-                    if processing_results['success']:
-                        success = True
-                        mp4_path = processing_results['mp4_path']
-                        # Update database with final MP4 path
-                        await self._update_recording_status(recording_id, "completed", mp4_path, duration_seconds)
-                        
-                        logger.info(f"Post-processing completed successfully for {stream.streamer.username}")
-                        logger.info(f"Final file: {mp4_path}")
-                    else:
-                        logger.error(f"Post-processing failed for {stream.streamer.username}")
-                        await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
-                        
-                except Exception as e:
-                    logger.error(f"Error in post-processing for {stream.streamer.username}: {e}", exc_info=True)
-                    await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
-                    
-            else:
-                success = False
-                logger.error(f"Recording for {stream.streamer.username} failed with exit code {exit_code}")
-                await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
-                
-            # Send completion notification
-            final_path = processing_results.get('mp4_path', ts_output_path) if success else ts_output_path
-            await self.notification_manager.notify_recording_completed(
-                stream, duration_seconds, final_path, success
-            )
-                
-        except StreamUnavailableError as e:
-            logger.info(f"Stream {stream.streamer.username} is unavailable: {e}")
-            if recording_id:
-                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
-                
-        except ProcessError as e:
-            logger.error(f"Process error recording {stream.streamer.username}: {e}")
-            if recording_id:
-                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
-            await self.notification_manager.notify_recording_error(stream, str(e))
-                
-        except FileOperationError as e:
-            logger.error(f"File operation error recording {stream.streamer.username}: {e}")
-            if recording_id:
-                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
-            await self.notification_manager.notify_recording_error(stream, str(e))
-            
-        except ConfigurationError as e:
-            logger.error(f"Configuration error recording {stream.streamer.username}: {e}")
-            if recording_id:
-                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
-            await self.notification_manager.notify_recording_error(stream, str(e))
-            
-        except Exception as e:
-            logger.error(f"Error recording stream {stream.streamer.username}: {e}", exc_info=True)
-            if recording_id:
-                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
-            await self.notification_manager.notify_recording_error(stream, str(e))
-            
-        finally:
-            # Remove from active recordings
-            if stream.id in self.active_recordings:
-                del self.active_recordings[stream.id]
-
-    async def stop_recording_for_stream(self, stream: Stream) -> bool:
-        """Stop recording for a specific stream (called by webhook handler)
-        
-        Args:
-            stream: Stream model object
-            
-        Returns:
-            True if stopped successfully, False otherwise
-        """
-        try:
-            if stream.id not in self.active_recordings:
-                logger.warning(f"No active recording found for stream {stream.streamer.username}")
-                return False
-                
-            # Terminate the process gracefully
-            process_id = f"stream_{stream.id}"
-            success = await self.process_manager.terminate_process(process_id)
-            
-            if success:
-                logger.info(f"Successfully stopped recording for stream {stream.streamer.username}")
-            else:
-                logger.warning(f"Failed to stop recording for stream {stream.streamer.username}")
-                
-            return success
-            
-        except Exception as e:
-            logger.error(f"Error stopping recording for stream {stream.streamer.username}: {e}", exc_info=True)
-            return False
 
     async def _update_recording_status(
         self, recording_id: int, status: str, path: str, duration_seconds: int
@@ -353,3 +149,320 @@ class RecordingService:
         for stream_id in finished_stream_ids:
             if stream_id in self.recording_tasks:
                 del self.recording_tasks[stream_id]
+
+    async def start_recording(self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False) -> bool:
+        """Start recording for a streamer (called by EventHandlerRegistry)
+        
+        This is the main entry point for starting a recording when a stream goes online.
+        It handles the complete recording lifecycle including post-processing.
+        
+        Args:
+            streamer_id: ID of the streamer
+            stream_data: Stream information from Twitch webhook
+            force_mode: If True, uses more aggressive streamlink settings
+            
+        Returns:
+            True if recording started successfully, False otherwise
+        """
+        recording_id = None
+        ts_output_path = None
+        start_time = datetime.now()
+        success = False
+        
+        try:
+            # Ensure we have a database session
+            self._ensure_db_session()
+            
+            # Get the streamer and stream
+            streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if not streamer:
+                logger.error(f"Streamer not found: {streamer_id}")
+                return False
+                
+            # Find the active stream
+            stream = self.db.query(Stream).filter(
+                Stream.streamer_id == streamer_id,
+                Stream.ended_at.is_(None)
+            ).order_by(Stream.started_at.desc()).first()
+            
+            if not stream:
+                logger.error(f"No active stream found for streamer {streamer.username}")
+                return False
+            
+            # Set the streamer relationship
+            stream.streamer = streamer
+            
+            # Check if already recording this stream
+            if stream.id in self.active_recordings:
+                logger.warning(f"Stream {streamer.username} is already being recorded")
+                return False
+            
+            # Check concurrent recording limits
+            current_recordings = len([t for t in self.recording_tasks.values() if not t.done()])
+            if current_recordings >= self.max_concurrent_recordings:
+                logger.warning(f"Maximum concurrent recordings reached ({self.max_concurrent_recordings}), cannot start recording for {streamer.username}")
+                return False
+            
+            logger.info(f"Starting recording for {streamer.username} (force_mode={force_mode})")
+            
+            # Get quality setting from streamer-specific or global settings
+            quality = self.config_manager.get_quality_setting(streamer_id)
+            
+            # Generate output path using the configured template and path_utils
+            filename_template = self.config_manager.get_filename_template(streamer_id)
+            
+            # Use path_utils to generate the filename
+            ts_filename = generate_filename(streamer, stream_data, filename_template)
+            
+            # Change extension to .ts for recording
+            if ts_filename.endswith('.mp4'):
+                ts_filename = ts_filename[:-4] + '.ts'
+            
+            # Create full path
+            streamer_dir = Path(self.recordings_directory) / streamer.username
+            streamer_dir.mkdir(parents=True, exist_ok=True)
+            ts_output_path = str(streamer_dir / ts_filename)
+            
+            # Create recording record in database
+            recording = Recording(
+                stream_id=stream.id,
+                start_time=start_time,
+                status="recording",
+                path=ts_output_path
+            )
+            
+            self.db.add(recording)
+            self.db.commit()
+            recording_id = recording.id
+            
+            # Get stream metadata for notifications
+            metadata = await self.stream_info_manager.get_stream_metadata(stream)
+            
+            # Log the recording start
+            self.recording_logger.log_recording_start(
+                streamer_id=streamer_id,
+                streamer_name=streamer.username,
+                quality=quality,
+                output_path=ts_output_path
+            )
+            
+            # Start streamlink recording process using process_manager
+            logger.info(f"Starting streamlink recording for {streamer.username} at quality {quality}")
+            logger.info(f"TS output path: {ts_output_path}")
+            
+            process = await self.process_manager.start_recording_process(
+                stream=stream,
+                output_path=ts_output_path,
+                quality=quality
+            )
+            
+            # Check if process was created successfully
+            if not process:
+                logger.error(f"Failed to start recording process for {streamer.username}")
+                await self._update_recording_status(recording_id, "error", ts_output_path, 0)
+                self.recording_logger.log_recording_error(
+                    streamer_id=streamer_id,
+                    streamer_name=streamer.username,
+                    error="Failed to start streamlink process"
+                )
+                return False
+            
+            # Send start notification
+            await self.notification_manager.notify_recording_started(stream, metadata)
+            
+            # Add to active recordings
+            self.active_recordings[stream.id] = {
+                'process': process,
+                'start_time': start_time,
+                'ts_output_path': ts_output_path,
+                'recording_id': recording_id,
+                'force_mode': force_mode,
+                'streamer_name': streamer.username
+            }
+            
+            # Start monitoring task
+            task = asyncio.create_task(self._monitor_and_process_recording(stream, recording_id, ts_output_path, start_time))
+            self.recording_tasks[stream.id] = task
+            
+            logger.info(f"Recording started successfully for {streamer.username}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error starting recording: {e}", exc_info=True)
+            if recording_id:
+                await self._update_recording_status(recording_id, "error", ts_output_path or "", 0)
+            if streamer:
+                self.recording_logger.log_recording_error(
+                    streamer_id=streamer_id,
+                    streamer_name=streamer.username,
+                    error=str(e)
+                )
+            return False
+
+    async def _monitor_and_process_recording(self, stream: Stream, recording_id: int, ts_output_path: str, start_time: datetime) -> None:
+        """Monitor recording and handle post-processing when complete
+        
+        This method runs in the background and handles the complete recording lifecycle.
+        """
+        success = False
+        processing_results = {}
+        
+        try:
+            # Get the process from active recordings
+            recording_info = self.active_recordings.get(stream.id)
+            if not recording_info:
+                logger.error(f"No active recording found for stream {stream.streamer.username}")
+                return
+                
+            process = recording_info['process']
+            streamer_name = recording_info.get('streamer_name', stream.streamer.username)
+            
+            # Monitor the recording process using process_manager
+            logger.info(f"Monitoring recording for {streamer_name}")
+            self.recording_logger.log_process_monitoring(
+                streamer_name=streamer_name,
+                action="monitoring_started",
+                details=f"PID: {process.pid if hasattr(process, 'pid') else 'unknown'}"
+            )
+            
+            exit_code = await self.process_manager.monitor_process(process)
+            
+            # Process completed, handle post-processing
+            duration_seconds = int((datetime.now() - start_time).total_seconds())
+            
+            if exit_code == 0 and os.path.exists(ts_output_path) and os.path.getsize(ts_output_path) > 1024:
+                logger.info(f"Recording for {streamer_name} completed successfully (duration: {duration_seconds}s)")
+                self.recording_logger.log_recording_stop(
+                    streamer_id=stream.streamer_id,
+                    streamer_name=streamer_name,
+                    duration=duration_seconds,
+                    output_path=ts_output_path,
+                    reason="stream_ended"
+                )
+                
+                # Run complete post-processing workflow using post_processing_manager
+                try:
+                    logger.info(f"Starting post-processing for {streamer_name}")
+                    processing_results = await self.post_processing_manager.process_completed_recording(
+                        stream_id=stream.id,
+                        ts_path=ts_output_path
+                    )
+                    
+                    if processing_results['success']:
+                        success = True
+                        mp4_path = processing_results['mp4_path']
+                        # Update database with final MP4 path
+                        await self._update_recording_status(recording_id, "completed", mp4_path, duration_seconds)
+                        
+                        self.recording_logger.log_file_operation(
+                            operation="post_processing_complete",
+                            file_path=mp4_path,
+                            success=True,
+                            details=f"Duration: {duration_seconds}s"
+                        )
+                        
+                        logger.info(f"Post-processing completed successfully for {streamer_name}")
+                        logger.info(f"Final file: {mp4_path}")
+                    else:
+                        logger.error(f"Post-processing failed for {streamer_name}")
+                        await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                        self.recording_logger.log_file_operation(
+                            operation="post_processing_failed",
+                            file_path=ts_output_path,
+                            success=False,
+                            details=f"Errors: {processing_results.get('errors', [])}"
+                        )
+                        
+                except Exception as e:
+                    logger.error(f"Error in post-processing for {streamer_name}: {e}", exc_info=True)
+                    await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                    self.recording_logger.log_file_operation(
+                        operation="post_processing_error",
+                        file_path=ts_output_path,
+                        success=False,
+                        details=str(e)
+                    )
+                    
+            else:
+                success = False
+                logger.error(f"Recording for {streamer_name} failed with exit code {exit_code}")
+                await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                self.recording_logger.log_recording_error(
+                    streamer_id=stream.streamer_id,
+                    streamer_name=streamer_name,
+                    error=f"Exit code: {exit_code}"
+                )
+                
+            # Send completion notification
+            final_path = processing_results.get('mp4_path', ts_output_path) if success else ts_output_path
+            await self.notification_manager.notify_recording_completed(
+                stream, duration_seconds, final_path, success
+            )
+                
+        except Exception as e:
+            logger.error(f"Error in recording monitor for {stream.streamer.username}: {e}", exc_info=True)
+            if recording_id:
+                await self._update_recording_status(recording_id, "error", ts_output_path, 0)
+            await self.notification_manager.notify_recording_error(stream, str(e))
+            self.recording_logger.log_recording_error(
+                streamer_id=stream.streamer_id,
+                streamer_name=stream.streamer.username,
+                error=str(e)
+            )
+            
+        finally:
+            # Remove from active recordings
+            if stream.id in self.active_recordings:
+                del self.active_recordings[stream.id]
+
+    async def stop_recording(self, streamer_id: int, reason: str = "manual") -> bool:
+        """Stop recording for a streamer (called by EventHandlerRegistry)
+        
+        This is mainly for manual stops or error conditions.
+        Normal stream endings are handled automatically by streamlink.
+        
+        Args:
+            streamer_id: ID of the streamer
+            reason: Reason for stopping (manual, automatic, error)
+            
+        Returns:
+            True if stopped successfully, False otherwise
+        """
+        try:
+            # Find the active stream for this streamer
+            stream = self.db.query(Stream).filter(
+                Stream.streamer_id == streamer_id,
+                Stream.ended_at.is_(None)
+            ).order_by(Stream.started_at.desc()).first()
+            
+            if not stream or stream.id not in self.active_recordings:
+                logger.warning(f"No active recording found for streamer ID {streamer_id}")
+                return False
+            
+            recording_info = self.active_recordings.get(stream.id, {})
+            streamer_name = recording_info.get('streamer_name', 'unknown')
+            
+            logger.info(f"Stopping recording for streamer ID {streamer_id} (reason: {reason})")
+            
+            # Terminate the process gracefully using process_manager
+            process_id = f"stream_{stream.id}"
+            success = await self.process_manager.terminate_process(process_id)
+            
+            if success:
+                logger.info(f"Successfully stopped recording for streamer ID {streamer_id}")
+                duration = int((datetime.now() - recording_info['start_time']).total_seconds())
+                self.recording_logger.log_recording_stop(
+                    streamer_id=streamer_id,
+                    streamer_name=streamer_name,
+                    duration=duration,
+                    output_path=recording_info.get('ts_output_path', ''),
+                    reason=reason
+                )
+            else:
+                logger.warning(f"Failed to stop recording gracefully for streamer ID {streamer_id}")
+                
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error stopping recording: {e}", exc_info=True)
+            return False
