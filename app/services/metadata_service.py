@@ -37,73 +37,62 @@ class MetadataService:
         if self.session and not self.session.closed:
             await self.session.close()
     
-    async def generate_metadata_for_stream(self, stream_id: int, mp4_path: str) -> bool:
-        """Generiert alle Metadatendateien für einen Stream.
-        
-        Args:
-            stream_id: ID des Streams
-            mp4_path: Pfad zur MP4-Datei
-            
-        Returns:
-            bool: True bei Erfolg, False bei Fehler
-        """
+    async def generate_metadata_for_stream(
+        self, 
+        stream_id: int, 
+        base_path: str,
+        base_filename: str
+    ) -> bool:
+        """Generate all metadata files for a stream"""
         try:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream with ID {stream_id} not found for metadata generation")
+                    logger.error(f"Stream {stream_id} not found")
                     return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
-                    logger.warning(f"Streamer not found for stream {stream_id}")
+                    logger.error(f"Streamer {stream.streamer_id} not found")
                     return False
                 
-                # Basispfad für Metadaten
-                base_path = Path(mp4_path).parent
-                base_filename = Path(mp4_path).stem
+                base_path_obj = Path(base_path)
                 
-                # Metadaten-Objekt erstellen oder abrufen
-                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                if not metadata:
-                    metadata = StreamMetadata(stream_id=stream_id)
-                    db.add(metadata)
-                    db.commit()  # Commit here to ensure it exists for later references
+                # Create all metadata files in parallel
+                tasks = [
+                    # JSON metadata
+                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename),
+                    # NFO for media servers
+                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename),
+                    # All chapter formats
+                    self.ensure_all_chapter_formats(stream_id, base_path_obj / f"{base_filename}.mp4", db),
+                    # Media server specific files (poster.jpg, etc.)
+                    self._create_media_server_specific_files(stream, base_path_obj)
+                ]
                 
-                # Aufgaben parallel ausführen - Aber auch bei Fehlern weitermachen
-                results = []
-                try:
-                    result_json = await self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_json)
-                except Exception as e:
-                    logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
-                    results.append(False)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                try:
-                    result_nfo = await self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_nfo)
-                except Exception as e:
-                    logger.error(f"Error generating NFO file: {e}", exc_info=True)
-                    results.append(False)
+                # Count successes and log errors
+                successes = 0
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
+                        logger.error(f"{task_names[i]} failed: {result}")
+                    elif result is True:
+                        successes += 1
+                    else:
+                        # If result is not True and not an exception, it might be None or False
+                        logger.warning(f"Task {i} returned unexpected result: {result}")
                 
-                try:
-                    result_thumbnail = await self.extract_thumbnail(mp4_path, stream_id, db)
-                    results.append(result_thumbnail is not None)
-                except Exception as e:
-                    logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
-                    results.append(False)
+                # Return True only if at least one task succeeded
+                success = successes > 0
+                if success:
+                    logger.info(f"Generated metadata for stream {stream_id}: {successes}/{len(tasks)} tasks succeeded")
+                else:
+                    logger.error(f"All metadata generation tasks failed for stream {stream_id}")
                 
-                try:
-                    result_chapters = await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
-                    results.append(result_chapters is not None)
-                except Exception as e:
-                    logger.error(f"Error generating chapters: {e}", exc_info=True)
-                    results.append(False)
-                
-                db.commit()
-                success_count = sum(1 for r in results if r)
-                logger.info(f"Generated metadata for stream {stream_id} - {success_count}/{len(results)} tasks successful")
-                return success_count > 0  # Success if at least one task succeeded
+                return success
+            
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
             return False
@@ -1846,7 +1835,7 @@ class MetadataService:
             
             # Delete temporary metadata file
             if os.path.exists(str(meta_path)):
-                os.remove(str(meta_path))
+                               os.remove(str(meta_path))
                 logger.debug(f"Deleted temporary metadata file: {meta_path}")
             
             # Update database
