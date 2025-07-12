@@ -240,7 +240,7 @@ jobs:
               const message = commit.commit.message.split('\n')[0];
               const author = commit.author?.login || commit.commit.author.name;
               const sha = commit.sha.substring(0, 7);
-              const line = `* ${message} by @${author} in ${sha}`;
+              const line = '* ' + message + ' by @' + author + ' in ' + sha;
               
               if (message.toLowerCase().includes('feat') || message.toLowerCase().includes('feature')) {
                 features.push(line);
@@ -252,31 +252,28 @@ jobs:
             });
             
             // Build release notes
-            let releaseNotes = `## 🐳 StreamVault v${{ needs.version.outputs.new_version }}
-            
-**Docker Images:**
-- \`frequency2098/streamvault:latest\`
-- \`frequency2098/streamvault:v${{ needs.version.outputs.new_version }}\`
-- \`ghcr.io/${{ github.repository }}:latest\`
-
-### Quick Update
-\`\`\`bash
-docker pull frequency2098/streamvault:latest
-docker-compose pull && docker-compose up -d
-\`\`\`
-`;
+            let releaseNotes = '## 🐳 StreamVault v${{ needs.version.outputs.new_version }}\n\n';
+            releaseNotes += '**Docker Images:**\n';
+            releaseNotes += '- `frequency2098/streamvault:latest`\n';
+            releaseNotes += '- `frequency2098/streamvault:v${{ needs.version.outputs.new_version }}`\n';
+            releaseNotes += '- `ghcr.io/${{ github.repository }}:latest`\n\n';
+            releaseNotes += '### Quick Update\n';
+            releaseNotes += '```bash\n';
+            releaseNotes += 'docker pull frequency2098/streamvault:latest\n';
+            releaseNotes += 'docker-compose pull && docker-compose up -d\n';
+            releaseNotes += '```\n\n';
             
             if (features.length > 0) {
-              releaseNotes += `\n## ✨ New Features\n${features.join('\n')}\n`;
+              releaseNotes += '## ✨ New Features\n' + features.join('\n') + '\n\n';
             }
             if (fixes.length > 0) {
-              releaseNotes += `\n## 🐛 Bug Fixes\n${fixes.join('\n')}\n`;
+              releaseNotes += '## 🐛 Bug Fixes\n' + fixes.join('\n') + '\n\n';
             }
             if (other.length > 0) {
-              releaseNotes += `\n## 🔧 Other Changes\n${other.join('\n')}\n`;
+              releaseNotes += '## 🔧 Other Changes\n' + other.join('\n') + '\n\n';
             }
             
-            releaseNotes += `\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/${baseRef}...v${{ needs.version.outputs.new_version }}`;
+            releaseNotes += '**Full Changelog**: https://github.com/${{ github.repository }}/compare/' + baseRef + '...v${{ needs.version.outputs.new_version }}';
             
             // Create release
             await github.rest.repos.createRelease({
@@ -294,7 +291,7 @@ docker-compose pull && docker-compose up -d
     needs: [build, version]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: production  # Requires manual approval
+    # environment: production  # Uncomment when you create the production environment
     steps:
       - name: Deploy notification
         run: |
