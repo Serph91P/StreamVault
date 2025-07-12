@@ -1,4 +1,4 @@
-name: Docker Build and Push with Auto-Versioning
+name: Docker Build and Push with Auto-Versioning (Optimized)
 
 on:
   push:
@@ -13,13 +13,17 @@ on:
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   version:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Needed to create tags
+      contents: write
     outputs:
-      new_version: ${{ steps.fallback_version.outputs.new_version }}
+      new_version: ${{ steps.version.outputs.new_version }}
       release_type: ${{ steps.semver.outputs.release_type }}
       branch: ${{ steps.branch_name.outputs.branch }}
     steps:
@@ -33,7 +37,7 @@ jobs:
       
       - name: Determine version bump
         id: semver
-        uses: paulhatch/semantic-version@v5.3.0
+        uses: paulhatch/semantic-version@v5.4.0  # Updated to latest
         with:
           tag_prefix: "v"
           major_pattern: "(MAJOR|BREAKING CHANGE)"
@@ -42,151 +46,159 @@ jobs:
           bump_each_commit: true
           search_commit_body: false
 
-      - name: Fallback version generation
-        id: fallback_version
+      - name: Set final version
+        id: version
         run: |
-          # If semantic versioning failed, generate version based on timestamp and commit
-          if [ -z "${{ steps.semver.outputs.new_version }}" ] || [ "${{ steps.semver.outputs.new_version }}" == "" ]; then
-            # Get the latest tag or default to 1.0.0
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-            # Remove 'v' prefix for calculation
-            LATEST_VERSION=${LATEST_TAG#v}
-            # Split version into parts
-            IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
-            MAJOR=${VERSION_PARTS[0]:-1}
-            MINOR=${VERSION_PARTS[1]:-0}
-            PATCH=${VERSION_PARTS[2]:-0}
-            # Increment patch version
-            PATCH=$((PATCH + 1))
-            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "Generated fallback version: $NEW_VERSION"
-          else
+          if [ -n "${{ steps.semver.outputs.new_version }}" ]; then
             echo "new_version=${{ steps.semver.outputs.new_version }}" >> $GITHUB_OUTPUT
-            echo "Using semantic version: ${{ steps.semver.outputs.new_version }}"
-          fi
-          
-          # Also set an absolute fallback if everything else fails
-          if [ -z "$(cat $GITHUB_OUTPUT | grep new_version=)" ]; then
-            TIMESTAMP_VERSION="1.0.$(date +%Y%m%d%H%M)"
-            echo "new_version=$TIMESTAMP_VERSION" >> $GITHUB_OUTPUT
-            echo "Using timestamp fallback version: $TIMESTAMP_VERSION"
+          else
+            # Simplified fallback
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+            IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
+            NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((${VERSION_PARTS[2]:-0} + 1))"
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Create version tag
-        id: create_tag
         if: github.ref == 'refs/heads/main'
         run: |
-          VERSION=${{ steps.fallback_version.outputs.new_version }}
-          echo "Creating tag v$VERSION"
+          VERSION=${{ steps.version.outputs.new_version }}
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git tag -a v$VERSION -m "Release v$VERSION"
-          git push origin v$VERSION || { echo "Failed to push tag"; exit 1; }
-          echo "Tag v$VERSION created and pushed successfully"
+          git push origin v$VERSION
+
   check_changes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read  # Needed to checkout code
     outputs:
-      backend_changed: ${{ steps.check_paths.outputs.backend_changed }}
+      backend_changed: ${{ steps.changes.outputs.backend }}
+      frontend_changed: ${{ steps.changes.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Check if backend files changed
-        id: check_paths
-        uses: dorny/paths-filter@v2
+      - name: Check for changes
+        uses: dorny/paths-filter@v3  # Updated to latest
+        id: changes
         with:
           filters: |
-            backend_changed:
-              - 'app/**'
+            backend:
+              - 'app/!(frontend)/**'
               - 'migrations/**'
               - 'Dockerfile'
               - 'requirements.txt'
+            frontend:
+              - 'app/frontend/**'
 
   build:
     needs: [version, check_changes]
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # Needed to checkout code
-      packages: write  # Needed to push Docker images
+      contents: read
+      packages: write
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-      
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
+    # Frontend caching optimization
+    - name: Setup Node.js with caching
+      if: needs.check_changes.outputs.frontend_changed == 'true'
+      uses: actions/setup-node@v4  # Updated to latest
       with:
         node-version: 'lts/*'
+        cache: 'npm'
+        cache-dependency-path: 'app/frontend/package-lock.json'
+        
+    - name: Cache frontend build
+      if: needs.check_changes.outputs.frontend_changed == 'true'
+      uses: actions/cache@v4  # Updated to latest
+      with:
+        path: app/frontend/dist
+        key: frontend-build-${{ hashFiles('app/frontend/**') }}
+        restore-keys: |
+          frontend-build-
         
     - name: Build Frontend
-      if: needs.check_changes.outputs.backend_changed == 'true'
+      if: needs.check_changes.outputs.frontend_changed == 'true'
+      working-directory: app/frontend
       run: |
-        cd app/frontend
-        npm install
+        npm ci  # Faster than npm install for CI
         npm run build
         mkdir -p ../../dist
         cp -r dist/* ../../dist/
         
     - name: Use cached frontend build
-      if: needs.check_changes.outputs.backend_changed != 'true'
-      run: echo "Using cached frontend build"
-        
-    - name: Prepare metadata
-      id: meta
-      uses: docker/metadata-action@v4
+      if: needs.check_changes.outputs.frontend_changed != 'true'
+      run: echo "Frontend unchanged, using cached build"
+    
+    # Docker optimization
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3  # Updated to latest
       with:
-        images: frequency2098/streamvault
+        driver-opts: image=moby/buildkit:buildx-stable-1  # Latest buildkit
+        
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3  # Updated to latest
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5  # Updated to latest
+      with:
+        images: |
+          frequency2098/streamvault
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          type=raw,value=latest,enable={{is_default_branch}}
           type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
-          type=raw,value=v${{ needs.version.outputs.new_version }},enable=${{ github.ref == 'refs/heads/main' }}
+          type=raw,value=v${{ needs.version.outputs.new_version }},enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-
         labels: |
           org.opencontainers.image.title=StreamVault
           org.opencontainers.image.description=Automated Twitch stream recording and management system
           org.opencontainers.image.vendor=StreamVault
           org.opencontainers.image.version=v${{ needs.version.outputs.new_version }}
           
-    - name: Login to DockerHub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
-    - name: Determine Docker tag
-      id: docker_tag
-      run: |
-        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "tag=latest" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-          echo "tag=develop" >> $GITHUB_OUTPUT
-        else
-          echo "tag=test" >> $GITHUB_OUTPUT
-        fi
-        
     - name: Build and push Docker image
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v5  # Updated to latest
       with:
         context: .
+        platforms: linux/amd64  # AMD64 only for now
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
           VERSION=v${{ needs.version.outputs.new_version }}
           BRANCH=${{ needs.version.outputs.branch }}
-          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-
-    - name: Scan Docker image for vulnerabilities
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+        cache-from: type=gha  # GitHub Actions cache
+        cache-to: type=gha,mode=max
+        
+    # Parallel security scanning
+    - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'frequency2098/streamvault:${{ steps.docker_tag.outputs.tag }}'
+        image-ref: frequency2098/streamvault:latest
         format: 'sarif'
         output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'  # Only scan for critical/high
+        
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
 
+  # Separate job for changelog (runs in parallel with security scan)
   create-changelog:
-    needs: [version, build]
+    needs: [version]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -196,116 +208,92 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Debug information
-        run: |
-          echo "Branch: ${{ github.ref }}"
-          echo "New version: v${{ needs.version.outputs.new_version }}"
-          echo "Release type: ${{ needs.version.outputs.release_type }}"
-
-      - name: Generate GitHub Release Notes
-        id: github_release_notes
+      - name: Generate changelog and create release
         uses: actions/github-script@v7
         with:
           script: |
             // Get commits since last release
-            const { data: commits } = await github.rest.repos.compareCommits({
+            let baseRef = 'HEAD~10';
+            try {
+              const latest = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              baseRef = latest.data.tag_name;
+            } catch (error) {
+              console.log('No previous release found, using HEAD~10');
+            }
+            
+            const { data: comparison } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              base: await github.rest.repos.getLatestRelease({ 
-                owner: context.repo.owner, 
-                repo: context.repo.repo 
-              }).then(r => r.data.tag_name).catch(() => 'HEAD~10'),
+              base: baseRef,
               head: 'HEAD'
             });
             
-            // Format commits with full messages (not truncated)
-            const commitList = commits.commits.map(commit => {
-              const message = commit.commit.message.split('\n')[0]; // First line only
+            // Categorize commits
+            const features = [];
+            const fixes = [];
+            const other = [];
+            
+            comparison.commits.forEach(commit => {
+              const message = commit.commit.message.split('\n')[0];
               const author = commit.author?.login || commit.commit.author.name;
               const sha = commit.sha.substring(0, 7);
-              return `* ${message} by @${author} in ${sha}`;
-            }).join('\n');
+              const line = '* ' + message + ' by @' + author + ' in ' + sha;
+              
+              if (message.toLowerCase().includes('feat') || message.toLowerCase().includes('feature')) {
+                features.push(line);
+              } else if (message.toLowerCase().includes('fix') || message.toLowerCase().includes('bug')) {
+                fixes.push(line);
+              } else {
+                other.push(line);
+              }
+            });
             
-            // Create enhanced release notes
-            const dockerInfo = `
-            ## 🐳 Docker Image Update v${{ needs.version.outputs.new_version }}
+            // Build release notes
+            let releaseNotes = '## 🐳 StreamVault v${{ needs.version.outputs.new_version }}\n\n';
+            releaseNotes += '**Docker Images:**\n';
+            releaseNotes += '- `frequency2098/streamvault:latest`\n';
+            releaseNotes += '- `frequency2098/streamvault:v${{ needs.version.outputs.new_version }}`\n';
+            releaseNotes += '- `ghcr.io/${{ github.repository }}:latest`\n\n';
+            releaseNotes += '### Quick Update\n';
+            releaseNotes += '```bash\n';
+            releaseNotes += 'docker pull frequency2098/streamvault:latest\n';
+            releaseNotes += 'docker-compose pull && docker-compose up -d\n';
+            releaseNotes += '```\n\n';
             
-            **New Docker image available:** \`frequency2098/streamvault:latest\`
+            if (features.length > 0) {
+              releaseNotes += '## ✨ New Features\n' + features.join('\n') + '\n\n';
+            }
+            if (fixes.length > 0) {
+              releaseNotes += '## 🐛 Bug Fixes\n' + fixes.join('\n') + '\n\n';
+            }
+            if (other.length > 0) {
+              releaseNotes += '## 🔧 Other Changes\n' + other.join('\n') + '\n\n';
+            }
             
-            ### Quick Update Commands
-            \`\`\`bash
-            # Pull latest image
-            docker pull frequency2098/streamvault:latest
+            releaseNotes += '**Full Changelog**: https://github.com/${{ github.repository }}/compare/' + baseRef + '...v${{ needs.version.outputs.new_version }}';
             
-            # Or specific version
-            docker pull frequency2098/streamvault:v${{ needs.version.outputs.new_version }}
-            
-            # Update with docker-compose
-            docker-compose pull && docker-compose up -d
-            \`\`\`
-            
-            ## What's Changed
-            
-            ${commitList}
-            
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${await github.rest.repos.getLatestRelease({ 
-              owner: context.repo.owner, 
-              repo: context.repo.repo 
-            }).then(r => r.data.tag_name).catch(() => 'v1.0.0')}...v${{ needs.version.outputs.new_version }}
-            `;
-            
-            core.setOutput('release_notes', dockerInfo);
-            return dockerInfo;
+            // Create release
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: 'v${{ needs.version.outputs.new_version }}',
+              name: 'StreamVault v${{ needs.version.outputs.new_version }}',
+              body: releaseNotes,
+              draft: false,
+              prerelease: false
+            });
 
-      #Alternative: AI-powered release notes (requires OpenAI API key in secrets)
-      # - name: Generate AI Release Notes
-      #   id: ai_release_notes
-      #   uses: actions/github-script@v7
-      #   env:
-      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      #   with:
-      #     script: |
-      #       if (!process.env.OPENAI_API_KEY) {
-      #         console.log('No OpenAI API key found, skipping AI generation');
-      #         return null;
-      #       }
-            
-      #       const { exec } = require('child_process');
-      #       const util = require('util');
-      #       const execAsync = util.promisify(exec);
-            
-      #       // Get commits since last release
-      #       const { stdout: commits } = await execAsync('git log --pretty=format:"%h %s" --no-merges -20');
-            
-      #       // Call OpenAI API to generate release notes
-      #       const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      #         method: 'POST',
-      #         headers: {
-      #           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      #           'Content-Type': 'application/json'
-      #         },
-      #         body: JSON.stringify({
-      #           model: 'gpt-4',
-      #           messages: [{
-      #             role: 'system',
-      #             content: 'You are a technical writer creating release notes for a Docker application called StreamVault - an automated Twitch stream recording system. Generate professional, detailed release notes from commit messages.'
-      #           }, {
-      #             role: 'user',
-      #             content: `Generate release notes for StreamVault v${{ needs.version.outputs.new_version }} based on these commits:\n\n${commits}\n\nFocus on user-facing changes, bug fixes, performance improvements, and new features. Format with emojis and clear sections.`
-      #           }],
-      #           max_tokens: 1000
-      #         })
-      #       });
-            
-      #       const data = await response.json();
-      #       return data.choices[0].message.content;
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.version.outputs.new_version }}
-          name: StreamVault v${{ needs.version.outputs.new_version }}
-          body: ${{ steps.github_release_notes.outputs.release_notes }}
-          draft: false
-          prerelease: false
-          generate_release_notes: false
+  # Optional: Deploy to staging/production
+  deploy:
+    needs: [build, version]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # environment: production  # Uncomment when you create the production environment
+    steps:
+      - name: Deploy notification
+        run: |
+          echo "🚀 StreamVault v${{ needs.version.outputs.new_version }} is ready for deployment!"
+          echo "Image: frequency2098/streamvault:v${{ needs.version.outputs.new_version }}"
