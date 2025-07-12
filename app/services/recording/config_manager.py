@@ -118,3 +118,28 @@ class ConfigManager:
         if global_settings and global_settings.output_directory:
             return global_settings.output_directory
         return "/recordings"  # Default directory
+    
+    def get_recordings_directory(self) -> str:
+        """Alias for get_output_directory for compatibility"""
+        return self.get_output_directory()
+    
+    def get_max_concurrent_recordings(self) -> int:
+        """Get maximum number of concurrent recordings"""
+        global_settings = self.get_global_settings()
+        if global_settings and hasattr(global_settings, 'max_concurrent_recordings'):
+            return getattr(global_settings, 'max_concurrent_recordings', 3)
+        return 3  # Default to 3 concurrent recordings
+    
+    def get_check_interval(self) -> int:
+        """Get check interval for recording service in seconds"""
+        global_settings = self.get_global_settings()
+        if global_settings and hasattr(global_settings, 'check_interval'):
+            return getattr(global_settings, 'check_interval', 30)
+        return 30  # Default to 30 seconds
+    
+    def get_config_value(self, key: str, default=None):
+        """Get a configuration value by key"""
+        global_settings = self.get_global_settings()
+        if global_settings and hasattr(global_settings, key):
+            return getattr(global_settings, key, default)
+        return default
