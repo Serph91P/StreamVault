@@ -15,7 +15,7 @@ from typing import Dict, Optional, Any
 # Import existing utilities
 from app.utils.ffmpeg_utils import convert_ts_to_mp4, validate_mp4
 from app.utils.path_utils import update_recording_path
-from app.services.metadata_service import MetadataService, create_ffmpeg_chapters_file
+from app.services.metadata_service import MetadataService
 from app.services.thumbnail_service import ThumbnailService
 from app.services.recording.exceptions import FileOperationError
 
