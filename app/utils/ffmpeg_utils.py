@@ -63,7 +63,7 @@ async def embed_metadata_in_mp4(
     chapters: Optional[list] = None
 ) -> bool:
     """
-    Embed metadata into MP4 file using MP4Box (preferred method).
+    Embed metadata into MP4 file using FFmpeg.
     
     Args:
         input_path: Path to input MP4 file
@@ -75,25 +75,38 @@ async def embed_metadata_in_mp4(
         True on success, False on error
     """
     try:
-        logger.info(f"Embedding metadata in {input_path} -> {output_path}")
+        logger.info(f"Embedding metadata with FFmpeg: {input_path} -> {output_path}")
         
-        # Use MP4Box for metadata embedding
-        success = await embed_metadata_with_mp4box(
-            input_path, 
-            output_path, 
-            metadata, 
-            chapters
+        # Build FFmpeg command
+        cmd = ["ffmpeg", "-i", input_path]
+        
+        # Add metadata
+        for key, value in metadata.items():
+            if value:
+                cmd.extend(["-metadata", f"{key}={value}"])
+        
+        # Copy streams without re-encoding
+        cmd.extend(["-c", "copy", "-y", output_path])
+        
+        # Execute FFmpeg
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
         
-        if success:
-            logger.info(f"Successfully embedded metadata using MP4Box")
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            logger.info("Successfully embedded metadata with FFmpeg")
             return True
         else:
-            logger.error(f"Failed to embed metadata using MP4Box")
+            logger.error(f"FFmpeg metadata embedding failed with return code {process.returncode}")
+            logger.error(f"FFmpeg stderr: {stderr.decode('utf-8', errors='replace')[:500]}")
             return False
             
     except Exception as e:
-        logger.error(f"Error embedding metadata: {e}")
+        logger.error(f"Error with FFmpeg metadata embedding: {e}")
         return False
 
 async def convert_ts_to_mp4(
@@ -148,6 +161,8 @@ async def convert_ts_to_mp4(
         
         # Execute the command
         logger.info(f"Converting {input_path} to {output_path}")
+        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
+        
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -166,6 +181,7 @@ async def convert_ts_to_mp4(
             }
         else:
             logger.error(f"Failed to convert {input_path} to {output_path}")
+            logger.error(f"FFmpeg stderr: {stderr.decode('utf-8', errors='replace')[:1000]}")
             return {
                 "success": False, 
                 "code": process.returncode, 
@@ -175,3 +191,41 @@ async def convert_ts_to_mp4(
     except Exception as e:
         logger.error(f"Error during TS to MP4 conversion: {e}", exc_info=True)
         return {"success": False, "code": -1, "stderr": str(e)}
+
+async def extract_video_duration(video_path: str) -> Optional[float]:
+    """
+    Extract video duration in seconds using FFmpeg.
+    
+    Args:
+        video_path: Path to the video file
+        
+    Returns:
+        Duration in seconds or None if extraction failed
+    """
+    try:
+        cmd = [
+            "ffprobe", 
+            "-v", "quiet", 
+            "-show_entries", "format=duration", 
+            "-of", "csv=p=0", 
+            video_path
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            duration_str = stdout.decode('utf-8').strip()
+            return float(duration_str)
+        else:
+            logger.error(f"Failed to extract duration from {video_path}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error extracting video duration: {e}")
+        return None
