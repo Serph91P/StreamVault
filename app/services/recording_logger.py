@@ -170,6 +170,17 @@ class RecordingActivityLogger:
             }
             for session_id, session in self.session_contexts.items()
         }
+    
+    # Backward compatibility methods for existing RecordingService usage
+    def log_file_operation(self, operation: str, file_path: str, success: bool, details: str = ""):
+        """Backward compatibility method for simple file operation logging"""
+        details_dict = {"message": details} if details else None
+        self.log_file_operation_detailed(operation, file_path, success, details_dict)
+    
+    def log_process_monitoring(self, streamer_name: str, action: str, details: str = ""):
+        """Backward compatibility method for process monitoring"""
+        details_dict = {"message": details} if details else None
+        self.log_process_lifecycle("RECORDING", streamer_name, action, details_dict)
 
 
 # Global instance for easy access
