@@ -68,8 +68,9 @@ class NotificationManager:
             self.notification_debounce[f"start_{stream_id}"] = current_time
             
             # Prepare notification data
-            title = f"Recording Started: {stream.name}"
-            body = f"Recording started for {stream.name}"
+            streamer_name = stream.streamer.username if stream.streamer else "Unknown"
+            title = f"Recording Started: {streamer_name}"
+            body = f"Recording started for {streamer_name}"
             
             if "resolution" in metadata:
                 body += f" ({metadata['resolution']})"
@@ -77,13 +78,13 @@ class NotificationManager:
             data = {
                 "action": "recording_started",
                 "stream_id": stream.id,
-                "stream_name": stream.name,
-                "category": stream.category.name if stream.category else "Uncategorized"
+                "stream_name": streamer_name,
+                "category": stream.category_name or "Uncategorized"
             }
             
             # Send notification
             await send_push_notification(title=title, body=body, data=data)
-            logger.info(f"Sent recording start notification for stream {stream.name}")
+            logger.info(f"Sent recording start notification for stream {streamer_name}")
             
         except Exception as e:
             logger.error(f"Error sending start notification: {e}", exc_info=True)
@@ -106,8 +107,9 @@ class NotificationManager:
             duration_str = self._format_duration(duration_seconds)
             
             # Prepare notification data
-            title = f"Recording {'Completed' if success else 'Failed'}: {stream.name}"
-            body = f"Recording {stream.name} {'completed' if success else 'failed'}"
+            streamer_name = stream.streamer.username if stream.streamer else "Unknown"
+            title = f"Recording {'Completed' if success else 'Failed'}: {streamer_name}"
+            body = f"Recording {streamer_name} {'completed' if success else 'failed'}"
             
             if duration_str and success:
                 body += f" ({duration_str})"
@@ -115,7 +117,7 @@ class NotificationManager:
             data = {
                 "action": "recording_completed",
                 "stream_id": stream.id,
-                "stream_name": stream.name,
+                "stream_name": streamer_name,
                 "success": success,
                 "duration": duration_seconds,
                 "file_path": file_path
@@ -123,7 +125,7 @@ class NotificationManager:
             
             # Send notification
             await send_push_notification(title=title, body=body, data=data)
-            logger.info(f"Sent recording completion notification for stream {stream.name}")
+            logger.info(f"Sent recording completion notification for stream {streamer_name}")
             
         except Exception as e:
             logger.error(f"Error sending completion notification: {e}", exc_info=True)
@@ -140,19 +142,20 @@ class NotificationManager:
             
         try:
             # Prepare notification data
-            title = f"Recording Error: {stream.name}"
-            body = f"Error recording {stream.name}: {error_message[:100]}"  # Truncate long messages
+            streamer_name = stream.streamer.username if stream.streamer else "Unknown"
+            title = f"Recording Error: {streamer_name}"
+            body = f"Error recording {streamer_name}: {error_message[:100]}"  # Truncate long messages
                 
             data = {
                 "action": "recording_error",
                 "stream_id": stream.id,
-                "stream_name": stream.name,
+                "stream_name": streamer_name,
                 "error": error_message
             }
             
             # Send notification
             await send_push_notification(title=title, body=body, data=data)
-            logger.info(f"Sent recording error notification for stream {stream.name}")
+            logger.info(f"Sent recording error notification for stream {streamer_name}")
             
         except Exception as e:
             logger.error(f"Error sending error notification: {e}", exc_info=True)
