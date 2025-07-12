@@ -37,73 +37,46 @@ class MetadataService:
         if self.session and not self.session.closed:
             await self.session.close()
     
-    async def generate_metadata_for_stream(self, stream_id: int, mp4_path: str) -> bool:
-        """Generiert alle Metadatendateien für einen Stream.
-        
-        Args:
-            stream_id: ID des Streams
-            mp4_path: Pfad zur MP4-Datei
-            
-        Returns:
-            bool: True bei Erfolg, False bei Fehler
-        """
+    async def generate_metadata_for_stream(
+        self, 
+        stream_id: int, 
+        base_path: str,
+        base_filename: str
+    ) -> bool:
+        """Generate all metadata files for a stream"""
         try:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream with ID {stream_id} not found for metadata generation")
                     return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
-                    logger.warning(f"Streamer not found for stream {stream_id}")
                     return False
                 
-                # Basispfad für Metadaten
-                base_path = Path(mp4_path).parent
-                base_filename = Path(mp4_path).stem
+                base_path_obj = Path(base_path)
                 
-                # Metadaten-Objekt erstellen oder abrufen
-                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                if not metadata:
-                    metadata = StreamMetadata(stream_id=stream_id)
-                    db.add(metadata)
-                    db.commit()  # Commit here to ensure it exists for later references
+                # Create all metadata files in parallel
+                tasks = [
+                    # JSON metadata
+                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename),
+                    # NFO for media servers
+                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename),
+                    # All chapter formats
+                    self.ensure_all_chapter_formats(stream_id, base_path_obj / f"{base_filename}.mp4", db),
+                    # Media server specific files (poster.jpg, etc.)
+                    self._create_media_server_specific_files(stream, base_path_obj)
+                ]
                 
-                # Aufgaben parallel ausführen - Aber auch bei Fehlern weitermachen
-                results = []
-                try:
-                    result_json = await self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_json)
-                except Exception as e:
-                    logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
-                    results.append(False)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                try:
-                    result_nfo = await self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_nfo)
-                except Exception as e:
-                    logger.error(f"Error generating NFO file: {e}", exc_info=True)
-                    results.append(False)
+                # Log any errors but continue
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        logger.error(f"Metadata task {i} failed: {result}")
                 
-                try:
-                    result_thumbnail = await self.extract_thumbnail(mp4_path, stream_id, db)
-                    results.append(result_thumbnail is not None)
-                except Exception as e:
-                    logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
-                    results.append(False)
+                return True
                 
-                try:
-                    result_chapters = await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
-                    results.append(result_chapters is not None)
-                except Exception as e:
-                    logger.error(f"Error generating chapters: {e}", exc_info=True)
-                    results.append(False)
-                
-                db.commit()
-                success_count = sum(1 for r in results if r)
-                logger.info(f"Generated metadata for stream {stream_id} - {success_count}/{len(results)} tasks successful")
-                return success_count > 0  # Success if at least one task succeeded
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
             return False
@@ -2149,3 +2122,68 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error getting chapters for FFmpeg: {e}")
             return None
+        
+async def create_ffmpeg_chapters_file(
+    chapters: list, 
+    output_path: str, 
+    title: Optional[str] = None,
+    artist: Optional[str] = None,
+    date: Optional[str] = None,
+    overwrite: bool = False
+) -> bool:
+    """
+    Create an FFmpeg-compatible chapters metadata file.
+    
+    Args:
+        chapters: List of chapter dictionaries with start_time, end_time, and title
+        output_path: Path to write the chapters metadata file
+        title: Optional video title
+        artist: Optional artist/creator name
+        date: Optional date in YYYY-MM-DD format
+        overwrite: Whether to overwrite an existing file
+        
+    Returns:
+        True on success, False on error
+    """
+    try:
+        if os.path.exists(output_path) and not overwrite:
+            logger.warning(f"Chapters file already exists: {output_path}")
+            return False
+            
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # FFmpeg metadata header
+            f.write(";FFMETADATA1\n")
+            
+            # Global metadata
+            if title:
+                f.write(f"title={title}\n")
+            if artist:
+                f.write(f"artist={artist}\n")
+            if date:
+                f.write(f"date={date}\n")
+                f.write(f"year={date.split('-')[0] if '-' in date else date}\n")
+                f.write(f"creation_time={date}\n")
+                
+            # Chapter information
+            if chapters:
+                for chapter in chapters:
+                    f.write("\n[CHAPTER]\n")
+                    f.write("TIMEBASE=1/1000\n")
+                    # Convert times to milliseconds
+                    start_ms = int(float(chapter['start_time']) * 1000)
+                    end_ms = int(float(chapter['end_time']) * 1000)
+                    f.write(f"START={start_ms}\n")
+                    f.write(f"END={end_ms}\n")
+                    # Escape special characters in chapter title
+                    chapter_title = chapter.get('title', 'Chapter').replace('=', '\\=')
+                    f.write(f"title={chapter_title}\n")
+                    
+        logger.info(f"Created FFmpeg chapters file with {len(chapters)} chapters: {output_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating chapters file: {e}", exc_info=True)
+        return False
+
