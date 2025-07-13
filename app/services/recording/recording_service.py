@@ -312,7 +312,7 @@ class RecordingService:
             if exit_code == 0 and os.path.exists(ts_output_path) and os.path.getsize(ts_output_path) > 1024:
                 logger.info(f"Recording for {streamer_name} completed successfully (duration: {duration_seconds}s)")
                 
-                # Post-processing
+                # Post-processing pipeline handled by PipelineManager
                 try:
                     processing_results = await self.pipeline_manager.start_post_processing_pipeline(
                         stream_id=stream.id,

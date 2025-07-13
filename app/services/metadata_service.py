@@ -1865,7 +1865,6 @@ class MetadataService:
             return success
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
-            from app.services.logging_service import logging_service
             logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_EXCEPTION] Unhandled error: {str(e)}")
             return False
     
