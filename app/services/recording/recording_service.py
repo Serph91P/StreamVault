@@ -26,7 +26,7 @@ from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
-from app.services.recording.post_processing_manager import PostProcessingManager
+from app.services.recording.pipeline_manager import PipelineManager
 
 # Import utils
 from app.utils.path_utils import generate_filename
@@ -46,7 +46,7 @@ class RecordingService:
         self.recording_logger = RecordingLogger(config_manager=self.config_manager)
         self.notification_manager = NotificationManager(config_manager=self.config_manager)
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
-        self.post_processing_manager = PostProcessingManager(config_manager=self.config_manager)
+        self.pipeline_manager = PipelineManager(config_manager=self.config_manager)
         
         # Active recordings tracking
         self.active_recordings = {}
@@ -314,7 +314,7 @@ class RecordingService:
                 
                 # Post-processing
                 try:
-                    processing_results = await self.post_processing_manager.process_completed_recording(
+                    processing_results = await self.pipeline_manager.start_post_processing_pipeline(
                         stream_id=stream.id,
                         ts_path=ts_output_path
                     )
