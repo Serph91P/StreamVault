@@ -1835,7 +1835,7 @@ class MetadataService:
             
             # Delete temporary metadata file
             if os.path.exists(str(meta_path)):
-                               os.remove(str(meta_path))
+                os.remove(str(meta_path))
                 logger.debug(f"Deleted temporary metadata file: {meta_path}")
             
             # Update database
