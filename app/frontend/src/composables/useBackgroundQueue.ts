@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWebSocket } from './useWebSocket'
 
 interface Task {
@@ -163,14 +163,19 @@ export function useBackgroundQueue() {
   const startWatching = () => {
     if (websocketWatcher) return
     
-    websocketWatcher = messages.value.subscribe((message: any) => {
-      processWebSocketMessage(message)
-    })
+    // Watch for new messages in the WebSocket messages array
+    websocketWatcher = watch(messages, (newMessages) => {
+      if (newMessages.length > 0) {
+        // Process the latest message
+        const latestMessage = newMessages[newMessages.length - 1]
+        processWebSocketMessage(latestMessage)
+      }
+    }, { deep: true })
   }
 
   const stopWatching = () => {
     if (websocketWatcher) {
-      websocketWatcher.unsubscribe()
+      websocketWatcher()
       websocketWatcher = null
     }
   }
