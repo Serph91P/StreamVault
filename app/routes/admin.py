@@ -2,16 +2,18 @@
 API routes for system testing and administration
 """
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.database import get_db
+from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
-from app.services.test_service import test_service
-from app.config.settings import settings
+router = APIRouter(
+    prefix="/api/admin",
+    tags=["admin"]
+)
 
 logger = logging.getLogger("streamvault")
-
-router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 class TestRequest(BaseModel):
     test_names: Optional[List[str]] = None  # If None, run all tests
@@ -335,3 +337,17 @@ async def get_recent_logs(
     except Exception as e:
         logger.error(f"Error getting logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
+
+# If you need test functionality, create it as a dependency or initialize it properly in the route
+@router.post("/test/{test_name}")
+async def run_test(test_name: str, db: Session = Depends(get_db)):
+    """Run a specific system test"""
+    try:
+        # Initialize test service here if needed, with proper dependencies
+        # For now, let's just return a message
+        return {
+            "status": "error",
+            "message": "Test service is currently disabled due to initialization issues"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
