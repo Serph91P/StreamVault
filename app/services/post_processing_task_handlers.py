@@ -243,12 +243,81 @@ class PostProcessingTaskHandlers:
             )
             raise
     
+    async def handle_mp4_validation(self, task):
+        """Handle MP4 validation task"""
+        payload = task.payload
+        stream_id = payload['stream_id']
+        mp4_path = payload['mp4_path']
+        ts_file_path = payload['ts_file_path']
+        validate_size_ratio = payload.get('validate_size_ratio', True)
+        min_size_mb = payload.get('min_size_mb', 1)
+        
+        log_with_context(
+            logger, 'info',
+            f"Starting MP4 validation for stream {stream_id}",
+            task_id=task.id,
+            stream_id=stream_id,
+            mp4_path=mp4_path,
+            operation='mp4_validation_start'
+        )
+        
+        try:
+            # Check if MP4 exists
+            if not os.path.exists(mp4_path):
+                raise Exception(f"MP4 file not found: {mp4_path}")
+            
+            # Check MP4 size
+            mp4_size = os.path.getsize(mp4_path)
+            min_size_bytes = min_size_mb * 1024 * 1024
+            
+            if mp4_size < min_size_bytes:
+                raise Exception(f"MP4 file too small: {mp4_size} bytes (minimum: {min_size_bytes} bytes)")
+            
+            # Validate size ratio if requested
+            if validate_size_ratio and os.path.exists(ts_file_path):
+                ts_size = os.path.getsize(ts_file_path)
+                if ts_size > 0:
+                    size_ratio = mp4_size / ts_size
+                    
+                    # MP4 should be between 70% and 110% of TS size
+                    if size_ratio < 0.7:
+                        raise Exception(f"MP4 file too small compared to TS - Ratio: {size_ratio:.2f}")
+                    elif size_ratio > 1.1:
+                        logger.warning(f"MP4 file larger than TS - Ratio: {size_ratio:.2f} (this is usually okay)")
+            
+            # Use FFmpeg utils validation
+            is_valid = await ffmpeg_utils.validate_mp4(mp4_path)
+            if not is_valid:
+                raise Exception("MP4 validation failed - file may be corrupted")
+            
+            log_with_context(
+                logger, 'info',
+                f"MP4 validation completed for stream {stream_id}",
+                task_id=task.id,
+                stream_id=stream_id,
+                mp4_size=mp4_size,
+                operation='mp4_validation_complete'
+            )
+            
+        except Exception as e:
+            log_with_context(
+                logger, 'error',
+                f"MP4 validation failed for stream {stream_id}: {e}",
+                task_id=task.id,
+                stream_id=stream_id,
+                error=str(e),
+                operation='mp4_validation_error'
+            )
+            raise
+
     async def handle_cleanup(self, task):
-        """Handle cleanup task"""
+        """Handle cleanup task with intelligent TS cleanup"""
         payload = task.payload
         stream_id = payload['stream_id']
         files_to_remove = payload['files_to_remove']
         mp4_path = payload['mp4_path']
+        intelligent_cleanup = payload.get('intelligent_cleanup', False)
+        max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
         
         log_with_context(
             logger, 'info',
@@ -256,36 +325,43 @@ class PostProcessingTaskHandlers:
             task_id=task.id,
             stream_id=stream_id,
             files_to_remove=files_to_remove,
+            intelligent_cleanup=intelligent_cleanup,
             operation='cleanup_start'
         )
         
         try:
-            # Only remove files if MP4 exists and is valid
-            if mp4_path and os.path.exists(mp4_path):
-                mp4_size = os.path.getsize(mp4_path)
-                if mp4_size > 1024:  # MP4 must be at least 1KB
-                    removed_files = []
-                    for file_path in files_to_remove:
-                        if os.path.exists(file_path):
-                            try:
-                                os.remove(file_path)
-                                removed_files.append(file_path)
-                                logger.info(f"Removed file: {file_path}")
-                            except Exception as e:
-                                logger.warning(f"Failed to remove file {file_path}: {e}")
-                    
-                    log_with_context(
-                        logger, 'info',
-                        f"Cleanup completed for stream {stream_id}",
-                        task_id=task.id,
-                        stream_id=stream_id,
-                        removed_files=removed_files,
-                        operation='cleanup_complete'
-                    )
-                else:
-                    raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
-            else:
+            # Validation should have already passed, but double-check
+            if not mp4_path or not os.path.exists(mp4_path):
                 raise Exception("MP4 file not found, not removing source files")
+            
+            mp4_size = os.path.getsize(mp4_path)
+            if mp4_size < 1024 * 1024:  # Less than 1MB
+                raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
+            
+            removed_files = []
+            for file_path in files_to_remove:
+                if os.path.exists(file_path):
+                    try:
+                        # Use intelligent cleanup for TS files if requested
+                        if intelligent_cleanup and file_path.endswith('.ts'):
+                            await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
+                        else:
+                            # Simple file removal
+                            os.remove(file_path)
+                            
+                        removed_files.append(file_path)
+                        logger.info(f"Removed file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove file {file_path}: {e}")
+            
+            log_with_context(
+                logger, 'info',
+                f"Cleanup completed for stream {stream_id}",
+                task_id=task.id,
+                stream_id=stream_id,
+                removed_files=removed_files,
+                operation='cleanup_complete'
+            )
                 
         except Exception as e:
             log_with_context(
@@ -297,6 +373,29 @@ class PostProcessingTaskHandlers:
                 operation='cleanup_error'
             )
             raise
+    
+    async def _intelligent_ts_cleanup(self, ts_path: str, mp4_path: str, max_wait_time: int):
+        """Intelligent TS cleanup that waits for processes to finish"""
+        try:
+            # Use the intelligent cleanup from file_operations
+            from app.services.recording.file_operations import intelligent_ts_cleanup
+            
+            # Check if psutil is available for process monitoring
+            psutil_available = False
+            try:
+                import psutil
+                psutil_available = True
+            except ImportError:
+                pass
+            
+            # Run intelligent cleanup
+            await intelligent_ts_cleanup(ts_path, max_wait_time, psutil_available)
+            
+        except Exception as e:
+            # Fallback to simple removal if intelligent cleanup fails
+            logger.warning(f"Intelligent cleanup failed, falling back to simple removal: {e}")
+            if os.path.exists(ts_path):
+                os.remove(ts_path)
     
     async def cleanup(self):
         """Clean up services"""
