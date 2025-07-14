@@ -41,6 +41,9 @@ class ProcessManager:
         except ImportError:
             self.psutil_available = False
             logger.warning("psutil not available - process monitoring will be limited")
+        
+        # Shutdown management
+        self._is_shutting_down = False
 
     async def start_recording_process(
         self, stream: Stream, output_path: str, quality: str
@@ -431,3 +434,80 @@ class ProcessManager:
     def get_active_process_count(self) -> int:
         """Get the number of active recording processes"""
         return len(self.active_processes)
+
+    async def graceful_shutdown(self, timeout: int = 15):
+        """Gracefully shutdown all recording processes
+        
+        Args:
+            timeout: Maximum time to wait for processes to terminate (seconds)
+        """
+        logger.info("🛑 Starting graceful shutdown of Process Manager...")
+        self._is_shutting_down = True
+        
+        try:
+            # Get list of active processes
+            active_process_count = len(self.active_processes)
+            segmented_process_count = len(self.long_stream_processes)
+            
+            if active_process_count == 0 and segmented_process_count == 0:
+                logger.info("No active processes to shutdown")
+                return
+            
+            logger.info(f"⏳ Terminating {active_process_count} active processes and {segmented_process_count} segmented processes...")
+            
+            # Terminate all active processes gracefully
+            termination_tasks = []
+            
+            # Handle regular processes
+            for stream_id, process in list(self.active_processes.items()):
+                termination_tasks.append(self._terminate_process_gracefully(stream_id, process, timeout))
+            
+            # Handle segmented processes
+            for stream_id, segment_info in list(self.long_stream_processes.items()):
+                current_process = segment_info.get('current_process')
+                if current_process:
+                    termination_tasks.append(self._terminate_process_gracefully(stream_id, current_process, timeout))
+            
+            # Wait for all terminations to complete
+            if termination_tasks:
+                await asyncio.gather(*termination_tasks, return_exceptions=True)
+            
+            # Clear process tracking
+            self.active_processes.clear()
+            self.long_stream_processes.clear()
+            
+            logger.info("✅ Process Manager graceful shutdown completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during Process Manager shutdown: {e}", exc_info=True)
+
+    async def _terminate_process_gracefully(self, stream_id: int, process: asyncio.subprocess.Process, timeout: int):
+        """Gracefully terminate a single process"""
+        try:
+            if process.returncode is None:  # Process is still running
+                logger.info(f"🔄 Terminating recording process for stream {stream_id} (PID: {process.pid})")
+                
+                # Send SIGTERM for graceful termination
+                process.terminate()
+                
+                try:
+                    # Wait for process to terminate gracefully
+                    await asyncio.wait_for(process.wait(), timeout=timeout)
+                    logger.info(f"✅ Process for stream {stream_id} terminated gracefully")
+                    
+                except asyncio.TimeoutError:
+                    # Force kill if timeout
+                    logger.warning(f"⚠️ Process for stream {stream_id} didn't terminate gracefully, force killing...")
+                    process.kill()
+                    await process.wait()
+                    logger.info(f"💀 Process for stream {stream_id} force killed")
+                    
+            else:
+                logger.info(f"Process for stream {stream_id} already terminated")
+                
+        except Exception as e:
+            logger.error(f"Error terminating process for stream {stream_id}: {e}")
+
+    def is_shutting_down(self) -> bool:
+        """Check if process manager is shutting down"""
+        return self._is_shutting_down

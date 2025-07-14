@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, Text, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -8,13 +8,18 @@ from typing import Optional
 
 class Recording(Base):
     __tablename__ = "recordings"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_recordings_stream_status', 'stream_id', 'status'),  # For finding recordings by stream and status
+        Index('idx_recordings_status_time', 'status', 'start_time'),  # For finding recordings by status and time
+        {'extend_existing': True}
+    )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False)
-    start_time = Column(DateTime(timezone=True), nullable=False)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
+    start_time = Column(DateTime(timezone=True), nullable=False, index=True)
     end_time = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String, nullable=False)  # "recording", "completed", "error"
+    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error"
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
     
@@ -26,11 +31,11 @@ class Streamer(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    twitch_id = Column(String, unique=True, nullable=False)
-    username = Column(String, nullable=False)
-    is_live = Column(Boolean, default=False)
+    twitch_id = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, nullable=False, index=True)
+    is_live = Column(Boolean, default=False, index=True)
     title = Column(String)
-    category_name = Column(String)
+    category_name = Column(String, index=True)
     language = Column(String)
     last_updated = Column(DateTime(timezone=True))
     profile_image_url = Column(String)
@@ -39,16 +44,23 @@ class Streamer(Base):
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
 class Stream(Base):
     __tablename__ = "streams"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_streams_streamer_active', 'streamer_id', 'ended_at'),  # For finding active streams
+        Index('idx_streams_streamer_recent', 'streamer_id', 'started_at'),  # For recent streams by streamer
+        Index('idx_streams_category_recent', 'category_name', 'started_at'),  # For recent streams by category
+        Index('idx_streams_time_range', 'started_at', 'ended_at'),  # For time-based queries
+        {'extend_existing': True}
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String, nullable=True)
-    category_name = Column(String, nullable=True)
+    category_name = Column(String, nullable=True, index=True)
     language = Column(String, nullable=True)
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
-    twitch_stream_id = Column(String, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    twitch_stream_id = Column(String, nullable=True, index=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     
     # Relationships
@@ -60,15 +72,21 @@ class Stream(Base):
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_stream_events_stream_type', 'stream_id', 'event_type'),  # For finding events by stream and type
+        Index('idx_stream_events_stream_time', 'stream_id', 'timestamp'),  # For chronological events by stream
+        Index('idx_stream_events_type_time', 'event_type', 'timestamp'),  # For recent events by type
+        {'extend_existing': True}
+    )
 
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
-    event_type = Column(String, nullable=False)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
+    event_type = Column(String, nullable=False, index=True)
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
 class User(Base):
     __tablename__ = "users"
@@ -95,7 +113,7 @@ class NotificationSettings(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, index=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     notify_online = Column(Boolean, default=True)
     notify_offline = Column(Boolean, default=True)
     notify_update = Column(Boolean, default=True)
@@ -160,7 +178,7 @@ class StreamerRecordingSettings(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, default=True)
     quality = Column(String, default="best")
     custom_filename = Column(String, nullable=True)
@@ -176,7 +194,7 @@ class StreamMetadata(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
     
     # Thumbnails
     thumbnail_path = Column(String)

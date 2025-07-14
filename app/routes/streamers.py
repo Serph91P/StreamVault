@@ -40,6 +40,37 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
                         await async_file.path_unlink(companion)
                         deleted_files.append(str(companion))
                         logger.info(f"Deleted companion file: {companion}")
+                
+                # Also try to delete thumbnail files with different naming patterns
+                parent_dir = path_obj.parent
+                base_filename = path_obj.stem
+                
+                # Check for thumbnail files with different naming patterns
+                thumbnail_patterns = [
+                    f"{base_filename}-thumb.jpg",
+                    f"{base_filename}_thumbnail.jpg",
+                ]
+                
+                for pattern in thumbnail_patterns:
+                    thumbnail_path = parent_dir / pattern
+                    if await async_file.path_exists(thumbnail_path):
+                        await async_file.path_unlink(thumbnail_path)
+                        deleted_files.append(str(thumbnail_path))
+                        logger.info(f"Deleted thumbnail file: {thumbnail_path}")
+                
+                # Also check for streamer-specific thumbnail files
+                # Try to extract streamer name from filename if possible
+                try:
+                    # Most files follow the pattern: "streamer - date - title.ext"
+                    if " - " in base_filename:
+                        streamer_name = base_filename.split(" - ")[0]
+                        streamer_thumbnail = parent_dir / f"{streamer_name}_thumbnail.jpg"
+                        if await async_file.path_exists(streamer_thumbnail):
+                            await async_file.path_unlink(streamer_thumbnail)
+                            deleted_files.append(str(streamer_thumbnail))
+                            logger.info(f"Deleted streamer thumbnail file: {streamer_thumbnail}")
+                except Exception as e:
+                    logger.debug(f"Could not extract streamer name from filename {base_filename}: {e}")
             else:
                 logger.warning(f"File not found: {file_path}")
         except Exception as file_error:
