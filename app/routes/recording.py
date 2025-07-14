@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 import logging
 import json
 from typing import List, Dict
+from datetime import datetime
 
 logger = logging.getLogger("streamvault")
 
@@ -214,37 +215,42 @@ async def get_all_streamer_recording_settings():
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
-    """Get all active recordings
-    
-    Returns a list of active recordings as expected by the response model.
-    """
+    """Get all active recordings"""
     try:
-        # Get active recordings from service
+        # Get active recordings from service - it returns a dict
         active_recordings_dict = await recording_service.get_active_recordings()
         
-        # Convert dict to list of ActiveRecordingSchema
+        # Convert to list of ActiveRecordingSchema objects
         result = []
-        for stream_id, recording_info in active_recordings_dict.items():
-            # Get stream and streamer info from database
-            with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if stream and stream.streamer:
-                    result.append(ActiveRecordingSchema(
-                        stream_id=stream_id,
-                        streamer_id=stream.streamer_id,
-                        streamer_name=stream.streamer.username,
-                        start_time=recording_info['start_time'].isoformat(),
-                        duration=recording_info['duration'],
-                        output_path=recording_info.get('ts_output_path', ''),
-                        title=stream.title or '',
-                        category=stream.category_name or ''
-                    ))
+        
+        # Use a new session for database queries
+        with SessionLocal() as db:
+            for stream_id, recording_info in active_recordings_dict.items():
+                try:
+                    # Get stream and streamer info
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.streamer:
+                        # Create schema object with all required fields
+                        active_recording = ActiveRecordingSchema(
+                            stream_id=stream_id,
+                            streamer_id=stream.streamer_id,
+                            streamer_name=stream.streamer.username,
+                            start_time=recording_info['start_time'].isoformat() if isinstance(recording_info['start_time'], datetime) else recording_info['start_time'],
+                            duration=recording_info.get('duration', 0),
+                            output_path=recording_info.get('ts_output_path', ''),
+                            title=stream.title or '',
+                            category=stream.category_name or ''
+                        )
+                        result.append(active_recording)
+                except Exception as e:
+                    logger.warning(f"Error processing active recording for stream {stream_id}: {e}")
+                    continue
         
         return result
         
     except Exception as e:
         logger.error(f"Error fetching active recordings: {e}", exc_info=True)
-        # Return empty list on error to match response model
+        # Return empty list on error
         return []
 
 @router.post("/stop/{streamer_id}")

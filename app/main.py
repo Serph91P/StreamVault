@@ -100,30 +100,28 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application shutdown...")
     
     # Cancel cleanup tasks
-    if cleanup_task and not cleanup_task.done():
-        cleanup_task.cancel()
-        try:
-            await cleanup_task
-        except asyncio.CancelledError:
-            pass
-    
-    if log_cleanup_task and not log_cleanup_task.done():
-        log_cleanup_task.cancel()
-        try:
-            await log_cleanup_task
-        except asyncio.CancelledError:
-            pass
+    for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
+        if task and not task.done():
+            logger.info(f"Cancelling {task_name} task...")
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info(f"{task_name} task cancelled successfully")
+            except Exception as e:
+                logger.error(f"Error cancelling {task_name} task: {e}")
     
     # Stop EventSub properly
     if event_registry:
         try:
-            # Check if eventsub exists and has stop method
-            if hasattr(event_registry, 'eventsub'):
-                eventsub = event_registry.eventsub
-                if eventsub and hasattr(eventsub, 'stop'):
-                    await eventsub.stop()
-                    logger.info("EventSub stopped successfully")
+            # Try to access eventsub attribute safely
+            eventsub = getattr(event_registry, 'eventsub', None)
+            if eventsub and hasattr(eventsub, 'stop'):
+                logger.info("Stopping EventSub...")
+                await eventsub.stop()
+                logger.info("EventSub stopped successfully")
             elif hasattr(event_registry, 'cleanup'):
+                logger.info("Cleaning up event registry...")
                 await event_registry.cleanup()
                 logger.info("Event registry cleaned up")
         except Exception as e:
@@ -131,12 +129,12 @@ async def lifespan(app: FastAPI):
     
     # Close database connections
     try:
-        if hasattr(engine, 'dispose'):
-            if asyncio.iscoroutinefunction(engine.dispose):
-                await engine.dispose()
-            else:
-                engine.dispose()
-            logger.info("Database connections closed")
+        from sqlalchemy.ext.asyncio import AsyncEngine
+        if isinstance(engine, AsyncEngine):
+            await engine.dispose()
+        else:
+            engine.dispose()
+        logger.info("Database connections closed")
     except Exception as e:
         logger.error(f"Error disposing database engine: {e}")
     
