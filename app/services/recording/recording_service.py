@@ -29,6 +29,7 @@ from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
 from app.services.recording.pipeline_manager import PipelineManager
 from app.dependencies import websocket_manager
+from app.services.state_persistence_service import state_persistence_service
 
 # Import utils
 from app.utils.path_utils import generate_filename
@@ -109,6 +110,89 @@ class RecordingService:
             
         return active_info
 
+    async def recover_active_recordings_from_persistence(self):
+        """Recover active recordings from persistent storage after restart"""
+        logger.info("Starting recovery of active recordings from persistent storage")
+        
+        try:
+            # Get recoverable recordings from persistent storage
+            recoverable_recordings = await state_persistence_service.recover_active_recordings()
+            
+            if not recoverable_recordings:
+                logger.info("No recoverable recordings found")
+                return
+            
+            logger.info(f"Found {len(recoverable_recordings)} recoverable recordings")
+            
+            # Recover each recording
+            for recording_info in recoverable_recordings:
+                try:
+                    await self._recover_single_recording(recording_info)
+                except Exception as e:
+                    logger.error(f"Failed to recover recording {recording_info['stream_id']}: {e}", exc_info=True)
+                    # Remove failed recovery from persistent storage
+                    await state_persistence_service.remove_active_recording(recording_info['stream_id'])
+                    
+            logger.info("Recording recovery completed")
+            
+        except Exception as e:
+            logger.error(f"Error during recording recovery: {e}", exc_info=True)
+            
+    async def _recover_single_recording(self, recording_info: Dict[str, Any]):
+        """Recover a single recording from persistent storage"""
+        stream_id = recording_info['stream_id']
+        process_id = recording_info['process_id']
+        streamer_name = recording_info['streamer_name']
+        
+        logger.info(f"Recovering recording for {streamer_name} (stream {stream_id}, process {process_id})")
+        
+        # Check if process is still running
+        import psutil
+        if not psutil.pid_exists(process_id):
+            logger.warning(f"Process {process_id} no longer exists, cannot recover {streamer_name}")
+            raise Exception(f"Process {process_id} no longer exists")
+            
+        # Get the process object
+        try:
+            process = psutil.Process(process_id)
+        except psutil.NoSuchProcess:
+            logger.warning(f"Process {process_id} no longer exists, cannot recover {streamer_name}")
+            raise Exception(f"Process {process_id} no longer exists")
+            
+        # Verify output file exists and is growing
+        ts_output_path = recording_info['ts_output_path']
+        if not os.path.exists(ts_output_path):
+            logger.warning(f"Output file {ts_output_path} not found, cannot recover {streamer_name}")
+            raise Exception(f"Output file {ts_output_path} not found")
+            
+        # Add to memory state
+        self.active_recordings[stream_id] = {
+            'process': process,
+            'start_time': recording_info['start_time'],
+            'ts_output_path': ts_output_path,
+            'recording_id': recording_info['recording_id'],
+            'force_mode': recording_info['force_mode'],
+            'streamer_name': streamer_name
+        }
+        
+        # Get stream object from database
+        self._ensure_db_session()
+        stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            logger.error(f"Stream {stream_id} not found in database, cannot recover")
+            raise Exception(f"Stream {stream_id} not found in database")
+        
+        # Start monitoring task for the recovered recording
+        task = asyncio.create_task(self._monitor_and_process_recording(
+            stream=stream,
+            recording_id=recording_info['recording_id'],
+            ts_output_path=ts_output_path,
+            start_time=recording_info['start_time']
+        ))
+        self.recording_tasks[stream_id] = task
+        
+        logger.info(f"Successfully recovered recording for {streamer_name}")
+
     async def send_active_recordings_websocket_update(self):
         """Send current active recordings to all WebSocket clients"""
         try:
@@ -145,6 +229,13 @@ class RecordingService:
             
             # Send via WebSocket
             await websocket_manager.send_active_recordings_update(active_recordings_list)
+            
+            # Update heartbeats for all active recordings
+            for stream_id in active_recordings_dict.keys():
+                try:
+                    await state_persistence_service.update_heartbeat(stream_id)
+                except Exception as e:
+                    logger.warning(f"Failed to update heartbeat for stream {stream_id}: {e}")
             
         except Exception as e:
             logger.error(f"Error sending active recordings WebSocket update: {e}", exc_info=True)
@@ -422,6 +513,17 @@ class RecordingService:
             # Send start notification
             await self.notification_manager.notify_recording_started(stream, metadata)
             
+            # Generate process identifier for tracking
+            process_identifier = f"stream_{stream.id}"
+            
+            # Build config dict for persistence
+            config = {
+                'quality': quality,
+                'force_mode': force_mode,
+                'streamer_id': streamer_id,
+                'stream_id': stream.id
+            }
+            
             # Add to active recordings
             self.active_recordings[stream.id] = {
                 'process': process,
@@ -431,6 +533,23 @@ class RecordingService:
                 'force_mode': force_mode,
                 'streamer_name': streamer.username
             }
+            
+            # Save to persistent storage
+            try:
+                await state_persistence_service.save_active_recording(
+                    stream_id=stream.id,
+                    recording_id=recording_id,
+                    process_id=process.pid,
+                    process_identifier=process_identifier,
+                    streamer_name=streamer.username,
+                    started_at=start_time,
+                    ts_output_path=ts_output_path,
+                    force_mode=force_mode,
+                    quality=quality,
+                    config=config
+                )
+            except Exception as e:
+                logger.error(f"Failed to save recording state to persistent storage: {e}", exc_info=True)
             
             # Send WebSocket notification for recording started
             try:
@@ -597,6 +716,9 @@ class RecordingService:
                     # Send immediate active recordings update
                     from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
                     await send_immediate_active_recordings_update()
+                    
+                    # Remove from persistent storage
+                    await state_persistence_service.remove_active_recording(stream.id)
                 except Exception as e:
                     logger.warning(f"Failed to send WebSocket recording stopped notification: {e}")
             else:
