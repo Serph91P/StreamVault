@@ -84,7 +84,7 @@ class ConfigManager:
         if streamer_settings and streamer_settings.quality:
             return streamer_settings.quality
         elif global_settings:
-            return global_settings.quality or "best"
+            return global_settings.default_quality or "best"
         else:
             return "best"
 
