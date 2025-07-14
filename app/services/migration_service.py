@@ -115,6 +115,11 @@ class MigrationService:
                 "name": "20250714_add_database_indexes",
                 "description": "Add comprehensive database indexes for performance optimization",
                 "function": MigrationService._run_database_indexes_migration
+            },
+            {
+                "name": "20250714_add_active_recordings_state",
+                "description": "Add active_recordings_state table for persistent recording state",
+                "function": MigrationService._run_active_recordings_state_migration
             }
         ]
         
@@ -461,6 +466,92 @@ class MigrationService:
             logger.info("   • 70%+ reduction in recent streams query time")
             logger.info("   • 80%+ reduction in recording status check time")
             logger.info("   • 85%+ reduction in live streamer filtering time")
+
+    @staticmethod
+    def _run_active_recordings_state_migration():
+        """Create active_recordings_state table for persistent recording state"""
+        with engine.connect() as connection:
+            logger.info("🔄 Creating active_recordings_state table...")
+            
+            # Create table with IF NOT EXISTS
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS active_recordings_state (
+                    id SERIAL PRIMARY KEY,
+                    stream_id INTEGER NOT NULL,
+                    recording_id INTEGER NOT NULL,
+                    process_id INTEGER NOT NULL,
+                    process_identifier VARCHAR(100) NOT NULL,
+                    streamer_name VARCHAR(100) NOT NULL,
+                    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                    ts_output_path VARCHAR(500) NOT NULL,
+                    force_mode BOOLEAN DEFAULT FALSE,
+                    quality VARCHAR(50) DEFAULT 'best',
+                    status VARCHAR(50) DEFAULT 'active',
+                    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
+                    config_json TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            
+            # Create unique constraint on stream_id
+            connection.execute(text("""
+                DO $$ BEGIN
+                    ALTER TABLE active_recordings_state 
+                    ADD CONSTRAINT active_recordings_state_stream_id_key UNIQUE (stream_id);
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            """))
+            
+            # Create foreign key constraints if tables exist
+            connection.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'streams') THEN
+                        ALTER TABLE active_recordings_state 
+                        ADD CONSTRAINT fk_active_recordings_stream 
+                        FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE;
+                    END IF;
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            """))
+            
+            connection.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recordings') THEN
+                        ALTER TABLE active_recordings_state 
+                        ADD CONSTRAINT fk_active_recordings_recording 
+                        FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE;
+                    END IF;
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            """))
+            
+            # Create indices for better performance
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_stream_id 
+                ON active_recordings_state (stream_id)
+            """))
+            
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_status 
+                ON active_recordings_state (status)
+            """))
+            
+            connection.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_heartbeat 
+                ON active_recordings_state (last_heartbeat)
+            """))
+            
+            connection.commit()
+            logger.info("✅ Active recordings state table and indices created successfully")
+            logger.info("🎯 Features enabled:")
+            logger.info("   • Persistent recording state across restarts")
+            logger.info("   • Automatic recovery of interrupted recordings")
+            logger.info("   • Heartbeat monitoring for stale process detection")
+            logger.info("   • Production-ready container deployment support")
 
     # LEGACY METHODS - Keep for backward compatibility
     
