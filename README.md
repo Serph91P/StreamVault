@@ -15,6 +15,7 @@
 - **High-Quality Recording**: Uses Streamlink for optimal stream capture with customizable quality settings
 - **Multi-Platform Support**: Primarily focused on Twitch with extensible architecture for other platforms
 - **Proxy Support**: Full HTTP/HTTPS proxy support with audio-sync optimizations (configured via web interface)
+- **Long Stream Support**: Automatic segmentation for 24+ hour streams to prevent data loss
 
 ### 🎮 Streamer Management
 - **Easy Streamer Addition**: Add streamers with simple username input
@@ -27,19 +28,25 @@
 - **Progressive Web App (PWA)**: Install as a native app on any device
 - **Dark/Light Theme**: Automatic theme switching based on system preferences
 - **Real-time Updates**: Live status updates using WebSockets
+- **Background Queue Monitor**: Real-time task monitoring with progress indicators
 
-### 🎬 Video Management
+### 🎬 Video Management & Processing
 - **Built-in Video Player**: Stream and watch recordings directly in the browser
 - **Smart Organization**: Automatic file organization by streamer and date
 - **Search & Filter**: Powerful search capabilities across all recordings
-- **Metadata Extraction**: Automatic extraction of stream metadata and thumbnails
+- **Intelligent Post-Processing**: Dependency-based background task system for optimal workflow
+- **Media Server Integration**: Optimized for Plex, Emby, Jellyfin, and Kodi with proper metadata
+- **Chapter Support**: Automatic chapter generation from stream events and category changes
+- **Thumbnail Generation**: Intelligent thumbnail extraction with fallback mechanisms
 
-### 🔧 Advanced Configuration
+### 🔧 Advanced Configuration & Automation
 - **Recording Templates**: Customizable filename templates with variables
 - **Quality Selection**: Flexible quality settings (best, worst, specific resolutions)
 - **Cleanup Policies**: Automatic cleanup based on age, size, or count
 - **Push Notifications**: Push notifications for recording events via Apprise
 - **API Access**: Full REST API for automation and integration
+- **Background Processing**: Asynchronous task queue with dependency management
+- **Admin Test System**: Comprehensive health checks and maintenance tools
 
 ## 🚀 Quick Start
 
@@ -232,24 +239,30 @@ For users requiring proxy support:
 StreamVault provides a comprehensive REST API:
 
 ```bash
-# Get all streamers
-GET /api/streamers
+# Streamer Management
+GET /api/streamers                    # Get all streamers
+POST /api/streamers                   # Add a new streamer
+PUT /api/streamers/{streamer_id}      # Update streamer settings
 
-# Add a new streamer
-POST /api/streamers
-{
-  "username": "streamername",
-  "platform": "twitch"
-}
+# Recording Control
+POST /api/recording/start/{streamer_id}  # Start recording manually
+POST /api/recording/stop/{streamer_id}   # Stop recording
 
-# Start recording manually
-POST /api/recording/start/{streamer_id}
+# Video Management
+GET /api/videos                       # Get all videos
+GET /api/videos/stream/{streamer_name}/{filename}  # Stream a video
+DELETE /api/videos/{video_id}         # Delete a video
 
-# Get all videos
-GET /api/videos
+# Background Queue Management
+GET /api/background-queue/stats       # Get queue statistics
+GET /api/background-queue/active-tasks  # Get active tasks
+GET /api/background-queue/stream/{stream_id}/tasks  # Get tasks for stream
+POST /api/background-queue/cancel-stream/{stream_id}  # Cancel stream tasks
 
-# Stream a video
-GET /api/videos/stream/{streamer_name}/{filename}
+# Admin & Testing
+GET /api/admin/test/health           # System health check
+POST /api/admin/test/recording-workflow  # Test recording workflow
+GET /api/admin/test/logs             # Get system logs
 ```
 
 Full API documentation is available at `https://your-domain.com/docs` when running the application.
@@ -287,15 +300,40 @@ npm run dev
 streamvault/
 ├── app/
 │   ├── frontend/          # Vue.js frontend application
-│   ├── routes/           # FastAPI route handlers
-│   ├── services/         # Business logic services
-│   ├── models/           # Database models
-│   ├── schemas/          # Pydantic schemas
-│   └── migrations/       # Database migrations
-├── docs/                 # Documentation
-├── recordings/           # Default recordings directory
-├── docker-compose.yml    # Docker configuration
-└── requirements.txt      # Python dependencies
+│   │   ├── src/           # Vue.js source code
+│   │   │   ├── components/ # Vue components including BackgroundQueueMonitor
+│   │   │   ├── composables/ # Vue composables (useBackgroundQueue, useWebSocket)
+│   │   │   └── styles/    # SCSS styles
+│   │   └── dist/          # Built frontend assets
+│   ├── api/               # API endpoints
+│   │   └── background_queue_endpoints.py # Background queue API
+│   ├── routes/            # FastAPI route handlers
+│   ├── services/          # Business logic services
+│   │   ├── recording/     # Recording service modules
+│   │   │   ├── config_manager.py      # Configuration management
+│   │   │   ├── process_manager.py     # Process management
+│   │   │   ├── recording_service.py   # Main recording service
+│   │   │   └── notification_manager.py # Notifications
+│   │   ├── background_queue_service.py # Background processing
+│   │   ├── task_dependency_manager.py  # Task dependency management
+│   │   ├── recording_task_factory.py   # Task chain factory
+│   │   ├── post_processing_task_handlers.py # Task handlers
+│   │   ├── metadata_service.py         # Metadata generation
+│   │   └── thumbnail_service.py        # Thumbnail generation
+│   ├── utils/             # Utility functions
+│   │   ├── ffmpeg_utils.py           # FFmpeg operations
+│   │   ├── streamlink_utils.py       # Streamlink utilities
+│   │   └── mp4box_utils.py           # MP4Box integration
+│   ├── models/            # Database models
+│   ├── schemas/           # Pydantic schemas
+│   └── migrations/        # Database migrations
+├── docs/                  # Documentation
+│   ├── admin_test_system.md          # Admin system docs
+│   ├── recording_logging_integration.md # Logging docs
+│   └── mp4box_integration.md         # MP4Box docs
+├── recordings/            # Default recordings directory
+├── docker-compose.yml     # Docker configuration
+└── requirements.txt       # Python dependencies
 ```
 
 ### Contributing
@@ -368,8 +406,37 @@ All checks are automatically run in our GitHub Actions workflow, but you should 
 - **Discussions**: [GitHub Discussions](https://github.com/Serph91P/StreamVault/discussions)
 - **Wiki**: [Project Wiki](https://github.com/Serph91P/StreamVault/wiki)
 
+## 🔄 Background Processing System
+
+StreamVault includes a sophisticated background processing system that handles post-recording tasks efficiently:
+
+### Task Dependencies
+- **Metadata Generation**: Extracts stream information and creates NFO files
+- **Chapter Generation**: Creates chapter files from stream events
+- **MP4 Remux**: Converts TS files to MP4 with embedded metadata
+- **MP4 Validation**: Ensures file integrity before cleanup
+- **Thumbnail Generation**: Creates thumbnails from video content
+- **Intelligent Cleanup**: Safely removes temporary files after validation
+
+### Queue Management
+- **Real-time Monitoring**: Live task progress tracking in the web interface
+- **Priority System**: Critical tasks (validation) run before optional tasks (thumbnails)
+- **Retry Logic**: Automatic retry for failed tasks with exponential backoff
+- **Dependency Resolution**: Ensures tasks execute in the correct order
+- **Graceful Shutdown**: Properly handles application restarts without data loss
+
+### Media Server Integration
+- **Plex/Emby/Jellyfin**: Automatic NFO file generation with proper metadata
+- **Chapter Support**: Multiple chapter formats (.vtt, .xml) for media players
+- **Thumbnail Creation**: Multiple thumbnail formats for different media servers
+- **Season Organization**: Automatic year-month based season structure
+
 ## 📋 Roadmap
 
+- [x] **Background Processing System**: Dependency-based task queue ✅
+- [x] **Media Server Integration**: Plex, Emby, Jellyfin, Kodi support ✅
+- [x] **Chapter Support**: Automatic chapter generation from stream events ✅
+- [x] **Admin Test System**: Comprehensive health checks and maintenance ✅
 - [ ] **Multi-platform Support**: YouTube, Facebook Gaming, etc.
 - [ ] **Cloud Storage Integration**: S3, Google Drive, Dropbox
 - [ ] **Advanced Analytics**: Recording statistics and insights
@@ -381,6 +448,10 @@ All checks are automatically run in our GitHub Actions workflow, but you should 
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework for APIs
 - [Vue.js](https://vuejs.org/) - Progressive JavaScript framework for the frontend
 - [Twitch API](https://dev.twitch.tv/docs/api/) - Stream data and webhooks
+- [FFmpeg](https://ffmpeg.org/) - Video processing and conversion
+- [MP4Box](https://gpac.wp.imt.fr/mp4box/) - Advanced MP4 metadata processing
+- [PostgreSQL](https://www.postgresql.org/) - Robust database system
+- [Docker](https://www.docker.com/) - Containerization platform
 
 ## 📄 License
 
