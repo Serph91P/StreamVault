@@ -37,6 +37,13 @@ async def start_recording_service(db=None):
     service = RecordingService(db=db)
     await service.start()
     
+    # Start the state persistence service
+    from app.services.state_persistence_service import state_persistence_service
+    await state_persistence_service.start()
+    
+    # Recover active recordings from persistent storage
+    await service.recover_active_recordings_from_persistence()
+    
     # Start the active recordings broadcaster
     from app.services.active_recordings_broadcaster import start_active_recordings_broadcaster
     await start_active_recordings_broadcaster(service)
