@@ -1,0 +1,225 @@
+2025-07-14T12:46:06.356694467Z [2025-07-14 14:46:06] Starting StreamVault entrypoint script
+2025-07-14T12:46:06.359651435Z [2025-07-14 14:46:06] ENVIRONMENT: development, LOG_LEVEL: DEBUG
+2025-07-14T12:46:06.362899941Z [2025-07-14 14:46:06] Running in development environment...
+2025-07-14T12:46:06.365847313Z [2025-07-14 14:46:06] Frontend dist assets directory found. Skipping build.
+2025-07-14T12:46:06.368538673Z [2025-07-14 14:46:06] Setting proper permissions for migrations directory...
+2025-07-14T12:46:06.511303875Z [2025-07-14 14:46:06] Migrations directory permissions set.
+2025-07-14T12:46:06.514321616Z [2025-07-14 14:46:06] Setting up category images directory permissions...
+2025-07-14T12:46:06.523340105Z [2025-07-14 14:46:06] Category images directory permissions set
+2025-07-14T12:46:06.526598467Z [2025-07-14 14:46:06] Running database migrations in development mode...
+2025-07-14T12:46:06.530144647Z [2025-07-14 14:46:06] Python module structure debug:
+2025-07-14T12:46:06.555153734Z Python Path: ['', '/usr/local/lib/python313.zip', '/usr/local/lib/python3.13', '/usr/local/lib/python3.13/lib-dynload', '/usr/local/lib/python3.13/site-packages']
+2025-07-14T12:46:06.555167647Z App utils exists: True
+2025-07-14T12:46:06.555170495Z notification_utils.py exists: True
+2025-07-14T12:46:06.555172849Z Files in utils: ['ffmpeg_utils.py', 'path_utils.py', 'file_utils.py', 'notification_utils.py', 'sqlalchemy_typing.py', 'security_enhanced.py', 'error_handler.py', 'security.py', 'streamlink_utils.py', '__init__.py']
+2025-07-14T12:46:07.283675649Z Connecting to database with URL: postgresql+psycopg://streamvault-develop:yLdAXmEO0fargQQkBqVnYL4rJ#Qy$&L6@db:5432/streamvault-develop
+2025-07-14T12:46:07.364004189Z [2025-07-14 14:46:07] Database migrations completed successfully
+2025-07-14T12:46:07.364842896Z [2025-07-14 14:46:07] Starting FastAPI application...
+2025-07-14T12:46:08.089529571Z INFO:     Started server process [1]
+2025-07-14T12:46:08.089584225Z INFO:     Waiting for application startup.
+2025-07-14T12:46:08.089746856Z Connecting to database with URL: postgresql+psycopg://streamvault-develop:yLdAXmEO0fargQQkBqVnYL4rJ#Qy$&L6@db:5432/streamvault-develop
+2025-07-14T12:46:08.089755348Z 2025-07-14 14:46:08,089 - streamvault - INFO - Starting application initialization...
+2025-07-14T12:46:08.089757976Z 2025-07-14 14:46:08,089 - streamvault - INFO - 🔄 Development mode: Migrations handled by entrypoint.sh
+2025-07-14T12:46:08.089761618Z 2025-07-14 14:46:08,089 - streamvault - DEBUG - Initializing event registry
+2025-07-14T12:46:08.212697489Z 2025-07-14 14:46:08,212 - streamvault - INFO - Apprise initialized successfully with URL: ntfys://ntfy.meberthosting.de/lsdvr
+2025-07-14T12:46:08.213007440Z 2025-07-14 14:46:08,212 - streamvault - DEBUG - Initializing EventSub with callback URL: https://streamvault-develop.meberthosting.de/eventsub
+2025-07-14T12:46:08.213013392Z 2025-07-14 14:46:08,212 - streamvault - INFO - EventSub initialized successfully
+2025-07-14T12:46:08.213015282Z 2025-07-14 14:46:08,212 - streamvault - DEBUG - Event registry initialization complete
+2025-07-14T12:46:08.213025075Z 2025-07-14 14:46:08,212 - streamvault - DEBUG - EventSub already initialized, skipping...
+2025-07-14T12:46:08.213035672Z 2025-07-14 14:46:08,212 - streamvault - INFO - EventSub initialized successfully
+2025-07-14T12:46:08.213338237Z 2025-07-14 14:46:08,213 - streamvault - INFO - Starting log cleanup. Retention: streamer logs=14 days, system logs=30 days
+2025-07-14T12:46:08.213489206Z 2025-07-14 14:46:08,213 - streamvault - INFO - Cleaned /app/logs/ffmpeg: deleted 0 log files, kept 3
+2025-07-14T12:46:08.213635369Z 2025-07-14 14:46:08,213 - streamvault - INFO - Cleaned /app/logs/streamlink: deleted 0 log files, kept 13
+2025-07-14T12:46:08.213640160Z 2025-07-14 14:46:08,213 - streamvault - INFO - Cleaned /app/logs/app: deleted 0 log files, kept 4
+2025-07-14T12:46:08.213641403Z 2025-07-14 14:46:08,213 - streamvault - INFO - Log cleanup completed
+2025-07-14T12:46:08.213642314Z 2025-07-14 14:46:08,213 - streamvault - INFO - Log cleanup service started
+2025-07-14T12:46:08.213643162Z 2025-07-14 14:46:08,213 - streamvault - INFO - Recording cleanup service started
+2025-07-14T12:46:08.213644034Z 2025-07-14 14:46:08,213 - streamvault - INFO - Application startup complete
+2025-07-14T12:46:08.213751418Z 2025-07-14 14:46:08,213 - streamvault - INFO - Starting scheduled cleanup for all streamers
+2025-07-14T12:46:08.217033852Z 2025-07-14 14:46:08,216 - streamvault - DEBUG - Using global cleanup policy for streamer 2
+2025-07-14T12:46:08.217040797Z 2025-07-14 14:46:08,216 - streamvault - INFO - Processing streamer test_streamer (1/2) with policy count (threshold: 5)
+2025-07-14T12:46:08.224984396Z 2025-07-14 14:46:08,224 - streamvault - DEBUG - Using global cleanup policy for streamer 2
+2025-07-14T12:46:08.225205111Z 2025-07-14 14:46:08,225 - streamvault - INFO - Applying cleanup policy for streamer 2: type=count, threshold=5
+2025-07-14T12:46:08.227608083Z 2025-07-14 14:46:08,227 - streamvault - INFO - No recordings to clean up for streamer test_streamer
+2025-07-14T12:46:08.228469252Z 2025-07-14 14:46:08,228 - streamvault - DEBUG - Using streamer-specific cleanup policy for streamer 1
+2025-07-14T12:46:08.228629246Z 2025-07-14 14:46:08,228 - streamvault - INFO - Processing streamer herrmaximal (2/2) with policy count (threshold: 10)
+2025-07-14T12:46:08.231133810Z 2025-07-14 14:46:08,231 - streamvault - DEBUG - Using streamer-specific cleanup policy for streamer 1
+2025-07-14T12:46:08.231330791Z 2025-07-14 14:46:08,231 - streamvault - INFO - Applying cleanup policy for streamer 1: type=count, threshold=10
+2025-07-14T12:46:08.232449516Z 2025-07-14 14:46:08,232 - streamvault - INFO - No recordings to clean up for streamer herrmaximal
+2025-07-14T12:46:08.232560187Z 2025-07-14 14:46:08,232 - streamvault - INFO - Scheduled cleanup completed for 0/2 streamers. Deleted 0 recordings in total.
+2025-07-14T12:46:08.233044652Z INFO:     Application startup complete.
+2025-07-14T12:46:08.233646470Z INFO:     Uvicorn running on http://0.0.0.0:7000 (Press CTRL+C to quit)
+2025-07-14T12:46:11.046081733Z 2025-07-14 14:46:11,045 - streamvault - INFO - Request c7ebec59-c657-4349-b6c8-da8de3fdd7f9: GET /api/recording/active
+2025-07-14T12:46:11.046459063Z 2025-07-14 14:46:11,046 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:11.047090194Z 2025-07-14 14:46:11,047 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:11.047471839Z INFO:     172.20.0.1:50162 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-14T12:46:13.931861498Z 2025-07-14 14:46:13,931 - streamvault - INFO - Request 30d6a3af-b35c-455c-be7b-108914484e47: DELETE /api/streamers/1/streams
+2025-07-14T12:46:13.932300224Z 2025-07-14 14:46:13,932 - streamvault - DEBUG - Incoming request: DELETE /api/streamers/1/streams
+2025-07-14T12:46:13.968094952Z 2025-07-14 14:46:13,960 - streamvault - ERROR - Error deleting all streams for streamer 1: (psycopg.errors.NotNullViolation) null value in column "stream_id" of relation "recordings" violates not-null constraint
+2025-07-14T12:46:13.968103037Z DETAIL:  Failing row contains (1, null, 2025-07-14 14:01:16.906521+00, 2025-07-14 14:02:07.882864+00, completed, 48, /recordings/herrmaximal/herrmaximal/Season 2025-07/herrmaximal -...).
+2025-07-14T12:46:13.968112212Z [SQL: UPDATE recordings SET stream_id=%(stream_id)s::INTEGER WHERE recordings.id = %(recordings_id)s::INTEGER]
+2025-07-14T12:46:13.968113236Z [parameters: [{'stream_id': None, 'recordings_id': 1}, {'stream_id': None, 'recordings_id': 2}]]
+2025-07-14T12:46:13.968114365Z (Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-07-14T12:46:13.968115245Z Traceback (most recent call last):
+2025-07-14T12:46:13.968116105Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
+2025-07-14T12:46:13.968117107Z     self.dialect.do_executemany(
+2025-07-14T12:46:13.968117929Z     ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968118869Z         cursor,
+2025-07-14T12:46:13.968119685Z         ^^^^^^^
+2025-07-14T12:46:13.968120472Z     ...<2 lines>...
+2025-07-14T12:46:13.968121501Z         context,
+2025-07-14T12:46:13.968122331Z         ^^^^^^^^
+2025-07-14T12:46:13.968123111Z     )
+2025-07-14T12:46:13.968123881Z     ^
+2025-07-14T12:46:13.968124664Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 938, in do_executemany
+2025-07-14T12:46:13.968125637Z     cursor.executemany(statement, parameters)
+2025-07-14T12:46:13.968126476Z     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968127347Z   File "/usr/local/lib/python3.13/site-packages/psycopg/cursor.py", line 128, in executemany
+2025-07-14T12:46:13.968128282Z     raise ex.with_traceback(None)
+2025-07-14T12:46:13.968129115Z psycopg.errors.NotNullViolation: null value in column "stream_id" of relation "recordings" violates not-null constraint
+2025-07-14T12:46:13.968130157Z DETAIL:  Failing row contains (1, null, 2025-07-14 14:01:16.906521+00, 2025-07-14 14:02:07.882864+00, completed, 48, /recordings/herrmaximal/herrmaximal/Season 2025-07/herrmaximal -...).
+2025-07-14T12:46:13.968134487Z 
+2025-07-14T12:46:13.968135320Z The above exception was the direct cause of the following exception:
+2025-07-14T12:46:13.968136305Z 
+2025-07-14T12:46:13.968137139Z Traceback (most recent call last):
+2025-07-14T12:46:13.968137946Z   File "/app/app/routes/streamers.py", line 702, in delete_all_streams
+2025-07-14T12:46:13.968138936Z     db.commit()
+2025-07-14T12:46:13.968139750Z     ~~~~~~~~~^^
+2025-07-14T12:46:13.968140532Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2028, in commit
+2025-07-14T12:46:13.968141490Z     trans.commit(_to_root=True)
+2025-07-14T12:46:13.968142334Z     ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968143125Z   File "<string>", line 2, in commit
+2025-07-14T12:46:13.968144506Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+2025-07-14T12:46:13.968145450Z     ret_value = fn(self, *arg, **kw)
+2025-07-14T12:46:13.968146354Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1313, in commit
+2025-07-14T12:46:13.968147354Z     self._prepare_impl()
+2025-07-14T12:46:13.968148151Z     ~~~~~~~~~~~~~~~~~~^^
+2025-07-14T12:46:13.968148924Z   File "<string>", line 2, in _prepare_impl
+2025-07-14T12:46:13.968149814Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+2025-07-14T12:46:13.968150713Z     ret_value = fn(self, *arg, **kw)
+2025-07-14T12:46:13.968151541Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1288, in _prepare_impl
+2025-07-14T12:46:13.968152482Z     self.session.flush()
+2025-07-14T12:46:13.968153341Z     ~~~~~~~~~~~~~~~~~~^^
+2025-07-14T12:46:13.968154130Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4352, in flush
+2025-07-14T12:46:13.968155059Z     self._flush(objects)
+2025-07-14T12:46:13.968155839Z     ~~~~~~~~~~~^^^^^^^^^
+2025-07-14T12:46:13.968156624Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4487, in _flush
+2025-07-14T12:46:13.968157542Z     with util.safe_reraise():
+2025-07-14T12:46:13.968158366Z          ~~~~~~~~~~~~~~~~~^^
+2025-07-14T12:46:13.968159177Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+2025-07-14T12:46:13.968160135Z     raise exc_value.with_traceback(exc_tb)
+2025-07-14T12:46:13.968160962Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4448, in _flush
+2025-07-14T12:46:13.968161869Z     flush_context.execute()
+2025-07-14T12:46:13.968162678Z     ~~~~~~~~~~~~~~~~~~~~~^^
+2025-07-14T12:46:13.968163471Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+2025-07-14T12:46:13.968165169Z     rec.execute(self)
+2025-07-14T12:46:13.968166029Z     ~~~~~~~~~~~^^^^^^
+2025-07-14T12:46:13.968166831Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+2025-07-14T12:46:13.968167770Z     util.preloaded.orm_persistence.save_obj(
+2025-07-14T12:46:13.968168619Z     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968169457Z         self.mapper,
+2025-07-14T12:46:13.968170251Z         ^^^^^^^^^^^^
+2025-07-14T12:46:13.968171044Z         uow.states_for_mapper_hierarchy(self.mapper, False, False),
+2025-07-14T12:46:13.968171939Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968172818Z         uow,
+2025-07-14T12:46:13.968173624Z         ^^^^
+2025-07-14T12:46:13.968174418Z     )
+2025-07-14T12:46:13.968175175Z     ^
+2025-07-14T12:46:13.968175930Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 85, in save_obj
+2025-07-14T12:46:13.968176878Z     _emit_update_statements(
+2025-07-14T12:46:13.968177706Z     ~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968178491Z         base_mapper,
+2025-07-14T12:46:13.968179263Z         ^^^^^^^^^^^^
+2025-07-14T12:46:13.968180039Z     ...<3 lines>...
+2025-07-14T12:46:13.968180886Z         update,
+2025-07-14T12:46:13.968181654Z         ^^^^^^^
+2025-07-14T12:46:13.968182442Z     )
+2025-07-14T12:46:13.968183192Z     ^
+2025-07-14T12:46:13.968184133Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 912, in _emit_update_statements
+2025-07-14T12:46:13.968185083Z     c = connection.execute(
+2025-07-14T12:46:13.968185893Z         statement, multiparams, execution_options=execution_options
+2025-07-14T12:46:13.968186753Z     )
+2025-07-14T12:46:13.968187548Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+2025-07-14T12:46:13.968188449Z     return meth(
+2025-07-14T12:46:13.968189241Z         self,
+2025-07-14T12:46:13.968190013Z         distilled_parameters,
+2025-07-14T12:46:13.968190810Z         execution_options or NO_OPTIONS,
+2025-07-14T12:46:13.968191646Z     )
+2025-07-14T12:46:13.968192400Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+2025-07-14T12:46:13.968193399Z     return connection._execute_clauseelement(
+2025-07-14T12:46:13.968194239Z            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968195065Z         self, distilled_params, execution_options
+2025-07-14T12:46:13.968196628Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968197486Z     )
+2025-07-14T12:46:13.968198227Z     ^
+2025-07-14T12:46:13.968198987Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+2025-07-14T12:46:13.968199934Z     ret = self._execute_context(
+2025-07-14T12:46:13.968200735Z         dialect,
+2025-07-14T12:46:13.968201559Z     ...<8 lines>...
+2025-07-14T12:46:13.968202379Z         cache_hit=cache_hit,
+2025-07-14T12:46:13.968203164Z     )
+2025-07-14T12:46:13.968203931Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2025-07-14T12:46:13.968204870Z     return self._exec_single_context(
+2025-07-14T12:46:13.968205701Z            ~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968206493Z         dialect, context, statement, parameters
+2025-07-14T12:46:13.968207299Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968208146Z     )
+2025-07-14T12:46:13.968208894Z     ^
+2025-07-14T12:46:13.968209657Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2025-07-14T12:46:13.968210570Z     self._handle_dbapi_exception(
+2025-07-14T12:46:13.968211368Z     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968212163Z         e, str_statement, effective_parameters, cursor, context
+2025-07-14T12:46:13.968212996Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968213834Z     )
+2025-07-14T12:46:13.968214614Z     ^
+2025-07-14T12:46:13.968215380Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+2025-07-14T12:46:13.968216307Z     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2025-07-14T12:46:13.968217158Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
+2025-07-14T12:46:13.968218069Z     self.dialect.do_executemany(
+2025-07-14T12:46:13.968218882Z     ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-07-14T12:46:13.968219741Z         cursor,
+2025-07-14T12:46:13.968220551Z         ^^^^^^^
+2025-07-14T12:46:13.968221338Z     ...<2 lines>...
+2025-07-14T12:46:13.968222146Z         context,
+2025-07-14T12:46:13.968222928Z         ^^^^^^^^
+2025-07-14T12:46:13.968223697Z     )
+2025-07-14T12:46:13.968224445Z     ^
+2025-07-14T12:46:13.968225410Z   File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 938, in do_executemany
+2025-07-14T12:46:13.968226352Z     cursor.executemany(statement, parameters)
+2025-07-14T12:46:13.968228144Z     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+2025-07-14T12:46:13.968229034Z   File "/usr/local/lib/python3.13/site-packages/psycopg/cursor.py", line 128, in executemany
+2025-07-14T12:46:13.968229979Z     raise ex.with_traceback(None)
+2025-07-14T12:46:13.968230843Z sqlalchemy.exc.IntegrityError: (psycopg.errors.NotNullViolation) null value in column "stream_id" of relation "recordings" violates not-null constraint
+2025-07-14T12:46:13.968231933Z DETAIL:  Failing row contains (1, null, 2025-07-14 14:01:16.906521+00, 2025-07-14 14:02:07.882864+00, completed, 48, /recordings/herrmaximal/herrmaximal/Season 2025-07/herrmaximal -...).
+2025-07-14T12:46:13.968233791Z [SQL: UPDATE recordings SET stream_id=%(stream_id)s::INTEGER WHERE recordings.id = %(recordings_id)s::INTEGER]
+2025-07-14T12:46:13.968235066Z [parameters: [{'stream_id': None, 'recordings_id': 1}, {'stream_id': None, 'recordings_id': 2}]]
+2025-07-14T12:46:13.968237421Z (Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-07-14T12:46:13.968404571Z 2025-07-14 14:46:13,968 - streamvault - DEBUG - Response status: 500
+2025-07-14T12:46:13.968613752Z INFO:     172.20.0.1:50162 - "DELETE /api/streamers/1/streams HTTP/1.1" 500 Internal Server Error
+2025-07-14T12:46:15.771145663Z 2025-07-14 14:46:15,770 - streamvault - INFO - New WebSocket connection from Address(host='172.20.0.1', port=50170)
+2025-07-14T12:46:15.771447145Z INFO:     ('172.20.0.1', 50170) - "WebSocket /ws" [accepted]
+2025-07-14T12:46:15.771751177Z 2025-07-14 14:46:15,771 - streamvault - INFO - WebSocket connected: Address(host='172.20.0.1', port=50170)
+2025-07-14T12:46:15.772882052Z INFO:     connection open
+2025-07-14T12:46:15.822859478Z 2025-07-14 14:46:15,822 - streamvault - INFO - New WebSocket connection from Address(host='172.20.0.1', port=50172)
+2025-07-14T12:46:15.823089913Z INFO:     ('172.20.0.1', 50172) - "WebSocket /ws" [accepted]
+2025-07-14T12:46:15.823278312Z 2025-07-14 14:46:15,823 - streamvault - INFO - WebSocket connected: Address(host='172.20.0.1', port=50172)
+2025-07-14T12:46:15.824351533Z INFO:     connection open
+2025-07-14T12:46:16.017922098Z 2025-07-14 14:46:16,017 - streamvault - INFO - Request acd55128-fa2d-4004-9eee-5219bc5b5ad7: GET /api/recording/active
+2025-07-14T12:46:16.018010709Z 2025-07-14 14:46:16,017 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:16.018962792Z 2025-07-14 14:46:16,018 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:16.019163060Z INFO:     172.20.0.1:50162 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-14T12:46:21.050004470Z 2025-07-14 14:46:21,049 - streamvault - INFO - Request e809b8ce-7578-48a6-b74e-c9760f3fd1d3: GET /api/recording/active
+2025-07-14T12:46:21.050652876Z 2025-07-14 14:46:21,050 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:21.051720365Z 2025-07-14 14:46:21,051 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:21.052581355Z INFO:     172.20.0.1:53304 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-14T12:46:26.045794539Z 2025-07-14 14:46:26,045 - streamvault - INFO - Request 21a393fd-2158-4c8c-9a4c-7d6e94bac2b1: GET /api/recording/active
+2025-07-14T12:46:26.046307143Z 2025-07-14 14:46:26,046 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:26.047370147Z 2025-07-14 14:46:26,047 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:26.048240453Z INFO:     172.20.0.1:53304 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-14T12:46:31.054092119Z 2025-07-14 14:46:31,053 - streamvault - INFO - Request 0f609489-b0f5-4b8d-acff-6017875dc285: GET /api/recording/active
+2025-07-14T12:46:31.054349047Z 2025-07-14 14:46:31,054 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:31.055007998Z 2025-07-14 14:46:31,054 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:31.055390386Z INFO:     172.20.0.1:54086 - "GET /api/recording/active HTTP/1.1" 200 OK2025-07-14T12:46:36.068Z       w2025-07-14 14:46:36,063 - streamvault - INFO - Request 4b733cfe-6689-4852-8728-e74dea4b7553: GET /api/recording/active
+2025-07-14T12:46:36.097Z       \2025-07-14 14:46:36,064 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-14T12:46:36.096Z       E2025-07-14 14:46:36,065 - streamvault - DEBUG - Response status: 200
+2025-07-14T12:46:36.096Z       IINFO:     172.20.0.1:54098 - "GET /api/recording/active HTTP/1.1" 200 OK
