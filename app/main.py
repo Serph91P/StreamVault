@@ -18,6 +18,9 @@ import os
 from pathlib import Path
 
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from typing import Optional
 
 from app.events.handler_registry import EventHandlerRegistry
 from app.config.logging_config import setup_logging
@@ -143,8 +146,184 @@ async def lifespan(app: FastAPI):
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
-app = FastAPI(lifespan=lifespan)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="StreamVault API",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan
+)
+
+# Add Trusted Host middleware (security best practice)
+if settings.is_secure:
+    # Only allow requests to our configured domain in production
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=[
+            settings.domain,
+            f"www.{settings.domain}",
+            "localhost",  # For health checks
+        ]
+    )
+
+# Add CORS middleware with secure configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,  # Use computed origins from settings
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS,
+    allow_headers=settings.CORS_ALLOW_HEADERS,
+    max_age=settings.CORS_MAX_AGE,
+)
+
+# Add custom middleware
 app.middleware("http")(logging_middleware)
+
+# Enhanced security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Set proper content types for specific files
+    path = request.url.path
+    
+    # Special handling for service worker
+    if path == "/registerSW.js" or path.endswith("registerSW.js"):
+        response.headers["Content-Type"] = "application/javascript"
+        response.headers["Service-Worker-Allowed"] = "/"
+        response.headers["Cache-Control"] = "no-cache"
+        # Don't set X-Content-Type-Options for service worker
+        return response
+    
+    # Set content types based on file extension
+    content_type_map = {
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.css': 'text/css',
+        '.ico': 'image/x-icon',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webmanifest': 'application/manifest+json',
+        '.xml': 'application/xml',
+        '.html': 'text/html',
+        '.webp': 'image/webp'
+    }
+    
+    for ext, content_type in content_type_map.items():
+        if path.endswith(ext):
+            response.headers["Content-Type"] = content_type
+            break
+    
+    # Security headers (only if enabled in settings)
+    if settings.SECURE_HEADERS_ENABLED:
+        # Basic security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # HSTS (only for HTTPS)
+        if settings.is_secure:
+            response.headers["Strict-Transport-Security"] = f"max-age={settings.HSTS_MAX_AGE}; includeSubDomains"
+        
+        # Content Security Policy (if configured)
+        if settings.CONTENT_SECURITY_POLICY:
+            response.headers["Content-Security-Policy"] = settings.CONTENT_SECURITY_POLICY
+        else:
+            # Default CSP
+            csp_directives = [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  # Required for Vue.js
+                "style-src 'self' 'unsafe-inline'",  # Required for inline styles
+                "img-src 'self' data: https: blob:",  # Allow images from various sources
+                "font-src 'self' data:",
+                "connect-src 'self' wss: ws: https:",  # WebSocket and API connections
+                "media-src 'self' blob:",  # For video playback
+                "worker-src 'self' blob:",  # For service workers
+                "manifest-src 'self'",
+                "frame-ancestors 'none'"
+            ]
+            response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+        
+        # Permissions Policy (modern replacement for Feature Policy)
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    
+    return response
+
+# Add request ID middleware for tracking
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    import uuid
+    request_id = str(uuid.uuid4())
+    
+    # Add request ID to logger context
+    logger.info(f"Request {request_id}: {request.method} {request.url.path}")
+    
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    
+    return response
+
+# Rate limiting middleware (basic implementation)
+from collections import defaultdict
+from datetime import datetime, timedelta
+import time
+
+request_counts = defaultdict(list)
+RATE_LIMIT_REQUESTS = 100  # requests
+RATE_LIMIT_WINDOW = 60  # seconds
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    # Skip rate limiting for health checks and static files
+    if request.url.path in ["/health", "/favicon.ico"] or request.url.path.startswith("/assets/"):
+        return await call_next(request)
+    
+    # Get client IP
+    client_ip = request.client.host
+    if request.headers.get("X-Forwarded-For"):
+        client_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
+    
+    current_time = time.time()
+    
+    # Clean old requests
+    request_counts[client_ip] = [
+        req_time for req_time in request_counts[client_ip]
+        if req_time > current_time - RATE_LIMIT_WINDOW
+    ]
+    
+    # Check rate limit
+    if len(request_counts[client_ip]) >= RATE_LIMIT_REQUESTS:
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        return Response(
+            content="Rate limit exceeded",
+            status_code=429,
+            headers={
+                "Retry-After": str(RATE_LIMIT_WINDOW),
+                "X-RateLimit-Limit": str(RATE_LIMIT_REQUESTS),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int(current_time + RATE_LIMIT_WINDOW))
+            }
+        )
+    
+    # Add current request
+    request_counts[client_ip].append(current_time)
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Add rate limit headers
+    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+    response.headers["X-RateLimit-Remaining"] = str(RATE_LIMIT_REQUESTS - len(request_counts[client_ip]))
+    response.headers["X-RateLimit-Reset"] = str(int(current_time + RATE_LIMIT_WINDOW))
+    
+    return response
 
 # WebSocket endpoint
 @app.websocket("/ws")
@@ -493,6 +672,52 @@ app.add_exception_handler(Exception, error_handler)
 
 # Auth Middleware
 app.add_middleware(AuthMiddleware)
+
+# Service Worker registration script with enhanced security
+@app.get("/registerSW.js")
+async def serve_register_sw():
+    """Serve the service worker registration script"""
+    for base_path in ["/app/app/frontend/dist", "app/frontend/dist"]:
+        sw_path = Path(base_path) / "registerSW.js"
+        if sw_path.exists():
+            # Validate file content (basic check)
+            try:
+                with open(sw_path, 'r') as f:
+                    content = f.read()
+                    # Basic validation - should contain service worker registration code
+                    if 'serviceWorker' not in content:
+                        logger.warning("Service worker file doesn't contain expected content")
+                        continue
+            except Exception as e:
+                logger.error(f"Error reading service worker file: {e}")
+                continue
+                
+            return FileResponse(
+                sw_path,
+                media_type="application/javascript",
+                headers={
+                    "Service-Worker-Allowed": "/",
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "X-Content-Type-Options": "nosniff"  # Override for service worker
+                }
+            )
+    
+    # If not found in dist, serve a minimal registration script
+    minimal_sw = """
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => console.log('Service Worker registered', reg))
+            .catch(err => console.error('Service Worker registration failed', err));
+    }
+    """
+    return Response(
+        content=minimal_sw,
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache"
+        }
+    )
 
 # SPA catch-all route must be last - only serve for non-API paths
 @app.get("/{full_path:path}")
