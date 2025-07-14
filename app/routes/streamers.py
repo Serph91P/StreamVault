@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body  # Body hinzugefügt
+from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.schemas.streamers import StreamerResponse, StreamerList
@@ -20,7 +20,8 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
 @router.get("", response_model=List[StreamerResponse])
-async def get_streamers(streamer_service = Depends(get_streamer_service)):
+async def get_streamers(streamer_service: StreamerService = Depends(get_streamer_service)):
+    """Get all streamers with their current status"""
     return await streamer_service.get_streamers()
 
 @router.delete("/subscriptions", status_code=200)
@@ -39,7 +40,7 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
             try:
                 result = await event_registry.delete_subscription(sub['id'])
                 logger.info(f"Deleted subscription {sub['id']}")
-                results.append(result)
+                results.append({"id": sub['id'], "status": "deleted"})
             except Exception as sub_error:
                 logger.error(f"Failed to delete subscription {sub['id']}: {sub_error}", exc_info=True)
                 results.append({
