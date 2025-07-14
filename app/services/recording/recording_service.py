@@ -179,6 +179,10 @@ class RecordingService:
             if not stream:
                 logger.error(f"No active stream found for streamer {streamer.username}")
                 return False
+                
+            if not stream.id:
+                logger.error(f"Stream has no ID for streamer {streamer.username}")
+                return False
             
             # Set the streamer relationship
             stream.streamer = streamer
@@ -222,9 +226,19 @@ class RecordingService:
                 path=ts_output_path
             )
             
+            # Validate that stream_id is set
+            if not recording.stream_id:
+                logger.error(f"Failed to set stream_id for recording of streamer {streamer.username}")
+                return False
+            
             self.db.add(recording)
             self.db.commit()
             recording_id = recording.id
+            
+            # Verify recording was created correctly
+            if not recording_id:
+                logger.error(f"Failed to create recording record for streamer {streamer.username}")
+                return False
             
             # Get stream metadata for notifications
             metadata = await self.stream_info_manager.get_stream_metadata(stream)

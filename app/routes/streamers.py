@@ -665,8 +665,7 @@ async def delete_all_streams(
         # Also handle orphaned recordings with null stream_id for this streamer
         from app.models import Recording
         orphaned_recordings = db.query(Recording).filter(
-            Recording.stream_id.is_(None),
-            Recording.streamer_id == streamer_id
+            Recording.stream_id.is_(None)
         ).all()
         
         if not streams and not orphaned_recordings:
