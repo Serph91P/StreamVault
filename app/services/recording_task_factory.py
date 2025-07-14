@@ -108,7 +108,24 @@ class RecordingTaskFactory:
         )
         tasks.append(mp4_remux_task)
         
-        # 4. Thumbnail Generation Task (depends on MP4 remux)
+        # 4. MP4 Validation Task (depends on MP4 remux)
+        mp4_validation_task_id = f"{base_id}_mp4_validation"
+        mp4_validation_task = Task(
+            id=mp4_validation_task_id,
+            type='mp4_validation',
+            payload={
+                **common_payload,
+                'mp4_path': mp4_path,
+                'ts_file_path': ts_file_path,
+                'validate_size_ratio': True,
+                'min_size_mb': 1  # Minimum 1MB
+            },
+            dependencies={mp4_remux_task_id},
+            priority=2  # High priority - validation is critical
+        )
+        tasks.append(mp4_validation_task)
+        
+        # 5. Thumbnail Generation Task (depends on MP4 validation)
         thumbnail_task = Task(
             id=thumbnail_task_id,
             type='thumbnail_generation',
@@ -117,12 +134,12 @@ class RecordingTaskFactory:
                 'mp4_path': mp4_path,
                 'fallback_to_video_extraction': True
             },
-            dependencies={mp4_remux_task_id},
+            dependencies={mp4_validation_task_id},
             priority=3  # Lower priority
         )
         tasks.append(thumbnail_task)
         
-        # 5. Cleanup Task (depends on thumbnail, only if cleanup_ts_file is True)
+        # 6. Cleanup Task (depends on MP4 validation, only if cleanup_ts_file is True)
         if cleanup_ts_file:
             cleanup_task = Task(
                 id=cleanup_task_id,
@@ -130,9 +147,11 @@ class RecordingTaskFactory:
                 payload={
                     **common_payload,
                     'files_to_remove': [ts_file_path],
-                    'mp4_path': mp4_path
+                    'mp4_path': mp4_path,
+                    'intelligent_cleanup': True,
+                    'max_wait_time': 300  # 5 minutes max wait for processes
                 },
-                dependencies={thumbnail_task_id},
+                dependencies={mp4_validation_task_id},  # Depends on validation, not thumbnail
                 priority=4  # Lowest priority
             )
             tasks.append(cleanup_task)
