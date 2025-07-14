@@ -1,3 +1,5 @@
+import logging
+import aiohttp
 from sqlalchemy.orm import Session
 from app.models import Streamer, Stream, StreamEvent, NotificationSettings
 from app.database import SessionLocal
@@ -7,8 +9,6 @@ from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datetime import datetime, timezone
-import logging
-import aiohttp
 from app.config.settings import settings
 
 logger = logging.getLogger("streamvault")
@@ -92,40 +92,54 @@ class StreamerService:
                     return None
 
     async def get_streamers(self) -> List[Dict[str, Any]]:
-        streamers = self.db.query(Streamer).all()
+        """Get all streamers with their current status
         
-        # Try to get recording status - fail gracefully if not available
-        recording_streamer_ids = set()
-        try:
-            from app.services.recording_service import RecordingService
-            recording_service = RecordingService()
-            active_recordings = await recording_service.get_active_recordings()
-            recording_streamer_ids = {info['streamer_id'] for info in active_recordings}
-        except Exception as e:
-            logger.warning(f"Could not get recording status: {e}")
+        This method avoids circular imports by checking recording status
+        directly from the database instead of importing RecordingService.
+        """
+        streamers = self.db.query(Streamer).all()
         
         result = []
         for streamer in streamers:
-            # Check if recording is enabled for this streamer
-            recording_enabled = False
+            # Check if recording is active by looking at streams table
+            is_recording = False
+            active_stream_id = None
+            
+            # Find active stream that is being recorded
+            active_stream = self.db.query(Stream).filter(
+                Stream.streamer_id == streamer.id,
+                Stream.ended_at.is_(None),
+                Stream.is_recording == True
+            ).order_by(Stream.started_at.desc()).first()
+            
+            if active_stream:
+                is_recording = True
+                active_stream_id = active_stream.id
+            
+            # Check if recording is enabled from StreamerRecordingSettings
+            recording_enabled = True  # Default
             try:
-                from app.services.recording_service import RecordingService
-                recording_service = RecordingService()
-                recording_enabled = recording_service.config_manager.is_recording_enabled(streamer.id)
+                from app.models import StreamerRecordingSettings
+                settings = self.db.query(StreamerRecordingSettings).filter(
+                    StreamerRecordingSettings.streamer_id == streamer.id
+                ).first()
+                if settings:
+                    recording_enabled = settings.enabled
             except Exception as e:
-                logger.warning(f"Could not check recording status for streamer {streamer.id}: {e}")
+                logger.warning(f"Could not check recording settings for streamer {streamer.id}: {e}")
             
             result.append({
                 "id": streamer.id,
                 "twitch_id": streamer.twitch_id,
                 "username": streamer.username,
                 "is_live": streamer.is_live,
-                "is_recording": streamer.id in recording_streamer_ids,
+                "is_recording": is_recording,
                 "recording_enabled": recording_enabled,
+                "active_stream_id": active_stream_id,
                 "title": streamer.title,
                 "category_name": streamer.category_name,
                 "language": streamer.language,
-                "last_updated": streamer.last_updated,
+                "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
                 "profile_image_url": streamer.profile_image_url
             })
             
