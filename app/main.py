@@ -535,7 +535,7 @@ async def serve_manifest_webmanifest():
 
 @app.get("/sw.js")
 async def service_worker():
-    for path in ["app/frontend/public/sw.js", "/app/app/frontend/public/sw.js"]:
+    for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
         try:
             return FileResponse(
                 path,
