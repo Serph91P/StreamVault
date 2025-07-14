@@ -413,6 +413,7 @@ async def delete_stream(
                 if path_obj.exists():
                     path_obj.unlink()
                     deleted_files.append(str(path_obj))
+                    logger.info(f"Deleted file: {path_obj}")
                     
                     # Also try to delete companion files (like .vtt alongside .mp4, etc.)
                     base_path = path_obj.with_suffix('')
@@ -421,6 +422,9 @@ async def delete_stream(
                         if companion.exists() and companion != path_obj:
                             companion.unlink()
                             deleted_files.append(str(companion))
+                            logger.info(f"Deleted companion file: {companion}")
+                else:
+                    logger.warning(f"File not found: {file_path}")
             except Exception as file_error:
                 logger.warning(f"Failed to delete file {file_path}: {file_error}")
         
@@ -709,6 +713,7 @@ async def delete_all_streams(
                 if path_obj.exists():
                     path_obj.unlink()
                     deleted_files.append(str(path_obj))
+                    logger.info(f"Deleted file: {path_obj}")
                     
                     # Also try to delete companion files (like .vtt alongside .mp4, etc.)
                     base_path = path_obj.with_suffix('')
@@ -717,6 +722,9 @@ async def delete_all_streams(
                         if companion.exists() and companion != path_obj:
                             companion.unlink()
                             deleted_files.append(str(companion))
+                            logger.info(f"Deleted companion file: {companion}")
+                else:
+                    logger.warning(f"File not found: {file_path}")
             except Exception as file_error:
                 logger.warning(f"Failed to delete file {file_path}: {file_error}")
         

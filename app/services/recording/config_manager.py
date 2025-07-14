@@ -15,11 +15,11 @@ logger = logging.getLogger("streamvault")
 
 # Filename presets for different media server structures
 FILENAME_PRESETS = {
-    "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-    "plex": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
-    "emby": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
-    "jellyfin": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
-    "kodi": "{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "default": "{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+    "plex": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "emby": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "jellyfin": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
+    "kodi": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
 }
 
