@@ -9,6 +9,7 @@ from app.routes import twitch_auth
 from app.routes import recording as recording_router
 from app.routes import logging as logging_router
 from app.routes import videos
+from app.routes import background_queue
 import logging
 import hmac
 import hashlib
@@ -128,6 +129,15 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Active recordings broadcaster stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
+    
+    # Shutdown background queue service
+    try:
+        logger.info("🔄 Stopping background queue service...")
+        from app.services.background_queue_service import background_queue_service
+        await background_queue_service.stop()
+        logger.info("✅ Background queue service stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error during background queue service shutdown: {e}")
     
     # Cancel cleanup tasks
     for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
