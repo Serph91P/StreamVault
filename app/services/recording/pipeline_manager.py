@@ -91,13 +91,21 @@ class PipelineManager:
             logger.info(f"Pipeline {pipeline_id}: Step 3 - Converting TS to MP4 with metadata")
             pipeline_state['current_step'] = 'ts_to_mp4_conversion'
             
-            # Get chapters file path
+            # Get chapters file path and verify it exists
             chapters_file = Path(base_path) / f"{base_filename}-ffmpeg-chapters.txt"
+            
+            # Additional safety check: ensure chapter file exists before remux
+            if chapters_file.exists():
+                logger.info(f"Pipeline {pipeline_id}: FFmpeg chapters file ready: {chapters_file}")
+                metadata_file_path = str(chapters_file)
+            else:
+                logger.warning(f"Pipeline {pipeline_id}: FFmpeg chapters file not found: {chapters_file}")
+                metadata_file_path = None
             
             conversion_result = await convert_ts_to_mp4(
                 input_path=ts_path,
                 output_path=mp4_path,
-                metadata_file=str(chapters_file) if chapters_file.exists() else None,
+                metadata_file=metadata_file_path,
                 overwrite=True
             )
             
