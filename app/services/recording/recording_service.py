@@ -27,9 +27,10 @@ from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
-from app.services.recording.pipeline_manager import PipelineManager
+# Pipeline manager replaced by dependency-based background queue system
 from app.dependencies import websocket_manager
 from app.services.state_persistence_service import state_persistence_service
+from app.services.background_queue_init import enqueue_recording_post_processing
 
 # Import utils
 from app.utils.path_utils import generate_filename
@@ -49,7 +50,7 @@ class RecordingService:
         self.recording_logger = RecordingLogger(config_manager=self.config_manager)
         self.notification_manager = NotificationManager(config_manager=self.config_manager)
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
-        self.pipeline_manager = PipelineManager(config_manager=self.config_manager)
+        # Pipeline manager replaced by dependency-based background queue system
         
         # Active recordings tracking
         self.active_recordings = {}
@@ -193,6 +194,38 @@ class RecordingService:
         
         logger.info(f"Successfully recovered recording for {streamer_name}")
 
+    async def _enqueue_post_processing(self, stream: Stream, recording_id: int, ts_output_path: str, start_time: datetime):
+        """Enqueue post-processing task for completed recording"""
+        try:
+            # Get output directory
+            output_dir = os.path.dirname(ts_output_path)
+            
+            # Enqueue post-processing chain using the new dependency system
+            task_ids = await enqueue_recording_post_processing(
+                stream_id=stream.id,
+                recording_id=recording_id,
+                ts_file_path=ts_output_path,
+                output_dir=output_dir,
+                streamer_name=stream.streamer.username if stream.streamer else 'unknown',
+                started_at=start_time.isoformat(),
+                cleanup_ts_file=True  # Clean up TS file after conversion
+            )
+            
+            logger.info(f"Enqueued post-processing task chain with {len(task_ids)} tasks for stream {stream.id}")
+            
+            # Update recording status
+            from app.database import SessionLocal
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                if recording:
+                    recording.status = "post_processing"
+                    db.commit()
+                    
+        except Exception as e:
+            logger.error(f"Failed to enqueue post-processing task: {e}", exc_info=True)
+            # Don't fail the recording if post-processing queue fails
+            # The recording is already complete, post-processing is optional
+
     async def send_active_recordings_websocket_update(self):
         """Send current active recordings to all WebSocket clients"""
         try:
@@ -318,10 +351,8 @@ class RecordingService:
                 logger.info("🔄 Shutting down process manager...")
                 await self.process_manager.graceful_shutdown()
             
-            # Shutdown pipeline manager
-            if hasattr(self.pipeline_manager, 'graceful_shutdown'):
-                logger.info("🔄 Shutting down pipeline manager...")
-                await self.pipeline_manager.graceful_shutdown()
+            # Pipeline manager replaced by dependency-based background queue system
+            # Shutdown handled by background queue service
             
             logger.info("✅ Recording Service graceful shutdown completed")
             
@@ -613,27 +644,20 @@ class RecordingService:
             if exit_code == 0 and await async_file.exists(ts_output_path) and await async_file.getsize(ts_output_path) > 1024:
                 logger.info(f"Recording for {streamer_name} completed successfully (duration: {duration_seconds}s)")
                 
-                # Post-processing pipeline handled by PipelineManager
+                # Post-processing handled by dependency-based background queue system
                 try:
-                    processing_results = await self.pipeline_manager.start_post_processing_pipeline(
-                        stream_id=stream.id,
-                        ts_path=ts_output_path
-                    )
+                    # Mark recording as completed - post-processing will run in background
+                    await self._update_recording_status(recording_id, "completed", ts_output_path, duration_seconds)
                     
-                    if processing_results['success']:
-                        success = True
-                        mp4_path = processing_results['mp4_path']
-                        # Update database with final MP4 path
-                        await self._update_recording_status(recording_id, "completed", mp4_path, duration_seconds)
-                        
-                        logger.info(f"Post-processing completed successfully for {streamer_name}")
-                        logger.info(f"Final file: {mp4_path}")
-                    else:
-                        logger.error(f"Post-processing failed for {streamer_name}")
-                        await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                    logger.info(f"Recording completed successfully for {streamer_name}")
+                    logger.info(f"TS file: {ts_output_path}")
+                    
+                    # Post-processing will be handled by background queue
+                    success = True
+                    mp4_path = ts_output_path  # Will be updated by background queue
                         
                 except Exception as e:
-                    logger.error(f"Error in post-processing for {streamer_name}: {e}", exc_info=True)
+                    logger.error(f"Error finalizing recording for {streamer_name}: {e}", exc_info=True)
                     await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
                     
             else:
@@ -645,6 +669,10 @@ class RecordingService:
             await self.notification_manager.notify_recording_completed(
                 stream, duration_seconds, final_path, success
             )
+            
+            # Enqueue post-processing task if recording was successful
+            if success:
+                await self._enqueue_post_processing(stream, recording_id, ts_output_path, start_time)
             
         except Exception as e:
             logger.error(f"Error in recording monitor for {stream.streamer.username}: {e}", exc_info=True)
