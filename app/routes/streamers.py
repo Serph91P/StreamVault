@@ -392,8 +392,8 @@ async def delete_stream(
         from app.models import Recording
         recordings = db.query(Recording).filter(Recording.stream_id == stream_id).all()
         for recording in recordings:
-            if recording.recording_path:
-                files_to_delete.append(recording.recording_path)
+            if recording.path:
+                files_to_delete.append(recording.path)
         
         # Delete all recordings associated with this stream
         db.query(Recording).filter(Recording.stream_id == stream_id).delete()
