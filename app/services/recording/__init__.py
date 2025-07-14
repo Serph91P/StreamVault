@@ -36,4 +36,9 @@ async def start_recording_service(db=None):
     """
     service = RecordingService(db=db)
     await service.start()
+    
+    # Start the active recordings broadcaster
+    from app.services.active_recordings_broadcaster import start_active_recordings_broadcaster
+    await start_active_recordings_broadcaster(service)
+    
     return service
