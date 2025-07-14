@@ -5,6 +5,7 @@ from app.database import Base
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
+import json
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -65,6 +66,7 @@ class Stream(Base):
     
     # Relationships
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
+    active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False)
     
     @property
     def is_live(self):
@@ -244,3 +246,56 @@ class SystemConfig(Base):
     description = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ActiveRecordingState(Base):
+    """
+    Persistent state for active recordings
+    
+    This table tracks active recording processes and survives application restarts.
+    It enables recovery of running recordings after crashes or deployments.
+    """
+    __tablename__ = "active_recordings_state"
+    __table_args__ = (
+        Index('ix_active_recordings_stream_id', 'stream_id'),
+        Index('ix_active_recordings_status', 'status'),
+        Index('ix_active_recordings_heartbeat', 'last_heartbeat'),
+        {'extend_existing': True}
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stream_id = Column(Integer, ForeignKey('streams.id'), nullable=False, unique=True)
+    recording_id = Column(Integer, ForeignKey('recordings.id'), nullable=False)
+    process_id = Column(Integer, nullable=False)  # OS process ID
+    process_identifier = Column(String(100), nullable=False)  # Internal process identifier
+    streamer_name = Column(String(100), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    ts_output_path = Column(String(500), nullable=False)
+    force_mode = Column(Boolean, default=False)
+    quality = Column(String(50), default='best')
+    status = Column(String(50), default='active')  # active, stopping, error
+    last_heartbeat = Column(DateTime(timezone=True), nullable=False)
+    config_json = Column(Text, nullable=True)  # Serialized config
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    stream = relationship("Stream", back_populates="active_recording_state")
+    recording = relationship("Recording")
+    
+    def get_config(self):
+        """Get deserialized config"""
+        if self.config_json:
+            return json.loads(self.config_json)
+        return {}
+    
+    def set_config(self, config_dict):
+        """Set serialized config"""
+        self.config_json = json.dumps(config_dict) if config_dict else None
+    
+    def is_stale(self, max_age_seconds=300):
+        """Check if heartbeat is stale (default 5 minutes)"""
+        if not self.last_heartbeat:
+            return True
+        age = (datetime.now(self.last_heartbeat.tzinfo) - self.last_heartbeat).total_seconds()
+        return age > max_age_seconds

@@ -27,7 +27,10 @@ from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
-from app.services.recording.pipeline_manager import PipelineManager
+# Pipeline manager replaced by dependency-based background queue system
+from app.dependencies import websocket_manager
+from app.services.state_persistence_service import state_persistence_service
+from app.services.background_queue_init import enqueue_recording_post_processing
 
 # Import utils
 from app.utils.path_utils import generate_filename
@@ -47,7 +50,7 @@ class RecordingService:
         self.recording_logger = RecordingLogger(config_manager=self.config_manager)
         self.notification_manager = NotificationManager(config_manager=self.config_manager)
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
-        self.pipeline_manager = PipelineManager(config_manager=self.config_manager)
+        # Pipeline manager replaced by dependency-based background queue system
         
         # Active recordings tracking
         self.active_recordings = {}
@@ -107,6 +110,168 @@ class RecordingService:
             }
             
         return active_info
+
+    async def recover_active_recordings_from_persistence(self):
+        """Recover active recordings from persistent storage after restart"""
+        logger.info("Starting recovery of active recordings from persistent storage")
+        
+        try:
+            # Get recoverable recordings from persistent storage
+            recoverable_recordings = await state_persistence_service.recover_active_recordings()
+            
+            if not recoverable_recordings:
+                logger.info("No recoverable recordings found")
+                return
+            
+            logger.info(f"Found {len(recoverable_recordings)} recoverable recordings")
+            
+            # Recover each recording
+            for recording_info in recoverable_recordings:
+                try:
+                    await self._recover_single_recording(recording_info)
+                except Exception as e:
+                    logger.error(f"Failed to recover recording {recording_info['stream_id']}: {e}", exc_info=True)
+                    # Remove failed recovery from persistent storage
+                    await state_persistence_service.remove_active_recording(recording_info['stream_id'])
+                    
+            logger.info("Recording recovery completed")
+            
+        except Exception as e:
+            logger.error(f"Error during recording recovery: {e}", exc_info=True)
+            
+    async def _recover_single_recording(self, recording_info: Dict[str, Any]):
+        """Recover a single recording from persistent storage"""
+        stream_id = recording_info['stream_id']
+        process_id = recording_info['process_id']
+        streamer_name = recording_info['streamer_name']
+        
+        logger.info(f"Recovering recording for {streamer_name} (stream {stream_id}, process {process_id})")
+        
+        # Check if process is still running
+        import psutil
+        if not psutil.pid_exists(process_id):
+            logger.warning(f"Process {process_id} no longer exists, cannot recover {streamer_name}")
+            raise Exception(f"Process {process_id} no longer exists")
+            
+        # Get the process object
+        try:
+            process = psutil.Process(process_id)
+        except psutil.NoSuchProcess:
+            logger.warning(f"Process {process_id} no longer exists, cannot recover {streamer_name}")
+            raise Exception(f"Process {process_id} no longer exists")
+            
+        # Verify output file exists and is growing
+        ts_output_path = recording_info['ts_output_path']
+        if not os.path.exists(ts_output_path):
+            logger.warning(f"Output file {ts_output_path} not found, cannot recover {streamer_name}")
+            raise Exception(f"Output file {ts_output_path} not found")
+            
+        # Add to memory state
+        self.active_recordings[stream_id] = {
+            'process': process,
+            'start_time': recording_info['start_time'],
+            'ts_output_path': ts_output_path,
+            'recording_id': recording_info['recording_id'],
+            'force_mode': recording_info['force_mode'],
+            'streamer_name': streamer_name
+        }
+        
+        # Get stream object from database
+        self._ensure_db_session()
+        stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            logger.error(f"Stream {stream_id} not found in database, cannot recover")
+            raise Exception(f"Stream {stream_id} not found in database")
+        
+        # Start monitoring task for the recovered recording
+        task = asyncio.create_task(self._monitor_and_process_recording(
+            stream=stream,
+            recording_id=recording_info['recording_id'],
+            ts_output_path=ts_output_path,
+            start_time=recording_info['start_time']
+        ))
+        self.recording_tasks[stream_id] = task
+        
+        logger.info(f"Successfully recovered recording for {streamer_name}")
+
+    async def _enqueue_post_processing(self, stream: Stream, recording_id: int, ts_output_path: str, start_time: datetime):
+        """Enqueue post-processing task for completed recording"""
+        try:
+            # Get output directory
+            output_dir = os.path.dirname(ts_output_path)
+            
+            # Enqueue post-processing chain using the new dependency system
+            task_ids = await enqueue_recording_post_processing(
+                stream_id=stream.id,
+                recording_id=recording_id,
+                ts_file_path=ts_output_path,
+                output_dir=output_dir,
+                streamer_name=stream.streamer.username if stream.streamer else 'unknown',
+                started_at=start_time.isoformat(),
+                cleanup_ts_file=True  # Clean up TS file after conversion
+            )
+            
+            logger.info(f"Enqueued post-processing task chain with {len(task_ids)} tasks for stream {stream.id}")
+            
+            # Update recording status
+            from app.database import SessionLocal
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                if recording:
+                    recording.status = "post_processing"
+                    db.commit()
+                    
+        except Exception as e:
+            logger.error(f"Failed to enqueue post-processing task: {e}", exc_info=True)
+            # Don't fail the recording if post-processing queue fails
+            # The recording is already complete, post-processing is optional
+
+    async def send_active_recordings_websocket_update(self):
+        """Send current active recordings to all WebSocket clients"""
+        try:
+            # Get active recordings data
+            active_recordings_dict = await self.get_active_recordings()
+            
+            # Convert to the format expected by frontend
+            active_recordings_list = []
+            
+            # Use a new session for database queries
+            self._ensure_db_session()
+            
+            for stream_id, recording_info in active_recordings_dict.items():
+                try:
+                    # Get stream and streamer info
+                    stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.streamer:
+                        # Format recording info for WebSocket
+                        recording_data = {
+                            'streamer_id': stream.streamer_id,
+                            'streamer_name': stream.streamer.username,
+                            'stream_id': stream_id,
+                            'started_at': recording_info['start_time'].isoformat() if isinstance(recording_info['start_time'], datetime) else recording_info['start_time'],
+                            'duration': recording_info.get('duration', 0),
+                            'output_path': recording_info.get('ts_output_path', ''),
+                            'quality': 'best',  # Default value since config might not be available
+                            'title': stream.title or '',
+                            'category': stream.category_name or ''
+                        }
+                        active_recordings_list.append(recording_data)
+                except Exception as e:
+                    logger.warning(f"Error formatting active recording for stream {stream_id}: {e}")
+                    continue
+            
+            # Send via WebSocket
+            await websocket_manager.send_active_recordings_update(active_recordings_list)
+            
+            # Update heartbeats for all active recordings
+            for stream_id in active_recordings_dict.keys():
+                try:
+                    await state_persistence_service.update_heartbeat(stream_id)
+                except Exception as e:
+                    logger.warning(f"Failed to update heartbeat for stream {stream_id}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error sending active recordings WebSocket update: {e}", exc_info=True)
 
     async def cleanup_all_recordings(self) -> None:
         """Stop all active recordings and clean up"""
@@ -186,10 +351,8 @@ class RecordingService:
                 logger.info("🔄 Shutting down process manager...")
                 await self.process_manager.graceful_shutdown()
             
-            # Shutdown pipeline manager
-            if hasattr(self.pipeline_manager, 'graceful_shutdown'):
-                logger.info("🔄 Shutting down pipeline manager...")
-                await self.pipeline_manager.graceful_shutdown()
+            # Pipeline manager replaced by dependency-based background queue system
+            # Shutdown handled by background queue service
             
             logger.info("✅ Recording Service graceful shutdown completed")
             
@@ -381,6 +544,17 @@ class RecordingService:
             # Send start notification
             await self.notification_manager.notify_recording_started(stream, metadata)
             
+            # Generate process identifier for tracking
+            process_identifier = f"stream_{stream.id}"
+            
+            # Build config dict for persistence
+            config = {
+                'quality': quality,
+                'force_mode': force_mode,
+                'streamer_id': streamer_id,
+                'stream_id': stream.id
+            }
+            
             # Add to active recordings
             self.active_recordings[stream.id] = {
                 'process': process,
@@ -390,6 +564,44 @@ class RecordingService:
                 'force_mode': force_mode,
                 'streamer_name': streamer.username
             }
+            
+            # Save to persistent storage
+            try:
+                await state_persistence_service.save_active_recording(
+                    stream_id=stream.id,
+                    recording_id=recording_id,
+                    process_id=process.pid,
+                    process_identifier=process_identifier,
+                    streamer_name=streamer.username,
+                    started_at=start_time,
+                    ts_output_path=ts_output_path,
+                    force_mode=force_mode,
+                    quality=quality,
+                    config=config
+                )
+            except Exception as e:
+                logger.error(f"Failed to save recording state to persistent storage: {e}", exc_info=True)
+            
+            # Send WebSocket notification for recording started
+            try:
+                recording_info = {
+                    'streamer_id': streamer_id,
+                    'streamer_name': streamer.username,
+                    'stream_id': stream.id,
+                    'started_at': start_time.isoformat(),
+                    'duration': 0,
+                    'output_path': ts_output_path,
+                    'quality': config.get('quality', 'best'),
+                    'title': stream.title or '',
+                    'category': stream.category_name or ''
+                }
+                await websocket_manager.send_recording_started(recording_info)
+                
+                # Send immediate active recordings update
+                from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
+                await send_immediate_active_recordings_update()
+            except Exception as e:
+                logger.warning(f"Failed to send WebSocket recording started notification: {e}")
             
             # Start monitoring task
             task = asyncio.create_task(self._monitor_and_process_recording(stream, recording_id, ts_output_path, start_time))
@@ -432,27 +644,20 @@ class RecordingService:
             if exit_code == 0 and await async_file.exists(ts_output_path) and await async_file.getsize(ts_output_path) > 1024:
                 logger.info(f"Recording for {streamer_name} completed successfully (duration: {duration_seconds}s)")
                 
-                # Post-processing pipeline handled by PipelineManager
+                # Post-processing handled by dependency-based background queue system
                 try:
-                    processing_results = await self.pipeline_manager.start_post_processing_pipeline(
-                        stream_id=stream.id,
-                        ts_path=ts_output_path
-                    )
+                    # Mark recording as completed - post-processing will run in background
+                    await self._update_recording_status(recording_id, "completed", ts_output_path, duration_seconds)
                     
-                    if processing_results['success']:
-                        success = True
-                        mp4_path = processing_results['mp4_path']
-                        # Update database with final MP4 path
-                        await self._update_recording_status(recording_id, "completed", mp4_path, duration_seconds)
-                        
-                        logger.info(f"Post-processing completed successfully for {streamer_name}")
-                        logger.info(f"Final file: {mp4_path}")
-                    else:
-                        logger.error(f"Post-processing failed for {streamer_name}")
-                        await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                    logger.info(f"Recording completed successfully for {streamer_name}")
+                    logger.info(f"TS file: {ts_output_path}")
+                    
+                    # Post-processing will be handled by background queue
+                    success = True
+                    mp4_path = ts_output_path  # Will be updated by background queue
                         
                 except Exception as e:
-                    logger.error(f"Error in post-processing for {streamer_name}: {e}", exc_info=True)
+                    logger.error(f"Error finalizing recording for {streamer_name}: {e}", exc_info=True)
                     await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
                     
             else:
@@ -464,6 +669,10 @@ class RecordingService:
             await self.notification_manager.notify_recording_completed(
                 stream, duration_seconds, final_path, success
             )
+            
+            # Enqueue post-processing task if recording was successful
+            if success:
+                await self._enqueue_post_processing(stream, recording_id, ts_output_path, start_time)
             
         except Exception as e:
             logger.error(f"Error in recording monitor for {stream.streamer.username}: {e}", exc_info=True)
@@ -519,6 +728,27 @@ class RecordingService:
                     output_path=recording_info.get('ts_output_path', ''),
                     reason=reason
                 )
+                
+                # Send WebSocket notification for recording stopped
+                try:
+                    recording_info_ws = {
+                        'streamer_id': streamer_id,
+                        'streamer_name': streamer_name,
+                        'stream_id': stream.id,
+                        'stopped_at': datetime.now().isoformat(),
+                        'duration': duration,
+                        'reason': reason
+                    }
+                    await websocket_manager.send_recording_stopped(recording_info_ws)
+                    
+                    # Send immediate active recordings update
+                    from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
+                    await send_immediate_active_recordings_update()
+                    
+                    # Remove from persistent storage
+                    await state_persistence_service.remove_active_recording(stream.id)
+                except Exception as e:
+                    logger.warning(f"Failed to send WebSocket recording stopped notification: {e}")
             else:
                 logger.warning(f"Failed to stop recording gracefully for streamer ID {streamer_id}")
                 

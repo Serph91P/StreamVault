@@ -11,6 +11,9 @@
           <router-link to="/add-streamer" class="nav-link">Add Streamer</router-link>
           <router-link to="/subscriptions" class="nav-link">Subscriptions</router-link>
           <router-link to="/settings" class="nav-link">Settings</router-link>
+          <!-- Background Queue Monitor -->
+          <BackgroundQueueMonitor />
+          
           <div class="notification-bell-container">
             <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
               <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -102,6 +105,7 @@
 <script setup>
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
+import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
