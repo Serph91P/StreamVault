@@ -115,7 +115,7 @@ class StreamerService:
                     # Check if there's an active recording for this stream
                     active_recording = self.db.query(Recording).filter(
                         Recording.stream_id == active_stream.id,
-                        Recording.ended_at.is_(None)
+                        Recording.end_time.is_(None)
                     ).first()
                     
                     if active_recording:
