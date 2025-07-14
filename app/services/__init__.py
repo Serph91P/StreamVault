@@ -52,8 +52,11 @@ __all__ = [
     "CategoryService",
     "MigrationService",
     "ProxyService",
+    "CleanupService",
     # Export file operations functions
     "intelligent_ts_cleanup",
     "check_ffmpeg_processes_for_file",
     "find_and_validate_mp4"
 ]
+
+# Note: test_service is not imported here to avoid circular imports
