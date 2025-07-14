@@ -5,19 +5,21 @@ import os
 import json
 import asyncio
 import logging
-from datetime import datetime
+import subprocess
+import tempfile
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 # Core dependencies
 from app.config import settings
 from app.database import SessionLocal, engine
-from app.models import Base, User, Streamer, Stream
+from app.models import Base, User, Streamer, Stream, StreamEvent
 
 from app.services.recording.recording_service import RecordingService
 from app.services.notification_service import NotificationService
 from app.services.metadata_service import MetadataService
-from app.services.streamer_service import StreamerService
+# Don't import StreamerService - it requires dependencies
 
 # For proxy functionality, use streamlink_utils instead
 from app.utils.streamlink_utils import get_proxy_settings_from_db
@@ -34,11 +36,11 @@ class TestResult:
 
 class StreamVaultTestService:
     def __init__(self):
+        # Only initialize services that don't require dependencies
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
         self.notification_service = NotificationService()
-        self.streamer_service = StreamerService()
-        # REMOVED: self.proxy_service = ProxyService()
+        # REMOVED: self.streamer_service = StreamerService() - requires dependencies
         self.test_results: List[TestResult] = []
 
     async def run_all_tests(self) -> Dict[str, Any]:
