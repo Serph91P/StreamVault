@@ -58,10 +58,17 @@ class MetadataService:
                 
                 base_path_obj = Path(base_path)
                 
+                # Get or create metadata
+                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                if not metadata:
+                    metadata = StreamMetadata(stream_id=stream_id)
+                    db.add(metadata)
+                    db.commit()
+                
                 # Create all metadata files in parallel
                 tasks = [
                     # JSON metadata
-                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename),
+                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename, metadata),
                     # NFO for media servers
                     self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename),
                     # All chapter formats
