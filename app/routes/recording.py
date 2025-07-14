@@ -76,14 +76,17 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 # Create new settings if doesn't exist
                 existing_settings = RecordingSettings()
                 db.add(existing_settings)
-              # Update fields
+                db.commit()
+                db.refresh(existing_settings)
+                
+            # Update fields
             existing_settings.enabled = settings_data.enabled
             existing_settings.output_directory = settings_data.output_directory
             existing_settings.filename_template = settings_data.filename_template
             existing_settings.default_quality = settings_data.default_quality
             existing_settings.use_chapters = settings_data.use_chapters
             
-            # Füge das neue Feld hinzu
+            # Add the new field
             if hasattr(settings_data, 'use_category_as_chapter_title'):
                 existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
                 
@@ -345,7 +348,7 @@ async def force_start_recording(streamer_id: int):
 
 @router.post("/force-offline/{streamer_id}")
 async def force_start_offline_recording(streamer_id: int):
-    """Manuell eine Aufnahme für einen Stream starten, auch wenn das online Event nicht erkannt wurde"""
+    """Manually start a recording for a stream, even if the online event wasn't detected"""
     try:
         # Log offline force start attempt
         logging_service.log_recording_activity("FORCE_OFFLINE_START_REQUEST", f"Streamer {streamer_id}", "Manual offline force start requested via API")
