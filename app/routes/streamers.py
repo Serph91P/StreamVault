@@ -388,6 +388,16 @@ async def delete_stream(
             # Delete metadata record first (foreign key constraint)
             db.delete(metadata)
         
+        # Check for recordings associated with this stream and collect their paths
+        from app.models import Recording
+        recordings = db.query(Recording).filter(Recording.stream_id == stream_id).all()
+        for recording in recordings:
+            if recording.recording_path:
+                files_to_delete.append(recording.recording_path)
+        
+        # Delete all recordings associated with this stream
+        db.query(Recording).filter(Recording.stream_id == stream_id).delete()
+        
         # Delete all stream events
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
         
