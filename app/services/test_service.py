@@ -14,11 +14,11 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import Base, User, Streamer, Stream
 
-# Service imports - Fixed import path
-from app.services.recording.recording_service import RecordingService  # Changed from app.services.recording_service
+# Service imports - Fixed imports
+from app.services.recording.recording_service import RecordingService
 from app.services.notification_service import NotificationService
 from app.services.metadata_service import MetadataService
-from app.services.stream_service import StreamService
+from app.services.streamer_service import StreamerService
 from app.services.proxy_service import ProxyService
 
 logger = logging.getLogger("streamvault.test")
@@ -36,7 +36,7 @@ class StreamVaultTestService:
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
         self.notification_service = NotificationService()
-        self.stream_service = StreamService()
+        self.streamer_service = StreamerService()
         self.proxy_service = ProxyService()
         self.test_results: List[TestResult] = []
 
