@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 # Import existing utilities
-from app.utils.file_utils import remux_file, cleanup_temporary_files
-from app.utils.ffmpeg_utils import validate_mp4, convert_ts_to_mp4
+from app.utils.file_utils import cleanup_temporary_files
+from app.utils.ffmpeg_utils import validate_mp4, convert_ts_to_mp4, remux_to_mp4
+from app.models import Stream, StreamMetadata
+from app.database import SessionLocal
+from app.services.metadata_service import MetadataService
 
 logger = logging.getLogger("streamvault")
 
@@ -136,38 +139,28 @@ async def check_ffmpeg_processes_for_file(ts_path: str, mp4_path: str) -> List[D
         logger.error(f"Error checking FFmpeg processes: {e}")
         return []
 
-async def find_and_validate_mp4(output_path: str) -> Optional[str]:
-    """Find and validate the MP4 file from the output path.
+async def find_and_validate_mp4(recording_dir: str, mp4_path: str, ts_path: str, logger) -> Optional[str]:
+    """
+    Intelligently find and validate MP4 file with remux if needed
     
-    Args:
-        output_path: Path to the output file (usually TS)
-        
     Returns:
-        Path to the MP4 file or None if not found/valid
+        Optional[str]: Path to valid MP4 file or None if not found
     """
     try:
-        output_path_obj = Path(output_path)
-        
-        # If it's already an MP4, check if it exists
-        if output_path.endswith('.mp4') and output_path_obj.exists():
-            return output_path
-        
-        # If it's a TS file, look for corresponding MP4
-        if output_path.endswith('.ts'):
-            mp4_path = output_path.replace('.ts', '.mp4')
-            if Path(mp4_path).exists():
+        # Check if MP4 already exists
+        if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 1000000:  # > 1MB
+            logger.info(f"Using existing MP4 file: {mp4_path}")
+            return mp4_path
+            
+        # Check if TS file exists and can be remuxed
+        if os.path.exists(ts_path):
+            logger.info(f"Found TS file, attempting remux: {ts_path}")
+            success = await remux_to_mp4(ts_path, mp4_path)  # Changed from remux_file
+            if success and os.path.exists(mp4_path):
+                logger.info(f"Successfully remuxed to: {mp4_path}")
                 return mp4_path
-        
-        # Search for MP4 files in the same directory
-        directory = output_path_obj.parent
-        stem = output_path_obj.stem
-        
-        for mp4_file in directory.glob(f"{stem}*.mp4"):
-            if mp4_file.exists() and mp4_file.stat().st_size > 0:
-                return str(mp4_file)
-        
-        logger.warning(f"No valid MP4 file found for output path: {output_path}")
-        return None
+            
     except Exception as e:
-        logger.error(f"Error finding MP4 file for {output_path}: {e}", exc_info=True)
-        return None
+        logger.error(f"Error in find_and_validate_mp4 for {ts_path}: {e}", exc_info=True)
+    
+    return None
