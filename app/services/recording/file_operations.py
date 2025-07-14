@@ -4,18 +4,19 @@ File operations for the recording service.
 This module handles all file-related operations like remuxing and cleanup.
 """
 import os
+import json
 import asyncio
-import logging
-from datetime import datetime
+import shutil
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+from datetime import datetime
+import logging
 
-# Import existing utilities
-from app.utils.ffmpeg_utils import remux_to_mp4  # Changed from file_utils.remux_file
-from app.utils.file_utils import cleanup_temporary_files
 from app.models import Stream, StreamMetadata
 from app.database import SessionLocal
 from app.services.metadata_service import MetadataService
+from app.utils.file_utils import cleanup_temporary_files
+from app.utils.ffmpeg_utils import convert_ts_to_mp4, validate_mp4, extract_video_duration
 
 logger = logging.getLogger("streamvault")
 
@@ -155,14 +156,28 @@ async def find_and_validate_mp4(recording_dir: str, mp4_path: str, ts_path: str,
         # Check if TS file exists and can be remuxed
         if os.path.exists(ts_path):
             logger.info(f"Found TS file, attempting remux: {ts_path}")
-            success = await remux_to_mp4(ts_path, mp4_path)  # Changed function name
-            if success and os.path.exists(mp4_path):
+            # Use convert_ts_to_mp4 from ffmpeg_utils
+            result = await convert_ts_to_mp4(ts_path, mp4_path, overwrite=True)
+            if result["success"] and os.path.exists(mp4_path):
                 logger.info(f"Successfully remuxed to: {mp4_path}")
                 return mp4_path
             else:
-                logger.error(f"Failed to remux TS to MP4")
+                logger.error(f"Failed to remux TS to MP4: {result.get('stderr', 'Unknown error')}")
+                
+        # Look for any MP4 files in recording directory
+        recording_path = Path(recording_dir)
+        mp4_files = list(recording_path.glob("*.mp4"))
+        
+        if mp4_files:
+            # Use the largest MP4 file
+            largest_mp4 = max(mp4_files, key=lambda p: p.stat().st_size)
+            if largest_mp4.stat().st_size > 1000000:  # > 1MB
+                logger.info(f"Found existing MP4 file: {largest_mp4}")
+                return str(largest_mp4)
+                
+        logger.warning(f"No valid MP4 file found in {recording_dir}")
+        return None
             
     except Exception as e:
         logger.error(f"Error in find_and_validate_mp4 for {ts_path}: {e}", exc_info=True)
-    
-    return None
+        return None
