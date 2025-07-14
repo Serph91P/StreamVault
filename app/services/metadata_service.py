@@ -70,7 +70,7 @@ class MetadataService:
                     # JSON metadata
                     self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename, metadata),
                     # NFO for media servers
-                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename),
+                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename, metadata),
                     # All chapter formats
                     self.ensure_all_chapter_formats(stream_id, base_path_obj / f"{base_filename}.mp4", db),
                     # Media server specific files (poster.jpg, etc.)
