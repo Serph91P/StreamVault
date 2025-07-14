@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 # Import existing utilities
+from app.utils.ffmpeg_utils import remux_to_mp4  # Changed from file_utils.remux_file
 from app.utils.file_utils import cleanup_temporary_files
-from app.utils.ffmpeg_utils import validate_mp4, convert_ts_to_mp4  # Remove remux_to_mp4
 from app.models import Stream, StreamMetadata
 from app.database import SessionLocal
 from app.services.metadata_service import MetadataService
@@ -152,15 +152,15 @@ async def find_and_validate_mp4(recording_dir: str, mp4_path: str, ts_path: str,
             logger.info(f"Using existing MP4 file: {mp4_path}")
             return mp4_path
             
-        # Check if TS file exists and can be converted
+        # Check if TS file exists and can be remuxed
         if os.path.exists(ts_path):
-            logger.info(f"Found TS file, attempting conversion: {ts_path}")
-            result = await convert_ts_to_mp4(ts_path, mp4_path, overwrite=True)  # Use convert_ts_to_mp4 instead
-            if result.get("success") and os.path.exists(mp4_path):
-                logger.info(f"Successfully converted to: {mp4_path}")
+            logger.info(f"Found TS file, attempting remux: {ts_path}")
+            success = await remux_to_mp4(ts_path, mp4_path)  # Changed function name
+            if success and os.path.exists(mp4_path):
+                logger.info(f"Successfully remuxed to: {mp4_path}")
                 return mp4_path
             else:
-                logger.error(f"Failed to convert TS to MP4: {result.get('stderr', 'Unknown error')}")
+                logger.error(f"Failed to remux TS to MP4")
             
     except Exception as e:
         logger.error(f"Error in find_and_validate_mp4 for {ts_path}: {e}", exc_info=True)
