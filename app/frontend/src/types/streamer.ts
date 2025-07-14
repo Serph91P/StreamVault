@@ -1,19 +1,22 @@
 // Types related to streamers
 
 export interface Streamer {
-  id: number;
+  id: string;
   username: string;
+  display_name?: string;
   twitch_id: string;
   profile_image_url?: string;
   is_live: boolean;
-  is_recording: boolean;
+  title?: string;
+  category_name?: string;
+  language?: string;
+  last_updated?: string;
   recording_enabled?: boolean;
-  active_stream_id?: number | null;
-  title?: string | null;
-  category_name?: string | null;
-  language?: string | null;
-  last_updated?: string | null;
-  original_profile_image_url?: string | null;
+  is_recording?: boolean;
+  auto_record?: boolean;
+  record_public?: boolean;
+  record_subscribers?: boolean;
+  quality?: string;
 }
 
 export interface StreamerApiResponse {

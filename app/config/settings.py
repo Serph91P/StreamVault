@@ -7,6 +7,8 @@ import base64
 import os
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization
+from urllib.parse import urlparse
+from typing import Set
 
 logger = logging.getLogger("streamvault")
 
@@ -138,10 +140,84 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CLAIMS_SUB: str = "mailto:admin@streamvault.local"
     
+    # CORS settings
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_MAX_AGE: int = 86400  # 24 hours
+    
+    # Additional allowed origins (comma-separated in env)
+    CORS_ADDITIONAL_ORIGINS: str = ""
+    
+    # Security settings
+    SECURE_HEADERS_ENABLED: bool = True
+    HSTS_MAX_AGE: int = 31536000  # 1 year
+    CONTENT_SECURITY_POLICY: Optional[str] = None
+    
+    @property
+    def allowed_origins(self) -> List[str]:
+        """
+        Generate allowed origins based on BASE_URL and additional configured origins.
+        This ensures the app works correctly with the configured domain.
+        """
+        origins = set()
+        
+        # Always allow the BASE_URL origin
+        try:
+            parsed_url = urlparse(self.BASE_URL)
+            origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            origins.add(origin)
+            
+            # Also add without port if standard ports
+            if parsed_url.port in (80, 443, None):
+                origins.add(f"{parsed_url.scheme}://{parsed_url.hostname}")
+            
+            # Add www variant if not present
+            if parsed_url.hostname and not parsed_url.hostname.startswith('www.'):
+                origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}")
+                if parsed_url.port:
+                    origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}:{parsed_url.port}")
+            
+        except Exception as e:
+            logger.warning(f"Could not parse BASE_URL for CORS: {e}")
+        
+        # Add localhost origins for development
+        if os.getenv("ENVIRONMENT") == "development":
+            origins.update([
+                "http://localhost:5173",  # Vite dev server
+                "http://localhost:3000",  # Alternative dev server
+                "http://localhost:7000",  # Production port locally
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:7000"
+            ])
+        
+        # Add any additional origins from environment
+        if self.CORS_ADDITIONAL_ORIGINS:
+            additional = [o.strip() for o in self.CORS_ADDITIONAL_ORIGINS.split(",") if o.strip()]
+            origins.update(additional)
+        
+        # Convert to sorted list for consistent ordering
+        return sorted(list(origins))
+    
     @property
     def has_push_notifications_configured(self) -> bool:
         """Check if push notifications are properly configured"""
         return bool(self.VAPID_PUBLIC_KEY and self.VAPID_PRIVATE_KEY)
+    
+    @property
+    def is_secure(self) -> bool:
+        """Check if running in secure (HTTPS) mode"""
+        return self.BASE_URL.startswith("https://")
+    
+    @property
+    def domain(self) -> str:
+        """Extract domain from BASE_URL"""
+        try:
+            parsed = urlparse(self.BASE_URL)
+            return parsed.hostname or "localhost"
+        except:
+            return "localhost"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -151,6 +227,10 @@ class Settings(BaseSettings):
 
         # Load and auto-generate VAPID keys if needed
         self._load_or_generate_vapid_keys()
+        
+        # Log CORS configuration
+        logger.info(f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}")
+        logger.info(f"🔒 Secure mode: {'Yes' if self.is_secure else 'No'}")
     
     def _load_or_generate_vapid_keys(self):
         """Load VAPID keys from database or auto-generate if not found"""
