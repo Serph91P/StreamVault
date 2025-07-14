@@ -263,13 +263,33 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
     return streamer_info
 
 @router.get("/subscriptions")
-async def get_subscriptions(
-    event_registry: EventHandlerRegistry = Depends(get_event_registry)
-):
-    logger.debug("Fetching all subscriptions")
-    subscriptions = await event_registry.list_subscriptions()
-    logger.debug(f"Subscriptions fetched: {subscriptions}")
-    return {"subscriptions": subscriptions.get("data", [])}
+async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+    """List all EventSub subscriptions"""
+    try:
+        subscriptions = await event_registry.list_subscriptions()
+        
+        # Transform the data for better readability
+        if subscriptions and 'data' in subscriptions:
+            formatted_subs = []
+            for sub in subscriptions['data']:
+                formatted_subs.append({
+                    "id": sub['id'],  # FIXED: proper string quotes
+                    "type": sub['type'],
+                    "status": sub['status'],
+                    "created_at": sub.get('created_at', ''),
+                    "condition": sub.get('condition', {})
+                })
+            
+            return {
+                "total": subscriptions.get('total', 0),
+                "subscriptions": formatted_subs
+            }
+        
+        return {"total": 0, "subscriptions": []}
+        
+    except Exception as e:
+        logger.error(f"Error listing subscriptions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/subscriptions/{subscription_id}")
 async def delete_subscription(
