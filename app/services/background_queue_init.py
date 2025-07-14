@@ -44,6 +44,11 @@ class BackgroundQueueManager:
         )
         
         self.queue_service.register_task_handler(
+            'mp4_validation',
+            self.task_handlers.handle_mp4_validation
+        )
+        
+        self.queue_service.register_task_handler(
             'thumbnail_generation',
             self.task_handlers.handle_thumbnail_generation
         )
