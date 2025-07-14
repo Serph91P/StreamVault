@@ -34,6 +34,10 @@ from app.services.category_image_service import CategoryImageService
 from app.services.migration_service import MigrationService
 from app.services.thumbnail_service import ThumbnailService
 from app.services.artwork_service import ArtworkService
+from app.services.system_config_service import SystemConfigService
+from app.services.twitch_auth_service import TwitchAuthService
+from app.services.webpush_service import WebPushService
+from app.services.websocket_manager import ConnectionManager
 
 __all__ = [
     "LoggingService",
@@ -49,14 +53,21 @@ __all__ = [
     "SettingsService",
     "ThumbnailService",
     "ArtworkService",
+    "SystemConfigService",
+    "TwitchAuthService",
+    "WebPushService",
+    "ConnectionManager",
+    # Export recording components
     "ConfigManager",
     "ProcessManager",
     "RecordingLogger",
     "NotificationManager",
     "StreamInfoManager",
+    # Export file operations functions
     "intelligent_ts_cleanup",
     "check_ffmpeg_processes_for_file",
     "find_and_validate_mp4",
+    # Export exceptions
     "RecordingError",
     "ProcessError",
     "ConfigurationError",
@@ -65,3 +76,4 @@ __all__ = [
 ]
 
 # Note: test_service is not imported here to avoid circular imports
+# Note: example_typed_service is not imported as it appears to be an example file
