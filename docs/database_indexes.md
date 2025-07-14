@@ -117,19 +117,30 @@ WHERE is_live = true;
 
 ## Migration
 
-The indexes are created via migration `20250714_add_database_indexes.py`.
+The indexes are created automatically via the migration service `MigrationService._run_database_indexes_migration()`.
 
-### Running the Migration
-```bash
-# Apply indexes
-python migrations/20250714_add_database_indexes.py
+### Automatic Execution
+The migration runs automatically when:
+- **Development Mode**: During container startup via `entrypoint.sh`
+- **Production Mode**: During application startup in `main.py`
 
-# Or through migration system
-python migrations/manage.py
+### Manual Execution (if needed)
+```python
+from app.services.migration_service import MigrationService
+MigrationService.run_safe_migrations()
 ```
 
-### Rollback
-The migration includes a `downgrade()` function to remove all indexes if needed.
+### Migration Status
+The migration tracks completion in the `applied_migrations` table:
+```sql
+SELECT * FROM applied_migrations WHERE migration_name = '20250714_add_database_indexes';
+```
+
+### Migration Safety
+- Uses `CREATE INDEX IF NOT EXISTS` to prevent errors on re-run
+- Safe to run multiple times
+- Continues if individual indexes fail (may already exist)
+- Logs detailed progress and results
 
 ## Index Monitoring
 
