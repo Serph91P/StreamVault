@@ -18,6 +18,7 @@ from app.utils.path_utils import update_recording_path
 from app.services.metadata_service import MetadataService
 from app.services.thumbnail_service import ThumbnailService
 from app.services.recording.exceptions import FileOperationError
+from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
 
@@ -209,12 +210,12 @@ class PipelineManager:
     async def _validate_file_sizes(self, ts_path: str, mp4_path: str) -> bool:
         """Validate that MP4 file size is reasonable compared to TS file"""
         try:
-            if not os.path.exists(ts_path) or not os.path.exists(mp4_path):
-                logger.error(f"File missing for validation - TS: {os.path.exists(ts_path)}, MP4: {os.path.exists(mp4_path)}")
+            if not await async_file.exists(ts_path) or not await async_file.exists(mp4_path):
+                logger.error(f"File missing for validation - TS: {await async_file.exists(ts_path)}, MP4: {await async_file.exists(mp4_path)}")
                 return False
                 
-            ts_size = os.path.getsize(ts_path)
-            mp4_size = os.path.getsize(mp4_path)
+            ts_size = await async_file.getsize(ts_path)
+            mp4_size = await async_file.getsize(mp4_path)
             
             if ts_size == 0:
                 logger.error(f"TS file is empty: {ts_path}")
@@ -244,11 +245,11 @@ class PipelineManager:
     async def _cleanup_ts_file(self, ts_path: str) -> bool:
         """Clean up TS file after successful validation"""
         try:
-            if os.path.exists(ts_path):
+            if await async_file.exists(ts_path):
                 # Add small delay to ensure MP4 write is complete
                 await asyncio.sleep(2)
                 
-                os.unlink(ts_path)
+                await async_file.unlink(ts_path)
                 logger.info(f"Successfully cleaned up TS file: {ts_path}")
                 return True
             else:

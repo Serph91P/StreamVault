@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from sqlalchemy import extract
 from app.database import SessionLocal
+from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
 
@@ -20,7 +21,7 @@ FILENAME_PRESETS = {
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
 }
 
-def get_episode_number(streamer_id: int, now: datetime) -> str:
+async def get_episode_number(streamer_id: int, now: datetime) -> str:
     """
     Get episode number (count of streams in current month).
     
@@ -78,12 +79,12 @@ def get_episode_number(streamer_id: int, now: datetime) -> str:
                     from app.models import Streamer
                     streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                     if streamer:
-                        streamer_dir = os.path.join(output_directory, streamer.username)
-                        season_dir = os.path.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
+                        streamer_dir = await async_file.join(output_directory, streamer.username)
+                        season_dir = await async_file.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
                         
-                        if os.path.exists(season_dir):
+                        if await async_file.exists(season_dir):
                             import re
-                            for filename in os.listdir(season_dir):
+                            for filename in await async_file.listdir(season_dir):
                                 match = re.search(rf'S{current_month_year}E(\d+)', filename)
                                 if match:
                                     episode_num = int(match.group(1))
@@ -103,7 +104,7 @@ def get_episode_number(streamer_id: int, now: datetime) -> str:
         logger.error(f"Error getting episode number: {e}", exc_info=True)
         return "01"  # Default value
 
-def generate_filename(
+async def generate_filename(
     streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None
 ) -> str:
     """
@@ -129,7 +130,7 @@ def generate_filename(
     streamer_name = sanitize(streamer.username)
 
     # Get episode number (count of streams in current month)
-    episode_str = get_episode_number(streamer.id, now)
+    episode_str = await get_episode_number(streamer.id, now)
     episode_int = int(episode_str)  # Convert to int for formatting
 
     # Create a dictionary of replaceable values

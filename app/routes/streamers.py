@@ -14,10 +14,38 @@ import asyncio
 from pathlib import Path
 import json
 import re
+from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
+
+
+async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
+    """Delete files asynchronously and return deleted files list and count."""
+    deleted_files = []
+    for file_path in files_to_delete:
+        try:
+            path_obj = Path(file_path)
+            if await async_file.path_exists(path_obj):
+                await async_file.path_unlink(path_obj)
+                deleted_files.append(str(path_obj))
+                logger.info(f"Deleted file: {path_obj}")
+                
+                # Also try to delete companion files (like .vtt alongside .mp4, etc.)
+                base_path = path_obj.with_suffix('')
+                for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
+                    companion = base_path.with_suffix(ext)
+                    if await async_file.path_exists(companion) and companion != path_obj:
+                        await async_file.path_unlink(companion)
+                        deleted_files.append(str(companion))
+                        logger.info(f"Deleted companion file: {companion}")
+            else:
+                logger.warning(f"File not found: {file_path}")
+        except Exception as file_error:
+            logger.warning(f"Failed to delete file {file_path}: {file_error}")
+    
+    return deleted_files, len(deleted_files)
 
 @router.get("")
 async def get_streamers(streamer_service: StreamerService = Depends(get_streamer_service)):
@@ -405,33 +433,13 @@ async def delete_stream(
         db.commit()
         
         # Now delete all the files
-        deleted_files = []
-        for file_path in files_to_delete:
-            try:
-                path_obj = Path(file_path)
-                if path_obj.exists():
-                    path_obj.unlink()
-                    deleted_files.append(str(path_obj))
-                    logger.info(f"Deleted file: {path_obj}")
-                    
-                    # Also try to delete companion files (like .vtt alongside .mp4, etc.)
-                    base_path = path_obj.with_suffix('')
-                    for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
-                        companion = base_path.with_suffix(ext)
-                        if companion.exists() and companion != path_obj:
-                            companion.unlink()
-                            deleted_files.append(str(companion))
-                            logger.info(f"Deleted companion file: {companion}")
-                else:
-                    logger.warning(f"File not found: {file_path}")
-            except Exception as file_error:
-                logger.warning(f"Failed to delete file {file_path}: {file_error}")
+        deleted_files, deleted_count = await delete_files_async(files_to_delete)
         
         return {
             "success": True, 
             "message": f"Stream {stream_id} deleted successfully",
             "deleted_files": deleted_files,
-            "deleted_files_count": len(deleted_files)
+            "deleted_files_count": deleted_count
         }
     except HTTPException:
         raise
@@ -665,8 +673,7 @@ async def delete_all_streams(
         # Also handle orphaned recordings with null stream_id for this streamer
         from app.models import Recording
         orphaned_recordings = db.query(Recording).filter(
-            Recording.stream_id.is_(None),
-            Recording.streamer_id == streamer_id
+            Recording.stream_id.is_(None)
         ).all()
         
         if not streams and not orphaned_recordings:
@@ -727,27 +734,7 @@ async def delete_all_streams(
         db.commit()
         
         # Now delete all the files
-        deleted_files = []
-        for file_path in files_to_delete:
-            try:
-                path_obj = Path(file_path)
-                if path_obj.exists():
-                    path_obj.unlink()
-                    deleted_files.append(str(path_obj))
-                    logger.info(f"Deleted file: {path_obj}")
-                    
-                    # Also try to delete companion files (like .vtt alongside .mp4, etc.)
-                    base_path = path_obj.with_suffix('')
-                    for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
-                        companion = base_path.with_suffix(ext)
-                        if companion.exists() and companion != path_obj:
-                            companion.unlink()
-                            deleted_files.append(str(companion))
-                            logger.info(f"Deleted companion file: {companion}")
-                else:
-                    logger.warning(f"File not found: {file_path}")
-            except Exception as file_error:
-                logger.warning(f"Failed to delete file {file_path}: {file_error}")
+        deleted_files, deleted_count = await delete_files_async(files_to_delete)
         
         return {
             "success": True, 
@@ -755,7 +742,7 @@ async def delete_all_streams(
             "deleted_streams": len(deleted_stream_ids),
             "deleted_stream_ids": deleted_stream_ids,
             "deleted_files": deleted_files,
-            "deleted_files_count": len(deleted_files)
+            "deleted_files_count": deleted_count
         }
     except HTTPException:
         raise

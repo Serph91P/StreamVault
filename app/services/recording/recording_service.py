@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 from app.models import Stream, Recording, Streamer
+from app.utils import async_file
 from app.database import get_db
 
 # Import managers
@@ -179,6 +180,10 @@ class RecordingService:
             if not stream:
                 logger.error(f"No active stream found for streamer {streamer.username}")
                 return False
+                
+            if not stream.id:
+                logger.error(f"Stream has no ID for streamer {streamer.username}")
+                return False
             
             # Set the streamer relationship
             stream.streamer = streamer
@@ -203,7 +208,7 @@ class RecordingService:
             filename_template = self.config_manager.get_filename_template(streamer_id)
             
             # Use path_utils to generate the filename
-            ts_filename = generate_filename(streamer, stream_data, filename_template)
+            ts_filename = await generate_filename(streamer, stream_data, filename_template)
             
             # Change extension to .ts for recording
             if ts_filename.endswith('.mp4'):
@@ -211,7 +216,7 @@ class RecordingService:
             
             # Create full path
             streamer_dir = Path(self.recordings_directory) / streamer.username
-            streamer_dir.mkdir(parents=True, exist_ok=True)
+            await async_file.path_mkdir(streamer_dir, parents=True, exist_ok=True)
             ts_output_path = str(streamer_dir / ts_filename)
             
             # Create recording record in database
@@ -222,9 +227,19 @@ class RecordingService:
                 path=ts_output_path
             )
             
+            # Validate that stream_id is set
+            if not recording.stream_id:
+                logger.error(f"Failed to set stream_id for recording of streamer {streamer.username}")
+                return False
+            
             self.db.add(recording)
             self.db.commit()
             recording_id = recording.id
+            
+            # Verify recording was created correctly
+            if not recording_id:
+                logger.error(f"Failed to create recording record for streamer {streamer.username}")
+                return False
             
             # Get stream metadata for notifications
             metadata = await self.stream_info_manager.get_stream_metadata(stream)
@@ -309,7 +324,7 @@ class RecordingService:
             duration_seconds = int((datetime.now() - start_time).total_seconds())
             
             # Check if recording was successful
-            if exit_code == 0 and os.path.exists(ts_output_path) and os.path.getsize(ts_output_path) > 1024:
+            if exit_code == 0 and await async_file.exists(ts_output_path) and await async_file.getsize(ts_output_path) > 1024:
                 logger.info(f"Recording for {streamer_name} completed successfully (duration: {duration_seconds}s)")
                 
                 # Post-processing pipeline handled by PipelineManager
