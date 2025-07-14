@@ -28,6 +28,7 @@ from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
 from app.services.recording.pipeline_manager import PipelineManager
+from app.dependencies import websocket_manager
 
 # Import utils
 from app.utils.path_utils import generate_filename
@@ -107,6 +108,46 @@ class RecordingService:
             }
             
         return active_info
+
+    async def send_active_recordings_websocket_update(self):
+        """Send current active recordings to all WebSocket clients"""
+        try:
+            # Get active recordings data
+            active_recordings_dict = await self.get_active_recordings()
+            
+            # Convert to the format expected by frontend
+            active_recordings_list = []
+            
+            # Use a new session for database queries
+            self._ensure_db_session()
+            
+            for stream_id, recording_info in active_recordings_dict.items():
+                try:
+                    # Get stream and streamer info
+                    stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.streamer:
+                        # Format recording info for WebSocket
+                        recording_data = {
+                            'streamer_id': stream.streamer_id,
+                            'streamer_name': stream.streamer.username,
+                            'stream_id': stream_id,
+                            'started_at': recording_info['start_time'].isoformat() if isinstance(recording_info['start_time'], datetime) else recording_info['start_time'],
+                            'duration': recording_info.get('duration', 0),
+                            'output_path': recording_info.get('ts_output_path', ''),
+                            'quality': 'best',  # Default value since config might not be available
+                            'title': stream.title or '',
+                            'category': stream.category_name or ''
+                        }
+                        active_recordings_list.append(recording_data)
+                except Exception as e:
+                    logger.warning(f"Error formatting active recording for stream {stream_id}: {e}")
+                    continue
+            
+            # Send via WebSocket
+            await websocket_manager.send_active_recordings_update(active_recordings_list)
+            
+        except Exception as e:
+            logger.error(f"Error sending active recordings WebSocket update: {e}", exc_info=True)
 
     async def cleanup_all_recordings(self) -> None:
         """Stop all active recordings and clean up"""
@@ -391,6 +432,27 @@ class RecordingService:
                 'streamer_name': streamer.username
             }
             
+            # Send WebSocket notification for recording started
+            try:
+                recording_info = {
+                    'streamer_id': streamer_id,
+                    'streamer_name': streamer.username,
+                    'stream_id': stream.id,
+                    'started_at': start_time.isoformat(),
+                    'duration': 0,
+                    'output_path': ts_output_path,
+                    'quality': config.get('quality', 'best'),
+                    'title': stream.title or '',
+                    'category': stream.category_name or ''
+                }
+                await websocket_manager.send_recording_started(recording_info)
+                
+                # Send immediate active recordings update
+                from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
+                await send_immediate_active_recordings_update()
+            except Exception as e:
+                logger.warning(f"Failed to send WebSocket recording started notification: {e}")
+            
             # Start monitoring task
             task = asyncio.create_task(self._monitor_and_process_recording(stream, recording_id, ts_output_path, start_time))
             self.recording_tasks[stream.id] = task
@@ -519,6 +581,24 @@ class RecordingService:
                     output_path=recording_info.get('ts_output_path', ''),
                     reason=reason
                 )
+                
+                # Send WebSocket notification for recording stopped
+                try:
+                    recording_info_ws = {
+                        'streamer_id': streamer_id,
+                        'streamer_name': streamer_name,
+                        'stream_id': stream.id,
+                        'stopped_at': datetime.now().isoformat(),
+                        'duration': duration,
+                        'reason': reason
+                    }
+                    await websocket_manager.send_recording_stopped(recording_info_ws)
+                    
+                    # Send immediate active recordings update
+                    from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
+                    await send_immediate_active_recordings_update()
+                except Exception as e:
+                    logger.warning(f"Failed to send WebSocket recording stopped notification: {e}")
             else:
                 logger.warning(f"Failed to stop recording gracefully for streamer ID {streamer_id}")
                 
