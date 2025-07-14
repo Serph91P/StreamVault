@@ -1,25 +1,25 @@
 """
-Comprehensive Test Service for StreamVault
-Tests all major functionality including recording, metadata, push notifications, etc.
+StreamVault system test service for validating core functionality
 """
 import os
 import json
 import asyncio
 import logging
-import tempfile
-import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Dict, List, Any, Optional
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
-from app.models import Stream, Streamer, StreamEvent, StreamMetadata, RecordingSettings, PushSubscription
-from app.services.recording_service import RecordingService
+# Core dependencies
+from app.config import settings
+from app.database import SessionLocal, engine
+from app.models import Base, User, Streamer, Stream
+
+# Service imports - Fixed import path
+from app.services.recording.recording_service import RecordingService  # Changed from app.services.recording_service
+from app.services.notification_service import NotificationService
 from app.services.metadata_service import MetadataService
-from app.services.enhanced_push_service import EnhancedPushService
-from app.services.media_server_structure_service import MediaServerStructureService
-from app.config.settings import settings
+from app.services.stream_service import StreamService
+from app.services.proxy_service import ProxyService
 
 logger = logging.getLogger("streamvault.test")
 
@@ -35,8 +35,9 @@ class StreamVaultTestService:
     def __init__(self):
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
-        self.push_service = EnhancedPushService()
-        self.media_server_service = MediaServerStructureService()
+        self.notification_service = NotificationService()
+        self.stream_service = StreamService()
+        self.proxy_service = ProxyService()
         self.test_results: List[TestResult] = []
 
     async def run_all_tests(self) -> Dict[str, Any]:
