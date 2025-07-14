@@ -3,7 +3,8 @@ from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.services.recording_service import RecordingService, FILENAME_PRESETS
+from app.services.recording.recording_service import RecordingService  # Changed import path
+from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
 from app.services.logging_service import logging_service
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -351,7 +352,7 @@ async def force_start_offline_recording(streamer_id: int):
         
         result = await recording_service.force_start_recording_offline(streamer_id)
         if result:
-            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording started successfully")
+            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording gestartet")
             return {"status": "success", "message": "Recording started successfully"}
         else:
             logging_service.log_recording_activity("FORCE_OFFLINE_START_FAILED", f"Streamer {streamer_id}", "Failed to start offline recording", "warning")
