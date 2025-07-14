@@ -41,6 +41,10 @@ async def start_recording_service(db=None):
     from app.services.state_persistence_service import state_persistence_service
     await state_persistence_service.start()
     
+    # Start the new background queue service
+    from app.services.startup_init import initialize_background_services
+    await initialize_background_services()
+    
     # Recover active recordings from persistent storage
     await service.recover_active_recordings_from_persistence()
     
