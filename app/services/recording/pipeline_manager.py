@@ -33,6 +33,9 @@ class PipelineManager:
         # Pipeline step tracking
         self.active_pipelines = {}
         
+        # Shutdown management
+        self._is_shutting_down = False
+        
     async def start_post_processing_pipeline(self, stream_id: int, ts_path: str) -> Dict[str, Any]:
         """Start the complete sequential post-processing pipeline
         
@@ -272,3 +275,41 @@ class PipelineManager:
             }
             for pipeline_id, info in self.active_pipelines.items()
         }
+
+    async def graceful_shutdown(self, timeout: int = 30):
+        """Gracefully shutdown the pipeline manager
+        
+        Args:
+            timeout: Maximum time to wait for pipelines to complete (seconds)
+        """
+        logger.info("🛑 Starting graceful shutdown of Pipeline Manager...")
+        self._is_shutting_down = True
+        
+        try:
+            active_count = len(self.active_pipelines)
+            if active_count == 0:
+                logger.info("No active pipelines to shutdown")
+                return
+            
+            logger.info(f"⏳ Waiting for {active_count} active pipelines to complete...")
+            
+            # Wait for pipelines to finish naturally
+            start_time = asyncio.get_event_loop().time()
+            while self.active_pipelines and (asyncio.get_event_loop().time() - start_time) < timeout:
+                await asyncio.sleep(1)
+            
+            # Log remaining pipelines
+            remaining_count = len(self.active_pipelines)
+            if remaining_count > 0:
+                logger.warning(f"⚠️ {remaining_count} pipelines still running after timeout")
+                for pipeline_id in self.active_pipelines:
+                    logger.warning(f"Pipeline still active: {pipeline_id}")
+            
+            logger.info("✅ Pipeline Manager graceful shutdown completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during Pipeline Manager shutdown: {e}", exc_info=True)
+
+    def is_shutting_down(self) -> bool:
+        """Check if pipeline manager is shutting down"""
+        return self._is_shutting_down

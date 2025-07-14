@@ -56,6 +56,10 @@ class RecordingService:
         # Configuration
         self.max_concurrent_recordings = self.config_manager.get_max_concurrent_recordings()
         self.recordings_directory = self.config_manager.get_recordings_directory()
+        
+        # Shutdown management
+        self._shutdown_event = asyncio.Event()
+        self._is_shutting_down = False
 
     def _ensure_db_session(self):
         """Ensure we have a valid database session"""
@@ -142,6 +146,102 @@ class RecordingService:
             if stream_id in self.recording_tasks:
                 del self.recording_tasks[stream_id]
 
+    async def graceful_shutdown(self, timeout: int = 30):
+        """Gracefully shutdown the recording service
+        
+        Args:
+            timeout: Maximum time to wait for recordings to finish (seconds)
+        """
+        logger.info("🛑 Starting graceful shutdown of Recording Service...")
+        self._is_shutting_down = True
+        
+        try:
+            # Stop accepting new recordings
+            logger.info("📛 Preventing new recordings from starting...")
+            
+            # Get list of active recordings
+            active_count = len(self.active_recordings)
+            if active_count > 0:
+                logger.info(f"⏳ Waiting for {active_count} active recordings to complete...")
+                
+                # Wait for recordings to finish naturally (up to timeout)
+                start_time = asyncio.get_event_loop().time()
+                while self.active_recordings and (asyncio.get_event_loop().time() - start_time) < timeout:
+                    await asyncio.sleep(1)
+                    await self.cleanup_finished_tasks()
+                
+                # Force stop remaining recordings
+                remaining_count = len(self.active_recordings)
+                if remaining_count > 0:
+                    logger.warning(f"⚠️ Force stopping {remaining_count} remaining recordings...")
+                    await self._force_stop_all_recordings()
+            
+            # Cancel all recording tasks
+            if self.recording_tasks:
+                logger.info(f"🔄 Cancelling {len(self.recording_tasks)} recording tasks...")
+                await self._cancel_all_tasks()
+            
+            # Shutdown process manager
+            if hasattr(self.process_manager, 'graceful_shutdown'):
+                logger.info("🔄 Shutting down process manager...")
+                await self.process_manager.graceful_shutdown()
+            
+            # Shutdown pipeline manager
+            if hasattr(self.pipeline_manager, 'graceful_shutdown'):
+                logger.info("🔄 Shutting down pipeline manager...")
+                await self.pipeline_manager.graceful_shutdown()
+            
+            logger.info("✅ Recording Service graceful shutdown completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during Recording Service shutdown: {e}", exc_info=True)
+        finally:
+            self._shutdown_event.set()
+
+    async def _force_stop_all_recordings(self):
+        """Force stop all active recordings"""
+        for stream_id in list(self.active_recordings.keys()):
+            try:
+                logger.info(f"🛑 Force stopping recording for stream {stream_id}")
+                
+                # Stop via process manager
+                if hasattr(self.process_manager, 'stop_recording_process'):
+                    await self.process_manager.stop_recording_process(stream_id)
+                
+                # Remove from active recordings
+                if stream_id in self.active_recordings:
+                    del self.active_recordings[stream_id]
+                    
+            except Exception as e:
+                logger.error(f"Error force stopping recording {stream_id}: {e}")
+
+    async def _cancel_all_tasks(self):
+        """Cancel all recording tasks"""
+        for stream_id, task in list(self.recording_tasks.items()):
+            try:
+                if not task.done():
+                    logger.info(f"🔄 Cancelling recording task for stream {stream_id}")
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        logger.info(f"✅ Recording task for stream {stream_id} cancelled")
+                    except Exception as e:
+                        logger.error(f"Error cancelling task for stream {stream_id}: {e}")
+                        
+            except Exception as e:
+                logger.error(f"Error handling task cancellation for stream {stream_id}: {e}")
+        
+        self.recording_tasks.clear()
+
+    def is_shutting_down(self) -> bool:
+        """Check if service is shutting down"""
+        return self._is_shutting_down
+
+    async def wait_for_shutdown(self):
+        """Wait for shutdown to complete"""
+        await self._shutdown_event.wait()
+
     async def start_recording(self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False) -> bool:
         """Start recording for a streamer (called by EventHandlerRegistry)
         
@@ -160,6 +260,11 @@ class RecordingService:
         ts_output_path = None
         start_time = datetime.now()
         success = False
+        
+        # Check if service is shutting down
+        if self._is_shutting_down:
+            logger.warning(f"Cannot start recording for {streamer_id}: service is shutting down")
+            return False
         
         try:
             # Ensure we have a database session

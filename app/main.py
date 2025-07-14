@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
     event_registry = None
     cleanup_task = None
     log_cleanup_task = None
+    recording_service = None
     
     try:
         # Run database migrations
@@ -61,6 +62,14 @@ async def lifespan(app: FastAPI):
         event_registry = await get_event_registry()
         await event_registry.initialize_eventsub()
         logger.info("EventSub initialized successfully")
+        
+        # Get recording service reference for graceful shutdown
+        try:
+            recording_service = getattr(event_registry, 'recording_service', None)
+            if recording_service:
+                logger.info("Recording service reference obtained for graceful shutdown")
+        except Exception as e:
+            logger.warning(f"Could not get recording service reference: {e}")
         
         # Start log cleanup service
         try:
@@ -100,19 +109,28 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("Starting application shutdown...")
+    logger.info("🛑 Starting application shutdown...")
+    
+    # Gracefully shutdown recording service first (most critical)
+    if recording_service:
+        try:
+            logger.info("🔄 Gracefully shutting down recording service...")
+            await recording_service.graceful_shutdown(timeout=30)
+            logger.info("✅ Recording service shutdown completed")
+        except Exception as e:
+            logger.error(f"❌ Error during recording service shutdown: {e}")
     
     # Cancel cleanup tasks
     for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
         if task and not task.done():
-            logger.info(f"Cancelling {task_name} task...")
+            logger.info(f"🔄 Cancelling {task_name} task...")
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(f"{task_name} task cancelled successfully")
+                logger.info(f"✅ {task_name} task cancelled successfully")
             except Exception as e:
-                logger.error(f"Error cancelling {task_name} task: {e}")
+                logger.error(f"❌ Error cancelling {task_name} task: {e}")
     
     # Stop EventSub properly
     if event_registry:
@@ -120,15 +138,15 @@ async def lifespan(app: FastAPI):
             # Try to access eventsub attribute safely
             eventsub = getattr(event_registry, 'eventsub', None)
             if eventsub and hasattr(eventsub, 'stop'):
-                logger.info("Stopping EventSub...")
+                logger.info("🔄 Stopping EventSub...")
                 await eventsub.stop()
-                logger.info("EventSub stopped successfully")
+                logger.info("✅ EventSub stopped successfully")
             elif hasattr(event_registry, 'cleanup'):
-                logger.info("Cleaning up event registry...")
+                logger.info("🔄 Cleaning up event registry...")
                 await event_registry.cleanup()
-                logger.info("Event registry cleaned up")
+                logger.info("✅ Event registry cleaned up")
         except Exception as e:
-            logger.error(f"Error during EventSub shutdown: {e}")
+            logger.error(f"❌ Error during EventSub shutdown: {e}")
     
     # Close database connections
     try:
@@ -137,11 +155,11 @@ async def lifespan(app: FastAPI):
             await engine.dispose()
         else:
             engine.dispose()
-        logger.info("Database connections closed")
+        logger.info("✅ Database connections closed")
     except Exception as e:
-        logger.error(f"Error disposing database engine: {e}")
+        logger.error(f"❌ Error disposing database engine: {e}")
     
-    logger.info("Application shutdown complete")
+    logger.info("🎯 Application shutdown complete")
 
 # Initialize application components
 logger = setup_logging()
