@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
+from app.models import RecordingSettings, StreamerRecordingSettings, Streamer, Stream
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording.recording_service import RecordingService  # Changed import path
@@ -214,11 +214,38 @@ async def get_all_streamer_recording_settings():
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
+    """Get all active recordings
+    
+    Returns a list of active recordings as expected by the response model.
+    """
     try:
-        return await recording_service.get_active_recordings()
+        # Get active recordings from service
+        active_recordings_dict = await recording_service.get_active_recordings()
+        
+        # Convert dict to list of ActiveRecordingSchema
+        result = []
+        for stream_id, recording_info in active_recordings_dict.items():
+            # Get stream and streamer info from database
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream and stream.streamer:
+                    result.append(ActiveRecordingSchema(
+                        stream_id=stream_id,
+                        streamer_id=stream.streamer_id,
+                        streamer_name=stream.streamer.username,
+                        start_time=recording_info['start_time'].isoformat(),
+                        duration=recording_info['duration'],
+                        output_path=recording_info.get('ts_output_path', ''),
+                        title=stream.title or '',
+                        category=stream.category_name or ''
+                    ))
+        
+        return result
+        
     except Exception as e:
-        logger.error(f"Error fetching active recordings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching active recordings: {e}", exc_info=True)
+        # Return empty list on error to match response model
+        return []
 
 @router.post("/stop/{streamer_id}")
 async def stop_recording(streamer_id: int):

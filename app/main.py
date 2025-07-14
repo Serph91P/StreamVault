@@ -33,84 +33,113 @@ from app.utils.security_enhanced import safe_file_access, safe_error_message
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
     logger.info("Starting application initialization...")
-      # Run database migrations using the improved migration system
+    
+    # Initialize services
+    event_registry = None
+    cleanup_task = None
+    log_cleanup_task = None
+    
     try:
-        # Check if migrations were already run by entrypoint.sh in development
+        # Run database migrations
         if os.getenv("ENVIRONMENT") == "development":
             logger.info("🔄 Development mode: Migrations handled by entrypoint.sh")
         else:
             logger.info("🚀 Production mode: Running database migrations...")
-            
-            # Use the improved MigrationService with safe migrations
             from app.services.migration_service import MigrationService
-            
-            # Run safe migrations first
             migration_success = MigrationService.run_safe_migrations()
-            
             if migration_success:
                 logger.info("✅ All database migrations completed successfully")
             else:
-                logger.warning("⚠️ Some migrations failed, trying legacy system...")
-                
-                # Fallback to legacy system if needed (only in production)
-                try:
-                    from app.migrations_init import run_migrations
-                    run_migrations()
-                    logger.info("✅ Legacy migrations completed")
-                except Exception as fallback_error:
-                    logger.error(f"❌ Legacy migration system also failed: {fallback_error}")
-                    logger.warning("⚠️ Application starting without full migrations - some features may not work")
-            
-    except Exception as e:
-        logger.error(f"❌ Migration system failed: {e}")
-        logger.warning("⚠️ Application starting without migrations - some features may not work")
-    
-    event_registry = await get_event_registry()
-    
-    # Start log cleanup service
-    try:
-        from app.services.logging_service import LoggingService
-        logging_service = LoggingService()
-        # Run cleanup once on startup and schedule daily cleanups
-        asyncio.create_task(asyncio.to_thread(logging_service.cleanup_old_logs))
-        asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
-        logger.info("Scheduled log cleanup service started (will run daily)")
-    except Exception as e:
-        logger.error(f"Failed to start log cleanup service: {e}")
-    
-    # Start the recordings cleanup service
-    try:
-        from app.services.cleanup_service import CleanupService
+                logger.warning("⚠️ Some migrations failed, application may have limited functionality")
         
-        async def scheduled_recording_cleanup():
-            while True:
-                try:
-                    await CleanupService.run_scheduled_cleanup()
-                except Exception as e:
-                    logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
-                
-                # Run every 12 hours
-                await asyncio.sleep(12 * 3600)
-                
-        # Run the cleanup task - first cleanup and then schedule regular cleanups
-        logger.info("Starting scheduled recording cleanup service")
-        asyncio.create_task(scheduled_recording_cleanup())
+        # Initialize EventSub
+        event_registry = await get_event_registry()
+        await event_registry.initialize_eventsub()
+        logger.info("EventSub initialized successfully")
+        
+        # Start log cleanup service
+        try:
+            from app.services.logging_service import LoggingService
+            logging_service = LoggingService()
+            log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
+            logger.info("Log cleanup service started")
+        except Exception as e:
+            logger.error(f"Failed to start log cleanup service: {e}")
+        
+        # Start recording cleanup service
+        try:
+            from app.services.cleanup_service import CleanupService
+            
+            async def scheduled_recording_cleanup():
+                while True:
+                    try:
+                        await CleanupService.run_scheduled_cleanup()
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
+                    
+                    # Run every 12 hours
+                    await asyncio.sleep(12 * 3600)
+            
+            cleanup_task = asyncio.create_task(scheduled_recording_cleanup())
+            logger.info("Recording cleanup service started")
+        except Exception as e:
+            logger.error(f"Failed to start recording cleanup service: {e}")
+        
+        logger.info("Application startup complete")
+        
     except Exception as e:
-        logger.error(f"Failed to start recording cleanup service: {e}")
-    
-    # Initialize EventSub subscriptions
-    await event_registry.initialize_eventsub()
-    logger.info("Application startup complete")
+        logger.error(f"Error during startup: {e}", exc_info=True)
     
     yield
     
-    # Cleanup with logging
+    # Shutdown
     logger.info("Starting application shutdown...")
-    event_registry = await get_event_registry()
-    if event_registry.eventsub:
-        await event_registry.eventsub.stop()
-        logger.info("EventSub stopped")
+    
+    # Cancel cleanup tasks
+    if cleanup_task and not cleanup_task.done():
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+    
+    if log_cleanup_task and not log_cleanup_task.done():
+        log_cleanup_task.cancel()
+        try:
+            await log_cleanup_task
+        except asyncio.CancelledError:
+            pass
+    
+    # Stop EventSub properly
+    if event_registry:
+        try:
+            # Check if eventsub exists and has stop method
+            if hasattr(event_registry, 'eventsub'):
+                eventsub = event_registry.eventsub
+                if eventsub and hasattr(eventsub, 'stop'):
+                    await eventsub.stop()
+                    logger.info("EventSub stopped successfully")
+            elif hasattr(event_registry, 'cleanup'):
+                await event_registry.cleanup()
+                logger.info("Event registry cleaned up")
+        except Exception as e:
+            logger.error(f"Error during EventSub shutdown: {e}")
+    
+    # Close database connections
+    try:
+        if hasattr(engine, 'dispose'):
+            if asyncio.iscoroutinefunction(engine.dispose):
+                await engine.dispose()
+            else:
+                engine.dispose()
+            logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error disposing database engine: {e}")
+    
     logger.info("Application shutdown complete")
 
 # Initialize application components
