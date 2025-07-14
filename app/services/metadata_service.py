@@ -79,6 +79,8 @@ class MetadataService:
                 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
+                logger.info(f"All metadata generation tasks completed for stream {stream_id}")
+                
                 # Count successes and log errors
                 successes = 0
                 for i, result in enumerate(results):
