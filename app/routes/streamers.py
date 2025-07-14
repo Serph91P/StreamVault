@@ -394,9 +394,8 @@ async def delete_stream(
         for recording in recordings:
             if recording.path:
                 files_to_delete.append(recording.path)
-        
-        # Delete all recordings associated with this stream
-        db.query(Recording).filter(Recording.stream_id == stream_id).delete()
+            # Delete recording record
+            db.delete(recording)
         
         # Delete all stream events
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
@@ -663,10 +662,17 @@ async def delete_all_streams(
         # Get all streams for this streamer
         streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
         
-        if not streams:
+        # Also handle orphaned recordings with null stream_id for this streamer
+        from app.models import Recording
+        orphaned_recordings = db.query(Recording).filter(
+            Recording.stream_id.is_(None),
+            Recording.streamer_id == streamer_id
+        ).all()
+        
+        if not streams and not orphaned_recordings:
             return {
                 "success": True,
-                "message": f"No streams found for streamer {streamer_id}",
+                "message": f"No streams or recordings found for streamer {streamer_id}",
                 "deleted_streams": 0,
                 "deleted_files": [],
                 "deleted_files_count": 0
@@ -696,11 +702,26 @@ async def delete_all_streams(
                 # Delete metadata record (foreign key constraint)
                 db.delete(metadata)
             
+            # Check for recordings associated with this stream and collect their paths
+            recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
+            for recording in recordings:
+                if recording.path:
+                    files_to_delete.append(recording.path)
+                # Delete recording record
+                db.delete(recording)
+            
             # Delete all stream events for this stream
             db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
             
             # Delete the stream record itself
             db.delete(stream)
+        
+        # Handle orphaned recordings
+        for recording in orphaned_recordings:
+            if recording.path:
+                files_to_delete.append(recording.path)
+            # Delete orphaned recording record
+            db.delete(recording)
         
         # Commit all database deletions
         db.commit()
