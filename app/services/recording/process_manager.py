@@ -16,6 +16,7 @@ from pathlib import Path
 from app.utils.streamlink_utils import get_streamlink_command, get_proxy_settings_from_db
 from app.services.recording.exceptions import ProcessError, StreamUnavailableError
 from app.models import Stream
+from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
 
@@ -180,8 +181,8 @@ class ProcessManager:
                 
             # Check file size
             current_path = segment_info['current_segment_path']
-            if os.path.exists(current_path):
-                file_size_gb = os.path.getsize(current_path) / (1024**3)
+            if await async_file.exists(current_path):
+                file_size_gb = await async_file.getsize(current_path) / (1024**3)
                 if file_size_gb >= self.max_file_size_gb:
                     logger.info(f"Segment file size limit reached: {file_size_gb:.2f} GB")
                     return True
@@ -293,7 +294,7 @@ class ProcessManager:
             # Get all segment files
             segment_files = []
             for segment in segment_info['total_segments']:
-                if os.path.exists(segment['path']) and os.path.getsize(segment['path']) > 0:
+                if await async_file.exists(segment['path']) and await async_file.getsize(segment['path']) > 0:
                     segment_files.append(segment['path'])
                     
             if not segment_files:
@@ -346,8 +347,8 @@ class ProcessManager:
             # Remove segment files
             for segment in segment_info['total_segments']:
                 try:
-                    if os.path.exists(segment['path']):
-                        os.remove(segment['path'])
+                    if await async_file.exists(segment['path']):
+                        await async_file.remove(segment['path'])
                 except Exception as e:
                     logger.warning(f"Could not remove segment file {segment['path']}: {e}")
                     
