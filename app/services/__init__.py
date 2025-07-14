@@ -5,7 +5,7 @@ This module exports all available services in the StreamVault application.
 """
 
 # Import the new modular RecordingService implementation to make it available at the old import path
-from app.services.recording.recording_service import RecordingService  # Updated import path
+from app.services.recording.recording_service import RecordingService
 from app.services.recording.config_manager import ConfigManager
 from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
@@ -35,7 +35,8 @@ from app.services.system_config_service import SystemConfigService
 from app.services.migration_service import MigrationService
 from app.services.database_service import DatabaseService
 from app.services.config_service import ConfigService
-from app.services.stream_service import StreamService
+from app.services.thumbnail_service import ThumbnailService
+from app.services.artwork_service import ArtworkService
 
 __all__ = [
     "LoggingService",
@@ -44,17 +45,32 @@ __all__ = [
     "NotificationService",
     "MetadataService",
     "ConfigService",
-    "StreamService",
     "DatabaseService",
     "AuthService",
-    "CategoryService",
+    "CategoryImageService",  # Changed from CategoryService
     "MigrationService",
-    "ProxyService",
     "CleanupService",
+    "EnhancedPushService",
+    "SettingsService",
+    "SystemConfigService",
+    "ThumbnailService",
+    "ArtworkService",
+    # Export recording components
+    "ConfigManager",
+    "ProcessManager",
+    "RecordingLogger",
+    "NotificationManager",
+    "StreamInfoManager",
     # Export file operations functions
     "intelligent_ts_cleanup",
     "check_ffmpeg_processes_for_file",
-    "find_and_validate_mp4"
+    "find_and_validate_mp4",
+    # Export exceptions
+    "RecordingError",
+    "ProcessError",
+    "ConfigurationError",
+    "StreamUnavailableError",
+    "FileOperationError"
 ]
 
 # Note: test_service is not imported here to avoid circular imports
