@@ -33,7 +33,6 @@ from app.services.settings_service import SettingsService
 from app.services.category_image_service import CategoryImageService
 from app.services.system_config_service import SystemConfigService
 from app.services.migration_service import MigrationService
-from app.services.proxy_service import ProxyService
 from app.services.database_service import DatabaseService
 from app.services.config_service import ConfigService
 from app.services.stream_service import StreamService
