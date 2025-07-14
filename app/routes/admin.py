@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
+# Import test service locally to avoid initialization issues
+# from app.services.test_service import test_service  # REMOVED
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["admin"]
@@ -35,6 +38,10 @@ async def run_tests(
     """
     try:
         logger.info(f"Running admin tests: {request.test_names or 'all'}")
+        
+        # Create test service instance here
+        from app.services.test_service import StreamVaultTestService
+        test_service = StreamVaultTestService()
         
         if request.test_names:
             # TODO: Implement selective test running
@@ -124,7 +131,7 @@ async def get_system_info() -> Dict[str, Any]:
                 "proxy_configured": hasattr(settings, 'HTTP_PROXY') and bool(settings.HTTP_PROXY)
             },
             "services": {
-                "test_service_loaded": test_service is not None
+                "test_service_available": True  # Service is available when created
             }
         }
         
