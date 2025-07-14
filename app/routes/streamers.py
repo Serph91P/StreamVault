@@ -19,10 +19,12 @@ logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
-@router.get("", response_model=List[StreamerResponse])
+@router.get("", response_model=StreamerList)
 async def get_streamers(streamer_service: StreamerService = Depends(get_streamer_service)):
     """Get all streamers with their current status"""
-    return await streamer_service.get_streamers()
+    streamers = await streamer_service.get_streamers()
+    # Return as StreamerList object to match frontend expectations
+    return StreamerList(streamers=streamers)
 
 @router.delete("/subscriptions", status_code=200)
 async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
@@ -44,7 +46,7 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
             except Exception as sub_error:
                 logger.error(f"Failed to delete subscription {sub['id']}: {sub_error}", exc_info=True)
                 results.append({
-                    "id": sub['id'],
+                    "id": sub['id],
                     "status": "failed",
                     "error": str(sub_error)
                 })
