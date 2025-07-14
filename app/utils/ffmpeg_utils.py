@@ -3,6 +3,8 @@ import os
 import asyncio
 import logging
 import subprocess
+import tempfile
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger("streamvault")
