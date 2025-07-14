@@ -138,6 +138,7 @@ const formatTaskType = (taskType: string) => {
     'metadata_generation': 'Metadata',
     'chapters_generation': 'Chapters',
     'mp4_remux': 'MP4 Remux',
+    'mp4_validation': 'MP4 Validation',
     'thumbnail_generation': 'Thumbnail',
     'cleanup': 'Cleanup'
   }
