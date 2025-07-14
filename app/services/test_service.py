@@ -14,12 +14,13 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import Base, User, Streamer, Stream
 
-# Service imports - Fixed imports
 from app.services.recording.recording_service import RecordingService
 from app.services.notification_service import NotificationService
 from app.services.metadata_service import MetadataService
 from app.services.streamer_service import StreamerService
-from app.services.proxy_service import ProxyService
+
+# For proxy functionality, use streamlink_utils instead
+from app.utils.streamlink_utils import get_proxy_settings_from_db
 
 logger = logging.getLogger("streamvault.test")
 
@@ -37,7 +38,7 @@ class StreamVaultTestService:
         self.metadata_service = MetadataService()
         self.notification_service = NotificationService()
         self.streamer_service = StreamerService()
-        self.proxy_service = ProxyService()
+        # REMOVED: self.proxy_service = ProxyService()
         self.test_results: List[TestResult] = []
 
     async def run_all_tests(self) -> Dict[str, Any]:
@@ -63,7 +64,7 @@ class StreamVaultTestService:
         
         # Performance tests
         await self._test_disk_space()
-        await self._test_proxy_connection()
+        # REMOVED: await self._test_proxy_connection()
         
         # Generate summary
         total_tests = len(self.test_results)
