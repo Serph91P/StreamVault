@@ -207,6 +207,17 @@ class UnifiedImageService:
                         relative_path = f"/data/images/profiles/{filename}"
                         self._profile_cache[streamer_id_str] = relative_path
                         
+                        # Update database with new image path
+                        try:
+                            with SessionLocal() as db:
+                                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                                if streamer:
+                                    streamer.profile_image_url = relative_path
+                                    db.commit()
+                                    logger.debug(f"Updated profile image path in database for streamer {streamer_id}")
+                        except Exception as db_error:
+                            logger.error(f"Failed to update profile image path in database: {db_error}")
+                        
                         logger.info(f"Downloaded profile image for streamer {streamer_id}")
                         return relative_path
                     else:
@@ -489,6 +500,155 @@ class UnifiedImageService:
             "categories_dir_size": self._get_directory_size(self.categories_dir),
             "artwork_dir_size": self._get_directory_size(self.artwork_dir)
         }
+    
+    def get_missing_images_report(self) -> Dict[str, Any]:
+        """Get a report of categories that are missing images"""
+        self._ensure_initialized()
+        try:
+            with SessionLocal() as db:
+                all_categories = db.query(Category).all()
+                
+                missing_images = []
+                have_images = []
+                
+                for category in all_categories:
+                    if category.name in self._category_cache:
+                        # Check if the file actually exists
+                        cache_path = self._category_cache[category.name]
+                        filename = cache_path.split('/')[-1]  # Get filename from path
+                        file_path = self.categories_dir / filename
+                        if file_path.exists():
+                            have_images.append(category.name)
+                        else:
+                            # Image in cache but file missing - remove from cache
+                            del self._category_cache[category.name]
+                            missing_images.append(category.name)
+                    else:
+                        missing_images.append(category.name)
+                
+                return {
+                    "total_categories": len(all_categories),
+                    "have_images": len(have_images),
+                    "missing_images": len(missing_images),
+                    "categories_with_images": have_images,
+                    "categories_missing_images": missing_images
+                }
+        except Exception as e:
+            logger.error(f"Error generating missing images report: {e}")
+            return {
+                "error": "An internal error occurred while generating the report.",
+                "total_categories": 0,
+                "have_images": 0,
+                "missing_images": 0,
+                "categories_with_images": [],
+                "categories_missing_images": []
+            }
+    
+    async def preload_categories(self, category_names: List[str]) -> Dict[str, Any]:
+        """Preload category images for the given category names"""
+        self._ensure_initialized()
+        try:
+            results = []
+            for category_name in category_names:
+                try:
+                    # Download category image
+                    image_path = await self.download_category_image(category_name)
+                    if image_path:
+                        results.append({
+                            "category": category_name,
+                            "status": "success",
+                            "image_path": image_path
+                        })
+                    else:
+                        results.append({
+                            "category": category_name,
+                            "status": "failed",
+                            "error": "Failed to download image"
+                        })
+                except Exception as e:
+                    results.append({
+                        "category": category_name,
+                        "status": "failed",
+                        "error": str(e)
+                    })
+            
+            success_count = sum(1 for r in results if r["status"] == "success")
+            
+            return {
+                "message": f"Preloaded {success_count}/{len(category_names)} category images",
+                "results": results,
+                "success_count": success_count,
+                "total_count": len(category_names)
+            }
+        except Exception as e:
+            logger.error(f"Error preloading categories: {e}")
+            return {
+                "error": "Failed to preload categories",
+                "message": str(e)
+            }
+    
+    def cleanup_old_images(self, days_old: int = 30) -> Dict[str, Any]:
+        """Clean up old cached images that haven't been accessed in the specified number of days"""
+        self._ensure_initialized()
+        try:
+            from datetime import datetime, timedelta
+            
+            cutoff_date = datetime.now() - timedelta(days=days_old)
+            cleaned_files = []
+            
+            # Clean up old category images
+            if self.categories_dir.exists():
+                for image_file in self.categories_dir.glob("*.jpg"):
+                    try:
+                        # Check file modification time
+                        file_stat = image_file.stat()
+                        file_date = datetime.fromtimestamp(file_stat.st_mtime)
+                        
+                        if file_date < cutoff_date:
+                            # Remove from cache
+                            category_name = self._filename_to_category(image_file.stem)
+                            if category_name and category_name in self._category_cache:
+                                del self._category_cache[category_name]
+                            
+                            # Delete file
+                            image_file.unlink()
+                            cleaned_files.append(str(image_file))
+                            logger.info(f"Cleaned up old category image: {image_file.name}")
+                    except Exception as e:
+                        logger.error(f"Error cleaning up {image_file}: {e}")
+            
+            # Clean up old profile images
+            if self.profiles_dir.exists():
+                for image_file in self.profiles_dir.glob("*.jpg"):
+                    try:
+                        # Check file modification time
+                        file_stat = image_file.stat()
+                        file_date = datetime.fromtimestamp(file_stat.st_mtime)
+                        
+                        if file_date < cutoff_date:
+                            # Remove from cache
+                            streamer_id = image_file.stem.replace("streamer_", "")
+                            if streamer_id in self._profile_cache:
+                                del self._profile_cache[streamer_id]
+                            
+                            # Delete file
+                            image_file.unlink()
+                            cleaned_files.append(str(image_file))
+                            logger.info(f"Cleaned up old profile image: {image_file.name}")
+                    except Exception as e:
+                        logger.error(f"Error cleaning up {image_file}: {e}")
+            
+            return {
+                "message": f"Cleaned up {len(cleaned_files)} old images",
+                "cleaned_files": cleaned_files,
+                "cleanup_count": len(cleaned_files)
+            }
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+            return {
+                "error": "Failed to cleanup old images",
+                "message": str(e)
+            }
     
     def _get_directory_size(self, path: Path) -> int:
         """Get total size of directory in bytes"""
