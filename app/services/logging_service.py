@@ -106,7 +106,7 @@ class LoggingService:
         # Format: streamer_operation_timestamp_date.log
         # This makes it easier to find logs for a specific streamer
         streamer_name = streamer_name.replace(" ", "_")  # Remove spaces from streamer name
-        log_file = self.ffmpeg_logs_dir / f"{streamer_name}_{operation}_{timestamp_str}_{today}.log"
+        log_file = self.ffmpeg_logs_dir / f"{streamer_name}_{operation}_{today}.log"
         return str(log_file)
     
     def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
@@ -135,8 +135,7 @@ class LoggingService:
         self.ffmpeg_logger.info(f"Command: {' '.join(cmd)}")
         
         # Generate a streamer-specific log filename for this operation
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = self.get_ffmpeg_log_path(f"{operation}_{timestamp_str}", streamer_name)
+        log_path = self.get_ffmpeg_log_path(operation, streamer_name)
         
         # Create a per-streamer log file for this operation
         try:
@@ -153,8 +152,7 @@ class LoggingService:
         prefix = f"[{operation}_{streamer_name}]"
         
         # Also write to per-streamer log file
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = self.get_ffmpeg_log_path(f"{operation}_{timestamp_str}", streamer_name)
+        log_path = self.get_ffmpeg_log_path(operation, streamer_name)
         
         try:
             with open(log_path, 'a', encoding='utf-8') as f:

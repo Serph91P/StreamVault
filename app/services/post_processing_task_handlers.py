@@ -167,7 +167,8 @@ class PostProcessingTaskHandlers:
                 output_path=mp4_output_path,
                 metadata=metadata_dict,
                 chapters=chapters,
-                streamer_name=streamer_name
+                streamer_name=streamer_name,
+                logging_service=self.logging_service
             )
             
             if not result.get('success'):

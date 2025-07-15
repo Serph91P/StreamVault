@@ -12,7 +12,7 @@
           <span>Back to streamers</span>
         </button>
         
-        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+        <button @click="forceOfflineRecording(Number(streamerId))" class="btn btn-warning">
           <i class="fas fa-record-vinyl"></i>
           <span>Force Recording (Offline Mode)</span>
         </button>
@@ -40,7 +40,7 @@
           
           <button 
             v-if="!hasLiveStreams" 
-            @click="forceOfflineRecording(parseInt(streamerId))" 
+            @click="forceOfflineRecording(Number(streamerId))" 
             class="btn btn-warning"
             :disabled="isStartingOfflineRecording"
           >
@@ -102,9 +102,9 @@
                 <span 
                   v-if="!stream.ended_at" 
                   class="recording-badge" 
-                  :class="isStreamRecording(parseInt(streamerId)) ? 'recording' : 'not-recording'"
+                  :class="isStreamRecording(Number(streamerId)) ? 'recording' : 'not-recording'"
                 >
-                  {{ isStreamRecording(parseInt(streamerId)) ? 'REC' : 'OFF' }}
+                  {{ isStreamRecording(Number(streamerId)) ? 'REC' : 'OFF' }}
                 </span>
               </div>
               
@@ -136,7 +136,7 @@
               <button 
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
-                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(Number(streamerId)))"
                 data-tooltip="Delete Stream"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
@@ -187,8 +187,8 @@
             <div class="stream-full-actions">
               <div v-if="!stream.ended_at" class="recording-controls">
                 <button 
-                  v-if="!isStreamRecording(parseInt(streamerId))" 
-                  @click="startRecording(parseInt(streamerId))" 
+                  v-if="!isStreamRecording(Number(streamerId))" 
+                  @click="startRecording(Number(streamerId))" 
                   class="btn btn-success" 
                   :disabled="isStartingRecording"
                 >
@@ -196,7 +196,7 @@
                 </button>
                 <button 
                   v-else 
-                  @click="stopRecording(parseInt(streamerId))"
+                  @click="stopRecording(Number(streamerId))"
                   class="btn btn-danger" 
                   :disabled="isStoppingRecording"
                 >
@@ -216,7 +216,7 @@
               <button 
                 @click="confirmDeleteStream(stream)" 
                 class="btn btn-danger" 
-                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(Number(streamerId)))"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
                 <i v-else class="fas fa-trash-alt"></i>
