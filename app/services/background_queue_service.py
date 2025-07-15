@@ -198,6 +198,22 @@ class BackgroundQueueService:
             'is_running': self.is_running
         }
         
+    async def get_active_tasks(self) -> List[Dict[str, Any]]:
+        """Get all currently active tasks"""
+        return [task.to_dict() for task in self.active_tasks.values()]
+        
+    async def get_recent_tasks(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent completed tasks"""
+        # Sort by completion time (most recent first)
+        sorted_tasks = sorted(
+            self.completed_tasks.values(),
+            key=lambda x: x.completed_at or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True
+        )
+        
+        # Return the most recent tasks up to the limit
+        return [task.to_dict() for task in sorted_tasks[:limit]]
+        
     async def _worker(self, worker_name: str):
         """Background worker that processes tasks from the queue"""
         logger.info(f"Worker {worker_name} started")
