@@ -160,7 +160,7 @@ class BackgroundQueueService:
         )
         
         # Add to queue with priority (lower number = higher priority)
-        await self.task_queue.put((-priority.value, task))
+        await self.task_queue.put((-priority.value, task.created_at.timestamp(), task))
         
         self.stats['total_tasks'] += 1
         
@@ -222,7 +222,7 @@ class BackgroundQueueService:
             while self.is_running:
                 try:
                     # Get task from queue with timeout
-                    priority, task = await asyncio.wait_for(
+                    priority, timestamp, task = await asyncio.wait_for(
                         self.task_queue.get(), 
                         timeout=1.0
                     )
@@ -255,7 +255,7 @@ class BackgroundQueueService:
         task.progress = 0.0
         
         # Re-enqueue
-        await self.task_queue.put((-task.priority.value, task))
+        await self.task_queue.put((-task.priority.value, task.created_at.timestamp(), task))
 
     async def _dependency_worker(self):
         """Worker that manages task dependencies and feeds ready tasks to the main queue"""
@@ -283,8 +283,8 @@ class BackgroundQueueService:
                             max_retries=dep_task.max_retries
                         )
                         
-                        # Add to processing queue
-                        await self.task_queue.put((-queue_task.priority.value, queue_task))
+                        # Add to processing queue with unique tiebreaker
+                        await self.task_queue.put((-queue_task.priority.value, queue_task.created_at.timestamp(), queue_task))
                         
                         logger.debug(f"Dependency worker enqueued ready task: {dep_task.id}")
                     
