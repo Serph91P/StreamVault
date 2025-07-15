@@ -441,7 +441,7 @@ class BackgroundQueueService:
         """Send queue statistics update via WebSocket"""
         try:
             from app.dependencies import websocket_manager
-            stats = await self.get_stats()
+            stats = await self.get_queue_stats()
             await websocket_manager.send_queue_stats_update(stats)
         except Exception as e:
             logger.debug(f"Failed to send queue stats update: {e}")
