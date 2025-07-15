@@ -4,8 +4,13 @@ Service for managing category images - downloading and caching Twitch category b
 import os
 import asyncio
 import aiohttp
-import aiofiles
 from typing import Optional, Dict, Set
+
+try:
+    import aiofiles
+    HAS_AIOFILES = True
+except ImportError:
+    HAS_AIOFILES = False
 from urllib.parse import quote
 import hashlib
 import logging
@@ -176,6 +181,10 @@ class CategoryImageService:
                                 # Check if it's actually an image
                                 content_type = response.headers.get('content-type', '')
                                 if 'image' in content_type:
+                                    if not HAS_AIOFILES:
+                                        logger.warning("aiofiles not available, cannot download category image")
+                                        return False
+                                    
                                     # Download and save
                                     async with aiofiles.open(file_path, 'wb') as f:
                                         async for chunk in response.content.iter_chunked(8192):
