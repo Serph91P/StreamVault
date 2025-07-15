@@ -317,12 +317,44 @@ class UnifiedImageService:
         """
         Get Twitch category image URL from Twitch API
         
-        This is a simplified version - in production you'd want to use the actual Twitch API
+        This uses the actual Twitch API to get the correct box art URL
         """
-        # For now, return a placeholder URL based on category name
-        # In production, you'd integrate with Twitch API to get actual box art
-        encoded_name = quote(category_name.lower().replace(' ', '-'))
-        return f"https://static-cdn.jtvnw.net/ttv-boxart/{encoded_name}-285x380.jpg"
+        try:
+            # Get Twitch API client
+            from app.services.twitch_api import twitch_api
+            
+            # Search for the game/category
+            games = await twitch_api.get_games_by_name([category_name])
+            if games and len(games) > 0:
+                game = games[0]
+                # Get the box art URL and replace template with actual size
+                box_art_url = game.get('box_art_url', '')
+                if box_art_url:
+                    # Replace template with actual size
+                    return box_art_url.replace('{width}', '285').replace('{height}', '380')
+            
+            # Fallback: try some common category mappings
+            category_mappings = {
+                'Just Chatting': 'https://static-cdn.jtvnw.net/ttv-boxart/509658-285x380.jpg',
+                'League of Legends': 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg',
+                'Fortnite': 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg',
+                'Minecraft': 'https://static-cdn.jtvnw.net/ttv-boxart/27471-285x380.jpg',
+                'Grand Theft Auto V': 'https://static-cdn.jtvnw.net/ttv-boxart/32982-285x380.jpg',
+                'Valorant': 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg',
+                'Counter-Strike 2': 'https://static-cdn.jtvnw.net/ttv-boxart/32399-285x380.jpg',
+                'World of Warcraft': 'https://static-cdn.jtvnw.net/ttv-boxart/18122-285x380.jpg',
+                'Dota 2': 'https://static-cdn.jtvnw.net/ttv-boxart/29595-285x380.jpg',
+                'Apex Legends': 'https://static-cdn.jtvnw.net/ttv-boxart/511224-285x380.jpg'
+            }
+            
+            if category_name in category_mappings:
+                return category_mappings[category_name]
+                
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Failed to get Twitch category image URL for {category_name}: {e}")
+            return None
     
     def get_category_image_url(self, category_name: str, fallback_url: str = None) -> str:
         """
