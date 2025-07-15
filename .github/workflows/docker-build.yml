@@ -167,10 +167,11 @@ jobs:
           org.opencontainers.image.vendor=StreamVault
           org.opencontainers.image.version=v${{ needs.version.outputs.new_version }}
           
-    - name: Build and push Docker image
+    - name: Build and push Docker image (secure)
       uses: docker/build-push-action@v5  # Updated to latest
       with:
         context: .
+        file: Dockerfile
         platforms: linux/amd64  # AMD64 only for now
         push: true
         tags: ${{ steps.meta.outputs.tags }}
@@ -182,8 +183,8 @@ jobs:
         cache-from: type=gha  # GitHub Actions cache
         cache-to: type=gha,mode=max
         
-    # Parallel security scanning
-    - name: Run Trivy vulnerability scanner
+    # Enhanced security scanning
+    - name: Run Trivy vulnerability scanner on secure image
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: frequency2098/streamvault:latest
@@ -196,6 +197,24 @@ jobs:
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
+        category: 'trivy-secure'
+        
+    - name: Python dependency security check
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+        safety check --json --output safety-results.json || true
+        bandit -r app/ -f json -o bandit-results.json || true
+        
+    - name: Upload security scan artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-scan-results
+        path: |
+          safety-results.json
+          bandit-results.json
+          trivy-results.sarif
 
   # Separate job for changelog (runs in parallel with security scan)
   create-changelog:
