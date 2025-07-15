@@ -122,6 +122,37 @@ export function useBackgroundQueue() {
             const activeIndex = activeTasks.value.findIndex(t => t.id === progressUpdate.task_id);
             if (activeIndex !== -1) {
                 activeTasks.value[activeIndex].progress = progressUpdate.progress;
+                if (progressUpdate.message) {
+                    activeTasks.value[activeIndex].message = progressUpdate.message;
+                }
+            }
+        }
+        else if (message.type === 'recording_job_update') {
+            const recordingUpdate = message.data;
+            // Handle recording job updates (streamlink/ffmpeg)
+            const activeIndex = activeTasks.value.findIndex(t => 
+                t.task_type === 'recording' && 
+                t.payload.streamer_name === recordingUpdate.streamer_name
+            );
+            
+            if (activeIndex !== -1) {
+                // Update existing recording job
+                activeTasks.value[activeIndex] = { 
+                    ...activeTasks.value[activeIndex], 
+                    ...recordingUpdate,
+                    task_type: 'recording',
+                    status: recordingUpdate.status || 'running'
+                };
+            } else if (recordingUpdate.status === 'started' || recordingUpdate.status === 'running') {
+                // Add new recording job
+                activeTasks.value.push({
+                    id: `recording_${recordingUpdate.streamer_name}_${Date.now()}`,
+                    task_type: 'recording',
+                    status: recordingUpdate.status || 'running',
+                    payload: recordingUpdate,
+                    progress: recordingUpdate.progress || 0,
+                    started_at: recordingUpdate.started_at || new Date().toISOString()
+                });
             }
         }
     };
