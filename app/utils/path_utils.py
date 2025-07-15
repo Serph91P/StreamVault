@@ -40,63 +40,77 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
         from app.models import Stream
         
         with SessionLocal() as db:
-            # Find the highest episode number for the current month
-            streams = (
-                db.query(Stream)
+            # Find the highest episode number for the current month using database storage
+            max_episode = (
+                db.query(Stream.episode_number)
                 .filter(
                     Stream.streamer_id == streamer_id,
                     extract("year", Stream.started_at) == now.year,
                     extract("month", Stream.started_at) == now.month,
+                    Stream.episode_number.isnot(None)
                 )
-                .order_by(Stream.started_at.desc())
-                .all()
+                .order_by(Stream.episode_number.desc())
+                .first()
             )
             
-            # Find highest episode number from existing recording paths
-            max_episode = 0
-            current_month_year = f"{now.year}{now.month:02d}"
+            max_episode_num = max_episode[0] if max_episode else 0
             
-            for stream in streams:
-                if stream.recording_path and "S" in stream.recording_path and "E" in stream.recording_path:
-                    try:
-                        # Extract episode number from path like "S202507E02"
-                        import re
-                        match = re.search(rf'S{current_month_year}E(\d+)', stream.recording_path)
-                        if match:
-                            episode_num = int(match.group(1))
-                            max_episode = max(max_episode, episode_num)
-                    except (ValueError, AttributeError):
-                        continue
-            
-            # If no existing episodes found, also check filesystem for safety
-            if max_episode == 0:
-                try:
-                    from app.config.settings import get_settings
-                    settings = get_settings()
-                    output_directory = getattr(settings, 'output_directory', '/recordings')
-                    
-                    # Get streamer name
-                    from app.models import Streamer
-                    streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                    if streamer:
-                        streamer_dir = await async_file.join(output_directory, streamer.username)
-                        season_dir = await async_file.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
-                        
-                        if await async_file.exists(season_dir):
+            # If no database episode numbers found, try to extract from existing recording paths as fallback
+            if max_episode_num == 0:
+                streams = (
+                    db.query(Stream)
+                    .filter(
+                        Stream.streamer_id == streamer_id,
+                        extract("year", Stream.started_at) == now.year,
+                        extract("month", Stream.started_at) == now.month,
+                    )
+                    .order_by(Stream.started_at.desc())
+                    .all()
+                )
+                
+                current_month_year = f"{now.year}{now.month:02d}"
+                
+                for stream in streams:
+                    if stream.recording_path and "S" in stream.recording_path and "E" in stream.recording_path:
+                        try:
+                            # Extract episode number from path like "S202507E02"
                             import re
-                            for filename in await async_file.listdir(season_dir):
-                                match = re.search(rf'S{current_month_year}E(\d+)', filename)
-                                if match:
-                                    episode_num = int(match.group(1))
-                                    max_episode = max(max_episode, episode_num)
-                except Exception as fs_error:
-                    logger.debug(f"Could not check filesystem for episodes: {fs_error}")
+                            match = re.search(rf'S{current_month_year}E(\d+)', stream.recording_path)
+                            if match:
+                                episode_num = int(match.group(1))
+                                max_episode_num = max(max_episode_num, episode_num)
+                        except (ValueError, AttributeError):
+                            continue
+                
+                # If still no episodes found, also check filesystem for safety
+                if max_episode_num == 0:
+                    try:
+                        from app.config.settings import get_settings
+                        settings = get_settings()
+                        output_directory = getattr(settings, 'output_directory', '/recordings')
+                        
+                        # Get streamer name
+                        from app.models import Streamer
+                        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                        if streamer:
+                            streamer_dir = await async_file.join(output_directory, streamer.username)
+                            season_dir = await async_file.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
+                            
+                            if await async_file.exists(season_dir):
+                                import re
+                                for filename in await async_file.listdir(season_dir):
+                                    match = re.search(rf'S{current_month_year}E(\d+)', filename)
+                                    if match:
+                                        episode_num = int(match.group(1))
+                                        max_episode_num = max(max_episode_num, episode_num)
+                    except Exception as fs_error:
+                        logger.debug(f"Could not check filesystem for episodes: {fs_error}")
             
             # Next episode number
-            episode_number = max_episode + 1
+            episode_number = max_episode_num + 1
             
             logger.debug(
-                f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number} (max existing: {max_episode})"
+                f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number} (max existing: {max_episode_num})"
             )
             return f"{episode_number:02d}"  # Format with leading zero
 
@@ -221,3 +235,25 @@ async def update_recording_path(stream_id: int, new_path: str):
                 logger.warning(f"Stream {stream_id} not found for recording_path update")
     except Exception as e:
         logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
+
+async def update_episode_number(stream_id: int, episode_number: int):
+    """
+    Update the episode number for a stream.
+    
+    Args:
+        stream_id: ID of the stream
+        episode_number: Episode number to set
+    """
+    try:
+        from app.models import Stream
+        
+        with SessionLocal() as db:
+            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            if stream:
+                stream.episode_number = episode_number
+                db.commit()
+                logger.info(f"Updated episode_number for stream {stream_id}: {episode_number}")
+            else:
+                logger.warning(f"Stream {stream_id} not found for episode_number update")
+    except Exception as e:
+        logger.error(f"Error updating episode_number for stream {stream_id}: {e}", exc_info=True)
