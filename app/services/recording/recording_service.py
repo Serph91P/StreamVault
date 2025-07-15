@@ -54,6 +54,14 @@ class RecordingService:
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
         # Pipeline manager replaced by dependency-based background queue system
         
+        # Initialize logging service
+        try:
+            from app.services.logging_service import logging_service
+            self.logging_service = logging_service
+        except Exception as e:
+            logger.warning(f"Could not initialize logging service: {e}")
+            self.logging_service = None
+        
         # Active recordings tracking
         self.active_recordings = {}
         self.recording_tasks = {}
@@ -774,7 +782,7 @@ class RecordingService:
             logger.error(f"Error stopping recording: {e}", exc_info=True)
             return False
 
-    async def _find_and_validate_mp4(self, recording_dir: str, mp4_path: str, ts_path: str) -> Optional[str]:
+    async def _find_and_validate_mp4(self, recording_dir: str, mp4_path: str, ts_path: str, streamer_name: str = "unknown") -> Optional[str]:
         """
         Find and validate MP4 file, with fallback to TS conversion
         
@@ -782,6 +790,7 @@ class RecordingService:
             recording_dir: Directory containing the recording files
             mp4_path: Expected path for the MP4 file
             ts_path: Path to the original TS file that may need to be remuxed
+            streamer_name: Name of the streamer for logging purposes
             
         Returns:
             Path to valid MP4 file or None if not found
@@ -798,7 +807,13 @@ class RecordingService:
             # Check if TS file exists and can be remuxed
             if os.path.exists(ts_path) and os.path.getsize(ts_path) > 1000000:  # > 1MB
                 logger.info(f"Found TS file, attempting remux: {ts_path}")
-                result = await convert_ts_to_mp4(ts_path, mp4_path, overwrite=True, streamer_name=self.streamer_name, logging_service=self.logging_service)
+                result = await convert_ts_to_mp4(
+                    ts_path, 
+                    mp4_path, 
+                    overwrite=True, 
+                    streamer_name=streamer_name, 
+                    logging_service=self.logging_service
+                )
                 if result["success"] and os.path.exists(mp4_path):
                     if validate_mp4(mp4_path):
                         logger.info(f"Successfully remuxed to valid MP4: {mp4_path}")
@@ -884,8 +899,18 @@ class RecordingService:
             ts_path = f"{base_name}.ts"
             mp4_path = f"{base_name}.mp4"
             
+            # Get streamer name from database
+            self._ensure_db_session()
+            stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
+            if not stream:
+                logger.error(f"Stream {stream_id} not found in database")
+                return
+                
+            streamer = self.db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            streamer_name = streamer.username if streamer else "unknown"
+            
             # Find and validate MP4 file
-            validated_mp4_path = await self._find_and_validate_mp4(recording_dir, mp4_path, ts_path)
+            validated_mp4_path = await self._find_and_validate_mp4(recording_dir, mp4_path, ts_path, streamer_name)
             
             if validated_mp4_path:
                 # Update recording path in database
