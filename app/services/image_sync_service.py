@@ -25,8 +25,8 @@ class ImageSyncService:
             self._sync_task = asyncio.create_task(self._sync_worker())
             logger.info("Image sync worker started")
             
-            # Start initial sync for all existing streamers and categories
-            await self._initial_sync()
+            # Schedule initial sync as background task (non-blocking)
+            asyncio.create_task(self._initial_sync_delayed())
     
     async def stop_sync_worker(self):
         """Stop the background sync worker"""
@@ -186,6 +186,24 @@ class ImageSyncService:
             logger.info("Initial image sync completed")
         except Exception as e:
             logger.error(f"Error during initial image sync: {e}")
+    
+    async def _initial_sync_delayed(self):
+        """Perform initial sync after a short delay (non-blocking startup)"""
+        try:
+            # Wait a short time to allow startup to complete
+            await asyncio.sleep(5)
+            
+            logger.info("Starting delayed initial image sync for all existing entities...")
+            
+            # Sync all existing streamers
+            await self.sync_all_existing_streamers()
+            
+            # Sync all existing categories
+            await self.sync_all_existing_categories()
+            
+            logger.info("Delayed initial image sync completed")
+        except Exception as e:
+            logger.error(f"Error during delayed initial image sync: {e}")
     
     async def check_and_sync_missing_images(self):
         """Check for missing images and sync them"""
