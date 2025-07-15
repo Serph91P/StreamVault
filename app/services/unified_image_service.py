@@ -249,8 +249,23 @@ class UnifiedImageService:
         if streamer_id_str in self._profile_cache:
             return self._profile_cache[streamer_id_str]
             
-        # Return fallback or default
-        if fallback_url:
+        # Check if we have a fallback URL that's already a local path
+        if fallback_url and fallback_url.startswith('/data/images/'):
+            return fallback_url
+            
+        # Check if fallback is original Twitch URL - try to download it
+        if fallback_url and fallback_url.startswith('https://'):
+            # Try to download the profile image in the background
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Create a task to download the image
+                    asyncio.create_task(self.download_profile_image(streamer_id, fallback_url))
+            except Exception as e:
+                logger.debug(f"Could not create background download task: {e}")
+            
+            # Return original URL for now, but will be cached next time
             return fallback_url
             
         # Default Twitch profile image
@@ -383,12 +398,27 @@ class UnifiedImageService:
         if category_name in self._category_cache:
             return self._category_cache[category_name]
             
-        # Return fallback or default
-        if fallback_url:
+        # Check if we have a fallback URL that's already a local path
+        if fallback_url and fallback_url.startswith('/data/images/'):
             return fallback_url
             
-        # Default category image
-        return "/static/images/default-category.png"
+        # Check if fallback is a Twitch URL - try to download it
+        if fallback_url and fallback_url.startswith('https://'):
+            # Try to download the category image in the background
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Create a task to download the image
+                    asyncio.create_task(self.download_category_image(category_name))
+            except Exception as e:
+                logger.debug(f"Could not create background download task: {e}")
+            
+            # Return icon fallback for now (Frontend will handle this)
+            return f"icon:fa-gamepad"
+            
+        # Default category image - return icon fallback
+        return f"icon:fa-gamepad"
     
     # Stream Artwork Methods
     
