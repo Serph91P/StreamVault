@@ -49,7 +49,7 @@ def upgrade():
         # Start background task to preload existing category images
         try:
             # Import the service here to avoid circular imports
-            from app.services.category_image_service import category_image_service
+            from app.services.unified_image_service import unified_image_service
             from app.models import Category
             from app.database import SessionLocal
             
@@ -67,7 +67,7 @@ def upgrade():
                         # Note: This runs in background, migration doesn't wait for completion
                         try:
                             # Try to run the async preload
-                            asyncio.create_task(category_image_service.preload_categories(category_names))
+                            asyncio.create_task(unified_image_service.preload_categories(category_names))
                             logger.info("Background category image preload started")
                         except RuntimeError:
                             # If no event loop is running, just log and continue
