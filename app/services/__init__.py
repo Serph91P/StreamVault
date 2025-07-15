@@ -10,7 +10,6 @@ from app.services.recording.config_manager import ConfigManager
 from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.file_operations import (
-    find_and_validate_mp4,
     intelligent_ts_cleanup,
     check_ffmpeg_processes_for_file
 )
@@ -66,7 +65,6 @@ __all__ = [
     # Export file operations functions
     "intelligent_ts_cleanup",
     "check_ffmpeg_processes_for_file",
-    "find_and_validate_mp4",
     # Export exceptions
     "RecordingError",
     "ProcessError",
