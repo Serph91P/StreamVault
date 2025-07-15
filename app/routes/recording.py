@@ -6,6 +6,7 @@ from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording.recording_service import RecordingService  # Changed import path
 from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
 from app.services.logging_service import logging_service
+from app.services.unified_image_service import unified_image_service
 from sqlalchemy.orm import Session, joinedload
 import logging
 import json
@@ -39,6 +40,7 @@ async def get_recording_settings():
                     enabled=True,
                     output_directory="/recordings",
                     filename_template="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+                    filename_preset="default",
                     default_quality="best",
                     use_chapters=True,
                 )
@@ -93,6 +95,10 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             existing_settings.filename_template = settings_data.filename_template
             existing_settings.default_quality = settings_data.default_quality
             existing_settings.use_chapters = settings_data.use_chapters
+            
+            # Update filename_preset if provided
+            if hasattr(settings_data, 'filename_preset') and settings_data.filename_preset:
+                existing_settings.filename_preset = settings_data.filename_preset
             
             # Add the new field
             if hasattr(settings_data, 'use_category_as_chapter_title'):
@@ -176,7 +182,10 @@ async def get_all_streamer_recording_settings():
                 result.append(StreamerRecordingSettingsSchema(
                     streamer_id=streamer.id,
                     username=streamer.username,
-                    profile_image_url=streamer.profile_image_url,
+                    profile_image_url=unified_image_service.get_profile_image_url(
+                        streamer.id, 
+                        streamer.profile_image_url
+                    ),
                     enabled=settings.enabled,
                     quality=settings.quality,
                     custom_filename=settings.custom_filename,
@@ -343,7 +352,10 @@ async def update_streamer_recording_settings(
         return StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
-            profile_image_url=streamer.profile_image_url,
+            profile_image_url=unified_image_service.get_profile_image_url(
+                streamer.id, 
+                streamer.profile_image_url
+            ),
             enabled=streamer_settings.enabled,
             quality=streamer_settings.quality,
             custom_filename=streamer_settings.custom_filename,
