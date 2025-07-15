@@ -473,17 +473,23 @@ class MetadataService:
                     logger.warning(f"Local image file not found: {url}")
                     return False
             
-            # Download from URL
-            session = await self._get_session()
+            # Download from URL using unified_image_service
+            from app.services.unified_image_service import unified_image_service
+            session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    # Make sure the directory exists
-                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                    
-                    # Save the image
-                    with open(target_path, 'wb') as f:
-                        f.write(await response.read())
-                    return True
+                    content_type = response.headers.get('content-type', '')
+                    if 'image' in content_type:
+                        # Make sure the directory exists
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        
+                        # Save the image
+                        with open(target_path, 'wb') as f:
+                            f.write(await response.read())
+                        return True
+                    else:
+                        logger.warning(f"Invalid content type for image: {content_type}")
+                        return False
                 else:
                     logger.warning(f"Failed to download image, status: {response.status}")
                     return False
