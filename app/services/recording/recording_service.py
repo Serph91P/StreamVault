@@ -484,10 +484,18 @@ class RecordingService:
             if ts_filename.endswith('.mp4'):
                 ts_filename = ts_filename[:-4] + '.ts'
             
-            # Create full path
-            streamer_dir = Path(self.recordings_directory) / streamer.username
-            await async_file.path_mkdir(streamer_dir, parents=True, exist_ok=True)
-            ts_output_path = str(streamer_dir / ts_filename)
+            # Create full path - check if template already includes directory structure
+            if "/" in ts_filename or "\\" in ts_filename:
+                # Template includes directory structure (e.g., plex template)
+                full_path = Path(self.recordings_directory) / streamer.username / ts_filename
+                ts_output_path = str(full_path)
+                # Create directory structure for the full path
+                await async_file.path_mkdir(full_path.parent, parents=True, exist_ok=True)
+            else:
+                # Simple filename template
+                streamer_dir = Path(self.recordings_directory) / streamer.username
+                await async_file.path_mkdir(streamer_dir, parents=True, exist_ok=True)
+                ts_output_path = str(streamer_dir / ts_filename)
             
             # Create recording record in database
             recording = Recording(
@@ -510,6 +518,12 @@ class RecordingService:
             if not recording_id:
                 logger.error(f"Failed to create recording record for streamer {streamer.username}")
                 return False
+            
+            # Update episode number for the stream  
+            from app.utils.path_utils import update_episode_number, get_episode_number
+            episode_str = await get_episode_number(streamer.id, start_time)
+            episode_int = int(episode_str)
+            await update_episode_number(stream.id, episode_int)
             
             # Get stream metadata for notifications
             metadata = await self.stream_info_manager.get_stream_metadata(stream)
