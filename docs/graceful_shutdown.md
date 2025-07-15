@@ -1,272 +1,193 @@
-# Graceful Shutdown Documentation
+# Graceful Shutdown in Docker
 
-This document explains the graceful shutdown system implemented in StreamVault to ensure safe application termination.
+## Warum Graceful Shutdown wichtig ist
 
-## Overview
+StreamVault führt laufende Aufnahmen durch, die bei einem harten Container-Stop korrupt werden können. Graceful Shutdown stellt sicher, dass:
 
-The graceful shutdown system ensures that:
-1. **Active recordings are completed or safely terminated**
-2. **Background tasks are properly cancelled**
-3. **Database connections are closed cleanly**
-4. **No data corruption occurs during shutdown**
+- **Laufende Aufnahmen** ordnungsgemäß beendet werden
+- **Temporäre Dateien** aufgeräumt werden
+- **Datenbank-Transaktionen** vollständig abgeschlossen werden
+- **WebSocket-Verbindungen** sauber geschlossen werden
 
-## Shutdown Sequence
+## Docker-Integration
 
-When StreamVault receives a shutdown signal (SIGTERM, SIGINT, or container stop), the following sequence occurs:
+### Container-Signale
 
-### 1. Recording Service Shutdown (30s timeout)
-```
-🛑 Starting graceful shutdown of Recording Service...
-📛 Preventing new recordings from starting...
-⏳ Waiting for X active recordings to complete...
-🔄 Cancelling recording tasks...
-🔄 Shutting down process manager...
-🔄 Shutting down pipeline manager...
-✅ Recording Service graceful shutdown completed
+```bash
+# Sendet SIGTERM an den Container
+docker stop streamvault
+
+# Nach 10 Sekunden: SIGKILL (hart)
+docker stop -t 30 streamvault  # 30 Sekunden Timeout
 ```
 
-### 2. Background Tasks Cancellation
-```
-🔄 Cancelling cleanup task...
-✅ cleanup task cancelled successfully
-🔄 Cancelling log_cleanup task...
-✅ log_cleanup task cancelled successfully
-```
+### Dockerfile Setup
 
-### 3. EventSub Cleanup
-```
-🔄 Stopping EventSub...
-✅ EventSub stopped successfully
+```dockerfile
+# Stelle sicher, dass Python-Signale korrekt verarbeitet werden
+ENV PYTHONUNBUFFERED=1
+
+# Verwende exec form für korrektes Signal-Handling
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### 4. Database Cleanup
-```
-✅ Database connections closed
-```
+### docker-compose.yml
 
-### 5. Completion
-```
-🎯 Application shutdown complete
-```
-
-## Components
-
-### Recording Service Graceful Shutdown
-
-The Recording Service implements comprehensive shutdown handling:
-
-#### Key Features:
-- **New Recording Prevention**: `_is_shutting_down` flag prevents new recordings
-- **Active Recording Wait**: Waits up to 30 seconds for recordings to complete naturally
-- **Force Termination**: Force stops remaining recordings after timeout
-- **Task Cancellation**: Cancels all asyncio recording tasks
-- **Component Shutdown**: Shuts down Process and Pipeline managers
-
-#### Implementation:
-```python
-async def graceful_shutdown(self, timeout: int = 30):
-    """Gracefully shutdown the recording service"""
-    logger.info("🛑 Starting graceful shutdown of Recording Service...")
-    self._is_shutting_down = True
+```yaml
+services:
+  streamvault:
+    build: .
+    # Verlängere Shutdown-Timeout für laufende Aufnahmen
+    stop_grace_period: 60s
     
-    # Wait for active recordings to complete
-    # Force stop remaining recordings
-    # Cancel all recording tasks
-    # Shutdown sub-managers
+    # Gesundheitsprüfung
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 ```
 
-### Process Manager Graceful Shutdown
+## Graceful Shutdown Ablauf
 
-Handles termination of external recording processes:
-
-#### Key Features:
-- **Graceful Process Termination**: Sends SIGTERM first
-- **Force Kill Fallback**: Uses SIGKILL if timeout exceeded
-- **Segmented Process Handling**: Handles both regular and segmented recordings
-- **Concurrent Termination**: Terminates multiple processes in parallel
-
-#### Implementation:
-```python
-async def graceful_shutdown(self, timeout: int = 15):
-    """Gracefully shutdown all recording processes"""
-    # Terminate active processes with SIGTERM
-    # Wait for graceful termination
-    # Force kill if timeout exceeded
+### 1. Signal-Empfang (SIGTERM)
 ```
-
-### Pipeline Manager Graceful Shutdown
-
-Handles ongoing post-processing pipelines:
-
-#### Key Features:
-- **Natural Completion**: Waits for pipelines to complete naturally
-- **Progress Monitoring**: Tracks remaining active pipelines
-- **Timeout Handling**: Logs incomplete pipelines after timeout
-
-#### Implementation:
-```python
-async def graceful_shutdown(self, timeout: int = 30):
-    """Gracefully shutdown the pipeline manager"""
-    # Wait for pipelines to complete
-    # Log remaining pipelines after timeout
-```
-
-## Configuration
-
-### Timeouts
-```python
-# Recording Service: 30 seconds
-await recording_service.graceful_shutdown(timeout=30)
-
-# Process Manager: 15 seconds per process
-await process_manager.graceful_shutdown(timeout=15)
-
-# Pipeline Manager: 30 seconds
-await pipeline_manager.graceful_shutdown(timeout=30)
-```
-
-### Shutdown Prevention
-During shutdown, new operations are prevented:
-```python
-# In recording service
-if self._is_shutting_down:
-    logger.warning("Cannot start recording: service is shutting down")
-    return False
-```
-
-## Signal Handling
-
-### Docker/Kubernetes
-The application responds to standard container signals:
-- **SIGTERM**: Graceful shutdown (preferred)
-- **SIGINT**: Graceful shutdown (Ctrl+C)
-- **SIGKILL**: Force kill (no cleanup possible)
-
-### FastAPI Lifespan
-The shutdown is managed through FastAPI's lifespan context manager:
-```python
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup code
-    yield
-    # Shutdown code - graceful shutdown happens here
-```
-
-## Monitoring Shutdown
-
-### Log Messages
-Watch for these log patterns during shutdown:
-```bash
-# Successful shutdown
 🛑 Starting application shutdown...
+```
+
+### 2. Aufnahmen beenden (30s Timeout)
+```
+🔄 Gracefully shutting down recording service...
+📹 Stopping active recording for stream 123...
+📁 Finalizing recording files...
 ✅ Recording service shutdown completed
-✅ cleanup task cancelled successfully
-✅ EventSub stopped successfully
+```
+
+### 3. Services beenden
+```
+🔄 Stopping active recordings broadcaster...
+🔄 Cancelling cleanup task...
+🔄 Stopping EventSub...
+```
+
+### 4. Datenbank schließen
+```
+🔄 Closing database connections...
 ✅ Database connections closed
+```
+
+### 5. Shutdown complete
+```
 🎯 Application shutdown complete
-
-# Forced termination
-⚠️ Force stopping 2 remaining recordings...
-💀 Process for stream 123 force killed
 ```
 
-### Troubleshooting
+## Kubernetes/Docker Swarm
 
-#### Recording Won't Stop
+### Kubernetes Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamvault
+spec:
+  template:
+    spec:
+      containers:
+      - name: streamvault
+        image: streamvault:latest
+        # Graceful shutdown Zeit
+        terminationGracePeriodSeconds: 60
+        
+        # Gesundheitsprüfung
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+```
+
+### Rolling Updates
+
 ```bash
-# Look for this pattern
-⚠️ Force stopping X remaining recordings...
-🛑 Force stopping recording for stream X
-```
-**Cause**: Recording process not responding to SIGTERM
-**Action**: Check streamlink/ffmpeg process health
+# Kubernetes: Graduelle Updates ohne Unterbrechung
+kubectl set image deployment/streamvault streamvault=streamvault:v2.0.0
 
-#### Long Shutdown Time
-```bash
-# Look for this pattern
-⏳ Waiting for X active recordings to complete...
+# Docker Swarm: Zero-Downtime Updates
+docker service update --image streamvault:v2.0.0 streamvault
 ```
-**Cause**: Recordings taking longer than expected
-**Action**: Consider reducing timeout or checking stream health
 
-#### Incomplete Pipelines
+## Monitoring
+
+### Logs überwachen
 ```bash
-# Look for this pattern
-⚠️ X pipelines still running after timeout
-Pipeline still active: pipeline_123_456789
+# Container-Logs in Echtzeit
+docker logs -f streamvault
+
+# Nur Shutdown-Logs
+docker logs streamvault 2>&1 | grep "🛑\|🔄\|✅\|❌"
 ```
-**Cause**: Post-processing taking longer than expected
-**Action**: Check FFmpeg performance or file sizes
+
+### Aufnahme-Status
+```bash
+# Aktive Aufnahmen vor Shutdown prüfen
+curl http://localhost:8000/api/recording/active
+
+# Gesundheitsstatus
+curl http://localhost:8000/health
+```
+
+## Debugging
+
+### Häufige Probleme
+
+1. **Aufnahmen werden abgebrochen**
+   ```
+   ❌ Error during recording service shutdown: timeout
+   ```
+   → Verlängere `stop_grace_period` in docker-compose.yml
+
+2. **Dateien bleiben korrupt**
+   ```
+   📁 Finalizing recording files...
+   ❌ Error finalizing recording: file locked
+   ```
+   → Prüfe Dateiberechtigungen und Volumes
+
+3. **Datenbank-Verbindungen bleiben offen**
+   ```
+   ❌ Error disposing database engine: connection pool exhausted
+   ```
+   → Prüfe Datenbank-Verbindungspool-Einstellungen
+
+### Signal-Testing
+
+```bash
+# Teste Graceful Shutdown lokal
+docker exec streamvault kill -TERM 1
+
+# Überwache Shutdown-Prozess
+docker exec streamvault tail -f /app/logs/streamvault.log
+```
 
 ## Best Practices
 
-### Development
-```bash
-# Graceful shutdown in development
-docker-compose down        # Sends SIGTERM
-docker-compose stop        # Sends SIGTERM with 10s timeout
+1. **Immer `stop_grace_period` setzen** (mind. 60s)
+2. **Gesundheitsprüfungen** implementieren
+3. **Aufnahme-Status** vor Updates prüfen
+4. **Backup-Strategie** für unterbrochene Aufnahmen
+5. **Monitoring** für Shutdown-Prozesse
 
-# Force shutdown (avoid if possible)
-docker-compose kill        # Sends SIGKILL
-```
+## Fazit
 
-### Production
-```bash
-# Kubernetes graceful shutdown
-kubectl delete pod streamvault-pod    # Sends SIGTERM, waits 30s, then SIGKILL
+Graceful Shutdown ist in Docker-Umgebungen **essentiell** für:
+- ✅ Datenintegrität
+- ✅ Keine korrupten Aufnahmen
+- ✅ Saubere Container-Updates
+- ✅ Produktionstauglichkeit
 
-# Manual container shutdown
-docker stop streamvault-container     # Sends SIGTERM, waits 10s, then SIGKILL
-```
-
-### Health Checks
-Monitor these metrics during shutdown:
-- **Active recordings count**: Should decrease to 0
-- **Active processes count**: Should decrease to 0
-- **Pipeline count**: Should decrease to 0
-- **Database connections**: Should be closed
-
-## Error Recovery
-
-### Partial Shutdown Failure
-If shutdown fails partially, the system will:
-1. Log specific component failures
-2. Continue with other shutdown steps
-3. Close database connections as final step
-
-### Recording Data Protection
-During shutdown:
-- **Completed recordings**: Fully preserved
-- **Active recordings**: Partial files saved (may be incomplete)
-- **Post-processing**: Completed where possible
-
-### Manual Recovery
-If shutdown fails completely:
-```bash
-# Check for orphaned processes
-ps aux | grep streamlink
-ps aux | grep ffmpeg
-
-# Kill orphaned processes
-kill -TERM <pid>  # Try graceful first
-kill -KILL <pid>  # Force if needed
-
-# Check for partial files
-find /recordings -name "*.ts" -type f
-find /recordings -name "*.tmp" -type f
-```
-
-## Performance Impact
-
-### Shutdown Time
-- **Typical shutdown**: 5-10 seconds
-- **With active recordings**: 10-35 seconds
-- **Maximum shutdown**: 45 seconds (with timeouts)
-
-### Resource Cleanup
-- **Memory**: All managers and tasks are properly cleaned up
-- **File handles**: Database and file connections closed
-- **Processes**: All child processes terminated
-- **Network**: EventSub connections closed
-
-The graceful shutdown system ensures StreamVault can be safely stopped without data loss or resource leaks.
+Die Implementierung in StreamVault ist bereits vorbereitet und Docker-optimiert.
