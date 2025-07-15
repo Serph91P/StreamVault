@@ -23,6 +23,14 @@ class PostProcessingTaskHandlers:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
+        
+        # Initialize logging service
+        try:
+            from app.services.logging_service import logging_service
+            self.logging_service = logging_service
+        except Exception as e:
+            logger.warning(f"Could not initialize logging service: {e}")
+            self.logging_service = None
     
     async def handle_metadata_generation(self, task):
         """Handle metadata generation task"""
