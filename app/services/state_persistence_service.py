@@ -5,8 +5,13 @@ This service manages the persistent state of active recordings,
 enabling recovery after application restarts.
 """
 import os
-import psutil
 import logging
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
@@ -280,7 +285,12 @@ class StatePersistenceService:
     def _process_exists(self, pid: int) -> bool:
         """Check if a process exists"""
         try:
-            return psutil.pid_exists(pid)
+            if HAS_PSUTIL:
+                return psutil.pid_exists(pid)
+            else:
+                # Fallback method when psutil is not available
+                logger.warning("psutil not available, cannot check process existence")
+                return False
         except Exception:
             return False
             
