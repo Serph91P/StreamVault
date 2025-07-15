@@ -23,6 +23,26 @@ async def get_queue_stats():
         logger.error(f"Error getting queue stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to get queue stats")
 
+@router.get("/active-tasks")
+async def get_active_tasks():
+    """Get currently active tasks"""
+    try:
+        active_tasks = await background_queue_service.get_active_tasks()
+        return {"success": True, "active_tasks": active_tasks}
+    except Exception as e:
+        logger.error(f"Error getting active tasks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get active tasks")
+
+@router.get("/recent-tasks")
+async def get_recent_tasks(limit: int = 50):
+    """Get recently completed tasks"""
+    try:
+        recent_tasks = await background_queue_service.get_recent_tasks(limit=limit)
+        return {"success": True, "recent_tasks": recent_tasks}
+    except Exception as e:
+        logger.error(f"Error getting recent tasks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get recent tasks")
+
 @router.get("/tasks/{task_id}")
 async def get_task_status(task_id: str):
     """Get status of a specific task"""
