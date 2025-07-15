@@ -36,40 +36,48 @@ def upgrade():
             )
         """))
         
-        # Create unique constraint on stream_id
-        connection.execute(text("""
-            DO $$ BEGIN
+        # Create unique constraint on stream_id (with proper error handling)
+        try:
+            connection.execute(text("""
                 ALTER TABLE active_recordings_state 
-                ADD CONSTRAINT active_recordings_state_stream_id_key UNIQUE (stream_id);
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        """))
+                ADD CONSTRAINT active_recordings_state_stream_id_key UNIQUE (stream_id)
+            """))
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.info("Constraint active_recordings_state_stream_id_key already exists")
+            else:
+                raise
         
         # Create foreign key constraints if tables exist
-        connection.execute(text("""
-            DO $$ BEGIN
-                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'streams') THEN
+        try:
+            # Check if streams table exists
+            result = connection.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'streams'"))
+            if result.fetchone():
+                connection.execute(text("""
                     ALTER TABLE active_recordings_state 
                     ADD CONSTRAINT fk_active_recordings_stream 
-                    FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE;
-                END IF;
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        """))
+                    FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE
+                """))
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.info("Foreign key constraint fk_active_recordings_stream already exists")
+            else:
+                logger.debug(f"Could not create foreign key constraint fk_active_recordings_stream: {e}")
         
-        connection.execute(text("""
-            DO $$ BEGIN
-                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recordings') THEN
+        try:
+            # Check if recordings table exists
+            result = connection.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'recordings'"))
+            if result.fetchone():
+                connection.execute(text("""
                     ALTER TABLE active_recordings_state 
                     ADD CONSTRAINT fk_active_recordings_recording 
-                    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE;
-                END IF;
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        """))
+                    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
+                """))
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.info("Foreign key constraint fk_active_recordings_recording already exists")
+            else:
+                logger.debug(f"Could not create foreign key constraint fk_active_recordings_recording: {e}")
         
         # Create indices for better performance
         connection.execute(text("""
