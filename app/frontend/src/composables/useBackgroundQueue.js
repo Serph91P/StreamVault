@@ -27,8 +27,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/stats');
             if (response.ok) {
-                const stats = await response.json();
-                queueStats.value = stats;
+                const result = await response.json();
+                queueStats.value = result.stats;
             }
         }
         catch (error) {
@@ -39,8 +39,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/active-tasks');
             if (response.ok) {
-                const tasks = await response.json();
-                activeTasks.value = tasks;
+                const result = await response.json();
+                activeTasks.value = result.active_tasks;
             }
         }
         catch (error) {
@@ -51,8 +51,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/recent-tasks');
             if (response.ok) {
-                const tasks = await response.json();
-                recentTasks.value = tasks;
+                const result = await response.json();
+                recentTasks.value = result.recent_tasks;
             }
         }
         catch (error) {
@@ -61,9 +61,10 @@ export function useBackgroundQueue() {
     };
     const fetchTaskStatus = async (taskId) => {
         try {
-            const response = await fetch(`/api/background-queue/task/${taskId}`);
+            const response = await fetch(`/api/background-queue/tasks/${taskId}`);
             if (response.ok) {
-                return await response.json();
+                const result = await response.json();
+                return result.task;
             }
         }
         catch (error) {
