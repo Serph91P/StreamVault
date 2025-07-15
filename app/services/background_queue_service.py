@@ -72,6 +72,7 @@ class BackgroundQueueService:
         self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self.active_tasks: Dict[str, QueueTask] = {}
         self.completed_tasks: Dict[str, QueueTask] = {}
+        self.external_tasks: Dict[str, QueueTask] = {}  # For external jobs like recordings
         self.workers: List[asyncio.Task] = []
         self.is_running = False
         self.task_handlers: Dict[str, Callable] = {}
@@ -192,15 +193,20 @@ class BackgroundQueueService:
         return {
             **self.stats,
             'pending_tasks': self.task_queue.qsize(),
-            'active_tasks': len(self.active_tasks),
+            'active_tasks': len(self.active_tasks) + len(self.external_tasks),
             'completed_tasks': len(self.completed_tasks),
             'workers': len(self.workers),
             'is_running': self.is_running
         }
         
     async def get_active_tasks(self) -> List[Dict[str, Any]]:
-        """Get all currently active tasks"""
-        return [task.to_dict() for task in self.active_tasks.values()]
+        """Get all currently active tasks (including external tasks)"""
+        all_tasks = []
+        # Add regular queue tasks
+        all_tasks.extend([task.to_dict() for task in self.active_tasks.values()])
+        # Add external tasks (like recordings)
+        all_tasks.extend([task.to_dict() for task in self.external_tasks.values()])
+        return all_tasks
         
     async def get_recent_tasks(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent completed tasks"""
@@ -547,6 +553,61 @@ class BackgroundQueueService:
                 )
                 for task_id, _ in oldest_tasks[:100]:  # Remove oldest 100
                     del self.completed_tasks[task_id]
+
+    async def add_external_task(self, task_id: str, task_type: str, payload: Dict[str, Any], status: str = "running", progress: float = 0.0):
+        """Add an external task (like recording) to be tracked"""
+        external_task = QueueTask(
+            id=task_id,
+            task_type=task_type,
+            priority=TaskPriority.NORMAL,
+            payload=payload,
+            status=TaskStatus(status),
+            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
+            progress=progress
+        )
+        self.external_tasks[task_id] = external_task
+        
+        # Send WebSocket update
+        await self._send_task_status_update(external_task)
+        await self._send_queue_stats_update()
+
+    async def update_external_task(self, task_id: str, status: str = None, progress: float = None, error_message: str = None):
+        """Update an external task"""
+        if task_id not in self.external_tasks:
+            logger.warning(f"External task {task_id} not found for update")
+            return
+        
+        task = self.external_tasks[task_id]
+        
+        if status:
+            task.status = TaskStatus(status)
+        if progress is not None:
+            task.progress = progress
+        if error_message:
+            task.error_message = error_message
+        
+        # If task is completed or failed, move to completed tasks
+        if status in ["completed", "failed"]:
+            task.completed_at = datetime.now(timezone.utc)
+            self.completed_tasks[task_id] = task
+            del self.external_tasks[task_id]
+            
+            # Update stats
+            if status == "completed":
+                self.stats['completed_tasks'] += 1
+            else:
+                self.stats['failed_tasks'] += 1
+        
+        # Send WebSocket update
+        await self._send_task_status_update(task)
+        await self._send_queue_stats_update()
+
+    async def remove_external_task(self, task_id: str):
+        """Remove an external task"""
+        if task_id in self.external_tasks:
+            del self.external_tasks[task_id]
+            await self._send_queue_stats_update()
 
 # Global instance
 background_queue_service = BackgroundQueueService(max_workers=3)
