@@ -1,11 +1,41 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { CleanupPolicyType } from '@/types/recording';
+import { useWebSocket } from '@/composables/useWebSocket';
 export function useRecordingSettings() {
     const settings = ref(null);
     const streamerSettings = ref([]);
     const activeRecordings = ref([]);
     const isLoading = ref(false);
     const error = ref(null);
+    // WebSocket connection for real-time updates
+    const { messages } = useWebSocket();
+    // Listen for WebSocket messages related to active recordings
+    watch(messages, (newMessages) => {
+        if (newMessages.length > 0) {
+            const latestMessage = newMessages[newMessages.length - 1];
+            if (latestMessage.type === 'active_recordings_update') {
+                console.log('WebSocket: Active recordings update received:', latestMessage.data);
+                if (Array.isArray(latestMessage.data)) {
+                    activeRecordings.value = latestMessage.data.map(rec => ({
+                        ...rec,
+                        streamer_id: parseInt(rec.streamer_id.toString())
+                    }));
+                }
+            }
+            else if (latestMessage.type === 'recording_started') {
+                console.log('WebSocket: Recording started:', latestMessage.data);
+                // Refresh active recordings or add the new recording
+                fetchActiveRecordings();
+            }
+            else if (latestMessage.type === 'recording_stopped') {
+                console.log('WebSocket: Recording stopped:', latestMessage.data);
+                // Remove the recording from active recordings
+                if (latestMessage.data?.streamer_id) {
+                    activeRecordings.value = activeRecordings.value.filter(rec => rec.streamer_id !== latestMessage.data.streamer_id);
+                }
+            }
+        }
+    }, { deep: true });
     const fetchSettings = async () => {
         try {
             isLoading.value = true;
