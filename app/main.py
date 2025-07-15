@@ -112,6 +112,14 @@ async def lifespan(app: FastAPI):
             logger.info("Image sync service started")
         except Exception as e:
             logger.error(f"Error starting image sync service: {e}", exc_info=True)
+            
+        # Start background queue service
+        try:
+            from app.services.startup_init import initialize_background_services
+            await initialize_background_services()
+            logger.info("Background queue service started")
+        except Exception as e:
+            logger.error(f"Error starting background queue service: {e}", exc_info=True)
         
         logger.info("Application startup complete")
         
