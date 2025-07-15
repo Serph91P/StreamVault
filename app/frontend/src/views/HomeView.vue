@@ -10,7 +10,7 @@ const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
 const { messages, connectionStatus } = useWebSocket()
 const totalStreamers = computed(() => streamers.value.length)
 const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
-const totalActiveRecordings = computed(() => activeRecordings.value.length)
+const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
 
 // For last recording, fetch all streams and find the latest ended stream
 const lastRecording = ref<any>(null)
@@ -76,9 +76,9 @@ watch(messages, (newMessages) => {
       })
       break
     }
-    case 'recording_started': {
+    case 'recording.started': {
       console.log('HomeView: Processing recording started:', message.data)
-      const streamerId = message.data.streamer_id
+      const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => s.id === streamerId)
       if (streamer) {
         streamer.is_recording = true
@@ -87,9 +87,9 @@ watch(messages, (newMessages) => {
       fetchActiveRecordings()
       break
     }
-    case 'recording_stopped': {
+    case 'recording.stopped': {
       console.log('HomeView: Processing recording stopped:', message.data)
-      const streamerId = message.data.streamer_id
+      const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => s.id === streamerId)
       if (streamer) {
         streamer.is_recording = false
