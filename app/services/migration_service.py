@@ -120,6 +120,11 @@ class MigrationService:
                 "name": "20250714_add_active_recordings_state",
                 "description": "Add active_recordings_state table for persistent recording state",
                 "function": MigrationService._run_active_recordings_state_migration
+            },
+            {
+                "name": "20250715_add_episode_number_to_streams",
+                "description": "Add episode_number column to streams table for persistent episode tracking",
+                "function": MigrationService._run_add_episode_number_migration
             }
         ]
         
@@ -791,3 +796,48 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error running pending migrations: {str(e)}", exc_info=True)
             return []
+
+    @staticmethod
+    def _run_add_episode_number_migration():
+        """Add episode_number column to streams table for persistent episode tracking"""
+        with engine.connect() as connection:
+            # Check if streams table exists first
+            inspector = inspect(engine)
+            if 'streams' not in inspector.get_table_names():
+                logger.warning("streams table does not exist, skipping episode_number migration")
+                return
+                
+            # Check if column already exists (PostgreSQL/SQLite compatible)
+            try:
+                result = connection.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'streams' 
+                    AND column_name = 'episode_number'
+                """))
+                
+                if result.scalar() > 0:
+                    logger.info("Column episode_number already exists in streams table")
+                    return
+            except Exception:
+                # Fallback for SQLite - try to add column and catch error if exists
+                try:
+                    connection.execute(text("ALTER TABLE streams ADD COLUMN episode_number INTEGER"))
+                    connection.commit()
+                    logger.info("✅ Added episode_number column to streams table")
+                    return
+                except Exception as e:
+                    if "duplicate column name" in str(e).lower():
+                        logger.info("Column episode_number already exists in streams table")
+                        return
+                    else:
+                        raise
+                
+            # Add the column for PostgreSQL
+            try:
+                connection.execute(text("ALTER TABLE streams ADD COLUMN episode_number INTEGER"))
+                connection.commit()
+                logger.info("✅ Added episode_number column to streams table")
+            except Exception as e:
+                logger.error(f"Error adding episode_number column: {e}")
+                raise
