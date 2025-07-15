@@ -23,33 +23,11 @@ class MigrationService:
     @staticmethod
     def ensure_migrations_table():
         """Create the migrations table if it doesn't exist"""
-        with engine.connect() as connection:
-            # Check if table exists
-            try:
-                connection.execute(text("SELECT 1 FROM migrations LIMIT 1"))
-                # Table exists, check if it has correct schema
-                try:
-                    connection.execute(text("SELECT script_name FROM migrations LIMIT 1"))
-                    # Table has correct schema
-                    return
-                except:
-                    # Table exists but has wrong schema, update it
-                    logger.info("Updating migrations table schema...")
-                    try:
-                        # Try to rename name column to script_name
-                        connection.execute(text("ALTER TABLE migrations RENAME COLUMN name TO script_name"))
-                        connection.commit()
-                        logger.info("✅ Migrations table schema updated")
-                    except:
-                        # Add script_name column if it doesn't exist
-                        connection.execute(text("ALTER TABLE migrations ADD COLUMN script_name VARCHAR"))
-                        connection.commit()
-                        logger.info("✅ Added script_name column to migrations table")
-            except:
-                # Table doesn't exist, create it
-                logger.info("Creating migrations table...")
+        try:
+            with engine.connect() as connection:
+                # Simple approach: Try to create table with IF NOT EXISTS
                 connection.execute(text("""
-                    CREATE TABLE migrations (
+                    CREATE TABLE IF NOT EXISTS migrations (
                         id SERIAL PRIMARY KEY,
                         script_name VARCHAR(255) NOT NULL UNIQUE,
                         applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -57,7 +35,12 @@ class MigrationService:
                     )
                 """))
                 connection.commit()
-                logger.info("✅ Migrations table created")
+                logger.info("✅ Migrations table ensured")
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to ensure migrations table: {e}")
+            # Don't raise the exception, just log it
+            logger.warning("⚠️ Continuing without migrations table")
             
     @staticmethod
     def is_migration_applied(migration_name: str) -> bool:
