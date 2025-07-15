@@ -165,9 +165,37 @@ class PostProcessingTaskHandlers:
                 
                 # Get chapters if available
                 chapters = None
-                if metadata and metadata.chapters_vtt_path:
-                    # You could parse VTT chapters here if needed
-                    pass
+                if metadata and metadata.chapters_ffmpeg_path:
+                    # Load chapters from FFmpeg format file
+                    try:
+                        chapters_list = []
+                        if os.path.exists(metadata.chapters_ffmpeg_path):
+                            with open(metadata.chapters_ffmpeg_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                # Parse FFmpeg chapters format
+                                import re
+                                chapter_blocks = re.split(r'\n\[CHAPTER\]\n', content)
+                                for block in chapter_blocks[1:]:  # Skip metadata part
+                                    lines = block.strip().split('\n')
+                                    chapter_data = {}
+                                    for line in lines:
+                                        if '=' in line:
+                                            key, value = line.split('=', 1)
+                                            chapter_data[key] = value
+                                    
+                                    if 'START' in chapter_data and 'END' in chapter_data and 'title' in chapter_data:
+                                        chapters_list.append({
+                                            'start_time': int(chapter_data['START']) / 1000.0,  # Convert ms to seconds
+                                            'end_time': int(chapter_data['END']) / 1000.0,
+                                            'title': chapter_data['title']
+                                        })
+                            
+                            if chapters_list:
+                                chapters = chapters_list
+                                logger.info(f"Loaded {len(chapters_list)} chapters for embedding")
+                    except Exception as e:
+                        logger.warning(f"Failed to load chapters from {metadata.chapters_ffmpeg_path}: {e}")
+                        chapters = None
             
             # Convert TS to MP4 with metadata
             result = await ffmpeg_utils.embed_metadata_with_ffmpeg_wrapper(
