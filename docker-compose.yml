@@ -24,8 +24,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - streamvault_network
   db:
-    image: postgres:13-alpine
+    image: postgres:16-alpine
     container_name: streamvault_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -39,7 +41,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - streamvault_network
 
 volumes:
   db_data:
   app_data:
+
+networks:
+  streamvault_network:
+    driver: bridge

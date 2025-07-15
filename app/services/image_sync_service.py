@@ -25,8 +25,8 @@ class ImageSyncService:
             self._sync_task = asyncio.create_task(self._sync_worker())
             logger.info("Image sync worker started")
             
-            # Start initial sync for all existing streamers and categories
-            await self._initial_sync()
+            # Schedule initial sync as background task (non-blocking)
+            asyncio.create_task(self._initial_sync_delayed())
     
     async def stop_sync_worker(self):
         """Stop the background sync worker"""
@@ -47,6 +47,9 @@ class ImageSyncService:
                 
                 # Process the sync request
                 await self._process_sync_request(sync_request)
+                
+                # Add delay between requests to avoid rate limiting
+                await asyncio.sleep(0.5)  # 500ms delay between requests
                 
                 # Mark task as done
                 self._sync_queue.task_done()
@@ -164,6 +167,48 @@ class ImageSyncService:
         except Exception as e:
             logger.error(f"Error syncing all existing categories: {e}")
     
+    async def sync_popular_categories_only(self):
+        """Sync only popular categories to avoid rate limiting"""
+        try:
+            # Popular categories that are commonly used
+            popular_categories = [
+                'Just Chatting',
+                'League of Legends',
+                'Fortnite',
+                'Minecraft',
+                'Grand Theft Auto V',
+                'Valorant',
+                'Counter-Strike 2',
+                'World of Warcraft',
+                'Dota 2',
+                'Apex Legends',
+                'Call of Duty: Modern Warfare III',
+                'Rocket League',
+                'Overwatch 2',
+                'Hearthstone',
+                'Among Us',
+                'Fall Guys',
+                'PUBG: BATTLEGROUNDS',
+                'Dead by Daylight',
+                'Escape from Tarkov',
+                'Path of Exile'
+            ]
+            
+            # Only sync categories that exist in the database
+            with SessionLocal() as db:
+                existing_categories = db.query(Category).filter(
+                    Category.name.in_(popular_categories)
+                ).all()
+                
+            for category in existing_categories:
+                if category.name:
+                    await self.request_category_image_sync(category.name)
+                    
+            logger.info(f"Requested sync for {len(existing_categories)} popular categories")
+            
+        except Exception as e:
+            logger.error(f"Error syncing popular categories: {e}")
+    
     def get_queue_size(self) -> int:
         """Get the current size of the sync queue"""
         return self._sync_queue.qsize()
@@ -186,6 +231,24 @@ class ImageSyncService:
             logger.info("Initial image sync completed")
         except Exception as e:
             logger.error(f"Error during initial image sync: {e}")
+    
+    async def _initial_sync_delayed(self):
+        """Perform initial sync after a short delay (non-blocking startup)"""
+        try:
+            # Wait longer to allow startup to complete
+            await asyncio.sleep(30)
+            
+            logger.info("Starting delayed initial image sync for all existing entities...")
+            
+            # Sync all existing streamers first (fewer API calls)
+            await self.sync_all_existing_streamers()
+            
+            # For categories, only sync a limited number to avoid rate limiting
+            await self.sync_popular_categories_only()
+            
+            logger.info("Delayed initial image sync completed")
+        except Exception as e:
+            logger.error(f"Error during delayed initial image sync: {e}")
     
     async def check_and_sync_missing_images(self):
         """Check for missing images and sync them"""

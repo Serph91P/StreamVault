@@ -1,20 +1,37 @@
+# Core FastAPI and server dependencies
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
+
+# Database dependencies
 SQLAlchemy[postgresql]==2.0.36
-python-dotenv==1.0.1
-argon2-cffi==23.1.0
-PyJWT==2.8.0
 psycopg==3.2.3
 psycopg-binary==3.2.3
 psycopg-pool==3.2.4
-python-multipart==0.0.19
+alembic==1.13.1
+
+# Security dependencies - updated to latest secure versions
+python-dotenv==1.0.1
+argon2-cffi==23.1.0
+PyJWT==2.8.0
 python-jose[cryptography]==3.4.0
+cryptography==45.0.4
+
+# API and data handling
+python-multipart==0.0.19
 pydantic-settings==2.6.1
-apprise==1.9.2
 aiohttp==3.11.12
 aiofiles==24.1.0
+
+# Image processing
 pillow==11.3.0
-alembic==1.13.1
+
+# Notifications
+apprise==1.9.2
 py-vapid==1.9.2
-cryptography==45.0.4
+
+# System monitoring
 psutil>=7.0.0
+
+# Additional security packages
+safety>=3.0.0
+bandit>=1.7.0
