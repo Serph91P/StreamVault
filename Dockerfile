@@ -1,8 +1,9 @@
-FROM python:3.13.3-slim
+# Use Alpine Linux for smaller attack surface and fewer vulnerabilities
+FROM python:3.13.3-alpine
 
 # Create non-root user and set up directories
-RUN groupadd -g 1000 appuser && \
-    useradd -u 1000 -g appuser -s /bin/bash -m appuser && \
+RUN addgroup -g 1000 appuser && \
+    adduser -u 1000 -G appuser -s /bin/bash -D appuser && \
     mkdir -p /app/data/profile_images && \
     chown -R appuser:appuser /app
 
@@ -11,36 +12,30 @@ WORKDIR /app
 # Copy only what's needed for dependencies first
 COPY requirements.txt ./
 
-# Install system dependencies and Python packages
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with security updates
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
     curl \
     ffmpeg \
     gcc \
     python3-dev \
-    libpq-dev \
-    build-essential \
-    pkg-config \
+    postgresql-dev \
+    musl-dev \
     libffi-dev \
-    libssl-dev \
+    openssl-dev \
     wget \
     git \
     cmake \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
+    zlib-dev \
+    nodejs \
+    npm \
+    bash \
+    && rm -rf /var/cache/apk/*
 
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python packages
+# Install Python packages with latest versions
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install streamlink==7.4.0
-
-# Clean up build dependencies
-RUN apt-get autoremove -y \
-    && apt-get autoclean
+    && pip install --no-cache-dir --upgrade -r requirements.txt \
+    && pip install --no-cache-dir --upgrade streamlink==7.4.0
 
 # Setup frontend dependencies
 WORKDIR /app/frontend
@@ -66,7 +61,6 @@ RUN if [ "$BUILD_ENV" = "production" ]; then \
     fi
 
 # Back to main directory and copy only necessary app files
-# Keep all app code in a single directory structure
 WORKDIR /app
 COPY app/ ./app/
 COPY migrations/ ./migrations/
@@ -87,6 +81,9 @@ RUN mkdir -p /recordings && \
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+# Run final security update
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
 USER appuser
 
