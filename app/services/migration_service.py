@@ -24,15 +24,40 @@ class MigrationService:
     def ensure_migrations_table():
         """Create the migrations table if it doesn't exist"""
         with engine.connect() as connection:
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS migrations (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL UNIQUE,
-                    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    success BOOLEAN DEFAULT TRUE
-                )
-            """))
-            connection.commit()
+            # Check if table exists
+            try:
+                connection.execute(text("SELECT 1 FROM migrations LIMIT 1"))
+                # Table exists, check if it has correct schema
+                try:
+                    connection.execute(text("SELECT script_name FROM migrations LIMIT 1"))
+                    # Table has correct schema
+                    return
+                except:
+                    # Table exists but has wrong schema, update it
+                    logger.info("Updating migrations table schema...")
+                    try:
+                        # Try to rename name column to script_name
+                        connection.execute(text("ALTER TABLE migrations RENAME COLUMN name TO script_name"))
+                        connection.commit()
+                        logger.info("✅ Migrations table schema updated")
+                    except:
+                        # Add script_name column if it doesn't exist
+                        connection.execute(text("ALTER TABLE migrations ADD COLUMN script_name VARCHAR"))
+                        connection.commit()
+                        logger.info("✅ Added script_name column to migrations table")
+            except:
+                # Table doesn't exist, create it
+                logger.info("Creating migrations table...")
+                connection.execute(text("""
+                    CREATE TABLE migrations (
+                        id SERIAL PRIMARY KEY,
+                        script_name VARCHAR(255) NOT NULL UNIQUE,
+                        applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        success BOOLEAN DEFAULT TRUE
+                    )
+                """))
+                connection.commit()
+                logger.info("✅ Migrations table created")
             
     @staticmethod
     def is_migration_applied(migration_name: str) -> bool:
@@ -40,7 +65,7 @@ class MigrationService:
         try:
             with SessionLocal() as db:
                 result = db.execute(
-                    text("SELECT COUNT(*) FROM migrations WHERE name = :name AND success = TRUE"),
+                    text("SELECT COUNT(*) FROM migrations WHERE script_name = :name AND success = TRUE"),
                     {"name": migration_name}
                 ).scalar()
                 return result > 0
@@ -230,25 +255,45 @@ class MigrationService:
     @classmethod
     def initialize_migrations_table(cls) -> None:
         """Create a migrations table to track which migrations have been run"""
-        from sqlalchemy import Column, String, DateTime, Boolean, MetaData as SQLMetaData, Table
         from sqlalchemy.sql import text
         import datetime
         
         try:
-            # Check if migrations table exists
-            metadata = SQLMetaData()
-            migrations_table = Table(
-                'migrations',
-                metadata,
-                Column('script_name', String, primary_key=True),
-                Column('applied_at', DateTime, default=datetime.datetime.utcnow),
-                Column('success', Boolean, default=True),
-            )
-            
-            # Create table if it doesn't exist
-            if not engine.dialect.has_table(engine.connect(), 'migrations'):
-                logger.info("Creating migrations table")
-                migrations_table.create(engine)
+            with SessionLocal() as session:
+                # Check if migrations table exists
+                try:
+                    # Test if table exists and has correct schema
+                    session.execute(text("SELECT script_name FROM migrations LIMIT 1"))
+                    logger.info("✅ Migrations table exists with correct schema")
+                except Exception as table_error:
+                    if "does not exist" in str(table_error):
+                        logger.info("Creating migrations table")
+                        session.execute(text("""
+                            CREATE TABLE migrations (
+                                script_name VARCHAR PRIMARY KEY,
+                                applied_at TIMESTAMP DEFAULT NOW(),
+                                success BOOLEAN DEFAULT TRUE
+                            )
+                        """))
+                        session.commit()
+                        logger.info("✅ Migrations table created successfully")
+                    elif "script_name" in str(table_error):
+                        logger.info("Updating migrations table schema")
+                        # Check if old column exists
+                        try:
+                            session.execute(text("SELECT migration_name FROM migrations LIMIT 1"))
+                            # Rename old column
+                            session.execute(text("ALTER TABLE migrations RENAME COLUMN migration_name TO script_name"))
+                            session.commit()
+                            logger.info("✅ Migrations table schema updated")
+                        except:
+                            # Add missing column
+                            session.execute(text("ALTER TABLE migrations ADD COLUMN script_name VARCHAR"))
+                            session.commit()
+                            logger.info("✅ Added script_name column to migrations table")
+                    else:
+                        raise table_error
+                        
         except Exception as e:
             logger.error(f"Error creating migrations table: {str(e)}", exc_info=True)
     
@@ -275,8 +320,24 @@ class MigrationService:
         """Get list of migration scripts that have already been applied"""
         try:
             with SessionLocal() as session:
-                result = session.execute(text("SELECT script_name FROM migrations WHERE success = TRUE"))
-                return [row[0] for row in result]
+                # Check if migrations table exists and has the right columns
+                try:
+                    result = session.execute(text("SELECT script_name FROM migrations WHERE success = TRUE"))
+                    return [row[0] for row in result]
+                except Exception as col_error:
+                    if "script_name" in str(col_error):
+                        # Old migrations table format, try to check if it exists at all
+                        logger.warning("⚠️ Old migrations table format detected, checking for migration_name column")
+                        try:
+                            result = session.execute(text("SELECT migration_name FROM migrations WHERE success = TRUE"))
+                            return [row[0] for row in result]
+                        except:
+                            logger.warning("⚠️ No compatible migrations table found, assuming no migrations applied")
+                            return []
+                    else:
+                        # Table doesn't exist at all
+                        logger.warning("⚠️ Migrations table doesn't exist, assuming no migrations applied")
+                        return []
         except Exception as e:
             logger.error(f"Error getting applied migrations: {str(e)}", exc_info=True)
             return []
