@@ -204,6 +204,7 @@ class StreamerService:
         
             if existing:
                 logger.debug(f"Streamer already exists: {username}")
+                # Existing streamer already has EventSub subscriptions, no need to update
                 return existing
         
             # Cache profile image
@@ -215,21 +216,77 @@ class StreamerService:
             # Use display_name for better user experience, but store original for API calls
             streamer_name = display_name or user_data.get('display_name') or user_data['login']
         
-            # Create new streamer with cached image path and display_name if provided
+            # Check if streamer is currently live
+            is_live = False
+            current_title = None
+            current_category = None
+            current_language = None
+            
+            try:
+                stream_info = await self.get_stream_info(user_data['id'])
+                if stream_info:
+                    is_live = True
+                    current_title = stream_info.get('title', '')
+                    current_category = stream_info.get('game_name', '')
+                    current_language = stream_info.get('language', '')
+                    logger.info(f"Streamer {streamer_name} is currently live: {current_title}")
+                else:
+                    logger.debug(f"Streamer {streamer_name} is currently offline")
+            except Exception as e:
+                logger.warning(f"Could not check live status for {streamer_name}: {e}")
+                # Continue with default offline status
+        
+            # Create new streamer with cached image path and current live status
             new_streamer = Streamer(
                 twitch_id=user_data['id'],
                 username=streamer_name,  # Use display_name instead of login
                 profile_image_url=cached_image_path,
                 original_profile_image_url=user_data['profile_image_url'],
-                is_live=False,
-                title=None,
-                category_name=None,
-                language=None,
+                is_live=is_live,
+                title=current_title,
+                category_name=current_category,
+                language=current_language,
                 last_updated=datetime.now(timezone.utc)
             )
         
             self.db.add(new_streamer)
             self.db.flush()
+            
+            # If the streamer is live, create a stream entry
+            if is_live and stream_info:
+                try:
+                    from app.models import Stream
+                    
+                    # Check if stream already exists
+                    existing_stream = self.db.query(Stream).filter(
+                        Stream.twitch_stream_id == stream_info.get('id')
+                    ).first()
+                    
+                    if not existing_stream:
+                        # Create new stream entry
+                        new_stream = Stream(
+                            streamer_id=new_streamer.id,
+                            twitch_stream_id=stream_info.get('id'),
+                            title=current_title,
+                            category_name=current_category,
+                            language=current_language,
+                            started_at=datetime.now(timezone.utc),  # We don't know exact start time, use current time
+                            ended_at=None
+                        )
+                        self.db.add(new_stream)
+                        new_streamer.active_stream_id = new_stream.id
+                        logger.info(f"Created stream entry for live streamer {streamer_name}")
+                    else:
+                        # Update existing stream
+                        existing_stream.title = current_title
+                        existing_stream.category_name = current_category
+                        existing_stream.language = current_language
+                        new_streamer.active_stream_id = existing_stream.id
+                        logger.info(f"Updated existing stream entry for {streamer_name}")
+                        
+                except Exception as e:
+                    logger.warning(f"Could not create/update stream entry for {streamer_name}: {e}")
+                    # Continue without stream entry
         
             # Create default notification settings
             notification_settings = NotificationSettings(
