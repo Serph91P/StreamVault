@@ -22,9 +22,7 @@ class StreamerService:
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
         self._access_token = None
-        self.data_dir = Path("/app/data")
-        self.image_cache_dir = self.data_dir / "profile_images"
-        self.image_cache_dir.mkdir(parents=True, exist_ok=True)
+        # Use unified_image_service for profile images - no separate directory needed
 
     async def notify(self, message: Dict[str, Any]):
         try:
@@ -174,25 +172,20 @@ class StreamerService:
             return None
 
     async def download_profile_image(self, url: str, streamer_id: str) -> str:
-        """Download and cache profile image"""
-        file_name = f"{streamer_id}.jpg"
-        cache_path = self.image_cache_dir / file_name
-        web_path = f"/data/profile_images/{file_name}"
-    
+        """Download and cache profile image using unified_image_service"""
+        from app.services.unified_image_service import unified_image_service
+        
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        content = await response.read()
-                        with open(cache_path, 'wb') as f:
-                            f.write(content)
-                        logger.debug(f"Cached profile image for streamer {streamer_id}")
-                        return web_path
+            # Use unified_image_service for download
+            result = await unified_image_service.download_profile_image(int(streamer_id), url)
+            if result:
+                return result
+            else:
+                # Fallback to original URL if download fails
+                return url
         except Exception as e:
             logger.error(f"Failed to cache profile image: {e}")
             return url
-
-        return web_path if cache_path.exists() else url
 
     async def add_streamer(self, username: str, display_name: str = None) -> Optional[Streamer]:
         try:
