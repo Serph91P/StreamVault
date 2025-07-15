@@ -170,3 +170,5 @@ async def find_existing_mp4(recording_dir: str, mp4_path: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"Error in find_existing_mp4 for {recording_dir}: {e}", exc_info=True)
         return None
+
+
