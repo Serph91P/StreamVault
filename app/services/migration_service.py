@@ -132,20 +132,16 @@ class MigrationService:
         return migration_scripts
     
     @staticmethod
-    async def run_migration_script(script_path: str) -> Tuple[bool, str]:
+    def run_migration_script(script_path: str) -> Tuple[bool, str]:
         """Run a single migration script"""
         try:
             script_name = os.path.basename(script_path)
             logger.info(f"Running migration: {script_name}")
             
-            # Send WebSocket update about migration start
-            await MigrationService._send_migration_update(script_name, "running", "Starting migration")
-            
             # Check if this migration was already applied
             applied_migrations = MigrationService.get_applied_migrations()
             if script_name in applied_migrations:
                 logger.info(f"Migration {script_name} already applied, skipping")
-                await MigrationService._send_migration_update(script_name, "completed", "Migration already applied")
                 return True, f"Migration {script_name} already applied"
             
             # Load the migration module
@@ -234,27 +230,23 @@ class MigrationService:
                 migration_module.upgrade()
                 
                 logger.info(f"Successfully ran migration: {script_name}")
-                await MigrationService._send_migration_update(script_name, "completed", "Migration completed successfully")
                 return True, f"Successfully ran migration: {script_name}"
             
             # Look for legacy run_migration function
             elif hasattr(migration_module, 'run_migration'):
                 migration_module.run_migration()
                 logger.info(f"Successfully ran migration: {script_name}")
-                await MigrationService._send_migration_update(script_name, "completed", "Migration completed successfully")
                 return True, f"Successfully ran migration: {script_name}"
             else:
                 logger.warning(f"Migration script {script_name} does not have run_migration or upgrade function")
-                await MigrationService._send_migration_update(script_name, "failed", "Migration script does not have a compatible migration function")
                 return False, f"Migration script {script_name} does not have a compatible migration function"
                 
         except Exception as e:
             logger.error(f"Error running migration {script_path}: {str(e)}", exc_info=True)
-            await MigrationService._send_migration_update(script_name, "failed", f"Error running migration: {str(e)}")
             return False, f"Error running migration {script_path}: {str(e)}"
     
     @classmethod
-    async def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
+    def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
         """Run all migration scripts in the migrations directory"""
         results = []
         
@@ -265,7 +257,7 @@ class MigrationService:
         # Run each migration script
         for script_path in migration_scripts:
             script_name = os.path.basename(script_path)
-            success, message = await cls.run_migration_script(script_path)
+            success, message = cls.run_migration_script(script_path)
             results.append((script_name, success, message))
             
         return results
@@ -361,7 +353,7 @@ class MigrationService:
             return []
     
     @classmethod
-    async def run_pending_migrations(cls) -> List[Tuple[str, bool, str]]:
+    def run_pending_migrations(cls) -> List[Tuple[str, bool, str]]:
         """Run only migrations that haven't been applied yet"""
         try:
             # Wait for database to be ready
@@ -404,7 +396,7 @@ class MigrationService:
             results = []
             for script_path in pending_scripts:
                 script_name = os.path.basename(script_path)
-                success, message = await cls.run_migration_script(script_path)
+                success, message = cls.run_migration_script(script_path)
                 results.append((script_name, success, message))
                 
                 # Record the migration (but handle duplicates gracefully)
