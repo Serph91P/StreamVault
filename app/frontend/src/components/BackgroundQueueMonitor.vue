@@ -181,15 +181,16 @@ const formatTime = (timestamp?: string) => {
 .queue-status-indicator {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 8px 12px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  min-width: 140px;
+  height: 36px;
+  min-width: auto;
 }
 
 .queue-status-indicator:hover {
@@ -199,8 +200,8 @@ const formatTime = (timestamp?: string) => {
 }
 
 .status-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
@@ -220,13 +221,14 @@ const formatTime = (timestamp?: string) => {
 
 .queue-info {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
   flex: 1;
 }
 
 .queue-label {
-  font-size: 13px;
+  font-size: 12px;
   color: #aaa;
   font-weight: 500;
   text-transform: uppercase;
@@ -234,16 +236,16 @@ const formatTime = (timestamp?: string) => {
 }
 
 .queue-count {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #ffffff;
 }
 
 .progress-bar {
-  width: 50px;
-  height: 6px;
+  width: 30px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -252,7 +254,7 @@ const formatTime = (timestamp?: string) => {
   height: 100%;
   background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
   transition: width 0.3s ease;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .queue-panel {
@@ -538,6 +540,31 @@ const formatTime = (timestamp?: string) => {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .queue-status-indicator {
+    padding: 6px 10px;
+    gap: 6px;
+    height: 32px;
+    min-width: 60px;
+  }
+  
+  .queue-label {
+    font-size: 10px;
+  }
+  
+  .queue-count {
+    font-size: 12px;
+  }
+  
+  .progress-bar {
+    width: 25px;
+    height: 3px;
+  }
+  
+  .status-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
   .queue-panel {
     width: 95vw;
     max-width: 400px;
