@@ -7,6 +7,9 @@
       <button @click="deleteAllSubscriptions" class="btn btn-danger">
         Delete All Subscriptions
       </button>
+      <button @click="resubscribeAll" class="btn btn-success">
+        Resubscribe All
+      </button>
     </div>
 
     <div v-if="subscriptions.length" class="subscription-list">
@@ -54,6 +57,27 @@ async function deleteAllSubscriptions() {
     method: 'DELETE'
   })
   subscriptions.value = []
+}
+
+async function resubscribeAll() {
+  if (!confirm('Are you sure you want to resubscribe to all streamers?')) return
+  
+  try {
+    const response = await fetch('/api/streamers/resubscribe-all', {
+      method: 'POST'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      alert(`Resubscribed to ${data.total_processed} streamers`)
+      await loadSubscriptions()
+    } else {
+      const error = await response.json()
+      alert('Error resubscribing: ' + error.detail)
+    }
+  } catch (error) {
+    alert('Error resubscribing: ' + error.message)
+  }
 }
 
 function formatType(type) {
