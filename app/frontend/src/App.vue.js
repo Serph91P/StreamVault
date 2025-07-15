@@ -1,5 +1,6 @@
 import NotificationFeed from '@/components/NotificationFeed.vue';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue';
+import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue';
 import '@/styles/main.scss';
 import { ref, onMounted, watch } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
@@ -382,6 +383,10 @@ const __VLS_22 = __VLS_21({
 }, ...__VLS_functionalComponentArgsRest(__VLS_21));
 __VLS_23.slots.default;
 var __VLS_23;
+/** @type {[typeof BackgroundQueueMonitor, ]} */ ;
+// @ts-ignore
+const __VLS_24 = __VLS_asFunctionalComponent(BackgroundQueueMonitor, new BackgroundQueueMonitor({}));
+const __VLS_25 = __VLS_24({}, ...__VLS_functionalComponentArgsRest(__VLS_24));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "notification-bell-container" },
 });
@@ -420,76 +425,76 @@ if (__VLS_ctx.showNotifications) {
     });
     /** @type {[typeof NotificationFeed, ]} */ ;
     // @ts-ignore
-    const __VLS_24 = __VLS_asFunctionalComponent(NotificationFeed, new NotificationFeed({
+    const __VLS_27 = __VLS_asFunctionalComponent(NotificationFeed, new NotificationFeed({
         ...{ 'onNotificationsRead': {} },
         ...{ 'onClosePanel': {} },
         ...{ 'onClearAll': {} },
     }));
-    const __VLS_25 = __VLS_24({
+    const __VLS_28 = __VLS_27({
         ...{ 'onNotificationsRead': {} },
         ...{ 'onClosePanel': {} },
         ...{ 'onClearAll': {} },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_24));
-    let __VLS_27;
-    let __VLS_28;
-    let __VLS_29;
-    const __VLS_30 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_27));
+    let __VLS_30;
+    let __VLS_31;
+    let __VLS_32;
+    const __VLS_33 = {
         onNotificationsRead: (__VLS_ctx.markAsRead)
     };
-    const __VLS_31 = {
+    const __VLS_34 = {
         onClosePanel: (__VLS_ctx.closeNotificationPanel)
     };
-    const __VLS_32 = {
+    const __VLS_35 = {
         onClearAll: (__VLS_ctx.clearAllNotifications)
     };
-    var __VLS_26;
+    var __VLS_29;
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "main-content" },
 });
-const __VLS_33 = {}.RouterView;
+const __VLS_36 = {}.RouterView;
 /** @type {[typeof __VLS_components.RouterView, typeof __VLS_components.routerView, typeof __VLS_components.RouterView, typeof __VLS_components.routerView, ]} */ ;
 // @ts-ignore
-const __VLS_34 = __VLS_asFunctionalComponent(__VLS_33, new __VLS_33({}));
-const __VLS_35 = __VLS_34({}, ...__VLS_functionalComponentArgsRest(__VLS_34));
+const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({}));
+const __VLS_38 = __VLS_37({}, ...__VLS_functionalComponentArgsRest(__VLS_37));
 {
-    const { default: __VLS_thisSlot } = __VLS_36.slots;
+    const { default: __VLS_thisSlot } = __VLS_39.slots;
     const [{ Component }] = __VLS_getSlotParams(__VLS_thisSlot);
-    const __VLS_37 = {}.transition;
+    const __VLS_40 = {}.transition;
     /** @type {[typeof __VLS_components.Transition, typeof __VLS_components.transition, typeof __VLS_components.Transition, typeof __VLS_components.transition, ]} */ ;
     // @ts-ignore
-    const __VLS_38 = __VLS_asFunctionalComponent(__VLS_37, new __VLS_37({
+    const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
         name: "page",
         mode: "out-in",
     }));
-    const __VLS_39 = __VLS_38({
+    const __VLS_42 = __VLS_41({
         name: "page",
         mode: "out-in",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_38));
-    __VLS_40.slots.default;
-    const __VLS_41 = ((Component));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_41));
+    __VLS_43.slots.default;
+    const __VLS_44 = ((Component));
     // @ts-ignore
-    const __VLS_42 = __VLS_asFunctionalComponent(__VLS_41, new __VLS_41({}));
-    const __VLS_43 = __VLS_42({}, ...__VLS_functionalComponentArgsRest(__VLS_42));
-    var __VLS_40;
-    __VLS_36.slots['' /* empty slot name completion */];
+    const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({}));
+    const __VLS_46 = __VLS_45({}, ...__VLS_functionalComponentArgsRest(__VLS_45));
+    var __VLS_43;
+    __VLS_39.slots['' /* empty slot name completion */];
 }
-var __VLS_36;
+var __VLS_39;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "mobile-nav-bottom" },
 });
-const __VLS_45 = {}.RouterLink;
+const __VLS_48 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_46 = __VLS_asFunctionalComponent(__VLS_45, new __VLS_45({
+const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
     to: "/",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_47 = __VLS_46({
+const __VLS_50 = __VLS_49({
     to: "/",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_46));
-__VLS_48.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_49));
+__VLS_51.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -509,19 +514,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.polyline, __VLS_intrinsicEleme
     points: "9 22 9 12 15 12 15 22",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_48;
-const __VLS_49 = {}.RouterLink;
+var __VLS_51;
+const __VLS_52 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_50 = __VLS_asFunctionalComponent(__VLS_49, new __VLS_49({
+const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({
     to: "/streamers",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_51 = __VLS_50({
+const __VLS_54 = __VLS_53({
     to: "/streamers",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_50));
-__VLS_52.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_53));
+__VLS_55.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -546,19 +551,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.path, __VLS_intrinsicElements.
     d: "M2 12h20",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_52;
-const __VLS_53 = {}.RouterLink;
+var __VLS_55;
+const __VLS_56 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_54 = __VLS_asFunctionalComponent(__VLS_53, new __VLS_53({
+const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
     to: "/videos",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_55 = __VLS_54({
+const __VLS_58 = __VLS_57({
     to: "/videos",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_54));
-__VLS_56.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_57));
+__VLS_59.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -583,19 +588,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.rect, __VLS_intrinsicElements.
     ry: "2",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_56;
-const __VLS_57 = {}.RouterLink;
+var __VLS_59;
+const __VLS_60 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_58 = __VLS_asFunctionalComponent(__VLS_57, new __VLS_57({
+const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({
     to: "/add-streamer",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_59 = __VLS_58({
+const __VLS_62 = __VLS_61({
     to: "/add-streamer",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_58));
-__VLS_60.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_61));
+__VLS_63.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -626,19 +631,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.line, __VLS_intrinsicElements.
     y2: "12",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_60;
-const __VLS_61 = {}.RouterLink;
+var __VLS_63;
+const __VLS_64 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_62 = __VLS_asFunctionalComponent(__VLS_61, new __VLS_61({
+const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
     to: "/subscriptions",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_63 = __VLS_62({
+const __VLS_66 = __VLS_65({
     to: "/subscriptions",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_62));
-__VLS_64.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_65));
+__VLS_67.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -658,19 +663,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.path, __VLS_intrinsicElements.
     d: "M13.73 21a2 2 0 0 1-3.46 0",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_64;
-const __VLS_65 = {}.RouterLink;
+var __VLS_67;
+const __VLS_68 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_66 = __VLS_asFunctionalComponent(__VLS_65, new __VLS_65({
+const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({
     to: "/settings",
     ...{ class: "mobile-nav-item" },
 }));
-const __VLS_67 = __VLS_66({
+const __VLS_70 = __VLS_69({
     to: "/settings",
     ...{ class: "mobile-nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_66));
-__VLS_68.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_69));
+__VLS_71.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
     ...{ class: "mobile-nav-icon" },
     xmlns: "http://www.w3.org/2000/svg",
@@ -689,7 +694,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.circle, __VLS_intrinsicElement
     r: "3",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_68;
+var __VLS_71;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.toggleNotifications) },
     ...{ class: "mobile-nav-item mobile-notification-btn" },
@@ -720,8 +725,8 @@ if (__VLS_ctx.unreadCount > 0) {
 }
 /** @type {[typeof PWAInstallPrompt, ]} */ ;
 // @ts-ignore
-const __VLS_69 = __VLS_asFunctionalComponent(PWAInstallPrompt, new PWAInstallPrompt({}));
-const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
+const __VLS_72 = __VLS_asFunctionalComponent(PWAInstallPrompt, new PWAInstallPrompt({}));
+const __VLS_73 = __VLS_72({}, ...__VLS_functionalComponentArgsRest(__VLS_72));
 /** @type {__VLS_StyleScopedClasses['app']} */ ;
 /** @type {__VLS_StyleScopedClasses['app-header']} */ ;
 /** @type {__VLS_StyleScopedClasses['header-content']} */ ;
@@ -763,6 +768,7 @@ const __VLS_self = (await import('vue')).defineComponent({
         return {
             NotificationFeed: NotificationFeed,
             PWAInstallPrompt: PWAInstallPrompt,
+            BackgroundQueueMonitor: BackgroundQueueMonitor,
             showNotifications: showNotifications,
             unreadCount: unreadCount,
             toggleNotifications: toggleNotifications,
