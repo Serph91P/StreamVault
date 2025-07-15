@@ -97,3 +97,47 @@ class ConnectionManager:
         }
         await self.send_notification(message)
         logger.info(f"WebSocketManager: Sent recording stopped notification for {recording_info.get('streamer_name', 'unknown')}")
+
+    async def send_queue_stats_update(self, stats: Dict[str, Any]):
+        """Send background queue stats update"""
+        message = {
+            "type": "queue_stats_update",
+            "data": stats,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.debug(f"WebSocketManager: Sent queue stats update: {stats}")
+
+    async def send_task_status_update(self, task_info: Dict[str, Any]):
+        """Send task status update"""
+        message = {
+            "type": "task_status_update",
+            "data": task_info,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.debug(f"WebSocketManager: Sent task status update for task {task_info.get('id')}")
+
+    async def send_task_progress_update(self, task_id: str, progress: float, message_text: str = None):
+        """Send task progress update"""
+        message = {
+            "type": "task_progress_update",
+            "data": {
+                "task_id": task_id,
+                "progress": progress,
+                "message": message_text
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.debug(f"WebSocketManager: Sent progress update for task {task_id}: {progress}%")
+
+    async def send_recording_job_update(self, recording_info: Dict[str, Any]):
+        """Send recording job update (streamlink/ffmpeg status)"""
+        message = {
+            "type": "recording_job_update",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.debug(f"WebSocketManager: Sent recording job update for {recording_info.get('streamer_name')}")
