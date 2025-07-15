@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Streamer, Stream, Category
 from app.services.unified_image_service import unified_image_service
+from app.services.image_sync_service import image_sync_service
 
 logger = logging.getLogger("streamvault")
 
@@ -177,4 +178,27 @@ async def get_all_categories_image_info(db: Session = Depends(get_db)):
         return result
     except Exception as e:
         logger.error(f"Error getting all categories image info: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/sync/check-missing")
+async def check_missing_images(background_tasks: BackgroundTasks):
+    """Check for missing images and sync them"""
+    try:
+        background_tasks.add_task(image_sync_service.check_and_sync_missing_images)
+        return {"message": "Missing images check started"}
+    except Exception as e:
+        logger.error(f"Error starting missing images check: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/sync/queue-status")
+async def get_sync_queue_status():
+    """Get the current status of the image sync queue"""
+    try:
+        return {
+            "queue_size": image_sync_service.get_queue_size(),
+            "is_running": image_sync_service.is_running(),
+            "service_initialized": unified_image_service._initialized
+        }
+    except Exception as e:
+        logger.error(f"Error getting sync queue status: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
