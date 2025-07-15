@@ -70,11 +70,8 @@ else
     log_msg "WARNING: Migrations directory not found!"
 fi
 
-# Ensure category images directory has correct permissions
-log_msg "Setting up category images directory permissions..."
-mkdir -p /app/frontend/public/images/categories
-chmod -R 775 /app/frontend/public/images/categories
-log_msg "Category images directory permissions set"
+# Category images are now handled by unified_image_service
+log_msg "Category images are now managed by unified_image_service"
 
 # Database migrations are now handled by the application startup in main.py
 log_msg "Database migrations will be handled by application startup..."
