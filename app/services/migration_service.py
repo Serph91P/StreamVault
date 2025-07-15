@@ -172,6 +172,21 @@ class MigrationService:
                                     logger.info(f"Column {column_name} doesn't exist in {table_name}")
                         except Exception as e:
                             logger.warning(f"Error dropping column {column_name} from {table_name}: {e}")
+                    
+                    @staticmethod
+                    def create_table(*args, **kwargs):
+                        """Mock create_table method for compatibility"""
+                        logger.warning("create_table operation not supported in SimpleOp, skipping")
+                    
+                    @staticmethod
+                    def drop_table(*args, **kwargs):
+                        """Mock drop_table method for compatibility"""
+                        logger.warning("drop_table operation not supported in SimpleOp, skipping")
+                    
+                    @staticmethod
+                    def create_index(*args, **kwargs):
+                        """Mock create_index method for compatibility"""
+                        logger.warning("create_index operation not supported in SimpleOp, skipping")
                 
                 # Add the op object to the migration module's namespace
                 setattr(migration_module, 'op', SimpleOp())
