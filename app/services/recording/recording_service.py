@@ -544,6 +544,16 @@ class RecordingService:
                 output_path=ts_output_path
             )
             
+            # Send recording job start WebSocket update
+            await self._send_recording_job_update(streamer.username, {
+                'status': 'starting',
+                'streamer_name': streamer.username,
+                'stream_id': stream.id,
+                'recording_id': recording_id,
+                'progress': 0,
+                'started_at': start_time.isoformat()
+            })
+            
             # Start streamlink recording process using process_manager
             logger.info(f"Starting streamlink recording for {streamer.username} at quality {quality}")
             logger.info(f"TS output path: {ts_output_path}")
