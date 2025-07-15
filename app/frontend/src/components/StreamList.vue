@@ -12,7 +12,7 @@
           <span>Back to streamers</span>
         </button>
         
-        <button @click="forceOfflineRecording(parseInt(streamerId))" class="btn btn-warning">
+        <button @click="forceOfflineRecording(Number(streamerId))" class="btn btn-warning">
           <i class="fas fa-record-vinyl"></i>
           <span>Force Recording (Offline Mode)</span>
         </button>
@@ -40,7 +40,7 @@
           
           <button 
             v-if="!hasLiveStreams" 
-            @click="forceOfflineRecording(parseInt(streamerId))" 
+            @click="forceOfflineRecording(Number(streamerId))" 
             class="btn btn-warning"
             :disabled="isStartingOfflineRecording"
           >
@@ -102,9 +102,9 @@
                 <span 
                   v-if="!stream.ended_at" 
                   class="recording-badge" 
-                  :class="isStreamRecording(parseInt(streamerId)) ? 'recording' : 'not-recording'"
+                  :class="isStreamRecording(Number(streamerId)) ? 'recording' : 'not-recording'"
                 >
-                  {{ isStreamRecording(parseInt(streamerId)) ? 'REC' : 'OFF' }}
+                  {{ isStreamRecording(Number(streamerId)) ? 'REC' : 'OFF' }}
                 </span>
               </div>
               
@@ -136,7 +136,7 @@
               <button 
                 @click.stop="confirmDeleteStream(stream)" 
                 class="action-btn delete-btn" 
-                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(Number(streamerId)))"
                 data-tooltip="Delete Stream"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
@@ -187,8 +187,8 @@
             <div class="stream-full-actions">
               <div v-if="!stream.ended_at" class="recording-controls">
                 <button 
-                  v-if="!isStreamRecording(parseInt(streamerId))" 
-                  @click="startRecording(parseInt(streamerId))" 
+                  v-if="!isStreamRecording(Number(streamerId))" 
+                  @click="startRecording(Number(streamerId))" 
                   class="btn btn-success" 
                   :disabled="isStartingRecording"
                 >
@@ -196,7 +196,7 @@
                 </button>
                 <button 
                   v-else 
-                  @click="stopRecording(parseInt(streamerId))"
+                  @click="stopRecording(Number(streamerId))"
                   class="btn btn-danger" 
                   :disabled="isStoppingRecording"
                 >
@@ -216,7 +216,7 @@
               <button 
                 @click="confirmDeleteStream(stream)" 
                 class="btn btn-danger" 
-                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(parseInt(streamerId)))"
+                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamRecording(Number(streamerId)))"
               >
                 <i v-if="deletingStreamId === stream.id" class="fas fa-spinner fa-spin"></i>
                 <i v-else class="fas fa-trash-alt"></i>
@@ -388,26 +388,30 @@ const watchVideo = (stream: any) => {
 
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue: number): boolean => {
+  // Ensure we're working with numbers
+  const targetStreamerId = Number(streamerIdValue);
+  
   // First check local state which gets updated immediately via WebSockets
-  if (localRecordingState.value[streamerIdValue] !== undefined) {
-    console.log(`Using local recording state for ${streamerIdValue}: ${localRecordingState.value[streamerIdValue]}`);
-    return localRecordingState.value[streamerIdValue];
+  if (localRecordingState.value[targetStreamerId] !== undefined) {
+    console.log(`Using local recording state for ${targetStreamerId}: ${localRecordingState.value[targetStreamerId]}`);
+    return localRecordingState.value[targetStreamerId];
   }
   
   // Then check activeRecordings from the server
   if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
-    console.log(`No active recordings available for ${streamerIdValue}`);
+    console.log(`No active recordings available for ${targetStreamerId}`);
     return false;
   }
   
-  console.log(`Active recordings for ${streamerIdValue}:`, activeRecordings.value);
+  console.log(`Active recordings for ${targetStreamerId}:`, activeRecordings.value);
   
   const isRecording = activeRecordings.value.some(rec => {
     // Ensure both are treated as numbers for comparison
-    return parseInt(rec.streamer_id.toString()) === parseInt(streamerIdValue.toString());
+    const recordingStreamerId = Number(rec.streamer_id);
+    return recordingStreamerId === targetStreamerId;
   });
   
-  console.log(`Stream ${streamerIdValue} recording status: ${isRecording}`);
+  console.log(`Stream ${targetStreamerId} recording status: ${isRecording}`);
   return isRecording;
 }
 
@@ -416,10 +420,13 @@ const startRecording = async (streamerIdValue: number) => {
   try {
     isStartingRecording.value = true
     
-    // Update local state immediately for better UX
-    localRecordingState.value[streamerIdValue] = true
+    // Ensure we're working with numbers
+    const targetStreamerId = Number(streamerIdValue);
     
-    const response = await fetch(`/api/recording/force/${streamerIdValue}`, {
+    // Update local state immediately for better UX
+    localRecordingState.value[targetStreamerId] = true
+    
+    const response = await fetch(`/api/recording/force/${targetStreamerId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -432,7 +439,7 @@ const startRecording = async (streamerIdValue: number) => {
     }
     
     // Keep local state since it was successful
-    console.log(`Successfully started recording for streamer ${streamerIdValue}`);
+    console.log(`Successfully started recording for streamer ${targetStreamerId}`);
     
     // Fetch active recordings to ensure our UI is in sync
     await fetchActiveRecordings()
@@ -442,7 +449,7 @@ const startRecording = async (streamerIdValue: number) => {
     alert(`Failed to start recording: ${error instanceof Error ? error.message : String(error)}`)
     
     // Reset local state on failure
-    localRecordingState.value[streamerIdValue] = false
+    localRecordingState.value[Number(streamerIdValue)] = false
   } finally {
     isStartingRecording.value = false
   }
@@ -453,10 +460,13 @@ const forceOfflineRecording = async (streamerIdValue: number) => {
   try {
     isStartingOfflineRecording.value = true
     
-    // Update local state immediately for better UX
-    localRecordingState.value[streamerIdValue] = true
+    // Ensure we're working with numbers
+    const targetStreamerId = Number(streamerIdValue);
     
-    const response = await fetch(`/api/recording/force-offline/${streamerIdValue}`, {
+    // Update local state immediately for better UX
+    localRecordingState.value[targetStreamerId] = true
+    
+    const response = await fetch(`/api/recording/force-offline/${targetStreamerId}`, {
      method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -469,7 +479,7 @@ const forceOfflineRecording = async (streamerIdValue: number) => {
     }
     
     // Keep local state since it was successful
-    console.log(`Successfully started offline recording for streamer ${streamerIdValue}`);
+    console.log(`Successfully started offline recording for streamer ${targetStreamerId}`);
     
     // Fetch active recordings to ensure our UI is in sync
     await fetchActiveRecordings()
@@ -482,7 +492,7 @@ const forceOfflineRecording = async (streamerIdValue: number) => {
     alert(`Failed to start offline recording: ${error instanceof Error ? error.message : String(error)}`)
     
     // Reset local state on failure
-    localRecordingState.value[streamerIdValue] = false
+    localRecordingState.value[Number(streamerIdValue)] = false
   } finally {
     isStartingOfflineRecording.value = false
   }
@@ -493,10 +503,13 @@ const stopRecording = async (streamerIdValue: number) => {
   try {
     isStoppingRecording.value = true
     
-    // Sofort Status lokal aktualisieren für bessere UX
-    localRecordingState.value[streamerIdValue] = false
+    // Ensure we're working with numbers
+    const targetStreamerId = Number(streamerIdValue);
     
-    await stopStreamRecording(streamerIdValue)
+    // Sofort Status lokal aktualisieren für bessere UX
+    localRecordingState.value[targetStreamerId] = false
+    
+    await stopStreamRecording(targetStreamerId)
     
     // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
     await fetchActiveRecordings()
@@ -505,7 +518,7 @@ const stopRecording = async (streamerIdValue: number) => {
     console.error('Failed to stop recording:', error)
     alert(`Failed to stop recording: ${error instanceof Error ? error.message : String(error)}`)
     // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
-    localRecordingState.value[streamerIdValue] = true
+    localRecordingState.value[Number(streamerIdValue)] = true
   } finally {
     isStoppingRecording.value = false
   }
@@ -666,7 +679,7 @@ watch(messages, (newMessages) => {
   
   // Update local state based on WebSocket events
   if (latestMessage.type === 'recording.started') {
-    const streamerId = parseInt(latestMessage.data.streamer_id);
+    const streamerId = Number(latestMessage.data.streamer_id);
     console.log(`Recording started for streamer ${streamerId}`);
     
     // Update local state immediately
@@ -679,7 +692,7 @@ watch(messages, (newMessages) => {
     
     // Add or update the recording in our cache
     const existingIndex = activeRecordings.value.findIndex(r => 
-      parseInt(r.streamer_id.toString()) === streamerId
+      Number(r.streamer_id) === streamerId
     );
     
     if (existingIndex >= 0) {
@@ -692,7 +705,7 @@ watch(messages, (newMessages) => {
     fetchActiveRecordings();
     
   } else if (latestMessage.type === 'recording.stopped') {
-    const streamerId = parseInt(latestMessage.data.streamer_id);
+    const streamerId = Number(latestMessage.data.streamer_id);
     console.log(`Recording stopped for streamer ${streamerId}`);
     
     // Update local state immediately
@@ -701,7 +714,7 @@ watch(messages, (newMessages) => {
     // Remove from our local cache
     if (activeRecordings.value) {
       activeRecordings.value = activeRecordings.value.filter(r => 
-        parseInt(r.streamer_id.toString()) !== streamerId
+        Number(r.streamer_id) !== streamerId
       );
     }
     
@@ -709,7 +722,7 @@ watch(messages, (newMessages) => {
     fetchActiveRecordings();
   } else if (latestMessage.type === 'stream.online') {
     // Wenn ein neuer Stream erkannt wird, aktualisieren wir die Stream-Liste
-    if (parseInt(latestMessage.data.streamer_id) === parseInt(streamerId.value)) {
+    if (Number(latestMessage.data.streamer_id) === Number(streamerId.value)) {
       fetchStreams(streamerId.value);
     }
   }

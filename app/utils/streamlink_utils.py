@@ -8,16 +8,86 @@ quality settings, and other parameters to ensure reliable stream capture.
 
 import os
 import logging
-from typing import List, Optional, Dict, Any
+import subprocess
+import json
+from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
 from app.models import GlobalSettings
-# Korrektur des Imports - nur die logging_service-Instanz importieren, nicht die Methode direkt
-from app.services.logging_service import logging_service
+# Use lazy imports to avoid circular dependencies
+# We'll import logging_service when needed
 
 # Get the logger
 logger = logging.getLogger(__name__)
 
+def get_streamlink_version() -> str:
+    """
+    Get the installed version of Streamlink.
+    
+    Returns:
+        String containing the version of Streamlink
+    """
+    try:
+        result = subprocess.run(
+            ["streamlink", "--version"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        # Extract version number from the output
+        version_line = result.stdout.strip()
+        # Usually outputs something like "streamlink 5.5.1"
+        if version_line:
+            parts = version_line.split()
+            if len(parts) >= 2:
+                return parts[1]  # Return just the version number
+        return version_line
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get Streamlink version: {e}")
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Error getting Streamlink version: {e}")
+        return "Error"
+
+def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Get information about a stream using Streamlink.
+    
+    Args:
+        streamer_name: The streamer's username
+        proxy_settings: Optional dictionary containing "http" and/or "https" proxy URLs
+        
+    Returns:
+        Tuple of (success: bool, info: dict)
+        where info contains stream details if successful
+    """
+    cmd = ["streamlink", "--json", f"twitch.tv/{streamer_name}"]
+    
+    # Add proxy settings if provided
+    if proxy_settings:
+        if "http" in proxy_settings and proxy_settings["http"].strip():
+            cmd.extend(["--http-proxy", proxy_settings["http"].strip()])
+        if "https" in proxy_settings and proxy_settings["https"].strip():
+            cmd.extend(["--https-proxy", proxy_settings["https"].strip()])
+    
+    try:
+        logger.debug(f"Running stream info command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Parse the JSON output
+        stream_info = json.loads(result.stdout)
+        return True, stream_info
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get stream info for {streamer_name}: {e}")
+        logger.debug(f"Command output: {e.stdout}")
+        logger.debug(f"Command error: {e.stderr}")
+        return False, {"error": str(e), "stderr": e.stderr if hasattr(e, 'stderr') else "No error output"}
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON output from Streamlink: {e}")
+        return False, {"error": f"JSON parse error: {e}", "raw_output": result.stdout if 'result' in locals() else "No output"}
+    except Exception as e:
+        logger.error(f"Unexpected error getting stream info: {e}")
+        return False, {"error": str(e)}
 
 def get_streamlink_command(
     streamer_name: str,
@@ -52,42 +122,34 @@ def get_streamlink_command(
     
     # Use the streamlink log path for this recording session if not provided
     if not log_path:
+        # Lazy import to avoid circular dependencies
+        from importlib import import_module
+        logging_service = import_module("app.services.logging_service").logging_service
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
+    # Basierend auf den lsdvr-Einstellungen für maximale Stabilität und Ad-Blocking
     cmd = [
         "streamlink",
         f"twitch.tv/{streamer_name}",
         quality,
         "-o", ts_output_path,
-        "--hls-live-restart",
-        "--hls-live-edge", "6",
+        "--hls-live-edge", "99999",
+        "--stream-timeout", "200",
+        "--stream-segment-timeout", "200",
         "--stream-segment-threads", "5",
         "--ffmpeg-fout", "mpegts",
-        "--stream-segment-timeout", "30" if not force_mode else "45",
-        "--stream-timeout", "180" if not force_mode else "240",
-        "--stream-segment-attempts", "8" if not force_mode else "12",
+        "--twitch-disable-ads",  # Ad-Blocking immer aktiviert, unabhängig vom Proxy
         "--retry-streams", "10",
         "--retry-max", "5",
-        "--retry-open", "5" if not force_mode else "8",
-        "--ringbuffer-size", "256M",
-        "--hls-segment-queue-threshold", "5",
-        "--force",
         "--loglevel", "debug",
         "--logfile", log_path,
         "--logformat", "[{asctime}][{name}][{levelname}] {message}",
         "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
     
-    # Only add ad-disabling flags if NO proxy is set
-    proxy_enabled = bool(proxy_settings and (proxy_settings.get("http") or proxy_settings.get("https")))
-    if not proxy_enabled:
-        cmd.extend([
-            "--twitch-disable-ads",
-        ])
-    
     # Add proxy settings if provided
-    if proxy_enabled and proxy_settings:
+    if proxy_settings:
         cmd = _add_proxy_settings(cmd, proxy_settings, force_mode)
     
     return cmd

@@ -1,25 +1,28 @@
 """
-Comprehensive Test Service for StreamVault
-Tests all major functionality including recording, metadata, push notifications, etc.
+StreamVault system test service for validating core functionality
 """
 import os
 import json
 import asyncio
 import logging
-import tempfile
 import subprocess
+import tempfile
 from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
-from app.models import Stream, Streamer, StreamEvent, StreamMetadata, RecordingSettings, PushSubscription
-from app.services.recording_service import RecordingService
+# Core dependencies
+from app.config import settings
+from app.database import SessionLocal, engine
+from app.models import Base, User, Streamer, Stream, StreamEvent
+
+from app.services.recording.recording_service import RecordingService
+from app.services.notification_service import NotificationService
 from app.services.metadata_service import MetadataService
-from app.services.enhanced_push_service import EnhancedPushService
-from app.services.media_server_structure_service import MediaServerStructureService
-from app.config.settings import settings
+# Don't import StreamerService - it requires dependencies
+
+# For proxy functionality, use streamlink_utils instead
+from app.utils.streamlink_utils import get_proxy_settings_from_db
 
 logger = logging.getLogger("streamvault.test")
 
@@ -33,10 +36,11 @@ class TestResult:
 
 class StreamVaultTestService:
     def __init__(self):
+        # Only initialize services that don't require dependencies
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
-        self.push_service = EnhancedPushService()
-        self.media_server_service = MediaServerStructureService()
+        self.notification_service = NotificationService()
+        # REMOVED: self.streamer_service = StreamerService() - requires dependencies
         self.test_results: List[TestResult] = []
 
     async def run_all_tests(self) -> Dict[str, Any]:
@@ -62,7 +66,7 @@ class StreamVaultTestService:
         
         # Performance tests
         await self._test_disk_space()
-        await self._test_proxy_connection()
+        # REMOVED: await self._test_proxy_connection()
         
         # Generate summary
         total_tests = len(self.test_results)

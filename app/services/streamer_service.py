@@ -1,5 +1,7 @@
+import logging
+import aiohttp
 from sqlalchemy.orm import Session
-from app.models import Streamer, Stream, StreamEvent, NotificationSettings
+from app.models import Streamer, Stream, StreamEvent, NotificationSettings, Recording
 from app.database import SessionLocal
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
@@ -7,8 +9,6 @@ from app.events.handler_registry import EventHandlerRegistry
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datetime import datetime, timezone
-import logging
-import aiohttp
 from app.config.settings import settings
 
 logger = logging.getLogger("streamvault")
@@ -54,7 +54,6 @@ class StreamerService:
 
     async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
         token = await self.get_access_token()
-        users = []
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -91,45 +90,74 @@ class StreamerService:
                     logger.error(f"Failed to get streamer info. Status: {response.status}")
                     return None
 
-    async def get_streamers(self) -> List[Dict[str, Any]]:
-        streamers = self.db.query(Streamer).all()
+    async def get_streamers(self) -> List[StreamerResponse]:
+        """Get all streamers with their current status
         
-        # Try to get recording status - fail gracefully if not available
-        recording_streamer_ids = set()
+        Returns a list of StreamerResponse objects for consistency with the API endpoint.
+        """
         try:
-            from app.services.recording_service import RecordingService
-            recording_service = RecordingService()
-            active_recordings = await recording_service.get_active_recordings()
-            recording_streamer_ids = {info['streamer_id'] for info in active_recordings}
+            streamers = self.db.query(Streamer).all()
+            result = []
+            
+            for streamer in streamers:
+                # Check if recording is active by looking for active recordings
+                is_recording = False
+                active_stream_id = None
+                
+                # Find the most recent stream that hasn't ended
+                active_stream = self.db.query(Stream).filter(
+                    Stream.streamer_id == streamer.id,
+                    Stream.ended_at.is_(None)
+                ).order_by(Stream.started_at.desc()).first()
+                
+                # Check if this stream has an active recording
+                if active_stream:
+                    # Check if there's an active recording for this stream
+                    active_recording = self.db.query(Recording).filter(
+                        Recording.stream_id == active_stream.id,
+                        Recording.end_time.is_(None)
+                    ).first()
+                    
+                    if active_recording:
+                        is_recording = True
+                        active_stream_id = active_stream.id
+                
+                # Check if recording is enabled from StreamerRecordingSettings
+                recording_enabled = True  # Default
+                try:
+                    from app.models import StreamerRecordingSettings
+                    settings = self.db.query(StreamerRecordingSettings).filter(
+                        StreamerRecordingSettings.streamer_id == streamer.id
+                    ).first()
+                    if settings:
+                        recording_enabled = settings.enabled
+                except Exception as e:
+                    logger.warning(f"Could not check recording settings for streamer {streamer.id}: {e}")
+                
+                # Create StreamerResponse object
+                streamer_response = StreamerResponse(
+                    id=streamer.id,
+                    username=streamer.username,
+                    twitch_id=streamer.twitch_id,
+                    profile_image_url=streamer.profile_image_url,
+                    is_live=streamer.is_live,
+                    is_recording=is_recording,
+                    recording_enabled=recording_enabled,
+                    active_stream_id=active_stream_id,
+                    title=streamer.title,
+                    category_name=streamer.category_name,
+                    language=streamer.language,
+                    last_updated=streamer.last_updated,
+                    original_profile_image_url=streamer.original_profile_image_url
+                )
+                result.append(streamer_response)
+                
+            return result
+            
         except Exception as e:
-            logger.warning(f"Could not get recording status: {e}")
-        
-        result = []
-        for streamer in streamers:
-            # Check if recording is enabled for this streamer
-            recording_enabled = False
-            try:
-                from app.services.recording_service import RecordingService
-                recording_service = RecordingService()
-                recording_enabled = recording_service.config_manager.is_recording_enabled(streamer.id)
-            except Exception as e:
-                logger.warning(f"Could not check recording status for streamer {streamer.id}: {e}")
-            
-            result.append({
-                "id": streamer.id,
-                "twitch_id": streamer.twitch_id,
-                "username": streamer.username,
-                "is_live": streamer.is_live,
-                "is_recording": streamer.id in recording_streamer_ids,
-                "recording_enabled": recording_enabled,
-                "title": streamer.title,
-                "category_name": streamer.category_name,
-                "language": streamer.language,
-                "last_updated": streamer.last_updated,
-                "profile_image_url": streamer.profile_image_url
-            })
-            
-        return result
+            logger.error(f"Error getting streamers: {e}", exc_info=True)
+            # Return empty list on error to prevent frontend issues
+            return []
 
     async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
@@ -210,6 +238,7 @@ class StreamerService:
             self.db.add(new_streamer)
             self.db.flush()
         
+            # Create default notification settings
             notification_settings = NotificationSettings(
                 streamer_id=new_streamer.id,
                 notify_online=True,
@@ -217,17 +246,39 @@ class StreamerService:
                 notify_update=True
             )
             self.db.add(notification_settings)
+            
+            # Create default recording settings
+            try:
+                from app.models import StreamerRecordingSettings
+                recording_settings = StreamerRecordingSettings(
+                    streamer_id=new_streamer.id,
+                    enabled=True  # Enable recording by default for new streamers
+                )
+                self.db.add(recording_settings)
+            except Exception as e:
+                logger.warning(f"Could not create default recording settings: {e}")
         
             self.db.commit()
             self.db.refresh(new_streamer)
         
-            await self.event_registry.subscribe_to_events(user_data['id'])
+            # Subscribe to EventSub events
+            try:
+                await self.event_registry.subscribe_to_events(user_data['id'])
+            except Exception as e:
+                logger.error(f"Failed to subscribe to EventSub events: {e}")
+                # Don't fail the whole operation if EventSub subscription fails
+        
+            # Send notification about new streamer
+            await self.notify({
+                "type": "success",
+                "message": f"Added streamer {streamer_name}"
+            })
         
             return new_streamer
             
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error adding streamer: {e}")
+            logger.error(f"Error adding streamer: {e}", exc_info=True)
             raise
 
     async def delete_streamer(self, streamer_id: int) -> Optional[Dict[str, Any]]:
@@ -243,8 +294,17 @@ class StreamerService:
                 self.db.query(NotificationSettings).filter(
                     NotificationSettings.streamer_id == streamer_id
                 ).delete()
+                
+                # Delete recording settings
+                try:
+                    from app.models import StreamerRecordingSettings
+                    self.db.query(StreamerRecordingSettings).filter(
+                        StreamerRecordingSettings.streamer_id == streamer_id
+                    ).delete()
+                except Exception as e:
+                    logger.warning(f"Could not delete recording settings: {e}")
             
-                # Delete the streamer
+                # Delete the streamer (cascade will handle other related records)
                 self.db.delete(streamer)
                 self.db.commit()
         
@@ -259,8 +319,9 @@ class StreamerService:
             return None
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error deleting streamer: {e}")
+            logger.error(f"Error deleting streamer: {e}", exc_info=True)
             raise
+
     async def subscribe_to_events(self, twitch_id: str):
         await self.event_registry.subscribe_to_events(twitch_id)
 
@@ -283,11 +344,10 @@ class StreamerService:
                         if data.get("data") and len(data["data"]) > 0:
                             game_data = data["data"][0]
                             
-                            # Die Box Art URL im Twitch-Format ersetzen wir durch die gewünschte Größe
-                            # Format ist normalerweise: https://static-cdn.jtvnw.net/ttv-boxart/123456-{width}x{height}.jpg
+                            # Replace template placeholders in box art URL
                             box_art_url = game_data.get("box_art_url", "")
                             if box_art_url:
-                                # Standard-Größe für Box Art
+                                # Standard size for box art
                                 box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
                                 game_data["box_art_url"] = box_art_url
                                 

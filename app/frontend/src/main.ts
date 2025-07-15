@@ -17,15 +17,24 @@ app.use(router)
 
 app.mount('#app')
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js', {
-    scope: '/'
-  }).then(registration => {
-    console.log('ServiceWorker registration successful');
-  }).catch(err => {
-    console.log('ServiceWorker registration failed: ', err);
-  });
-}
+// Service Worker wird automatisch von VitePWA registriert
+import { registerSW } from 'virtual:pwa-register'
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Zeige eine Benachrichtigung für Updates
+    console.log('PWA needs refresh')
+  },
+  onOfflineReady() {
+    console.log('PWA is ready for offline use')
+  },
+  onRegistered(registration) {
+    console.log('Service Worker registered successfully', registration)
+  },
+  onRegisterError(error) {
+    console.error('Service Worker registration failed:', error)
+  },
+})
 
 // PWA Install Event
 let deferredPrompt: any = null

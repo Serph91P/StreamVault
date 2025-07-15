@@ -1,14 +1,17 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, StreamerRecordingSettings, Streamer
+from app.models import RecordingSettings, StreamerRecordingSettings, Streamer, Stream
 from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSettingsSchema, ActiveRecordingSchema
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.services.recording_service import RecordingService, FILENAME_PRESETS
+from app.services.recording.recording_service import RecordingService  # Changed import path
+from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
 from app.services.logging_service import logging_service
+from app.services.unified_image_service import unified_image_service
 from sqlalchemy.orm import Session, joinedload
 import logging
 import json
 from typing import List, Dict
+from datetime import datetime
 
 logger = logging.getLogger("streamvault")
 
@@ -17,7 +20,14 @@ router = APIRouter(
     tags=["recording"]
 )
 
-recording_service = RecordingService()
+recording_service = None
+
+def get_recording_service():
+    """Lazy initialization of recording service"""
+    global recording_service
+    if recording_service is None:
+        recording_service = RecordingService()
+    return recording_service
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
 async def get_recording_settings():
@@ -30,6 +40,7 @@ async def get_recording_settings():
                     enabled=True,
                     output_directory="/recordings",
                     filename_template="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+                    filename_preset="default",
                     default_quality="best",
                     use_chapters=True,
                 )
@@ -75,14 +86,21 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 # Create new settings if doesn't exist
                 existing_settings = RecordingSettings()
                 db.add(existing_settings)
-              # Update fields
+                db.commit()
+                db.refresh(existing_settings)
+                
+            # Update fields
             existing_settings.enabled = settings_data.enabled
             existing_settings.output_directory = settings_data.output_directory
             existing_settings.filename_template = settings_data.filename_template
             existing_settings.default_quality = settings_data.default_quality
             existing_settings.use_chapters = settings_data.use_chapters
             
-            # Füge das neue Feld hinzu
+            # Update filename_preset if provided
+            if hasattr(settings_data, 'filename_preset') and settings_data.filename_preset:
+                existing_settings.filename_preset = settings_data.filename_preset
+            
+            # Add the new field
             if hasattr(settings_data, 'use_category_as_chapter_title'):
                 existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
                 
@@ -164,7 +182,10 @@ async def get_all_streamer_recording_settings():
                 result.append(StreamerRecordingSettingsSchema(
                     streamer_id=streamer.id,
                     username=streamer.username,
-                    profile_image_url=streamer.profile_image_url,
+                    profile_image_url=unified_image_service.get_profile_image_url(
+                        streamer.id, 
+                        streamer.profile_image_url
+                    ),
                     enabled=settings.enabled,
                     quality=settings.quality,
                     custom_filename=settings.custom_filename,
@@ -210,11 +231,43 @@ async def get_all_streamer_recording_settings():
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
+    """Get all active recordings"""
     try:
-        return await recording_service.get_active_recordings()
+        # Get active recordings from service - it returns a dict
+        active_recordings_dict = await get_recording_service().get_active_recordings()
+        
+        # Convert to list of ActiveRecordingSchema objects
+        result = []
+        
+        # Use a new session for database queries
+        with SessionLocal() as db:
+            for stream_id, recording_info in active_recordings_dict.items():
+                try:
+                    # Get stream and streamer info
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and stream.streamer:
+                        # Create schema object with all required fields
+                        active_recording = ActiveRecordingSchema(
+                            stream_id=stream_id,
+                            streamer_id=stream.streamer_id,
+                            streamer_name=stream.streamer.username,
+                            start_time=recording_info['start_time'].isoformat() if isinstance(recording_info['start_time'], datetime) else recording_info['start_time'],
+                            duration=recording_info.get('duration', 0),
+                            output_path=recording_info.get('ts_output_path', ''),
+                            title=stream.title or '',
+                            category=stream.category_name or ''
+                        )
+                        result.append(active_recording)
+                except Exception as e:
+                    logger.warning(f"Error processing active recording for stream {stream_id}: {e}")
+                    continue
+        
+        return result
+        
     except Exception as e:
-        logger.error(f"Error fetching active recordings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching active recordings: {e}", exc_info=True)
+        # Return empty list on error
+        return []
 
 @router.post("/stop/{streamer_id}")
 async def stop_recording(streamer_id: int):
@@ -223,7 +276,7 @@ async def stop_recording(streamer_id: int):
         # Log the stop request
         logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
         
-        result = await recording_service.stop_recording_manual(streamer_id)
+        result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
             logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
             return {"status": "success", "message": "Recording stopped successfully"}
@@ -299,7 +352,10 @@ async def update_streamer_recording_settings(
         return StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
-            profile_image_url=streamer.profile_image_url,
+            profile_image_url=unified_image_service.get_profile_image_url(
+                streamer.id, 
+                streamer.profile_image_url
+            ),
             enabled=streamer_settings.enabled,
             quality=streamer_settings.quality,
             custom_filename=streamer_settings.custom_filename,
@@ -320,7 +376,7 @@ async def force_start_recording(streamer_id: int):
         # Log force start attempt
         logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
         
-        result = await recording_service.force_start_recording(streamer_id)
+        result = await get_recording_service().force_start_recording(streamer_id)
         if result:
             logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
             return {"status": "success", "message": "Recording started successfully"}
@@ -344,14 +400,14 @@ async def force_start_recording(streamer_id: int):
 
 @router.post("/force-offline/{streamer_id}")
 async def force_start_offline_recording(streamer_id: int):
-    """Manuell eine Aufnahme für einen Stream starten, auch wenn das online Event nicht erkannt wurde"""
+    """Manually start a recording for a stream, even if the online event wasn't detected"""
     try:
         # Log offline force start attempt
         logging_service.log_recording_activity("FORCE_OFFLINE_START_REQUEST", f"Streamer {streamer_id}", "Manual offline force start requested via API")
         
-        result = await recording_service.force_start_recording_offline(streamer_id)
+        result = await get_recording_service().force_start_recording_offline(streamer_id)
         if result:
-            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording started successfully")
+            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording gestartet")
             return {"status": "success", "message": "Recording started successfully"}
         else:
             logging_service.log_recording_activity("FORCE_OFFLINE_START_FAILED", f"Streamer {streamer_id}", "Failed to start offline recording", "warning")

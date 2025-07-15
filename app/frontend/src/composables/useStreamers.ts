@@ -47,7 +47,7 @@ export function useStreamers() {
       const response = await fetch('/api/streamers')
       if (!response.ok) throw new Error('Failed to fetch streamers')
       const data = await response.json()
-      streamers.value = data
+      streamers.value = data.streamers || []
     } catch (error) {
       console.error('Error fetching streamers:', error)
     } finally {

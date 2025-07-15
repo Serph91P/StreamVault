@@ -67,3 +67,33 @@ class ConnectionManager:
                 logger.error(f"WebSocketManager: Failed to send to {ws.client}: {e}")
                 # Remove failed connection
                 await self.disconnect(ws)
+
+    async def send_active_recordings_update(self, active_recordings: List[Dict[str, Any]]):
+        """Send active recordings update to all connected clients"""
+        message = {
+            "type": "active_recordings_update",
+            "data": active_recordings,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.debug(f"WebSocketManager: Sent active recordings update to {len(self.active_connections)} clients")
+
+    async def send_recording_started(self, recording_info: Dict[str, Any]):
+        """Send recording started notification"""
+        message = {
+            "type": "recording_started",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.info(f"WebSocketManager: Sent recording started notification for {recording_info.get('streamer_name', 'unknown')}")
+
+    async def send_recording_stopped(self, recording_info: Dict[str, Any]):
+        """Send recording stopped notification"""
+        message = {
+            "type": "recording_stopped",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        await self.send_notification(message)
+        logger.info(f"WebSocketManager: Sent recording stopped notification for {recording_info.get('streamer_name', 'unknown')}")

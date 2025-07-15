@@ -9,6 +9,9 @@ from app.routes import twitch_auth
 from app.routes import recording as recording_router
 from app.routes import logging as logging_router
 from app.routes import videos
+from app.routes import images
+from app.routes import api_images
+from app.routes import background_queue
 import logging
 import hmac
 import hashlib
@@ -18,12 +21,16 @@ import os
 from pathlib import Path
 
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from typing import Optional
 
 from app.events.handler_registry import EventHandlerRegistry
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_auth_service
+from app.services.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
@@ -33,91 +40,353 @@ from app.utils.security_enhanced import safe_file_access, safe_error_message
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
     logger.info("Starting application initialization...")
-      # Run database migrations using the improved migration system
+    
+    # Initialize services
+    event_registry = None
+    cleanup_task = None
+    log_cleanup_task = None
+    recording_service = None
+    
     try:
-        # Check if migrations were already run by entrypoint.sh in development
-        if os.getenv("ENVIRONMENT") == "development":
-            logger.info("🔄 Development mode: Migrations handled by entrypoint.sh")
-        else:
-            logger.info("🚀 Production mode: Running database migrations...")
-            
-            # Use the improved MigrationService with safe migrations
-            from app.services.migration_service import MigrationService
-            
-            # Run safe migrations first
+        # Run database migrations always (development and production)
+        logger.info("🔄 Running database migrations...")
+        from app.services.migration_service import MigrationService
+        try:
             migration_success = MigrationService.run_safe_migrations()
-            
             if migration_success:
                 logger.info("✅ All database migrations completed successfully")
             else:
-                logger.warning("⚠️ Some migrations failed, trying legacy system...")
-                
-                # Fallback to legacy system if needed (only in production)
-                try:
-                    from app.migrations_init import run_migrations
-                    run_migrations()
-                    logger.info("✅ Legacy migrations completed")
-                except Exception as fallback_error:
-                    logger.error(f"❌ Legacy migration system also failed: {fallback_error}")
-                    logger.warning("⚠️ Application starting without full migrations - some features may not work")
-            
-    except Exception as e:
-        logger.error(f"❌ Migration system failed: {e}")
-        logger.warning("⚠️ Application starting without migrations - some features may not work")
-    
-    event_registry = await get_event_registry()
-    
-    # Start log cleanup service
-    try:
-        from app.services.logging_service import LoggingService
-        logging_service = LoggingService()
-        # Run cleanup once on startup and schedule daily cleanups
-        asyncio.create_task(asyncio.to_thread(logging_service.cleanup_old_logs))
-        asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
-        logger.info("Scheduled log cleanup service started (will run daily)")
-    except Exception as e:
-        logger.error(f"Failed to start log cleanup service: {e}")
-    
-    # Start the recordings cleanup service
-    try:
-        from app.services.cleanup_service import CleanupService
+                logger.warning("⚠️ Some migrations failed, application may have limited functionality")
+        except Exception as e:
+            logger.error(f"❌ Database migration failed: {e}")
+            logger.warning("⚠️ Application will continue but may have limited functionality")
         
-        async def scheduled_recording_cleanup():
-            while True:
-                try:
-                    await CleanupService.run_scheduled_cleanup()
-                except Exception as e:
-                    logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
-                
-                # Run every 12 hours
-                await asyncio.sleep(12 * 3600)
-                
-        # Run the cleanup task - first cleanup and then schedule regular cleanups
-        logger.info("Starting scheduled recording cleanup service")
-        asyncio.create_task(scheduled_recording_cleanup())
+        # Initialize EventSub
+        event_registry = await get_event_registry()
+        await event_registry.initialize_eventsub()
+        logger.info("EventSub initialized successfully")
+        
+        # Get recording service reference for graceful shutdown
+        try:
+            recording_service = getattr(event_registry, 'recording_service', None)
+            if recording_service:
+                logger.info("Recording service reference obtained for graceful shutdown")
+        except Exception as e:
+            logger.warning(f"Could not get recording service reference: {e}")
+        
+        # Start log cleanup service
+        try:
+            from app.services.logging_service import LoggingService
+            logging_service = LoggingService()
+            log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
+            logger.info("Log cleanup service started")
+        except Exception as e:
+            logger.error(f"Failed to start log cleanup service: {e}")
+        
+        # Start recording cleanup service
+        try:
+            from app.services.cleanup_service import CleanupService
+            
+            async def scheduled_recording_cleanup():
+                while True:
+                    try:
+                        await CleanupService.run_scheduled_cleanup()
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
+                    
+                    # Run every 12 hours
+                    await asyncio.sleep(12 * 3600)
+            
+            cleanup_task = asyncio.create_task(scheduled_recording_cleanup())
+            logger.info("Recording cleanup service started")
+        except Exception as e:
+            logger.error(f"Failed to start recording cleanup service: {e}")
+        
+        # Start image sync service
+        try:
+            await image_sync_service.start_sync_worker()
+            logger.info("Image sync service started")
+        except Exception as e:
+            logger.error(f"Error starting image sync service: {e}", exc_info=True)
+            
+        # Start background queue service
+        try:
+            from app.services.startup_init import initialize_background_services
+            await initialize_background_services()
+            logger.info("Background queue service started")
+        except Exception as e:
+            logger.error(f"Error starting background queue service: {e}", exc_info=True)
+        
+        logger.info("Application startup complete")
+        
     except Exception as e:
-        logger.error(f"Failed to start recording cleanup service: {e}")
-    
-    # Initialize EventSub subscriptions
-    await event_registry.initialize_eventsub()
-    logger.info("Application startup complete")
+        logger.error(f"Error during startup: {e}", exc_info=True)
     
     yield
     
-    # Cleanup with logging
-    logger.info("Starting application shutdown...")
-    event_registry = await get_event_registry()
-    if event_registry.eventsub:
-        await event_registry.eventsub.stop()
-        logger.info("EventSub stopped")
-    logger.info("Application shutdown complete")
+    # Shutdown
+    logger.info("🛑 Starting application shutdown...")
+    
+    # Gracefully shutdown recording service first (most critical)
+    if recording_service:
+        try:
+            logger.info("🔄 Gracefully shutting down recording service...")
+            await recording_service.graceful_shutdown(timeout=30)
+            logger.info("✅ Recording service shutdown completed")
+        except Exception as e:
+            logger.error(f"❌ Error during recording service shutdown: {e}")
+    
+    # Shutdown active recordings broadcaster
+    try:
+        logger.info("🔄 Stopping active recordings broadcaster...")
+        from app.services.active_recordings_broadcaster import stop_active_recordings_broadcaster
+        await stop_active_recordings_broadcaster()
+        logger.info("✅ Active recordings broadcaster stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
+    
+    # Shutdown background queue service
+    try:
+        logger.info("🔄 Stopping background queue service...")
+        from app.services.background_queue_service import background_queue_service
+        await background_queue_service.stop()
+        logger.info("✅ Background queue service stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error during background queue service shutdown: {e}")
+    
+    # Cancel cleanup tasks
+    for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
+        if task and not task.done():
+            logger.info(f"🔄 Cancelling {task_name} task...")
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info(f"✅ {task_name} task cancelled successfully")
+            except Exception as e:
+                logger.error(f"❌ Error cancelling {task_name} task: {e}")
+    
+    # Stop EventSub properly
+    if event_registry:
+        try:
+            # Try to access eventsub attribute safely
+            eventsub = getattr(event_registry, 'eventsub', None)
+            if eventsub and hasattr(eventsub, 'stop'):
+                logger.info("🔄 Stopping EventSub...")
+                await eventsub.stop()
+                logger.info("✅ EventSub stopped successfully")
+            elif hasattr(event_registry, 'cleanup'):
+                logger.info("🔄 Cleaning up event registry...")
+                await event_registry.cleanup()
+                logger.info("✅ Event registry cleaned up")
+        except Exception as e:
+            logger.error(f"❌ Error during EventSub shutdown: {e}")
+    
+    # Stop image sync service
+    try:
+        await image_sync_service.stop_sync_worker()
+        logger.info("✅ Image sync service stopped")
+    except Exception as e:
+        logger.error(f"❌ Error stopping image sync service: {e}")
+    
+    # Close database connections
+    try:
+        from sqlalchemy.ext.asyncio import AsyncEngine
+        if isinstance(engine, AsyncEngine):
+            await engine.dispose()
+        else:
+            engine.dispose()
+        logger.info("✅ Database connections closed")
+    except Exception as e:
+        logger.error(f"❌ Error disposing database engine: {e}")
+    
+    logger.info("🎯 Application shutdown complete")
 
 # Initialize application components
 logger = setup_logging()
 models.Base.metadata.create_all(bind=engine)
-app = FastAPI(lifespan=lifespan)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="StreamVault API",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan
+)
+
+# Add Trusted Host middleware (security best practice)
+if settings.is_secure:
+    # Only allow requests to our configured domain in production
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=[
+            settings.domain,
+            f"www.{settings.domain}",
+            "localhost",  # For health checks
+        ]
+    )
+
+# Add CORS middleware with secure configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,  # Use computed origins from settings
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS,
+    allow_headers=settings.CORS_ALLOW_HEADERS,
+    max_age=settings.CORS_MAX_AGE,
+)
+
+# Add custom middleware
 app.middleware("http")(logging_middleware)
+
+# Enhanced security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Set proper content types for specific files
+    path = request.url.path
+    
+    # Special handling for service worker
+    if path == "/registerSW.js" or path.endswith("registerSW.js"):
+        response.headers["Content-Type"] = "application/javascript"
+        response.headers["Service-Worker-Allowed"] = "/"
+        response.headers["Cache-Control"] = "no-cache"
+        # Don't set X-Content-Type-Options for service worker
+        return response
+    
+    # Set content types based on file extension
+    content_type_map = {
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.css': 'text/css',
+        '.ico': 'image/x-icon',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webmanifest': 'application/manifest+json',
+        '.xml': 'application/xml',
+        '.html': 'text/html',
+        '.webp': 'image/webp'
+    }
+    
+    for ext, content_type in content_type_map.items():
+        if path.endswith(ext):
+            response.headers["Content-Type"] = content_type
+            break
+    
+    # Security headers (only if enabled in settings)
+    if settings.SECURE_HEADERS_ENABLED:
+        # Basic security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # HSTS (only for HTTPS)
+        if settings.is_secure:
+            response.headers["Strict-Transport-Security"] = f"max-age={settings.HSTS_MAX_AGE}; includeSubDomains"
+        
+        # Content Security Policy (if configured)
+        if settings.CONTENT_SECURITY_POLICY:
+            response.headers["Content-Security-Policy"] = settings.CONTENT_SECURITY_POLICY
+        else:
+            # Default CSP
+            csp_directives = [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  # Required for Vue.js
+                "style-src 'self' 'unsafe-inline'",  # Required for inline styles
+                "img-src 'self' data: https: blob:",  # Allow images from various sources
+                "font-src 'self' data:",
+                "connect-src 'self' wss: ws: https:",  # WebSocket and API connections
+                "media-src 'self' blob:",  # For video playback
+                "worker-src 'self' blob:",  # For service workers
+                "manifest-src 'self'",
+                "frame-ancestors 'none'"
+            ]
+            response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+        
+        # Permissions Policy (modern replacement for Feature Policy)
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    
+    return response
+
+# Add request ID middleware for tracking
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    import uuid
+    request_id = str(uuid.uuid4())
+    
+    # Add request ID to logger context
+    logger.info(f"Request {request_id}: {request.method} {request.url.path}")
+    
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    
+    return response
+
+# Rate limiting middleware (basic implementation)
+from collections import defaultdict
+from datetime import datetime, timedelta
+import time
+
+request_counts = defaultdict(list)
+RATE_LIMIT_REQUESTS = 100  # requests
+RATE_LIMIT_WINDOW = 60  # seconds
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    # Skip rate limiting for health checks and static files
+    if request.url.path in ["/health", "/favicon.ico"] or request.url.path.startswith("/assets/"):
+        return await call_next(request)
+    
+    # Get client IP
+    client_ip = request.client.host
+    if request.headers.get("X-Forwarded-For"):
+        client_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
+    
+    current_time = time.time()
+    
+    # Clean old requests
+    request_counts[client_ip] = [
+        req_time for req_time in request_counts[client_ip]
+        if req_time > current_time - RATE_LIMIT_WINDOW
+    ]
+    
+    # Check rate limit
+    if len(request_counts[client_ip]) >= RATE_LIMIT_REQUESTS:
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        return Response(
+            content="Rate limit exceeded",
+            status_code=429,
+            headers={
+                "Retry-After": str(RATE_LIMIT_WINDOW),
+                "X-RateLimit-Limit": str(RATE_LIMIT_REQUESTS),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int(current_time + RATE_LIMIT_WINDOW))
+            }
+        )
+    
+    # Add current request
+    request_counts[client_ip].append(current_time)
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Add rate limit headers
+    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+    response.headers["X-RateLimit-Remaining"] = str(RATE_LIMIT_REQUESTS - len(request_counts[client_ip]))
+    response.headers["X-RateLimit-Reset"] = str(int(current_time + RATE_LIMIT_WINDOW))
+    
+    return response
 
 # WebSocket endpoint
 @app.websocket("/ws")
@@ -252,6 +521,9 @@ app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 app.include_router(videos.router)  # Router already has /api prefix
+app.include_router(images.router)  # Images serving routes
+app.include_router(api_images.router)  # Images API routes
+app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 
 # Push notification routes
 from app.routes import push as push_router
@@ -329,7 +601,7 @@ async def serve_manifest_webmanifest():
 
 @app.get("/sw.js")
 async def service_worker():
-    for path in ["app/frontend/public/sw.js", "/app/app/frontend/public/sw.js"]:
+    for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
         try:
             return FileResponse(
                 path,
@@ -466,6 +738,52 @@ app.add_exception_handler(Exception, error_handler)
 
 # Auth Middleware
 app.add_middleware(AuthMiddleware)
+
+# Service Worker registration script with enhanced security
+@app.get("/registerSW.js")
+async def serve_register_sw():
+    """Serve the service worker registration script"""
+    for base_path in ["/app/app/frontend/dist", "app/frontend/dist"]:
+        sw_path = Path(base_path) / "registerSW.js"
+        if sw_path.exists():
+            # Validate file content (basic check)
+            try:
+                with open(sw_path, 'r') as f:
+                    content = f.read()
+                    # Basic validation - should contain service worker registration code
+                    if 'serviceWorker' not in content:
+                        logger.warning("Service worker file doesn't contain expected content")
+                        continue
+            except Exception as e:
+                logger.error(f"Error reading service worker file: {e}")
+                continue
+                
+            return FileResponse(
+                sw_path,
+                media_type="application/javascript",
+                headers={
+                    "Service-Worker-Allowed": "/",
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "X-Content-Type-Options": "nosniff"  # Override for service worker
+                }
+            )
+    
+    # If not found in dist, serve a minimal registration script
+    minimal_sw = """
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => console.log('Service Worker registered', reg))
+            .catch(err => console.error('Service Worker registration failed', err));
+    }
+    """
+    return Response(
+        content=minimal_sw,
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache"
+        }
+    )
 
 # SPA catch-all route must be last - only serve for non-API paths
 @app.get("/{full_path:path}")

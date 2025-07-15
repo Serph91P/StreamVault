@@ -1,21 +1,42 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, Text, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
+import json
+
+class Recording(Base):
+    __tablename__ = "recordings"
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_recordings_stream_status', 'stream_id', 'status'),  # For finding recordings by stream and status
+        Index('idx_recordings_status_time', 'status', 'start_time'),  # For finding recordings by status and time
+        {'extend_existing': True}
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
+    start_time = Column(DateTime(timezone=True), nullable=False, index=True)
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error"
+    duration = Column(Integer, nullable=True)  # Duration in seconds
+    path = Column(String, nullable=True)  # Path to the recording file
+    
+    # Relationship to Stream
+    stream = relationship("Stream", backref="recordings")
 
 class Streamer(Base):
     __tablename__ = "streamers"
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    twitch_id = Column(String, unique=True, nullable=False)
-    username = Column(String, nullable=False)
-    is_live = Column(Boolean, default=False)
+    twitch_id = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, nullable=False, index=True)
+    is_live = Column(Boolean, default=False, index=True)
     title = Column(String)
-    category_name = Column(String)
+    category_name = Column(String, index=True)
     language = Column(String)
     last_updated = Column(DateTime(timezone=True))
     profile_image_url = Column(String)
@@ -24,20 +45,29 @@ class Streamer(Base):
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
 class Stream(Base):
     __tablename__ = "streams"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_streams_streamer_active', 'streamer_id', 'ended_at'),  # For finding active streams
+        Index('idx_streams_streamer_recent', 'streamer_id', 'started_at'),  # For recent streams by streamer
+        Index('idx_streams_category_recent', 'category_name', 'started_at'),  # For recent streams by category
+        Index('idx_streams_time_range', 'started_at', 'ended_at'),  # For time-based queries
+        {'extend_existing': True}
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String, nullable=True)
-    category_name = Column(String, nullable=True)
+    category_name = Column(String, nullable=True, index=True)
     language = Column(String, nullable=True)
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
-    twitch_stream_id = Column(String, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    twitch_stream_id = Column(String, nullable=True, index=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
+    episode_number = Column(Integer, nullable=True)  # Episode number for this stream
     
     # Relationships
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
+    active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False)
     
     @property
     def is_live(self):
@@ -45,15 +75,21 @@ class Stream(Base):
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index('idx_stream_events_stream_type', 'stream_id', 'event_type'),  # For finding events by stream and type
+        Index('idx_stream_events_stream_time', 'stream_id', 'timestamp'),  # For chronological events by stream
+        Index('idx_stream_events_type_time', 'event_type', 'timestamp'),  # For recent events by type
+        {'extend_existing': True}
+    )
 
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
-    event_type = Column(String, nullable=False)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
+    event_type = Column(String, nullable=False, index=True)
     title = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
 class User(Base):
     __tablename__ = "users"
@@ -80,7 +116,7 @@ class NotificationSettings(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, index=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     notify_online = Column(Boolean, default=True)
     notify_offline = Column(Boolean, default=True)
     notify_update = Column(Boolean, default=True)
@@ -145,7 +181,7 @@ class StreamerRecordingSettings(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
-    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, default=True)
     quality = Column(String, default="best")
     custom_filename = Column(String, nullable=True)
@@ -161,7 +197,7 @@ class StreamMetadata(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
-    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"))
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
     
     # Thumbnails
     thumbnail_path = Column(String)
@@ -211,3 +247,56 @@ class SystemConfig(Base):
     description = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ActiveRecordingState(Base):
+    """
+    Persistent state for active recordings
+    
+    This table tracks active recording processes and survives application restarts.
+    It enables recovery of running recordings after crashes or deployments.
+    """
+    __tablename__ = "active_recordings_state"
+    __table_args__ = (
+        Index('ix_active_recordings_stream_id', 'stream_id'),
+        Index('ix_active_recordings_status', 'status'),
+        Index('ix_active_recordings_heartbeat', 'last_heartbeat'),
+        {'extend_existing': True}
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stream_id = Column(Integer, ForeignKey('streams.id'), nullable=False, unique=True)
+    recording_id = Column(Integer, ForeignKey('recordings.id'), nullable=False)
+    process_id = Column(Integer, nullable=False)  # OS process ID
+    process_identifier = Column(String(100), nullable=False)  # Internal process identifier
+    streamer_name = Column(String(100), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    ts_output_path = Column(String(500), nullable=False)
+    force_mode = Column(Boolean, default=False)
+    quality = Column(String(50), default='best')
+    status = Column(String(50), default='active')  # active, stopping, error
+    last_heartbeat = Column(DateTime(timezone=True), nullable=False)
+    config_json = Column(Text, nullable=True)  # Serialized config
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    stream = relationship("Stream", back_populates="active_recording_state")
+    recording = relationship("Recording")
+    
+    def get_config(self):
+        """Get deserialized config"""
+        if self.config_json:
+            return json.loads(self.config_json)
+        return {}
+    
+    def set_config(self, config_dict):
+        """Set serialized config"""
+        self.config_json = json.dumps(config_dict) if config_dict else None
+    
+    def is_stale(self, max_age_seconds=300):
+        """Check if heartbeat is stale (default 5 minutes)"""
+        if not self.last_heartbeat:
+            return True
+        age = (datetime.now(self.last_heartbeat.tzinfo) - self.last_heartbeat).total_seconds()
+        return age > max_age_seconds

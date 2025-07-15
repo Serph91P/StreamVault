@@ -76,16 +76,8 @@ mkdir -p /app/frontend/public/images/categories
 chmod -R 775 /app/frontend/public/images/categories
 log_msg "Category images directory permissions set"
 
-if [ "$ENVIRONMENT" = "development" ]; then
-    log_msg "Running database migrations in development mode..."
-    python -c "from app.services.migration_service import MigrationService; MigrationService.run_safe_migrations()"
-    migration_status=$?
-    if [ $migration_status -ne 0 ]; then
-        log_msg "WARNING: Database migrations failed with status $migration_status"
-    else
-        log_msg "Database migrations completed successfully"
-    fi
-fi
+# Database migrations are now handled by the application startup in main.py
+log_msg "Database migrations will be handled by application startup..."
 
 log_msg "Starting FastAPI application..."
 # Start the application

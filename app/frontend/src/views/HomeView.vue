@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useStreams } from '@/composables/useStreams'
+import { useWebSocket } from '@/composables/useWebSocket'
 
-const { streamers, fetchStreamers } = useStreamers()
+const { streamers, fetchStreamers, updateStreamer } = useStreamers()
 const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
+const { messages, connectionStatus } = useWebSocket()
 const totalStreamers = computed(() => streamers.value.length)
 const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
-const totalActiveRecordings = computed(() => activeRecordings.value.length)
+const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
 
 // For last recording, fetch all streams and find the latest ended stream
 const lastRecording = ref<any>(null)
@@ -42,10 +44,70 @@ async function fetchLastRecording() {
   const latestStream = endedStreams[0] || null
   lastRecording.value = latestStream
   if (latestStream) {
-    lastRecordingStreamer.value = streamers.value.find(s => s.id === latestStream.streamer_id)
+    lastRecordingStreamer.value = streamers.value.find(s => String(s.id) === String(latestStream.streamer_id))
   }
   isLoadingLastRecording.value = false
 }
+
+// WebSocket message handling
+watch(messages, (newMessages) => {
+  const message = newMessages[newMessages.length - 1]
+  if (!message) return
+
+  console.log('HomeView: New message detected:', message)
+
+  switch (message.type) {
+    case 'stream.online': {
+      console.log('HomeView: Processing stream online:', message.data)
+      updateStreamer(String(message.data.streamer_id), {
+        is_live: true,
+        title: message.data.title || '',
+        category_name: message.data.category_name || '',
+        language: message.data.language || '',
+        last_updated: new Date().toISOString()
+      })
+      break
+    }
+    case 'stream.offline': {
+      console.log('HomeView: Processing stream offline:', message.data)
+      updateStreamer(String(message.data.streamer_id), {
+        is_live: false,
+        last_updated: new Date().toISOString()
+      })
+      break
+    }
+    case 'recording.started': {
+      console.log('HomeView: Processing recording started:', message.data)
+      const streamerId = Number(message.data.streamer_id)
+      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
+      if (streamer) {
+        streamer.is_recording = true
+      }
+      // Refresh active recordings count
+      fetchActiveRecordings()
+      break
+    }
+    case 'recording.stopped': {
+      console.log('HomeView: Processing recording stopped:', message.data)
+      const streamerId = Number(message.data.streamer_id)
+      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
+      if (streamer) {
+        streamer.is_recording = false
+      }
+      // Refresh active recordings count
+      fetchActiveRecordings()
+      break
+    }
+  }
+}, { deep: true })
+
+// Connection status handling
+watch(connectionStatus, (status) => {
+  if (status === 'connected') {
+    void fetchStreamers()
+    void fetchActiveRecordings()
+  }
+}, { immediate: true })
 
 onMounted(async () => {
   await fetchStreamers()

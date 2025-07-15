@@ -90,4 +90,5 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
-/lsdvr
+CLAUDE.md
+AGENT.md

@@ -3,6 +3,8 @@ Enhanced Push Service using a more modern implementation
 """
 import json
 import logging
+import urllib.parse
+import http.client
 from typing import Dict, Any, Optional, Union
 from app.config.settings import settings
 from app.services.webpush_service import ModernWebPushService, WebPushException
@@ -62,22 +64,28 @@ class EnhancedPushService:
                 logger.error("Subscription missing required 'endpoint' field")
                 return False
 
-            # Prepare the notification payload
+            # Prepare the notification payload as a JSON string
             payload = json.dumps(notification_data)
             
             # Debug logging
             logger.debug(f"Sending push notification with payload: {payload[:100]}...")
             
             # Send the push notification using our enhanced service
-            success = self.web_push_service.send_notification(
-                subscription_info=subscription,
-                data=notification_data,
-                ttl=43200  # 12 hours TTL
-            )
-            
-            if success:
-                logger.debug(f"Push notification sent successfully to {subscription.get('endpoint', 'unknown')[:50]}...")
-            return success
+            try:
+                # Pass the payload as JSON string, not the dictionary directly
+                success = self.web_push_service.send_notification(
+                    subscription_info=subscription,
+                    data=payload,
+                    ttl=43200  # 12 hours TTL
+                )
+                
+                if success:
+                    logger.debug(f"Push notification sent successfully to {subscription.get('endpoint', 'unknown')[:50]}...")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Failed to send push notification: {e}")
+                return False
             
         except WebPushException as e:
             logger.error(f"WebPush error: {e}")

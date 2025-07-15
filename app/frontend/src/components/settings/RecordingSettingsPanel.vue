@@ -76,9 +76,11 @@
               <div class="help-text">
                 Choose a preset or customize the filename template.
                 <br><strong>Available variables:</strong>
-                <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
-                  {{ variable.key }}
-                </span>
+                <div class="variables-container">
+                  <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
+                    {{ variable.key }}
+                  </span>
+                </div>
                 <br><br><strong>Example output: </strong>
                 <code class="example-output">Streamername - S202506E01 - Just Chatting Stream.mp4</code>
                 <br><small>Episode numbers (E01, E02, E03) are based on stream order within the month, not date.</small>
@@ -477,12 +479,18 @@ onMounted(() => {
   loadProxySettings();
 });
 
+// Function to detect preset from template
+const detectPresetFromTemplate = (template: string): string => {
+  const preset = FILENAME_PRESETS.find((p: any) => p.description === template);
+  return preset ? preset.value : 'default';
+};
+
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   output_directory: props.settings?.output_directory ?? '/recordings',
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
-  filename_preset: props.settings?.filename_preset,
+  filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
   use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
@@ -498,7 +506,10 @@ const updateFilenameTemplate = () => {
 // Update local data when props change
 watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   if (newSettings) {
-    data.value = { ...newSettings };
+    data.value = { 
+      ...newSettings, 
+      filename_preset: newSettings.filename_preset || detectPresetFromTemplate(newSettings.filename_template ?? '')
+    };
   }
 }, { deep: true });
 
@@ -1366,6 +1377,13 @@ select.form-control-sm option {
     padding: 3px 6px;
   }
 
+  .variables-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0;
+  }
+
   .variable-tag {
     display: inline-block;
     background-color: var(--background-dark, #2a2a2a);
@@ -1373,7 +1391,6 @@ select.form-control-sm option {
     border: 1px solid var(--border-color, #404040);
     border-radius: 4px;
     padding: 4px 8px;
-    margin: 4px 8px 4px 0;
     font-family: 'Courier New', 'Monaco', monospace;
     font-size: 0.8em;
     font-weight: 500;

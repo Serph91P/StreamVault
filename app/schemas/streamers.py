@@ -6,7 +6,7 @@ class StreamerBase(BaseModel):
     username: str
     
 class StreamerCreate(StreamerBase):
-    pass
+    settings: Optional[Dict[str, Any]] = None
 
 class StreamerResponse(BaseModel):
     id: int
@@ -14,7 +14,8 @@ class StreamerResponse(BaseModel):
     username: str
     is_live: bool
     is_recording: bool = False  # Whether currently recording
-    recording_enabled: bool = False  # Whether recording is enabled for this streamer
+    recording_enabled: bool = True  # Whether recording is enabled for this streamer (default True)
+    active_stream_id: Optional[int] = None
     title: Optional[str] = None
     category_name: Optional[str] = None
     language: Optional[str] = None
@@ -24,5 +25,6 @@ class StreamerResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 class StreamerList(BaseModel):
     streamers: List[StreamerResponse]

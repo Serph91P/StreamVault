@@ -18,13 +18,6 @@ from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingS
 from app.config.settings import settings
 from app.services.logging_service import logging_service
 from app.services.artwork_service import artwork_service
-from app.utils.mp4box_utils import (
-    embed_metadata_with_mp4box,
-    get_mp4_duration,
-    extract_thumbnail_with_mp4box,
-    validate_mp4_with_mp4box
-)
-from app.utils.file_utils import embed_metadata_with_mp4box_wrapper
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
@@ -44,73 +37,71 @@ class MetadataService:
         if self.session and not self.session.closed:
             await self.session.close()
     
-    async def generate_metadata_for_stream(self, stream_id: int, mp4_path: str) -> bool:
-        """Generiert alle Metadatendateien für einen Stream.
-        
-        Args:
-            stream_id: ID des Streams
-            mp4_path: Pfad zur MP4-Datei
-            
-        Returns:
-            bool: True bei Erfolg, False bei Fehler
-        """
+    async def generate_metadata_for_stream(
+        self, 
+        stream_id: int, 
+        base_path: str,
+        base_filename: str
+    ) -> bool:
+        """Generate all metadata files for a stream"""
         try:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream with ID {stream_id} not found for metadata generation")
+                    logger.error(f"Stream {stream_id} not found")
                     return False
                 
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
-                    logger.warning(f"Streamer not found for stream {stream_id}")
+                    logger.error(f"Streamer {stream.streamer_id} not found")
                     return False
                 
-                # Basispfad für Metadaten
-                base_path = Path(mp4_path).parent
-                base_filename = Path(mp4_path).stem
+                base_path_obj = Path(base_path)
                 
-                # Metadaten-Objekt erstellen oder abrufen
+                # Get or create metadata
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                 if not metadata:
                     metadata = StreamMetadata(stream_id=stream_id)
                     db.add(metadata)
-                    db.commit()  # Commit here to ensure it exists for later references
+                    db.commit()
                 
-                # Aufgaben parallel ausführen - Aber auch bei Fehlern weitermachen
-                results = []
-                try:
-                    result_json = await self.generate_json_metadata(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_json)
-                except Exception as e:
-                    logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
-                    results.append(False)
+                # Create all metadata files in parallel
+                tasks = [
+                    # JSON metadata
+                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename, metadata),
+                    # NFO for media servers
+                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename, metadata),
+                    # All chapter formats
+                    self.ensure_all_chapter_formats(stream_id, base_path_obj / f"{base_filename}.mp4", db),
+                    # Media server specific files (poster.jpg, etc.)
+                    self._create_media_server_specific_files(stream, base_path_obj)
+                ]
                 
-                try:
-                    result_nfo = await self.generate_nfo_file(db, stream, streamer, base_path, base_filename, metadata)
-                    results.append(result_nfo)
-                except Exception as e:
-                    logger.error(f"Error generating NFO file: {e}", exc_info=True)
-                    results.append(False)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                try:
-                    result_thumbnail = await self.extract_thumbnail(mp4_path, stream_id, db)
-                    results.append(result_thumbnail is not None)
-                except Exception as e:
-                    logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
-                    results.append(False)
+                logger.info(f"All metadata generation tasks completed for stream {stream_id}")
                 
-                try:
-                    result_chapters = await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
-                    results.append(result_chapters is not None)
-                except Exception as e:
-                    logger.error(f"Error generating chapters: {e}", exc_info=True)
-                    results.append(False)
+                # Count successes and log errors
+                successes = 0
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
+                        logger.error(f"{task_names[i]} failed: {result}")
+                    elif result is True:
+                        successes += 1
+                    else:
+                        # If result is not True and not an exception, it might be None or False
+                        logger.warning(f"Task {i} returned unexpected result: {result}")
                 
-                db.commit()
-                success_count = sum(1 for r in results if r)
-                logger.info(f"Generated metadata for stream {stream_id} - {success_count}/{len(results)} tasks successful")
-                return success_count > 0  # Success if at least one task succeeded
+                # Return True only if at least one task succeeded
+                success = successes > 0
+                if success:
+                    logger.info(f"Generated metadata for stream {stream_id}: {successes}/{len(tasks)} tasks succeeded")
+                else:
+                    logger.error(f"All metadata generation tasks failed for stream {stream_id}")
+                
+                return success
+            
         except Exception as e:
             logger.error(f"Error generating metadata: {e}", exc_info=True)
             return False
@@ -666,7 +657,7 @@ class MetadataService:
         db: Optional[Session] = None
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
-        Now uses MP4Box for MP4 files and FFmpeg for other formats.
+        Uses FFmpeg for all video formats.
         
         Args:
             video_path: Pfad zur Videodatei
@@ -697,37 +688,10 @@ class MetadataService:
                 
                 return str(thumbnail_path)
             
-            # Check if this is an MP4 file - prefer MP4Box for MP4 files
-            if video_path.lower().endswith('.mp4'):
-                logger.info(f"Using MP4Box for thumbnail extraction from MP4 file: {video_path}")
-                
-                # First validate the MP4 file
-                is_valid = await validate_mp4_with_mp4box(video_path)
-                if not is_valid:
-                    logger.warning(f"MP4 file validation failed, falling back to FFmpeg: {video_path}")
-                else:
-                    # Try MP4Box thumbnail extraction
-                    success = await extract_thumbnail_with_mp4box(
-                        video_path,
-                        str(thumbnail_path),
-                        10.0  # 10 seconds offset
-                    )
-                    
-                    if success and thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
-                        logger.info(f"Successfully extracted thumbnail with MP4Box: {thumbnail_path}")
-                        
-                        # Update metadata if provided
-                        if stream_id and db:
-                            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                            if metadata:
-                                metadata.thumbnail_path = str(thumbnail_path)
-                                db.commit()
-                        
-                        return str(thumbnail_path)
-                    else:
-                        logger.warning(f"MP4Box thumbnail extraction failed, falling back to FFmpeg")
+            # For all video files, use FFmpeg to extract thumbnails
+            logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
             
-            # Fallback to FFmpeg for non-MP4 files or if MP4Box fails
+            # Use FFmpeg for all video files
             logger.info(f"Using FFmpeg for thumbnail extraction: {video_path}")
             
             # Check if the file has video streams first
@@ -1577,8 +1541,7 @@ class MetadataService:
             return None
 
     async def embed_all_metadata(self, mp4_path: str, chapters_path: str, stream_id: int) -> bool:
-        """Embed both chapters and all other metadata in one pass.
-        Now uses MP4Box for better MP4 metadata handling."""
+        """Embed both chapters and all other metadata in one pass."""
         try:
             logger.info(f"Starting metadata embedding for stream {stream_id}, mp4: {mp4_path}")
             mp4_path_obj = Path(mp4_path)
@@ -1601,14 +1564,6 @@ class MetadataService:
                 
             logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
             
-            # Validate MP4 file using MP4Box (more reliable than ffprobe)
-            logger.info(f"Validating MP4 file with MP4Box: {mp4_path}")
-            is_valid = await validate_mp4_with_mp4box(mp4_path)
-            if not is_valid:
-                logger.error(f"MP4 file validation failed with MP4Box: {mp4_path}")
-                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4 validation failed: {mp4_path}")
-                return False
-            
             # Get stream and streamer information
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -1626,12 +1581,12 @@ class MetadataService:
                     logger.error(f"Metadata not found for stream: {stream_id}")
                     return False
                 
-                # Create temporary output file for MP4Box
+                # Create temporary output file for metadata embedding
                 temp_output = f"{mp4_path}.metadata.tmp"
                 
                 try:
-                    # Use MP4Box-based metadata embedding
-                    success = await self.embed_metadata_with_mp4box_service(
+                    # Embed metadata using FFmpeg
+                    success = await self.embed_metadata_with_ffmpeg_service(
                         db, stream, streamer, mp4_path, temp_output, metadata
                     )
                     
@@ -1639,16 +1594,16 @@ class MetadataService:
                         # Replace original file with the metadata-embedded version
                         import shutil
                         shutil.move(temp_output, mp4_path)
-                        logger.info(f"Successfully embedded metadata using MP4Box for stream {stream_id}")
-                        logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] MP4Box metadata embedding successful: {mp4_path}")
+                        logger.info(f"Successfully embedded metadata using FFmpeg for stream {stream_id}")
+                        logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] FFmpeg metadata embedding successful: {mp4_path}")
                         return True
                     else:
-                        logger.error(f"MP4Box metadata embedding failed for stream {stream_id}")
-                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4Box metadata embedding failed: {mp4_path}")
+                        logger.error(f"FFmpeg metadata embedding failed for stream {stream_id}")
+                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] FFmpeg metadata embedding failed: {mp4_path}")
                         return False
                 
                 except Exception as e:
-                    logger.error(f"Error during MP4Box metadata embedding: {e}")
+                    logger.error(f"Error during FFmpeg metadata embedding: {e}")
                     # Clean up temp file if it exists
                     if os.path.exists(temp_output):
                         os.remove(temp_output)
@@ -1847,7 +1802,7 @@ class MetadataService:
                     validate_output_process = await asyncio.create_subprocess_exec(
                         *validate_output_cmd,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                                               stderr=asyncio.subprocess.PIPE
                     )
                     
                     validate_output_stdout, validate_output_stderr = await validate_output_process.communicate()
@@ -1919,7 +1874,6 @@ class MetadataService:
             return success
         except Exception as e:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
-            from app.services.logging_service import logging_service
             logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_EXCEPTION] Unhandled error: {str(e)}")
             return False
     
@@ -2061,7 +2015,7 @@ class MetadataService:
         return text.replace('=', '\\=').replace(';', '\\;').replace('#', '\\#').replace('\\', '\\\\')
     
     def _format_xml_time(self, seconds: float) -> str:
-        """Formatiert Sekunden in das XML-Format für MP4Box/Matroska: HH:MM:SS.nnnnnnnnn.
+        """Formatiert Sekunden in das XML-Format für FFmpeg/Matroska: HH:MM:SS.nnnnnnnnn.
         
         Returns:
             str: Formatierter Zeitstempel
@@ -2071,7 +2025,7 @@ class MetadataService:
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:09.6f}"
     
-    async def embed_metadata_with_mp4box_service(
+    async def embed_metadata_with_ffmpeg_service(
         self,
         db: Session,
         stream: Stream,
@@ -2081,8 +2035,7 @@ class MetadataService:
         metadata: StreamMetadata
     ) -> bool:
         """
-        Embed metadata into MP4 file using MP4Box instead of FFmpeg.
-        This is the new preferred method for metadata embedding.
+        Embed metadata into MP4 file using FFmpeg.
         
         Args:
             db: Database session
@@ -2096,9 +2049,9 @@ class MetadataService:
             bool: True on success, False on error
         """
         try:
-            logger.info(f"Embedding metadata using MP4Box for stream {stream.id}")
+            logger.info(f"Embedding metadata using FFmpeg for stream {stream.id}")
             
-            # Prepare metadata dictionary for MP4Box
+            # Prepare metadata dictionary for FFmpeg
             metadata_dict = {
                 "title": stream.title or "Stream Recording",
                 "artist": streamer.username,
@@ -2113,32 +2066,52 @@ class MetadataService:
             }
             
             # Get chapter information if available
-            chapters = await self._get_chapters_for_mp4box(db, stream)
+            chapters = await self._get_chapters_for_ffmpeg(db, stream)
             
-            # Use the wrapper function for embedding
-            result = await embed_metadata_with_mp4box_wrapper(
-                input_path,
-                output_path,
-                metadata_dict,
-                chapters,
-                streamer.username,
-                logging_service
+            # Build FFmpeg command for metadata embedding
+            cmd = [
+                "ffmpeg",
+                "-i", input_path,
+                "-c", "copy",
+                "-metadata", f"title={metadata_dict['title']}",
+                "-metadata", f"artist={metadata_dict['artist']}",
+                "-metadata", f"album={metadata_dict['album']}",
+                "-metadata", f"year={metadata_dict['year']}",
+                "-metadata", f"genre={metadata_dict['genre']}",
+                "-metadata", f"comment={metadata_dict['comment']}",
+                "-metadata", f"description={metadata_dict['description']}",
+                "-metadata", f"streamer={metadata_dict['streamer']}",
+                "-metadata", f"game={metadata_dict['game']}",
+                "-metadata", f"stream_date={metadata_dict['stream_date']}",
+                "-y",  # Overwrite output file if exists
+                output_path
+            ]
+            
+            logger.debug(f"FFmpeg command for metadata embedding: {' '.join(cmd)}")
+            
+            # Execute FFmpeg command
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             
-            if result["success"]:
-                logger.info(f"Successfully embedded metadata using MP4Box for stream {stream.id}")
-                return True
-            else:
-                logger.error(f"Failed to embed metadata using MP4Box: {result['stderr']}")
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                logger.error(f"FFmpeg metadata embedding failed: {stderr.decode('utf-8', errors='ignore')}")
                 return False
-                
+            
+            logger.info(f"Successfully embedded metadata using FFmpeg for stream {stream.id}")
+            return True
+        
         except Exception as e:
-            logger.error(f"Error embedding metadata with MP4Box: {e}", exc_info=True)
+            logger.error(f"Error embedding metadata with FFmpeg: {e}", exc_info=True)
             return False
     
-    async def _get_chapters_for_mp4box(self, db: Session, stream: Stream) -> Optional[List[Dict[str, Any]]]:
+    async def _get_chapters_for_ffmpeg(self, db: Session, stream: Stream) -> Optional[List[Dict[str, Any]]]:
         """
-        Get chapter information formatted for MP4Box.
+        Get chapter information formatted for FFmpeg.
         
         Args:
             db: Database session
@@ -2171,7 +2144,5 @@ class MetadataService:
             return chapters
             
         except Exception as e:
-            logger.error(f"Error getting chapters for MP4Box: {e}")
+            logger.error(f"Error getting chapters for FFmpeg: {e}")
             return None
-
-    # ...existing code...

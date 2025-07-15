@@ -10,11 +10,16 @@ import http.client
 import urllib.parse
 import os
 from typing import Dict, Any, Optional, Union
-from py_vapid import Vapid
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+try:
+    from py_vapid import Vapid
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    HAS_VAPID = True
+except ImportError:
+    HAS_VAPID = False
 
 logger = logging.getLogger("streamvault")
 
@@ -27,12 +32,17 @@ class WebPushException(Exception):
 
 class ModernWebPushService:
     def __init__(self, vapid_private_key: str, vapid_claims: Dict[str, str]):
-        """Initialize the web push service with VAPID keys and claims
+        """Initialize the web push service with VAPID keys and claims"""
+        if not HAS_VAPID:
+            logger.warning("py-vapid not available, web push service will be disabled")
+            self.disabled = True
+            return
         
-        Args:
-            vapid_private_key: The private VAPID key as a base64url-encoded string
-            vapid_claims: Dictionary containing at least 'sub' (mailto: or https: URI)
-        """
+        self.disabled = False
+        
+        # Args:
+        #     vapid_private_key: The private VAPID key as a base64url-encoded string
+        #     vapid_claims: Dictionary containing at least 'sub' (mailto: or https: URI)
         self.vapid = Vapid.from_string(private_key=vapid_private_key)
         self.claims = vapid_claims
         
@@ -117,6 +127,9 @@ class ModernWebPushService:
         Returns:
             bool: True if the notification was sent successfully
         """
+        if self.disabled:
+            logger.warning("WebPush service is disabled (py-vapid not available)")
+            return False
         # Debug logging to see what we're getting
         logger.debug(f"Received subscription_info type: {type(subscription_info)}")
         logger.debug(f"Subscription_info content: {subscription_info}")
