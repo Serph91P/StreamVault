@@ -798,7 +798,7 @@ class RecordingService:
             # Check if TS file exists and can be remuxed
             if os.path.exists(ts_path) and os.path.getsize(ts_path) > 1000000:  # > 1MB
                 logger.info(f"Found TS file, attempting remux: {ts_path}")
-                result = await convert_ts_to_mp4(ts_path, mp4_path, overwrite=True, streamer_name=self.streamer_name)
+                result = await convert_ts_to_mp4(ts_path, mp4_path, overwrite=True, streamer_name=self.streamer_name, logging_service=self.logging_service)
                 if result["success"] and os.path.exists(mp4_path):
                     if validate_mp4(mp4_path):
                         logger.info(f"Successfully remuxed to valid MP4: {mp4_path}")
