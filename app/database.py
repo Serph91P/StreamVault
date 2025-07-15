@@ -47,7 +47,8 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
             
             # Test the connection
             with engine.connect() as conn:
-                conn.execute("SELECT 1")
+                from sqlalchemy.sql import text
+                conn.execute(text("SELECT 1"))
             
             logger.info(f"✅ Database connection established successfully on attempt {attempt + 1}")
             return engine

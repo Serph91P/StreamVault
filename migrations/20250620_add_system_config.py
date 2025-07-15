@@ -6,7 +6,7 @@ Used for storing VAPID keys and other system-wide settings.
 import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import reflection
-from app.config.settings import settings
+import os
 
 logger = logging.getLogger("streamvault")
 
@@ -15,7 +15,16 @@ def apply_migration():
     try:
         logger.info("Starting system_config table migration...")
         
-        engine = create_engine(settings.DATABASE_URL)
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            logger.error("DATABASE_URL not found in environment")
+            return False
+            
+        # Ensure the URL uses the correct psycopg3 driver
+        if database_url.startswith('postgresql://'):
+            database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
+        
+        engine = create_engine(database_url)
         
         with engine.connect() as connection:
             # Check if table already exists
@@ -55,7 +64,16 @@ def rollback_migration():
     try:
         logger.info("Rolling back system_config table migration...")
         
-        engine = create_engine(settings.DATABASE_URL)
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            logger.error("DATABASE_URL not found in environment")
+            return False
+            
+        # Ensure the URL uses the correct psycopg3 driver
+        if database_url.startswith('postgresql://'):
+            database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
+        
+        engine = create_engine(database_url)
         
         with engine.connect() as connection:
             connection.execute(text("DROP TABLE IF EXISTS system_config CASCADE;"))
