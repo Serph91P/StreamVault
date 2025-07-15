@@ -37,6 +37,7 @@ from app.services.system_config_service import SystemConfigService
 from app.services.twitch_auth_service import TwitchAuthService
 from app.services.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.websocket_manager import ConnectionManager
+from app.services.unified_image_service import UnifiedImageService
 
 __all__ = [
     "LoggingService",
@@ -56,6 +57,7 @@ __all__ = [
     "TwitchAuthService",
     "ModernWebPushService",  # Changed from WebPushService
     "ConnectionManager",
+    "UnifiedImageService",
     # Export recording components
     "ConfigManager",
     "ProcessManager",

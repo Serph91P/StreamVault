@@ -9,6 +9,8 @@ from app.routes import twitch_auth
 from app.routes import recording as recording_router
 from app.routes import logging as logging_router
 from app.routes import videos
+from app.routes import images
+from app.routes import api_images
 from app.routes import background_queue
 import logging
 import hmac
@@ -28,6 +30,7 @@ from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_auth_service
+from app.services.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
@@ -102,6 +105,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start recording cleanup service: {e}")
         
+        # Start image sync service
+        try:
+            await image_sync_service.start_sync_worker()
+            logger.info("Image sync service started")
+        except Exception as e:
+            logger.error(f"Error starting image sync service: {e}", exc_info=True)
+        
         logger.info("Application startup complete")
         
     except Exception as e:
@@ -166,6 +176,13 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ Event registry cleaned up")
         except Exception as e:
             logger.error(f"❌ Error during EventSub shutdown: {e}")
+    
+    # Stop image sync service
+    try:
+        await image_sync_service.stop_sync_worker()
+        logger.info("✅ Image sync service stopped")
+    except Exception as e:
+        logger.error(f"❌ Error stopping image sync service: {e}")
     
     # Close database connections
     try:
@@ -495,6 +512,9 @@ app.include_router(recording_router.router)
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 app.include_router(videos.router)  # Router already has /api prefix
+app.include_router(images.router)  # Images serving routes
+app.include_router(api_images.router)  # Images API routes
+app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 
 # Push notification routes
 from app.routes import push as push_router

@@ -111,12 +111,17 @@ const saveProxySettings = async () => {
 onMounted(() => {
     loadProxySettings();
 });
+// Function to detect preset from template
+const detectPresetFromTemplate = (template) => {
+    const preset = FILENAME_PRESETS.find((p) => p.description === template);
+    return preset ? preset.value : 'default';
+};
 // Create a copy of the settings for editing
 const data = ref({
     enabled: props.settings?.enabled ?? false,
     output_directory: props.settings?.output_directory ?? '/recordings',
     filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
-    filename_preset: props.settings?.filename_preset,
+    filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
     default_quality: props.settings?.default_quality ?? 'best',
     use_chapters: props.settings?.use_chapters ?? true,
     use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
@@ -130,7 +135,10 @@ const updateFilenameTemplate = () => {
 // Update local data when props change
 watch(() => props.settings, (newSettings) => {
     if (newSettings) {
-        data.value = { ...newSettings };
+        data.value = {
+            ...newSettings,
+            filename_preset: newSettings.filename_preset || detectPresetFromTemplate(newSettings.filename_template ?? '')
+        };
     }
 }, { deep: true });
 const isSaving = ref(false);
@@ -441,6 +449,9 @@ else {
         });
         __VLS_asFunctionalElement(__VLS_intrinsicElements.br, __VLS_intrinsicElements.br)({});
         __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: "variables-container" },
+        });
         for (const [variable] of __VLS_getVForSourceType((__VLS_ctx.FILENAME_VARIABLES))) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
                 key: (variable.key),
@@ -889,6 +900,7 @@ if (__VLS_ctx.showStreamerPolicyDialog) {
 /** @type {__VLS_StyleScopedClasses['error-text']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-control']} */ ;
 /** @type {__VLS_StyleScopedClasses['help-text']} */ ;
+/** @type {__VLS_StyleScopedClasses['variables-container']} */ ;
 /** @type {__VLS_StyleScopedClasses['variable-tag']} */ ;
 /** @type {__VLS_StyleScopedClasses['example-output']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-group']} */ ;

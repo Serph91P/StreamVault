@@ -1,560 +1,84 @@
 """
-Migration service to automatically run all migrations on application startup
+Migration service for StreamVault database migrations.
+
+This service handles database migrations using separate migration files.
 """
+
 import os
-import importlib.util
-import logging
 import glob
+import logging
+import importlib.util
+import importlib
 from typing import List, Tuple
 from sqlalchemy import text, inspect
+from sqlalchemy.sql import func
 
-from app.config.settings import settings
-from app.database import SessionLocal, engine
+from app.database import engine, SessionLocal
+from app.config.settings import get_settings
 
 logger = logging.getLogger("streamvault")
 
 class MigrationService:
-    """Service to manage database migrations"""
     
     @staticmethod
     def ensure_migrations_table():
-        """Ensure the migrations tracking table exists"""
-        try:
-            with engine.connect() as connection:
-                connection.execute(text("""
-                    CREATE TABLE IF NOT EXISTS applied_migrations (
-                        id SERIAL PRIMARY KEY,
-                        migration_name VARCHAR(255) UNIQUE NOT NULL,
-                        applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        success BOOLEAN DEFAULT TRUE
-                    )
-                """))
-                connection.commit()
-                logger.info("✅ Migrations tracking table ready")
-        except Exception as e:
-            logger.error(f"❌ Failed to create migrations table: {e}")
-            raise
-
+        """Create the migrations table if it doesn't exist"""
+        with engine.connect() as connection:
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS migrations (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL UNIQUE,
+                    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    success BOOLEAN DEFAULT TRUE
+                )
+            """))
+            connection.commit()
+            
     @staticmethod
     def is_migration_applied(migration_name: str) -> bool:
-        """Check if a migration has already been applied"""
+        """Check if a migration has been applied"""
         try:
-            with engine.connect() as connection:
-                result = connection.execute(
-                    text("SELECT COUNT(*) FROM applied_migrations WHERE migration_name = :name"),
+            with SessionLocal() as db:
+                result = db.execute(
+                    text("SELECT COUNT(*) FROM migrations WHERE name = :name AND success = TRUE"),
                     {"name": migration_name}
-                )
-                return result.scalar() > 0
+                ).scalar()
+                return result > 0
         except Exception as e:
-            logger.warning(f"Could not check migration status for {migration_name}: {e}")
+            logger.error(f"Error checking migration status: {e}")
             return False
-
+            
     @staticmethod
     def mark_migration_applied(migration_name: str, success: bool = True):
         """Mark a migration as applied"""
         try:
-            with engine.connect() as connection:
-                connection.execute(
-                    text("""
-                        INSERT INTO applied_migrations (migration_name, success) 
-                        VALUES (:name, :success)
-                        ON CONFLICT (migration_name) 
-                        DO UPDATE SET success = :success, applied_at = CURRENT_TIMESTAMP
-                    """),
+            with SessionLocal() as db:
+                db.execute(
+                    text("INSERT INTO migrations (name, success) VALUES (:name, :success) ON CONFLICT (name) DO UPDATE SET success = :success"),
                     {"name": migration_name, "success": success}
                 )
-                connection.commit()
+                db.commit()
         except Exception as e:
-            logger.error(f"Failed to mark migration {migration_name} as applied: {e}")
+            logger.error(f"Error marking migration as applied: {e}")
     
     @staticmethod
-    def run_safe_migrations():
-        """Run all migrations safely with proper error handling"""
-        logger.info("🚀 Starting safe migration process...")
+    def run_migrations():
+        """Run all database migrations"""
+        logger.info("🔄 Starting database migrations...")
         
         # Ensure migrations table exists
         MigrationService.ensure_migrations_table()
         
-        migrations_to_run = [
-            {
-                "name": "20250522_add_stream_indices",
-                "description": "Add database indices for better performance",
-                "function": MigrationService._run_indices_migration
-            },
-            {
-                "name": "20250609_add_recording_path",
-                "description": "Add recording_path column to streams table",
-                "function": MigrationService._run_recording_path_migration
-            },
-            {
-                "name": "20250617_add_proxy_settings", 
-                "description": "Add proxy settings to global_settings",
-                "function": MigrationService._run_proxy_settings_migration
-            },
-            {
-                "name": "20250620_add_push_subscriptions",
-                "description": "Create push_subscriptions table",
-                "function": MigrationService._run_push_subscriptions_migration
-            },
-            {
-                "name": "20250620_add_system_config",
-                "description": "Create system_config table",
-                "function": MigrationService._run_system_config_migration
-            },
-            {
-                "name": "20250625_add_recording_model",
-                "description": "Create recordings table for the new modular recording service",
-                "function": MigrationService._run_recording_model_migration
-            },
-            {
-                "name": "20250702_setup_category_images",
-                "description": "Setup category image caching system and preload existing categories",
-                "function": MigrationService._run_category_images_migration
-            },
-            {
-                "name": "20250714_add_database_indexes",
-                "description": "Add comprehensive database indexes for performance optimization",
-                "function": MigrationService._run_database_indexes_migration
-            },
-            {
-                "name": "20250714_add_active_recordings_state",
-                "description": "Add active_recordings_state table for persistent recording state",
-                "function": MigrationService._run_active_recordings_state_migration
-            }
-        ]
+        # All migrations are now file-based in the migrations/ directory
+        # Run all file-based migrations from the migrations directory
+        file_migration_results = MigrationService.run_pending_migrations()
         
-        successful_migrations = 0
-        failed_migrations = 0
-        
-        for migration in migrations_to_run:
-            migration_name = migration["name"]
-            
-            if MigrationService.is_migration_applied(migration_name):
-                logger.info(f"⏭️  Migration {migration_name} already applied, skipping")
-                continue
-                
-            logger.info(f"🔄 Running migration: {migration['description']}")
-            
-            try:
-                migration["function"]()
-                MigrationService.mark_migration_applied(migration_name, True)
-                successful_migrations += 1
-                logger.info(f"✅ Migration {migration_name} completed successfully")
-            except Exception as e:
-                failed_migrations += 1
-                logger.error(f"❌ Migration {migration_name} failed: {e}")
-                MigrationService.mark_migration_applied(migration_name, False)
-                # Continue with other migrations instead of stopping
-                continue
+        successful_migrations = len([r for r in file_migration_results if r[1]])
+        failed_migrations = len([r for r in file_migration_results if not r[1]])
         
         logger.info(f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed")
         return failed_migrations == 0
 
-    @staticmethod
-    def _run_indices_migration():
-        """Add database indices for better performance"""
-        with engine.connect() as connection:
-            # Check if streams table exists first
-            inspector = inspect(engine)
-            if 'streams' not in inspector.get_table_names():
-                logger.warning("streams table does not exist, skipping indices migration")
-                return
-                
-            # Use PostgreSQL's CREATE INDEX IF NOT EXISTS
-            fallback_sql = """
-                CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id);
-                CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams (started_at);  
-                CREATE INDEX IF NOT EXISTS idx_streams_title ON streams (title);
-            """
-            connection.execute(text(fallback_sql))
-            connection.commit()
-            logger.info("Stream indices created")
-
-    @staticmethod
-    def _run_recording_path_migration():
-        """Add recording_path column to streams table (idempotent)"""
-        with engine.connect() as connection:
-            # Check if streams table exists first
-            inspector = inspect(engine)
-            if 'streams' not in inspector.get_table_names():
-                logger.warning("streams table does not exist, skipping recording_path migration")
-                return
-                
-            # Check if column already exists (PostgreSQL)
-            result = connection.execute(text("""
-                SELECT COUNT(*) 
-                FROM information_schema.columns 
-                WHERE table_name = 'streams' 
-                AND column_name = 'recording_path'
-            """))
-            
-            if result.scalar() > 0:
-                logger.info("Column recording_path already exists in streams table")
-                return
-                
-            # Add the column
-            connection.execute(text("ALTER TABLE streams ADD COLUMN recording_path VARCHAR(1024) NULL"))
-            connection.commit()
-            logger.info("Added recording_path column to streams table")
-
-    @staticmethod
-    def _run_proxy_settings_migration():
-        """Add proxy settings to global_settings table (idempotent)"""
-        with engine.connect() as connection:
-            # First ensure global_settings table exists
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS global_settings (
-                    id SERIAL PRIMARY KEY,
-                    setting_key VARCHAR(255) UNIQUE NOT NULL,
-                    setting_value TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            
-            # Check and add proxy columns
-            for column_name in ['http_proxy', 'https_proxy']:
-                result = connection.execute(text("""
-                    SELECT COUNT(*) 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'global_settings' 
-                    AND column_name = :column_name
-                """), {"column_name": column_name})
-                
-                if result.scalar() == 0:
-                    connection.execute(text(f"ALTER TABLE global_settings ADD COLUMN {column_name} VARCHAR(255) NULL"))
-                    logger.info(f"Added {column_name} column to global_settings")
-                
-            connection.commit()
-
-    @staticmethod
-    def _run_push_subscriptions_migration():
-        """Create push_subscriptions table (idempotent)"""
-        with engine.connect() as connection:
-            # Create table with IF NOT EXISTS
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS push_subscriptions (
-                    id SERIAL PRIMARY KEY,
-                    endpoint VARCHAR UNIQUE NOT NULL,
-                    subscription_data TEXT NOT NULL,
-                    user_agent VARCHAR,
-                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            
-            # Create indices if they don't exist
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_push_subscriptions_endpoint 
-                ON push_subscriptions (endpoint)
-            """))
-            
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_push_subscriptions_is_active 
-                ON push_subscriptions (is_active)
-            """))
-            
-            connection.commit()
-            logger.info("Push subscriptions table and indices ready")
-
-    @staticmethod
-    def _run_system_config_migration():
-        """Create system_config table (idempotent)"""
-        with engine.connect() as connection:
-            # Create table with IF NOT EXISTS
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS system_config (
-                    id SERIAL PRIMARY KEY,
-                    key VARCHAR UNIQUE NOT NULL,
-                    value TEXT NOT NULL,
-                    description VARCHAR,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            
-            # Create index
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config(key)
-            """))
-            
-            connection.commit()
-            logger.info("System config table and index ready")
-    
-    @staticmethod
-    def _run_category_images_migration():
-        """Setup category image caching system and preload existing categories"""
-        import asyncio
-        import os
-        from pathlib import Path
-        
-        try:
-            # Create images directory structure
-            images_dir = Path("app/frontend/public/images/categories")
-            images_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Created category images directory: {images_dir}")
-            
-            # Create default category image if it doesn't exist
-            default_image_path = images_dir / "default-category.svg"
-            if not default_image_path.exists():
-                default_svg_content = '''<svg width="144" height="192" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#9146FF;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#6441A5;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  <rect width="144" height="192" fill="url(#grad1)" rx="8"/>
-  <text x="72" y="90" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="20" font-weight="bold">
-    GAME
-  </text>
-  <text x="72" y="120" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16">
-    CATEGORY
-  </text>
-  <circle cx="72" cy="140" r="8" fill="white" opacity="0.7"/>
-  <circle cx="60" cy="155" r="6" fill="white" opacity="0.5"/>
-  <circle cx="84" cy="155" r="6" fill="white" opacity="0.5"/>
-</svg>'''
-                with open(default_image_path, 'w', encoding='utf-8') as f:
-                    f.write(default_svg_content)
-                logger.info("Created default category image")
-            
-            # Start background task to preload existing category images
-            try:
-                # Import the service here to avoid circular imports
-                from app.services.category_image_service import category_image_service
-                from app.models import Category
-                from app.database import SessionLocal
-                
-                # Get all existing categories from database
-                with SessionLocal() as session:
-                    categories = session.query(Category).all()
-                    
-                    if categories:
-                        category_names = [cat.name for cat in categories if cat.name and cat.name.strip()]
-                        
-                        if category_names:
-                            logger.info(f"Starting background preload for {len(category_names)} existing categories")
-                            
-                            # Create an async task to preload images
-                            # Note: This runs in background, migration doesn't wait for completion
-                            try:
-                                # Try to run the async preload
-                                asyncio.create_task(category_image_service.preload_categories(category_names))
-                                logger.info("Background category image preload started")
-                            except RuntimeError:
-                                # If no event loop is running, just log and continue
-                                logger.info("No event loop available, category images will be loaded on-demand")
-                        else:
-                            logger.info("No category names found to preload")
-                    else:
-                        logger.info("No existing categories found in database")
-                        
-            except Exception as e:
-                # Don't fail the migration if preloading fails
-                logger.warning(f"Could not preload category images (will load on-demand): {e}")
-            
-            logger.info("Category images migration completed successfully")
-            
-        except Exception as e:
-            logger.error(f"Category images migration failed: {e}")
-            raise
-
-    @staticmethod
-    def _run_recording_model_migration():
-        """Create recordings table for the new modular recording service"""
-        try:
-            # Import our migration module
-            migration_path = os.path.join(settings.BASE_DIR, "migrations", "20250625_add_recording_model.py")
-            spec = importlib.util.spec_from_file_location("migration_20250625", migration_path)
-            migration_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(migration_module)
-            
-            # Execute the upgrade function
-            migration_module.upgrade(engine)
-            
-            logger.info("✅ Successfully created recordings table")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to create recordings table: {e}")
-            return False
-
-    @staticmethod
-    def _run_database_indexes_migration():
-        """Add comprehensive database indexes for performance optimization"""
-        with engine.connect() as connection:
-            logger.info("🔄 Creating database indexes for performance optimization...")
-            
-            # Single column indexes
-            single_indexes = [
-                # Recordings table
-                "CREATE INDEX IF NOT EXISTS idx_recordings_stream_id ON recordings(stream_id)",
-                "CREATE INDEX IF NOT EXISTS idx_recordings_start_time ON recordings(start_time)",
-                "CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status)",
-                
-                # Streamers table  
-                "CREATE INDEX IF NOT EXISTS idx_streamers_twitch_id ON streamers(twitch_id)",
-                "CREATE INDEX IF NOT EXISTS idx_streamers_username ON streamers(username)",
-                "CREATE INDEX IF NOT EXISTS idx_streamers_is_live ON streamers(is_live)",
-                "CREATE INDEX IF NOT EXISTS idx_streamers_category_name ON streamers(category_name)",
-                
-                # Streams table
-                "CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams(streamer_id)",
-                "CREATE INDEX IF NOT EXISTS idx_streams_category_name ON streams(category_name)",
-                "CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams(started_at)",
-                "CREATE INDEX IF NOT EXISTS idx_streams_ended_at ON streams(ended_at)",
-                "CREATE INDEX IF NOT EXISTS idx_streams_twitch_stream_id ON streams(twitch_stream_id)",
-                
-                # Stream Events table
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_stream_id ON stream_events(stream_id)",
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_event_type ON stream_events(event_type)",
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_timestamp ON stream_events(timestamp)",
-                
-                # Notification Settings table
-                "CREATE INDEX IF NOT EXISTS idx_notification_settings_streamer_id ON notification_settings(streamer_id)",
-                
-                # Streamer Recording Settings table
-                "CREATE INDEX IF NOT EXISTS idx_streamer_recording_settings_streamer_id ON streamer_recording_settings(streamer_id)",
-                
-                # Stream Metadata table
-                "CREATE INDEX IF NOT EXISTS idx_stream_metadata_stream_id ON stream_metadata(stream_id)",
-            ]
-            
-            # Composite indexes for common query patterns
-            composite_indexes = [
-                # Recordings
-                "CREATE INDEX IF NOT EXISTS idx_recordings_stream_status ON recordings(stream_id, status)",
-                "CREATE INDEX IF NOT EXISTS idx_recordings_status_time ON recordings(status, start_time)",
-                
-                # Streams - for finding active streams (ended_at IS NULL)
-                "CREATE INDEX IF NOT EXISTS idx_streams_streamer_active ON streams(streamer_id, ended_at)",
-                # Streams - for recent streams by streamer (ORDER BY started_at DESC)
-                "CREATE INDEX IF NOT EXISTS idx_streams_streamer_recent ON streams(streamer_id, started_at)",
-                # Streams - for recent streams by category
-                "CREATE INDEX IF NOT EXISTS idx_streams_category_recent ON streams(category_name, started_at)",
-                # Streams - for time-based queries
-                "CREATE INDEX IF NOT EXISTS idx_streams_time_range ON streams(started_at, ended_at)",
-                
-                # Stream Events
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_stream_type ON stream_events(stream_id, event_type)",
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_stream_time ON stream_events(stream_id, timestamp)",
-                "CREATE INDEX IF NOT EXISTS idx_stream_events_type_time ON stream_events(event_type, timestamp)",
-            ]
-            
-            # Execute single column indexes
-            created_indexes = 0
-            for idx_sql in single_indexes:
-                try:
-                    connection.execute(text(idx_sql))
-                    created_indexes += 1
-                except Exception as e:
-                    logger.warning(f"Index creation failed (may already exist): {e}")
-            
-            # Execute composite indexes
-            for idx_sql in composite_indexes:
-                try:
-                    connection.execute(text(idx_sql))
-                    created_indexes += 1
-                except Exception as e:
-                    logger.warning(f"Composite index creation failed (may already exist): {e}")
-            
-            connection.commit()
-            logger.info(f"✅ Database indexes migration completed. Created/verified {created_indexes} indexes")
-            logger.info("📈 Expected performance improvements:")
-            logger.info("   • 90%+ reduction in active stream lookup time")
-            logger.info("   • 70%+ reduction in recent streams query time")
-            logger.info("   • 80%+ reduction in recording status check time")
-            logger.info("   • 85%+ reduction in live streamer filtering time")
-
-    @staticmethod
-    def _run_active_recordings_state_migration():
-        """Create active_recordings_state table for persistent recording state"""
-        with engine.connect() as connection:
-            logger.info("🔄 Creating active_recordings_state table...")
-            
-            # Create table with IF NOT EXISTS
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS active_recordings_state (
-                    id SERIAL PRIMARY KEY,
-                    stream_id INTEGER NOT NULL,
-                    recording_id INTEGER NOT NULL,
-                    process_id INTEGER NOT NULL,
-                    process_identifier VARCHAR(100) NOT NULL,
-                    streamer_name VARCHAR(100) NOT NULL,
-                    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                    ts_output_path VARCHAR(500) NOT NULL,
-                    force_mode BOOLEAN DEFAULT FALSE,
-                    quality VARCHAR(50) DEFAULT 'best',
-                    status VARCHAR(50) DEFAULT 'active',
-                    last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
-                    config_json TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            
-            # Create unique constraint on stream_id
-            connection.execute(text("""
-                DO $$ BEGIN
-                    ALTER TABLE active_recordings_state 
-                    ADD CONSTRAINT active_recordings_state_stream_id_key UNIQUE (stream_id);
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
-                END $$;
-            """))
-            
-            # Create foreign key constraints if tables exist
-            connection.execute(text("""
-                DO $$ BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'streams') THEN
-                        ALTER TABLE active_recordings_state 
-                        ADD CONSTRAINT fk_active_recordings_stream 
-                        FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE;
-                    END IF;
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
-                END $$;
-            """))
-            
-            connection.execute(text("""
-                DO $$ BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recordings') THEN
-                        ALTER TABLE active_recordings_state 
-                        ADD CONSTRAINT fk_active_recordings_recording 
-                        FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE;
-                    END IF;
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
-                END $$;
-            """))
-            
-            # Create indices for better performance
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_stream_id 
-                ON active_recordings_state (stream_id)
-            """))
-            
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_status 
-                ON active_recordings_state (status)
-            """))
-            
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_heartbeat 
-                ON active_recordings_state (last_heartbeat)
-            """))
-            
-            connection.commit()
-            logger.info("✅ Active recordings state table and indices created successfully")
-            logger.info("🎯 Features enabled:")
-            logger.info("   • Persistent recording state across restarts")
-            logger.info("   • Automatic recovery of interrupted recordings")
-            logger.info("   • Heartbeat monitoring for stale process detection")
-            logger.info("   • Production-ready container deployment support")
-
-    # LEGACY METHODS - Keep for backward compatibility
-    
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
         """Get all migration scripts from the migrations directory"""
