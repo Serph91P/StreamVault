@@ -316,6 +316,9 @@ class PostProcessingTasks:
     async def _convert_ts_to_mp4(self, ts_file_path: str, mp4_output_path: str, task: QueueTask):
         """Convert TS file to MP4 using FFmpeg"""
         
+        # Get streamer name from task
+        streamer_name = task.streamer_name if hasattr(task, 'streamer_name') else "unknown"
+        
         # FFmpeg command for conversion
         cmd = [
             "ffmpeg",
@@ -327,6 +330,11 @@ class PostProcessingTasks:
             mp4_output_path
         ]
         
+        # Use the logging service to create per-streamer logs
+        if self.logging_service:
+            streamer_log_path = self.logging_service.log_ffmpeg_start("ts_to_mp4_task", cmd, streamer_name)
+            logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
+        
         # Create process
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -336,6 +344,10 @@ class PostProcessingTasks:
         
         # Monitor progress (simplified)
         stdout, stderr = await process.communicate()
+        
+        # Log the FFmpeg output using the logging service
+        if self.logging_service:
+            self.logging_service.log_ffmpeg_output("ts_to_mp4_task", stdout, stderr, process.returncode, streamer_name)
         
         if process.returncode != 0:
             error_msg = stderr.decode('utf-8', errors='ignore')
