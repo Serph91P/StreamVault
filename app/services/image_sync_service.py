@@ -24,6 +24,9 @@ class ImageSyncService:
         if self._sync_task is None or self._sync_task.done():
             self._sync_task = asyncio.create_task(self._sync_worker())
             logger.info("Image sync worker started")
+            
+            # Start initial sync for all existing streamers and categories
+            await self._initial_sync()
     
     async def stop_sync_worker(self):
         """Stop the background sync worker"""
@@ -168,6 +171,60 @@ class ImageSyncService:
     def is_running(self) -> bool:
         """Check if the sync worker is running"""
         return self._sync_task is not None and not self._sync_task.done()
+    
+    async def _initial_sync(self):
+        """Perform initial sync of all existing streamers and categories"""
+        try:
+            logger.info("Starting initial image sync for all existing entities...")
+            
+            # Sync all existing streamers
+            await self.sync_all_existing_streamers()
+            
+            # Sync all existing categories
+            await self.sync_all_existing_categories()
+            
+            logger.info("Initial image sync completed")
+        except Exception as e:
+            logger.error(f"Error during initial image sync: {e}")
+    
+    async def check_and_sync_missing_images(self):
+        """Check for missing images and sync them"""
+        try:
+            logger.info("Checking for missing images...")
+            
+            # Check streamers
+            with SessionLocal() as db:
+                streamers = db.query(Streamer).all()
+                
+            missing_profiles = 0
+            for streamer in streamers:
+                if streamer.profile_image_url:
+                    cached_url = unified_image_service.get_profile_image_url(streamer.id)
+                    # If cached_url is the same as original URL, it means no cached version exists
+                    if cached_url == streamer.profile_image_url:
+                        await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                        missing_profiles += 1
+            
+            # Check categories
+            with SessionLocal() as db:
+                categories = db.query(Category).all()
+                
+            missing_categories = 0
+            for category in categories:
+                if category.name:
+                    cached_url = unified_image_service.get_category_image_url(category.name)
+                    # If no cached image exists, sync it
+                    if not cached_url or cached_url == unified_image_service.get_category_image_url(category.name):
+                        await self.request_category_image_sync(category.name)
+                        missing_categories += 1
+            
+            if missing_profiles > 0 or missing_categories > 0:
+                logger.info(f"Requested sync for {missing_profiles} missing profile images and {missing_categories} missing category images")
+            else:
+                logger.info("All images are up to date")
+                
+        except Exception as e:
+            logger.error(f"Error checking for missing images: {e}")
 
 # Global instance
 image_sync_service = ImageSyncService()

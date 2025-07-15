@@ -137,12 +137,45 @@ class LoggingService:
         # Generate a streamer-specific log filename for this operation
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_path = self.get_ffmpeg_log_path(f"{operation}_{timestamp_str}", streamer_name)
+        
+        # Create a per-streamer log file for this operation
+        try:
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {operation} operation for streamer: {streamer_name}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+        except Exception as e:
+            logger.error(f"Could not create per-streamer log file {log_path}: {e}")
+        
         return log_path
     
     def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, streamer_name: str):
         """Log FFmpeg process output with mandatory streamer name"""
         prefix = f"[{operation}_{streamer_name}]"
         
+        # Also write to per-streamer log file
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = self.get_ffmpeg_log_path(f"{operation}_{timestamp_str}", streamer_name)
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {operation} operation completed with exit code: {exit_code}\n")
+                
+                if stdout:
+                    stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n")
+                    self.ffmpeg_logger.info(f"{prefix} STDOUT:\n{stdout_text}")
+                
+                if stderr:
+                    stderr_text = stderr.decode("utf-8", errors="ignore") if isinstance(stderr, bytes) else stderr
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n")
+                    if exit_code == 0:
+                        self.ffmpeg_logger.info(f"{prefix} STDERR:\n{stderr_text}")
+                    else:
+                        self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
+        except Exception as e:
+            logger.error(f"Could not write to per-streamer log file {log_path}: {e}")
+            
+        # Still log to main system log
         if stdout:
             stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
             self.ffmpeg_logger.info(f"{prefix} STDOUT:\n{stdout_text}")
