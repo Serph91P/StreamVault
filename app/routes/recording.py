@@ -19,7 +19,14 @@ router = APIRouter(
     tags=["recording"]
 )
 
-recording_service = RecordingService()
+recording_service = None
+
+def get_recording_service():
+    """Lazy initialization of recording service"""
+    global recording_service
+    if recording_service is None:
+        recording_service = RecordingService()
+    return recording_service
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
 async def get_recording_settings():
@@ -218,7 +225,7 @@ async def get_active_recordings():
     """Get all active recordings"""
     try:
         # Get active recordings from service - it returns a dict
-        active_recordings_dict = await recording_service.get_active_recordings()
+        active_recordings_dict = await get_recording_service().get_active_recordings()
         
         # Convert to list of ActiveRecordingSchema objects
         result = []
@@ -260,7 +267,7 @@ async def stop_recording(streamer_id: int):
         # Log the stop request
         logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
         
-        result = await recording_service.stop_recording_manual(streamer_id)
+        result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
             logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
             return {"status": "success", "message": "Recording stopped successfully"}
@@ -357,7 +364,7 @@ async def force_start_recording(streamer_id: int):
         # Log force start attempt
         logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
         
-        result = await recording_service.force_start_recording(streamer_id)
+        result = await get_recording_service().force_start_recording(streamer_id)
         if result:
             logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
             return {"status": "success", "message": "Recording started successfully"}
@@ -386,7 +393,7 @@ async def force_start_offline_recording(streamer_id: int):
         # Log offline force start attempt
         logging_service.log_recording_activity("FORCE_OFFLINE_START_REQUEST", f"Streamer {streamer_id}", "Manual offline force start requested via API")
         
-        result = await recording_service.force_start_recording_offline(streamer_id)
+        result = await get_recording_service().force_start_recording_offline(streamer_id)
         if result:
             logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording gestartet")
             return {"status": "success", "message": "Recording started successfully"}
