@@ -580,6 +580,20 @@ except Exception as e:
 
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
+# Mount images directory for unified image service
+import os
+from pathlib import Path
+recordings_dir = os.getenv("RECORDINGS_DIR", "/recordings")
+images_dir = Path(recordings_dir) / ".images"
+# Create the directory if it doesn't exist
+images_dir.mkdir(parents=True, exist_ok=True)
+# Create subdirectories
+(images_dir / "profiles").mkdir(parents=True, exist_ok=True)
+(images_dir / "categories").mkdir(parents=True, exist_ok=True)
+(images_dir / "artwork").mkdir(parents=True, exist_ok=True)
+# Mount the images directory
+app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
+
 # PWA Files serving - these must be at root level
 @app.get("/manifest.json")
 async def serve_manifest():
