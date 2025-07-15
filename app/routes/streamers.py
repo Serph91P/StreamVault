@@ -149,7 +149,7 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete subscriptions. Please try again.")
 
-@router.post("/resubscribe")
+@router.post("/resubscribe-all")
 async def resubscribe_all(
     event_registry: EventHandlerRegistry = Depends(get_event_registry),
     streamer_service: StreamerService = Depends(get_streamer_service)

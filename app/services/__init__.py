@@ -29,7 +29,7 @@ from app.services.metadata_service import MetadataService
 from app.services.enhanced_push_service import EnhancedPushService
 from app.services.cleanup_service import CleanupService
 from app.services.settings_service import SettingsService
-from app.services.category_image_service import CategoryImageService
+# Removed: CategoryImageService - now handled by unified_image_service
 from app.services.migration_service import MigrationService
 from app.services.thumbnail_service import ThumbnailService
 from app.services.artwork_service import ArtworkService

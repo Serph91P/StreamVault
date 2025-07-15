@@ -4,7 +4,7 @@ FROM python:3.13.3-alpine
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
     adduser -u 1000 -G appuser -s /bin/bash -D appuser && \
-    mkdir -p /app/data/profile_images && \
+    mkdir -p /app/data && \
     chown -R appuser:appuser /app
 
 WORKDIR /app
@@ -71,12 +71,10 @@ RUN mkdir -p /recordings && \
     mkdir -p /app/logs/streamlink && \
     mkdir -p /app/logs/ffmpeg && \
     mkdir -p /app/logs/app && \
-    mkdir -p /app/data/category_images && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
     chmod -R 775 /app/migrations && \
-    chmod -R 775 /app/logs && \
-    chmod -R 775 /app/data/category_images
+    chmod -R 775 /app/logs
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh

@@ -142,7 +142,11 @@ const formatTaskType = (taskType: string) => {
     'thumbnail_generation': 'Thumbnail',
     'cleanup': 'Cleanup',
     'recording': 'Recording Stream',
-    'migration': 'Database Migration'
+    'migration': 'Database Migration',
+    'image_download': 'Image Download',
+    'profile_image_sync': 'Profile Image Sync',
+    'category_image_sync': 'Category Image Sync',
+    'image_cleanup': 'Image Cleanup'
   }
   return types[taskType] || taskType
 }
