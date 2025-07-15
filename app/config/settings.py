@@ -237,27 +237,55 @@ class Settings(BaseSettings):
         try:
             # Only try to load from database if not provided via environment
             if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
-                # Import here to avoid circular imports
-                from app.services.system_config_service import system_config_service
-                
-                # Try to load from database
-                stored_keys = system_config_service.get_vapid_keys()
-                
-                if stored_keys['public_key'] and stored_keys['private_key']:
-                    logger.info("🔑 Loading VAPID keys from database")
-                    self.VAPID_PUBLIC_KEY = stored_keys['public_key']
-                    self.VAPID_PRIVATE_KEY = stored_keys['private_key']
-                    if stored_keys['claims_sub']:
-                        self.VAPID_CLAIMS_SUB = stored_keys['claims_sub']
-                else:
-                    # Generate new keys and store them
-                    self._auto_generate_and_store_vapid_keys()
+                # Import here to avoid circular imports and check if database is ready
+                try:
+                    from app.services.system_config_service import system_config_service
+                    
+                    # Try to load from database
+                    stored_keys = system_config_service.get_vapid_keys()
+                    
+                    if stored_keys['public_key'] and stored_keys['private_key']:
+                        logger.info("🔑 Loading VAPID keys from database")
+                        self.VAPID_PUBLIC_KEY = stored_keys['public_key']
+                        self.VAPID_PRIVATE_KEY = stored_keys['private_key']
+                        if stored_keys['claims_sub']:
+                            self.VAPID_CLAIMS_SUB = stored_keys['claims_sub']
+                        return  # Successfully loaded from database
+                except Exception as db_error:
+                    logger.warning(f"⚠️ Database not ready or system_config table missing: {db_error}")
+                    logger.info("💡 Will skip database loading and use generated keys for now...")
+                    # Don't try to auto-generate if database isn't ready, just use basic keys
+                    if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
+                        logger.info("🔑 Generating temporary VAPID keys (will be persisted once database is ready)")
+                        self._generate_temp_vapid_keys()
+                    return
+                    
+                # Generate new keys and store them (only if database is ready)
+                self._auto_generate_and_store_vapid_keys()
                     
         except Exception as e:
             logger.warning(f"⚠️ Could not load VAPID keys from database: {e}")
             logger.info("💡 Will try to auto-generate keys...")
-            self._auto_generate_and_store_vapid_keys()
+            self._generate_temp_vapid_keys()
     
+    def _generate_temp_vapid_keys(self):
+        """Generate temporary VAPID keys without database storage"""
+        try:
+            logger.info("🔑 Generating temporary VAPID keys...")
+            
+            public_key, private_key = generate_vapid_keys()
+            if public_key and private_key:
+                self.VAPID_PUBLIC_KEY = public_key
+                self.VAPID_PRIVATE_KEY = private_key
+                logger.info("✅ Temporary VAPID keys generated successfully!")
+                logger.info("💡 Keys will be persisted to database once migrations complete")
+            else:
+                logger.error("❌ Failed to generate temporary VAPID keys")
+                
+        except Exception as e:
+            logger.error(f"❌ Error generating temporary VAPID keys: {e}")
+            logger.info("💡 Push notifications will be disabled")
+
     def _auto_generate_and_store_vapid_keys(self):
         """Auto-generate VAPID keys and store them in database"""
         try:
