@@ -25,17 +25,44 @@ class MigrationService:
         """Create the migrations table if it doesn't exist"""
         try:
             with engine.connect() as connection:
-                # Simple approach: Try to create table with IF NOT EXISTS
-                connection.execute(text("""
-                    CREATE TABLE IF NOT EXISTS migrations (
-                        id SERIAL PRIMARY KEY,
-                        script_name VARCHAR(255) NOT NULL UNIQUE,
-                        applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        success BOOLEAN DEFAULT TRUE
-                    )
-                """))
-                connection.commit()
-                logger.info("✅ Migrations table ensured")
+                # Check if table exists and what columns it has
+                result = connection.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'migrations' 
+                    AND table_schema = 'public'
+                """)).fetchall()
+                
+                existing_columns = [row[0] for row in result]
+                
+                if not existing_columns:
+                    # Table doesn't exist, create it
+                    logger.info("Creating migrations table...")
+                    connection.execute(text("""
+                        CREATE TABLE migrations (
+                            id SERIAL PRIMARY KEY,
+                            script_name VARCHAR(255) NOT NULL UNIQUE,
+                            applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            success BOOLEAN DEFAULT TRUE
+                        )
+                    """))
+                    connection.commit()
+                    logger.info("✅ Migrations table created")
+                elif 'script_name' not in existing_columns:
+                    # Table exists but has old schema, fix it
+                    logger.info("Updating migrations table schema...")
+                    if 'name' in existing_columns:
+                        # Rename old column
+                        connection.execute(text("ALTER TABLE migrations RENAME COLUMN name TO script_name"))
+                        connection.commit()
+                        logger.info("✅ Renamed 'name' column to 'script_name'")
+                    else:
+                        # Add new column
+                        connection.execute(text("ALTER TABLE migrations ADD COLUMN script_name VARCHAR(255)"))
+                        connection.commit()
+                        logger.info("✅ Added 'script_name' column")
+                else:
+                    logger.info("✅ Migrations table already exists with correct schema")
                 
         except Exception as e:
             logger.error(f"❌ Failed to ensure migrations table: {e}")
