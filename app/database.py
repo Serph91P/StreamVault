@@ -1,8 +1,11 @@
 import os
 import sys
+import time
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import OperationalError
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
@@ -21,11 +24,47 @@ print(f"Connecting to database with URL: {DATABASE_URL}")
 # Determine if we're in a testing environment
 is_testing = 'pytest' in sys.modules or 'import_test.py' in sys.argv[0]
 
-# Create engine with connect_args for SQLite to avoid locking issues in tests
-if DATABASE_URL.startswith('sqlite'):
-    engine = create_engine(DATABASE_URL, future=True, connect_args={'check_same_thread': False})
-else:
-    engine = create_engine(DATABASE_URL, future=True)
+# Create engine with retry logic for connection issues
+def create_engine_with_retry(url, max_retries=10, retry_delay=3):
+    """Create SQLAlchemy engine with retry logic for connection issues"""
+    logger = logging.getLogger("streamvault")
+    
+    for attempt in range(max_retries):
+        try:
+            if url.startswith('sqlite'):
+                engine = create_engine(url, future=True, connect_args={'check_same_thread': False})
+            else:
+                engine = create_engine(
+                    url, 
+                    future=True,
+                    pool_pre_ping=True,  # Verify connections before use
+                    pool_recycle=3600,   # Recycle connections after 1 hour
+                    connect_args={
+                        "connect_timeout": 10,
+                        "application_name": "StreamVault"
+                    }
+                )
+            
+            # Test the connection
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            
+            logger.info(f"✅ Database connection established successfully on attempt {attempt + 1}")
+            return engine
+            
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"❌ Failed to connect to database after {max_retries} attempts: {e}")
+                raise
+            
+            logger.warning(f"⚠️ Database connection attempt {attempt + 1} failed: {e}")
+            logger.info(f"🔄 Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+    
+    raise Exception("Could not establish database connection")
+
+# Create engine with retry logic
+engine = create_engine_with_retry(DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
