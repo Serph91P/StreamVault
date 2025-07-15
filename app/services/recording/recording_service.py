@@ -554,6 +554,22 @@ class RecordingService:
                 'started_at': start_time.isoformat()
             })
             
+            # Add recording as external task to background queue
+            from app.services.background_queue_service import background_queue_service
+            await background_queue_service.add_external_task(
+                f"recording_{stream.id}",
+                "recording",
+                {
+                    "streamer_name": streamer.username,
+                    "stream_id": stream.id,
+                    "recording_id": recording_id,
+                    "quality": quality,
+                    "output_path": ts_output_path
+                },
+                "running",
+                0.0
+            )
+            
             # Start streamlink recording process using process_manager
             logger.info(f"Starting streamlink recording for {streamer.username} at quality {quality}")
             logger.info(f"TS output path: {ts_output_path}")
@@ -670,6 +686,15 @@ class RecordingService:
             
             # Monitor the recording process using process_manager
             logger.info(f"Monitoring recording for {streamer_name}")
+            
+            # Update recording progress in background queue
+            from app.services.background_queue_service import background_queue_service
+            await background_queue_service.update_external_task(
+                f"recording_{stream.id}",
+                status="running",
+                progress=50.0
+            )
+            
             exit_code = await self.process_manager.monitor_process(process)
             
             duration_seconds = int((datetime.now() - start_time).total_seconds())
@@ -686,6 +711,26 @@ class RecordingService:
                     logger.info(f"Recording completed successfully for {streamer_name}")
                     logger.info(f"TS file: {ts_output_path}")
                     
+                    # Send completion update
+                    await self._send_recording_job_update(streamer_name, {
+                        'status': 'completed',
+                        'streamer_name': streamer_name,
+                        'stream_id': stream.id,
+                        'recording_id': recording_id,
+                        'progress': 100,
+                        'started_at': start_time.isoformat(),
+                        'duration': duration_seconds,
+                        'output_path': ts_output_path
+                    })
+                    
+                    # Update recording completion in background queue
+                    from app.services.background_queue_service import background_queue_service
+                    await background_queue_service.update_external_task(
+                        f"recording_{stream.id}",
+                        status="completed",
+                        progress=100.0
+                    )
+                    
                     # Post-processing will be handled by background queue
                     success = True
                     mp4_path = ts_output_path  # Will be updated by background queue
@@ -697,6 +742,27 @@ class RecordingService:
             else:
                 logger.error(f"Recording for {streamer_name} failed with exit code {exit_code}")
                 await self._update_recording_status(recording_id, "error", ts_output_path, duration_seconds)
+                
+                # Send failure update
+                await self._send_recording_job_update(streamer_name, {
+                    'status': 'failed',
+                    'streamer_name': streamer_name,
+                    'stream_id': stream.id,
+                    'recording_id': recording_id,
+                    'progress': 0,
+                    'started_at': start_time.isoformat(),
+                    'duration': duration_seconds,
+                    'error': f"Recording failed with exit code {exit_code}"
+                })
+                
+                # Update recording failure in background queue
+                from app.services.background_queue_service import background_queue_service
+                await background_queue_service.update_external_task(
+                    f"recording_{stream.id}",
+                    status="failed",
+                    progress=0.0,
+                    error_message=f"Recording failed with exit code {exit_code}"
+                )
             
             # Send completion notification
             final_path = mp4_path if success else ts_output_path
@@ -718,6 +784,13 @@ class RecordingService:
             # Clean up
             if stream.id in self.active_recordings:
                 del self.active_recordings[stream.id]
+            
+            # Clean up external task if it wasn't completed/failed
+            try:
+                from app.services.background_queue_service import background_queue_service
+                await background_queue_service.remove_external_task(f"recording_{stream.id}")
+            except Exception as e:
+                logger.debug(f"Error removing external task: {e}")
 
     async def stop_recording(self, streamer_id: int, reason: str = "manual") -> bool:
         """Stop recording for a streamer (called by EventHandlerRegistry)
@@ -762,6 +835,17 @@ class RecordingService:
                     output_path=recording_info.get('ts_output_path', ''),
                     reason=reason
                 )
+                
+                # Update recording stop in background queue
+                try:
+                    from app.services.background_queue_service import background_queue_service
+                    await background_queue_service.update_external_task(
+                        f"recording_{stream.id}",
+                        status="completed",
+                        progress=100.0
+                    )
+                except Exception as e:
+                    logger.debug(f"Error updating external task on stop: {e}")
                 
                 # Send WebSocket notification for recording stopped
                 try:
@@ -937,3 +1021,27 @@ class RecordingService:
             
         except Exception as e:
             logger.error(f"Error in delayed metadata generation for stream {stream_id}: {e}", exc_info=True)
+
+    async def _send_recording_job_update(self, streamer_name: str, recording_info: Dict[str, Any]):
+        """Send recording job update via WebSocket"""
+        try:
+            await websocket_manager.send_recording_job_update(recording_info)
+            logger.debug(f"Sent recording job update for {streamer_name}: {recording_info}")
+        except Exception as e:
+            logger.debug(f"Failed to send recording job update for {streamer_name}: {e}")
+
+    async def _send_background_task_update(self, task_id: str, task_type: str, status: str, progress: float = 0.0, message: str = None):
+        """Send background task update via WebSocket"""
+        try:
+            task_info = {
+                "id": task_id,
+                "task_type": task_type,
+                "status": status,
+                "progress": progress,
+                "payload": {"message": message} if message else {},
+                "started_at": datetime.now().isoformat()
+            }
+            await websocket_manager.send_task_status_update(task_info)
+            logger.debug(f"Sent background task update: {task_info}")
+        except Exception as e:
+            logger.debug(f"Failed to send background task update: {e}")
