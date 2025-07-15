@@ -1,5 +1,4 @@
 import os
-import aiohttp
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -10,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, Streamer
 from app.config.settings import settings
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -17,21 +17,13 @@ class ArtworkService:
     """Service for managing artwork and metadata files separately from recordings"""
     
     def __init__(self):
-        self.session: Optional[aiohttp.ClientSession] = None
         self.artwork_base_path = Path(settings.ARTWORK_BASE_PATH)
         # Ensure the artwork directory exists
         self.artwork_base_path.mkdir(parents=True, exist_ok=True)
     
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create HTTP session"""
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-        return self.session
-    
     async def close(self):
-        """Close HTTP session"""
-        if self.session and not self.session.closed:
-            await self.session.close()
+        """Close resources (now handled by unified_image_service)"""
+        pass
     
     def get_streamer_artwork_dir(self, streamer_username: str) -> Path:
         """Get the artwork directory for a specific streamer"""
@@ -212,19 +204,25 @@ class ArtworkService:
                 logger.debug(f"Image already exists: {target_path}")
                 return True
             
-            session = await self._get_session()
+            # Use unified_image_service for download
+            session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    content = await response.read()
-                    
-                    # Create parent directory if it doesn't exist
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    with open(target_path, 'wb') as f:
-                        f.write(content)
-                    
-                    logger.debug(f"Downloaded image: {target_path}")
-                    return True
+                    content_type = response.headers.get('content-type', '')
+                    if 'image' in content_type:
+                        content = await response.read()
+                        
+                        # Create parent directory if it doesn't exist
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        with open(target_path, 'wb') as f:
+                            f.write(content)
+                        
+                        logger.debug(f"Downloaded image: {target_path}")
+                        return True
+                    else:
+                        logger.warning(f"Invalid content type for image: {content_type}")
+                        return False
                 else:
                     logger.warning(f"Failed to download image: HTTP {response.status}")
                     return False

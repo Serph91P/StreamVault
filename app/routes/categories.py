@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body
 from typing import List
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -175,7 +175,7 @@ async def preload_category_images(
 @router.post("/refresh-images")
 async def refresh_category_images(
     background_tasks: BackgroundTasks,
-    category_names: List[str]
+    category_names: List[str] = Body(...)
 ):
     """Refresh/re-download category images even if they exist"""
     try:
@@ -223,17 +223,9 @@ async def get_cache_status():
 async def get_missing_images_report():
     """Get a report of categories that are missing images"""
     try:
-        # Use unified image service for missing images check
-        from app.services.image_sync_service import image_sync_service
-        await image_sync_service.check_and_sync_missing_images()
+        # Use unified image service for detailed missing images report
+        report = unified_image_service.get_missing_images_report()
         
-        # Get basic report
-        stats = unified_image_service.get_stats()
-        report = {
-            "missing_images": [],  # This would need to be implemented in unified service
-            "total_categories": stats.get("categories_cached", 0),
-            "cached_count": stats.get("categories_cached", 0)
-        }
         if "error" in report:
             raise HTTPException(status_code=500, detail="An internal error occurred while generating the missing images report")
         return report

@@ -1,4 +1,3 @@
-import aiohttp
 import os
 from pathlib import Path
 import asyncio
@@ -11,21 +10,17 @@ from typing import Optional
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, Streamer
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
 class ThumbnailService:
     def __init__(self):
-        self.session = None
-    
-    async def _get_session(self):
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-        return self.session
+        pass
     
     async def close(self):
-        if self.session and not self.session.closed:
-            await self.session.close()
+        """Close resources (now handled by unified_image_service)"""
+        pass
     
     async def get_stream_thumbnail(self, username: str, width: int = 1280, height: int = 720):
         """Generiert Twitch-Vorschaubild-URL für einen laufenden Stream"""
@@ -91,27 +86,33 @@ class ThumbnailService:
             url = await self.get_stream_thumbnail(streamer.username)
             
             try:
-                session = await self._get_session()
+                # Use unified_image_service for download
+                session = await unified_image_service._get_session()
                 async with session.get(url) as response:
                     if response.status == 200:
-                        image_data = await response.read()
-                        
-                        # Prüfen, ob es ein Platzhalter-Bild ist
-                        if await self._is_placeholder_image(image_data):
-                            logger.warning(f"Thumbnail for stream {stream_id} is a placeholder image, skipping")
-                            return None
+                        content_type = response.headers.get('content-type', '')
+                        if 'image' in content_type:
+                            image_data = await response.read()
                             
-                        with open(thumbnail_path, 'wb') as f:
-                            f.write(image_data)
-                        
-                        # Metadata aktualisieren
-                        if not metadata:
-                            metadata = StreamMetadata(stream_id=stream_id)
-                            db.add(metadata)
-                        
-                        metadata.thumbnail_path = thumbnail_path
-                        metadata.thumbnail_url = url
-                        db.commit()
+                            # Prüfen, ob es ein Platzhalter-Bild ist
+                            if await self._is_placeholder_image(image_data):
+                                logger.warning(f"Thumbnail for stream {stream_id} is a placeholder image, skipping")
+                                return None
+                                
+                            with open(thumbnail_path, 'wb') as f:
+                                f.write(image_data)
+                            
+                            # Metadata aktualisieren
+                            if not metadata:
+                                metadata = StreamMetadata(stream_id=stream_id)
+                                db.add(metadata)
+                            
+                            metadata.thumbnail_path = thumbnail_path
+                            metadata.thumbnail_url = url
+                            db.commit()
+                        else:
+                            logger.warning(f"Invalid content type for thumbnail: {content_type}")
+                            return None
                         
                         # Auch in das Verzeichnis mit dem Video kopieren, falls es schon existiert
                         try:
