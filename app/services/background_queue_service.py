@@ -429,11 +429,39 @@ class BackgroundQueueService:
         
         return cancelled_count
 
+    async def _send_task_status_update(self, task: QueueTask):
+        """Send task status update via WebSocket"""
+        try:
+            from app.dependencies import websocket_manager
+            await websocket_manager.send_task_status_update(task.to_dict())
+        except Exception as e:
+            logger.debug(f"Failed to send task status update: {e}")
+
+    async def _send_queue_stats_update(self):
+        """Send queue statistics update via WebSocket"""
+        try:
+            from app.dependencies import websocket_manager
+            stats = await self.get_stats()
+            await websocket_manager.send_queue_stats_update(stats)
+        except Exception as e:
+            logger.debug(f"Failed to send queue stats update: {e}")
+
+    async def _send_task_progress_update(self, task_id: str, progress: float, message: str = None):
+        """Send task progress update via WebSocket"""
+        try:
+            from app.dependencies import websocket_manager
+            await websocket_manager.send_task_progress_update(task_id, progress, message)
+        except Exception as e:
+            logger.debug(f"Failed to send task progress update: {e}")
+
     async def _process_task(self, task: QueueTask, worker_name: str):
         """Process a single task - enhanced with dependency manager integration"""
         task.status = TaskStatus.RUNNING
         task.started_at = datetime.now(timezone.utc)
         self.active_tasks[task.id] = task
+        
+        # Send WebSocket update for task start
+        await self._send_task_status_update(task)
         
         log_with_context(
             logger, 'info',
@@ -462,6 +490,9 @@ class BackgroundQueueService:
             await self.dependency_manager.mark_task_completed(task.id)
             
             self.stats['completed_tasks'] += 1
+            
+            # Send WebSocket update for task completion
+            await self._send_task_status_update(task)
             
             log_with_context(
                 logger, 'info',
@@ -496,6 +527,9 @@ class BackgroundQueueService:
             task.status = TaskStatus.FAILED
             task.completed_at = datetime.now(timezone.utc)
             self.stats['failed_tasks'] += 1
+            
+            # Send WebSocket update for task failure
+            await self._send_task_status_update(task)
                 
         finally:
             # Move task from active to completed
