@@ -44,7 +44,7 @@ async function fetchLastRecording() {
   const latestStream = endedStreams[0] || null
   lastRecording.value = latestStream
   if (latestStream) {
-    lastRecordingStreamer.value = streamers.value.find(s => s.id === latestStream.streamer_id)
+    lastRecordingStreamer.value = streamers.value.find(s => String(s.id) === String(latestStream.streamer_id))
   }
   isLoadingLastRecording.value = false
 }
@@ -59,7 +59,7 @@ watch(messages, (newMessages) => {
   switch (message.type) {
     case 'stream.online': {
       console.log('HomeView: Processing stream online:', message.data)
-      updateStreamer(message.data.streamer_id, {
+      updateStreamer(String(message.data.streamer_id), {
         is_live: true,
         title: message.data.title || '',
         category_name: message.data.category_name || '',
@@ -70,7 +70,7 @@ watch(messages, (newMessages) => {
     }
     case 'stream.offline': {
       console.log('HomeView: Processing stream offline:', message.data)
-      updateStreamer(message.data.streamer_id, {
+      updateStreamer(String(message.data.streamer_id), {
         is_live: false,
         last_updated: new Date().toISOString()
       })
@@ -79,7 +79,7 @@ watch(messages, (newMessages) => {
     case 'recording.started': {
       console.log('HomeView: Processing recording started:', message.data)
       const streamerId = Number(message.data.streamer_id)
-      const streamer = streamers.value.find(s => s.id === streamerId)
+      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {
         streamer.is_recording = true
       }
@@ -90,7 +90,7 @@ watch(messages, (newMessages) => {
     case 'recording.stopped': {
       console.log('HomeView: Processing recording stopped:', message.data)
       const streamerId = Number(message.data.streamer_id)
-      const streamer = streamers.value.find(s => s.id === streamerId)
+      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {
         streamer.is_recording = false
       }
