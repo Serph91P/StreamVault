@@ -50,17 +50,18 @@ async def lifespan(app: FastAPI):
     recording_service = None
     
     try:
-        # Run database migrations
-        if os.getenv("ENVIRONMENT") == "development":
-            logger.info("🔄 Development mode: Migrations handled by entrypoint.sh")
-        else:
-            logger.info("🚀 Production mode: Running database migrations...")
-            from app.services.migration_service import MigrationService
+        # Run database migrations always (development and production)
+        logger.info("🔄 Running database migrations...")
+        from app.services.migration_service import MigrationService
+        try:
             migration_success = MigrationService.run_safe_migrations()
             if migration_success:
                 logger.info("✅ All database migrations completed successfully")
             else:
                 logger.warning("⚠️ Some migrations failed, application may have limited functionality")
+        except Exception as e:
+            logger.error(f"❌ Database migration failed: {e}")
+            logger.warning("⚠️ Application will continue but may have limited functionality")
         
         # Initialize EventSub
         event_registry = await get_event_registry()
