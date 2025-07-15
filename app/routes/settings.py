@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 from app.services.notification_service import NotificationService
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -67,7 +68,10 @@ async def get_all_streamer_settings():
                 StreamerNotificationSettingsSchema(
                     streamer_id=s.streamer_id,
                     username=s.streamer.username,
-                    profile_image_url=s.streamer.profile_image_url,
+                    profile_image_url=unified_image_service.get_profile_image_url(
+                        s.streamer.id, 
+                        s.streamer.profile_image_url
+                    ),
                     notify_online=s.notify_online,
                     notify_offline=s.notify_offline,
                     notify_update=s.notify_update,
@@ -108,7 +112,10 @@ async def update_streamer_settings(
             return StreamerNotificationSettingsSchema(
                 streamer_id=settings.streamer_id,
                 username=streamer.username if streamer else None,
-                profile_image_url=streamer.profile_image_url if streamer else None,
+                profile_image_url=unified_image_service.get_profile_image_url(
+                    streamer.id, 
+                    streamer.profile_image_url
+                ) if streamer else None,
                 notify_online=settings.notify_online,
                 notify_offline=settings.notify_offline,
                 notify_update=settings.notify_update,
