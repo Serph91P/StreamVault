@@ -141,7 +141,8 @@ const formatTaskType = (taskType: string) => {
     'mp4_validation': 'MP4 Validation',
     'thumbnail_generation': 'Thumbnail',
     'cleanup': 'Cleanup',
-    'recording': 'Recording Stream'
+    'recording': 'Recording Stream',
+    'migration': 'Database Migration'
   }
   return types[taskType] || taskType
 }
