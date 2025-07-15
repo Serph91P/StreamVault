@@ -340,6 +340,11 @@ async def embed_metadata_with_ffmpeg_wrapper(
             output_path
         ]
         
+        # Use the logging service to create per-streamer logs
+        if logging_service:
+            streamer_log_path = logging_service.log_ffmpeg_start("metadata_embed", cmd, streamer_name)
+            logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
+        
         # Execute FFmpeg command
         logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
         process = await asyncio.create_subprocess_exec(
@@ -350,6 +355,10 @@ async def embed_metadata_with_ffmpeg_wrapper(
         
         stdout, stderr = await process.communicate()
         success_code = process.returncode == 0
+        
+        # Log the FFmpeg output using the logging service
+        if logging_service:
+            logging_service.log_ffmpeg_output("metadata_embed", stdout, stderr, process.returncode, streamer_name)
         
         # Clean up temporary metadata file
         try:
