@@ -205,14 +205,16 @@ async def resubscribe_all(
         logger.error(f"Error in resubscribe_all: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("")
+@router.post("/{username}")
 async def add_streamer(
+    username: str,
     data: Dict[str, Any] = Body(...),
     streamer_service: StreamerService = Depends(get_streamer_service)
 ):
     """Add a new streamer"""
     try:
-        username = data.get("username", "").strip()
+        # Use the username from the path parameter
+        username = username.strip()
         if not username:
             raise HTTPException(status_code=400, detail="Username is required")
             
