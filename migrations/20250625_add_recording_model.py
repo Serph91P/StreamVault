@@ -19,14 +19,17 @@ class Recording(Base):
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
 
-def upgrade(engine):
+def upgrade():
     """
     Create the recordings table.
     """
+    from app.database import engine
     Base.metadata.create_all(engine, tables=[Recording.__table__])
 
-def downgrade(engine):
+def downgrade():
     """
     Drop the recordings table.
     """
-    engine.execute(text("DROP TABLE IF EXISTS recordings;"))
+    from app.database import engine
+    with engine.connect() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS recordings;"))
