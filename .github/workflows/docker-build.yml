@@ -9,7 +9,7 @@ on:
     paths:
       - 'app/**'
       - 'migrations/**'
-      - 'Dockerfile'
+      - 'docker/Dockerfile'
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
 
@@ -84,7 +84,7 @@ jobs:
             backend:
               - 'app/!(frontend)/**'
               - 'migrations/**'
-              - 'Dockerfile'
+              - 'docker/Dockerfile'
               - 'requirements.txt'
             frontend:
               - 'app/frontend/**'
@@ -171,7 +171,7 @@ jobs:
       uses: docker/build-push-action@v5  # Updated to latest
       with:
         context: .
-        file: Dockerfile
+        file: docker/Dockerfile
         platforms: linux/amd64  # AMD64 only for now
         push: true
         tags: ${{ steps.meta.outputs.tags }}
