@@ -41,19 +41,27 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
         
         with SessionLocal() as db:
             # Find the highest episode number for the current month using database storage
-            max_episode = (
-                db.query(Stream.episode_number)
-                .filter(
-                    Stream.streamer_id == streamer_id,
-                    extract("year", Stream.started_at) == now.year,
-                    extract("month", Stream.started_at) == now.month,
-                    Stream.episode_number.isnot(None)
-                )
-                .order_by(Stream.episode_number.desc())
-                .first()
-            )
+            max_episode_num = 0
             
-            max_episode_num = max_episode[0] if max_episode else 0
+            # Try to use episode_number column if it exists
+            try:
+                max_episode = (
+                    db.query(Stream.episode_number)
+                    .filter(
+                        Stream.streamer_id == streamer_id,
+                        extract("year", Stream.started_at) == now.year,
+                        extract("month", Stream.started_at) == now.month,
+                        Stream.episode_number.isnot(None)
+                    )
+                    .order_by(Stream.episode_number.desc())
+                    .first()
+                )
+                
+                max_episode_num = max_episode[0] if max_episode else 0
+            except Exception as e:
+                # If episode_number column doesn't exist, fall back to old method
+                logger.debug(f"episode_number column not available, using fallback method: {e}")
+                max_episode_num = 0
             
             # If no database episode numbers found, try to extract from existing recording paths as fallback
             if max_episode_num == 0:
@@ -250,9 +258,14 @@ async def update_episode_number(stream_id: int, episode_number: int):
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if stream:
-                stream.episode_number = episode_number
-                db.commit()
-                logger.info(f"Updated episode_number for stream {stream_id}: {episode_number}")
+                # Check if episode_number column exists before trying to set it
+                try:
+                    stream.episode_number = episode_number
+                    db.commit()
+                    logger.info(f"Updated episode_number for stream {stream_id}: {episode_number}")
+                except Exception as col_error:
+                    # If column doesn't exist, log debug message and continue
+                    logger.debug(f"Could not set episode_number (column may not exist): {col_error}")
             else:
                 logger.warning(f"Stream {stream_id} not found for episode_number update")
     except Exception as e:

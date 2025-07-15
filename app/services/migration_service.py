@@ -78,6 +78,11 @@ class MigrationService:
         
         logger.info(f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed")
         return failed_migrations == 0
+    
+    @staticmethod
+    def run_safe_migrations():
+        """Run all database migrations safely (alias for run_migrations)"""
+        return MigrationService.run_migrations()
 
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
