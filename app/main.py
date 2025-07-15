@@ -344,14 +344,22 @@ RATE_LIMIT_WINDOW = 60  # seconds
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Skip rate limiting for health checks and static files
-    if request.url.path in ["/health", "/favicon.ico"] or request.url.path.startswith("/assets/"):
+    # Skip rate limiting for health checks, static files, and internal API calls
+    if (request.url.path in ["/health", "/favicon.ico"] or 
+        request.url.path.startswith("/assets/") or
+        request.url.path.startswith("/api/images/") or  # Skip rate limiting for image API calls
+        request.url.path.startswith("/api/sync/") or    # Skip rate limiting for sync API calls
+        request.url.path.startswith("/data/")):         # Skip rate limiting for data files
         return await call_next(request)
     
     # Get client IP
     client_ip = request.client.host
     if request.headers.get("X-Forwarded-For"):
         client_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
+    
+    # Skip rate limiting for localhost (internal services)
+    if client_ip in ["127.0.0.1", "localhost", "::1"]:
+        return await call_next(request)
     
     current_time = time.time()
     
