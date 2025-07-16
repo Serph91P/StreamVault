@@ -83,21 +83,17 @@ const isStreamRecording = (streamerIdValue) => {
     const targetStreamerId = Number(streamerIdValue);
     // First check local state which gets updated immediately via WebSockets
     if (localRecordingState.value[targetStreamerId] !== undefined) {
-        console.log(`Using local recording state for ${targetStreamerId}: ${localRecordingState.value[targetStreamerId]}`);
         return localRecordingState.value[targetStreamerId];
     }
     // Then check activeRecordings from the server
     if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
-        console.log(`No active recordings available for ${targetStreamerId}`);
         return false;
     }
-    console.log(`Active recordings for ${targetStreamerId}:`, activeRecordings.value);
     const isRecording = activeRecordings.value.some(rec => {
         // Ensure both are treated as numbers for comparison
         const recordingStreamerId = Number(rec.streamer_id);
         return recordingStreamerId === targetStreamerId;
     });
-    console.log(`Stream ${targetStreamerId} recording status: ${isRecording}`);
     return isRecording;
 };
 // Aufnahme starten
@@ -119,7 +115,6 @@ const startRecording = async (streamerIdValue) => {
             throw new Error(errorData.detail || 'Failed to start recording');
         }
         // Keep local state since it was successful
-        console.log(`Successfully started recording for streamer ${targetStreamerId}`);
         // Fetch active recordings to ensure our UI is in sync
         await fetchActiveRecordings();
     }
@@ -152,7 +147,6 @@ const forceOfflineRecording = async (streamerIdValue) => {
             throw new Error(errorData.detail || 'Failed to start offline recording');
         }
         // Keep local state since it was successful
-        console.log(`Successfully started offline recording for streamer ${targetStreamerId}`);
         // Fetch active recordings to ensure our UI is in sync
         await fetchActiveRecordings();
         // Reload streams to show the newly created stream
@@ -220,7 +214,6 @@ const deleteStream = async () => {
         }
         const result = await response.json();
         deleteResults.value = result;
-        console.log('Delete stream result:', result);
         // Remove stream from the UI
         streams.value = streams.value.filter(s => s.id !== streamToDelete.value.id);
         // Close the modal
@@ -262,7 +255,6 @@ const deleteAllStreams = async () => {
             throw new Error(errorData.detail || 'Failed to delete all streams');
         }
         const result = await response.json();
-        console.log('Delete all streams result:', result);
         // Clear the streams list in the UI
         streams.value = [];
         // Close the modal
@@ -283,7 +275,6 @@ const loadStreams = async () => {
     if (streamerId.value) {
         await fetchStreams(streamerId.value);
         await fetchActiveRecordings();
-        console.log("Loaded active recordings:", activeRecordings.value);
         // Preload category images for all streams
         const categories = streams.value
             .map(stream => stream.category_name)
@@ -298,28 +289,23 @@ onMounted(async () => {
     await loadStreams();
     // Load initial active recordings
     await fetchActiveRecordings();
-    console.log("Initial active recordings:", activeRecordings.value);
 });
 // WebSocket-Nachrichten überwachen
 watch(messages, (newMessages) => {
     if (newMessages.length === 0)
         return;
     const latestMessage = newMessages[newMessages.length - 1];
-    console.log('Received WebSocket message:', latestMessage);
     // Handle WebSocket messages
     if (latestMessage.type === 'active_recordings_update') {
-        console.log('Updating active recordings from WebSocket:', latestMessage.data);
         activeRecordings.value = latestMessage.data || [];
     }
     else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
         // Refresh active recordings when recording state changes
-        console.log('Recording state changed, refreshing active recordings');
         fetchActiveRecordings();
     }
     // Update local state based on WebSocket events
     if (latestMessage.type === 'recording.started') {
         const streamerId = Number(latestMessage.data.streamer_id);
-        console.log(`Recording started for streamer ${streamerId}`);
         // Update local state immediately
         localRecordingState.value[streamerId] = true;
         // Also update our local cache of activeRecordings
@@ -339,7 +325,6 @@ watch(messages, (newMessages) => {
     }
     else if (latestMessage.type === 'recording.stopped') {
         const streamerId = Number(latestMessage.data.streamer_id);
-        console.log(`Recording stopped for streamer ${streamerId}`);
         // Update local state immediately
         localRecordingState.value[streamerId] = false;
         // Remove from our local cache

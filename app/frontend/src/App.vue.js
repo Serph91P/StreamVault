@@ -22,14 +22,11 @@ onMounted(async () => {
 });
 // WebSocket message processing - moved here so it runs even when notification panel is closed
 const processWebSocketMessage = (message) => {
-    console.log('🔥 App: Processing WebSocket message:', message);
     if (!message || !message.type) {
-        console.log('❌ App: Invalid message');
         return;
     }
     // Skip connection status messages
     if (message.type === 'connection.status') {
-        console.log('⏭️ App: Skipping connection status');
         return;
     }
     // Valid notification types
@@ -44,11 +41,7 @@ const processWebSocketMessage = (message) => {
         'test'
     ];
     if (validTypes.includes(message.type)) {
-        console.log('✅ App: Valid message type, adding to localStorage');
         addNotificationToStorage(message);
-    }
-    else {
-        console.log('❌ App: Invalid message type:', message.type);
     }
 };
 // Add notification to localStorage - similar to NotificationFeed logic
@@ -68,7 +61,6 @@ const addNotificationToStorage = (message) => {
             streamer_username,
             data: message.data || {}
         };
-        console.log('🔥 App: Created notification:', newNotification);
         // Get existing notifications
         let notifications = [];
         try {
@@ -88,7 +80,6 @@ const addNotificationToStorage = (message) => {
         }
         // Save back to localStorage
         localStorage.setItem('streamvault_notifications', JSON.stringify(notifications));
-        console.log('💾 App: Saved notification to localStorage. Total notifications:', notifications.length);
         // Update unread count
         updateUnreadCountFromStorage();
         // Dispatch event for other components
@@ -104,40 +95,25 @@ const addNotificationToStorage = (message) => {
 let previousMessageCount = 0;
 // Watch for new WebSocket messages
 watch(() => messages.value.length, (newLength) => {
-    console.log('🔥 App: Message count changed to', newLength, 'from', previousMessageCount);
     if (newLength > previousMessageCount) {
-        console.log('🔥 App: NEW MESSAGES DETECTED!');
         // Process only the new messages
         const newCount = newLength - previousMessageCount;
         const messagesToProcess = messages.value.slice(-newCount);
-        console.log('🔥 App: Processing', messagesToProcess.length, 'new messages');
         messagesToProcess.forEach((message, index) => {
-            console.log(`🔥 App: Processing new message ${index + 1}:`, message);
             processWebSocketMessage(message);
         });
         previousMessageCount = newLength;
     }
 }, { immediate: false });
 function toggleNotifications() {
-    console.log('🔔 App: Toggling notifications panel');
     showNotifications.value = !showNotifications.value;
-    if (showNotifications.value) {
-        console.log('🔔 Notifications panel opened');
-        // Don't recalculate unread count when opening - let the notifications stay visible
-    }
-    else {
-        console.log('🔔 Notifications panel closed');
-    }
 }
 function markAsRead() {
-    console.log('🔔 App: Marking all notifications as read');
     unreadCount.value = 0;
     lastReadTimestamp.value = Date.now().toString();
     localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value);
-    console.log('🔔 App: Updated lastReadTimestamp in localStorage to:', lastReadTimestamp.value);
 }
 function clearAllNotifications() {
-    console.log('🔔 App: Clearing all notifications - Event received from NotificationFeed');
     // Clear the notifications from localStorage (redundant but safe)
     localStorage.removeItem('streamvault_notifications');
     // Mark as read
@@ -148,11 +124,9 @@ function clearAllNotifications() {
     window.dispatchEvent(new CustomEvent('notificationsUpdated', {
         detail: { count: 0 }
     }));
-    console.log('🔔 App: All notifications cleared successfully');
 }
 function closeNotificationPanel() {
     if (showNotifications.value) {
-        console.log('🔔 App: Closing notification panel');
         showNotifications.value = false;
         markAsRead(); // Mark as read when panel closes
     }
@@ -160,11 +134,9 @@ function closeNotificationPanel() {
 // Function to update unread count from localStorage
 function updateUnreadCountFromStorage() {
     const notificationsStr = localStorage.getItem('streamvault_notifications');
-    console.log('🔄 App: Checking localStorage for notifications');
     if (notificationsStr) {
         try {
             const notifications = JSON.parse(notificationsStr);
-            console.log('🔄 App: Found notifications in localStorage:', notifications.length);
             if (Array.isArray(notifications)) {
                 // Only count real notification types, not connection status
                 const validNotificationTypes = [
@@ -181,15 +153,9 @@ function updateUnreadCountFromStorage() {
                     const notifTimestamp = new Date(n.timestamp).getTime();
                     const isValidType = validNotificationTypes.includes(n.type);
                     const isUnread = notifTimestamp > parseInt(lastReadTimestamp.value);
-                    console.log(`🔄 App: Notification ${n.id} - Type: ${n.type}, Valid: ${isValidType}, Unread: ${isUnread}`);
                     return isValidType && isUnread;
                 });
                 unreadCount.value = unread.length;
-                console.log('🔢 App: Updated unread count to:', unreadCount.value, 'notifications');
-                // Log the actual unread notifications for debugging
-                if (unread.length > 0) {
-                    console.log('🔢 App: Unread notifications:', unread);
-                }
             }
         }
         catch (e) {
@@ -197,7 +163,6 @@ function updateUnreadCountFromStorage() {
         }
     }
     else {
-        console.log('🔄 App: No notifications found in localStorage');
         unreadCount.value = 0;
     }
 }
@@ -206,12 +171,9 @@ onMounted(() => {
     updateUnreadCountFromStorage();
     // Set initial message count
     previousMessageCount = messages.value.length;
-    console.log('🚀 App: Set initial message count to', previousMessageCount);
     // Process any existing WebSocket messages
     if (messages.value.length > 0) {
-        console.log('🚀 App: Processing', messages.value.length, 'existing WebSocket messages');
         messages.value.forEach((message, index) => {
-            console.log(`🚀 App: Processing existing message ${index + 1}:`, message);
             processWebSocketMessage(message);
         });
     }
@@ -230,13 +192,11 @@ onMounted(() => {
     // Listen for localStorage changes to update count
     window.addEventListener('storage', (e) => {
         if (e.key === 'streamvault_notifications') {
-            console.log('📦 App: localStorage notifications changed, updating count');
             updateUnreadCountFromStorage();
         }
     });
     // Listen for custom notifications updated event
     window.addEventListener('notificationsUpdated', () => {
-        console.log('📦 App: Custom notificationsUpdated event received, updating count');
         updateUnreadCountFromStorage();
     });
 });
@@ -244,7 +204,6 @@ onMounted(() => {
 const previousMessageCountApp = ref(0);
 // Watch for new messages and update unread count
 watch(messages, (newMessages) => {
-    console.log('🔄 App: Messages watcher triggered. Messages count:', newMessages.length);
     if (!newMessages || newMessages.length === 0)
         return;
     // Check if we have new messages
@@ -256,7 +215,6 @@ watch(messages, (newMessages) => {
         previousMessageCountApp.value = newMessages.length;
         // Process each new message - but only count them, don't store them (NotificationFeed handles storage)
         newMessagesToProcess.forEach(newMessage => {
-            console.log('🔄 App: Processing new message for counting:', newMessage);
             // Only count specific notification types (exclude connection.status to prevent false positives)
             const notificationTypes = [
                 'stream.online',
@@ -270,24 +228,13 @@ watch(messages, (newMessages) => {
             ];
             // Only increment if it's a valid notification type AND panel is not currently shown
             if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
-                console.log('🔢 App: Valid notification type for counter:', newMessage.type);
                 // Check if this notification has already been counted
                 const notificationTimestamp = newMessage.data?.timestamp || Date.now();
                 if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
                     unreadCount.value++;
-                    console.log('🔢 App: Unread count is now', unreadCount.value);
                 }
-                else {
-                    console.log('🔢 App: Notification timestamp older than last read, not incrementing count');
-                }
-            }
-            else {
-                console.log('⏭️ App: Skipping unread count for message type:', newMessage.type, 'or panel is open:', showNotifications.value);
             }
         });
-    }
-    else {
-        console.log('🔄 App: No new messages detected');
     }
 }, { deep: true, immediate: false }); // Don't process immediately
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */

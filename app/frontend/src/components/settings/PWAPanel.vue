@@ -267,7 +267,7 @@ const sendTestNotification = async () => {
     }
     
     // If server push fails, try local notification via Service Worker
-    console.log('Trying local notification fallback...')
+
     
     try {
       await showNotification('🧪 StreamVault Test (Local)', {

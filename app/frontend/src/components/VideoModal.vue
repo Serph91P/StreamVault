@@ -292,7 +292,7 @@ const loadChapters = async () => {
     
     const response = await streamerApi.getStreamChapters(props.video.streamer_id, props.video.id)
     chapters.value = response.chapters || []
-    console.log(`Loaded ${chapters.value.length} chapters for stream ${props.video.id}`)
+
   } catch (error) {
     console.error('Failed to load chapters:', error)
     chapters.value = []
@@ -314,7 +314,7 @@ const jumpToChapter = (chapter) => {
     const chapterIndex = chapters.value.indexOf(chapter)
     currentChapter.value = chapterIndex
     
-    console.log(`Jumped to chapter: ${chapter.title} at ${chapter.start_time} (${timeInSeconds}s)`)
+
   } catch (error) {
     console.error('Failed to jump to chapter:', error)
   }

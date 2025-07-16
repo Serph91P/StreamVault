@@ -98,10 +98,8 @@ const selectVideo = (video) => {
     activeTab.value = 'player';
 };
 const onChapterChange = (chapter, index) => {
-    console.log('Chapter changed:', chapter, index);
 };
 const onVideoReady = (duration) => {
-    console.log('Video ready, duration:', duration);
 };
 const formatDate = (date) => {
     return new Intl.DateTimeFormat('de-DE', {

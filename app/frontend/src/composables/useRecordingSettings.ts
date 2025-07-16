@@ -24,7 +24,7 @@ export function useRecordingSettings() {
       const latestMessage = newMessages[newMessages.length - 1];
       
       if (latestMessage.type === 'active_recordings_update') {
-        console.log('WebSocket: Active recordings update received:', latestMessage.data);
+        
         if (Array.isArray(latestMessage.data)) {
           activeRecordings.value = latestMessage.data.map(rec => ({
             ...rec,
@@ -32,11 +32,11 @@ export function useRecordingSettings() {
           }));
         }
       } else if (latestMessage.type === 'recording_started') {
-        console.log('WebSocket: Recording started:', latestMessage.data);
+        
         // Refresh active recordings or add the new recording
         fetchActiveRecordings();
       } else if (latestMessage.type === 'recording_stopped') {
-        console.log('WebSocket: Recording stopped:', latestMessage.data);
+        
         // Remove the recording from active recordings
         if (latestMessage.data?.streamer_id) {
           activeRecordings.value = activeRecordings.value.filter(
@@ -124,7 +124,6 @@ export function useRecordingSettings() {
       isLoading.value = true;
       error.value = null;
       
-      console.log("Fetching streamer recording settings...")
       const response = await fetch('/api/recording/streamers');
       if (!response.ok) {
         const errorText = await response.text();
@@ -133,7 +132,7 @@ export function useRecordingSettings() {
       }
       
       const data = await response.json();
-      console.log("Received streamer settings:", data);
+      
       streamerSettings.value = data;
       return data;
     } catch (err) {
@@ -194,7 +193,7 @@ export function useRecordingSettings() {
       }
       
       const data = await response.json();
-      console.log('Fetched active recordings:', data);
+      
       
       // Ensure we validate and normalize the response
       if (Array.isArray(data)) {

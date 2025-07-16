@@ -180,11 +180,8 @@ watch(messages, (newMessages) => {
   const message = newMessages[newMessages.length - 1]
   if (!message) return
 
-  console.log('StreamerList: New message detected:', message)
-
   switch (message.type) {
     case 'channel.update': {
-      console.log('StreamerList: Processing channel update:', message.data)
       const streamerId = message.data.streamer_id
       const streamer = streamers.value.find(s => s.id === streamerId)
       
@@ -195,12 +192,10 @@ watch(messages, (newMessages) => {
         last_updated: new Date().toISOString()
         // Keep current live status
       }
-      console.log('StreamerList: Updating streamer with data:', updateData)
       updateStreamer(streamerId, updateData)
       break
     }
     case 'stream.online': {
-      console.log('StreamerList: Processing stream online:', message.data)
       const updateData: StreamerUpdateData = {
         is_live: true,
         title: message.data.title || '',
@@ -212,7 +207,6 @@ watch(messages, (newMessages) => {
       break
     }
     case 'stream.offline': {
-      console.log('StreamerList: Processing stream offline:', message.data)
       const updateData: StreamerUpdateData = {
         is_live: false,
         last_updated: new Date().toISOString()
@@ -221,7 +215,6 @@ watch(messages, (newMessages) => {
       break
     }
     case 'recording.started': {
-      console.log('StreamerList: Processing recording started:', message.data)
       const streamerId = message.data.streamer_id
       const streamer = streamers.value.find(s => s.id === streamerId)
       if (streamer) {
@@ -230,7 +223,6 @@ watch(messages, (newMessages) => {
       break
     }
     case 'recording.stopped': {
-      console.log('StreamerList: Processing recording stopped:', message.data)
       const streamerId = message.data.streamer_id
       const streamer = streamers.value.find(s => s.id === streamerId)
       if (streamer) {
@@ -249,7 +241,6 @@ watch(connectionStatus, (status) => {
 }, { immediate: true })
 
 onMounted(() => {
-  console.log('StreamerList mounted')
   void fetchStreamers()
 })
 </script>

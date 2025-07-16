@@ -100,7 +100,6 @@ const saveProxySettings = async () => {
         if (!saveResponse.ok) {
             throw new Error('Failed to save proxy settings');
         }
-        console.log('Proxy settings saved successfully');
     }
     catch (error) {
         console.error('Failed to save proxy settings:', error);
@@ -256,7 +255,6 @@ const closeStreamerPolicyDialog = () => {
     selectedStreamer.value = null;
 };
 const handleStreamerPolicySaved = (policy) => {
-    console.log('Streamer cleanup policy saved:', policy);
     closeStreamerPolicyDialog();
 };
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
