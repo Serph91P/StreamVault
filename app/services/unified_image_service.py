@@ -118,12 +118,28 @@ class UnifiedImageService:
 
     # Category Image Methods (delegate to CategoryImageService)
     
-    async def download_category_image(self, category_name: str, box_art_url: str) -> Optional[str]:
+    async def download_category_image(self, category_name: str, box_art_url: str = None) -> Optional[str]:
         """Download and cache a category's box art image"""
+        # If no box_art_url provided, try to get it from database
+        if not box_art_url:
+            from app.database import SessionLocal
+            from app.models import Category
+            with SessionLocal() as db:
+                category = db.query(Category).filter(Category.name == category_name).first()
+                if category and category.box_art_url:
+                    box_art_url = category.box_art_url
+                else:
+                    logger.warning(f"No box_art_url found for category: {category_name}")
+                    return None
+        
         return await self.category_service.download_category_image(category_name, box_art_url)
 
     def get_cached_category_image(self, category_name: str) -> Optional[str]:
         """Get cached category image path"""
+        return self.category_service.get_cached_category_image(category_name)
+
+    def get_category_image_url(self, category_name: str) -> Optional[str]:
+        """Get category image URL (legacy compatibility method)"""
         return self.category_service.get_cached_category_image(category_name)
 
     async def update_category_image(self, category_name: str, box_art_url: str) -> bool:
