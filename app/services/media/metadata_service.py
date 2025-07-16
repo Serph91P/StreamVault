@@ -1553,7 +1553,7 @@ class MetadataService:
             mp4_path_obj = Path(mp4_path)
             
             # Import logging service
-            from app.services.logging_service import logging_service
+            from app.services.system.logging_service import logging_service
             
             # Validate source file exists and has reasonable size
             if not mp4_path_obj.exists():
