@@ -438,12 +438,10 @@
                 
                 // Show manual install instructions
                 const description = document.getElementById('install-description');
-                description.innerHTML = `
-                    <strong>Keine automatische Installation verfügbar.</strong><br>
-                    Manuelle Installation:<br>
-                    • Chrome: Menü (⋮) → "Zum Startbildschirm hinzufügen"<br>
-                    • Oder Adressleiste → Install-Icon (falls vorhanden)
-                `;
+                // SECURITY FIX: Use textContent instead of innerHTML to prevent XSS
+                description.textContent = 'Keine automatische Installation verfügbar. ' +
+                    'Manuelle Installation: Chrome: Menü (⋮) → "Zum Startbildschirm hinzufügen" ' +
+                    'oder Adressleiste → Install-Icon (falls vorhanden)';
             }
         }, 10000); // Check every 10 seconds
         
@@ -657,7 +655,12 @@
                 instructionsHTML += '</div>';
             }
             
-            document.getElementById('platform-instructions').innerHTML = instructionsHTML;
+            // SECURITY FIX: Create DOM elements instead of innerHTML
+            const instructionsContainer = document.getElementById('platform-instructions');
+            instructionsContainer.innerHTML = ''; // Clear existing content
+            const div = document.createElement('div');
+            div.textContent = instructionsHTML.replace(/<[^>]*>/g, ''); // Strip HTML tags
+            instructionsContainer.appendChild(div);
         }
 
         // Platform Detection with more details  
