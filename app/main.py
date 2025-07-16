@@ -731,23 +731,56 @@ async def serve_register_sw():
 @app.get("/workbox-{filename:path}")
 async def serve_workbox_files(filename: str):
     """Serve Workbox-related files from the dist directory"""
+    import os
+    from pathlib import Path
+    
     # Security: Only allow workbox files with specific pattern
-    if not filename.endswith(".js") or ".." in filename or "/" in filename:
+    if not filename.endswith(".js") or ".." in filename or "/" in filename or "\\" in filename:
         return Response(status_code=404)
     
     workbox_filename = f"workbox-{filename}"
     from app.utils.file_paths import get_pwa_file_paths
+    
+    # Define safe root directories
+    safe_roots = [
+        os.path.abspath("app/frontend/dist"),
+        os.path.abspath("/app/app/frontend/dist")
+    ]
+    
     for path in get_pwa_file_paths(workbox_filename):
         try:
+            # Normalize and validate the path for security
+            normalized_path = os.path.abspath(path)
+            
+            # Check if path is within any of the safe root directories
+            is_safe = False
+            for safe_root in safe_roots:
+                try:
+                    if os.path.commonpath([normalized_path, safe_root]) == safe_root:
+                        is_safe = True
+                        break
+                except ValueError:
+                    # Paths are on different drives (Windows), skip this root
+                    continue
+            
+            if not is_safe:
+                logger.warning(f"Unsafe path attempt blocked: {normalized_path}")
+                continue
+                
+            # Verify the file exists and is a regular file
+            if not os.path.exists(normalized_path) or not os.path.isfile(normalized_path):
+                continue
+                
             return FileResponse(
-                path,
-                media_type="application/javascript",
+                normalized_path,
+                media_type="application/javascript", 
                 headers={
                     "Cache-Control": "public, max-age=31536000",  # 1 year for workbox files
                     "Access-Control-Allow-Origin": "*"
                 }
             )
-        except:
+        except Exception as e:
+            logger.warning(f"Error serving workbox file {path}: {e}")
             continue
     return Response(status_code=404)
 

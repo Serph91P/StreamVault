@@ -12,44 +12,45 @@ const totalStreamers = computed(() => streamers.value.length)
 const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
 const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
 
-// For last recording, fetch all streams and find the latest ended stream
+// For last recording - derived from streamers data (no API calls)
 const lastRecording = ref<any>(null)
 const lastRecordingStreamer = ref<any>(null)
-const isLoadingLastRecording = ref(false)
 
-async function fetchLastRecording() {
-  isLoadingLastRecording.value = true
-  try {
-    // Use a single API call to get the latest recording instead of looping through all streamers
-    const response = await fetch('/api/recordings/latest')
-    if (response.ok) {
-      const data = await response.json()
-      lastRecording.value = data.recording || null
-      if (data.recording) {
-        lastRecordingStreamer.value = streamers.value.find(s => 
-          String(s.id) === String(data.recording.streamer_id)
-        )
-      }
-    } else {
-      // Fallback: Get only last 5 recordings from a dedicated endpoint
-      const fallbackResponse = await fetch('/api/recordings/recent?limit=1')
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json()
-        const recordings = fallbackData.recordings || []
-        lastRecording.value = recordings[0] || null
-        if (recordings[0]) {
-          lastRecordingStreamer.value = streamers.value.find(s => 
-            String(s.id) === String(recordings[0].streamer_id)
-          )
-        }
+// Function to derive last recording from streamers data (no API calls needed)
+function updateLastRecording() {
+  if (!streamers.value.length) {
+    lastRecording.value = null
+    lastRecordingStreamer.value = null
+    return
+  }
+  
+  // Find the streamer with the most recent last_updated who was recently live
+  let mostRecentStreamer = null
+  let mostRecentTime = null
+  
+  for (const streamer of streamers.value) {
+    if (streamer.last_updated) {
+      const updateTime = new Date(streamer.last_updated)
+      if (!mostRecentTime || updateTime > mostRecentTime) {
+        mostRecentTime = updateTime
+        mostRecentStreamer = streamer
       }
     }
-  } catch (error) {
-    console.error('Failed to fetch last recording:', error)
+  }
+  
+  if (mostRecentStreamer) {
+    lastRecordingStreamer.value = mostRecentStreamer
+    lastRecording.value = {
+      id: `recent-${mostRecentStreamer.id}`,
+      streamer_name: mostRecentStreamer.username,
+      title: mostRecentStreamer.title || 'Recent Stream',
+      ended_at: mostRecentStreamer.last_updated,
+      streamer_id: mostRecentStreamer.id
+    }
+  } else {
     lastRecording.value = null
     lastRecordingStreamer.value = null
   }
-  isLoadingLastRecording.value = false
 }
 
 // WebSocket message handling
@@ -66,6 +67,7 @@ watch(messages, (newMessages) => {
         language: message.data.language || '',
         last_updated: new Date().toISOString()
       })
+      updateLastRecording()
       break
     }
     case 'stream.offline': {
@@ -73,6 +75,7 @@ watch(messages, (newMessages) => {
         is_live: false,
         last_updated: new Date().toISOString()
       })
+      updateLastRecording()
       break
     }
     case 'recording.started': {
@@ -106,10 +109,15 @@ watch(connectionStatus, (status) => {
   }
 }, { immediate: true })
 
+// Update last recording when streamers data changes
+watch(streamers, () => {
+  updateLastRecording()
+}, { deep: true })
+
 onMounted(async () => {
   await fetchStreamers()
   await fetchActiveRecordings()
-  await fetchLastRecording()
+  updateLastRecording()
 })
 </script>
 
@@ -132,15 +140,14 @@ onMounted(async () => {
             <span class="stat-label">Active Recordings</span>
             <span class="stat-value">{{ totalActiveRecordings }}</span>
           </div>          <div class="stat-item">
-            <span class="stat-label">Last Recording</span>
+            <span class="stat-label">Most Recent Activity</span>
             <span class="stat-value">
-              <template v-if="isLoadingLastRecording">Loading...</template>
-              <template v-else-if="lastRecording">
+              <template v-if="lastRecording">
                 <strong>{{ lastRecording.streamer_name }}</strong><br />
-                {{ lastRecording.title || 'Untitled' }}<br />
+                {{ lastRecording.title || 'Recent Stream' }}<br />
                 <small>{{ lastRecording.ended_at ? new Date(lastRecording.ended_at).toLocaleString() : '' }}</small>
               </template>
-              <template v-else>No recordings found</template>
+              <template v-else>No recent activity</template>
             </span>
           </div>
         </div>
