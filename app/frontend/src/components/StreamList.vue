@@ -268,11 +268,6 @@
       <i class="fas fa-trash-alt"></i>
       <span class="fab-text">Delete All ({{ streams.length }})</span>
     </div>
-    
-    <!-- DEBUG: Test tooltip to see if our CSS works -->
-    <div style="position: fixed; bottom: 100px; right: 20px; z-index: 9999;">
-
-    </div>
   </div>
 </template>
 
