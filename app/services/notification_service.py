@@ -80,5 +80,10 @@ class NotificationService:
 # Legacy function for backward compatibility
 async def get_user_info(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user info from Twitch API including profile image"""
-    from app.services.notifications.notification_dispatcher import get_user_info
-    return await get_user_info(user_id)
+    try:
+        from app.services.api.twitch_api import twitch_api
+        users = await twitch_api.get_users_by_id([user_id])
+        return users[0] if users else None
+    except Exception as e:
+        logger.error(f"Error fetching user info: {e}")
+        return None
