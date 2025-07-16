@@ -262,7 +262,7 @@ function clearAllNotifications() {
   // Mark as read
   markAsRead()
   // Reset notification count
-  notificationCount.value = 0
+  unreadCount.value = 0
   // Dispatch event to notify other components
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }

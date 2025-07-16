@@ -15,6 +15,7 @@ class WebSocketManager {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 10
   private wsUrl: string
+  private connectionId: string | null = null
   
   // Reactive state shared across all components
   public messages: Ref<WebSocketMessage[]> = ref([])
@@ -24,11 +25,15 @@ class WebSocketManager {
   private constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     this.wsUrl = `${wsProtocol}//${window.location.host}/ws`
+    console.log('🔧 WebSocketManager singleton created with URL:', this.wsUrl)
   }
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
       WebSocketManager.instance = new WebSocketManager()
+      console.log('🏗️ WebSocketManager singleton instance created')
+    } else {
+      console.log('♻️ WebSocketManager singleton instance reused')
     }
     return WebSocketManager.instance
   }
@@ -87,6 +92,12 @@ class WebSocketManager {
       try {
         const message = JSON.parse(event.data)
         this.messages.value.push(message)
+        
+        // Store connection ID from server for debugging
+        if (message.type === 'connection.status' && message.data?.connection_id) {
+          this.connectionId = message.data.connection_id
+          console.log('🆔 WebSocket connection ID:', this.connectionId)
+        }
         
         // Keep only last 100 messages to prevent memory leaks
         if (this.messages.value.length > 100) {
@@ -167,16 +178,19 @@ export function useWebSocket() {
   const manager = WebSocketManager.getInstance()
   
   // Create a unique callback for this component instance
+  const componentId = Math.random().toString(36).substr(2, 9)
   const componentCallback = () => {
     // This callback is used for subscriber tracking
     // The actual reactivity is handled by the shared refs
   }
   
   onMounted(() => {
+    console.log(`📱 Component ${componentId} subscribing to WebSocket`)
     manager.subscribe(componentCallback)
   })
   
   onUnmounted(() => {
+    console.log(`📱 Component ${componentId} unsubscribing from WebSocket`)
     manager.unsubscribe(componentCallback)
   })
   

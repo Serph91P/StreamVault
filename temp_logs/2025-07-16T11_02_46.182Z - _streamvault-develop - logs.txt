@@ -1,0 +1,510 @@
+2025-07-16T11:00:41.438183816Z [2025-07-16 13:00:41] Starting StreamVault entrypoint script
+2025-07-16T11:00:41.441049742Z [2025-07-16 13:00:41] ENVIRONMENT: development, LOG_LEVEL: DEBUG
+2025-07-16T11:00:41.444060929Z [2025-07-16 13:00:41] Running in development environment...
+2025-07-16T11:00:41.446450537Z [2025-07-16 13:00:41] Frontend dist assets directory found. Skipping build.
+2025-07-16T11:00:41.449177192Z [2025-07-16 13:00:41] Setting proper permissions for migrations directory...
+2025-07-16T11:00:41.606935001Z [2025-07-16 13:00:41] Migrations directory permissions set.
+2025-07-16T11:00:41.609420918Z [2025-07-16 13:00:41] Category images are now managed by unified_image_service
+2025-07-16T11:00:41.612063778Z [2025-07-16 13:00:41] Database migrations will be handled by application startup...
+2025-07-16T11:00:41.614603415Z [2025-07-16 13:00:41] Starting FastAPI application...
+2025-07-16T11:00:42.818438971Z INFO:     Started server process [1]
+2025-07-16T11:00:42.818455400Z INFO:     Waiting for application startup.
+2025-07-16T11:00:42.818603462Z Connecting to database with URL: postgresql+psycopg://streamvault-develop:yLdAXmEO0fargQQkBqVnYL4rJ#Qy$&L6@db:5432/streamvault-develop
+2025-07-16T11:00:42.818605901Z 2025-07-16 13:00:42,818 - streamvault - INFO - Starting application initialization...
+2025-07-16T11:00:42.818637188Z 2025-07-16 13:00:42,818 - streamvault - INFO - 🔄 Running database migrations...
+2025-07-16T11:00:42.818665554Z 2025-07-16 13:00:42,818 - streamvault - INFO - 🔄 Starting database migrations...
+2025-07-16T11:00:42.823777613Z 2025-07-16 13:00:42,823 - streamvault - INFO - ✅ Migrations table already exists with correct schema
+2025-07-16T11:00:42.824425787Z 2025-07-16 13:00:42,824 - streamvault - INFO - ✅ Migrations table exists with correct schema
+2025-07-16T11:00:42.824962976Z 2025-07-16 13:00:42,824 - streamvault - INFO - Found 13 previously applied migrations
+2025-07-16T11:00:42.825220859Z 2025-07-16 13:00:42,825 - streamvault - INFO - No pending migrations to apply
+2025-07-16T11:00:42.825257216Z 2025-07-16 13:00:42,825 - streamvault - INFO - 🎯 Migration summary: 0 successful, 0 failed
+2025-07-16T11:00:42.825287320Z 2025-07-16 13:00:42,825 - streamvault - INFO - ✅ All database migrations completed successfully
+2025-07-16T11:00:42.825312015Z 2025-07-16 13:00:42,825 - streamvault - DEBUG - Initializing event registry
+2025-07-16T11:00:42.828509241Z 2025-07-16 13:00:42,828 - streamvault - DEBUG - No notification URL configured
+2025-07-16T11:00:42.828679674Z 2025-07-16 13:00:42,828 - streamvault - DEBUG - Initializing EventSub with callback URL: https://streamvault-develop.meberthosting.de/eventsub
+2025-07-16T11:00:42.828695456Z 2025-07-16 13:00:42,828 - streamvault - INFO - EventSub initialized successfully
+2025-07-16T11:00:42.828715722Z 2025-07-16 13:00:42,828 - streamvault - DEBUG - Event registry initialization complete
+2025-07-16T11:00:42.828734670Z 2025-07-16 13:00:42,828 - streamvault - DEBUG - EventSub already initialized, skipping...
+2025-07-16T11:00:42.828754504Z 2025-07-16 13:00:42,828 - streamvault - INFO - EventSub initialized successfully
+2025-07-16T11:00:42.828773129Z 2025-07-16 13:00:42,828 - streamvault - INFO - Recording service reference obtained for graceful shutdown
+2025-07-16T11:00:42.829051519Z 2025-07-16 13:00:42,829 - streamvault - INFO - Starting log cleanup. Retention: streamer logs=14 days, system logs=30 days
+2025-07-16T11:00:42.829164039Z 2025-07-16 13:00:42,829 - streamvault - INFO - Cleaned /app/logs/ffmpeg: deleted 0 log files, kept 1
+2025-07-16T11:00:42.829228513Z 2025-07-16 13:00:42,829 - streamvault - INFO - Cleaned /app/logs/streamlink: deleted 0 log files, kept 1
+2025-07-16T11:00:42.829285503Z 2025-07-16 13:00:42,829 - streamvault - INFO - Cleaned /app/logs/app: deleted 0 log files, kept 1
+2025-07-16T11:00:42.829305764Z 2025-07-16 13:00:42,829 - streamvault - INFO - Log cleanup completed
+2025-07-16T11:00:42.829333476Z 2025-07-16 13:00:42,829 - streamvault - INFO - Log cleanup service started
+2025-07-16T11:00:42.829357121Z 2025-07-16 13:00:42,829 - streamvault - INFO - Recording cleanup service started
+2025-07-16T11:00:42.829379779Z 2025-07-16 13:00:42,829 - streamvault - INFO - Image sync worker started
+2025-07-16T11:00:42.829398752Z 2025-07-16 13:00:42,829 - streamvault - INFO - Image sync service started
+2025-07-16T11:00:42.829871155Z 2025-07-16 13:00:42,829 - streamvault - INFO - Initializing background services...
+2025-07-16T11:00:42.829901319Z 2025-07-16 13:00:42,829 - streamvault - INFO - Initializing background queue service...
+2025-07-16T11:00:42.829924041Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: metadata_generation
+2025-07-16T11:00:42.829944401Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: chapters_generation
+2025-07-16T11:00:42.829961881Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: mp4_remux
+2025-07-16T11:00:42.829978014Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: mp4_validation
+2025-07-16T11:00:42.829994780Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: thumbnail_generation
+2025-07-16T11:00:42.830011366Z 2025-07-16 13:00:42,829 - streamvault - INFO - Registered handler for task type: cleanup
+2025-07-16T11:00:42.830052395Z 2025-07-16 13:00:42,830 - streamvault - INFO - BackgroundQueueService started with 3 workers and dependency management
+2025-07-16T11:00:42.830070797Z 2025-07-16 13:00:42,830 - streamvault - INFO - Background queue service initialized successfully
+2025-07-16T11:00:42.830088465Z 2025-07-16 13:00:42,830 - streamvault - INFO - Background services initialized successfully
+2025-07-16T11:00:42.830105965Z 2025-07-16 13:00:42,830 - streamvault - INFO - Background queue service started
+2025-07-16T11:00:42.830126993Z 2025-07-16 13:00:42,830 - streamvault - INFO - WebSocket broadcast task started
+2025-07-16T11:00:42.830142845Z 2025-07-16 13:00:42,830 - streamvault - INFO - WebSocket broadcast task started
+2025-07-16T11:00:42.830159509Z 2025-07-16 13:00:42,830 - streamvault - INFO - Application startup complete
+2025-07-16T11:00:42.830229344Z 2025-07-16 13:00:42,830 - streamvault - INFO - Starting scheduled cleanup for all streamers
+2025-07-16T11:00:42.841422444Z 2025-07-16 13:00:42,841 - streamvault - INFO - Processing streamer herrmaximal (1/1) with policy count (threshold: 10)
+2025-07-16T11:00:42.846636547Z 2025-07-16 13:00:42,846 - streamvault - INFO - Applying cleanup policy for streamer 1: type=count, threshold=10
+2025-07-16T11:00:42.849295007Z 2025-07-16 13:00:42,849 - streamvault - INFO - No recordings to clean up for streamer herrmaximal
+2025-07-16T11:00:42.849367148Z 2025-07-16 13:00:42,849 - streamvault - INFO - Scheduled cleanup completed for 0/1 streamers. Deleted 0 recordings in total.
+2025-07-16T11:00:42.849630171Z 2025-07-16 13:00:42,849 - streamvault - INFO - Worker worker-0 started
+2025-07-16T11:00:42.849717163Z 2025-07-16 13:00:42,849 - streamvault - INFO - Worker worker-1 started
+2025-07-16T11:00:42.849777376Z 2025-07-16 13:00:42,849 - streamvault - INFO - Worker worker-2 started
+2025-07-16T11:00:42.849830241Z 2025-07-16 13:00:42,849 - streamvault - INFO - Dependency worker started
+2025-07-16T11:00:42.853808841Z INFO:     Application startup complete.
+2025-07-16T11:00:42.854245629Z INFO:     Uvicorn running on http://0.0.0.0:7000 (Press CTRL+C to quit)
+2025-07-16T11:00:44.825995915Z 2025-07-16 13:00:44,825 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=33810)
+2025-07-16T11:00:44.826292914Z INFO:     ('172.23.0.1', 33810) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:44.826647459Z 2025-07-16 13:00:44,826 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=33810)
+2025-07-16T11:00:44.827637336Z INFO:     connection open
+2025-07-16T11:00:44.878003212Z 2025-07-16 13:00:44,877 - streamvault - INFO - Request caaa90d9-3033-4eb7-b082-8cf388a2af16: GET /api/streamers
+2025-07-16T11:00:44.878349416Z 2025-07-16 13:00:44,878 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:00:44.892959079Z 2025-07-16 13:00:44,892 - streamvault - INFO - Loaded image cache: 2 profiles, 2 categories
+2025-07-16T11:00:44.893003255Z 2025-07-16 13:00:44,892 - streamvault - INFO - Unified image service initialized, storage: /recordings/.images
+2025-07-16T11:00:44.893555514Z 2025-07-16 13:00:44,893 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:44.893817858Z INFO:     172.23.0.1:33816 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:00:44.918501523Z 2025-07-16 13:00:44,918 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=33830)
+2025-07-16T11:00:44.918577753Z INFO:     ('172.23.0.1', 33830) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:44.918632027Z 2025-07-16 13:00:44,918 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=33830)
+2025-07-16T11:00:44.918869647Z INFO:     connection open
+2025-07-16T11:00:44.987221712Z 2025-07-16 13:00:44,987 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=33842)
+2025-07-16T11:00:44.987335405Z INFO:     ('172.23.0.1', 33842) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:44.987348692Z 2025-07-16 13:00:44,987 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=33842)
+2025-07-16T11:00:44.987611336Z INFO:     connection open
+2025-07-16T11:00:48.179828620Z 2025-07-16 13:00:48,179 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=43286)
+2025-07-16T11:00:48.180025780Z INFO:     ('172.23.0.1', 43286) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:48.180144583Z 2025-07-16 13:00:48,180 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=43286)
+2025-07-16T11:00:48.180946894Z INFO:     connection open
+2025-07-16T11:00:49.285632832Z 2025-07-16 13:00:49,285 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=43286)
+2025-07-16T11:00:49.285855672Z 2025-07-16 13:00:49,285 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=43286)
+2025-07-16T11:00:49.286182009Z INFO:     connection closed
+2025-07-16T11:00:49.286400424Z 2025-07-16 13:00:49,286 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33842)
+2025-07-16T11:00:49.286606870Z 2025-07-16 13:00:49,286 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33842)
+2025-07-16T11:00:49.286842089Z INFO:     connection closed
+2025-07-16T11:00:49.287259099Z 2025-07-16 13:00:49,287 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33810)
+2025-07-16T11:00:49.287462946Z 2025-07-16 13:00:49,287 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33810)
+2025-07-16T11:00:49.287868076Z INFO:     connection closed
+2025-07-16T11:00:49.287908032Z 2025-07-16 13:00:49,287 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33830)
+2025-07-16T11:00:49.288158098Z 2025-07-16 13:00:49,287 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=33830)
+2025-07-16T11:00:49.288341233Z INFO:     connection closed
+2025-07-16T11:00:49.368364966Z 2025-07-16 13:00:49,367 - streamvault - INFO - Request c35a1aaf-5c76-48ad-b4b5-6f33766c919b: GET /streamers
+2025-07-16T11:00:49.369298500Z 2025-07-16 13:00:49,368 - streamvault - DEBUG - Incoming request: GET /streamers
+2025-07-16T11:00:49.371552558Z 2025-07-16 13:00:49,371 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.372675333Z INFO:     172.23.0.1:33816 - "GET /streamers HTTP/1.1" 200 OK
+2025-07-16T11:00:49.521554042Z 2025-07-16 13:00:49,521 - streamvault - INFO - Request afa6abd0-bf35-47b8-94d6-3d49a4cf00c6: GET /assets/index-9uQLCNht.js
+2025-07-16T11:00:49.522433786Z 2025-07-16 13:00:49,522 - streamvault - DEBUG - Incoming request: GET /assets/index-9uQLCNht.js
+2025-07-16T11:00:49.525024750Z 2025-07-16 13:00:49,524 - streamvault - INFO - Request a50482f6-82a1-4ee1-914d-502de9567c03: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:00:49.534344220Z 2025-07-16 13:00:49,534 - streamvault - INFO - Request 84ce58b0-5ac3-4f0f-bef0-dec35c7866be: GET /registerSW.js
+2025-07-16T11:00:49.535412535Z 2025-07-16 13:00:49,535 - streamvault - DEBUG - Incoming request: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:00:49.536123976Z 2025-07-16 13:00:49,535 - streamvault - INFO - Request 40c933bb-0a1c-4d53-a2a2-a77e42b27add: GET /assets/vue-vendor-DOrOIFu1.js
+2025-07-16T11:00:49.537361078Z 2025-07-16 13:00:49,537 - streamvault - DEBUG - Incoming request: GET /registerSW.js
+2025-07-16T11:00:49.541391863Z 2025-07-16 13:00:49,541 - streamvault - DEBUG - Incoming request: GET /assets/vue-vendor-DOrOIFu1.js
+2025-07-16T11:00:49.547182536Z 2025-07-16 13:00:49,547 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.547592036Z 2025-07-16 13:00:49,547 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.548225440Z INFO:     172.23.0.1:33816 - "GET /assets/index-9uQLCNht.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.548600856Z 2025-07-16 13:00:49,548 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.548709547Z INFO:     172.23.0.1:43326 - "GET /registerSW.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.548991534Z INFO:     172.23.0.1:43302 - "GET /assets/index-DIAFgSQQ.css HTTP/1.1" 200 OK
+2025-07-16T11:00:49.551270309Z 2025-07-16 13:00:49,551 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.551533390Z INFO:     172.23.0.1:43318 - "GET /assets/vue-vendor-DOrOIFu1.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.673654978Z 2025-07-16 13:00:49,673 - streamvault - DEBUG - Request 7f7ffa84-c05c-40f8-abf7-e9de35832839: GET /api/background-queue/stats
+2025-07-16T11:00:49.676924915Z 2025-07-16 13:00:49,676 - streamvault - DEBUG - Request ae240bcb-cdda-40ad-85b1-fa37e4126135: GET /api/background-queue/active-tasks
+2025-07-16T11:00:49.677331696Z 2025-07-16 13:00:49,677 - streamvault - DEBUG - Incoming request: GET /api/background-queue/stats
+2025-07-16T11:00:49.677602004Z 2025-07-16 13:00:49,677 - streamvault - INFO - Request 9b2c315c-7c33-4a21-8b1e-ea0dd3a3006a: GET /assets/pwaDebug-DEAyeGsa.js
+2025-07-16T11:00:49.679924317Z 2025-07-16 13:00:49,679 - streamvault - DEBUG - Background queue stats requested via REST API (consider WebSocket)
+2025-07-16T11:00:49.680127166Z 2025-07-16 13:00:49,680 - streamvault - DEBUG - Incoming request: GET /api/background-queue/active-tasks
+2025-07-16T11:00:49.680365861Z 2025-07-16 13:00:49,680 - streamvault - INFO - Request 3c130b7a-f0ce-4148-8c5e-586b87abb8d4: GET /api/background-queue/recent-tasks
+2025-07-16T11:00:49.680963270Z 2025-07-16 13:00:49,680 - streamvault - DEBUG - Background queue active tasks requested via REST API (consider WebSocket)
+2025-07-16T11:00:49.681182316Z 2025-07-16 13:00:49,681 - streamvault - DEBUG - Incoming request: GET /assets/pwaDebug-DEAyeGsa.js
+2025-07-16T11:00:49.681407118Z 2025-07-16 13:00:49,681 - streamvault - INFO - Request 393665cc-320e-4930-80ca-c3414b286e16: GET /assets/workbox-window.prod.es5-B9K5rw8f.js
+2025-07-16T11:00:49.681724999Z 2025-07-16 13:00:49,681 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.682098960Z 2025-07-16 13:00:49,682 - streamvault - DEBUG - Incoming request: GET /api/background-queue/recent-tasks
+2025-07-16T11:00:49.713069102Z 2025-07-16 13:00:49,712 - streamvault - INFO - Request bdb84be4-4881-4241-b8ab-39cceb8e3728: GET /auth/setup
+2025-07-16T11:00:49.713152355Z 2025-07-16 13:00:49,713 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.713513759Z 2025-07-16 13:00:49,713 - streamvault - DEBUG - Incoming request: GET /assets/workbox-window.prod.es5-B9K5rw8f.js
+2025-07-16T11:00:49.713851182Z 2025-07-16 13:00:49,713 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:00:49.713969868Z 2025-07-16 13:00:49,713 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.714314274Z INFO:     172.23.0.1:33816 - "GET /api/background-queue/stats HTTP/1.1" 200 OK
+2025-07-16T11:00:49.714543581Z INFO:     172.23.0.1:43326 - "GET /api/background-queue/active-tasks HTTP/1.1" 200 OK
+2025-07-16T11:00:49.714717349Z INFO:     172.23.0.1:43336 - "GET /api/background-queue/recent-tasks HTTP/1.1" 200 OK
+2025-07-16T11:00:49.716701105Z 2025-07-16 13:00:49,716 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.716791051Z 2025-07-16 13:00:49,716 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.717105272Z INFO:     172.23.0.1:43330 - "GET /assets/pwaDebug-DEAyeGsa.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.717223050Z INFO:     172.23.0.1:43344 - "GET /assets/workbox-window.prod.es5-B9K5rw8f.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.717410095Z 2025-07-16 13:00:49,717 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.717621121Z INFO:     172.23.0.1:43348 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:00:49.794114873Z 2025-07-16 13:00:49,793 - streamvault - INFO - Request 811650c0-5e8c-476e-ad06-054a6b794f2c: GET /auth/check
+2025-07-16T11:00:49.794762381Z 2025-07-16 13:00:49,794 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:00:49.805028994Z 2025-07-16 13:00:49,804 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.806159747Z INFO:     172.23.0.1:43326 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:00:49.833099651Z 2025-07-16 13:00:49,832 - streamvault - INFO - Request 549904c5-d266-42aa-8e19-26342d3b5193: GET /apple-icon-180x180.png
+2025-07-16T11:00:49.839713879Z 2025-07-16 13:00:49,839 - streamvault - INFO - Request 2fb52184-6830-4772-8ce2-c45e29d46e6d: GET /favicon-16x16.png
+2025-07-16T11:00:49.840475724Z 2025-07-16 13:00:49,840 - streamvault - DEBUG - Incoming request: GET /apple-icon-180x180.png
+2025-07-16T11:00:49.844727218Z 2025-07-16 13:00:49,844 - streamvault - DEBUG - Incoming request: GET /favicon-16x16.png
+2025-07-16T11:00:49.845006816Z 2025-07-16 13:00:49,844 - streamvault - INFO - Request faf51028-472b-473c-90ad-3f0907dfafec: GET /assets/StreamersView-BX18H49f.js
+2025-07-16T11:00:49.847613175Z 2025-07-16 13:00:49,847 - streamvault - INFO - Request f4eff55f-b5a8-4825-b711-12da944c271d: GET /assets/useStreamers-BfkmvEcg.js
+2025-07-16T11:00:49.847929500Z 2025-07-16 13:00:49,847 - streamvault - DEBUG - Incoming request: GET /assets/StreamersView-BX18H49f.js
+2025-07-16T11:00:49.848136010Z 2025-07-16 13:00:49,848 - streamvault - INFO - Request 869c55f4-ad74-4b68-ab45-3ac5a16588b4: GET /assets/StreamersView-CcIPr4sU.css
+2025-07-16T11:00:49.848504357Z 2025-07-16 13:00:49,848 - streamvault - DEBUG - Incoming request: GET /assets/useStreamers-BfkmvEcg.js
+2025-07-16T11:00:49.849250033Z 2025-07-16 13:00:49,849 - streamvault - DEBUG - Incoming request: GET /assets/StreamersView-CcIPr4sU.css
+2025-07-16T11:00:49.850310629Z 2025-07-16 13:00:49,850 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.850432421Z 2025-07-16 13:00:49,850 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.850498204Z 2025-07-16 13:00:49,850 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.850981654Z INFO:     172.23.0.1:43326 - "GET /apple-icon-180x180.png HTTP/1.1" 200 OK
+2025-07-16T11:00:49.851107927Z INFO:     172.23.0.1:33816 - "GET /favicon-16x16.png HTTP/1.1" 200 OK
+2025-07-16T11:00:49.851179545Z INFO:     172.23.0.1:43350 - "GET /assets/StreamersView-BX18H49f.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.852958244Z 2025-07-16 13:00:49,852 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.853432028Z INFO:     172.23.0.1:43364 - "GET /assets/useStreamers-BfkmvEcg.js HTTP/1.1" 200 OK
+2025-07-16T11:00:49.853656163Z 2025-07-16 13:00:49,853 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.853910449Z INFO:     172.23.0.1:43376 - "GET /assets/StreamersView-CcIPr4sU.css HTTP/1.1" 200 OK
+2025-07-16T11:00:49.938921324Z 2025-07-16 13:00:49,938 - streamvault - INFO - Request 59ab547e-fe62-4f09-887e-2bdce0952ce5: GET /api/streamers
+2025-07-16T11:00:49.939009224Z 2025-07-16 13:00:49,938 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:00:49.941575983Z 2025-07-16 13:00:49,941 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.941742427Z INFO:     172.23.0.1:43326 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:00:49.967865332Z 2025-07-16 13:00:49,967 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=43392)
+2025-07-16T11:00:49.968021670Z INFO:     ('172.23.0.1', 43392) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:49.968020730Z 2025-07-16 13:00:49,967 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=43392)
+2025-07-16T11:00:49.968452556Z INFO:     connection open
+2025-07-16T11:00:49.989903053Z 2025-07-16 13:00:49,989 - streamvault - INFO - Request 439cf0d1-21da-48af-bd61-82a500e08ef8: GET /data/images/profiles/streamer_1.jpg
+2025-07-16T11:00:49.990002544Z 2025-07-16 13:00:49,989 - streamvault - DEBUG - Incoming request: GET /data/images/profiles/streamer_1.jpg
+2025-07-16T11:00:49.990586263Z 2025-07-16 13:00:49,990 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:49.990875845Z INFO:     172.23.0.1:43326 - "GET /data/images/profiles/streamer_1.jpg HTTP/1.1" 200 OK
+2025-07-16T11:00:50.018459673Z 2025-07-16 13:00:50,018 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=43408)
+2025-07-16T11:00:50.018509088Z INFO:     ('172.23.0.1', 43408) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:50.018538219Z 2025-07-16 13:00:50,018 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=43408)
+2025-07-16T11:00:50.018720545Z INFO:     connection open
+2025-07-16T11:00:50.075434364Z 2025-07-16 13:00:50,075 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=43410)
+2025-07-16T11:00:50.075713078Z INFO:     ('172.23.0.1', 43410) - "WebSocket /ws" [accepted]
+2025-07-16T11:00:50.075804099Z 2025-07-16 13:00:50,075 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=43410)
+2025-07-16T11:00:50.076823568Z INFO:     connection open
+2025-07-16T11:00:50.108567029Z 2025-07-16 13:00:50,108 - streamvault - INFO - Request 6121f7e2-ca41-406d-aa93-a6a74171b7c3: GET /api/streamers
+2025-07-16T11:00:50.109067428Z 2025-07-16 13:00:50,108 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:00:50.122534986Z 2025-07-16 13:00:50,122 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:00:50.123360929Z INFO:     172.23.0.1:43326 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:00:52.859088690Z 2025-07-16 13:00:52,858 - streamvault - DEBUG - Broadcasted 0 active recordings to 3 clients
+2025-07-16T11:01:00.578320227Z 2025-07-16 13:01:00,578 - streamvault - INFO - Request 7ec22e73-10b7-4c1f-addd-c76a45ff127d: GET /auth/setup
+2025-07-16T11:01:00.578406115Z 2025-07-16 13:01:00,578 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:00.580912782Z 2025-07-16 13:01:00,580 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:00.581305534Z INFO:     172.23.0.1:53316 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:00.693119973Z 2025-07-16 13:01:00,692 - streamvault - INFO - Request baecf4c3-a81e-4702-9fa4-21338742eeb2: GET /auth/check
+2025-07-16T11:01:00.693244148Z 2025-07-16 13:01:00,693 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:00.695591333Z 2025-07-16 13:01:00,695 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:00.695801901Z INFO:     172.23.0.1:53316 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:00.738013588Z 2025-07-16 13:01:00,737 - streamvault - INFO - Request d149a2ab-af5b-4272-813e-541fea595bb0: GET /assets/VideosView-Qq9_pIID.js
+2025-07-16T11:01:00.738080133Z 2025-07-16 13:01:00,738 - streamvault - DEBUG - Incoming request: GET /assets/VideosView-Qq9_pIID.js
+2025-07-16T11:01:00.738742762Z 2025-07-16 13:01:00,738 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:00.738981396Z INFO:     172.23.0.1:53316 - "GET /assets/VideosView-Qq9_pIID.js HTTP/1.1" 200 OK
+2025-07-16T11:01:00.742937710Z 2025-07-16 13:01:00,742 - streamvault - INFO - Request f875d81e-b29a-40ea-9772-4df83e2ab4de: GET /assets/VideosView-B5VqFjXa.css
+2025-07-16T11:01:00.743055640Z 2025-07-16 13:01:00,743 - streamvault - DEBUG - Incoming request: GET /assets/VideosView-B5VqFjXa.css
+2025-07-16T11:01:00.743587108Z 2025-07-16 13:01:00,743 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:00.743799397Z INFO:     172.23.0.1:53316 - "GET /assets/VideosView-B5VqFjXa.css HTTP/1.1" 200 OK
+2025-07-16T11:01:00.834233393Z 2025-07-16 13:01:00,834 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=43410)
+2025-07-16T11:01:00.834249502Z 2025-07-16 13:01:00,834 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=43410)
+2025-07-16T11:01:00.834304486Z INFO:     connection closed
+2025-07-16T11:01:01.177171566Z 2025-07-16 13:01:01,176 - streamvault - INFO - Request 914b575a-f8f8-47ab-bfb9-8eef2fe6f2f2: GET /api/videos
+2025-07-16T11:01:01.177719885Z 2025-07-16 13:01:01,177 - streamvault - DEBUG - Incoming request: GET /api/videos
+2025-07-16T11:01:01.191414217Z 2025-07-16 13:01:01,191 - streamvault - DEBUG - Found 0 streams with recording paths in database
+2025-07-16T11:01:01.191503927Z 2025-07-16 13:01:01,191 - streamvault - INFO - Returning 0 videos
+2025-07-16T11:01:01.193393710Z 2025-07-16 13:01:01,193 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:01.194117707Z INFO:     172.23.0.1:53316 - "GET /api/videos HTTP/1.1" 200 OK
+2025-07-16T11:01:01.918467376Z 2025-07-16 13:01:01,918 - streamvault - INFO - Request 0c2a6fbb-35b7-4311-85fa-0133fc313482: GET /auth/setup
+2025-07-16T11:01:01.918481743Z 2025-07-16 13:01:01,918 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:01.920955497Z 2025-07-16 13:01:01,920 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:01.921079177Z INFO:     172.23.0.1:53316 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:01.962744845Z 2025-07-16 13:01:01,962 - streamvault - INFO - Request bbad3660-2151-44dd-81ac-ff107fc43ea2: GET /auth/check
+2025-07-16T11:01:01.962858292Z 2025-07-16 13:01:01,962 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:01.965523904Z 2025-07-16 13:01:01,965 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:01.965716142Z INFO:     172.23.0.1:53316 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:01.995071411Z 2025-07-16 13:01:01,994 - streamvault - INFO - Request a26f68f2-ba5d-4dac-8856-f9cebad35391: GET /assets/AddStreamerView-CRRA4-yP.js
+2025-07-16T11:01:01.995318367Z 2025-07-16 13:01:01,995 - streamvault - DEBUG - Incoming request: GET /assets/AddStreamerView-CRRA4-yP.js
+2025-07-16T11:01:01.996160941Z 2025-07-16 13:01:01,996 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:01.996549127Z INFO:     172.23.0.1:53316 - "GET /assets/AddStreamerView-CRRA4-yP.js HTTP/1.1" 200 OK
+2025-07-16T11:01:01.998163731Z 2025-07-16 13:01:01,998 - streamvault - INFO - Request 14c7ca41-a279-4c87-9620-c65b88c424e9: GET /assets/AddStreamerView-CR9hQJ5C.css
+2025-07-16T11:01:01.998414247Z 2025-07-16 13:01:01,998 - streamvault - DEBUG - Incoming request: GET /assets/AddStreamerView-CR9hQJ5C.css
+2025-07-16T11:01:01.999217847Z 2025-07-16 13:01:01,999 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:01.999616891Z INFO:     172.23.0.1:53318 - "GET /assets/AddStreamerView-CR9hQJ5C.css HTTP/1.1" 200 OK
+2025-07-16T11:01:02.382452268Z 2025-07-16 13:01:02,382 - streamvault - INFO - Request 291805ad-2ce6-414f-91a1-88e33b0fdbae: GET /api/twitch/callback-url
+2025-07-16T11:01:02.383127128Z 2025-07-16 13:01:02,382 - streamvault - DEBUG - Incoming request: GET /api/twitch/callback-url
+2025-07-16T11:01:02.384209870Z 2025-07-16 13:01:02,383 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:02.385091575Z INFO:     172.23.0.1:53318 - "GET /api/twitch/callback-url HTTP/1.1" 200 OK
+2025-07-16T11:01:02.773152320Z 2025-07-16 13:01:02,772 - streamvault - INFO - Request a596d696-ba7b-42d4-89a6-797e376cf9d8: GET /auth/setup
+2025-07-16T11:01:02.773820264Z 2025-07-16 13:01:02,773 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:02.781699902Z 2025-07-16 13:01:02,781 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:02.782721214Z INFO:     172.23.0.1:53318 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:02.855344615Z 2025-07-16 13:01:02,855 - streamvault - INFO - Request 2f6c9d03-9f59-435d-b86c-767321176b66: GET /auth/check
+2025-07-16T11:01:02.856067299Z 2025-07-16 13:01:02,855 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:02.870914108Z 2025-07-16 13:01:02,870 - streamvault - DEBUG - WebSocketManager: Attempting to send notification: {'type': 'active_recordings_update', 'data': [], 'timestamp': '2025-07-16T11:01:02.870313'}
+2025-07-16T11:01:02.871878365Z 2025-07-16 13:01:02,871 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=43392)
+2025-07-16T11:01:02.872708799Z 2025-07-16 13:01:02,872 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=43408)
+2025-07-16T11:01:02.873114273Z 2025-07-16 13:01:02,872 - streamvault - DEBUG - WebSocketManager: Sent active recordings update to 2 clients
+2025-07-16T11:01:02.873368151Z 2025-07-16 13:01:02,873 - streamvault - DEBUG - Broadcasted 0 active recordings to 2 clients
+2025-07-16T11:01:02.876747570Z 2025-07-16 13:01:02,876 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:02.878401898Z INFO:     172.23.0.1:53318 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:02.934396334Z 2025-07-16 13:01:02,933 - streamvault - INFO - Request e58491aa-0b37-4eb1-8114-da59329a447f: GET /assets/SubscriptionsView-C6SbsmWu.js
+2025-07-16T11:01:02.935049185Z 2025-07-16 13:01:02,934 - streamvault - DEBUG - Incoming request: GET /assets/SubscriptionsView-C6SbsmWu.js
+2025-07-16T11:01:02.937563030Z 2025-07-16 13:01:02,937 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:02.938507701Z INFO:     172.23.0.1:53318 - "GET /assets/SubscriptionsView-C6SbsmWu.js HTTP/1.1" 200 OK
+2025-07-16T11:01:03.396675849Z 2025-07-16 13:01:03,396 - streamvault - INFO - Request d0da25dc-31f0-4fb1-816c-10168fc48515: GET /api/streamers/subscriptions
+2025-07-16T11:01:03.397019293Z 2025-07-16 13:01:03,396 - streamvault - DEBUG - Incoming request: GET /api/streamers/subscriptions
+2025-07-16T11:01:03.397399717Z 2025-07-16 13:01:03,397 - streamvault - DEBUG - Entering list_subscriptions()
+2025-07-16T11:01:03.815411521Z 2025-07-16 13:01:03,815 - streamvault - INFO - Request 9b934311-3e8d-472e-9f32-f89b63da1164: GET /auth/setup
+2025-07-16T11:01:03.816128203Z 2025-07-16 13:01:03,815 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:03.823808089Z 2025-07-16 13:01:03,823 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:03.824797846Z INFO:     172.23.0.1:53316 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:03.887235479Z 2025-07-16 13:01:03,886 - streamvault - INFO - Request 7e3422e8-2843-42ba-abe0-be27f36a4559: GET /auth/check
+2025-07-16T11:01:03.887913897Z 2025-07-16 13:01:03,887 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:03.900239227Z 2025-07-16 13:01:03,899 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:03.901215898Z INFO:     172.23.0.1:53316 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:03.935062313Z 2025-07-16 13:01:03,934 - streamvault - INFO - Request 039e40e7-79ec-47f2-a392-cdb159963ef7: GET /assets/SettingsView-DxMKPD0y.js
+2025-07-16T11:01:03.936376531Z 2025-07-16 13:01:03,935 - streamvault - DEBUG - Incoming request: GET /assets/SettingsView-DxMKPD0y.js
+2025-07-16T11:01:03.937975848Z 2025-07-16 13:01:03,937 - streamvault - INFO - Request 3c627804-9328-4a01-8ee1-61ce85d7bcc7: GET /assets/useRecordingSettings-BvRYy6dN.js
+2025-07-16T11:01:03.938828279Z 2025-07-16 13:01:03,938 - streamvault - DEBUG - Incoming request: GET /assets/useRecordingSettings-BvRYy6dN.js
+2025-07-16T11:01:03.944335297Z 2025-07-16 13:01:03,943 - streamvault - INFO - Request 2dc4d640-1395-4d98-be33-b1318c134864: GET /assets/SettingsView-Btdi8z8H.css
+2025-07-16T11:01:03.944859152Z 2025-07-16 13:01:03,944 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:03.945616978Z 2025-07-16 13:01:03,945 - streamvault - DEBUG - Incoming request: GET /assets/SettingsView-Btdi8z8H.css
+2025-07-16T11:01:03.947478383Z INFO:     172.23.0.1:53316 - "GET /assets/SettingsView-DxMKPD0y.js HTTP/1.1" 200 OK
+2025-07-16T11:01:03.948810720Z 2025-07-16 13:01:03,948 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:03.949807370Z INFO:     172.23.0.1:53322 - "GET /assets/useRecordingSettings-BvRYy6dN.js HTTP/1.1" 200 OK
+2025-07-16T11:01:03.952467513Z 2025-07-16 13:01:03,952 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:03.953029512Z INFO:     172.23.0.1:53330 - "GET /assets/SettingsView-Btdi8z8H.css HTTP/1.1" 200 OK
+2025-07-16T11:01:04.302121860Z 2025-07-16 13:01:04,301 - streamvault - DEBUG - Using access_token: 48yv5k... (truncated)
+2025-07-16T11:01:04.302518767Z 2025-07-16 13:01:04,302 - streamvault - DEBUG - Requesting Twitch subscriptions https://api.twitch.tv/helix/eventsub/subscriptions with headers={'Client-ID': 'fx4xg7kx7fwksmm7qxgi3cux496lp3', 'Authorization': 'Bearer 48yv5krdn0p6j54glk53wmqgeif8db'}
+2025-07-16T11:01:04.459426267Z 2025-07-16 13:01:04,459 - streamvault - INFO - Request 2659ec02-0d7c-45fd-97cd-82ed0bfa183a: GET /api/settings
+2025-07-16T11:01:04.459441419Z 2025-07-16 13:01:04,459 - streamvault - DEBUG - Incoming request: GET /api/settings
+2025-07-16T11:01:04.460763841Z 2025-07-16 13:01:04,460 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.460882159Z INFO:     172.23.0.1:53322 - "GET /api/settings HTTP/1.1" 200 OK
+2025-07-16T11:01:04.479101477Z 2025-07-16 13:01:04,478 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53334)
+2025-07-16T11:01:04.479425326Z INFO:     ('172.23.0.1', 53334) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:04.479754799Z 2025-07-16 13:01:04,479 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53334)
+2025-07-16T11:01:04.481195256Z INFO:     connection open
+2025-07-16T11:01:04.505086827Z 2025-07-16 13:01:04,504 - streamvault - DEBUG - Received subscription data: {'total': 3, 'data': [{'id': '321e3387-4a18-4937-9879-0b6bc51f6588', 'status': 'enabled', 'type': 'stream.online', 'version': '1', 'condition': {'broadcaster_user_id': '48670768'}, 'created_at': '2025-05-25T12:49:20.08571828Z', 'transport': {'method': 'webhook', 'callback': 'https://streamvault-develop.meberthosting.de/eventsub'}, 'cost': 0}, {'id': 'b41e53c8-23a2-452f-b4de-8580d7056490', 'status': 'enabled', 'type': 'stream.offline', 'version': '1', 'condition': {'broadcaster_user_id': '48670768'}, 'created_at': '2025-05-25T12:49:20.288992885Z', 'transport': {'method': 'webhook', 'callback': 'https://streamvault-develop.meberthosting.de/eventsub'}, 'cost': 0}, {'id': '73a66c73-ff19-43de-8ac9-baa8e22db850', 'status': 'enabled', 'type': 'channel.update', 'version': '1', 'condition': {'broadcaster_user_id': '48670768'}, 'created_at': '2025-05-25T12:49:20.491527916Z', 'transport': {'method': 'webhook', 'callback': 'https://streamvault-develop.meberthosting.de/eventsub'}, 'cost': 0}], 'max_total_cost': 10000, 'total_cost': 0, 'pagination': {}}
+2025-07-16T11:01:04.506815720Z 2025-07-16 13:01:04,506 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.508498100Z INFO:     172.23.0.1:53318 - "GET /api/streamers/subscriptions HTTP/1.1" 200 OK
+2025-07-16T11:01:04.543954263Z 2025-07-16 13:01:04,543 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53336)
+2025-07-16T11:01:04.544156192Z INFO:     ('172.23.0.1', 53336) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:04.544323895Z 2025-07-16 13:01:04,544 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53336)
+2025-07-16T11:01:04.545060111Z INFO:     connection open
+2025-07-16T11:01:04.636293176Z 2025-07-16 13:01:04,636 - streamvault - INFO - Request 65c1390c-27b0-4ee5-b40e-1934643c1771: GET /api/settings/streamer
+2025-07-16T11:01:04.636559454Z 2025-07-16 13:01:04,636 - streamvault - DEBUG - Incoming request: GET /api/settings/streamer
+2025-07-16T11:01:04.643821500Z 2025-07-16 13:01:04,643 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.643879754Z 2025-07-16 13:01:04,643 - streamvault - INFO - Request fb51bf70-696c-472b-8395-ff7770b71602: GET /api/streamers
+2025-07-16T11:01:04.644043709Z 2025-07-16 13:01:04,644 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:01:04.644364911Z INFO:     172.23.0.1:53322 - "GET /api/settings/streamer HTTP/1.1" 200 OK
+2025-07-16T11:01:04.646578274Z 2025-07-16 13:01:04,646 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.646754829Z INFO:     172.23.0.1:53316 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:04.671952347Z 2025-07-16 13:01:04,671 - streamvault - INFO - Request 1a352e81-a428-434f-8a3b-9387b69f23f4: GET /api/recording/settings
+2025-07-16T11:01:04.672065728Z 2025-07-16 13:01:04,672 - streamvault - DEBUG - Incoming request: GET /api/recording/settings
+2025-07-16T11:01:04.672942107Z 2025-07-16 13:01:04,672 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.673115856Z INFO:     172.23.0.1:53316 - "GET /api/recording/settings HTTP/1.1" 200 OK
+2025-07-16T11:01:04.700372795Z 2025-07-16 13:01:04,700 - streamvault - INFO - Request 3c3593a5-44e6-4191-bcf7-a40459f89c87: GET /api/recording/streamers
+2025-07-16T11:01:04.700614722Z 2025-07-16 13:01:04,700 - streamvault - DEBUG - Incoming request: GET /api/recording/streamers
+2025-07-16T11:01:04.702031829Z 2025-07-16 13:01:04,701 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.702215393Z INFO:     172.23.0.1:53316 - "GET /api/recording/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:04.728131865Z 2025-07-16 13:01:04,728 - streamvault - INFO - Request ced53c50-b6e5-464f-a5b8-b1da5342a5ae: GET /api/recording/active
+2025-07-16T11:01:04.728240403Z 2025-07-16 13:01:04,728 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-16T11:01:04.729545717Z 2025-07-16 13:01:04,729 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:04.729729777Z INFO:     172.23.0.1:53316 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-16T11:01:05.998850768Z 2025-07-16 13:01:05,998 - streamvault - INFO - Request 7ca4dae9-f43e-4137-b6e7-8bc3c1a01408: GET /auth/setup
+2025-07-16T11:01:05.999511590Z 2025-07-16 13:01:05,999 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:06.008536384Z 2025-07-16 13:01:06,008 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.009566844Z INFO:     172.23.0.1:53316 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:06.093301909Z 2025-07-16 13:01:06,092 - streamvault - INFO - Request 0d5a077c-e41f-4efc-93f2-a3bd21dd33a9: GET /auth/check
+2025-07-16T11:01:06.093975235Z 2025-07-16 13:01:06,093 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:06.102691638Z 2025-07-16 13:01:06,102 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.103988896Z INFO:     172.23.0.1:53316 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:06.143515265Z 2025-07-16 13:01:06,143 - streamvault - INFO - Request 80716b66-477b-484d-89e8-39b795c2844e: GET /assets/HomeView-Bj0Y7wDa.js
+2025-07-16T11:01:06.143792105Z 2025-07-16 13:01:06,143 - streamvault - DEBUG - Incoming request: GET /assets/HomeView-Bj0Y7wDa.js
+2025-07-16T11:01:06.144725879Z 2025-07-16 13:01:06,144 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.145268235Z 2025-07-16 13:01:06,145 - streamvault - INFO - Request 9eb0f442-7a39-4855-8a05-b131e8454b1b: GET /assets/HomeView-BZpDkFcy.css
+2025-07-16T11:01:06.145588684Z 2025-07-16 13:01:06,145 - streamvault - DEBUG - Incoming request: GET /assets/HomeView-BZpDkFcy.css
+2025-07-16T11:01:06.146121500Z INFO:     172.23.0.1:53316 - "GET /assets/HomeView-Bj0Y7wDa.js HTTP/1.1" 200 OK
+2025-07-16T11:01:06.147573730Z 2025-07-16 13:01:06,147 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.147943893Z INFO:     172.23.0.1:53322 - "GET /assets/HomeView-BZpDkFcy.css HTTP/1.1" 200 OK
+2025-07-16T11:01:06.231988289Z 2025-07-16 13:01:06,231 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53334)
+2025-07-16T11:01:06.232362283Z 2025-07-16 13:01:06,231 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53334)
+2025-07-16T11:01:06.232869328Z INFO:     connection closed
+2025-07-16T11:01:06.233150142Z 2025-07-16 13:01:06,232 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53336)
+2025-07-16T11:01:06.233244828Z 2025-07-16 13:01:06,233 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53336)
+2025-07-16T11:01:06.233510475Z INFO:     connection closed
+2025-07-16T11:01:06.656104305Z 2025-07-16 13:01:06,655 - streamvault - INFO - Request cd444897-c2ba-4add-ae1d-962e7945298d: GET /api/streamers
+2025-07-16T11:01:06.656830553Z 2025-07-16 13:01:06,656 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:01:06.665257881Z 2025-07-16 13:01:06,664 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.665951380Z INFO:     172.23.0.1:53322 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:06.680693641Z 2025-07-16 13:01:06,680 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53342)
+2025-07-16T11:01:06.681039336Z INFO:     ('172.23.0.1', 53342) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:06.681444745Z 2025-07-16 13:01:06,681 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53342)
+2025-07-16T11:01:06.683475708Z INFO:     connection open
+2025-07-16T11:01:06.740105003Z 2025-07-16 13:01:06,739 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53352)
+2025-07-16T11:01:06.740503014Z INFO:     ('172.23.0.1', 53352) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:06.740547123Z 2025-07-16 13:01:06,740 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53352)
+2025-07-16T11:01:06.741738050Z INFO:     connection open
+2025-07-16T11:01:06.785995129Z 2025-07-16 13:01:06,785 - streamvault - INFO - Request 1d515ac8-cfee-4e54-b796-efd61c0adcd7: GET /api/recording/active
+2025-07-16T11:01:06.786613760Z 2025-07-16 13:01:06,786 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-16T11:01:06.787886496Z 2025-07-16 13:01:06,787 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.788775237Z INFO:     172.23.0.1:53322 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-16T11:01:06.837603299Z 2025-07-16 13:01:06,837 - streamvault - INFO - Request c014d293-9b74-4231-a4d2-f8e3b146c39f: GET /api/recording/active
+2025-07-16T11:01:06.842937487Z 2025-07-16 13:01:06,842 - streamvault - INFO - Request 0b952a60-306f-4ecc-8787-5995ad549414: GET /api/streamers
+2025-07-16T11:01:06.843223478Z 2025-07-16 13:01:06,843 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-16T11:01:06.844202980Z 2025-07-16 13:01:06,844 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:01:06.844786435Z 2025-07-16 13:01:06,844 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.845366367Z INFO:     172.23.0.1:53322 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-16T11:01:06.849682597Z 2025-07-16 13:01:06,849 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:06.849979121Z INFO:     172.23.0.1:53316 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:10.199553386Z 2025-07-16 13:01:10,199 - streamvault - INFO - Request c15ee0dc-6ac9-4dcb-813e-0ef52922efe3: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.201177645Z 2025-07-16 13:01:10,200 - streamvault - INFO - Request 3d0264a1-44b2-4565-8b18-11b9278e9730: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.201921780Z 2025-07-16 13:01:10,201 - streamvault - DEBUG - Incoming request: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.203010132Z 2025-07-16 13:01:10,202 - streamvault - DEBUG - Incoming request: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.203286840Z 2025-07-16 13:01:10,203 - streamvault - INFO - Request 7ca302a3-7732-4c3e-8d76-9525120ea0c8: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.207380349Z 2025-07-16 13:01:10,207 - streamvault - DEBUG - Incoming request: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.208236127Z 2025-07-16 13:01:10,208 - streamvault - INFO - Request a47e91fc-bf08-4aab-a5e6-4d045ef6e613: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.210041725Z 2025-07-16 13:01:10,209 - streamvault - DEBUG - Incoming request: GET /assets/index-DIAFgSQQ.css
+2025-07-16T11:01:10.212094758Z 2025-07-16 13:01:10,211 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:10.216742478Z 2025-07-16 13:01:10,216 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:10.218016183Z 2025-07-16 13:01:10,217 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:10.221225713Z 2025-07-16 13:01:10,220 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:11.398869142Z 2025-07-16 13:01:11,398 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53680)
+2025-07-16T11:01:11.399153692Z INFO:     ('172.23.0.1', 53680) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:11.399290705Z 2025-07-16 13:01:11,399 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53680)
+2025-07-16T11:01:11.400236081Z INFO:     connection open
+2025-07-16T11:01:12.208462941Z 2025-07-16 13:01:12,207 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=53696)
+2025-07-16T11:01:12.208633586Z INFO:     ('172.23.0.1', 53696) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:12.208805497Z 2025-07-16 13:01:12,208 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=53696)
+2025-07-16T11:01:12.209703067Z INFO:     connection open
+2025-07-16T11:01:12.851184224Z 2025-07-16 13:01:12,850 - streamvault - INFO - Starting delayed initial image sync for all existing entities...
+2025-07-16T11:01:12.855336946Z 2025-07-16 13:01:12,855 - streamvault - INFO - Requested sync for 1 streamers
+2025-07-16T11:01:12.860997081Z 2025-07-16 13:01:12,860 - streamvault - INFO - Requested sync for 1 popular categories
+2025-07-16T11:01:12.861195010Z 2025-07-16 13:01:12,861 - streamvault - INFO - Delayed initial image sync completed
+2025-07-16T11:01:12.861446989Z 2025-07-16 13:01:12,861 - streamvault - INFO - Syncing profile image for streamer 1
+2025-07-16T11:01:12.879959122Z 2025-07-16 13:01:12,879 - streamvault - DEBUG - Broadcasted 0 active recordings to 6 clients
+2025-07-16T11:01:13.363043461Z 2025-07-16 13:01:13,362 - streamvault - INFO - Syncing category image for Just Chatting
+2025-07-16T11:01:14.235963612Z 2025-07-16 13:01:14,235 - streamvault - DEBUG - Successfully obtained Twitch access token
+2025-07-16T11:01:14.444080475Z 2025-07-16 13:01:14,443 - streamvault - INFO - Downloaded category image for: Just Chatting
+2025-07-16T11:01:17.559795290Z 2025-07-16 13:01:17,559 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=35808)
+2025-07-16T11:01:17.560119164Z INFO:     ('172.23.0.1', 35808) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:17.560309123Z 2025-07-16 13:01:17,560 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=35808)
+2025-07-16T11:01:17.561343985Z INFO:     connection open
+2025-07-16T11:01:22.888650123Z 2025-07-16 13:01:22,888 - streamvault - DEBUG - Broadcasted 0 active recordings to 7 clients
+2025-07-16T11:01:32.894554110Z 2025-07-16 13:01:32,894 - streamvault - DEBUG - Broadcasted 0 active recordings to 7 clients
+2025-07-16T11:01:35.351859410Z 2025-07-16 13:01:35,351 - streamvault - INFO - Request aa33545c-f800-4c17-bb96-d014bdd6fbed: GET /auth/setup
+2025-07-16T11:01:35.353274979Z 2025-07-16 13:01:35,352 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:35.363749167Z 2025-07-16 13:01:35,363 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:35.365268085Z INFO:     172.23.0.1:58096 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:35.434369544Z 2025-07-16 13:01:35,434 - streamvault - INFO - Request 72ea0e53-713e-4ac0-972e-b687647b8675: GET /auth/check
+2025-07-16T11:01:35.435100104Z 2025-07-16 13:01:35,434 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:35.444318328Z 2025-07-16 13:01:35,444 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:35.445528031Z INFO:     172.23.0.1:58096 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:35.482061206Z 2025-07-16 13:01:35,481 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53342)
+2025-07-16T11:01:35.482174482Z 2025-07-16 13:01:35,481 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53342)
+2025-07-16T11:01:35.482421131Z INFO:     connection closed
+2025-07-16T11:01:35.482696162Z 2025-07-16 13:01:35,482 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53352)
+2025-07-16T11:01:35.482854855Z 2025-07-16 13:01:35,482 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=53352)
+2025-07-16T11:01:35.483197335Z INFO:     connection closed
+2025-07-16T11:01:35.935121088Z 2025-07-16 13:01:35,934 - streamvault - INFO - Request 03bae693-97ba-41e6-9bf1-73f5a3ce3326: GET /api/streamers
+2025-07-16T11:01:35.935846193Z 2025-07-16 13:01:35,935 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:01:35.949142735Z 2025-07-16 13:01:35,948 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:35.950096704Z INFO:     172.23.0.1:58096 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:35.955262060Z 2025-07-16 13:01:35,955 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=58100)
+2025-07-16T11:01:35.955395535Z INFO:     ('172.23.0.1', 58100) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:35.955568347Z 2025-07-16 13:01:35,955 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=58100)
+2025-07-16T11:01:35.956067967Z INFO:     connection open
+2025-07-16T11:01:36.013337403Z 2025-07-16 13:01:36,013 - streamvault - INFO - Request ad96c179-e178-480c-9573-2b2b1301d204: GET /api/streamers
+2025-07-16T11:01:36.013747574Z 2025-07-16 13:01:36,013 - streamvault - DEBUG - Incoming request: GET /api/streamers
+2025-07-16T11:01:36.025992097Z 2025-07-16 13:01:36,025 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:36.026932836Z INFO:     172.23.0.1:58096 - "GET /api/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:36.988367882Z 2025-07-16 13:01:36,987 - streamvault - INFO - Request 03f6a1c2-8bf9-42c1-9ffa-86f826b2b851: GET /auth/setup
+2025-07-16T11:01:36.989134211Z 2025-07-16 13:01:36,988 - streamvault - DEBUG - Incoming request: GET /auth/setup
+2025-07-16T11:01:36.997907831Z 2025-07-16 13:01:36,997 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:36.998992596Z INFO:     172.23.0.1:58096 - "GET /auth/setup HTTP/1.1" 200 OK
+2025-07-16T11:01:37.079419003Z 2025-07-16 13:01:37,079 - streamvault - INFO - Request e77886cd-7656-4862-9d1d-4b33e8648c3c: GET /auth/check
+2025-07-16T11:01:37.080275490Z 2025-07-16 13:01:37,079 - streamvault - DEBUG - Incoming request: GET /auth/check
+2025-07-16T11:01:37.085181005Z 2025-07-16 13:01:37,085 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:37.085388351Z INFO:     172.23.0.1:58096 - "GET /auth/check HTTP/1.1" 200 OK
+2025-07-16T11:01:37.134622661Z 2025-07-16 13:01:37,134 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=58100)
+2025-07-16T11:01:37.134660243Z 2025-07-16 13:01:37,134 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=58100)
+2025-07-16T11:01:37.134780995Z INFO:     connection closed
+2025-07-16T11:01:37.473375673Z 2025-07-16 13:01:37,472 - streamvault - INFO - Request b8564c1c-f36d-4380-8b9a-fabce33eee1b: GET /api/settings
+2025-07-16T11:01:37.474006234Z 2025-07-16 13:01:37,473 - streamvault - DEBUG - Incoming request: GET /api/settings
+2025-07-16T11:01:37.480276529Z 2025-07-16 13:01:37,479 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:37.481282810Z INFO:     172.23.0.1:58096 - "GET /api/settings HTTP/1.1" 200 OK
+2025-07-16T11:01:37.500775641Z 2025-07-16 13:01:37,500 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=54978)
+2025-07-16T11:01:37.501259877Z INFO:     ('172.23.0.1', 54978) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:37.501571169Z 2025-07-16 13:01:37,501 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=54978)
+2025-07-16T11:01:37.503128620Z INFO:     connection open
+2025-07-16T11:01:37.568900371Z 2025-07-16 13:01:37,568 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=54992)
+2025-07-16T11:01:37.568980391Z INFO:     ('172.23.0.1', 54992) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:37.569049666Z 2025-07-16 13:01:37,568 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=54992)
+2025-07-16T11:01:37.569290328Z INFO:     connection open
+2025-07-16T11:01:37.610753215Z 2025-07-16 13:01:37,610 - streamvault - INFO - Request dd9f3af7-978a-4edc-964a-f193f1c9a023: GET /api/settings/streamer
+2025-07-16T11:01:37.610918238Z 2025-07-16 13:01:37,610 - streamvault - DEBUG - Incoming request: GET /api/settings/streamer
+2025-07-16T11:01:37.614468926Z 2025-07-16 13:01:37,614 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:37.616744434Z INFO:     172.23.0.1:58096 - "GET /api/settings/streamer HTTP/1.1" 200 OK
+2025-07-16T11:01:37.804673726Z 2025-07-16 13:01:37,804 - streamvault - INFO - Request c0d1e928-2f1e-43c2-8963-ffda54cbd24f: GET /api/recording/settings
+2025-07-16T11:01:37.805385594Z 2025-07-16 13:01:37,805 - streamvault - DEBUG - Incoming request: GET /api/recording/settings
+2025-07-16T11:01:37.810403209Z 2025-07-16 13:01:37,810 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:37.811373545Z INFO:     172.23.0.1:58096 - "GET /api/recording/settings HTTP/1.1" 200 OK
+2025-07-16T11:01:37.950377101Z 2025-07-16 13:01:37,950 - streamvault - INFO - Request 78ac3fd5-360b-4402-be54-c3236a25bfbc: GET /api/recording/streamers
+2025-07-16T11:01:37.950389795Z 2025-07-16 13:01:37,950 - streamvault - DEBUG - Incoming request: GET /api/recording/streamers
+2025-07-16T11:01:37.955716187Z 2025-07-16 13:01:37,955 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:37.956603560Z INFO:     172.23.0.1:58096 - "GET /api/recording/streamers HTTP/1.1" 200 OK
+2025-07-16T11:01:38.138890455Z 2025-07-16 13:01:38,138 - streamvault - INFO - Request f9eee46d-695c-4dd2-8154-5df894da0a5e: GET /api/recording/active
+2025-07-16T11:01:38.139000498Z 2025-07-16 13:01:38,138 - streamvault - DEBUG - Incoming request: GET /api/recording/active
+2025-07-16T11:01:38.139315767Z 2025-07-16 13:01:38,139 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:38.139509450Z INFO:     172.23.0.1:58096 - "GET /api/recording/active HTTP/1.1" 200 OK
+2025-07-16T11:01:41.458853340Z 2025-07-16 13:01:41,458 - streamvault - INFO - Request dd6179cf-5bbc-4713-bfd6-3c14056083b4: POST /api/settings/test-websocket-notification
+2025-07-16T11:01:41.459605374Z 2025-07-16 13:01:41,459 - streamvault - DEBUG - Incoming request: POST /api/settings/test-websocket-notification
+2025-07-16T11:01:41.460394094Z 2025-07-16 13:01:41,460 - streamvault - INFO - 🧪 Sending test WebSocket notification with ID 565e6f85-45f2-4a15-a894-a3fdd20ff1e0
+     
+2025-07-16T11:01:41.460644240Z 2025-07-16 13:01:41,460 - streamvault - DEBUG - WebSocketManager: Attempting to send notification: {'type': 'channel.update', 'data': {'streamer_id': 'test_565e6f85-45f2-4a15-a894-a3fdd20ff1e0', 'twitch_id': 'test_user_1752663701460', 'streamer_name': '🧪 Test Notification', 'username': '🧪 Test Notification', 'title': 'Channel Update Test #1460', 'category_name': '🔧 StreamVault Testing', 'language': 'en', 'is_live': True, 'url': 'https://twitch.tv/teststreamer', 'profile_image_url': 'https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png', 'test_id': '565e6f85-45f2-4a15-a894-a3fdd20ff1e0', 'timestamp': '1752663701460', 'message': 'Twitch channel update - Test #701460'}}
+2025-07-16T11:01:41.461328719Z 2025-07-16 13:01:41,461 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=43392)
+2025-07-16T11:01:41.461845170Z 2025-07-16 13:01:41,461 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=43408)
+2025-07-16T11:01:41.462240789Z 2025-07-16 13:01:41,462 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=53680)
+2025-07-16T11:01:41.462596354Z 2025-07-16 13:01:41,462 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=53696)
+2025-07-16T11:01:41.462946345Z 2025-07-16 13:01:41,462 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=35808)
+2025-07-16T11:01:41.463342026Z 2025-07-16 13:01:41,463 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=54978)
+2025-07-16T11:01:41.463710196Z 2025-07-16 13:01:41,463 - streamvault - DEBUG - WebSocketManager: Notification sent to Address(host='172.23.0.1', port=54992)
+2025-07-16T11:01:41.463824713Z 2025-07-16 13:01:41,463 - streamvault - INFO - 🧪 Test WebSocket notification sent with ID 565e6f85-45f2-4a15-a894-a3fdd20ff1e0
+2025-07-16T11:01:41.464700963Z 2025-07-16 13:01:41,464 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:41.465435122Z INFO:     172.23.0.1:58096 - "POST /api/settings/test-websocket-notification HTTP/1.1" 200 OK
+2025-07-16T11:01:42.899943576Z 2025-07-16 13:01:42,899 - streamvault - DEBUG - Broadcasted 0 active recordings to 7 clients
+2025-07-16T11:01:44.784921817Z 2025-07-16 13:01:44,784 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=55008)
+2025-07-16T11:01:44.785235624Z INFO:     ('172.23.0.1', 55008) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:44.785425701Z 2025-07-16 13:01:44,785 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=55008)
+2025-07-16T11:01:44.786283647Z INFO:     connection open
+2025-07-16T11:01:46.179523720Z 2025-07-16 13:01:46,179 - streamvault - INFO - Request dc18b24e-ed2c-4fc8-bf2d-720a1f0b4210: GET /api/categories/image/🔧 StreamVault Testing
+2025-07-16T11:01:46.179904333Z 2025-07-16 13:01:46,179 - streamvault - DEBUG - Incoming request: GET /api/categories/image/🔧 StreamVault Testing
+2025-07-16T11:01:46.180706187Z 2025-07-16 13:01:46,180 - streamvault - DEBUG - Response status: 200
+2025-07-16T11:01:46.181219552Z INFO:     172.23.0.1:58096 - "GET /api/categories/image/%F0%9F%94%A7%20StreamVault%20Testing HTTP/1.1" 200 OK
+2025-07-16T11:01:46.193628672Z 2025-07-16 13:01:46,193 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=55018)
+2025-07-16T11:01:46.194033330Z INFO:     ('172.23.0.1', 55018) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:46.194414441Z 2025-07-16 13:01:46,194 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=55018)
+2025-07-16T11:01:46.196350660Z INFO:     connection open
+2025-07-16T11:01:46.874592638Z 2025-07-16 13:01:46,874 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=37680)
+2025-07-16T11:01:46.874849681Z INFO:     ('172.23.0.1', 37680) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:46.874935977Z 2025-07-16 13:01:46,874 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=37680)
+2025-07-16T11:01:46.875970005Z INFO:     connection open
+2025-07-16T11:01:46.950427736Z 2025-07-16 13:01:46,950 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=37694)
+2025-07-16T11:01:46.950767910Z INFO:     ('172.23.0.1', 37694) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:46.950802101Z 2025-07-16 13:01:46,950 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=37694)
+2025-07-16T11:01:46.951734842Z INFO:     connection open
+2025-07-16T11:01:47.669275142Z 2025-07-16 13:01:47,668 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=55018)
+2025-07-16T11:01:47.669584920Z 2025-07-16 13:01:47,669 - streamvault - INFO - WebSocket disconnected: Address(host='172.23.0.1', port=55018)
+2025-07-16T11:01:47.669938612Z INFO:     connection closed
+2025-07-16T11:01:52.908908930Z 2025-07-16 13:01:52,908 - streamvault - DEBUG - Broadcasted 0 active recordings to 10 clients
+2025-07-16T11:01:55.439663283Z 2025-07-16 13:01:55,439 - streamvault - INFO - New WebSocket connection from Address(host='172.23.0.1', port=37706)
+2025-07-16T11:01:55.439940907Z INFO:     ('172.23.0.1', 37706) - "WebSocket /ws" [accepted]
+2025-07-16T11:01:55.440068933Z 2025-07-16 13:01:55,439 - streamvault - INFO - WebSocket connected: Address(host='172.23.0.1', port=37706)
+2025-07-16T11:01:55.440984716Z INFO:     connection open
+2025-07-16T11:02:02.915695752Z 2025-07-16 13:02:02,915 - streamvault - DEBUG - Broadcasted 0 active recordings to 11 clients
+2025-07-16T11:02:12.921863635Z 2025-07-16 13:02:12,921 - streamvault - DEBUG - Broadcasted 0 active recordings to 11 clients
+2025-07-16T11:02:22.930343172Z 2025-07-16 13:02:22,929 - streamvault - DEBUG - Broadcasted 0 active recordings to 11 clients
+2025-07-16T11:02:32.938404267Z 2025-07-16 13:02:32,937 - streamvault - DEBUG - Broadcasted 0 active recordings to 11 clients
+2025-07-16T11:02:42.946366624Z 2025-07-16 13:02:42,945 - streamvault - DEBUG - Broadcasted 0 active recordings to 11 clients

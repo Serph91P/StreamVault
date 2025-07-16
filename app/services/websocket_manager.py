@@ -15,30 +15,50 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        client_id = f"{websocket.client.host}:{websocket.client.port}"
+        # Use a more reliable client identifier that includes user agent
+        client_info = f"{websocket.client.host}:{websocket.client.port}"
+        connection_id = id(websocket)  # Use object ID as unique identifier
+        
         async with self._lock:
-            # Remove any existing connection for this client
-            if client_id in self.active_connections:
-                old_ws = self.active_connections[client_id]
-                await self.disconnect(old_ws)
-            self.active_connections[client_id] = websocket
-        logger.info(f"WebSocket connected: {websocket.client}")
+            # Clean up any stale connections first
+            await self._cleanup_stale_connections()
+            
+            self.active_connections[connection_id] = websocket
+            
+        connection_count = len(self.active_connections)
+        logger.info(f"🔌 WebSocket connected: {client_info} (ID: {connection_id}) - Total connections: {connection_count}")
         
         await self.send_notification_to_socket(websocket, {
             "type": "connection.status",
             "data": {
                 "status": "connected",
                 "timestamp": datetime.utcnow().isoformat(),
-                "message": "StreamVault WebSocket connected"
+                "message": f"StreamVault WebSocket connected - {connection_count} total connections",
+                "connection_id": connection_id
             }
         })
 
     async def disconnect(self, websocket: WebSocket):
         async with self._lock:
-            client_id = f"{websocket.client.host}:{websocket.client.port}"
-            if client_id in self.active_connections:
-                del self.active_connections[client_id]
-                logger.info(f"WebSocket disconnected: {websocket.client}")
+            connection_id = id(websocket)
+            if connection_id in self.active_connections:
+                del self.active_connections[connection_id]
+                connection_count = len(self.active_connections)
+                logger.info(f"🔌 WebSocket disconnected: {websocket.client} (ID: {connection_id}) - Remaining connections: {connection_count}")
+    
+    async def _cleanup_stale_connections(self):
+        """Remove stale/closed WebSocket connections"""
+        stale_connections = []
+        for connection_id, ws in self.active_connections.items():
+            if ws.application_state != WebSocketState.CONNECTED:
+                stale_connections.append(connection_id)
+        
+        for connection_id in stale_connections:
+            del self.active_connections[connection_id]
+            logger.debug(f"🧹 Cleaned up stale connection: {connection_id}")
+        
+        if stale_connections:
+            logger.info(f"🧹 Cleaned up {len(stale_connections)} stale connections")
 
     async def send_notification_to_socket(self, websocket: WebSocket, message: Dict[str, Any]):
         try:
