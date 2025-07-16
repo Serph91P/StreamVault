@@ -11,6 +11,7 @@ from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, Streamer
 from app.database import SessionLocal
 from .notification_formatter import NotificationFormatter
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -103,10 +104,15 @@ class ExternalNotificationService:
 
                 # Get service-specific URL configuration
                 twitch_url = f"https://twitch.tv/{streamer_name}"
+                
+                # Get cached profile image path using unified image service
+                cached_profile_image = unified_image_service.get_cached_profile_image(streamer.id)
+                profile_image_url = cached_profile_image or streamer.profile_image_url or ""
+                
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
                     twitch_url=twitch_url,
-                    profile_image=streamer.profile_image_url or "",
+                    profile_image=profile_image_url,
                     streamer_name=streamer_name,
                     event_type=event_type,
                     original_image_url=details.get("profile_image_url")
