@@ -79,31 +79,36 @@ const watchVideo = (stream) => {
 };
 // Prüfen, ob ein Stream aktuell aufgenommen wird
 const isStreamRecording = (streamerIdValue) => {
+    // Ensure we're working with numbers
+    const targetStreamerId = Number(streamerIdValue);
     // First check local state which gets updated immediately via WebSockets
-    if (localRecordingState.value[streamerIdValue] !== undefined) {
-        console.log(`Using local recording state for ${streamerIdValue}: ${localRecordingState.value[streamerIdValue]}`);
-        return localRecordingState.value[streamerIdValue];
+    if (localRecordingState.value[targetStreamerId] !== undefined) {
+        console.log(`Using local recording state for ${targetStreamerId}: ${localRecordingState.value[targetStreamerId]}`);
+        return localRecordingState.value[targetStreamerId];
     }
     // Then check activeRecordings from the server
     if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
-        console.log(`No active recordings available for ${streamerIdValue}`);
+        console.log(`No active recordings available for ${targetStreamerId}`);
         return false;
     }
-    console.log(`Active recordings for ${streamerIdValue}:`, activeRecordings.value);
+    console.log(`Active recordings for ${targetStreamerId}:`, activeRecordings.value);
     const isRecording = activeRecordings.value.some(rec => {
         // Ensure both are treated as numbers for comparison
-        return parseInt(rec.streamer_id.toString()) === parseInt(streamerIdValue.toString());
+        const recordingStreamerId = Number(rec.streamer_id);
+        return recordingStreamerId === targetStreamerId;
     });
-    console.log(`Stream ${streamerIdValue} recording status: ${isRecording}`);
+    console.log(`Stream ${targetStreamerId} recording status: ${isRecording}`);
     return isRecording;
 };
 // Aufnahme starten
 const startRecording = async (streamerIdValue) => {
     try {
         isStartingRecording.value = true;
+        // Ensure we're working with numbers
+        const targetStreamerId = Number(streamerIdValue);
         // Update local state immediately for better UX
-        localRecordingState.value[streamerIdValue] = true;
-        const response = await fetch(`/api/recording/force/${streamerIdValue}`, {
+        localRecordingState.value[targetStreamerId] = true;
+        const response = await fetch(`/api/recording/force/${targetStreamerId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -114,7 +119,7 @@ const startRecording = async (streamerIdValue) => {
             throw new Error(errorData.detail || 'Failed to start recording');
         }
         // Keep local state since it was successful
-        console.log(`Successfully started recording for streamer ${streamerIdValue}`);
+        console.log(`Successfully started recording for streamer ${targetStreamerId}`);
         // Fetch active recordings to ensure our UI is in sync
         await fetchActiveRecordings();
     }
@@ -122,7 +127,7 @@ const startRecording = async (streamerIdValue) => {
         console.error('Failed to start recording:', error);
         alert(`Failed to start recording: ${error instanceof Error ? error.message : String(error)}`);
         // Reset local state on failure
-        localRecordingState.value[streamerIdValue] = false;
+        localRecordingState.value[Number(streamerIdValue)] = false;
     }
     finally {
         isStartingRecording.value = false;
@@ -132,9 +137,11 @@ const startRecording = async (streamerIdValue) => {
 const forceOfflineRecording = async (streamerIdValue) => {
     try {
         isStartingOfflineRecording.value = true;
+        // Ensure we're working with numbers
+        const targetStreamerId = Number(streamerIdValue);
         // Update local state immediately for better UX
-        localRecordingState.value[streamerIdValue] = true;
-        const response = await fetch(`/api/recording/force-offline/${streamerIdValue}`, {
+        localRecordingState.value[targetStreamerId] = true;
+        const response = await fetch(`/api/recording/force-offline/${targetStreamerId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -145,7 +152,7 @@ const forceOfflineRecording = async (streamerIdValue) => {
             throw new Error(errorData.detail || 'Failed to start offline recording');
         }
         // Keep local state since it was successful
-        console.log(`Successfully started offline recording for streamer ${streamerIdValue}`);
+        console.log(`Successfully started offline recording for streamer ${targetStreamerId}`);
         // Fetch active recordings to ensure our UI is in sync
         await fetchActiveRecordings();
         // Reload streams to show the newly created stream
@@ -155,7 +162,7 @@ const forceOfflineRecording = async (streamerIdValue) => {
         console.error('Failed to start offline recording:', error);
         alert(`Failed to start offline recording: ${error instanceof Error ? error.message : String(error)}`);
         // Reset local state on failure
-        localRecordingState.value[streamerIdValue] = false;
+        localRecordingState.value[Number(streamerIdValue)] = false;
     }
     finally {
         isStartingOfflineRecording.value = false;
@@ -165,9 +172,11 @@ const forceOfflineRecording = async (streamerIdValue) => {
 const stopRecording = async (streamerIdValue) => {
     try {
         isStoppingRecording.value = true;
+        // Ensure we're working with numbers
+        const targetStreamerId = Number(streamerIdValue);
         // Sofort Status lokal aktualisieren für bessere UX
-        localRecordingState.value[streamerIdValue] = false;
-        await stopStreamRecording(streamerIdValue);
+        localRecordingState.value[targetStreamerId] = false;
+        await stopStreamRecording(targetStreamerId);
         // Nach erfolgreicher API-Anfrage trotzdem aktualisieren
         await fetchActiveRecordings();
     }
@@ -175,7 +184,7 @@ const stopRecording = async (streamerIdValue) => {
         console.error('Failed to stop recording:', error);
         alert(`Failed to stop recording: ${error instanceof Error ? error.message : String(error)}`);
         // Setze den lokalen Status zurück, wenn die Anfrage fehlschlägt
-        localRecordingState.value[streamerIdValue] = true;
+        localRecordingState.value[Number(streamerIdValue)] = true;
     }
     finally {
         isStoppingRecording.value = false;
@@ -312,7 +321,7 @@ watch(messages, (newMessages) => {
     console.log('Received WebSocket message:', latestMessage);
     // Update local state based on WebSocket events
     if (latestMessage.type === 'recording.started') {
-        const streamerId = parseInt(latestMessage.data.streamer_id);
+        const streamerId = Number(latestMessage.data.streamer_id);
         console.log(`Recording started for streamer ${streamerId}`);
         // Update local state immediately
         localRecordingState.value[streamerId] = true;
@@ -321,7 +330,7 @@ watch(messages, (newMessages) => {
             activeRecordings.value = [];
         }
         // Add or update the recording in our cache
-        const existingIndex = activeRecordings.value.findIndex(r => parseInt(r.streamer_id.toString()) === streamerId);
+        const existingIndex = activeRecordings.value.findIndex(r => Number(r.streamer_id) === streamerId);
         if (existingIndex >= 0) {
             activeRecordings.value[existingIndex] = latestMessage.data;
         }
@@ -332,20 +341,20 @@ watch(messages, (newMessages) => {
         fetchActiveRecordings();
     }
     else if (latestMessage.type === 'recording.stopped') {
-        const streamerId = parseInt(latestMessage.data.streamer_id);
+        const streamerId = Number(latestMessage.data.streamer_id);
         console.log(`Recording stopped for streamer ${streamerId}`);
         // Update local state immediately
         localRecordingState.value[streamerId] = false;
         // Remove from our local cache
         if (activeRecordings.value) {
-            activeRecordings.value = activeRecordings.value.filter(r => parseInt(r.streamer_id.toString()) !== streamerId);
+            activeRecordings.value = activeRecordings.value.filter(r => Number(r.streamer_id) !== streamerId);
         }
         // Sync with server
         fetchActiveRecordings();
     }
     else if (latestMessage.type === 'stream.online') {
         // Wenn ein neuer Stream erkannt wird, aktualisieren wir die Stream-Liste
-        if (parseInt(latestMessage.data.streamer_id) === parseInt(streamerId.value)) {
+        if (Number(latestMessage.data.streamer_id) === Number(streamerId.value)) {
             fetchStreams(streamerId.value);
         }
     }
@@ -508,7 +517,7 @@ else if (__VLS_ctx.streams.length === 0) {
                     return;
                 if (!(__VLS_ctx.streams.length === 0))
                     return;
-                __VLS_ctx.forceOfflineRecording(parseInt(__VLS_ctx.streamerId));
+                __VLS_ctx.forceOfflineRecording(Number(__VLS_ctx.streamerId));
             } },
         ...{ class: "btn btn-warning" },
     });
@@ -558,7 +567,7 @@ else {
                         return;
                     if (!(!__VLS_ctx.hasLiveStreams))
                         return;
-                    __VLS_ctx.forceOfflineRecording(parseInt(__VLS_ctx.streamerId));
+                    __VLS_ctx.forceOfflineRecording(Number(__VLS_ctx.streamerId));
                 } },
             ...{ class: "btn btn-warning" },
             disabled: (__VLS_ctx.isStartingOfflineRecording),
@@ -656,9 +665,9 @@ else {
         if (!stream.ended_at) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
                 ...{ class: "recording-badge" },
-                ...{ class: (__VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId)) ? 'recording' : 'not-recording') },
+                ...{ class: (__VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId)) ? 'recording' : 'not-recording') },
             });
-            (__VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId)) ? 'REC' : 'OFF');
+            (__VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId)) ? 'REC' : 'OFF');
         }
         __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({
             ...{ class: "stream-title" },
@@ -715,7 +724,7 @@ else {
                     __VLS_ctx.confirmDeleteStream(stream);
                 } },
             ...{ class: "action-btn delete-btn" },
-            disabled: (__VLS_ctx.deletingStreamId === stream.id || (!stream.ended_at && __VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId)))),
+            disabled: (__VLS_ctx.deletingStreamId === stream.id || (!stream.ended_at && __VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId)))),
             'data-tooltip': "Delete Stream",
         });
         if (__VLS_ctx.deletingStreamId === stream.id) {
@@ -817,7 +826,7 @@ else {
                 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                     ...{ class: "recording-controls" },
                 });
-                if (!__VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId))) {
+                if (!__VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId))) {
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
                         ...{ onClick: (...[$event]) => {
                                 if (!!(__VLS_ctx.isLoading))
@@ -828,9 +837,9 @@ else {
                                     return;
                                 if (!(!stream.ended_at))
                                     return;
-                                if (!(!__VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId))))
+                                if (!(!__VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId))))
                                     return;
-                                __VLS_ctx.startRecording(parseInt(__VLS_ctx.streamerId));
+                                __VLS_ctx.startRecording(Number(__VLS_ctx.streamerId));
                             } },
                         ...{ class: "btn btn-success" },
                         disabled: (__VLS_ctx.isStartingRecording),
@@ -848,9 +857,9 @@ else {
                                     return;
                                 if (!(!stream.ended_at))
                                     return;
-                                if (!!(!__VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId))))
+                                if (!!(!__VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId))))
                                     return;
-                                __VLS_ctx.stopRecording(parseInt(__VLS_ctx.streamerId));
+                                __VLS_ctx.stopRecording(Number(__VLS_ctx.streamerId));
                             } },
                         ...{ class: "btn btn-danger" },
                         disabled: (__VLS_ctx.isStoppingRecording),
@@ -888,7 +897,7 @@ else {
                         __VLS_ctx.confirmDeleteStream(stream);
                     } },
                 ...{ class: "btn btn-danger" },
-                disabled: (__VLS_ctx.deletingStreamId === stream.id || (!stream.ended_at && __VLS_ctx.isStreamRecording(parseInt(__VLS_ctx.streamerId)))),
+                disabled: (__VLS_ctx.deletingStreamId === stream.id || (!stream.ended_at && __VLS_ctx.isStreamRecording(Number(__VLS_ctx.streamerId)))),
             });
             if (__VLS_ctx.deletingStreamId === stream.id) {
                 __VLS_asFunctionalElement(__VLS_intrinsicElements.i, __VLS_intrinsicElements.i)({
