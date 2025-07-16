@@ -38,6 +38,7 @@ from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 from app.routes import categories
 from app.utils.security_enhanced import safe_file_access, safe_error_message
+from app.tasks.websocket_broadcast_task import websocket_broadcast_task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -121,6 +122,13 @@ async def lifespan(app: FastAPI):
             logger.info("Background queue service started")
         except Exception as e:
             logger.error(f"Error starting background queue service: {e}", exc_info=True)
+        
+        # Start WebSocket broadcast task for real-time updates
+        try:
+            await websocket_broadcast_task.start()
+            logger.info("WebSocket broadcast task started")
+        except Exception as e:
+            logger.error(f"Error starting WebSocket broadcast task: {e}", exc_info=True)
         
         logger.info("Application startup complete")
         
