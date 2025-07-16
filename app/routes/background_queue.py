@@ -15,9 +15,10 @@ logger = logging.getLogger("streamvault")
 
 @router.get("/stats")
 async def get_queue_stats():
-    """Get background queue statistics"""
+    """Get background queue statistics - Note: Consider using WebSocket for real-time updates"""
     try:
         stats = await background_queue_service.get_queue_stats()
+        logger.debug("Background queue stats requested via REST API (consider WebSocket)")
         return {"success": True, "stats": stats}
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")
@@ -25,9 +26,10 @@ async def get_queue_stats():
 
 @router.get("/active-tasks")
 async def get_active_tasks():
-    """Get currently active tasks"""
+    """Get currently active tasks - Note: Consider using WebSocket for real-time updates"""
     try:
         active_tasks = await background_queue_service.get_active_tasks()
+        logger.debug("Background queue active tasks requested via REST API (consider WebSocket)")
         return {"success": True, "active_tasks": active_tasks}
     except Exception as e:
         logger.error(f"Error getting active tasks: {e}")
