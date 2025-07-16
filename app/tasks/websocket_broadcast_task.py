@@ -104,10 +104,17 @@ class WebSocketBroadcastTask:
         if not start_time:
             return 0
         
-        now = datetime.utcnow()
         if start_time.tzinfo is not None:
-            # Convert to UTC if timezone-aware
-            now = now.replace(tzinfo=start_time.tzinfo)
+            # Both are timezone-aware, use UTC for calculation
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            # Convert start_time to UTC if it's not already
+            if start_time.tzinfo != timezone.utc:
+                start_time = start_time.astimezone(timezone.utc)
+        else:
+            # Both are naive, assume UTC
+            now = datetime.utcnow()
+        
         delta = now - start_time
         return int(delta.total_seconds())
 

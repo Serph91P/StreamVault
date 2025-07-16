@@ -609,12 +609,12 @@ except Exception as e:
 # Static files for PWA assets (icons, registerSW.js, etc.)
 try:
     # Try the standard production path for PWA files
-    app.mount("/pwa", StaticFiles(directory="app/frontend/dist"), name="pwa")
+    app.mount("/pwa", StaticFiles(directory="app/frontend/dist"), name="pwa-primary")
 except Exception as e:
     logger.warning(f"Could not mount PWA files from app/frontend/dist: {e}")
     # Fallback to a secondary path for development
     try:
-        app.mount("/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa")
+        app.mount("/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa-fallback")
         logger.info("Successfully mounted PWA files from /app/app/frontend/dist")
     except Exception as e:
         logger.error(f"Failed to mount PWA assets: {e}")
@@ -713,7 +713,8 @@ async def serve_pwa_helper():
 
 @app.get("/registerSW.js")
 async def serve_register_sw():
-    for path in ["app/frontend/public/registerSW.js", "/app/app/frontend/public/registerSW.js", "app/frontend/dist/registerSW.js", "/app/app/frontend/dist/registerSW.js"]:
+    from app.utils.file_paths import get_pwa_file_paths
+    for path in get_pwa_file_paths("registerSW.js"):
         try:
             return FileResponse(
                 path, 
@@ -723,6 +724,20 @@ async def serve_register_sw():
                     "Pragma": "no-cache",
                     "Expires": "0"
                 }
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/favicon.ico")
+async def serve_favicon():
+    from app.utils.file_paths import get_file_paths
+    for path in get_file_paths("favicon.ico"):
+        try:
+            return FileResponse(
+                path,
+                media_type="image/x-icon",
+                headers={"Cache-Control": "public, max-age=86400"}
             )
         except:
             continue
