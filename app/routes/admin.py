@@ -40,7 +40,7 @@ async def run_tests(
         logger.info(f"Running admin tests: {request.test_names or 'all'}")
         
         # Create test service instance here
-        from app.services.test_service import StreamVaultTestService
+        from app.services.core.test_service import StreamVaultTestService
         test_service = StreamVaultTestService()
         
         if request.test_names:
