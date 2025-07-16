@@ -18,7 +18,7 @@ from app.models import Base, User, Streamer, Stream, StreamEvent
 
 from app.services.recording.recording_service import RecordingService
 from app.services.notification_service import NotificationService
-from app.services.metadata_service import MetadataService
+from app.services.media.metadata_service import MetadataService
 # Don't import StreamerService - it requires dependencies
 
 # For proxy functionality, use streamlink_utils instead
@@ -503,7 +503,7 @@ class StreamVaultTestService:
                 
                 # Test structure creation
                 try:
-                    from app.services.media_server_structure_service import MediaServerStructureService
+                    from app.services.processing.media_server_structure_service import MediaServerStructureService
                     media_service = MediaServerStructureService()
                     
                     # Create basic directory structure manually for testing

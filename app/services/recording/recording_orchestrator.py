@@ -8,7 +8,7 @@ Central coordinator that uses all other refactored services for recording operat
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List
-from app.dependencies import websocket_manager
+# websocket_manager will be imported when needed to avoid circular imports
 from .recording_database_service import RecordingDatabaseService
 from .recording_state_manager import RecordingStateManager
 from .recording_websocket_service import RecordingWebSocketService
@@ -39,6 +39,8 @@ class RecordingOrchestrator:
         # Initialize refactored services
         self.database_service = RecordingDatabaseService(db)
         self.state_manager = RecordingStateManager(self.config_manager)
+        # Import websocket_manager here to avoid circular imports
+        from app.dependencies import websocket_manager
         self.websocket_service = RecordingWebSocketService(websocket_manager)
         self.post_processing_coordinator = PostProcessingCoordinator(
             self.config_manager, self.websocket_service
