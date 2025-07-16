@@ -107,6 +107,17 @@ class BackgroundQueueService:
         """Get comprehensive queue statistics"""
         return self.queue_manager.get_queue_statistics()
 
+    async def get_queue_stats(self) -> Dict[str, Any]:
+        """Get queue statistics (async wrapper for API compatibility)"""
+        return self.get_queue_statistics()
+
+    async def get_recent_tasks(self, limit: int = 50) -> Dict[str, Any]:
+        """Get recent completed tasks (async wrapper for API compatibility)"""
+        completed_tasks = self.get_completed_tasks()
+        # Convert to list and limit
+        recent_list = list(completed_tasks.values())[-limit:]
+        return {task.task_id: task for task in recent_list}
+
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""
         await self.queue_manager.send_queue_statistics()
