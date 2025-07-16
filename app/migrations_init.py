@@ -3,7 +3,7 @@ Migration initialization script to run pending migrations at application startup
 """
 import logging
 import os
-from app.services.migration_service import MigrationService
+from app.services.system.migration_service import MigrationService
 from app.config.settings import settings
 
 logger = logging.getLogger("streamvault")
