@@ -119,7 +119,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
     try:
         logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
         
-        from app.services.enhanced_push_service import EnhancedPushService, enhanced_push_service
+        from app.services.communication.enhanced_push_service import EnhancedPushService, enhanced_push_service
         from app.models import GlobalSettings, NotificationSettings, Streamer
         
         # Check VAPID configuration

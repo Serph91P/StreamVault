@@ -56,7 +56,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     # Validate session
-    from app.services.auth_service import AuthService
+    from app.services.core.auth_service import AuthService
     auth_service = AuthService(db)
     if not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -136,7 +136,7 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
         
         # Validate session
-        from app.services.auth_service import AuthService
+        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         session_valid = await auth_service.validate_session(session_token)
         logger.info(f"DEBUG: Session validation result: {session_valid}")
@@ -206,7 +206,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         
         # Validate session
         try:
-            from app.services.auth_service import AuthService
+            from app.services.core.auth_service import AuthService
             auth_service = AuthService(db)
             session_valid = await auth_service.validate_session(session_token)
             logger.info(f"Session validation result: {session_valid}")
@@ -330,7 +330,7 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.auth_service import AuthService
+        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -448,7 +448,7 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.auth_service import AuthService
+        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -530,7 +530,7 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
         
         # Validate session
-        from app.services.auth_service import AuthService
+        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         session_valid = await auth_service.validate_session(session_token)
         logger.info(f"DEBUG: Session validation result: {session_valid}")
@@ -590,7 +590,7 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
         raise HTTPException(status_code=401, detail="Authentication required")
     
     # Validate session
-    from app.services.auth_service import AuthService
+    from app.services.core.auth_service import AuthService
     auth_service = AuthService(db)
     if not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -663,7 +663,7 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.auth_service import AuthService
+        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -782,7 +782,7 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
         
         if session_token:
             # Test session validation
-            from app.services.auth_service import AuthService
+            from app.services.core.auth_service import AuthService
             auth_service = AuthService(db)
             session_valid = await auth_service.validate_session(session_token)
             logger.info(f"Session valid: {session_valid}")

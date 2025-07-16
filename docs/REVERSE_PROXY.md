@@ -14,6 +14,23 @@ StreamVault looks for these headers to detect reverse proxy setups:
 - `CF-Connecting-IP` (Cloudflare)
 - `X-Original-Forwarded-For` (AWS ALB)
 
+## Client IP Detection
+
+StreamVault now automatically extracts the real client IP addresses for proper logging and WebSocket connection tracking. The system checks headers in this order:
+
+1. `CF-Connecting-IP` (Cloudflare)
+2. `X-Real-IP` (nginx)
+3. `X-Forwarded-For` (standard proxy header)
+4. `X-Client-IP` (alternative)
+5. `X-Cluster-Client-IP` (load balancer)
+6. `Forwarded` (RFC 7239)
+
+This ensures that even behind reverse proxies, StreamVault can:
+- Track unique users properly
+- Log correct IP addresses
+- Manage WebSocket connections efficiently
+- Apply rate limiting per real client
+
 ## Cookie Security
 
 ### Automatic Configuration

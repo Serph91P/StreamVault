@@ -5,7 +5,7 @@ from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSett
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording.recording_service import RecordingService  # Changed import path
 from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
-from app.services.logging_service import logging_service
+from app.services.system.logging_service import logging_service
 from app.services.unified_image_service import unified_image_service
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -234,7 +234,7 @@ async def get_active_recordings():
     """Get all active recordings"""
     try:
         # Get active recordings from service - it returns a dict
-        active_recordings_dict = await get_recording_service().get_active_recordings()
+        active_recordings_dict = get_recording_service().get_active_recordings()
         
         # Convert to list of ActiveRecordingSchema objects
         result = []
@@ -407,7 +407,7 @@ async def cleanup_old_recordings(streamer_id: int):
         # Log cleanup request
         logging_service.log_recording_activity("CLEANUP_REQUEST", f"Streamer {streamer_id}", "Manual cleanup requested via API")
         
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
         
         # Log cleanup results
@@ -431,7 +431,7 @@ async def cleanup_old_recordings(streamer_id: int):
 async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
     """Run a custom cleanup with specified policy"""
     try:
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         
         # Convert pydantic model to dict
         policy_dict = policy.dict(exclude_unset=True)
@@ -455,7 +455,7 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
 async def get_storage_usage(streamer_id: int):
     """Get storage usage information for a streamer"""
     try:
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         usage = await CleanupService.get_storage_usage(streamer_id)
         return usage
     except Exception as e:

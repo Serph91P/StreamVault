@@ -28,7 +28,7 @@ async def get_queue_stats():
 async def get_active_tasks():
     """Get currently active tasks - Note: Consider using WebSocket for real-time updates"""
     try:
-        active_tasks = await background_queue_service.get_active_tasks()
+        active_tasks = background_queue_service.get_active_tasks()
         logger.debug("Background queue active tasks requested via REST API (consider WebSocket)")
         return {"success": True, "active_tasks": active_tasks}
     except Exception as e:
@@ -49,7 +49,7 @@ async def get_recent_tasks(limit: int = 50):
 async def get_task_status(task_id: str):
     """Get status of a specific task"""
     try:
-        task_status = await background_queue_service.get_task_status(task_id)
+        task_status = background_queue_service.get_task_status(task_id)
         if not task_status:
             raise HTTPException(status_code=404, detail="Task not found")
         return {"success": True, "task": task_status}

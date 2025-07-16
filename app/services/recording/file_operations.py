@@ -14,7 +14,7 @@ import logging
 
 from app.models import Stream, StreamMetadata
 from app.database import SessionLocal
-from app.services.metadata_service import MetadataService
+from app.services.media.metadata_service import MetadataService
 from app.utils.file_utils import cleanup_temporary_files
 # FFmpeg utilities now handled by background queue system
 

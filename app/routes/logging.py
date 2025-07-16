@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from app.services.logging_service import logging_service
+from app.services.system.logging_service import logging_service
 from app.schemas.logging import LoggingSettingsSchema, LogsListSchema, LogFileSchema
 
 router = APIRouter(prefix="/logging", tags=["logging"])

@@ -2,9 +2,9 @@ import logging
 from fastapi import Depends
 from app.database import SessionLocal
 from app.config.settings import settings
-from app.services.websocket_manager import ConnectionManager
-from app.services.auth_service import AuthService
-from app.services.settings_service import SettingsService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.core.auth_service import AuthService
+from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger('streamvault')

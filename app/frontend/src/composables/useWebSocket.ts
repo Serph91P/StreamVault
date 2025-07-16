@@ -15,6 +15,7 @@ class WebSocketManager {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 10
   private wsUrl: string
+  private connectionId: string | null = null
   
   // Reactive state shared across all components
   public messages: Ref<WebSocketMessage[]> = ref([])
@@ -24,11 +25,15 @@ class WebSocketManager {
   private constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     this.wsUrl = `${wsProtocol}//${window.location.host}/ws`
+    console.log('🔧 WebSocketManager singleton created with URL:', this.wsUrl)
   }
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
       WebSocketManager.instance = new WebSocketManager()
+      console.log('🏗️ WebSocketManager singleton instance created')
+    } else {
+      console.log('♻️ WebSocketManager singleton instance reused')
     }
     return WebSocketManager.instance
   }
@@ -88,6 +93,15 @@ class WebSocketManager {
         const message = JSON.parse(event.data)
         this.messages.value.push(message)
         
+        // Store connection ID from server for debugging
+        if (message.type === 'connection.status' && message.data?.connection_id) {
+          this.connectionId = message.data.connection_id
+          const realIp = message.data.real_ip
+          const isProxied = message.data.is_reverse_proxied
+          const proxyInfo = isProxied ? ' (via reverse proxy)' : ''
+          console.log(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
+        }
+        
         // Keep only last 100 messages to prevent memory leaks
         if (this.messages.value.length > 100) {
           this.messages.value = this.messages.value.slice(-100)
@@ -133,13 +147,26 @@ class WebSocketManager {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('❌ Max reconnection attempts reached')
       this.connectionStatus.value = 'failed'
+      
+      // After failure, wait 60 seconds and reset retry counter for fresh attempt
+      setTimeout(() => {
+        if (this.subscribers.size > 0) {
+          console.log('🔄 Resetting retry counter after cooldown period')
+          this.reconnectAttempts = 0
+          this.connectionStatus.value = 'disconnected'
+          this.attemptReconnect()
+        }
+      }, 60000)
       return
     }
     
     this.reconnectAttempts++
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000)
+    // Exponential backoff with jitter to prevent thundering herd
+    const baseDelay = 1000 * Math.pow(2, this.reconnectAttempts - 1)
+    const jitter = Math.random() * 0.3 * baseDelay  // Add 0-30% jitter
+    const delay = Math.min(baseDelay + jitter, 30000)
     
-    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    console.log(`🔄 Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     this.reconnectTimer = window.setTimeout(() => {
       if (this.subscribers.size > 0) {
@@ -154,16 +181,19 @@ export function useWebSocket() {
   const manager = WebSocketManager.getInstance()
   
   // Create a unique callback for this component instance
+  const componentId = Math.random().toString(36).substr(2, 9)
   const componentCallback = () => {
     // This callback is used for subscriber tracking
     // The actual reactivity is handled by the shared refs
   }
   
   onMounted(() => {
+    console.log(`📱 Component ${componentId} subscribing to WebSocket`)
     manager.subscribe(componentCallback)
   })
   
   onUnmounted(() => {
+    console.log(`📱 Component ${componentId} unsubscribing from WebSocket`)
     manager.unsubscribe(componentCallback)
   })
   

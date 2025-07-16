@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import RedirectResponse
-from app.services.twitch_oauth_service import TwitchOAuthService
+from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service
 from typing import List, Dict, Any

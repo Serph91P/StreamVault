@@ -31,7 +31,7 @@ from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_auth_service
-from app.services.image_sync_service import image_sync_service
+from app.services.images.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     try:
         # Run database migrations always (development and production)
         logger.info("🔄 Running database migrations...")
-        from app.services.migration_service import MigrationService
+        from app.services.system.migration_service import MigrationService
         try:
             migration_success = MigrationService.run_safe_migrations()
             if migration_success:
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
         
         # Start log cleanup service
         try:
-            from app.services.logging_service import LoggingService
+            from app.services.system.logging_service import LoggingService
             logging_service = LoggingService()
             log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
             logger.info("Log cleanup service started")
@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
         
         # Start recording cleanup service
         try:
-            from app.services.cleanup_service import CleanupService
+            from app.services.system.cleanup_service import CleanupService
             
             async def scheduled_recording_cleanup():
                 while True:
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
             
         # Start background queue service
         try:
-            from app.services.startup_init import initialize_background_services
+            from app.services.init.startup_init import initialize_background_services
             await initialize_background_services()
             logger.info("Background queue service started")
         except Exception as e:
@@ -425,18 +425,54 @@ async def rate_limit_middleware(request: Request, call_next):
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    logger.info(f"New WebSocket connection from {websocket.client}")
+    from app.utils.client_ip import get_real_client_ip
+    
+    real_ip = get_real_client_ip(websocket)
+    logger.info(f"📞 New WebSocket connection attempt from {real_ip}")
+    
     await websocket_manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected: {websocket.client}")
+        logger.info(f"📞 WebSocket disconnected: {real_ip}")
         await websocket_manager.disconnect(websocket)
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "StreamVault"}
+
+@app.get("/admin/websocket-connections")
+async def get_websocket_connections():
+    """Admin endpoint to monitor WebSocket connections"""
+    connections = []
+    async with websocket_manager._lock:
+        for connection_id, ws in websocket_manager.active_connections.items():
+            real_ip = getattr(ws, '_real_ip', 'unknown')
+            client_identifier = getattr(ws, '_client_identifier', 'unknown')
+            
+            connections.append({
+                "connection_id": connection_id,
+                "real_ip": real_ip,
+                "client_identifier": client_identifier,
+                "state": ws.application_state.value if hasattr(ws.application_state, 'value') else str(ws.application_state)
+            })
+    
+    # Group by real IP to show multiple connections per client
+    clients = {}
+    for conn in connections:
+        ip = conn["real_ip"]
+        if ip not in clients:
+            clients[ip] = {"ip": ip, "connections": [], "count": 0}
+        clients[ip]["connections"].append(conn)
+        clients[ip]["count"] += 1
+    
+    return {
+        "total_connections": len(connections),
+        "unique_clients": len(clients),
+        "clients": list(clients.values()),
+        "connections": connections
+    }
 
 # EventSub Routes
 @app.get("/eventsub")

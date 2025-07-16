@@ -83,6 +83,7 @@ class WebSocketBroadcastTask:
                     recordings_data.append({
                         "id": recording.id,
                         "stream_id": recording.stream_id,
+                        "streamer_id": recording.stream.streamer_id if recording.stream else None,
                         "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
                         "title": recording.stream.title if recording.stream else "No Title", 
                         "started_at": recording.start_time.isoformat() if recording.start_time else None,
