@@ -158,6 +158,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
     
+    # Stop WebSocket broadcast task
+    try:
+        logger.info("🔄 Stopping WebSocket broadcast task...")
+        await websocket_broadcast_task.stop()
+        logger.info("✅ WebSocket broadcast task stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error stopping WebSocket broadcast task: {e}")
+    
     # Shutdown background queue service
     try:
         logger.info("🔄 Stopping background queue service...")
