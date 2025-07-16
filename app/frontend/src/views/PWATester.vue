@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { usePWA } from '@/composables/usePWA'
 
 const { isInstallable, isInstalled, installPWA } = usePWA()
@@ -214,8 +214,13 @@ const showDebugConsole = () => {
 onMounted(() => {
   refreshData()
   
-  // Auto-refresh every 5 seconds
-  setInterval(refreshData, 5000)
+  // Auto-refresh every 5 seconds - PERFORMANCE FIX: Clear interval on unmount
+  const intervalId = setInterval(refreshData, 5000)
+  
+  // Clear interval when component unmounts
+  onUnmounted(() => {
+    clearInterval(intervalId)
+  })
 })
 </script>
 
