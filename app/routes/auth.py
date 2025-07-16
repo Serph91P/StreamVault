@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.schemas.auth import UserCreate, LoginResponse
+from app.config.settings import get_settings
 
 logger = logging.getLogger("streamvault")
 
@@ -37,11 +38,12 @@ async def setup_admin(
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created", "success": True})
+    settings = get_settings()
     response.set_cookie(
         key="session", 
         value=token, 
         httponly=True, 
-        secure=False,  # Change to True if using HTTPS
+        secure=settings.USE_SECURE_COOKIES,  # Auto-configured for reverse proxy
         samesite="lax"
     )
     return response
@@ -64,12 +66,13 @@ async def login(
         
         token = await auth_service.create_session(user.id)
         response = JSONResponse(content={"message": "Login successful", "success": True})
-        # Set secure=False for development/reverse proxy setups, httponly=True for security
+        # Set secure based on configuration, httponly=True for XSS protection
+        settings = get_settings()
         response.set_cookie(
             key="session", 
             value=token, 
             httponly=True, 
-            secure=False,  # Change to True if using HTTPS
+            secure=settings.USE_SECURE_COOKIES,  # Auto-configured for reverse proxy
             samesite="lax"  # Allow cross-site requests for reverse proxy
         )
         logger.info(f"Successful login for user: {request.username}")

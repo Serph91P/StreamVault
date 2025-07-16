@@ -325,7 +325,7 @@ const sendLocalTestNotification = async () => {
     if ('serviceWorker' in navigator && 'Notification' in window) {
       const permission = await requestNotificationPermission()
       if (permission === 'granted') {
-        await showNotification('🧪 StreamVault PWA Test', {
+        const notificationOptions: any = {
           body: 'This is a local PWA test notification. If you see this, your PWA notifications are working!',
           icon: '/android-icon-192x192.png',
           badge: '/android-icon-96x96.png',
@@ -338,7 +338,9 @@ const sendLocalTestNotification = async () => {
               title: 'Close'
             }
           ]
-        })
+        }
+        
+        await showNotification('🧪 StreamVault PWA Test', notificationOptions)
         showStatus('Local PWA notification sent! Check your device.', 'success')
       } else {
         showStatus('Notification permission not granted', 'error')
