@@ -19,32 +19,35 @@ const isLoadingLastRecording = ref(false)
 
 async function fetchLastRecording() {
   isLoadingLastRecording.value = true
-  let allStreams: any[] = []
-  for (const streamer of streamers.value) {
-    try {
-      const response = await fetch(`/api/streamers/${streamer.id}/streams`)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.streams && Array.isArray(data.streams)) {          // Add streamer info to each stream
-          const streamsWithStreamer = data.streams.map((stream: any) => ({
-            ...stream,
-            streamer_name: streamer.username,
-            streamer_id: streamer.id
-          }))
-          allStreams = allStreams.concat(streamsWithStreamer)
+  try {
+    // Use a single API call to get the latest recording instead of looping through all streamers
+    const response = await fetch('/api/recordings/latest')
+    if (response.ok) {
+      const data = await response.json()
+      lastRecording.value = data.recording || null
+      if (data.recording) {
+        lastRecordingStreamer.value = streamers.value.find(s => 
+          String(s.id) === String(data.recording.streamer_id)
+        )
+      }
+    } else {
+      // Fallback: Get only last 5 recordings from a dedicated endpoint
+      const fallbackResponse = await fetch('/api/recordings/recent?limit=1')
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json()
+        const recordings = fallbackData.recordings || []
+        lastRecording.value = recordings[0] || null
+        if (recordings[0]) {
+          lastRecordingStreamer.value = streamers.value.find(s => 
+            String(s.id) === String(recordings[0].streamer_id)
+          )
         }
       }
-    } catch (e) {
-      // ignore
     }
-  }
-  // Find the latest ended stream
-  const endedStreams = allStreams.filter(s => s.ended_at)
-  endedStreams.sort((a, b) => new Date(b.ended_at).getTime() - new Date(a.ended_at).getTime())
-  const latestStream = endedStreams[0] || null
-  lastRecording.value = latestStream
-  if (latestStream) {
-    lastRecordingStreamer.value = streamers.value.find(s => String(s.id) === String(latestStream.streamer_id))
+  } catch (error) {
+    console.error('Failed to fetch last recording:', error)
+    lastRecording.value = null
+    lastRecordingStreamer.value = null
   }
   isLoadingLastRecording.value = false
 }
