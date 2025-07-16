@@ -120,9 +120,9 @@
                 </span>
               </div>
               
-              <h3 class="stream-title">{{ stream.title || (stream.started_at ? formatDate(stream.started_at) : 'Unknown') }}</h3>
+              <h3 class="stream-title">{{ stream.title || formatDate(stream.started_at) }}</h3>
               <div class="stream-meta">
-                <span class="stream-date">{{ stream.started_at ? formatDate(stream.started_at) : 'Unknown' }}</span>
+                <span class="stream-date">{{ formatDate(stream.started_at) }}</span>
                 <span v-if="stream.category_name" class="stream-category">{{ stream.category_name }}</span>
               </div>
             </div>
@@ -141,7 +141,7 @@
               </div>
               <div class="stat-item">
                 <span class="stat-label">Viewers</span>
-                <span class="stat-value">{{ stream.viewer_count || 'Unknown' }}</span>
+                <span class="stat-value">Unknown</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">Language</span>
@@ -269,7 +269,9 @@ const sortedStreams = computed(() => {
     if (a.ended_at && !b.ended_at) return 1
     
     // Then by start date (newest first)
-    return new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    const aDate = a.started_at ? new Date(a.started_at).getTime() : 0
+    const bDate = b.started_at ? new Date(b.started_at).getTime() : 0
+    return bDate - aDate
   })
 })
 
@@ -291,7 +293,7 @@ const isStreamBeingRecorded = (stream: any): boolean => {
   }
   
   return activeRecordings.value.some(rec => {
-    const recordingStreamId = Number(rec.stream_id)
+    const recordingStreamId = Number(rec.streamer_id) // Use streamer_id as stream_id doesn't exist
     const recordingStreamerId = Number(rec.streamer_id)
     
     // Try to match by stream_id first, fall back to streamer_id for live streams
@@ -348,7 +350,8 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
 }
 
-const formatDate = (dateString: string): string => {
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return 'Unknown'
   const date = new Date(dateString)
   return date.toLocaleDateString('de-DE', {
     year: 'numeric',
@@ -479,7 +482,7 @@ onMounted(async () => {
     await fetchActiveRecordings()
     
     // Preload category images
-    const categories = [...new Set(streams.value.map(s => s.category_name).filter(Boolean))]
+    const categories = [...new Set(streams.value.map(s => s.category_name).filter(Boolean))] as string[]
     await preloadCategoryImages(categories)
   }
 })
