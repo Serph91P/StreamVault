@@ -4,10 +4,22 @@ import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue';
 import '@/styles/main.scss';
 import { ref, onMounted, watch } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
+import { useAuth } from '@/composables/useAuth';
 const showNotifications = ref(false);
 const unreadCount = ref(0);
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0');
 const { messages } = useWebSocket();
+const { logout: authLogout, checkStoredAuth } = useAuth();
+// PWA-compatible logout function
+async function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        await authLogout();
+    }
+}
+// PWA AUTH FIX: Check stored auth on app start
+onMounted(async () => {
+    await checkStoredAuth();
+});
 // WebSocket message processing - moved here so it runs even when notification panel is closed
 const processWebSocketMessage = (message) => {
     console.log('🔥 App: Processing WebSocket message:', message);
@@ -282,6 +294,8 @@ debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['logout-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['logout-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-bell']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-bell']} */ ;
 /** @type {__VLS_StyleScopedClasses['mobile-notification-btn']} */ ;
@@ -388,6 +402,9 @@ var __VLS_23;
 const __VLS_24 = __VLS_asFunctionalComponent(BackgroundQueueMonitor, new BackgroundQueueMonitor({}));
 const __VLS_25 = __VLS_24({}, ...__VLS_functionalComponentArgsRest(__VLS_24));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "nav-actions" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "notification-bell-container" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
@@ -419,6 +436,33 @@ if (__VLS_ctx.unreadCount > 0) {
     });
     (__VLS_ctx.unreadCount > 99 ? '99+' : __VLS_ctx.unreadCount);
 }
+__VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+    ...{ onClick: (__VLS_ctx.logout) },
+    ...{ class: "logout-btn" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.svg, __VLS_intrinsicElements.svg)({
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    'stroke-width': "2",
+    'stroke-linecap': "round",
+    'stroke-linejoin': "round",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.path, __VLS_intrinsicElements.path)({
+    d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.polyline, __VLS_intrinsicElements.polyline)({
+    points: "16 17 21 12 16 7",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.line, __VLS_intrinsicElements.line)({
+    x1: "21",
+    y1: "12",
+    x2: "9",
+    y2: "12",
+});
 if (__VLS_ctx.showNotifications) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "notification-overlay" },
@@ -738,11 +782,13 @@ const __VLS_73 = __VLS_72({}, ...__VLS_functionalComponentArgsRest(__VLS_72));
 /** @type {__VLS_StyleScopedClasses['nav-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['nav-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['nav-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['nav-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-bell-container']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-bell']} */ ;
 /** @type {__VLS_StyleScopedClasses['has-unread']} */ ;
 /** @type {__VLS_StyleScopedClasses['bell-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-count']} */ ;
+/** @type {__VLS_StyleScopedClasses['logout-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-overlay']} */ ;
 /** @type {__VLS_StyleScopedClasses['main-content']} */ ;
 /** @type {__VLS_StyleScopedClasses['mobile-nav-bottom']} */ ;
@@ -771,6 +817,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             BackgroundQueueMonitor: BackgroundQueueMonitor,
             showNotifications: showNotifications,
             unreadCount: unreadCount,
+            logout: logout,
             toggleNotifications: toggleNotifications,
             markAsRead: markAsRead,
             clearAllNotifications: clearAllNotifications,
