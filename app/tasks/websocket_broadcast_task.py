@@ -72,8 +72,8 @@ class WebSocketBroadcastTask:
                 # Get all currently active recordings
                 active_recordings = db.query(Recording).filter(
                     and_(
-                        Recording.is_live == True,
-                        Recording.file_path.isnot(None)
+                        Recording.status == "recording",
+                        Recording.path.isnot(None)
                     )
                 ).all()
                 
@@ -83,13 +83,12 @@ class WebSocketBroadcastTask:
                     recordings_data.append({
                         "id": recording.id,
                         "stream_id": recording.stream_id,
-                        "streamer_id": recording.streamer_id,
-                        "streamer_name": recording.streamer.username if recording.streamer else "Unknown",
-                        "title": recording.title or "No Title",
-                        "started_at": recording.started_at.isoformat() if recording.started_at else None,
-                        "file_path": recording.file_path,
-                        "is_live": recording.is_live,
-                        "duration": self._calculate_duration(recording.started_at) if recording.started_at else 0
+                        "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
+                        "title": recording.stream.title if recording.stream else "No Title", 
+                        "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                        "file_path": recording.path,
+                        "status": recording.status,
+                        "duration": self._calculate_duration(recording.start_time) if recording.start_time else 0
                     })
                 
                 # Send via WebSocket if we have connected clients
@@ -100,13 +99,16 @@ class WebSocketBroadcastTask:
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
     
-    def _calculate_duration(self, started_at: datetime) -> int:
+    def _calculate_duration(self, start_time: datetime) -> int:
         """Calculate recording duration in seconds"""
-        if not started_at:
+        if not start_time:
             return 0
         
         now = datetime.utcnow()
-        delta = now - started_at
+        if start_time.tzinfo is not None:
+            # Convert to UTC if timezone-aware
+            now = now.replace(tzinfo=start_time.tzinfo)
+        delta = now - start_time
         return int(delta.total_seconds())
 
 # Global instance

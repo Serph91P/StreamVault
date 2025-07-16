@@ -398,24 +398,7 @@ async def force_start_recording(streamer_id: int):
         logger.error(f"Error force starting recording: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.post("/force-offline/{streamer_id}")
-async def force_start_offline_recording(streamer_id: int):
-    """Manually start a recording for a stream, even if the online event wasn't detected"""
-    try:
-        # Log offline force start attempt
-        logging_service.log_recording_activity("FORCE_OFFLINE_START_REQUEST", f"Streamer {streamer_id}", "Manual offline force start requested via API")
-        
-        result = await get_recording_service().force_start_recording_offline(streamer_id)
-        if result:
-            logging_service.log_recording_activity("FORCE_OFFLINE_START_SUCCESS", f"Streamer {streamer_id}", "Offline force recording gestartet")
-            return {"status": "success", "message": "Recording started successfully"}
-        else:
-            logging_service.log_recording_activity("FORCE_OFFLINE_START_FAILED", f"Streamer {streamer_id}", "Failed to start offline recording", "warning")
-            raise HTTPException(status_code=400, detail="Failed to start recording. Check logs for details.")
-    except Exception as e:
-        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "FORCE_OFFLINE_START_ERROR", str(e))
-        logger.error(f"Error force starting offline recording: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/cleanup/{streamer_id}")
 async def cleanup_old_recordings(streamer_id: int):
