@@ -112,6 +112,13 @@
           >
             {{ isSendingTest ? 'Sending...' : 'Send Test' }}
           </button>
+          <button 
+            @click="sendLocalTestNotification" 
+            class="btn btn-primary"
+            style="margin-left: 8px;"
+          >
+            Test Local
+          </button>
         </div>
       </div>
     </div>
@@ -310,6 +317,39 @@ const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
     statusMessage.value = ''
     statusType.value = ''
   }, 5000)
+}
+
+const sendLocalTestNotification = async () => {
+  try {
+    // Try local notification to test PWA functionality
+    if ('serviceWorker' in navigator && 'Notification' in window) {
+      const permission = await requestNotificationPermission()
+      if (permission === 'granted') {
+        await showNotification('🧪 StreamVault PWA Test', {
+          body: 'This is a local PWA test notification. If you see this, your PWA notifications are working!',
+          icon: '/android-icon-192x192.png',
+          badge: '/android-icon-96x96.png',
+          tag: 'pwa-test',
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+          actions: [
+            {
+              action: 'close',
+              title: 'Close'
+            }
+          ]
+        })
+        showStatus('Local PWA notification sent! Check your device.', 'success')
+      } else {
+        showStatus('Notification permission not granted', 'error')
+      }
+    } else {
+      showStatus('PWA features not supported in this browser', 'error')
+    }
+  } catch (error) {
+    console.error('Local test notification failed:', error)
+    showStatus('Local test notification failed', 'error')
+  }
 }
 
 onMounted(() => {
