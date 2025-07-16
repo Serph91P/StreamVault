@@ -1,16 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomeView from '../views/HomeView.vue';
-import SubscriptionsView from '../views/SubscriptionsView.vue';
-import AddStreamerView from '../views/AddStreamerView.vue';
-import SetupView from '../views/SetupView.vue';
-import LoginView from '../views/LoginView.vue';
-import AdminView from '../views/AdminView.vue';
-import SettingsView from '../views/SettingsView.vue';
-import StreamerDetailView from '../views/StreamerDetailView.vue';
-import WelcomeView from '../views/WelcomeView.vue';
-import StreamersView from '../views/StreamersView.vue';
-import VideoPlayerView from '../views/VideoPlayerView.vue';
-import VideosView from '../views/VideosView.vue';
+// PERFORMANCE FIX: Implement lazy loading for all routes
+const HomeView = () => import('../views/HomeView.vue');
+const SubscriptionsView = () => import('../views/SubscriptionsView.vue');
+const AddStreamerView = () => import('../views/AddStreamerView.vue');
+const SetupView = () => import('../views/SetupView.vue');
+const LoginView = () => import('../views/LoginView.vue');
+const AdminView = () => import('../views/AdminView.vue');
+const SettingsView = () => import('../views/SettingsView.vue');
+const StreamerDetailView = () => import('../views/StreamerDetailView.vue');
+const WelcomeView = () => import('../views/WelcomeView.vue');
+const StreamersView = () => import('../views/StreamersView.vue');
+const VideoPlayerView = () => import('../views/VideoPlayerView.vue');
+const VideosView = () => import('../views/VideosView.vue');
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes: [

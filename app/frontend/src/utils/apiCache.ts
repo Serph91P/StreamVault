@@ -110,11 +110,18 @@ export async function cachedFetch(url: string, ttl?: number): Promise<any> {
 
 // Helper function for POST requests (usually not cached)
 export async function postRequest(url: string, data: any): Promise<any> {
-  return apiCache.makeRequest(url, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
+    credentials: 'include'
   })
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  
+  return response.json()
 }

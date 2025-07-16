@@ -82,13 +82,13 @@ export default defineConfig({
         }
       }
     },
-    // SECURITY FIX: Remove console.log in production
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
+    // Default minification is esbuild, which is faster for development
+    minify: true
+  },
+  // Development optimization
+  server: {
+    hmr: {
+      overlay: false  // Disable error overlay for better development experience
     }
   }
 })
