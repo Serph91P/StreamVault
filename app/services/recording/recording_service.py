@@ -15,7 +15,7 @@ Original ULTRA-BOSS God Class (1084 lines) split into:
 
 import logging
 from typing import Dict, Any, Optional, List
-from .services import RecordingOrchestrator
+from .recording_orchestrator import RecordingOrchestrator
 
 logger = logging.getLogger("streamvault")
 
