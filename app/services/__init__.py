@@ -34,7 +34,7 @@ from app.services.migration_service import MigrationService
 from app.services.thumbnail_service import ThumbnailService
 from app.services.artwork_service import ArtworkService
 from app.services.system_config_service import SystemConfigService
-from app.services.twitch_auth_service import TwitchAuthService
+from app.services.twitch_oauth_service import TwitchOAuthService
 from app.services.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
@@ -54,7 +54,7 @@ __all__ = [
     "ThumbnailService",
     "ArtworkService",
     "SystemConfigService",
-    "TwitchAuthService",
+    "TwitchOAuthService",
     "ModernWebPushService",  # Changed from WebPushService
     "ConnectionManager",
     "UnifiedImageService",
