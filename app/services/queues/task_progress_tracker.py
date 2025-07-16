@@ -74,6 +74,16 @@ class TaskProgressTracker:
         
         # Progress update callbacks
         self.progress_callbacks: Dict[str, Callable] = {}
+        
+        # Async task management for proper cleanup
+        self.background_tasks: set = set()
+
+    def _create_background_task(self, coro):
+        """Create a background task with proper reference management"""
+        task = asyncio.create_task(coro)
+        self.background_tasks.add(task)
+        task.add_done_callback(self.background_tasks.discard)
+        return task
 
     def add_task(self, task: QueueTask):
         """Add a task to tracking"""
@@ -109,7 +119,7 @@ class TaskProgressTracker:
             logger.debug(f"Task {task_id} status updated: {old_status.value} -> {status.value}")
             
             # Send WebSocket update
-            asyncio.create_task(self._send_task_update(task))
+            self._create_background_task(self._send_task_update(task))
 
     def update_task_progress(self, task_id: str, progress: float):
         """Update task progress"""
@@ -129,7 +139,7 @@ class TaskProgressTracker:
             
             # Send WebSocket update (throttled to avoid spam)
             if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
-                asyncio.create_task(self._send_task_update(task))
+                self._create_background_task(self._send_task_update(task))
 
     def register_progress_callback(self, task_id: str, callback: Callable[[float], None]):
         """Register a progress callback for a task"""
@@ -202,7 +212,7 @@ class TaskProgressTracker:
             
             # Send WebSocket update
             if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
-                asyncio.create_task(self._send_task_update(task))
+                self._create_background_task(self._send_task_update(task))
 
     def complete_external_task(self, task_id: str, success: bool = True):
         """Mark external task as completed"""
@@ -215,13 +225,22 @@ class TaskProgressTracker:
             logger.debug(f"External task {task_id} marked as {'completed' if success else 'failed'}")
             
             # Send final WebSocket update
-            asyncio.create_task(self._send_task_update(task))
+            self._create_background_task(self._send_task_update(task))
 
     def remove_external_task(self, task_id: str):
         """Remove external task from tracking"""
         if task_id in self.external_tasks:
             del self.external_tasks[task_id]
             logger.debug(f"External task {task_id} removed from tracking")
+
+    async def cleanup_background_tasks(self):
+        """Cancel all background tasks"""
+        if self.background_tasks:
+            logger.debug(f"Cancelling {len(self.background_tasks)} background tasks")
+            for task in self.background_tasks:
+                task.cancel()
+            await asyncio.gather(*self.background_tasks, return_exceptions=True)
+            self.background_tasks.clear()
 
     # WebSocket notification methods
     
