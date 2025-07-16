@@ -94,27 +94,22 @@ class TwitchAuthService:
         """Get a page of followed channels using the new API endpoint"""
         try:
             follows = await twitch_api.get_user_followed_streamers(user_id, access_token)
-                        pagination = data.get("pagination", {})
-                        next_cursor = pagination.get("cursor")
-                        
-                        # Debug logging 
-                        logger.debug(f"Successfully fetched {len(follows)} followed channels")
-                        
-                        # Extract broadcaster info
-                        streamers = []
-                        for follow in follows:
-                            streamer = {
-                                "id": follow["broadcaster_id"],
-                                "login": follow["broadcaster_login"],
-                                "display_name": follow["broadcaster_name"]
-                            }
-                            streamers.append(streamer)
-                            
-                        return streamers, next_cursor
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Failed to get follows: {response.status} - {error_text}")
-                        return [], None
+            
+            # Debug logging 
+            logger.debug(f"Successfully fetched {len(follows)} followed channels")
+            
+            # Extract broadcaster info
+            streamers = []
+            for follow in follows:
+                streamer = {
+                    "id": follow["broadcaster_id"],
+                    "login": follow["broadcaster_login"],
+                    "display_name": follow["broadcaster_name"]
+                }
+                streamers.append(streamer)
+                
+            return streamers, None  # No pagination cursor since we get all at once
+            
         except Exception as e:
             logger.error(f"Error getting follows page: {e}")
             return [], None
