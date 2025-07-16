@@ -590,3 +590,7 @@ class ThumbnailService:
             
         except Exception as e:
             logger.error(f"Error creating Plex-compatible thumbnails: {e}")
+
+
+# Global thumbnail service instance
+thumbnail_service = ThumbnailService()

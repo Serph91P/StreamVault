@@ -786,3 +786,7 @@ class CleanupService:
             unit_index += 1
             
         return f"{size:.2f} {units[unit_index]}"
+
+
+# Global cleanup service instance
+cleanup_service = CleanupService()

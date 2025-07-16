@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.config.settings import settings
-from app.services.logging_service import logging_service
-from app.services.artwork_service import artwork_service
+from app.services.system.logging_service import logging_service
+from app.services.media.artwork_service import artwork_service
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
@@ -2152,3 +2152,7 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error getting chapters for FFmpeg: {e}")
             return None
+
+
+# Global metadata service instance
+metadata_service = MetadataService()
