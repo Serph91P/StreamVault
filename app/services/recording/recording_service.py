@@ -60,6 +60,15 @@ class RecordingService:
         """Force start recording for a live streamer"""
         return await self.orchestrator.force_start_recording(streamer_id)
 
+    async def stop_recording_manual(self, streamer_id: int) -> bool:
+        """Manually stop recording for a streamer (legacy method)"""
+        # Find active recording for this streamer
+        active_recordings = self.get_active_recordings()
+        for recording_id, recording_data in active_recordings.items():
+            if recording_data.get('streamer_id') == streamer_id:
+                return await self.stop_recording(recording_id, "manual_stop")
+        return False
+
     def get_active_recordings(self) -> Dict[int, Dict[str, Any]]:
         """Get all active recordings"""
         return self.orchestrator.get_active_recordings()
