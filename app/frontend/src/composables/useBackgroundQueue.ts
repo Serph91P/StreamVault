@@ -180,26 +180,46 @@ export function useBackgroundQueue() {
     }
   }
 
-  // Polling for updates (fallback if WebSocket fails)
-  let pollInterval: any = null
-
-  const startPolling = () => {
-    if (pollInterval) return
+  // WebSocket integration for real-time updates
+  const { messages } = useWebSocket()
+  
+  // Watch for WebSocket messages
+  watch(messages, (newMessages) => {
+    if (newMessages.length === 0) return
     
-    pollInterval = setInterval(async () => {
-      await Promise.all([
-        fetchQueueStats(),
-        fetchActiveTasks()
-      ])
-    }, 5000) // Poll every 5 seconds
-  }
-
-  const stopPolling = () => {
-    if (pollInterval) {
-      clearInterval(pollInterval)
-      pollInterval = null
+    const latestMessage = newMessages[newMessages.length - 1]
+    
+    // Handle queue-related WebSocket messages
+    if (latestMessage.type === 'queue_stats_update') {
+      console.log('Queue stats updated via WebSocket:', latestMessage.data)
+      Object.assign(queueStats.value, latestMessage.data)
+    } else if (latestMessage.type === 'task_status_update') {
+      console.log('Task status updated via WebSocket:', latestMessage.data)
+      const taskData = latestMessage.data
+      
+      // Update or add task in activeTasks
+      const existingIndex = activeTasks.value.findIndex(t => t.id === taskData.id)
+      if (existingIndex >= 0) {
+        activeTasks.value[existingIndex] = taskData
+      } else if (taskData.status === 'active') {
+        activeTasks.value.push(taskData)
+      }
+      
+      // Remove completed tasks from active list
+      if (taskData.status === 'completed' || taskData.status === 'failed') {
+        activeTasks.value = activeTasks.value.filter(t => t.id !== taskData.id)
+      }
+    } else if (latestMessage.type === 'task_progress_update') {
+      console.log('Task progress updated via WebSocket:', latestMessage.data)
+      const { task_id, progress } = latestMessage.data
+      
+      // Update progress for the specific task
+      const task = activeTasks.value.find(t => t.id === task_id)
+      if (task) {
+        task.progress = progress
+      }
     }
-  }
+  })
 
   // Lifecycle
   onMounted(async () => {
@@ -210,14 +230,12 @@ export function useBackgroundQueue() {
       fetchRecentTasks()
     ])
     
-    // Start watching for updates
+    // Start watching for updates (WebSocket only)
     startWatching()
-    startPolling()
   })
 
   onUnmounted(() => {
     stopWatching()
-    stopPolling()
   })
 
   return {
