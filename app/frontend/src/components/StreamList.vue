@@ -120,9 +120,9 @@
                 </span>
               </div>
               
-              <h3 class="stream-title">{{ stream.title || formatDate(stream.started_at) }}</h3>
+              <h3 class="stream-title">{{ stream.title || (stream.started_at ? formatDate(stream.started_at) : 'Unknown') }}</h3>
               <div class="stream-meta">
-                <span class="stream-date">{{ formatDate(stream.started_at) }}</span>
+                <span class="stream-date">{{ stream.started_at ? formatDate(stream.started_at) : 'Unknown' }}</span>
                 <span v-if="stream.category_name" class="stream-category">{{ stream.category_name }}</span>
               </div>
             </div>
