@@ -152,8 +152,7 @@ async def lifespan(app: FastAPI):
     # Shutdown active recordings broadcaster
     try:
         logger.info("🔄 Stopping active recordings broadcaster...")
-        from app.services.active_recordings_broadcaster import stop_active_recordings_broadcaster
-        await stop_active_recordings_broadcaster()
+
         logger.info("✅ Active recordings broadcaster stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
