@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 from app.models import Stream, Recording, Streamer
+from app.services.twitch_api import twitch_api
 from app.utils import async_file
 from app.database import get_db
 
@@ -438,8 +439,7 @@ class RecordingService:
                 return False
             
             # Check if streamer is actually live via API
-            from app.services.twitch_api import twitch_api_service
-            stream_info = await twitch_api_service.get_stream_by_user_id(streamer.twitch_id)
+            stream_info = await twitch_api.get_stream_by_user_id(streamer.twitch_id)
             
             if not stream_info:
                 logger.warning(f"Cannot force start recording for {streamer.username}: streamer is not live")
