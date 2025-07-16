@@ -297,6 +297,8 @@ class NotificationService:
                 ).all()
                 
                 logger.info(f"🔔 PUSH_SUBSCRIPTIONS_FOUND: count={len(active_subscriptions)}")
+                for sub in active_subscriptions:
+                    logger.debug(f"🔔 SUBSCRIPTION_ENDPOINT: {sub.endpoint[:50]}...")
                 
                 if not active_subscriptions:
                     logger.warning("🔔 NO_ACTIVE_PUSH_SUBSCRIPTIONS: No active push subscriptions found")

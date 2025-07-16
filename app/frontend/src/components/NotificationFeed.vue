@@ -956,14 +956,246 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
-/* Responsive adjustments */
-@media (max-width: 640px) {
+/* Mobile responsiveness */
+@media (max-width: 768px) {
   .notification-feed {
-    width: 100%;
-    max-width: 100%;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
     border-radius: 0;
-    height: 100%;
-    max-height: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    overflow: hidden;
+  }
+  
+  .feed-header {
+    padding: 16px 20px;
+    border-bottom: 2px solid var(--border-color, #2f2f35);
+    background: var(--background-darker, #18181b);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  
+  .header-content {
+    align-items: center;
+  }
+  
+  .header-icon .icon-ring {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .bell-icon {
+    font-size: 14px;
+  }
+  
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  
+  .section-subtitle {
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  
+  .clear-all-btn {
+    padding: 8px 12px;
+    font-size: 14px;
+    min-height: 44px;
+    border-radius: 8px;
+    touch-action: manipulation;
+  }
+  
+  .clear-all-btn:active {
+    transform: scale(0.98);
+  }
+  
+  .notification-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .notification-item {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #2f2f35);
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  
+  .notification-icon {
+    margin-top: 2px;
+  }
+  
+  .icon-wrapper {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  
+  .notification-content {
+    flex: 1;
+    min-width: 0;
+    padding-right: 8px;
+  }
+  
+  .notification-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  
+  .notification-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  
+  .notification-time {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  
+  .notification-message {
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 8px 0;
+    word-break: break-word;
+  }
+  
+  .notification-meta {
+    margin-top: 10px;
+  }
+  
+  .category-tag {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 12px;
+  }
+  
+  .category-image-small {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .notification-dismiss {
+    padding: 8px;
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    margin: -4px -8px 0 0;
+    touch-action: manipulation;
+    border-radius: 50%;
+  }
+  
+  .notification-dismiss:active {
+    transform: scale(0.95);
+  }
+  
+  .empty-state {
+    padding: 60px 20px;
+  }
+  
+  .empty-state .icon-circle {
+    width: 80px;
+    height: 80px;
+    font-size: 40px;
+    margin: 0 auto 20px;
+  }
+  
+  .empty-state h3 {
+    font-size: 20px;
+    margin: 16px 0 8px;
+  }
+  
+  .empty-state p {
+    font-size: 16px;
+  }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 480px) {
+  .feed-header {
+    padding: 12px 16px;
+  }
+  
+  .section-title {
+    font-size: 16px;
+  }
+  
+  .section-subtitle {
+    font-size: 12px;
+  }
+  
+  .clear-all-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .notification-item {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  
+  .icon-wrapper {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  
+  .notification-title {
+    font-size: 14px;
+  }
+  
+  .notification-message {
+    font-size: 13px;
+  }
+  
+  .notification-dismiss {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+  
+  .empty-state {
+    padding: 40px 16px;
+  }
+  
+  .empty-state .icon-circle {
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+  }
+  
+  .empty-state h3 {
+    font-size: 18px;
+  }
+  
+  .empty-state p {
+    font-size: 14px;
+  }
+}
+
+/* Landscape phones */
+@media (max-width: 768px) and (orientation: landscape) {
+  .notification-list {
+    max-height: calc(100vh - 70px);
+  }
+  
+  .notification-item {
+    padding: 12px 20px;
+  }
+  
+  .empty-state {
+    padding: 30px 20px;
   }
 }
 

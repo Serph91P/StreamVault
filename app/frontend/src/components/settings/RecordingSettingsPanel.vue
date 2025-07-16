@@ -1358,29 +1358,111 @@ select.form-control-sm option {
   margin-bottom: var(--spacing-xs, 0.25rem);
 }
 
-/* Mobile responsiveness for proxy settings */
-@media (max-width: 767px) {
-  .proxy-configuration {
-    padding: var(--spacing-md, 1rem);
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  /* Tab Navigation - Mobile Optimized */
+  .tab-navigation {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    padding: 8px 0;
+    margin-bottom: 16px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
   
-  .proxy-examples {
-    padding: var(--spacing-sm, 0.75rem);
+  .tab-navigation::-webkit-scrollbar {
+    height: 3px;
   }
   
-  .example-item {
-    padding: var(--spacing-xs, 0.375rem);
+  .tab-navigation::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
   }
   
-  .example-item code {
-    font-size: 0.75rem;
-    padding: 3px 6px;
+  .tab-navigation::-webkit-scrollbar-thumb {
+    background: var(--primary-color, #9147ff);
+    border-radius: 2px;
   }
-
+  
+  .tab-button {
+    flex-shrink: 0;
+    min-width: 120px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  
+  /* Settings Form - Mobile Layout */
+  .settings-form {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .settings-section {
+    margin-bottom: 20px;
+    padding: 12px;
+  }
+  
+  .section-title {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+  }
+  
+  /* Form Groups - Mobile Spacing */
+  .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .form-control {
+    padding: 12px;
+    font-size: 16px; /* Prevent zoom on iOS */
+    border-radius: 8px;
+  }
+  
+  /* Select elements - Better mobile touch */
+  select.form-control {
+    padding: 12px 40px 12px 12px;
+    font-size: 16px;
+    min-height: 48px; /* Better touch target */
+  }
+  
+  /* Checkbox groups - Better touch targets */
+  .checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+  }
+  
+  /* Modal adjustments for mobile */
+  .modal-content {
+    width: 95vw;
+    max-width: 95vw;
+    max-height: 95vh;
+    border-radius: 12px;
+    margin: 2.5vh auto;
+  }
+  
+  .modal-header {
+    padding: 16px;
+  }
+  
+  .modal-header h3 {
+    font-size: 1.2rem;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
+  
+  /* Variables container - Mobile layout */
   .variables-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     margin: 8px 0;
   }
 
@@ -1389,24 +1471,117 @@ select.form-control-sm option {
     background-color: var(--background-dark, #2a2a2a);
     color: var(--text-primary, #f1f1f3);
     border: 1px solid var(--border-color, #404040);
-    border-radius: 4px;
-    padding: 4px 8px;
+    border-radius: 6px;
+    padding: 6px 10px;
     font-family: 'Courier New', 'Monaco', monospace;
     font-size: 0.8em;
     font-weight: 500;
     white-space: nowrap;
+    touch-action: manipulation;
   }
 
   .example-output {
-    display: inline-block;
+    display: block;
     background-color: var(--bg-tertiary, #2a2a2a);
     color: var(--accent-color, #4a9eff);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 4px 8px;
+    border-radius: 6px;
+    padding: 8px 12px;
     font-family: 'Courier New', monospace;
-    font-size: 0.9em;
+    font-size: 0.85em;
     font-weight: 600;
+    margin: 8px 0;
+    word-break: break-all;
+  }
+  
+  /* Proxy settings - Mobile optimized */
+  .proxy-configuration {
+    padding: 12px;
+  }
+  
+  .proxy-examples {
+    padding: 12px;
+  }
+  
+  .example-item {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .example-item code {
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    word-break: break-all;
+    display: block;
+    margin: 4px 0;
+  }
+  
+  /* Help text - Better mobile readability */
+  .help-text {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-top: 8px;
+  }
+  
+  /* Button improvements for mobile */
+  .btn {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 16px;
+    border-radius: 8px;
+    touch-action: manipulation;
+  }
+  
+  /* Save/Cancel button group */
+  .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  
+  .button-group .btn {
+    width: 100%;
+  }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 480px) {
+  .modal-content {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+  }
+  
+  .tab-button {
+    min-width: 100px;
+    font-size: 0.8rem;
+    padding: 8px 10px;
+  }
+  
+  .settings-form {
+    padding: 8px;
+  }
+  
+  .settings-section {
+    padding: 8px;
+    margin-bottom: 16px;
+  }
+  
+  .section-title {
+    font-size: 1rem;
+  }
+  
+  .form-control {
+    padding: 10px;
+  }
+  
+  .variable-tag {
+    font-size: 0.75em;
+    padding: 4px 8px;
   }
 }
 </style>
