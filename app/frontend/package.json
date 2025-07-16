@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
-    "build-only": "vite build",
+    "build-only": "npx update-browserslist-db@latest && vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "update-browsers": "npx update-browserslist-db@latest"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
