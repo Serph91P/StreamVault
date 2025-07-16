@@ -1,3 +1,11 @@
+"""
+Twitch OAuth Service for StreamVault
+
+Handles OAuth user authentication for importing followed channels.
+This service is specifically for user authentication flows, NOT general API calls.
+Use twitch_api.py for general Twitch API interactions.
+"""
+
 import logging
 import aiohttp
 from app.config.settings import settings
@@ -8,7 +16,9 @@ from urllib.parse import urlencode
 
 logger = logging.getLogger("streamvault")
 
-class TwitchAuthService:
+class TwitchOAuthService:
+    """Service for handling Twitch OAuth flows and follower imports"""
+    
     def __init__(self, streamer_service: StreamerService):
         self.streamer_service = streamer_service
         self.client_id = settings.TWITCH_APP_ID
@@ -98,55 +108,75 @@ class TwitchAuthService:
             # Debug logging 
             logger.debug(f"Successfully fetched {len(follows)} followed channels")
             
-            # Extract broadcaster info
-            streamers = []
+            # Extract broadcaster info 
+            channels = []
             for follow in follows:
-                streamer = {
-                    "id": follow["broadcaster_id"],
-                    "login": follow["broadcaster_login"],
-                    "display_name": follow["broadcaster_name"]
-                }
-                streamers.append(streamer)
-                
-            return streamers, None  # No pagination cursor since we get all at once
+                broadcaster_info = follow.get("broadcaster_login")
+                if broadcaster_info:
+                    channels.append({
+                        "id": follow.get("broadcaster_id"),
+                        "login": follow.get("broadcaster_login"),
+                        "display_name": follow.get("broadcaster_name"),
+                        "followed_at": follow.get("followed_at")
+                    })
+            
+            return channels, None  # No pagination in current implementation
             
         except Exception as e:
             logger.error(f"Error getting follows page: {e}")
             return [], None
-            
+    
     async def import_followed_streamers(self, streamers: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Import multiple streamers in batch"""
+        """Import selected streamers from followed channels"""
         results = {
-            "total": len(streamers),
-            "added": 0,
-            "skipped": 0,
-            "failed": 0,
-            "failures": []
+            "imported": [],
+            "failed": [],
+            "already_exists": []
         }
         
-        for streamer in streamers:
+        for streamer_info in streamers:
             try:
-                username = streamer["login"]
-                added_streamer = await self.streamer_service.add_streamer(username)
+                username = streamer_info.get("login") or streamer_info.get("display_name")
+                display_name = streamer_info.get("display_name") or streamer_info.get("login")
+                
+                if not username:
+                    logger.warning(f"Skipping streamer with missing username: {streamer_info}")
+                    results["failed"].append({
+                        "streamer": streamer_info,
+                        "reason": "Missing username"
+                    })
+                    continue
+                
+                # Use StreamerService to add the streamer
+                added_streamer = await self.streamer_service.add_streamer(username, display_name)
                 
                 if added_streamer:
-                    if added_streamer.username == username:
-                        results["added"] += 1
-                    else:
-                        # This was an existing streamer
-                        results["skipped"] += 1
+                    if added_streamer.id:  # New streamer added
+                        results["imported"].append({
+                            "username": username,
+                            "display_name": display_name,
+                            "id": added_streamer.id
+                        })
+                        logger.info(f"Successfully imported streamer: {username}")
+                    else:  # Streamer already exists
+                        results["already_exists"].append({
+                            "username": username,
+                            "display_name": display_name
+                        })
+                        logger.debug(f"Streamer already exists: {username}")
                 else:
-                    results["failed"] += 1
-                    results["failures"].append({
-                        "username": username,
-                        "reason": "Could not add streamer"
+                    results["failed"].append({
+                        "streamer": streamer_info,
+                        "reason": "Failed to add streamer"
                     })
+                    logger.error(f"Failed to import streamer: {username}")
+                    
             except Exception as e:
-                logger.error(f"Error importing streamer {streamer.get('login')}: {e}")
-                results["failed"] += 1
-                results["failures"].append({
-                    "username": streamer.get("login", "unknown"),
+                logger.error(f"Error importing streamer {streamer_info}: {e}")
+                results["failed"].append({
+                    "streamer": streamer_info,
                     "reason": str(e)
                 })
-                
+        
+        logger.info(f"Import complete: {len(results['imported'])} imported, {len(results['already_exists'])} already existed, {len(results['failed'])} failed")
         return results
