@@ -14,13 +14,23 @@
           <!-- Background Queue Monitor -->
           <BackgroundQueueMonitor />
           
-          <div class="notification-bell-container">
-            <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-              <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          <div class="nav-actions">
+            <div class="notification-bell-container">
+              <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
+                <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              </button>
+            </div>
+            <button @click="logout" class="logout-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
               </svg>
-              <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              Logout
             </button>
           </div>
         </nav>
@@ -109,12 +119,26 @@ import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useAuth } from '@/composables/useAuth'
 
 const showNotifications = ref(false)
 const unreadCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
 const { messages } = useWebSocket()
+const { logout: authLogout, checkStoredAuth } = useAuth()
+
+// PWA-compatible logout function
+async function logout() {
+  if (confirm('Are you sure you want to logout?')) {
+    await authLogout()
+  }
+}
+
+// PWA AUTH FIX: Check stored auth on app start
+onMounted(async () => {
+  await checkStoredAuth()
+})
 
 // WebSocket message processing - moved here so it runs even when notification panel is closed
 const processWebSocketMessage = (message) => {
@@ -431,10 +455,40 @@ watch(messages, (newMessages) => {
 </script>
 
 <style scoped>
-/* Add the new styles for the notification bell */
+/* Navigation actions styles */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+
 .notification-bell-container {
   position: relative;
-  margin-left: 10px;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--primary-color);
+}
+
+.logout-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .notification-bell {

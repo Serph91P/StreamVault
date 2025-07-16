@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Dict, Optional, Any
 from app.config.settings import settings as app_settings
+from app.services.twitch_api import twitch_api
 from apprise import Apprise, NotifyFormat
 from app.models import GlobalSettings, NotificationSettings, Streamer, PushSubscription
 from app.database import SessionLocal
@@ -514,41 +515,11 @@ class NotificationService:
     
         return title, message
 
-async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+async def get_user_info(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user info from Twitch API including profile image"""
     try:
-        # Access-Token von Twitch API holen (vereinfachte Version)
-        from app.config.settings import settings as app_settings
-        
-        async with aiohttp.ClientSession() as session:
-            # Zuerst Access Token holen
-            async with session.post(
-                "https://id.twitch.tv/oauth2/token",
-                params={
-                    "client_id": app_settings.TWITCH_APP_ID,
-                    "client_secret": app_settings.TWITCH_APP_SECRET,
-                    "grant_type": "client_credentials"
-                }
-            ) as response:
-                if response.status != 200:
-                    logger.error(f"Failed to get access token: {response.status}")
-                    return None
-                
-                data = await response.json()
-                access_token = data["access_token"]
-            
-            # Dann User-Info holen
-            async with session.get(
-                f"https://api.twitch.tv/helix/users?id={user_id}",
-                headers={
-                    "Client-ID": app_settings.TWITCH_APP_ID,
-                    "Authorization": f"Bearer {access_token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data["data"][0] if data.get("data") else None
-        return None
+        users = await twitch_api.get_users_by_id([user_id])
+        return users[0] if users else None
     except Exception as e:
         logger.error(f"Error fetching user info: {e}")
         return None

@@ -1,8 +1,11 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from app.services.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.schemas.auth import UserCreate, LoginResponse
+
+logger = logging.getLogger("streamvault")
 
 router = APIRouter(tags=["auth"])
 
@@ -34,7 +37,13 @@ async def setup_admin(
     token = await auth_service.create_session(admin.id)
     
     response = JSONResponse(content={"message": "Admin account created", "success": True})
-    response.set_cookie(key="session", value=token, httponly=True, secure=True)
+    response.set_cookie(
+        key="session", 
+        value=token, 
+        httponly=True, 
+        secure=False,  # Change to True if using HTTPS
+        samesite="lax"
+    )
     return response
 
 @router.post("/login")
@@ -42,29 +51,59 @@ async def login(
     request: UserCreate,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    user = await auth_service.validate_login(request.username, request.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    token = await auth_service.create_session(user.id)
-    response = JSONResponse(content={"message": "Login successful", "success": True})
-    response.set_cookie(key="session", value=token, httponly=True, secure=True)
-    return response
+    try:
+        # Validate input
+        if not request.username or not request.password:
+            logger.warning(f"Login attempt with missing credentials: username={bool(request.username)}, password={bool(request.password)}")
+            raise HTTPException(status_code=400, detail="Username and password are required")
+        
+        user = await auth_service.validate_login(request.username, request.password)
+        if not user:
+            logger.warning(f"Failed login attempt for username: {request.username}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        token = await auth_service.create_session(user.id)
+        response = JSONResponse(content={"message": "Login successful", "success": True})
+        # Set secure=False for development/reverse proxy setups, httponly=True for security
+        response.set_cookie(
+            key="session", 
+            value=token, 
+            httponly=True, 
+            secure=False,  # Change to True if using HTTPS
+            samesite="lax"  # Allow cross-site requests for reverse proxy
+        )
+        logger.info(f"Successful login for user: {request.username}")
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during login: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.api_route("/login", methods=["GET", "HEAD"])
 async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
-    admin_exists = await auth_service.admin_exists()
-    
-    # For API requests
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+    try:
+        admin_exists = await auth_service.admin_exists()
+        
+        # For API requests
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            if not admin_exists:
+                return JSONResponse(content={"redirect": "/auth/setup"})
+            return JSONResponse(content={"login_required": True})
+        
+        # For browser requests
         if not admin_exists:
-            return JSONResponse(content={"redirect": "/auth/setup"})
-        return JSONResponse(content={"login_required": True})
-    
-    # For browser requests
-    if not admin_exists:
-        return RedirectResponse(url="/auth/setup", status_code=307)
-    return FileResponse("app/frontend/dist/index.html")
+            return RedirectResponse(url="/auth/setup", status_code=307)
+        return FileResponse("app/frontend/dist/index.html")
+    except Exception as e:
+        logger.error(f"Error in login_page: {e}")
+        # Return JSON response for API requests, HTML for browser requests
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
+            return JSONResponse(
+                content={"error": "Internal server error"},
+                status_code=500
+            )
+        return FileResponse("app/frontend/dist/index.html")
 
 @router.get("/check")
 async def check_auth(
@@ -79,3 +118,23 @@ async def check_auth(
     if not session_token or not await auth_service.validate_session(session_token):
         return JSONResponse(content={"authenticated": False})
     return JSONResponse(content={"authenticated": True})
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    try:
+        session_token = request.cookies.get("session")
+        if session_token:
+            await auth_service.delete_session(session_token)
+            logger.info("User logged out successfully")
+        
+        response = JSONResponse(content={"message": "Logout successful", "success": True})
+        response.delete_cookie(key="session")
+        return response
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        response = JSONResponse(content={"message": "Logout completed", "success": True})
+        response.delete_cookie(key="session")
+        return response

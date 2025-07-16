@@ -2,6 +2,7 @@ import logging
 import aiohttp
 from app.config.settings import settings
 from app.services.streamer_service import StreamerService
+from app.services.twitch_api import twitch_api
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
 
@@ -81,23 +82,10 @@ class TwitchAuthService:
     async def _get_authenticated_user_id(self, access_token: str) -> Optional[str]:
         """Get the user ID of the authenticated user"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://api.twitch.tv/helix/users",
-                    headers={
-                        "Client-ID": self.client_id,
-                        "Authorization": f"Bearer {access_token}"
-                    }
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        logger.debug(f"User data response: {data}")
-                        if data.get("data") and len(data["data"]) > 0:
-                            return data["data"][0]["id"]
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Failed to get user info: {response.status} - {error_text}")
-                    return None
+            user_data = await twitch_api.validate_token(access_token)
+            if user_data:
+                return user_data.get("user_id")
+            return None
         except Exception as e:
             logger.error(f"Error getting user ID: {e}")
             return None
@@ -105,29 +93,7 @@ class TwitchAuthService:
     async def _get_follows_page(self, user_id: str, access_token: str, cursor: Optional[str] = None) -> tuple[List[Dict[str, Any]], Optional[str]]:
         """Get a page of followed channels using the new API endpoint"""
         try:
-            # Der user_id Parameter ist erforderlich laut Twitch-Dokumentation
-            params = {
-                "user_id": user_id,
-                "first": 100  # Maximum number of results per page
-            }
-            
-            if cursor:
-                params["after"] = cursor
-                
-            logger.debug(f"Fetching followed channels with params: {params}")
-                
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://api.twitch.tv/helix/channels/followed",  # Korrekter Endpunkt
-                    params=params,
-                    headers={
-                        "Client-ID": self.client_id,
-                        "Authorization": f"Bearer {access_token}"
-                    }
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        follows = data.get("data", [])
+            follows = await twitch_api.get_user_followed_streamers(user_id, access_token)
                         pagination = data.get("pagination", {})
                         next_cursor = pagination.get("cursor")
                         

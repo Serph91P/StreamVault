@@ -7,6 +7,7 @@ from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
 from app.routes import recording as recording_router
+from app.routes import recordings
 from app.routes import logging as logging_router
 from app.routes import videos
 from app.routes import images
@@ -325,8 +326,18 @@ async def add_request_id(request: Request, call_next):
     import uuid
     request_id = str(uuid.uuid4())
     
-    # Add request ID to logger context
-    logger.info(f"Request {request_id}: {request.method} {request.url.path}")
+    # Skip logging for frequent background queue polling endpoints to reduce log spam
+    skip_logging_paths = [
+        "/api/background-queue/stats",
+        "/api/background-queue/active-tasks"
+    ]
+    
+    # Add request ID to logger context (skip frequent polling endpoints)
+    if request.url.path not in skip_logging_paths:
+        logger.info(f"Request {request_id}: {request.method} {request.url.path}")
+    else:
+        # Log at debug level for background queue endpoints
+        logger.debug(f"Request {request_id}: {request.method} {request.url.path}")
     
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -526,6 +537,7 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
+app.include_router(recordings.router, prefix="/api")  # Performance-optimized recordings API
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 app.include_router(videos.router)  # Router already has /api prefix

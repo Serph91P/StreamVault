@@ -10,47 +10,39 @@ logger = logging.getLogger("streamvault")
 class AuthMiddleware:
     def __init__(self, app):
         self.app = app
-        self._auth_service = None
-        self._db = None
-
-    def get_db(self):
-        if not self._db:
-            self._db = SessionLocal()
-        return self._db
-
-    @property
-    def auth_service(self):
-        if self._auth_service is None:
-            self._auth_service = AuthService(db=self.get_db())
-        return self._auth_service
 
     async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+
+        # Handle WebSocket connections directly
+        if scope["type"] == "websocket":
+            return await self.app(scope, receive, send)
+
+        # Process HTTP requests
+        request = Request(scope, receive=receive)
+        is_json_request = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
+
+        # Public paths that don't require authentication
+        public_paths = [
+            "/auth/login",
+            "/auth/setup", 
+            "/auth/check",
+            "/auth/logout",
+            "/eventsub",
+            "/static/",
+            "/assets/"
+        ]
+
+        if any(request.url.path.startswith(path) for path in public_paths):
+            return await self.app(scope, receive, send)
+
+        # Create per-request services
+        db = SessionLocal()
         try:
-            if scope["type"] not in ("http", "websocket"):
-                return await self.app(scope, receive, send)
-
-            # Handle WebSocket connections directly
-            if scope["type"] == "websocket":
-                return await self.app(scope, receive, send)
-
-            # Process HTTP requests
-            request = Request(scope, receive=receive)
-            is_json_request = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
-
-            # Public paths that don't require authentication
-            public_paths = [
-                "/auth/login",
-                "/auth/setup", 
-                "/auth/check",
-                "/eventsub",
-                "/static/",
-                "/assets/"
-            ]
-
-            if any(request.url.path.startswith(path) for path in public_paths):
-                return await self.app(scope, receive, send)
-
-            admin_exists = await self.auth_service.admin_exists()
+            auth_service = AuthService(db=db)
+            
+            admin_exists = await auth_service.admin_exists()
 
             if not admin_exists:
                 if not request.url.path.startswith("/auth/setup"):
@@ -59,14 +51,22 @@ class AuthMiddleware:
                     return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
 
             session_token = request.cookies.get("session")
-            if not session_token or not await self.auth_service.validate_session(session_token):
+            if not session_token:
+                logger.debug(f"No session cookie found for {request.url.path}")
+                if not request.url.path.startswith("/auth/login"):
+                    if is_json_request:
+                        return await JSONResponse({"error": "Authentication required", "redirect": "/auth/login"}, status_code=401)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
+            elif not await auth_service.validate_session(session_token):
+                logger.debug(f"Invalid session token for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse({"error": "Authentication required", "redirect": "/auth/login"}, status_code=401)(scope, receive, send)
                     return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
 
             return await self.app(scope, receive, send)
+        except Exception as e:
+            logger.error(f"Auth middleware error for {request.url.path}: {e}")
+            return await self.app(scope, receive, send)
         finally:
-            if self._db:
-                self._db.close()
-                self._db = None
+            db.close()
