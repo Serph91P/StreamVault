@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 import logging
 
-from app.services.background_queue_init import get_background_queue_service
+from app.services.init.background_queue_init import get_background_queue_service
 from app.dependencies import get_db
 
 router = APIRouter(prefix="/api/background-queue", tags=["background-queue"])
@@ -118,7 +118,7 @@ async def enqueue_recording_post_processing(
 ) -> Dict[str, Any]:
     """Enqueue a recording post-processing chain"""
     try:
-        from app.services.background_queue_init import enqueue_recording_post_processing
+        from app.services.init.background_queue_init import enqueue_recording_post_processing
         
         task_ids = await enqueue_recording_post_processing(
             stream_id=stream_id,
@@ -150,7 +150,7 @@ async def enqueue_metadata_generation(
 ) -> Dict[str, Any]:
     """Enqueue metadata generation tasks"""
     try:
-        from app.services.background_queue_init import enqueue_metadata_generation
+        from app.services.init.background_queue_init import enqueue_metadata_generation
         
         task_ids = await enqueue_metadata_generation(
             stream_id=stream_id,
@@ -181,7 +181,7 @@ async def enqueue_thumbnail_generation(
 ) -> Dict[str, Any]:
     """Enqueue thumbnail generation task"""
     try:
-        from app.services.background_queue_init import enqueue_thumbnail_generation
+        from app.services.init.background_queue_init import enqueue_thumbnail_generation
         
         task_id = await enqueue_thumbnail_generation(
             stream_id=stream_id,
