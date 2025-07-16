@@ -2,7 +2,7 @@
 Startup initialization for background services
 """
 import logging
-from app.services.background_queue_init import initialize_background_queue, shutdown_background_queue
+from app.services.init.background_queue_init import initialize_background_queue, shutdown_background_queue
 
 logger = logging.getLogger("streamvault")
 

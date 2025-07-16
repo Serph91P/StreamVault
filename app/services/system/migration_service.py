@@ -406,3 +406,7 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error running pending migrations: {str(e)}", exc_info=True)
             return []
+
+
+# Global migration service instance
+migration_service = MigrationService()

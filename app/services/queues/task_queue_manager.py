@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from .task_progress_tracker import QueueTask, TaskStatus, TaskPriority, TaskProgressTracker
 from .worker_manager import WorkerManager
-from app.services.task_dependency_manager import TaskDependencyManager, Task, TaskStatus as DepTaskStatus
+from app.services.processing.task_dependency_manager import TaskDependencyManager, Task, TaskStatus as DepTaskStatus
 
 logger = logging.getLogger("streamvault")
 

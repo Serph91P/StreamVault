@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional
 
 from app.services.background_queue_service import background_queue_service
-from app.services.post_processing_task_handlers import post_processing_task_handlers
+from app.services.processing.post_processing_task_handlers import post_processing_task_handlers
 
 logger = logging.getLogger("streamvault")
 

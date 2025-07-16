@@ -13,9 +13,9 @@ from datetime import datetime, timezone
 
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer
-from app.services.metadata_service import MetadataService
-from app.services.thumbnail_service import ThumbnailService
-from app.services.background_queue_service import QueueTask, TaskStatus, TaskPriority
+from app.services.media.metadata_service import MetadataService
+from app.services.media.thumbnail_service import ThumbnailService
+from app.services.queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.utils.structured_logging import log_with_context
 from app.utils import async_file
 

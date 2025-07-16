@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Streamer, Stream, Category
 from app.services.unified_image_service import unified_image_service
-from app.services.image_sync_service import image_sync_service
+from app.services.images.image_sync_service import image_sync_service
 
 logger = logging.getLogger("streamvault")
 

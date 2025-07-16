@@ -7,7 +7,7 @@ from typing import Dict, List, Any
 from datetime import datetime
 from pathlib import Path
 
-from app.services.task_dependency_manager import Task, TaskStatus
+from app.services.processing.task_dependency_manager import Task, TaskStatus
 
 logger = logging.getLogger("streamvault")
 

@@ -10,8 +10,8 @@ from typing import Dict, Any
 
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata
-from app.services.metadata_service import MetadataService
-from app.services.thumbnail_service import ThumbnailService
+from app.services.media.metadata_service import MetadataService
+from app.services.media.thumbnail_service import ThumbnailService
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
 
