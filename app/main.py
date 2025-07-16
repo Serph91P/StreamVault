@@ -31,7 +31,7 @@ from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_auth_service
-from app.services.image_sync_service import image_sync_service
+from app.services.images.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     try:
         # Run database migrations always (development and production)
         logger.info("🔄 Running database migrations...")
-        from app.services.migration_service import MigrationService
+        from app.services.system.migration_service import MigrationService
         try:
             migration_success = MigrationService.run_safe_migrations()
             if migration_success:
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
         
         # Start log cleanup service
         try:
-            from app.services.logging_service import LoggingService
+            from app.services.system.logging_service import LoggingService
             logging_service = LoggingService()
             log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
             logger.info("Log cleanup service started")
@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
         
         # Start recording cleanup service
         try:
-            from app.services.cleanup_service import CleanupService
+            from app.services.system.cleanup_service import CleanupService
             
             async def scheduled_recording_cleanup():
                 while True:
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
             
         # Start background queue service
         try:
-            from app.services.startup_init import initialize_background_services
+            from app.services.init.startup_init import initialize_background_services
             await initialize_background_services()
             logger.info("Background queue service started")
         except Exception as e:

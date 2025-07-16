@@ -21,22 +21,22 @@ from app.services.recording.exceptions import (
 )
 
 # Re-export other services to maintain consistent imports
-from app.services.auth_service import AuthService
+from app.services.core.auth_service import AuthService
 from app.services.notification_service import NotificationService
 from app.services.streamer_service import StreamerService
-from app.services.logging_service import LoggingService
-from app.services.metadata_service import MetadataService
-from app.services.enhanced_push_service import EnhancedPushService
-from app.services.cleanup_service import CleanupService
-from app.services.settings_service import SettingsService
+from app.services.system.logging_service import LoggingService
+from app.services.media.metadata_service import MetadataService
+from app.services.communication.enhanced_push_service import EnhancedPushService
+from app.services.system.cleanup_service import CleanupService
+from app.services.core.settings_service import SettingsService
 # Removed: CategoryImageService - now handled by unified_image_service
-from app.services.migration_service import MigrationService
-from app.services.thumbnail_service import ThumbnailService
-from app.services.artwork_service import ArtworkService
-from app.services.system_config_service import SystemConfigService
-from app.services.twitch_oauth_service import TwitchOAuthService
-from app.services.webpush_service import ModernWebPushService  # Changed to correct class name
-from app.services.websocket_manager import ConnectionManager
+from app.services.system.migration_service import MigrationService
+from app.services.media.thumbnail_service import ThumbnailService
+from app.services.media.artwork_service import ArtworkService
+from app.services.system.system_config_service import SystemConfigService
+from app.services.api.twitch_oauth_service import TwitchOAuthService
+from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
+from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
 
 __all__ = [

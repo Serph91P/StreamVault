@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 from app.utils.path_utils import generate_filename
-from app.services.twitch_api import twitch_api
+from app.services.api.twitch_api import twitch_api
 
 logger = logging.getLogger("streamvault")
 

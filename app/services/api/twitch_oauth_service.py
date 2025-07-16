@@ -10,7 +10,7 @@ import logging
 import aiohttp
 from app.config.settings import settings
 from app.services.streamer_service import StreamerService
-from app.services.twitch_api import twitch_api
+from app.services.api.twitch_api import twitch_api
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
 

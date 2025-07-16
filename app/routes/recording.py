@@ -5,7 +5,7 @@ from app.schemas.recording import RecordingSettingsSchema, StreamerRecordingSett
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.services.recording.recording_service import RecordingService  # Changed import path
 from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
-from app.services.logging_service import logging_service
+from app.services.system.logging_service import logging_service
 from app.services.unified_image_service import unified_image_service
 from sqlalchemy.orm import Session, joinedload
 import logging

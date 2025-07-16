@@ -8,7 +8,7 @@ Central dispatcher that coordinates WebSocket, external, and push notifications.
 import logging
 from typing import Dict, Any, Optional
 from app.services.websocket_manager import ConnectionManager
-from app.services.twitch_api import twitch_api
+from app.services.api.twitch_api import twitch_api
 from .external_notification_service import ExternalNotificationService
 from .push_notification_service import PushNotificationService
 

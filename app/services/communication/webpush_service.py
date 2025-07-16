@@ -235,3 +235,7 @@ class ModernWebPushService:
 #     data={"title": "Hello", "body": "World"},
 #     ttl=30
 # )
+
+# Global instance for backward compatibility  
+# Initialized with empty defaults - will be configured later
+webpush_service = None  # Will be initialized when needed
