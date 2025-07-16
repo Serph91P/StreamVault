@@ -26,7 +26,7 @@ class PostProcessingTaskHandlers:
         
         # Initialize logging service
         try:
-            from app.services.logging_service import logging_service
+            from app.services.system.logging_service import logging_service
             self.logging_service = logging_service
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
