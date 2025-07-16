@@ -11,6 +11,7 @@ Original God Class (613 lines) split into:
 """
 
 import logging
+import warnings
 from typing import Dict, Any, Optional, Callable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
@@ -187,11 +188,21 @@ class BackgroundQueueService:
 
     async def _worker(self, worker_name: str):
         """Legacy method - workers are now managed internally"""
-        logger.warning(f"Legacy _worker method called for {worker_name} - workers are now managed internally")
+        warnings.warn(
+            "BackgroundQueueService._worker is deprecated. Workers are now managed internally by TaskQueueManager.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        raise NotImplementedError("Legacy _worker method is no longer supported")
 
     async def _dependency_worker(self):
         """Legacy method - dependency worker is now managed internally"""
-        logger.warning("Legacy _dependency_worker method called - dependency worker is now managed internally")
+        warnings.warn(
+            "BackgroundQueueService._dependency_worker is deprecated. Dependency worker is now managed internally by TaskQueueManager.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        raise NotImplementedError("Legacy _dependency_worker method is no longer supported")
 
 
 # Legacy exports for compatibility
