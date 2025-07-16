@@ -267,7 +267,7 @@ class ThumbnailService:
                         
                         try:
                             # Use the logging service to create per-streamer logs
-                            from app.services.logging_service import logging_service
+                            from app.services.system.logging_service import logging_service
                             if logging_service:
                                 streamer_log_path = logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer.name)
                                 logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
