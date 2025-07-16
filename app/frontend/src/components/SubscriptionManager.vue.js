@@ -19,6 +19,29 @@ async function deleteAllSubscriptions() {
     });
     subscriptions.value = [];
 }
+async function resubscribeAll() {
+    if (!confirm('Are you sure you want to resubscribe to all streamers?'))
+        return;
+    try {
+        const response = await fetch('/api/streamers/resubscribe-all', {
+            method: 'POST'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const count = data.total_processed || data.success_count || data.count || 'all';
+            const message = data.message || `Resubscribed to ${count} streamers successfully`;
+            alert(`Success: ${message}`);
+            await loadSubscriptions();
+        }
+        else {
+            const error = await response.json();
+            alert('Error resubscribing: ' + error.detail);
+        }
+    }
+    catch (error) {
+        alert('Error resubscribing: ' + error.message);
+    }
+}
 function formatType(type) {
     switch (type) {
         case 'stream.online':
@@ -50,6 +73,10 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.deleteAllSubscriptions) },
     ...{ class: "btn btn-danger" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+    ...{ onClick: (__VLS_ctx.resubscribeAll) },
+    ...{ class: "btn btn-success" },
 });
 if (__VLS_ctx.subscriptions.length) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -93,6 +120,8 @@ else {
 /** @type {__VLS_StyleScopedClasses['btn-primary']} */ ;
 /** @type {__VLS_StyleScopedClasses['btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['btn-danger']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn-success']} */ ;
 /** @type {__VLS_StyleScopedClasses['subscription-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['subscription-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
@@ -109,6 +138,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             loadSubscriptions: loadSubscriptions,
             deleteSubscription: deleteSubscription,
             deleteAllSubscriptions: deleteAllSubscriptions,
+            resubscribeAll: resubscribeAll,
             formatType: formatType,
         };
     },

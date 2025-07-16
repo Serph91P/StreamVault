@@ -1,4 +1,5 @@
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { usePWA } from '@/composables/usePWA';
 const { isInstallable, isInstalled, installPWA } = usePWA();
 const browserInfo = ref({
@@ -86,8 +87,23 @@ const showDebugConsole = () => {
 };
 onMounted(() => {
     refreshData();
-    // Auto-refresh every 5 seconds
-    setInterval(refreshData, 5000);
+    // Auto-refresh every 5 seconds - PERFORMANCE FIX: Clear interval on unmount
+    // Real-time updates via WebSocket - no polling needed
+    // WebSocket integration for real-time updates
+    const { messages } = useWebSocket();
+    watch(messages, (newMessages) => {
+        if (newMessages.length === 0)
+            return;
+        const latestMessage = newMessages[newMessages.length - 1];
+        // Refresh data when relevant WebSocket events occur
+        if (latestMessage.type === 'active_recordings_update' ||
+            latestMessage.type === 'recording_started' ||
+            latestMessage.type === 'recording_stopped' ||
+            latestMessage.type === 'queue_stats_update') {
+            console.log('PWATester: Refreshing data from WebSocket event:', latestMessage.type);
+            refreshData();
+        }
+    });
 });
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};

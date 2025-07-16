@@ -69,7 +69,9 @@ async function resubscribeAll() {
     
     if (response.ok) {
       const data = await response.json()
-      alert(`Resubscribed to ${data.total_processed} streamers`)
+      const count = data.total_processed || data.success_count || data.count || 'all'
+      const message = data.message || `Resubscribed to ${count} streamers successfully`
+      alert(`Success: ${message}`)
       await loadSubscriptions()
     } else {
       const error = await response.json()

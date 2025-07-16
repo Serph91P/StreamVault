@@ -9,6 +9,7 @@ from app.database import SessionLocal
 from app.services.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
+from app.services.twitch_api import twitch_api
 from app.models import (
     Streamer, 
     Stream, 
@@ -497,19 +498,8 @@ class EventHandlerRegistry:
     async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user info from Twitch API including profile image"""
         try:
-            access_token = await self.get_access_token()
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://api.twitch.tv/helix/users?id={user_id}",
-                    headers={
-                        "Client-ID": self.settings.TWITCH_APP_ID,
-                        "Authorization": f"Bearer {access_token}"
-                    }
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data["data"][0] if data.get("data") else None
-            return None
+            users = await twitch_api.get_users_by_id([user_id])
+            return users[0] if users else None
         except Exception as e:
             logger.error(f"Error fetching user info: {e}")
             return None

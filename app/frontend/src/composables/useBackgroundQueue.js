@@ -27,8 +27,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/stats');
             if (response.ok) {
-                const result = await response.json();
-                queueStats.value = result.stats;
+                const stats = await response.json();
+                queueStats.value = stats;
             }
         }
         catch (error) {
@@ -39,8 +39,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/active-tasks');
             if (response.ok) {
-                const result = await response.json();
-                activeTasks.value = result.active_tasks;
+                const tasks = await response.json();
+                activeTasks.value = tasks;
             }
         }
         catch (error) {
@@ -51,8 +51,8 @@ export function useBackgroundQueue() {
         try {
             const response = await fetch('/api/background-queue/recent-tasks');
             if (response.ok) {
-                const result = await response.json();
-                recentTasks.value = result.recent_tasks;
+                const tasks = await response.json();
+                recentTasks.value = tasks;
             }
         }
         catch (error) {
@@ -61,10 +61,9 @@ export function useBackgroundQueue() {
     };
     const fetchTaskStatus = async (taskId) => {
         try {
-            const response = await fetch(`/api/background-queue/tasks/${taskId}`);
+            const response = await fetch(`/api/background-queue/task/${taskId}`);
             if (response.ok) {
-                const result = await response.json();
-                return result.task;
+                return await response.json();
             }
         }
         catch (error) {
@@ -123,37 +122,6 @@ export function useBackgroundQueue() {
             const activeIndex = activeTasks.value.findIndex(t => t.id === progressUpdate.task_id);
             if (activeIndex !== -1) {
                 activeTasks.value[activeIndex].progress = progressUpdate.progress;
-                if (progressUpdate.message) {
-                    activeTasks.value[activeIndex].message = progressUpdate.message;
-                }
-            }
-        }
-        else if (message.type === 'recording_job_update') {
-            const recordingUpdate = message.data;
-            // Handle recording job updates (streamlink/ffmpeg)
-            const activeIndex = activeTasks.value.findIndex(t => 
-                t.task_type === 'recording' && 
-                t.payload.streamer_name === recordingUpdate.streamer_name
-            );
-            
-            if (activeIndex !== -1) {
-                // Update existing recording job
-                activeTasks.value[activeIndex] = { 
-                    ...activeTasks.value[activeIndex], 
-                    ...recordingUpdate,
-                    task_type: 'recording',
-                    status: recordingUpdate.status || 'running'
-                };
-            } else if (recordingUpdate.status === 'started' || recordingUpdate.status === 'running') {
-                // Add new recording job
-                activeTasks.value.push({
-                    id: `recording_${recordingUpdate.streamer_name}_${Date.now()}`,
-                    task_type: 'recording',
-                    status: recordingUpdate.status || 'running',
-                    payload: recordingUpdate,
-                    progress: recordingUpdate.progress || 0,
-                    started_at: recordingUpdate.started_at || new Date().toISOString()
-                });
             }
         }
     };
@@ -177,24 +145,42 @@ export function useBackgroundQueue() {
             websocketWatcher = null;
         }
     };
-    // Polling for updates (fallback if WebSocket fails)
-    let pollInterval = null;
-    const startPolling = () => {
-        if (pollInterval)
+    // Watch for WebSocket messages
+    watch(messages, (newMessages) => {
+        if (newMessages.length === 0)
             return;
-        pollInterval = setInterval(async () => {
-            await Promise.all([
-                fetchQueueStats(),
-                fetchActiveTasks()
-            ]);
-        }, 5000); // Poll every 5 seconds
-    };
-    const stopPolling = () => {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
+        const latestMessage = newMessages[newMessages.length - 1];
+        // Handle queue-related WebSocket messages
+        if (latestMessage.type === 'queue_stats_update') {
+            console.log('Queue stats updated via WebSocket:', latestMessage.data);
+            Object.assign(queueStats.value, latestMessage.data);
         }
-    };
+        else if (latestMessage.type === 'task_status_update') {
+            console.log('Task status updated via WebSocket:', latestMessage.data);
+            const taskData = latestMessage.data;
+            // Update or add task in activeTasks
+            const existingIndex = activeTasks.value.findIndex(t => t.id === taskData.id);
+            if (existingIndex >= 0) {
+                activeTasks.value[existingIndex] = taskData;
+            }
+            else if (taskData.status === 'active') {
+                activeTasks.value.push(taskData);
+            }
+            // Remove completed tasks from active list
+            if (taskData.status === 'completed' || taskData.status === 'failed') {
+                activeTasks.value = activeTasks.value.filter(t => t.id !== taskData.id);
+            }
+        }
+        else if (latestMessage.type === 'task_progress_update') {
+            console.log('Task progress updated via WebSocket:', latestMessage.data);
+            const { task_id, progress } = latestMessage.data;
+            // Update progress for the specific task
+            const task = activeTasks.value.find(t => t.id === task_id);
+            if (task) {
+                task.progress = progress;
+            }
+        }
+    });
     // Lifecycle
     onMounted(async () => {
         // Initial data load
@@ -203,13 +189,11 @@ export function useBackgroundQueue() {
             fetchActiveTasks(),
             fetchRecentTasks()
         ]);
-        // Start watching for updates
+        // Start watching for updates (WebSocket only)
         startWatching();
-        startPolling();
     });
     onUnmounted(() => {
         stopWatching();
-        stopPolling();
     });
     return {
         activeTasks,

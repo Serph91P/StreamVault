@@ -1,6 +1,7 @@
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useNotificationSettings } from '@/composables/useNotificationSettings';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
+import { useWebSocket } from '@/composables/useWebSocket';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue';
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue';
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue';
@@ -48,10 +49,7 @@ onMounted(async () => {
         catch (e) {
             console.error("Failed to load active recordings:", e);
         }
-        // Start polling for active recordings
-        pollingInterval = window.setInterval(() => {
-            fetchActiveRecordings();
-        }, 5000); // Poll every 5 seconds
+        // Active recordings are now updated via WebSocket
     }
     catch (error) {
         console.error('Failed to load settings:', error);
@@ -60,10 +58,21 @@ onMounted(async () => {
         isLoading.value = false;
     }
 });
-onBeforeUnmount(() => {
-    // Clear polling interval when component is unmounted
-    if (pollingInterval) {
-        clearInterval(pollingInterval);
+// WebSocket integration for real-time active recordings updates  
+const { messages } = useWebSocket();
+watch(messages, (newMessages) => {
+    if (newMessages.length === 0)
+        return;
+    const latestMessage = newMessages[newMessages.length - 1];
+    // Handle active recordings updates via WebSocket
+    if (latestMessage.type === 'active_recordings_update') {
+        console.log('Active recordings updated via WebSocket:', latestMessage.data);
+        activeRecordings.value = latestMessage.data || [];
+    }
+    else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
+        // Refresh when recording state changes
+        console.log('Recording state changed, refreshing active recordings');
+        fetchActiveRecordings();
     }
 });
 // Notification handlers

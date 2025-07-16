@@ -71,4 +71,24 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  build: {
+    // PERFORMANCE OPTIMIZATION
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor libraries for better caching
+          'vue-vendor': ['vue', 'vue-router'],
+          'chart-vendor': ['chart.js']
+        }
+      }
+    },
+    // Default minification is esbuild, which is faster for development
+    minify: true
+  },
+  // Development optimization
+  server: {
+    hmr: {
+      overlay: false  // Disable error overlay for better development experience
+    }
+  }
 })

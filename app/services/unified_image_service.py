@@ -346,8 +346,12 @@ class UnifiedImageService:
         This uses the actual Twitch API to get the correct box art URL
         """
         try:
-            # Get Twitch API client
-            from app.services.twitch_api import twitch_api
+            # Import twitch_api dynamically to avoid circular imports
+            try:
+                from app.services.twitch_api import twitch_api
+            except Exception as e:
+                logger.debug(f"Could not import twitch_api service: {e}")
+                return None
             
             # Search for the game/category
             games = await twitch_api.get_games_by_name([category_name])
@@ -379,7 +383,7 @@ class UnifiedImageService:
             return None
             
         except Exception as e:
-            logger.warning(f"Failed to get Twitch category image URL for {category_name}: {e}")
+            logger.debug(f"Could not get Twitch category image for {category_name}: {e}")
             return None
     
     def get_category_image_url(self, category_name: str, fallback_url: str = None) -> str:

@@ -20,7 +20,13 @@ const formatTaskType = (taskType) => {
         'mp4_remux': 'MP4 Remux',
         'mp4_validation': 'MP4 Validation',
         'thumbnail_generation': 'Thumbnail',
-        'cleanup': 'Cleanup'
+        'cleanup': 'Cleanup',
+        'recording': 'Recording Stream',
+        'migration': 'Database Migration',
+        'image_download': 'Image Download',
+        'profile_image_sync': 'Profile Image Sync',
+        'category_image_sync': 'Category Image Sync',
+        'image_cleanup': 'Image Cleanup'
     };
     return types[taskType] || taskType;
 };
@@ -58,13 +64,19 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['status-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel-header']} */ ;
 /** @type {__VLS_StyleScopedClasses['close-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['stat-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['active-tasks-section']} */ ;
+/** @type {__VLS_StyleScopedClasses['recent-tasks-section']} */ ;
 /** @type {__VLS_StyleScopedClasses['active-tasks-section']} */ ;
 /** @type {__VLS_StyleScopedClasses['recent-tasks-section']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-progress']} */ ;
 /** @type {__VLS_StyleScopedClasses['progress-bar']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-progress']} */ ;
+/** @type {__VLS_StyleScopedClasses['progress-fill']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-badge']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-badge']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-running']} */ ;
@@ -73,6 +85,16 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['status-badge']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-failed']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-badge']} */ ;
+/** @type {__VLS_StyleScopedClasses['no-tasks']} */ ;
+/** @type {__VLS_StyleScopedClasses['queue-status-indicator']} */ ;
+/** @type {__VLS_StyleScopedClasses['queue-label']} */ ;
+/** @type {__VLS_StyleScopedClasses['queue-count']} */ ;
+/** @type {__VLS_StyleScopedClasses['progress-bar']} */ ;
+/** @type {__VLS_StyleScopedClasses['status-icon']} */ ;
+/** @type {__VLS_StyleScopedClasses['queue-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['stats-section']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-streamer']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
