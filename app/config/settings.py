@@ -248,7 +248,7 @@ class Settings(BaseSettings):
             if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
                 # Import here to avoid circular imports and check if database is ready
                 try:
-                    from app.services.system_config_service import system_config_service
+                    from app.services.system.system_config_service import system_config_service
                     
                     # Try to load from database
                     stored_keys = system_config_service.get_vapid_keys()
@@ -307,7 +307,7 @@ class Settings(BaseSettings):
                 
                 # Store in database for persistence
                 try:
-                    from app.services.system_config_service import system_config_service
+                    from app.services.system.system_config_service import system_config_service
                     system_config_service.set_vapid_keys(
                         public_key, 
                         private_key, 
