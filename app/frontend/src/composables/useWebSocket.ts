@@ -7,112 +7,168 @@ interface WebSocketMessage {
   message?: string
 }
 
-export function useWebSocket() {
-  const messages: Ref<WebSocketMessage[]> = ref([])
-  const connectionStatus = ref('disconnected')
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${wsProtocol}//${window.location.host}/ws`
-  let ws: WebSocket | null = null
-  let reconnectTimer: number | null = null
+// Singleton WebSocket Manager - ONE connection for the entire app
+class WebSocketManager {
+  private static instance: WebSocketManager | null = null
+  private ws: WebSocket | null = null
+  private reconnectTimer: number | null = null
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 10
+  private wsUrl: string
+  
+  // Reactive state shared across all components
+  public messages: Ref<WebSocketMessage[]> = ref([])
+  public connectionStatus = ref('disconnected')
+  private subscribers: Set<() => void> = new Set()
 
-  const connect = () => {
+  private constructor() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    this.wsUrl = `${wsProtocol}//${window.location.host}/ws`
+  }
+
+  public static getInstance(): WebSocketManager {
+    if (!WebSocketManager.instance) {
+      WebSocketManager.instance = new WebSocketManager()
+    }
+    return WebSocketManager.instance
+  }
+
+  public subscribe(callback: () => void) {
+    this.subscribers.add(callback)
+    
+    // Auto-connect when first subscriber joins
+    if (this.subscribers.size === 1) {
+      console.log('🔌 First subscriber - connecting WebSocket')
+      this.connect()
+    } else {
+      console.log(`📡 Additional subscriber (${this.subscribers.size} total) - reusing existing connection`)
+    }
+  }
+
+  public unsubscribe(callback: () => void) {
+    this.subscribers.delete(callback)
+    console.log(`📡 Subscriber removed (${this.subscribers.size} remaining)`)
+    
+    // Auto-disconnect when last subscriber leaves
+    if (this.subscribers.size === 0) {
+      console.log('🔌 Last subscriber gone - disconnecting WebSocket')
+      this.disconnect()
+    }
+  }
+
+  private connect() {
     // Prevent multiple connections
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('⚠️ WebSocket already connected, skipping')
       return
     }
     
     // Clean up existing connection
-    if (ws) {
-      ws.close()
+    if (this.ws) {
+      this.ws.close()
     }
-    ws = new WebSocket(wsUrl)
+    
+    console.log('🔌 Creating single WebSocket connection for entire app')
+    this.connectionStatus.value = 'connecting'
+    this.ws = new WebSocket(this.wsUrl)
 
-    ws.onopen = () => {
-      connectionStatus.value = 'connected'
+    this.ws.onopen = () => {
+      console.log('✅ WebSocket connected successfully')
+      this.connectionStatus.value = 'connected'
+      this.reconnectAttempts = 0
+      
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer)
+        this.reconnectTimer = null
+      }
     }
 
-    ws.onmessage = (event) => {
+    this.ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
+        const message = JSON.parse(event.data)
+        this.messages.value.push(message)
         
-        // Special handling for connection status messages
-        if (data?.type === 'connection.status') {
-          // Only update status, don't create notification
-          connectionStatus.value = data?.data?.status || 'connected'
-          return
+        // Keep only last 100 messages to prevent memory leaks
+        if (this.messages.value.length > 100) {
+          this.messages.value = this.messages.value.slice(-100)
         }
-        
-        // Process all other notification types
-        if (data && data.type) {
-          // Check if this is a duplicate message (by comparing with the last message)
-          const isDuplicate = messages.value.length > 0 && 
-            data.type === messages.value[messages.value.length - 1].type &&
-            JSON.stringify(data.data) === JSON.stringify(messages.value[messages.value.length - 1].data);
-          
-          if (isDuplicate) {
-            return;
-          }
-          
-          // Ensure test_id is present for test notifications
-          if (data.type === 'channel.update' && data.data?.username === 'TestUser' && !data.data.test_id) {
-            data.data.test_id = `test_${Date.now()}`;
-          }
-          
-          // Create a new array reference to trigger reactivity
-          const newMessages = [...messages.value, data]
-          messages.value = newMessages
-        } else {
-          console.warn('❌ Message type not recognized or data invalid:', data?.type, 'Full data:', data)
-        }
-      } catch (e) {
-        console.error('💥 Error parsing WebSocket message:', e)
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error)
       }
     }
 
-    ws.onclose = (event) => {
-      connectionStatus.value = 'disconnected'
-      console.log('WebSocket disconnected with code:', event.code, 'reason:', event.reason)
+    this.ws.onclose = (event) => {
+      console.log('🔌 WebSocket disconnected:', event.reason)
+      this.connectionStatus.value = 'disconnected'
+      this.ws = null
       
-      // Clear existing timer
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer)
-        reconnectTimer = null
+      // Only attempt reconnection if we still have subscribers
+      if (this.subscribers.size > 0) {
+        this.attemptReconnect()
       }
-      
-      // Use exponential backoff for reconnection attempts
-      const backoffDelay = Math.min(5000 * Math.pow(1.5, Math.floor(Math.random() * 3)), 30000);
-      
-      // Only reconnect if we're not unmounting
-      reconnectTimer = window.setTimeout(() => {
-        if (connectionStatus.value === 'disconnected') {
-          connect()
-        }
-      }, backoffDelay)
     }
 
-    ws.onerror = (error) => {
+    this.ws.onerror = (error) => {
       console.error('WebSocket error:', error)
+      this.connectionStatus.value = 'error'
     }
   }
 
+  private disconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    
+    if (this.ws) {
+      this.ws.close()
+      this.ws = null
+    }
+    
+    this.connectionStatus.value = 'disconnected'
+    console.log('🔌 WebSocket disconnected')
+  }
+
+  private attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('❌ Max reconnection attempts reached')
+      this.connectionStatus.value = 'failed'
+      return
+    }
+    
+    this.reconnectAttempts++
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000)
+    
+    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    
+    this.reconnectTimer = window.setTimeout(() => {
+      if (this.subscribers.size > 0) {
+        this.connect()
+      }
+    }, delay)
+  }
+}
+
+// Export the composable function that uses the singleton
+export function useWebSocket() {
+  const manager = WebSocketManager.getInstance()
+  
+  // Create a unique callback for this component instance
+  const componentCallback = () => {
+    // This callback is used for subscriber tracking
+    // The actual reactivity is handled by the shared refs
+  }
+  
   onMounted(() => {
-    connect()
+    manager.subscribe(componentCallback)
   })
-
+  
   onUnmounted(() => {
-    connectionStatus.value = 'disconnected'
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    if (ws) {
-      ws.close()
-      ws = null
-    }
+    manager.unsubscribe(componentCallback)
   })
-
+  
   return {
-    messages,
-    connectionStatus
+    messages: manager.messages,
+    connectionStatus: manager.connectionStatus
   }
 }
