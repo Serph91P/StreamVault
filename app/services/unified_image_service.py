@@ -98,9 +98,15 @@ class UnifiedImageService:
         """Get cached profile image path"""
         return self.profile_service.get_cached_profile_image(streamer_id)
 
-    def get_profile_image_url(self, streamer_id: int) -> Optional[str]:
+    def get_profile_image_url(self, streamer_id: int, original_url: str = None) -> Optional[str]:
         """Get profile image URL for a streamer (legacy compatibility method)"""
-        return self.profile_service.get_cached_profile_image(streamer_id)
+        # First try to get cached image
+        cached_url = self.profile_service.get_cached_profile_image(streamer_id)
+        if cached_url:
+            return cached_url
+        
+        # If no cached image and original_url provided, return original
+        return original_url
 
     async def update_streamer_profile_image(self, streamer_id: int, profile_image_url: str) -> bool:
         """Update a streamer's profile image"""
