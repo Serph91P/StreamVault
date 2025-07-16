@@ -138,6 +138,42 @@ const showStatus = (message, type) => {
         statusType.value = '';
     }, 5000);
 };
+const sendLocalTestNotification = async () => {
+    try {
+        // Try local notification to test PWA functionality
+        if ('serviceWorker' in navigator && 'Notification' in window) {
+            const permission = await requestNotificationPermission();
+            if (permission === 'granted') {
+                const notificationOptions = {
+                    body: 'This is a local PWA test notification. If you see this, your PWA notifications are working!',
+                    icon: '/android-icon-192x192.png',
+                    badge: '/android-icon-96x96.png',
+                    tag: 'pwa-test',
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200],
+                    actions: [
+                        {
+                            action: 'close',
+                            title: 'Close'
+                        }
+                    ]
+                };
+                await showNotification('🧪 StreamVault PWA Test', notificationOptions);
+                showStatus('Local PWA notification sent! Check your device.', 'success');
+            }
+            else {
+                showStatus('Notification permission not granted', 'error');
+            }
+        }
+        else {
+            showStatus('PWA features not supported in this browser', 'error');
+        }
+    }
+    catch (error) {
+        console.error('Local test notification failed:', error);
+        showStatus('Local test notification failed', 'error');
+    }
+};
 onMounted(() => {
     // Any initialization logic
 });
@@ -314,6 +350,11 @@ if (__VLS_ctx.notificationPermission === 'granted') {
         disabled: (__VLS_ctx.isSendingTest),
     });
     (__VLS_ctx.isSendingTest ? 'Sending...' : 'Send Test');
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (__VLS_ctx.sendLocalTestNotification) },
+        ...{ class: "btn btn-primary" },
+        ...{ style: {} },
+    });
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "pwa-section" },
@@ -404,6 +445,8 @@ if (__VLS_ctx.statusMessage) {
 /** @type {__VLS_StyleScopedClasses['setting-control']} */ ;
 /** @type {__VLS_StyleScopedClasses['btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['btn-secondary']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn-primary']} */ ;
 /** @type {__VLS_StyleScopedClasses['pwa-section']} */ ;
 /** @type {__VLS_StyleScopedClasses['setting-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['setting-info']} */ ;
@@ -437,6 +480,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             enableNotifications: enableNotifications,
             disableNotifications: disableNotifications,
             sendTestNotification: sendTestNotification,
+            sendLocalTestNotification: sendLocalTestNotification,
         };
     },
 });
