@@ -606,6 +606,19 @@ except Exception as e:
     except Exception as e:
         logger.error(f"Failed to mount static assets: {e}")
 
+# Static files for PWA assets (icons, registerSW.js, etc.)
+try:
+    # Try the standard production path for PWA files
+    app.mount("/pwa", StaticFiles(directory="app/frontend/dist"), name="pwa")
+except Exception as e:
+    logger.warning(f"Could not mount PWA files from app/frontend/dist: {e}")
+    # Fallback to a secondary path for development
+    try:
+        app.mount("/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa")
+        logger.info("Successfully mounted PWA files from /app/app/frontend/dist")
+    except Exception as e:
+        logger.error(f"Failed to mount PWA assets: {e}")
+
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 # Mount images directory for unified image service
@@ -694,6 +707,23 @@ async def serve_pwa_helper():
     for path in ["app/frontend/public/pwa-helper.js", "/app/app/frontend/public/pwa-helper.js"]:
         try:
             return FileResponse(path, media_type="application/javascript")
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/registerSW.js")
+async def serve_register_sw():
+    for path in ["app/frontend/public/registerSW.js", "/app/app/frontend/public/registerSW.js", "app/frontend/dist/registerSW.js", "/app/app/frontend/dist/registerSW.js"]:
+        try:
+            return FileResponse(
+                path, 
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
         except:
             continue
     return Response(status_code=404)
