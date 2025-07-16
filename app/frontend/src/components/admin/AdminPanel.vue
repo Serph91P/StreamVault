@@ -108,6 +108,14 @@
       </div>
     </div>
 
+    <!-- WebSocket Monitoring -->
+    <div class="websocket-section">
+      <div class="section-header">
+        <h2>WebSocket Connections</h2>
+      </div>
+      <WebSocketMonitor />
+    </div>
+
     <!-- Test Suite -->
     <div class="test-suite-section">
       <div class="section-header">
@@ -291,6 +299,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import WebSocketMonitor from '../WebSocketMonitor.vue'
 
 // Reactive data
 const healthStatus = ref<any>(null)
