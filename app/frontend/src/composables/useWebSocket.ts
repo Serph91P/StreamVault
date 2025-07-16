@@ -133,13 +133,26 @@ class WebSocketManager {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('❌ Max reconnection attempts reached')
       this.connectionStatus.value = 'failed'
+      
+      // After failure, wait 60 seconds and reset retry counter for fresh attempt
+      setTimeout(() => {
+        if (this.subscribers.size > 0) {
+          console.log('🔄 Resetting retry counter after cooldown period')
+          this.reconnectAttempts = 0
+          this.connectionStatus.value = 'disconnected'
+          this.attemptReconnect()
+        }
+      }, 60000)
       return
     }
     
     this.reconnectAttempts++
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000)
+    // Exponential backoff with jitter to prevent thundering herd
+    const baseDelay = 1000 * Math.pow(2, this.reconnectAttempts - 1)
+    const jitter = Math.random() * 0.3 * baseDelay  // Add 0-30% jitter
+    const delay = Math.min(baseDelay + jitter, 30000)
     
-    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    console.log(`🔄 Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     this.reconnectTimer = window.setTimeout(() => {
       if (this.subscribers.size > 0) {
