@@ -234,7 +234,7 @@ async def get_active_recordings():
     """Get all active recordings"""
     try:
         # Get active recordings from service - it returns a dict
-        active_recordings_dict = await get_recording_service().get_active_recordings()
+        active_recordings_dict = get_recording_service().get_active_recordings()
         
         # Convert to list of ActiveRecordingSchema objects
         result = []
