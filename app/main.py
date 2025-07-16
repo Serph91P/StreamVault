@@ -823,7 +823,6 @@ async def serve_pwa_icons(icon_file: str):
                 safe_path = base_path / allowed_file
                 if safe_path.exists() and safe_path.is_file():
                     safe_file_mappings[allowed_file] = safe_path
-                    break  # Found in this directory, no need to check others
         except Exception as e:
             logger.warning(f"Error scanning directory {base_dir}: {e}")
             continue
