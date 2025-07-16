@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStreams } from '@/composables/useStreams';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
@@ -296,22 +296,9 @@ const loadStreams = async () => {
 };
 onMounted(async () => {
     await loadStreams();
-    // Poll active recordings immediately and then every 5 seconds
+    // Load initial active recordings
     await fetchActiveRecordings();
     console.log("Initial active recordings:", activeRecordings.value);
-    const interval = setInterval(async () => {
-        try {
-            await fetchActiveRecordings();
-            console.log("Updated active recordings:", activeRecordings.value);
-        }
-        catch (err) {
-            console.error("Error fetching active recordings:", err);
-        }
-    }, 5000);
-    // Cleanup on component unmount
-    onUnmounted(() => {
-        clearInterval(interval);
-    });
 });
 // WebSocket-Nachrichten überwachen
 watch(messages, (newMessages) => {
@@ -319,6 +306,16 @@ watch(messages, (newMessages) => {
         return;
     const latestMessage = newMessages[newMessages.length - 1];
     console.log('Received WebSocket message:', latestMessage);
+    // Handle WebSocket messages
+    if (latestMessage.type === 'active_recordings_update') {
+        console.log('Updating active recordings from WebSocket:', latestMessage.data);
+        activeRecordings.value = latestMessage.data || [];
+    }
+    else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
+        // Refresh active recordings when recording state changes
+        console.log('Recording state changed, refreshing active recordings');
+        fetchActiveRecordings();
+    }
     // Update local state based on WebSocket events
     if (latestMessage.type === 'recording.started') {
         const streamerId = Number(latestMessage.data.streamer_id);
