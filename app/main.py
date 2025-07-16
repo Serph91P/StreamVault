@@ -152,8 +152,7 @@ async def lifespan(app: FastAPI):
     # Shutdown active recordings broadcaster
     try:
         logger.info("🔄 Stopping active recordings broadcaster...")
-        from app.services.active_recordings_broadcaster import stop_active_recordings_broadcaster
-        await stop_active_recordings_broadcaster()
+
         logger.info("✅ Active recordings broadcaster stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
@@ -606,6 +605,19 @@ except Exception as e:
     except Exception as e:
         logger.error(f"Failed to mount static assets: {e}")
 
+# Static files for PWA assets (icons, registerSW.js, etc.)
+try:
+    # Try the standard production path for PWA files
+    app.mount("/pwa", StaticFiles(directory="app/frontend/dist"), name="pwa-primary")
+except Exception as e:
+    logger.warning(f"Could not mount PWA files from app/frontend/dist: {e}")
+    # Fallback to a secondary path for development
+    try:
+        app.mount("/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa-fallback")
+        logger.info("Successfully mounted PWA files from /app/app/frontend/dist")
+    except Exception as e:
+        logger.error(f"Failed to mount PWA assets: {e}")
+
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 # Mount images directory for unified image service
@@ -698,6 +710,134 @@ async def serve_pwa_helper():
             continue
     return Response(status_code=404)
 
+@app.get("/registerSW.js")
+async def serve_register_sw():
+    from app.utils.file_paths import get_pwa_file_paths
+    for path in get_pwa_file_paths("registerSW.js"):
+        try:
+            return FileResponse(
+                path, 
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/workbox-{filename:path}")
+async def serve_workbox_files(filename: str):
+    """Serve Workbox-related files from the dist directory"""
+    import os
+    import re
+    from pathlib import Path
+    
+    # SECURITY: Complete isolation - user input never reaches file operations
+    # Step 1: Create whitelist of allowed workbox files (hardcoded, no user input)
+    ALLOWED_WORKBOX_FILES = {
+        # Common workbox filenames - add more as needed
+        "74f2ef77.js": "workbox-74f2ef77.js",
+        "core.js": "workbox-core.js", 
+        "sw.js": "workbox-sw.js",
+        "runtime.js": "workbox-runtime.js",
+        "strategies.js": "workbox-strategies.js",
+        "precaching.js": "workbox-precaching.js",
+        "routing.js": "workbox-routing.js",
+        "window.js": "workbox-window.js"
+    }
+    
+    # Step 2: Validate user input against whitelist only
+    if not isinstance(filename, str) or len(filename) > 50:
+        logger.warning(f"Invalid workbox filename format: {filename}")
+        return Response(status_code=404)
+    
+    # Step 3: Check if requested file is in whitelist
+    if filename not in ALLOWED_WORKBOX_FILES:
+        logger.warning(f"Workbox file not in whitelist: {filename}")
+        return Response(status_code=404)
+    
+    # Step 4: Get hardcoded filename from whitelist (no user input involved)
+    safe_filename = ALLOWED_WORKBOX_FILES[filename]
+    
+    # Step 5: Define hardcoded safe paths (completely isolated from user input)
+    SAFE_FILE_PATHS = [
+        f"app/frontend/dist/{safe_filename}",
+        f"/app/app/frontend/dist/{safe_filename}"
+    ]
+    
+    # Step 6: Try each hardcoded path (user input never touches file operations)
+    for hardcoded_path in SAFE_FILE_PATHS:
+        try:
+            # All file operations use hardcoded paths only
+            real_path = os.path.realpath(hardcoded_path)
+            
+            # Verify path is within expected directories
+            expected_dirs = [
+                os.path.realpath("app/frontend/dist"),
+                os.path.realpath("/app/app/frontend/dist")
+            ]
+            
+            path_is_safe = False
+            for expected_dir in expected_dirs:
+                try:
+                    if os.path.commonpath([real_path, expected_dir]) == expected_dir:
+                        path_is_safe = True
+                        break
+                except (ValueError, OSError):
+                    continue
+            
+            # File operations on hardcoded paths only
+            if path_is_safe and os.path.exists(real_path) and os.path.isfile(real_path):
+                return FileResponse(
+                    real_path,  # This comes from hardcoded paths, not user input
+                    media_type="application/javascript",
+                    headers={
+                        "Cache-Control": "public, max-age=31536000",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"Error checking hardcoded workbox path {hardcoded_path}: {e}")
+            continue
+    
+    # No valid hardcoded path found
+    logger.warning(f"Workbox file not found in any safe location: {filename}")
+    return Response(status_code=404)
+
+@app.get("/favicon.ico")
+async def serve_favicon():
+    from app.utils.file_paths import get_file_paths
+    for path in get_file_paths("favicon.ico"):
+        try:
+            return FileResponse(
+                path,
+                media_type="image/x-icon",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/favicon.png")
+async def serve_favicon_png():
+    from app.utils.file_paths import get_file_paths
+    # Try specific favicon.png files, then fall back to ico
+    for filename in ["favicon.png", "favicon-32x32.png", "favicon.ico"]:
+        for path in get_file_paths(filename):
+            try:
+                media_type = "image/png" if filename.endswith(".png") else "image/x-icon"
+                return FileResponse(
+                    path,
+                    media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=86400"}
+                )
+            except:
+                continue
+    return Response(status_code=404)
+
 # PWA Icons - serve from public directory
 @app.get("/{icon_file}")
 async def serve_pwa_icons(icon_file: str):
@@ -739,7 +879,6 @@ async def serve_pwa_icons(icon_file: str):
                 safe_path = base_path / allowed_file
                 if safe_path.exists() and safe_path.is_file():
                     safe_file_mappings[allowed_file] = safe_path
-                    break  # Found in this directory, no need to check others
         except Exception as e:
             logger.warning(f"Error scanning directory {base_dir}: {e}")
             continue

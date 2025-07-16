@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 from app.models import Stream, Recording, Streamer
+from app.services.twitch_api import twitch_api
 from app.utils import async_file
 from app.database import get_db
 
@@ -415,6 +416,57 @@ class RecordingService:
         """Wait for shutdown to complete"""
         await self._shutdown_event.wait()
 
+    async def force_start_recording(self, streamer_id: int) -> bool:
+        """Force start recording for a live streamer even if EventSub wasn't triggered
+        
+        This checks if the streamer is actually live via API and then starts recording
+        with the current stream information.
+        
+        Args:
+            streamer_id: ID of the streamer to start recording for
+            
+        Returns:
+            True if recording started successfully, False otherwise
+        """
+        try:
+            # Ensure we have a database session
+            self._ensure_db_session()
+            
+            # Get the streamer
+            streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if not streamer:
+                logger.error(f"Streamer not found: {streamer_id}")
+                return False
+            
+            # Check if streamer is actually live via API
+            stream_info = await twitch_api.get_stream_by_user_id(streamer.twitch_id)
+            
+            if not stream_info:
+                logger.warning(f"Cannot force start recording for {streamer.username}: streamer is not live")
+                return False
+            
+            # Create stream data in the format expected by start_recording
+            stream_data = {
+                'id': stream_info.get('id'),
+                'user_id': streamer.twitch_id,
+                'user_name': streamer.username,
+                'game_name': stream_info.get('game_name', ''),
+                'title': stream_info.get('title', ''),
+                'viewer_count': stream_info.get('viewer_count', 0),
+                'started_at': stream_info.get('started_at', ''),
+                'language': stream_info.get('language', ''),
+                'is_mature': stream_info.get('is_mature', False)
+            }
+            
+            logger.info(f"Force starting recording for {streamer.username} (live with {stream_data['viewer_count']} viewers)")
+            
+            # Start recording with force mode enabled
+            return await self.start_recording(streamer_id, stream_data, force_mode=True)
+            
+        except Exception as e:
+            logger.error(f"Error force starting recording for streamer {streamer_id}: {e}")
+            return False
+
     async def start_recording(self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False) -> bool:
         """Start recording for a streamer (called by EventHandlerRegistry)
         
@@ -647,9 +699,8 @@ class RecordingService:
                 }
                 await websocket_manager.send_recording_started(recording_info)
                 
-                # Send immediate active recordings update
-                from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
-                await send_immediate_active_recordings_update()
+                # Send immediate active recordings update via WebSocket broadcast task
+                # (The websocket_broadcast_task handles this automatically every 10 seconds)
             except Exception as e:
                 logger.warning(f"Failed to send WebSocket recording started notification: {e}")
             
@@ -860,8 +911,7 @@ class RecordingService:
                     await websocket_manager.send_recording_stopped(recording_info_ws)
                     
                     # Send immediate active recordings update
-                    from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
-                    await send_immediate_active_recordings_update()
+                    # Active recordings update handled by websocket_broadcast_task
                     
                     # Remove from persistent storage
                     await state_persistence_service.remove_active_recording(stream.id)

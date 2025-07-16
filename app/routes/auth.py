@@ -85,28 +85,41 @@ async def login(
 
 @router.api_route("/login", methods=["GET", "HEAD"])
 async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
+    def is_api_request() -> bool:
+        """Check if this is an API request that expects JSON response"""
+        return (request.headers.get("X-Requested-With") == "XMLHttpRequest" or 
+                "application/json" in request.headers.get("accept", ""))
+    
+    def serve_spa_or_error():
+        """Serve SPA or return appropriate error response"""
+        try:
+            return FileResponse("app/frontend/dist/index.html")
+        except Exception as file_error:
+            logger.error(f"Error serving index.html: {file_error}")
+            if is_api_request():
+                return JSONResponse(
+                    content={"error": "Internal server error"},
+                    status_code=500
+                )
+            raise HTTPException(status_code=500, detail="Unable to serve login page")
+    
     try:
         admin_exists = await auth_service.admin_exists()
         
-        # For API requests
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        # Handle API requests
+        if is_api_request():
             if not admin_exists:
                 return JSONResponse(content={"redirect": "/auth/setup"})
             return JSONResponse(content={"login_required": True})
         
-        # For browser requests
-        if not admin_exists:
-            return RedirectResponse(url="/auth/setup", status_code=307)
-        return FileResponse("app/frontend/dist/index.html")
+        # Handle browser requests - serve SPA (frontend handles routing)
+        return serve_spa_or_error()
+            
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in login_page: {e}")
-        # Return JSON response for API requests, HTML for browser requests
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
-            return JSONResponse(
-                content={"error": "Internal server error"},
-                status_code=500
-            )
-        return FileResponse("app/frontend/dist/index.html")
+        return serve_spa_or_error()
 
 @router.get("/check")
 async def check_auth(

@@ -51,18 +51,27 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: dict):
-        logger.debug(f"WebSocketManager: Attempting to send notification: {message}")
+        # Only log for non-routine broadcasts or when there's actual data
+        should_log = (message.get("type") != "active_recordings_update" or 
+                     bool(message.get("data")) or 
+                     len(self.active_connections) <= 2)
+        
+        if should_log:
+            logger.debug(f"WebSocketManager: Attempting to send notification: {message}")
+            
         async with self._lock:
             active_sockets = list(self.active_connections.values())
     
         if not active_sockets:
-            logger.warning("WebSocketManager: No active WebSocket connections")
+            if should_log:
+                logger.warning("WebSocketManager: No active WebSocket connections")
             return
 
         for ws in active_sockets:
             try:
                 await ws.send_json(message)
-                logger.debug(f"WebSocketManager: Notification sent to {ws.client}")
+                if should_log:
+                    logger.debug(f"WebSocketManager: Notification sent to {ws.client}")
             except Exception as e:
                 logger.error(f"WebSocketManager: Failed to send to {ws.client}: {e}")
                 # Remove failed connection
@@ -76,7 +85,9 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat()
         }
         await self.send_notification(message)
-        logger.debug(f"WebSocketManager: Sent active recordings update to {len(self.active_connections)} clients")
+        # Only log when there are active recordings or few clients
+        if active_recordings or len(self.active_connections) <= 2:
+            logger.debug(f"WebSocketManager: Sent active recordings update to {len(self.active_connections)} clients")
 
     async def send_recording_started(self, recording_info: Dict[str, Any]):
         """Send recording started notification"""

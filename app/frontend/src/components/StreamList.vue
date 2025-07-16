@@ -12,10 +12,7 @@
           <span>Back to streamers</span>
         </button>
         
-        <button @click="forceOfflineRecording(Number(streamerId))" class="btn btn-warning">
-          <i class="fas fa-record-vinyl"></i>
-          <span>Force Recording (Offline Mode)</span>
-        </button>
+
       </div>
     </div>
     <div v-else>
@@ -38,15 +35,7 @@
             <span>Back to Streamers</span>
           </button>
           
-          <button 
-            v-if="!hasLiveStreams" 
-            @click="forceOfflineRecording(Number(streamerId))" 
-            class="btn btn-warning"
-            :disabled="isStartingOfflineRecording"
-          >
-            <i class="fas fa-record-vinyl"></i>
-            <span>{{ isStartingOfflineRecording ? 'Starting Recording...' : 'Force Recording (Offline)' }}</span>
-          </button>
+
           
           <button 
             @click="confirmDeleteAllStreams" 
@@ -279,17 +268,6 @@
       <i class="fas fa-trash-alt"></i>
       <span class="fab-text">Delete All ({{ streams.length }})</span>
     </div>
-    
-    <!-- DEBUG: Test tooltip to see if our CSS works -->
-    <div style="position: fixed; bottom: 100px; right: 20px; z-index: 9999;">
-      <button 
-        class="action-btn test-tooltip-btn" 
-        data-tooltip="Test Tooltip Works!"
-        style="background: #333; color: white; border: 1px solid #555; padding: 10px;"
-      >
-        TEST
-      </button>
-    </div>
   </div>
 </template>
 
@@ -314,7 +292,7 @@ const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 // State for recording actions
 const isStartingRecording = ref(false)
 const isStoppingRecording = ref(false)
-const isStartingOfflineRecording = ref(false)
+
 const localRecordingState = ref<Record<string, boolean>>({})
 
 
@@ -455,48 +433,7 @@ const startRecording = async (streamerIdValue: number) => {
   }
 }
 
-// Neue Methode: Force-Offline-Recording starten
-const forceOfflineRecording = async (streamerIdValue: number) => {
-  try {
-    isStartingOfflineRecording.value = true
-    
-    // Ensure we're working with numbers
-    const targetStreamerId = Number(streamerIdValue);
-    
-    // Update local state immediately for better UX
-    localRecordingState.value[targetStreamerId] = true
-    
-    const response = await fetch(`/api/recording/force-offline/${targetStreamerId}`, {
-     method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.detail || 'Failed to start offline recording')
-    }
-    
-    // Keep local state since it was successful
-    
-    
-    // Fetch active recordings to ensure our UI is in sync
-    await fetchActiveRecordings()
-    
-    // Reload streams to show the newly created stream
-    await fetchStreams(streamerId.value)
-    
-  } catch (error) {
-    console.error('Failed to start offline recording:', error)
-    alert(`Failed to start offline recording: ${error instanceof Error ? error.message : String(error)}`)
-    
-    // Reset local state on failure
-    localRecordingState.value[Number(streamerIdValue)] = false
-  } finally {
-    isStartingOfflineRecording.value = false
-  }
-}
+
 
 // Aufnahme stoppen
 const stopRecording = async (streamerIdValue: number) => {
