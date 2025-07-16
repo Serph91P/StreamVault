@@ -7,7 +7,7 @@ Handles all Twitch API interactions and EventSub subscriptions.
 
 import logging
 from typing import Dict, Any, Optional, List
-from app.services.twitch_api import twitch_api
+from app.services.api.twitch_api import twitch_api
 from app.events.handler_registry import EventHandlerRegistry
 
 logger = logging.getLogger("streamvault")

@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any
 from app.models import PushSubscription, GlobalSettings, NotificationSettings
 from app.database import SessionLocal
-from app.services.enhanced_push_service import enhanced_push_service
+from app.services.communication.enhanced_push_service import enhanced_push_service
 
 logger = logging.getLogger("streamvault")
 

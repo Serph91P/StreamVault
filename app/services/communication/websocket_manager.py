@@ -205,3 +205,7 @@ class ConnectionManager:
         }
         await self.send_notification(message)
         logger.debug(f"WebSocketManager: Sent recording job update for {recording_info.get('streamer_name')}")
+
+
+# Global instance for backward compatibility
+websocket_manager = ConnectionManager()

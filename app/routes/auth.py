@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
-from app.services.auth_service import AuthService
+from app.services.core.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.schemas.auth import UserCreate, LoginResponse
 from app.config.settings import get_settings

@@ -13,7 +13,7 @@ Original God Class (527 lines) split into:
 
 import logging
 from typing import Dict, Optional, Any
-from app.services.websocket_manager import ConnectionManager
+from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notifications import NotificationDispatcher
 
 logger = logging.getLogger("streamvault")

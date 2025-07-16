@@ -1,6 +1,6 @@
 from fastapi import Request, WebSocket
 from fastapi.responses import RedirectResponse, JSONResponse
-from app.services.auth_service import AuthService
+from app.services.core.auth_service import AuthService
 from app.dependencies import get_auth_service
 from app.database import SessionLocal
 import logging

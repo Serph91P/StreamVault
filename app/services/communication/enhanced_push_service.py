@@ -7,7 +7,7 @@ import urllib.parse
 import http.client
 from typing import Dict, Any, Optional, Union
 from app.config.settings import settings
-from app.services.webpush_service import ModernWebPushService, WebPushException
+from .webpush_service import ModernWebPushService, WebPushException
 
 logger = logging.getLogger("streamvault")
 

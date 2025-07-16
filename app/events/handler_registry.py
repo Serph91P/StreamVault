@@ -6,10 +6,10 @@ from typing import Dict, Callable, Awaitable, Any, Optional
 from datetime import datetime, timezone, timedelta
 
 from app.database import SessionLocal
-from app.services.websocket_manager import ConnectionManager
+from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
-from app.services.twitch_api import twitch_api
+from app.services.api.twitch_api import twitch_api
 from app.models import (
     Streamer, 
     Stream, 

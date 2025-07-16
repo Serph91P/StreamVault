@@ -235,6 +235,55 @@ class UnifiedImageService:
         """Sync all types of images"""
         return await self.bulk_download_from_db()
 
+    # Missing methods found in usage analysis
+    
+    async def cleanup_orphaned_images(self) -> Dict[str, int]:
+        """Legacy method - cleanup orphaned images"""
+        return await self.cleanup_unused_images()
+    
+    async def cleanup_old_images(self, days_old: int = 30) -> int:
+        """Legacy method - cleanup old images"""
+        return await self.cleanup_old_artwork(days_old)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Legacy method - get image cache statistics"""
+        return self.get_cache_stats()
+    
+    async def get_missing_images_report(self) -> Dict[str, Any]:
+        """Generate report of missing images"""
+        from app.database import SessionLocal
+        from app.models import Streamer, Category
+        
+        missing_report = {
+            "missing_profiles": 0,
+            "missing_categories": 0,
+            "total_streamers": 0,
+            "total_categories": 0
+        }
+        
+        with SessionLocal() as db:
+            # Check missing profile images
+            streamers = db.query(Streamer).all()
+            for streamer in streamers:
+                missing_report["total_streamers"] += 1
+                if not self.get_cached_profile_image(streamer.id):
+                    missing_report["missing_profiles"] += 1
+            
+            # Check missing category images
+            categories = db.query(Category).all()
+            for category in categories:
+                missing_report["total_categories"] += 1
+                if not self.get_cached_category_image(category.name):
+                    missing_report["missing_categories"] += 1
+        
+        return missing_report
+    
+    async def preload_categories(self, category_names: list) -> Dict[str, int]:
+        """Preload category images for given category names"""
+        return await self.bulk_sync_categories([
+            {"name": name, "box_art_url": None} for name in category_names
+        ])
+
 
 # Create a global instance for backward compatibility
 unified_image_service = UnifiedImageService()

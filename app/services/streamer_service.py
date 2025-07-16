@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from app.models import Streamer
 from app.schemas.streamers import StreamerResponse
-from app.services.websocket_manager import ConnectionManager
+from app.services.communication.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
 from app.services.streamers import StreamerRepository, TwitchIntegrationService, StreamerImageService
 
