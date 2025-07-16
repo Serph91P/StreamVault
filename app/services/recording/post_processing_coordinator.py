@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from app.utils import async_file
 from app.utils.ffmpeg_utils import validate_mp4
-from app.services.background_queue_init import enqueue_recording_post_processing
+from app.services.init.background_queue_init import enqueue_recording_post_processing
 
 logger = logging.getLogger("streamvault")
 

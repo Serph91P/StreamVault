@@ -9,7 +9,7 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from app.services.state_persistence_service import state_persistence_service
+from app.services.core.state_persistence_service import state_persistence_service
 
 logger = logging.getLogger("streamvault")
 
