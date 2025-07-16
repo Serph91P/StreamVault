@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-*.log
+#*.log
 *.pot
 *.pyc
 *.pyo
@@ -27,7 +27,7 @@ instance/
 # Vue.js
 node_modules/
 dist/
-*.log
+#*.log
 *.local
 
 # General
@@ -67,7 +67,7 @@ Thumbs.db
 *.a
 *.so
 *.dylib
-*.log
+#*.log
 *.gz
 *.zip
 *.tar
