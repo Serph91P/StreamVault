@@ -245,8 +245,6 @@ const getNotificationClass = (type: string): string => {
 
 // Add a new notification - IMPROVED VERSION
 const addNotification = (message: any): void => {
-  console.log('🔥 NotificationFeed: ADDING NOTIFICATION:', message)
-  
   try {
     const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
     
@@ -266,15 +264,12 @@ const addNotification = (message: any): void => {
       data: message.data || {}
     }
     
-    console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification)
-    
     // Check debounce to prevent rapid duplicates
     const notificationKey = generateNotificationKey(newNotification)
     const now = Date.now()
     const lastTime = recentNotifications.get(notificationKey)
     
     if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
-      console.log('🔥 NotificationFeed: Notification debounced (too soon after last identical notification)')
       return
     }
     
@@ -326,10 +321,8 @@ const addNotification = (message: any): void => {
     const existingIndex = notifications.value.findIndex(n => isDuplicate(n, newNotification))
     
     if (existingIndex >= 0) {
-      console.log('🔥 NotificationFeed: Duplicate notification found, replacing')
       notifications.value[existingIndex] = newNotification
     } else {
-      console.log('🔥 NotificationFeed: Adding new notification')
       // Add to beginning
       notifications.value.unshift(newNotification)
     }
@@ -338,9 +331,6 @@ const addNotification = (message: any): void => {
     if (notifications.value.length > MAX_NOTIFICATIONS) {
       notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
     }
-    
-    console.log('🔥 NotificationFeed: NOTIFICATIONS ARRAY NOW HAS:', notifications.value.length, 'items')
-    console.log('🔥 NotificationFeed: ALL NOTIFICATIONS:', notifications.value)
     
     // Save to localStorage
     saveNotifications()
@@ -358,11 +348,6 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (event?: Event): void => {
-  console.log('🗑️ NotificationFeed: Clear all button clicked!')
-  console.log('🗑️ NotificationFeed: Event object:', event)
-  console.log('🗑️ NotificationFeed: Event target:', event?.target)
-  console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
-  
   // Prevent any default behavior or propagation
   if (event) {
     event.preventDefault()
@@ -372,18 +357,15 @@ const clearAllNotifications = (event?: Event): void => {
   
   // Clear notifications directly
   notifications.value = []
-  console.log('🗑️ NotificationFeed: Cleared notifications array directly')
   
   // Clear localStorage immediately and confirm
   try {
     localStorage.removeItem('streamvault_notifications')
     const check = localStorage.getItem('streamvault_notifications')
-    console.log('🗑️ NotificationFeed: localStorage after removal:', check)
     
     // Set empty array to be extra sure
     localStorage.setItem('streamvault_notifications', JSON.stringify([]))
     const checkAgain = localStorage.getItem('streamvault_notifications')
-    console.log('🗑️ NotificationFeed: localStorage after setting empty array:', checkAgain)
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing localStorage:', error)
   }
@@ -392,22 +374,19 @@ const clearAllNotifications = (event?: Event): void => {
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }
   }))
-  console.log('🗑️ NotificationFeed: Dispatched notificationsUpdated event')
   
   // Also emit to App.vue for any additional cleanup
   emit('clear-all')
-  console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue')
   
   // Close the panel after clearing
   emit('close-panel')
-  console.log('🗑️ NotificationFeed: Emitted close-panel event')
 }
 
 // Save notifications to localStorage
 const saveNotifications = (): void => {
   try {
     localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
-    console.log('💾 NotificationFeed: Saved', notifications.value.length, 'notifications to localStorage')
+
     
     // Dispatch a custom event to notify other components (like App.vue) that notifications changed
     window.dispatchEvent(new CustomEvent('notificationsUpdated', {
@@ -422,22 +401,18 @@ const saveNotifications = (): void => {
 const loadNotifications = (): void => {
   try {
     const saved = localStorage.getItem('streamvault_notifications')
-    console.log('📂 NotificationFeed: Raw localStorage value:', saved)
     
     if (saved) {
       const parsed = JSON.parse(saved)
-      console.log('📂 NotificationFeed: Parsed localStorage value:', parsed)
       
       if (Array.isArray(parsed) && parsed.length > 0) {
         notifications.value = parsed
-        console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage')
       } else {
         notifications.value = []
-        console.log('📂 NotificationFeed: Empty or invalid array in localStorage, starting with empty notifications')
       }
     } else {
       notifications.value = []
-      console.log('📂 NotificationFeed: No localStorage data found, starting with empty notifications')
+
     }
   } catch (error) {
     console.error('❌ NotificationFeed: Error loading notifications:', error)
@@ -447,10 +422,7 @@ const loadNotifications = (): void => {
 
 // Process WebSocket message
 const processMessage = (message: any): void => {
-  console.log('⚡ NotificationFeed: PROCESSING MESSAGE:', message)
-  
   if (!message || !message.type) {
-    console.log('❌ NotificationFeed: Invalid message')
     return
   }
   

@@ -467,7 +467,7 @@ const saveProxySettings = async () => {
       throw new Error('Failed to save proxy settings');
     }
     
-    console.log('Proxy settings saved successfully');
+    
   } catch (error) {
     console.error('Failed to save proxy settings:', error);
     alert('Failed to save proxy settings. Please try again.');
@@ -645,7 +645,7 @@ const closeStreamerPolicyDialog = () => {
 };
 
 const handleStreamerPolicySaved = (policy: any) => {
-  console.log('Streamer cleanup policy saved:', policy);
+  
   closeStreamerPolicyDialog();
 };
 </script>

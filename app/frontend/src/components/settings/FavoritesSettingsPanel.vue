@@ -156,7 +156,7 @@ const filteredCategories = computed(() => {
     );
   }
   
-  console.log(`Filtered categories: ${result.length}`); // Debug log
+   // Debug log
   return result;
 });
 
@@ -166,7 +166,7 @@ const fetchCategories = async () => {
   error.value = null;
   
   try {
-    console.log('Fetching categories...');
+    
     const response = await fetch('/api/categories');
     if (!response.ok) {
       throw new Error('Failed to fetch categories');
@@ -176,7 +176,7 @@ const fetchCategories = async () => {
     
     // Wichtig: Die API gibt die Kategorien in einem "categories"-Feld zurück
     if (data.categories && Array.isArray(data.categories)) {
-      console.log(`Received ${data.categories.length} categories from API`);
+      
       categories.value = data.categories;
       
       // Preload category images for all categories
@@ -269,11 +269,11 @@ const downloadMissingImages = async () => {
     }).map(category => category.name);
     
     if (categoriesNeedingImages.length === 0) {
-      console.log('All categories already have images');
+      
       return;
     }
     
-    console.log(`Downloading images for ${categoriesNeedingImages.length} categories:`, categoriesNeedingImages);
+    
     
     // Use the refresh function to force re-download even if images exist but are broken
     const refreshResponse = await refreshImages(categoriesNeedingImages);
@@ -282,7 +282,7 @@ const downloadMissingImages = async () => {
       throw new Error('Failed to start image refresh');
     }
     
-    console.log('Image refresh started:', refreshResponse.message);
+    
     
     // Wait a bit for the downloads to complete
     await new Promise(resolve => setTimeout(resolve, 3000));
@@ -296,7 +296,7 @@ const downloadMissingImages = async () => {
     // Preload the new images to update our local cache
     await preloadCategoryImages(categoriesNeedingImages);
     
-    console.log('Image download process completed');
+    
   } catch (err: any) {
     error.value = err.message || 'Failed to download category images';
     console.error('Error downloading category images:', err);
@@ -310,7 +310,7 @@ const checkMissingImages = async () => {
     const response = await fetch('/api/categories/missing-images');
     if (response.ok) {
       const report = await response.json();
-      console.log('Missing images report:', report);
+      
       
       const message = `Images Report:
 Total categories: ${report.total_categories}
@@ -337,7 +337,7 @@ onMounted(() => {
 // Debug-Output
 watch(categories, (newCategories) => {
   if (newCategories.length > 0) {
-    console.log('First category example:', newCategories[0]);
+    
   }
 }, { immediate: true, deep: true });
 </script>

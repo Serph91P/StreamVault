@@ -122,6 +122,8 @@ jobs:
       working-directory: app/frontend
       run: |
         npm ci  # Faster than npm install for CI
+        # Update browserslist database to fix warning
+        npx update-browserslist-db@latest
         npm run build
         mkdir -p ../../dist
         cp -r dist/* ../../dist/

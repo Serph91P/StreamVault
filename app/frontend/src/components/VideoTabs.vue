@@ -280,11 +280,9 @@ const selectVideo = (video: VideoData) => {
 }
 
 const onChapterChange = (chapter: any, index: number) => {
-  console.log('Chapter changed:', chapter, index)
 }
 
 const onVideoReady = (duration: number) => {
-  console.log('Video ready, duration:', duration)
 }
 
 const formatDate = (date: Date): string => {

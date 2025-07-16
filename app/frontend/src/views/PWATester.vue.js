@@ -100,7 +100,6 @@ onMounted(() => {
             latestMessage.type === 'recording_started' ||
             latestMessage.type === 'recording_stopped' ||
             latestMessage.type === 'queue_stats_update') {
-            console.log('PWATester: Refreshing data from WebSocket event:', latestMessage.type);
             refreshData();
         }
     });
