@@ -71,4 +71,24 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  build: {
+    // PERFORMANCE OPTIMIZATION
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor libraries for better caching
+          'vue-vendor': ['vue', 'vue-router'],
+          'chart-vendor': ['chart.js']
+        }
+      }
+    },
+    // SECURITY FIX: Remove console.log in production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
+  }
 })
