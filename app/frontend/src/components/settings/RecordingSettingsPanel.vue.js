@@ -100,7 +100,6 @@ const saveProxySettings = async () => {
         if (!saveResponse.ok) {
             throw new Error('Failed to save proxy settings');
         }
-        console.log('Proxy settings saved successfully');
     }
     catch (error) {
         console.error('Failed to save proxy settings:', error);
@@ -256,7 +255,6 @@ const closeStreamerPolicyDialog = () => {
     selectedStreamer.value = null;
 };
 const handleStreamerPolicySaved = (policy) => {
-    console.log('Streamer cleanup policy saved:', policy);
     closeStreamerPolicyDialog();
 };
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
@@ -317,10 +315,37 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['example-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['proxy-tips']} */ ;
 /** @type {__VLS_StyleScopedClasses['proxy-tips']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-navigation']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-navigation']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-navigation']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-navigation']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-button']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-form']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-section']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['form-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['form-control']} */ ;
+/** @type {__VLS_StyleScopedClasses['form-control']} */ ;
+/** @type {__VLS_StyleScopedClasses['checkbox-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['modal-content']} */ ;
+/** @type {__VLS_StyleScopedClasses['modal-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['modal-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['modal-body']} */ ;
 /** @type {__VLS_StyleScopedClasses['proxy-configuration']} */ ;
 /** @type {__VLS_StyleScopedClasses['proxy-examples']} */ ;
 /** @type {__VLS_StyleScopedClasses['example-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['example-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['help-text']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['button-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['modal-content']} */ ;
+/** @type {__VLS_StyleScopedClasses['tab-button']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-form']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-section']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['form-control']} */ ;
+/** @type {__VLS_StyleScopedClasses['variable-tag']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});

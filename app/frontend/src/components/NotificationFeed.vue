@@ -245,8 +245,6 @@ const getNotificationClass = (type: string): string => {
 
 // Add a new notification - IMPROVED VERSION
 const addNotification = (message: any): void => {
-  console.log('🔥 NotificationFeed: ADDING NOTIFICATION:', message)
-  
   try {
     const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
     
@@ -266,15 +264,12 @@ const addNotification = (message: any): void => {
       data: message.data || {}
     }
     
-    console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification)
-    
     // Check debounce to prevent rapid duplicates
     const notificationKey = generateNotificationKey(newNotification)
     const now = Date.now()
     const lastTime = recentNotifications.get(notificationKey)
     
     if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
-      console.log('🔥 NotificationFeed: Notification debounced (too soon after last identical notification)')
       return
     }
     
@@ -326,10 +321,8 @@ const addNotification = (message: any): void => {
     const existingIndex = notifications.value.findIndex(n => isDuplicate(n, newNotification))
     
     if (existingIndex >= 0) {
-      console.log('🔥 NotificationFeed: Duplicate notification found, replacing')
       notifications.value[existingIndex] = newNotification
     } else {
-      console.log('🔥 NotificationFeed: Adding new notification')
       // Add to beginning
       notifications.value.unshift(newNotification)
     }
@@ -338,9 +331,6 @@ const addNotification = (message: any): void => {
     if (notifications.value.length > MAX_NOTIFICATIONS) {
       notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
     }
-    
-    console.log('🔥 NotificationFeed: NOTIFICATIONS ARRAY NOW HAS:', notifications.value.length, 'items')
-    console.log('🔥 NotificationFeed: ALL NOTIFICATIONS:', notifications.value)
     
     // Save to localStorage
     saveNotifications()
@@ -358,11 +348,6 @@ const removeNotification = (id: string): void => {
 
 // Clear all notifications
 const clearAllNotifications = (event?: Event): void => {
-  console.log('🗑️ NotificationFeed: Clear all button clicked!')
-  console.log('🗑️ NotificationFeed: Event object:', event)
-  console.log('🗑️ NotificationFeed: Event target:', event?.target)
-  console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length)
-  
   // Prevent any default behavior or propagation
   if (event) {
     event.preventDefault()
@@ -372,18 +357,15 @@ const clearAllNotifications = (event?: Event): void => {
   
   // Clear notifications directly
   notifications.value = []
-  console.log('🗑️ NotificationFeed: Cleared notifications array directly')
   
   // Clear localStorage immediately and confirm
   try {
     localStorage.removeItem('streamvault_notifications')
     const check = localStorage.getItem('streamvault_notifications')
-    console.log('🗑️ NotificationFeed: localStorage after removal:', check)
     
     // Set empty array to be extra sure
     localStorage.setItem('streamvault_notifications', JSON.stringify([]))
     const checkAgain = localStorage.getItem('streamvault_notifications')
-    console.log('🗑️ NotificationFeed: localStorage after setting empty array:', checkAgain)
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing localStorage:', error)
   }
@@ -392,22 +374,19 @@ const clearAllNotifications = (event?: Event): void => {
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }
   }))
-  console.log('🗑️ NotificationFeed: Dispatched notificationsUpdated event')
   
   // Also emit to App.vue for any additional cleanup
   emit('clear-all')
-  console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue')
   
   // Close the panel after clearing
   emit('close-panel')
-  console.log('🗑️ NotificationFeed: Emitted close-panel event')
 }
 
 // Save notifications to localStorage
 const saveNotifications = (): void => {
   try {
     localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
-    console.log('💾 NotificationFeed: Saved', notifications.value.length, 'notifications to localStorage')
+
     
     // Dispatch a custom event to notify other components (like App.vue) that notifications changed
     window.dispatchEvent(new CustomEvent('notificationsUpdated', {
@@ -422,22 +401,18 @@ const saveNotifications = (): void => {
 const loadNotifications = (): void => {
   try {
     const saved = localStorage.getItem('streamvault_notifications')
-    console.log('📂 NotificationFeed: Raw localStorage value:', saved)
     
     if (saved) {
       const parsed = JSON.parse(saved)
-      console.log('📂 NotificationFeed: Parsed localStorage value:', parsed)
       
       if (Array.isArray(parsed) && parsed.length > 0) {
         notifications.value = parsed
-        console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage')
       } else {
         notifications.value = []
-        console.log('📂 NotificationFeed: Empty or invalid array in localStorage, starting with empty notifications')
       }
     } else {
       notifications.value = []
-      console.log('📂 NotificationFeed: No localStorage data found, starting with empty notifications')
+
     }
   } catch (error) {
     console.error('❌ NotificationFeed: Error loading notifications:', error)
@@ -447,10 +422,7 @@ const loadNotifications = (): void => {
 
 // Process WebSocket message
 const processMessage = (message: any): void => {
-  console.log('⚡ NotificationFeed: PROCESSING MESSAGE:', message)
-  
   if (!message || !message.type) {
-    console.log('❌ NotificationFeed: Invalid message')
     return
   }
   
@@ -956,14 +928,246 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
-/* Responsive adjustments */
-@media (max-width: 640px) {
+/* Mobile responsiveness */
+@media (max-width: 768px) {
   .notification-feed {
-    width: 100%;
-    max-width: 100%;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
     border-radius: 0;
-    height: 100%;
-    max-height: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    overflow: hidden;
+  }
+  
+  .feed-header {
+    padding: 16px 20px;
+    border-bottom: 2px solid var(--border-color, #2f2f35);
+    background: var(--background-darker, #18181b);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  
+  .header-content {
+    align-items: center;
+  }
+  
+  .header-icon .icon-ring {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .bell-icon {
+    font-size: 14px;
+  }
+  
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  
+  .section-subtitle {
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  
+  .clear-all-btn {
+    padding: 8px 12px;
+    font-size: 14px;
+    min-height: 44px;
+    border-radius: 8px;
+    touch-action: manipulation;
+  }
+  
+  .clear-all-btn:active {
+    transform: scale(0.98);
+  }
+  
+  .notification-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .notification-item {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #2f2f35);
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  
+  .notification-icon {
+    margin-top: 2px;
+  }
+  
+  .icon-wrapper {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  
+  .notification-content {
+    flex: 1;
+    min-width: 0;
+    padding-right: 8px;
+  }
+  
+  .notification-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  
+  .notification-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  
+  .notification-time {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  
+  .notification-message {
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 8px 0;
+    word-break: break-word;
+  }
+  
+  .notification-meta {
+    margin-top: 10px;
+  }
+  
+  .category-tag {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 12px;
+  }
+  
+  .category-image-small {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .notification-dismiss {
+    padding: 8px;
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    margin: -4px -8px 0 0;
+    touch-action: manipulation;
+    border-radius: 50%;
+  }
+  
+  .notification-dismiss:active {
+    transform: scale(0.95);
+  }
+  
+  .empty-state {
+    padding: 60px 20px;
+  }
+  
+  .empty-state .icon-circle {
+    width: 80px;
+    height: 80px;
+    font-size: 40px;
+    margin: 0 auto 20px;
+  }
+  
+  .empty-state h3 {
+    font-size: 20px;
+    margin: 16px 0 8px;
+  }
+  
+  .empty-state p {
+    font-size: 16px;
+  }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 480px) {
+  .feed-header {
+    padding: 12px 16px;
+  }
+  
+  .section-title {
+    font-size: 16px;
+  }
+  
+  .section-subtitle {
+    font-size: 12px;
+  }
+  
+  .clear-all-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .notification-item {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  
+  .icon-wrapper {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  
+  .notification-title {
+    font-size: 14px;
+  }
+  
+  .notification-message {
+    font-size: 13px;
+  }
+  
+  .notification-dismiss {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+  
+  .empty-state {
+    padding: 40px 16px;
+  }
+  
+  .empty-state .icon-circle {
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+  }
+  
+  .empty-state h3 {
+    font-size: 18px;
+  }
+  
+  .empty-state p {
+    font-size: 14px;
+  }
+}
+
+/* Landscape phones */
+@media (max-width: 768px) and (orientation: landscape) {
+  .notification-list {
+    max-height: calc(100vh - 70px);
+  }
+  
+  .notification-item {
+    padding: 12px 20px;
+  }
+  
+  .empty-state {
+    padding: 30px 20px;
   }
 }
 

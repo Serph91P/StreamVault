@@ -3,15 +3,12 @@ export function useStreamers() {
     const streamers = ref([]);
     const isLoading = ref(false);
     const updateStreamer = async (streamerId, updateData) => {
-        console.log('useStreamers: Updating streamer:', { streamerId, updateData });
         const index = streamers.value.findIndex(s => s.id === streamerId);
         if (index !== -1) {
-            console.log('useStreamers: Found streamer at index:', index);
             streamers.value[index] = {
                 ...streamers.value[index],
                 ...updateData
             };
-            console.log('useStreamers: Updated streamer:', streamers.value[index]);
         }
         else {
             console.warn('useStreamers: Streamer not found:', streamerId);

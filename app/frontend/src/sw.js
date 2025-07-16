@@ -42,7 +42,9 @@ registerRoute(({ url }) => url.pathname.startsWith('/api/'), new NetworkFirst({
 }));
 // Push notification handling
 self.addEventListener('push', (event) => {
-    console.log('Service Worker: Push notification received', event);
+    
+    
+    
     let notificationTitle = 'StreamVault';
     let notificationData = {
         body: 'New notification',
@@ -59,7 +61,7 @@ self.addEventListener('push', (event) => {
     if (event.data) {
         try {
             const data = event.data.json();
-            console.log('Service Worker: Push data parsed:', data);
+            
             notificationTitle = data.title || notificationTitle;
             notificationData = {
                 ...notificationData,
@@ -103,21 +105,21 @@ self.addEventListener('push', (event) => {
             }
         }
         catch (e) {
-            console.error('Service Worker: Error parsing push data', e);
+            console.error('🔔 Service Worker: Error parsing push data', e);
         }
     }
-    console.log('Service Worker: Showing notification with data:', notificationData);
+    
     event.waitUntil(self.registration.showNotification(notificationTitle, notificationData)
         .then(() => {
-        console.log('Service Worker: Notification shown successfully');
+        
     })
         .catch((error) => {
-        console.error('Service Worker: Error showing notification:', error);
+        console.error('🔔 Service Worker: Error showing notification:', error);
     }));
 });
 // Notification click handling
 self.addEventListener('notificationclick', (event) => {
-    console.log('Service Worker: Notification clicked', event);
+    
     const notification = event.notification;
     const action = event.action;
     notification.close();
@@ -171,12 +173,12 @@ self.addEventListener('notificationclick', (event) => {
 });
 // Background sync
 self.addEventListener('sync', (event) => {
-    console.log('Service Worker: Background sync', event.tag);
+    
     if (event.tag === 'background-sync') {
         event.waitUntil(handleBackgroundSync());
     }
 });
 async function handleBackgroundSync() {
-    console.log('Service Worker: Performing background sync');
+    
     // Handle any queued actions when back online
 }

@@ -610,57 +610,91 @@
                 mainContent.appendChild(container);
             }
             
-            let instructionsHTML = `
-                <h3>📱 Installationsanweisungen für Ihr Gerät</h3>
-                <div class="platform-info">
-                    <strong>Erkanntes System:</strong> ${platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1)} 
-                    mit ${platformInfo.browser.charAt(0).toUpperCase() + platformInfo.browser.slice(1)}
-                </div>
-            `;
+            // SECURITY FIX: Use safe DOM manipulation instead of innerHTML with template literals
+            const instructionsContainer = document.getElementById('platform-instructions');
+            instructionsContainer.innerHTML = ''; // Clear existing content
+            
+            // Create main title
+            const mainTitle = document.createElement('h3');
+            mainTitle.textContent = '📱 Installationsanweisungen für Ihr Gerät';
+            instructionsContainer.appendChild(mainTitle);
+            
+            // Create platform info
+            const platformInfoDiv = document.createElement('div');
+            platformInfoDiv.className = 'platform-info';
+            const strong = document.createElement('strong');
+            strong.textContent = 'Erkanntes System: ';
+            platformInfoDiv.appendChild(strong);
+            const systemText = `${platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1)} mit ${platformInfo.browser.charAt(0).toUpperCase() + platformInfo.browser.slice(1)}`;
+            platformInfoDiv.appendChild(document.createTextNode(systemText));
+            instructionsContainer.appendChild(platformInfoDiv);
             
             if (window.pwaHelper) {
                 const instructions = window.pwaHelper.getManualInstallInstructions();
-                instructionsHTML += `
-                    <div class="install-instructions">
-                        <h4>${instructions.platform}</h4>
-                        <ol>
-                `;
                 
+                const instructionsDiv = document.createElement('div');
+                instructionsDiv.className = 'install-instructions';
+                
+                // Create platform title
+                const platformTitle = document.createElement('h4');
+                platformTitle.textContent = instructions.platform;
+                instructionsDiv.appendChild(platformTitle);
+                
+                // Create instructions list
+                const instructionsList = document.createElement('ol');
                 instructions.instructions.forEach(instruction => {
-                    instructionsHTML += `<li>${instruction}</li>`;
+                    const listItem = document.createElement('li');
+                    listItem.textContent = instruction;
+                    instructionsList.appendChild(listItem);
                 });
+                instructionsDiv.appendChild(instructionsList);
                 
-                instructionsHTML += '</ol>';
-                
+                // Add note if exists
                 if (instructions.note) {
-                    instructionsHTML += `<p class="install-note"><strong>Hinweis:</strong> ${instructions.note}</p>`;
+                    const noteP = document.createElement('p');
+                    noteP.className = 'install-note';
+                    const noteStrong = document.createElement('strong');
+                    noteStrong.textContent = 'Hinweis: ';
+                    noteP.appendChild(noteStrong);
+                    noteP.appendChild(document.createTextNode(instructions.note));
+                    instructionsDiv.appendChild(noteP);
                 }
                 
+                // Add alternative instructions if exist
                 if (instructions.alternativeInstructions) {
-                    instructionsHTML += '<h5>Alternative Methoden:</h5><ul>';
+                    const altTitle = document.createElement('h5');
+                    altTitle.textContent = 'Alternative Methoden:';
+                    instructionsDiv.appendChild(altTitle);
+                    
+                    const altList = document.createElement('ul');
                     instructions.alternativeInstructions.forEach(alt => {
-                        instructionsHTML += `<li>${alt}</li>`;
+                        const listItem = document.createElement('li');
+                        listItem.textContent = alt;
+                        altList.appendChild(listItem);
                     });
-                    instructionsHTML += '</ul>';
+                    instructionsDiv.appendChild(altList);
                 }
                 
+                // Add browser-specific instructions if exist
                 if (instructions.browsers) {
-                    instructionsHTML += '<h5>Browser-spezifische Anweisungen:</h5><ul>';
+                    const browserTitle = document.createElement('h5');
+                    browserTitle.textContent = 'Browser-spezifische Anweisungen:';
+                    instructionsDiv.appendChild(browserTitle);
+                    
+                    const browserList = document.createElement('ul');
                     Object.entries(instructions.browsers).forEach(([browser, instruction]) => {
-                        instructionsHTML += `<li><strong>${browser}:</strong> ${instruction}</li>`;
+                        const listItem = document.createElement('li');
+                        const browserStrong = document.createElement('strong');
+                        browserStrong.textContent = browser + ': ';
+                        listItem.appendChild(browserStrong);
+                        listItem.appendChild(document.createTextNode(instruction));
+                        browserList.appendChild(listItem);
                     });
-                    instructionsHTML += '</ul>';
+                    instructionsDiv.appendChild(browserList);
                 }
                 
-                instructionsHTML += '</div>';
+                instructionsContainer.appendChild(instructionsDiv);
             }
-            
-            // SECURITY FIX: Create DOM elements instead of innerHTML
-            const instructionsContainer = document.getElementById('platform-instructions');
-            instructionsContainer.innerHTML = ''; // Clear existing content
-            const div = document.createElement('div');
-            div.textContent = instructionsHTML.replace(/<[^>]*>/g, ''); // Strip HTML tags
-            instructionsContainer.appendChild(div);
         }
 
         // Platform Detection with more details  

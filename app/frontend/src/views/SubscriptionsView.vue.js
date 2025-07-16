@@ -33,8 +33,6 @@ function getStreamerName(twitchId) {
         return streamer.username;
     }
     // Log this issue for debugging
-    console.log(`Could not find streamer for ID: ${twitchId}`);
-    console.log("Available streamers:", streamers.value);
     // Return a formatted version of the ID as fallback
     return `Unknown (${twitchId})`;
 }
@@ -54,7 +52,6 @@ async function loadStreamers() {
             console.error('Unexpected streamer data format:', data);
             streamers.value = [];
         }
-        console.log("Loaded streamers:", streamers.value);
         // Create a map for easier lookup
         streamers.value.forEach(streamer => {
             streamerMap.value[streamer.twitch_id] = streamer;
@@ -140,7 +137,6 @@ async function deleteAllSubscriptions() {
             throw new Error(`Failed to delete subscriptions: ${response.status}`);
         }
         const data = await response.json();
-        console.log('Deleted subscriptions:', data);
         alert('All subscriptions successfully deleted!');
         subscriptions.value = [];
         await loadSubscriptions();

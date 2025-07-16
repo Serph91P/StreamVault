@@ -256,7 +256,7 @@ const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
   if (props.chapters && props.chapters.length > 0) {
     chapters.value = convertApiChaptersToInternal(props.chapters)
-    console.log('Loaded', chapters.value.length, 'chapters from props')
+
     return
   }
 
@@ -447,7 +447,7 @@ onUnmounted(() => {
 watch(() => props.chapters, (newChapters) => {
   if (newChapters && newChapters.length > 0) {
     chapters.value = convertApiChaptersToInternal(newChapters)
-    console.log('Updated', chapters.value.length, 'chapters from props')
+
   }
 }, { immediate: true })
 
@@ -457,8 +457,7 @@ const decodedVideoSrc = computed(() => {
   try {
     // URL decode the video source to handle special characters
     const decoded = decodeURIComponent(props.videoSrc)
-    console.log('Original video src:', props.videoSrc)
-    console.log('Decoded video src:', decoded)
+
     return decoded
   } catch (error) {
     console.error('Error decoding video src:', error)

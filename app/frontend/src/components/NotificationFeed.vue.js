@@ -116,7 +116,6 @@ const getNotificationClass = (type) => {
 };
 // Add a new notification - IMPROVED VERSION
 const addNotification = (message) => {
-    console.log('🔥 NotificationFeed: ADDING NOTIFICATION:', message);
     try {
         const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`;
         const timestamp = message.data?.timestamp
@@ -132,13 +131,11 @@ const addNotification = (message) => {
             streamer_username,
             data: message.data || {}
         };
-        console.log('🔥 NotificationFeed: CREATED NOTIFICATION:', newNotification);
         // Check debounce to prevent rapid duplicates
         const notificationKey = generateNotificationKey(newNotification);
         const now = Date.now();
         const lastTime = recentNotifications.get(notificationKey);
         if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
-            console.log('🔥 NotificationFeed: Notification debounced (too soon after last identical notification)');
             return;
         }
         // Update debounce tracker
@@ -180,11 +177,9 @@ const addNotification = (message) => {
         // Find existing duplicate
         const existingIndex = notifications.value.findIndex(n => isDuplicate(n, newNotification));
         if (existingIndex >= 0) {
-            console.log('🔥 NotificationFeed: Duplicate notification found, replacing');
             notifications.value[existingIndex] = newNotification;
         }
         else {
-            console.log('🔥 NotificationFeed: Adding new notification');
             // Add to beginning
             notifications.value.unshift(newNotification);
         }
@@ -192,8 +187,6 @@ const addNotification = (message) => {
         if (notifications.value.length > MAX_NOTIFICATIONS) {
             notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS);
         }
-        console.log('🔥 NotificationFeed: NOTIFICATIONS ARRAY NOW HAS:', notifications.value.length, 'items');
-        console.log('🔥 NotificationFeed: ALL NOTIFICATIONS:', notifications.value);
         // Save to localStorage
         saveNotifications();
     }
@@ -208,10 +201,6 @@ const removeNotification = (id) => {
 };
 // Clear all notifications
 const clearAllNotifications = (event) => {
-    console.log('🗑️ NotificationFeed: Clear all button clicked!');
-    console.log('🗑️ NotificationFeed: Event object:', event);
-    console.log('🗑️ NotificationFeed: Event target:', event?.target);
-    console.log('🗑️ NotificationFeed: Current notifications count:', notifications.value.length);
     // Prevent any default behavior or propagation
     if (event) {
         event.preventDefault();
@@ -220,16 +209,13 @@ const clearAllNotifications = (event) => {
     }
     // Clear notifications directly
     notifications.value = [];
-    console.log('🗑️ NotificationFeed: Cleared notifications array directly');
     // Clear localStorage immediately and confirm
     try {
         localStorage.removeItem('streamvault_notifications');
         const check = localStorage.getItem('streamvault_notifications');
-        console.log('🗑️ NotificationFeed: localStorage after removal:', check);
         // Set empty array to be extra sure
         localStorage.setItem('streamvault_notifications', JSON.stringify([]));
         const checkAgain = localStorage.getItem('streamvault_notifications');
-        console.log('🗑️ NotificationFeed: localStorage after setting empty array:', checkAgain);
     }
     catch (error) {
         console.error('❌ NotificationFeed: Error clearing localStorage:', error);
@@ -238,19 +224,15 @@ const clearAllNotifications = (event) => {
     window.dispatchEvent(new CustomEvent('notificationsUpdated', {
         detail: { count: 0 }
     }));
-    console.log('🗑️ NotificationFeed: Dispatched notificationsUpdated event');
     // Also emit to App.vue for any additional cleanup
     emit('clear-all');
-    console.log('🗑️ NotificationFeed: Emitted clear-all event to App.vue');
     // Close the panel after clearing
     emit('close-panel');
-    console.log('🗑️ NotificationFeed: Emitted close-panel event');
 };
 // Save notifications to localStorage
 const saveNotifications = () => {
     try {
         localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value));
-        console.log('💾 NotificationFeed: Saved', notifications.value.length, 'notifications to localStorage');
         // Dispatch a custom event to notify other components (like App.vue) that notifications changed
         window.dispatchEvent(new CustomEvent('notificationsUpdated', {
             detail: { count: notifications.value.length }
@@ -264,22 +246,17 @@ const saveNotifications = () => {
 const loadNotifications = () => {
     try {
         const saved = localStorage.getItem('streamvault_notifications');
-        console.log('📂 NotificationFeed: Raw localStorage value:', saved);
         if (saved) {
             const parsed = JSON.parse(saved);
-            console.log('📂 NotificationFeed: Parsed localStorage value:', parsed);
             if (Array.isArray(parsed) && parsed.length > 0) {
                 notifications.value = parsed;
-                console.log('📂 NotificationFeed: Loaded', parsed.length, 'notifications from localStorage');
             }
             else {
                 notifications.value = [];
-                console.log('📂 NotificationFeed: Empty or invalid array in localStorage, starting with empty notifications');
             }
         }
         else {
             notifications.value = [];
-            console.log('📂 NotificationFeed: No localStorage data found, starting with empty notifications');
         }
     }
     catch (error) {
@@ -289,9 +266,7 @@ const loadNotifications = () => {
 };
 // Process WebSocket message
 const processMessage = (message) => {
-    console.log('⚡ NotificationFeed: PROCESSING MESSAGE:', message);
     if (!message || !message.type) {
-        console.log('❌ NotificationFeed: Invalid message');
         return;
     }
     // Skip connection status messages
@@ -414,6 +389,51 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['category-image-small']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-dismiss']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-feed']} */ ;
+/** @type {__VLS_StyleScopedClasses['feed-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['header-content']} */ ;
+/** @type {__VLS_StyleScopedClasses['header-icon']} */ ;
+/** @type {__VLS_StyleScopedClasses['icon-ring']} */ ;
+/** @type {__VLS_StyleScopedClasses['bell-icon']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-subtitle']} */ ;
+/** @type {__VLS_StyleScopedClasses['clear-all-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['clear-all-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-list']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-icon']} */ ;
+/** @type {__VLS_StyleScopedClasses['icon-wrapper']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-content']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-time']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-message']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-meta']} */ ;
+/** @type {__VLS_StyleScopedClasses['category-tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['category-image-small']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-dismiss']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-dismiss']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['icon-circle']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['feed-header']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-subtitle']} */ ;
+/** @type {__VLS_StyleScopedClasses['clear-all-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['icon-wrapper']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-message']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-dismiss']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['icon-circle']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-list']} */ ;
+/** @type {__VLS_StyleScopedClasses['notification-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['empty-state']} */ ;
 /** @type {__VLS_StyleScopedClasses['notification-feed']} */ ;
 // CSS variable injection 
 // CSS variable injection end 

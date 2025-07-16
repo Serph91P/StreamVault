@@ -49,10 +49,8 @@ watch(messages, (newMessages) => {
     const message = newMessages[newMessages.length - 1];
     if (!message)
         return;
-    console.log('HomeView: New message detected:', message);
     switch (message.type) {
         case 'stream.online': {
-            console.log('HomeView: Processing stream online:', message.data);
             updateStreamer(String(message.data.streamer_id), {
                 is_live: true,
                 title: message.data.title || '',
@@ -63,7 +61,6 @@ watch(messages, (newMessages) => {
             break;
         }
         case 'stream.offline': {
-            console.log('HomeView: Processing stream offline:', message.data);
             updateStreamer(String(message.data.streamer_id), {
                 is_live: false,
                 last_updated: new Date().toISOString()
@@ -71,7 +68,6 @@ watch(messages, (newMessages) => {
             break;
         }
         case 'recording.started': {
-            console.log('HomeView: Processing recording started:', message.data);
             const streamerId = Number(message.data.streamer_id);
             const streamer = streamers.value.find(s => String(s.id) === String(streamerId));
             if (streamer) {
@@ -82,7 +78,6 @@ watch(messages, (newMessages) => {
             break;
         }
         case 'recording.stopped': {
-            console.log('HomeView: Processing recording stopped:', message.data);
             const streamerId = Number(message.data.streamer_id);
             const streamer = streamers.value.find(s => String(s.id) === String(streamerId));
             if (streamer) {

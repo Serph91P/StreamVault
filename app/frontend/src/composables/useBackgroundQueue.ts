@@ -111,7 +111,7 @@ export function useBackgroundQueue() {
       })
       if (response.ok) {
         const result = await response.json()
-        console.log(`Cancelled ${result.cancelled_count} tasks for stream ${streamId}`)
+
         // Refresh data
         await fetchActiveTasks()
         await fetchQueueStats()
@@ -188,10 +188,8 @@ export function useBackgroundQueue() {
     
     // Handle queue-related WebSocket messages
     if (latestMessage.type === 'queue_stats_update') {
-      console.log('Queue stats updated via WebSocket:', latestMessage.data)
       Object.assign(queueStats.value, latestMessage.data)
     } else if (latestMessage.type === 'task_status_update') {
-      console.log('Task status updated via WebSocket:', latestMessage.data)
       const taskData = latestMessage.data
       
       // Update or add task in activeTasks
@@ -207,7 +205,6 @@ export function useBackgroundQueue() {
         activeTasks.value = activeTasks.value.filter(t => t.id !== taskData.id)
       }
     } else if (latestMessage.type === 'task_progress_update') {
-      console.log('Task progress updated via WebSocket:', latestMessage.data)
       const { task_id, progress } = latestMessage.data
       
       // Update progress for the specific task

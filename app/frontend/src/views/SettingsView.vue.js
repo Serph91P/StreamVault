@@ -31,14 +31,12 @@ onMounted(async () => {
         // Load recording settings with better error handling
         try {
             await fetchRecordingSettings();
-            console.log("Recording settings:", recordingSettings.value);
         }
         catch (e) {
             console.error("Failed to load recording settings:", e);
         }
         try {
             await fetchRecordingStreamerSettings();
-            console.log("Recording streamer settings count:", recordingStreamerSettings.value.length);
         }
         catch (e) {
             console.error("Failed to load recording streamer settings:", e);
@@ -66,12 +64,10 @@ watch(messages, (newMessages) => {
     const latestMessage = newMessages[newMessages.length - 1];
     // Handle active recordings updates via WebSocket
     if (latestMessage.type === 'active_recordings_update') {
-        console.log('Active recordings updated via WebSocket:', latestMessage.data);
         activeRecordings.value = latestMessage.data || [];
     }
     else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
         // Refresh when recording state changes
-        console.log('Recording state changed, refreshing active recordings');
         fetchActiveRecordings();
     }
 });
