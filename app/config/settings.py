@@ -230,8 +230,7 @@ class Settings(BaseSettings):
             base = self.BASE_URL.rstrip('/')
             self.WEBHOOK_URL = base
 
-        # Load and auto-generate VAPID keys if needed
-        self._load_or_generate_vapid_keys()
+        # VAPID keys will be loaded lazily when first accessed
         
         # Configure cookie security based on environment
         self._configure_cookie_security()
@@ -240,6 +239,16 @@ class Settings(BaseSettings):
         logger.info(f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}")
         logger.info(f"🔒 Secure mode: {'Yes' if self.is_secure else 'No'}")
         logger.info(f"🍪 Secure cookies: {'Yes' if self.USE_SECURE_COOKIES else 'No'}")
+    
+    def get_vapid_keys(self):
+        """Get VAPID keys, loading/generating them if needed"""
+        if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
+            self._load_or_generate_vapid_keys()
+        return {
+            'public_key': self.VAPID_PUBLIC_KEY,
+            'private_key': self.VAPID_PRIVATE_KEY,
+            'claims_sub': self.VAPID_CLAIMS_SUB
+        }
     
     def _load_or_generate_vapid_keys(self):
         """Load VAPID keys from database or auto-generate if not found"""
