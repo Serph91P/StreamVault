@@ -735,86 +735,77 @@ async def serve_workbox_files(filename: str):
     import re
     from pathlib import Path
     
-    def get_safe_workbox_path(user_filename: str) -> str | None:
-        """
-        Completely isolated function that validates user input and returns a safe path or None.
-        This function encapsulates all user input validation and path resolution.
-        """
+    # SECURITY: Complete isolation - user input never reaches file operations
+    # Step 1: Create whitelist of allowed workbox files (hardcoded, no user input)
+    ALLOWED_WORKBOX_FILES = {
+        # Common workbox filenames - add more as needed
+        "74f2ef77.js": "workbox-74f2ef77.js",
+        "core.js": "workbox-core.js", 
+        "sw.js": "workbox-sw.js",
+        "runtime.js": "workbox-runtime.js",
+        "strategies.js": "workbox-strategies.js",
+        "precaching.js": "workbox-precaching.js",
+        "routing.js": "workbox-routing.js",
+        "window.js": "workbox-window.js"
+    }
+    
+    # Step 2: Validate user input against whitelist only
+    if not isinstance(filename, str) or len(filename) > 50:
+        logger.warning(f"Invalid workbox filename format: {filename}")
+        return Response(status_code=404)
+    
+    # Step 3: Check if requested file is in whitelist
+    if filename not in ALLOWED_WORKBOX_FILES:
+        logger.warning(f"Workbox file not in whitelist: {filename}")
+        return Response(status_code=404)
+    
+    # Step 4: Get hardcoded filename from whitelist (no user input involved)
+    safe_filename = ALLOWED_WORKBOX_FILES[filename]
+    
+    # Step 5: Define hardcoded safe paths (completely isolated from user input)
+    SAFE_FILE_PATHS = [
+        f"app/frontend/dist/{safe_filename}",
+        f"/app/app/frontend/dist/{safe_filename}"
+    ]
+    
+    # Step 6: Try each hardcoded path (user input never touches file operations)
+    for hardcoded_path in SAFE_FILE_PATHS:
         try:
-            # Step 1: Strict input validation
-            if not isinstance(user_filename, str) or len(user_filename) > 100:
-                return None
+            # All file operations use hardcoded paths only
+            real_path = os.path.realpath(hardcoded_path)
             
-            # Step 2: Character whitelist validation
-            if not user_filename.endswith(".js") or ".." in user_filename or "/" in user_filename or "\\" in user_filename:
-                return None
-                
-            # Step 3: Construct filename with prefix
-            workbox_filename = f"workbox-{user_filename}"
-            
-            # Step 4: Regex pattern validation for complete filename
-            if not re.match(r'^workbox-[a-zA-Z0-9\-]+\.js$', workbox_filename):
-                return None
-            
-            # Step 5: Define hardcoded safe root directories (no user input)
-            safe_roots = [
+            # Verify path is within expected directories
+            expected_dirs = [
                 os.path.realpath("app/frontend/dist"),
                 os.path.realpath("/app/app/frontend/dist")
             ]
             
-            # Step 6: Check predefined safe file locations (no user input in path construction)
-            safe_candidate_paths = [
-                os.path.join("app/frontend/dist", workbox_filename),
-                os.path.join("/app/app/frontend/dist", workbox_filename)
-            ]
-            
-            # Step 7: Validate each hardcoded candidate path
-            for candidate in safe_candidate_paths:
+            path_is_safe = False
+            for expected_dir in expected_dirs:
                 try:
-                    real_path = os.path.realpath(candidate)
-                    
-                    # Step 8: Ensure resolved path is within safe roots
-                    is_safe = False
-                    for safe_root in safe_roots:
-                        try:
-                            if os.path.commonpath([real_path, safe_root]) == safe_root:
-                                is_safe = True
-                                break
-                        except (ValueError, OSError):
-                            continue
-                    
-                    # Step 9: Verify file exists and is regular file
-                    if is_safe and os.path.exists(real_path) and os.path.isfile(real_path):
-                        return real_path
-                        
-                except (OSError, ValueError):
+                    if os.path.commonpath([real_path, expected_dir]) == expected_dir:
+                        path_is_safe = True
+                        break
+                except (ValueError, OSError):
                     continue
             
-            return None
-            
-        except Exception:
-            return None
+            # File operations on hardcoded paths only
+            if path_is_safe and os.path.exists(real_path) and os.path.isfile(real_path):
+                return FileResponse(
+                    real_path,  # This comes from hardcoded paths, not user input
+                    media_type="application/javascript",
+                    headers={
+                        "Cache-Control": "public, max-age=31536000",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"Error checking hardcoded workbox path {hardcoded_path}: {e}")
+            continue
     
-    # Get safe path through isolated validation function
-    safe_path = get_safe_workbox_path(filename)
-    
-    if safe_path is None:
-        logger.warning(f"Workbox file access denied for: {filename}")
-        return Response(status_code=404)
-    
-    # At this point, safe_path is guaranteed to be safe for file operations
-    try:
-        return FileResponse(
-            safe_path,
-            media_type="application/javascript",
-            headers={
-                "Cache-Control": "public, max-age=31536000",  # 1 year for workbox files
-                "Access-Control-Allow-Origin": "*"
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error serving validated workbox file {safe_path}: {e}")
-        return Response(status_code=404)
+    # No valid hardcoded path found
+    logger.warning(f"Workbox file not found in any safe location: {filename}")
+    return Response(status_code=404)
 
 @app.get("/favicon.ico")
 async def serve_favicon():
