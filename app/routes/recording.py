@@ -407,7 +407,7 @@ async def cleanup_old_recordings(streamer_id: int):
         # Log cleanup request
         logging_service.log_recording_activity("CLEANUP_REQUEST", f"Streamer {streamer_id}", "Manual cleanup requested via API")
         
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
         
         # Log cleanup results
@@ -431,7 +431,7 @@ async def cleanup_old_recordings(streamer_id: int):
 async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
     """Run a custom cleanup with specified policy"""
     try:
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         
         # Convert pydantic model to dict
         policy_dict = policy.dict(exclude_unset=True)
@@ -455,7 +455,7 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
 async def get_storage_usage(streamer_id: int):
     """Get storage usage information for a streamer"""
     try:
-        from app.services.cleanup_service import CleanupService
+        from app.services.system.cleanup_service import CleanupService
         usage = await CleanupService.get_storage_usage(streamer_id)
         return usage
     except Exception as e:
