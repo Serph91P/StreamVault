@@ -180,9 +180,6 @@ export function useBackgroundQueue() {
     }
   }
 
-  // WebSocket integration for real-time updates
-  const { messages } = useWebSocket()
-  
   // Watch for WebSocket messages
   watch(messages, (newMessages) => {
     if (newMessages.length === 0) return
