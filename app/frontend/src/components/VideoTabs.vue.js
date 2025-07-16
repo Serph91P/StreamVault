@@ -66,19 +66,32 @@ const uniqueGames = computed(() => {
     const games = new Set(props.videos.map(v => v.game).filter(Boolean));
     return Array.from(games);
 });
+// PERFORMANCE FIX: Memoized gameStats computation 
 const gameStats = computed(() => {
+    // Early return if no videos to avoid expensive operations
+    if (!props.videos || props.videos.length === 0) {
+        return [];
+    }
     const stats = new Map();
-    props.videos.forEach(video => {
+    // Use for loop instead of forEach for better performance
+    for (let i = 0; i < props.videos.length; i++) {
+        const video = props.videos[i];
         const game = video.game || 'Unbekannt';
-        const current = stats.get(game) || { count: 0, duration: 0 };
-        current.count++;
-        current.duration += video.duration || 0;
-        stats.set(game, current);
-    });
-    return Array.from(stats.entries()).map(([name, data]) => ({
-        name,
-        ...data
-    })).sort((a, b) => b.count - a.count);
+        const current = stats.get(game);
+        if (current) {
+            current.count++;
+            current.duration += video.duration || 0;
+        }
+        else {
+            stats.set(game, { count: 1, duration: video.duration || 0 });
+        }
+    }
+    // Convert and sort in one step
+    const result = [];
+    for (const [name, data] of stats.entries()) {
+        result.push({ name, ...data });
+    }
+    return result.sort((a, b) => b.count - a.count);
 });
 const selectVideo = (video) => {
     currentVideo.value = video;
