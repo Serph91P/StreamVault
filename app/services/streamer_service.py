@@ -6,6 +6,7 @@ from app.database import SessionLocal
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.services.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
+from app.services.twitch_api import twitch_api
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datetime import datetime, timezone
@@ -18,10 +19,7 @@ class StreamerService:
         self.db = db
         self.manager = websocket_manager
         self.event_registry = event_registry
-        self.client_id = settings.TWITCH_APP_ID
-        self.client_secret = settings.TWITCH_APP_SECRET
-        self.base_url = "https://api.twitch.tv/helix"
-        self._access_token = None
+        self.twitch_api = twitch_api
         # Use unified_image_service for profile images - no separate directory needed
 
     async def notify(self, message: Dict[str, Any]):
@@ -31,62 +29,12 @@ class StreamerService:
             logger.error(f"Notification failed: {e}")
             raise
 
-    async def get_access_token(self) -> str:
-        """Get or refresh Twitch access token"""
-        if not self._access_token:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "grant_type": "client_credentials"
-                    }
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        self._access_token = data["access_token"]
-                    else:
-                        raise ValueError(f"Failed to get access token: {response.status}")
-        return self._access_token
-
     async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
-        token = await self.get_access_token()
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/users",
-                params={"login": usernames},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("data", [])
-                else:
-                    logger.error(f"Failed to get users. Status: {response.status}")
-                    return []
+        return await self.twitch_api.get_users_by_login(usernames)
 
     async def get_streamer_info(self, streamer_id: str) -> Optional[Dict[str, Any]]:
-        token = await self.get_access_token()
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/users",
-                params={"id": streamer_id},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data["data"][0] if data["data"] else None
-                else:
-                    logger.error(f"Failed to get streamer info. Status: {response.status}")
-                    return None
+        users = await self.twitch_api.get_users_by_id([streamer_id])
+        return users[0] if users else None
 
     async def get_streamers(self) -> List[StreamerResponse]:
         """Get all streamers with their current status
@@ -378,53 +326,22 @@ class StreamerService:
     async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Fetch game data from Twitch API including box art URL."""
         try:
-            token = await self.get_access_token()
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/games",
-                    params={"id": game_id},
-                    headers={
-                        "Client-ID": self.client_id,
-                        "Authorization": f"Bearer {token}"
-                    }
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data.get("data") and len(data["data"]) > 0:
-                            game_data = data["data"][0]
-                            
-                            # Replace template placeholders in box art URL
-                            box_art_url = game_data.get("box_art_url", "")
-                            if box_art_url:
-                                # Standard size for box art
-                                box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
-                                game_data["box_art_url"] = box_art_url
-                                
-                            return game_data
-                    
-                    logger.warning(f"Failed to get game data for ID {game_id}. Status: {response.status}")
-                    return None
+            games = await self.twitch_api.get_games_by_id([game_id])
+            if games:
+                game_data = games[0]
+                # Replace template placeholders in box art URL
+                box_art_url = game_data.get("box_art_url", "")
+                if box_art_url:
+                    # Standard size for box art
+                    box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
+                    game_data["box_art_url"] = box_art_url
+                return game_data
+            return None
         except Exception as e:
             logger.error(f"Error fetching game data: {e}")
             return None
 
     async def get_stream_info(self, twitch_id: str) -> Optional[Dict[str, Any]]:
         """Get current stream information for a Twitch user to check if they're live"""
-        token = await self.get_access_token()
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/streams",
-                params={"user_id": twitch_id},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data["data"][0] if data["data"] else None
-                else:
-                    logger.error(f"Failed to get stream info. Status: {response.status}")
-                    return None
+        streams = await self.twitch_api.get_streams(user_ids=[twitch_id])
+        return streams[0] if streams else None
