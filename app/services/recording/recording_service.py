@@ -699,9 +699,8 @@ class RecordingService:
                 }
                 await websocket_manager.send_recording_started(recording_info)
                 
-                # Send immediate active recordings update
-                from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
-                await send_immediate_active_recordings_update()
+                # Send immediate active recordings update via WebSocket broadcast task
+                # (The websocket_broadcast_task handles this automatically every 10 seconds)
             except Exception as e:
                 logger.warning(f"Failed to send WebSocket recording started notification: {e}")
             
@@ -912,8 +911,7 @@ class RecordingService:
                     await websocket_manager.send_recording_stopped(recording_info_ws)
                     
                     # Send immediate active recordings update
-                    from app.services.active_recordings_broadcaster import send_immediate_active_recordings_update
-                    await send_immediate_active_recordings_update()
+                    # Active recordings update handled by websocket_broadcast_task
                     
                     # Remove from persistent storage
                     await state_persistence_service.remove_active_recording(stream.id)

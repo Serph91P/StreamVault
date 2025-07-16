@@ -152,8 +152,7 @@ async def lifespan(app: FastAPI):
     # Shutdown active recordings broadcaster
     try:
         logger.info("🔄 Stopping active recordings broadcaster...")
-        from app.services.active_recordings_broadcaster import stop_active_recordings_broadcaster
-        await stop_active_recordings_broadcaster()
+
         logger.info("✅ Active recordings broadcaster stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
@@ -729,6 +728,29 @@ async def serve_register_sw():
             continue
     return Response(status_code=404)
 
+@app.get("/workbox-{filename:path}")
+async def serve_workbox_files(filename: str):
+    """Serve Workbox-related files from the dist directory"""
+    # Security: Only allow workbox files with specific pattern
+    if not filename.endswith(".js") or ".." in filename or "/" in filename:
+        return Response(status_code=404)
+    
+    workbox_filename = f"workbox-{filename}"
+    from app.utils.file_paths import get_pwa_file_paths
+    for path in get_pwa_file_paths(workbox_filename):
+        try:
+            return FileResponse(
+                path,
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "public, max-age=31536000",  # 1 year for workbox files
+                    "Access-Control-Allow-Origin": "*"
+                }
+            )
+        except:
+            continue
+    return Response(status_code=404)
+
 @app.get("/favicon.ico")
 async def serve_favicon():
     from app.utils.file_paths import get_file_paths
@@ -741,6 +763,23 @@ async def serve_favicon():
             )
         except:
             continue
+    return Response(status_code=404)
+
+@app.get("/favicon.png")
+async def serve_favicon_png():
+    from app.utils.file_paths import get_file_paths
+    # Try specific favicon.png files, then fall back to ico
+    for filename in ["favicon.png", "favicon-32x32.png", "favicon.ico"]:
+        for path in get_file_paths(filename):
+            try:
+                media_type = "image/png" if filename.endswith(".png") else "image/x-icon"
+                return FileResponse(
+                    path,
+                    media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=86400"}
+                )
+            except:
+                continue
     return Response(status_code=404)
 
 # PWA Icons - serve from public directory
