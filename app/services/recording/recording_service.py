@@ -21,6 +21,7 @@ from app.models import Stream, Recording, Streamer
 from app.services.twitch_api import twitch_api
 from app.utils import async_file
 from app.database import get_db
+from app.utils.retry_decorator import recording_process_retry, database_retry, RetryableError, NonRetryableError
 
 # Import managers
 from app.services.recording.config_manager import ConfigManager
@@ -80,6 +81,7 @@ class RecordingService:
         if not self.db:
             self.db = next(get_db())
 
+    @database_retry
     async def _update_recording_status(
         self, recording_id: int, status: str, path: str, duration_seconds: int
     ) -> None:
@@ -92,17 +94,26 @@ class RecordingService:
             duration_seconds: Duration in seconds
         """
         try:
+            self._ensure_db_session()
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
             
-            if recording:
-                recording.status = status
-                recording.end_time = datetime.now()
-                recording.duration = duration_seconds
-                recording.path = path
-                self.db.commit()
-                
+            if not recording:
+                logger.error(f"Recording {recording_id} not found for status update")
+                raise NonRetryableError(f"Recording {recording_id} not found")
+            
+            recording.status = status
+            recording.end_time = datetime.now()
+            recording.duration = duration_seconds
+            recording.path = path
+            self.db.commit()
+            
+        except NonRetryableError:
+            # Don't retry these errors
+            raise
         except Exception as e:
             logger.error(f"Error updating recording status: {e}", exc_info=True)
+            # Let the retry decorator handle this
+            raise
 
     async def get_active_recordings(self) -> Dict[int, Dict[str, Any]]:
         """Get information about currently active recordings
@@ -416,6 +427,7 @@ class RecordingService:
         """Wait for shutdown to complete"""
         await self._shutdown_event.wait()
 
+    @recording_process_retry
     async def force_start_recording(self, streamer_id: int) -> bool:
         """Force start recording for a live streamer even if EventSub wasn't triggered
         
@@ -436,14 +448,14 @@ class RecordingService:
             streamer = self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
             if not streamer:
                 logger.error(f"Streamer not found: {streamer_id}")
-                return False
+                raise NonRetryableError(f"Streamer not found: {streamer_id}")
             
-            # Check if streamer is actually live via API
+            # Check if streamer is actually live via API (this has its own retry logic)
             stream_info = await twitch_api.get_stream_by_user_id(streamer.twitch_id)
             
             if not stream_info:
                 logger.warning(f"Cannot force start recording for {streamer.username}: streamer is not live")
-                return False
+                raise NonRetryableError(f"Streamer {streamer.username} is not live")
             
             # Create stream data in the format expected by start_recording
             stream_data = {
@@ -463,9 +475,13 @@ class RecordingService:
             # Start recording with force mode enabled
             return await self.start_recording(streamer_id, stream_data, force_mode=True)
             
+        except NonRetryableError:
+            # Don't retry these errors
+            return False
         except Exception as e:
             logger.error(f"Error force starting recording for streamer {streamer_id}: {e}")
-            return False
+            # Let the retry decorator handle retryable errors
+            raise
 
     async def start_recording(self, streamer_id: int, stream_data: Dict[str, Any], force_mode: bool = False) -> bool:
         """Start recording for a streamer (called by EventHandlerRegistry)
