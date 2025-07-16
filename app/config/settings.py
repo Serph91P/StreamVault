@@ -140,6 +140,11 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CLAIMS_SUB: str = "mailto:admin@streamvault.local"
     
+    # Security Configuration
+    SECURE_COOKIES: bool = True  # Set to False for development or when behind reverse proxy without SSL termination
+    # Override with environment variable for reverse proxy setups
+    USE_SECURE_COOKIES: bool = True  # Can be set to False for reverse proxy setups
+    
     # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
@@ -228,9 +233,13 @@ class Settings(BaseSettings):
         # Load and auto-generate VAPID keys if needed
         self._load_or_generate_vapid_keys()
         
+        # Configure cookie security based on environment
+        self._configure_cookie_security()
+        
         # Log CORS configuration
         logger.info(f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}")
         logger.info(f"🔒 Secure mode: {'Yes' if self.is_secure else 'No'}")
+        logger.info(f"🍪 Secure cookies: {'Yes' if self.USE_SECURE_COOKIES else 'No'}")
     
     def _load_or_generate_vapid_keys(self):
         """Load VAPID keys from database or auto-generate if not found"""
@@ -316,6 +325,33 @@ class Settings(BaseSettings):
                 
         except Exception as e:
             logger.warning(f"⚠️ VAPID key auto-generation failed: {e}")
+
+    def _configure_cookie_security(self):
+        """Configure cookie security based on deployment environment"""
+        try:
+            from app.config.reverse_proxy import ReverseProxyDetector
+            
+            # Use the reverse proxy detector
+            self.USE_SECURE_COOKIES = ReverseProxyDetector.should_use_secure_cookies(self.SECURE_COOKIES)
+            
+            # Log detailed proxy information
+            proxy_info = ReverseProxyDetector.get_proxy_info()
+            
+            if proxy_info['is_behind_proxy']:
+                if proxy_info['is_https_terminated']:
+                    logger.info("🔒 Detected HTTPS reverse proxy - enabling secure cookies")
+                    logger.debug(f"🔍 Proxy details: proto={proxy_info['x_forwarded_proto']}, ssl={proxy_info['x_forwarded_ssl']}")
+                else:
+                    logger.warning("⚠️ Detected reverse proxy without HTTPS - disabling secure cookies")
+                    logger.warning("⚠️ For production, ensure your reverse proxy terminates SSL/TLS")
+                    logger.debug(f"🔍 Proxy details: {proxy_info}")
+            else:
+                logger.info(f"🍪 Direct access mode - secure cookies: {'enabled' if self.USE_SECURE_COOKIES else 'disabled'}")
+                
+        except Exception as e:
+            logger.error(f"Error configuring cookie security: {e}")
+            # Default to secure for safety
+            self.USE_SECURE_COOKIES = True
 
     class Config:
         env_file = ".env"
