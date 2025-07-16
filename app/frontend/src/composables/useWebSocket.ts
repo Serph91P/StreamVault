@@ -96,7 +96,10 @@ class WebSocketManager {
         // Store connection ID from server for debugging
         if (message.type === 'connection.status' && message.data?.connection_id) {
           this.connectionId = message.data.connection_id
-          console.log('🆔 WebSocket connection ID:', this.connectionId)
+          const realIp = message.data.real_ip
+          const isProxied = message.data.is_reverse_proxied
+          const proxyInfo = isProxied ? ' (via reverse proxy)' : ''
+          console.log(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
         }
         
         // Keep only last 100 messages to prevent memory leaks
