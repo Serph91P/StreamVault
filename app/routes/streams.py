@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Stream, StreamMetadata, Recording, StreamEvent, ActiveRecordingState
-from app.services.system.background_queue_service import get_background_queue_service
+from app.services.background_queue_service import background_queue_service
 import logging
 
 logger = logging.getLogger("streamvault")
@@ -69,7 +69,7 @@ async def delete_stream(
         
         # Schedule file deletion in background
         if files_to_delete:
-            background_queue = get_background_queue_service()
+            background_queue = background_queue_service
             await background_queue.add_task(
                 "cleanup",
                 {
