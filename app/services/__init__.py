@@ -38,6 +38,7 @@ from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
+from app.services.process_monitor import ProcessMonitor, process_monitor
 
 __all__ = [
     "LoggingService",
@@ -46,7 +47,7 @@ __all__ = [
     "NotificationService",
     "MetadataService",
     "AuthService",
-    "CategoryImageService",
+
     "MigrationService",
     "CleanupService",
     "EnhancedPushService",
@@ -58,6 +59,8 @@ __all__ = [
     "ModernWebPushService",  # Changed from WebPushService
     "ConnectionManager",
     "UnifiedImageService",
+    "ProcessMonitor",
+    "process_monitor",
     # Export recording components
     "ConfigManager",
     "ProcessManager",
