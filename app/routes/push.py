@@ -41,13 +41,21 @@ async def subscribe_to_push(
 ):
     """Subscribe a client to push notifications"""
     try:
+        logger.info("🔔 PUSH_SUBSCRIBE_REQUEST: Starting subscription process")
+        logger.debug(f"🔔 Request data keys: {list(subscription_data.keys())}")
+        
         subscription = subscription_data.get('subscription', {})
         user_agent = subscription_data.get('userAgent', '')
         
+        logger.debug(f"🔔 Subscription keys: {list(subscription.keys()) if subscription else 'None'}")
+        logger.debug(f"🔔 User agent: {user_agent[:50]}..." if user_agent else "🔔 No user agent")
+        
         if not subscription or 'endpoint' not in subscription:
+            logger.error("🔔 INVALID_SUBSCRIPTION_DATA: Missing subscription or endpoint")
             raise HTTPException(status_code=400, detail="Invalid subscription data")
         
         endpoint = subscription['endpoint']
+        logger.debug(f"🔔 Endpoint: {endpoint[:50]}...")
         
         # Check if subscription already exists
         existing = db.query(PushSubscription).filter(
@@ -55,11 +63,13 @@ async def subscribe_to_push(
         ).first()
         
         if existing:
+            logger.info(f"🔔 UPDATING_EXISTING_SUBSCRIPTION: id={existing.id}")
             # Update existing subscription
             existing.subscription_data = json.dumps(subscription)
             existing.user_agent = user_agent
             existing.is_active = True
         else:
+            logger.info("🔔 CREATING_NEW_SUBSCRIPTION")
             # Create new subscription
             new_subscription = PushSubscription(
                 endpoint=endpoint,
@@ -71,7 +81,10 @@ async def subscribe_to_push(
         
         db.commit()
         
-        logger.info(f"Push subscription added/updated: {endpoint[:50]}...")
+        # Verify subscription was saved
+        total_active = db.query(PushSubscription).filter(PushSubscription.is_active == True).count()
+        logger.info(f"🔔 SUBSCRIPTION_SAVED: endpoint={endpoint[:50]}...")
+        logger.info(f"🔔 TOTAL_ACTIVE_SUBSCRIPTIONS: count={total_active}")
         
         return {
             "success": True,
