@@ -17,7 +17,6 @@ from datetime import datetime
 from app.database import SessionLocal
 from app.models import GlobalSettings, User, Streamer
 from app.services.unified_image_service import unified_image_service
-from app.services.notifications.notification_service import notification_service
 
 logger = logging.getLogger("streamvault")
 
@@ -86,28 +85,95 @@ class DevelopmentTestRunner:
     
     async def _test_services(self):
         """Test that all services can be imported and initialized"""
-        services_to_test = [
-            ("UnifiedImageService", lambda: unified_image_service),
-            ("NotificationService", lambda: notification_service),
+        # Test services from the new refactored structure
+        service_imports = [
+            # Core services
+            ("UnifiedImageService", "app.services.unified_image_service", "unified_image_service"),
+            ("AuthService", "app.services.core.auth_service", "AuthService"),
+            ("LoggingService", "app.services.system.logging_service", "LoggingService"),
+            ("CleanupService", "app.services.system.cleanup_service", "CleanupService"),
+            
+            # Notification services
+            ("NotificationDispatcher", "app.services.notifications.notification_dispatcher", "NotificationDispatcher"),
+            ("ExternalNotificationService", "app.services.notifications.external_notification_service", "ExternalNotificationService"),
+            ("PushNotificationService", "app.services.notifications.push_notification_service", "PushNotificationService"),
+            
+            # Recording services
+            ("RecordingService", "app.services.recording.recording_service", "RecordingService"),
+            ("RecordingOrchestrator", "app.services.recording.recording_orchestrator", "RecordingOrchestrator"),
+            ("RecordingLifecycleManager", "app.services.recording.recording_lifecycle_manager", "RecordingLifecycleManager"),
+            
+            # Media services
+            ("MetadataService", "app.services.media.metadata_service", "MetadataService"),
+            ("ThumbnailService", "app.services.images.thumbnail_service", "ThumbnailService"),
+            
+            # Communication services
+            ("EnhancedPushService", "app.services.communication.enhanced_push_service", "EnhancedPushService"),
+            ("WebSocketManager", "app.services.communication.websocket_manager", "WebSocketManager"),
+            
+            # Processing services
+            ("TaskDependencyManager", "app.services.processing.task_dependency_manager", "TaskDependencyManager"),
+            ("TaskProgressTracker", "app.services.queues.task_progress_tracker", "TaskProgressTracker"),
+            
+            # Background services
+            ("BackgroundQueueService", "app.services.background_queue_service", "BackgroundQueueService"),
+            
+            # Streamer services
+            ("StreamerService", "app.services.streamer_service", "StreamerService"),
         ]
         
-        for service_name, service_getter in services_to_test:
+        for service_name, module_path, class_name in service_imports:
             try:
-                service = service_getter()
-                self._record_test(f"Service: {service_name}", True, "Service initialized successfully")
+                # Dynamic import
+                module = __import__(module_path, fromlist=[class_name])
+                
+                if hasattr(module, class_name):
+                    service_class = getattr(module, class_name)
+                    
+                    # Try to initialize the service
+                    if class_name == "unified_image_service":
+                        # This is already an instance
+                        service_instance = service_class
+                    else:
+                        # This is a class, instantiate it
+                        service_instance = service_class()
+                    
+                    self._record_test(f"Service: {service_name}", True, f"Imported and initialized from {module_path}")
+                    
+                elif hasattr(module, class_name.lower()):
+                    # Try lowercase version (for instances)
+                    service_instance = getattr(module, class_name.lower())
+                    self._record_test(f"Service: {service_name}", True, f"Imported instance from {module_path}")
+                    
+                else:
+                    self._record_test(f"Service: {service_name}", False, f"Class {class_name} not found in {module_path}")
+                    
+            except ImportError as e:
+                self._record_test(f"Service: {service_name}", False, f"Import failed: {str(e)}")
             except Exception as e:
-                self._record_test(f"Service: {service_name}", False, str(e))
+                self._record_test(f"Service: {service_name}", False, f"Initialization failed: {str(e)}")
     
     async def _test_notifications(self):
         """Test notification system"""
         try:
-            # Test notification service initialization
-            test_result = await notification_service.send_test_notification()
+            # Test the new refactored notification structure
+            from app.services.notifications.external_notification_service import ExternalNotificationService
+            external_service = ExternalNotificationService()
+            test_result = await external_service.send_test_notification()
             
             if test_result:
-                self._record_test("Notification Test", True, "Test notification sent successfully")
+                self._record_test("External Notification Test", True, "Test notification sent successfully")
             else:
-                self._record_test("Notification Test", False, "Test notification failed to send")
+                self._record_test("External Notification Test", False, "Test notification failed to send")
+                
+            # Also test notification dispatcher
+            try:
+                from app.services.notifications.notification_dispatcher import NotificationDispatcher
+                dispatcher = NotificationDispatcher()
+                # Test basic dispatcher functionality
+                self._record_test("Notification Dispatcher Init", True, "NotificationDispatcher initialized successfully")
+            except Exception as e:
+                self._record_test("Notification Dispatcher Init", False, f"Dispatcher error: {str(e)}")
                 
         except Exception as e:
             self._record_test("Notification Test", False, str(e))
