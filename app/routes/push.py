@@ -132,7 +132,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
     try:
         logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
         
-        from app.services.communication.enhanced_push_service import EnhancedPushService, enhanced_push_service
+        from app.services.communication.webpush_service import ModernWebPushService
         from app.models import GlobalSettings, NotificationSettings, Streamer
         
         # Check VAPID configuration
@@ -143,7 +143,14 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 "message": "Push notification service is not properly configured. Please contact an administrator."
             }
         
-        push_service = enhanced_push_service
+        # Initialize push service
+        vapid_claims = {
+            "sub": getattr(settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
+        }
+        push_service = ModernWebPushService(
+            vapid_private_key=settings.VAPID_PRIVATE_KEY,
+            vapid_claims=vapid_claims
+        )
         
         # Check global notification settings
         global_settings = db.query(GlobalSettings).first()
@@ -186,7 +193,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 
                 logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
                 
-                success = await push_service.send_notification(subscription_data, notification_data)
+                success = push_service.send_notification(subscription_data, notification_data)
                 if success:
                     sent_count += 1
                     logger.info(f"🧪 TEST_SUCCESS: {endpoint}...")
