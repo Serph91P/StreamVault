@@ -218,8 +218,8 @@
           <div class="recording-details">
             <div><strong>Started:</strong> {{ formatDate(recording.started_at) }}</div>
             <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
-            <div><strong>Quality:</strong> {{ recording.quality }}</div>
-            <div class="output-path"><strong>Output:</strong> {{ recording.output_path }}</div>
+            <div><strong>Status:</strong> {{ recording.status }}</div>
+            <div class="output-path"><strong>Output:</strong> {{ recording.file_path || recording.output_path }}</div>
           </div>
           <button @click="stopRecording(recording.streamer_id)" class="btn btn-danger" :disabled="isLoading">
             Stop Recording
