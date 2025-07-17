@@ -524,3 +524,56 @@ class ProcessManager:
     def is_shutting_down(self) -> bool:
         """Check if process manager is shutting down"""
         return self._is_shutting_down
+
+    async def get_recording_progress(self, recording_id: int) -> Optional[Dict]:
+        """Get progress information for a recording
+        
+        Args:
+            recording_id: ID of the recording to check progress for
+            
+        Returns:
+            Dictionary with progress information or None if not found
+        """
+        try:
+            process_id = f"stream_{recording_id}"
+            
+            async with self.lock:
+                if process_id not in self.active_processes:
+                    return None
+                    
+                process = self.active_processes[process_id]
+                
+                # Check if process is still running
+                if process.returncode is not None:
+                    return {"status": "completed", "exit_code": process.returncode}
+                
+                # Get basic process info
+                progress = {
+                    "status": "running",
+                    "pid": process.pid,
+                    "duration": None,
+                    "file_size": None,
+                    "segment_count": 1
+                }
+                
+                # Add segment info if available
+                if process_id in self.long_stream_processes:
+                    segment_info = self.long_stream_processes[process_id]
+                    progress["segment_count"] = segment_info.get("segment_count", 1)
+                    
+                    # Calculate duration if we have start time
+                    if "segment_start_time" in segment_info:
+                        duration = datetime.now() - segment_info["segment_start_time"]
+                        progress["duration"] = int(duration.total_seconds())
+                    
+                    # Get file size if available
+                    current_path = segment_info.get("current_segment_path")
+                    if current_path and await async_file.exists(current_path):
+                        file_size = await async_file.getsize(current_path)
+                        progress["file_size"] = file_size
+                
+                return progress
+                
+        except Exception as e:
+            logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
+            return None
