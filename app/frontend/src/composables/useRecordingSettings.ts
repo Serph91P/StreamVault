@@ -42,7 +42,7 @@ export function useRecordingSettings() {
           
           // Check if recording already exists to avoid duplicates
           const existingIndex = activeRecordings.value.findIndex(
-            rec => rec.recording_id === newRecording.recording_id
+            rec => rec.id === newRecording.recording_id
           );
           
           if (existingIndex === -1) {
@@ -66,7 +66,7 @@ export function useRecordingSettings() {
         // Remove the recording from active recordings
         if (latestMessage.data?.recording_id) {
           activeRecordings.value = activeRecordings.value.filter(
-            rec => rec.recording_id !== latestMessage.data.recording_id
+            rec => rec.id !== latestMessage.data.recording_id
           );
         } else if (latestMessage.data?.streamer_id) {
           // Fallback to streamer_id if recording_id not available
