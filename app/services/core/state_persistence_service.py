@@ -167,16 +167,22 @@ class StatePersistenceService:
         
         try:
             with SessionLocal() as db:
-                state = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.stream_id == stream_id
-                ).first()
-                
-                if state:
-                    state.last_heartbeat = datetime.now(timezone.utc)
-                    db.commit()
-                    return True
-                else:
-                    logger.warning(f"No active recording state found for heartbeat update: {stream_id}")
+                # Use explicit transaction with rollback on error
+                try:
+                    state = db.query(ActiveRecordingState).filter(
+                        ActiveRecordingState.stream_id == stream_id
+                    ).first()
+                    
+                    if state:
+                        state.last_heartbeat = datetime.now(timezone.utc)
+                        db.commit()
+                        return True
+                    else:
+                        logger.warning(f"No active recording state found for heartbeat update: {stream_id}")
+                        return False
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"Error updating heartbeat for stream {stream_id}: {e}")
                     return False
                     
         except Exception as e:
