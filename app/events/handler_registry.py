@@ -250,15 +250,8 @@ class EventHandlerRegistry:
                     logger.info(f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}")
 
                     streamer_id = streamer.id
-                    await self.recording_service.start_recording(streamer_id, {
-                        "id": data["id"],
-                        "broadcaster_user_id": data["broadcaster_user_id"],
-                        "broadcaster_user_name": data["broadcaster_user_name"],
-                        "started_at": data["started_at"],
-                        "title": streamer.title,
-                        "category_name": streamer.category_name,
-                        "language": streamer.language
-                    }, force_mode=False)  # Normal EventSub recordings use standard settings
+                    stream_id = stream.id
+                    await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)

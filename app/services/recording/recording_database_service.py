@@ -71,15 +71,14 @@ class RecordingDatabaseService:
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
-    async def create_recording(self, stream_id: int, streamer_id: int, file_path: str) -> Recording:
+    async def create_recording(self, stream_id: int, file_path: str) -> Recording:
         """Create a new recording entry"""
         try:
             self._ensure_db_session()
             
             recording = Recording(
                 stream_id=stream_id,
-                streamer_id=streamer_id,
-                file_path=file_path,
+                path=file_path,
                 status="recording",
                 start_time=datetime.utcnow()
             )
