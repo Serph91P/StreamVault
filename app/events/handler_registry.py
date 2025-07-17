@@ -17,7 +17,8 @@ from app.models import (
     Category,
     User,
     FavoriteCategory,
-    NotificationSettings
+    NotificationSettings,
+    Recording
 )
 from app.config.settings import settings as app_settings
 

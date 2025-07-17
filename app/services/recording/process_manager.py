@@ -148,6 +148,16 @@ class ProcessManager:
                 stderr=asyncio.subprocess.PIPE
             )
             
+            # Add immediate check to see if process started successfully
+            await asyncio.sleep(0.1)  # Give process time to start
+            if process.returncode is not None:
+                # Process already ended, capture output
+                stdout, stderr = await process.communicate()
+                logger.error(f"🎬 PROCESS_FAILED_IMMEDIATELY: PID would be {process.pid}, exit code {process.returncode}")
+                logger.error(f"🎬 STDOUT: {stdout.decode()}")
+                logger.error(f"🎬 STDERR: {stderr.decode()}")
+                raise ProcessError(f"Streamlink process failed immediately: {stderr.decode()}")
+            
             process_id = f"stream_{stream.id}"
             async with self.lock:
                 self.active_processes[process_id] = process

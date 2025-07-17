@@ -575,7 +575,8 @@ onMounted(async () => {
 .header-info h1 {
   margin: 0;
   font-size: 2rem;
-  color: #333;
+  color: #212529;
+  font-weight: 700;
 }
 
 .stream-count {
@@ -698,8 +699,8 @@ onMounted(async () => {
 }
 
 .stream-thumbnail {
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 100px;
   margin-right: 16px;
   flex-shrink: 0;
 }
@@ -709,12 +710,15 @@ onMounted(async () => {
   height: 100%;
   border-radius: 8px;
   overflow: hidden;
+  border: 2px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .category-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
 }
 
 .category-icon, .category-placeholder {
@@ -778,7 +782,8 @@ onMounted(async () => {
 .stream-title {
   margin: 0 0 8px 0;
   font-size: 1.1rem;
-  color: #333;
+  color: #212529;
+  font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

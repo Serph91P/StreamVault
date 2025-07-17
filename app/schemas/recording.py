@@ -50,12 +50,15 @@ class StreamerRecordingSettingsSchema(BaseModel):
         from_attributes = True
         
 class ActiveRecordingSchema(BaseModel):
+    id: int
+    stream_id: int
     streamer_id: int
     streamer_name: str
+    title: str
     started_at: str
-    duration: float
-    output_path: str
-    quality: str
+    file_path: str
+    status: str
+    duration: int
     
 class StorageUsageSchema(BaseModel):
     totalSize: int
