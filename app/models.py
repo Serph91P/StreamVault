@@ -66,6 +66,7 @@ class Stream(Base):
     episode_number = Column(Integer, nullable=True)  # Episode number for this stream
     
     # Relationships
+    streamer = relationship("Streamer", backref="streams")
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
     active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False)
     

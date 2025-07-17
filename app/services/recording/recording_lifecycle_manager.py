@@ -123,6 +123,11 @@ class RecordingLifecycleManager:
                     additional_data={'reason': reason}
                 )
             
+            # If successfully stopped, trigger post-processing
+            if success and reason == "automatic":
+                logger.info(f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}")
+                await self._trigger_post_processing(recording_id)
+            
             return success
             
         except Exception as e:
@@ -390,8 +395,8 @@ class RecordingLifecycleManager:
             
             logger.info(f"🎬 CALLING_GENERATE_FILENAME: streamer={streamer.username}")
             
-            # Use default template for now
-            template = "{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}"
+            # Use media server structure template (like Plex/Jellyfin)
+            template = "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
             
             filename = await generate_filename(
                 streamer=streamer,
@@ -404,7 +409,14 @@ class RecordingLifecycleManager:
                 filename += '.ts'
             
             recordings_dir = self.config_manager.get_recordings_directory()
-            full_path = str(Path(recordings_dir) / filename)
+            
+            # Create full path with streamer directory and season structure
+            streamer_dir = Path(recordings_dir) / streamer.username
+            full_path = str(streamer_dir / filename)
+            
+            # Ensure directory exists
+            season_dir = streamer_dir / filename.split('/')[0]  # Extract season directory
+            season_dir.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"🎬 GENERATED_PATH: {full_path}")
             return full_path
@@ -416,6 +428,96 @@ class RecordingLifecycleManager:
             fallback_path = f"/recordings/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
             logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
             return fallback_path
+
+    async def _trigger_post_processing(self, recording_id: int):
+        """Trigger post-processing for a completed recording"""
+        try:
+            logger.info(f"🎬 POST_PROCESSING_START: recording_id={recording_id}")
+            
+            # Get recording info
+            recording_data = await self.database_service.get_recording_by_id(recording_id)
+            if not recording_data:
+                logger.error(f"Recording {recording_id} not found for post-processing")
+                return
+            
+            # Get stream info
+            stream_data = await self.database_service.get_stream_by_id(recording_data.stream_id)
+            if not stream_data:
+                logger.error(f"Stream {recording_data.stream_id} not found for post-processing")
+                return
+            
+            # Get streamer info
+            streamer_data = await self.database_service.get_streamer_by_id(stream_data.streamer_id)
+            if not streamer_data:
+                logger.error(f"Streamer {stream_data.streamer_id} not found for post-processing")
+                return
+            
+            # Get path to recording file
+            recording_path = recording_data.path
+            if not recording_path:
+                logger.error(f"No recording path found for recording {recording_id}")
+                return
+            
+            # Import background queue service
+            from app.services.system.background_queue_service import get_background_queue_service
+            background_queue = get_background_queue_service()
+            
+            # Schedule post-processing tasks
+            logger.info(f"🎬 SCHEDULING_POST_PROCESSING_TASKS: recording_id={recording_id}")
+            
+            # 1. MP4 remux task
+            await background_queue.add_task(
+                "mp4_remux",
+                {
+                    "recording_id": recording_id,
+                    "input_path": recording_path,
+                    "output_path": recording_path.replace('.ts', '.mp4'),
+                    "streamer_name": streamer_data.username,
+                    "stream_title": stream_data.title or "Unknown Stream"
+                },
+                priority=1
+            )
+            
+            # 2. Metadata generation task
+            await background_queue.add_task(
+                "metadata_generation",
+                {
+                    "recording_id": recording_id,
+                    "stream_id": stream_data.id,
+                    "streamer_id": streamer_data.id,
+                    "video_path": recording_path.replace('.ts', '.mp4'),
+                    "streamer_name": streamer_data.username,
+                    "stream_title": stream_data.title or "Unknown Stream"
+                },
+                priority=2
+            )
+            
+            # 3. Thumbnail generation task
+            await background_queue.add_task(
+                "thumbnail_generation",
+                {
+                    "recording_id": recording_id,
+                    "video_path": recording_path.replace('.ts', '.mp4'),
+                    "streamer_name": streamer_data.username
+                },
+                priority=3
+            )
+            
+            # 4. Cleanup task (remove .ts files after processing)
+            await background_queue.add_task(
+                "cleanup",
+                {
+                    "recording_id": recording_id,
+                    "cleanup_paths": [recording_path],  # Remove .ts file
+                    "streamer_name": streamer_data.username
+                },
+                priority=4
+            )
+            
+            logger.info(f"🎬 POST_PROCESSING_SCHEDULED: recording_id={recording_id}")
+            
+        except Exception as e:
+            logger.error(f"Error triggering post-processing for recording {recording_id}: {e}", exc_info=True)
 
     # Shutdown methods
     
