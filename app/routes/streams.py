@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Stream, StreamMetadata, Recording, StreamEvent, ActiveRecordingState
-from app.middleware.logging import log_request
 from app.services.system.background_queue_service import get_background_queue_service
 import logging
 
@@ -20,7 +19,7 @@ async def delete_stream(
     db: Session = Depends(get_db)
 ):
     """Delete a specific stream and all associated metadata"""
-    log_request(request, logger)
+    logger.info(f"Request {request.method} {request.url.path}")
     
     try:
         # Check if the stream exists
