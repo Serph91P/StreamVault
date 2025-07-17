@@ -19,6 +19,10 @@ logger = logging.getLogger("streamvault")
 class RecordingLifecycleManager:
     """Manages recording lifecycle events and monitoring"""
     
+    # Constants for segment file patterns
+    SEGMENT_FILE_PATTERN = "*_part*.ts"
+    SEGMENT_DIR_SUFFIX = "_segments"
+    
     def __init__(self, config_manager=None, process_manager=None, 
                  database_service=None, websocket_service=None, state_manager=None):
         self.config_manager = config_manager
@@ -460,23 +464,29 @@ class RecordingLifecycleManager:
                 return
                 
             # Check if this is a segmented recording
-            segments_dir = recording_path.replace('.ts', '_segments')
+            segments_dir = recording_path.replace('.ts', self.SEGMENT_DIR_SUFFIX)
             if Path(segments_dir).exists():
                 logger.info(f"🎬 SEGMENTED_RECORDING_DETECTED: {segments_dir}")
                 
                 # Find all segment files
-                segment_files = list(Path(segments_dir).glob("*_part*.ts"))
+                segment_files = list(Path(segments_dir).glob(self.SEGMENT_FILE_PATTERN))
                 segment_files.sort()  # Sort to maintain order
                 
                 if segment_files:
                     logger.info(f"🎬 FOUND_SEGMENTS: {len(segment_files)} segments")
                     
-                    # Use the first segment as the main recording path for now
-                    # TODO: Implement segment concatenation
-                    recording_path = str(segment_files[0])
+                    # Concatenate all segments into a single file using FFmpeg
+                    concatenated_path = await self._concatenate_segments(segment_files, recording_id)
                     
-                    # Update the recording path in database
-                    await self.database_service.update_recording_path(recording_id, recording_path)
+                    if concatenated_path:
+                        recording_path = str(concatenated_path)
+                        # Update the recording path in database
+                        await self.database_service.update_recording_path(recording_id, recording_path)
+                        logger.info(f"🎬 SEGMENTS_CONCATENATED: {recording_path}")
+                    else:
+                        logger.error(f"🎬 CONCATENATION_FAILED: Using first segment as fallback")
+                        recording_path = str(segment_files[0])
+                        await self.database_service.update_recording_path(recording_id, recording_path)
                 else:
                     logger.warning(f"🎬 NO_SEGMENTS_FOUND: {segments_dir}")
                     return
@@ -549,6 +559,66 @@ class RecordingLifecycleManager:
             
         except Exception as e:
             logger.error(f"Error triggering post-processing for recording {recording_id}: {e}", exc_info=True)
+
+    async def _concatenate_segments(self, segment_files: list, recording_id: int) -> Optional[Path]:
+        """Concatenate multiple .ts segments into a single file using FFmpeg"""
+        try:
+            logger.info(f"🎬 CONCATENATING_SEGMENTS: {len(segment_files)} files for recording {recording_id}")
+            
+            # Create output path
+            first_segment = Path(segment_files[0])
+            output_path = first_segment.parent.parent / f"{first_segment.stem.split('_part')[0]}.ts"
+            
+            # Create concat file list for FFmpeg
+            concat_file_path = first_segment.parent / f"concat_list_{recording_id}.txt"
+            
+            with open(concat_file_path, 'w') as f:
+                for segment in segment_files:
+                    # Use relative paths for better portability
+                    f.write(f"file '{Path(segment).name}'\n")
+            
+            # Run FFmpeg concatenation
+            import subprocess
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_file_path),
+                "-c", "copy",
+                "-y",  # Overwrite output file
+                str(output_path)
+            ]
+            
+            logger.debug(f"🎬 FFMPEG_CONCAT_CMD: {' '.join(ffmpeg_cmd)}")
+            
+            # Execute FFmpeg command
+            process = await asyncio.create_subprocess_exec(
+                *ffmpeg_cmd,
+                cwd=str(first_segment.parent),  # Set working directory
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                logger.info(f"🎬 CONCATENATION_SUCCESS: {output_path}")
+                
+                # Clean up concat file
+                try:
+                    concat_file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Could not remove concat file: {e}")
+                
+                return output_path
+            else:
+                logger.error(f"🎬 CONCATENATION_FAILED: FFmpeg returned {process.returncode}")
+                logger.error(f"FFmpeg stderr: {stderr.decode()}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error concatenating segments for recording {recording_id}: {e}", exc_info=True)
+            return None
 
     # Shutdown methods
     
