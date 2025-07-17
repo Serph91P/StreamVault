@@ -203,6 +203,10 @@ class StatePersistenceService:
         except Exception as e:
             logger.error(f"Error getting active recordings: {e}", exc_info=True)
             return []
+    
+    async def load_state(self) -> List[ActiveRecordingState]:
+        """Load all active recordings from persistent storage (alias for get_all_active_recordings)"""
+        return await self.get_all_active_recordings()
             
     async def cleanup_stale_entries(self) -> int:
         """Clean up stale entries where processes no longer exist"""
