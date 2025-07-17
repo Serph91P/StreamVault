@@ -566,19 +566,51 @@ class RecordingLifecycleManager:
         try:
             logger.info(f"🎬 CONCATENATING_SEGMENTS: {len(segment_files)} files for recording {recording_id}")
             
-            # Create output path
+            # Create output path with input validation
             first_segment = Path(segment_files[0])
+            if not first_segment.exists() or not first_segment.is_file():
+                logger.error(f"🎬 INVALID_SEGMENT_FILE: {first_segment}")
+                return None
+                
+            # Validate recording_id is numeric to prevent injection
+            if not isinstance(recording_id, int) or recording_id <= 0:
+                logger.error(f"🎬 INVALID_RECORDING_ID: {recording_id}")
+                return None
+                
             output_path = first_segment.parent.parent / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
             
-            # Create concat file list for FFmpeg
+            # Validate output path doesn't contain dangerous characters
+            if any(char in str(output_path) for char in [';', '|', '&', '`', '$', '(', ')']):
+                logger.error(f"🎬 UNSAFE_OUTPUT_PATH: {output_path}")
+                return None
+            
+            # Create concat file list for FFmpeg with safe path validation
             concat_file_path = first_segment.parent / f"concat_list_{recording_id}.txt"
             
-            with open(concat_file_path, 'w') as f:
-                for segment in segment_files:
-                    # Use relative paths for better portability
-                    f.write(f"file '{Path(segment).name}'\n")
+            # Validate all segment files exist and are safe
+            validated_segments = []
+            for segment in segment_files:
+                segment_path = Path(segment)
+                if not segment_path.exists() or not segment_path.is_file():
+                    logger.warning(f"🎬 SKIPPING_INVALID_SEGMENT: {segment}")
+                    continue
+                if not segment_path.suffix == '.ts':
+                    logger.warning(f"🎬 SKIPPING_NON_TS_SEGMENT: {segment}")
+                    continue
+                validated_segments.append(segment_path)
             
-            # Run FFmpeg concatenation
+            if not validated_segments:
+                logger.error("🎬 NO_VALID_SEGMENTS_FOUND")
+                return None
+            
+            # Write concat file with escaped paths
+            with open(concat_file_path, 'w', encoding='utf-8') as f:
+                for segment in validated_segments:
+                    # Use relative paths and escape single quotes
+                    safe_name = segment.name.replace("'", "'\"'\"'")
+                    f.write(f"file '{safe_name}'\n")
+            
+            # Run FFmpeg concatenation with safe arguments
             import subprocess
             ffmpeg_cmd = [
                 "ffmpeg",
@@ -592,29 +624,55 @@ class RecordingLifecycleManager:
             
             logger.debug(f"🎬 FFMPEG_CONCAT_CMD: {' '.join(ffmpeg_cmd)}")
             
-            # Execute FFmpeg command
-            process = await asyncio.create_subprocess_exec(
-                *ffmpeg_cmd,
-                cwd=str(first_segment.parent),  # Set working directory
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
+            # Execute FFmpeg command with timeout and safe environment
+            try:
+                process = await asyncio.wait_for(
+                    asyncio.create_subprocess_exec(
+                        *ffmpeg_cmd,
+                        cwd=str(first_segment.parent),  # Set working directory
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        env={"PATH": "/usr/bin:/bin"}  # Restricted environment
+                    ),
+                    timeout=300  # 5 minute timeout
+                )
+                
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=600  # 10 minute timeout for large files
+                )
+                
+            except asyncio.TimeoutError:
+                logger.error("🎬 CONCATENATION_TIMEOUT: FFmpeg process timed out")
+                if 'process' in locals():
+                    process.kill()
+                return None
             
             if process.returncode == 0:
                 logger.info(f"🎬 CONCATENATION_SUCCESS: {output_path}")
                 
-                # Clean up concat file
-                try:
-                    concat_file_path.unlink()
-                except Exception as e:
-                    logger.warning(f"Could not remove concat file: {e}")
-                
-                return output_path
+                # Verify output file was created and has reasonable size
+                if output_path.exists() and output_path.stat().st_size > 0:
+                    # Clean up concat file
+                    try:
+                        concat_file_path.unlink()
+                    except Exception as e:
+                        logger.warning(f"Could not remove concat file: {e}")
+                    
+                    return output_path
+                else:
+                    logger.error("🎬 CONCATENATION_FAILED: Output file not created or empty")
+                    return None
             else:
                 logger.error(f"🎬 CONCATENATION_FAILED: FFmpeg returned {process.returncode}")
-                logger.error(f"FFmpeg stderr: {stderr.decode()}")
+                
+                # Safe stderr decoding with error handling
+                try:
+                    stderr_text = stderr.decode('utf-8', errors='replace')
+                except Exception as e:
+                    stderr_text = f"Could not decode stderr: {e}"
+                
+                logger.error(f"FFmpeg stderr: {stderr_text}")
                 return None
                 
         except Exception as e:
