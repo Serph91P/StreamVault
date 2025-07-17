@@ -233,6 +233,45 @@ class RecordingDatabaseService:
             logger.error(f"Failed to get stream {stream_id}: {e}")
             raise RetryableError(f"Database error: {e}")
 
+    @database_retry
+    async def get_stream_by_external_id(self, external_id: str) -> Optional[Stream]:
+        """Get stream by external ID"""
+        try:
+            self._ensure_db_session()
+            return self.db.query(Stream).filter(Stream.external_id == external_id).first()
+        except Exception as e:
+            logger.error(f"Failed to get stream by external ID {external_id}: {e}")
+            raise RetryableError(f"Database error: {e}")
+
+    @database_retry
+    async def create_stream(self, stream_data: Dict[str, Any]) -> Optional[Stream]:
+        """Create a new stream record"""
+        try:
+            self._ensure_db_session()
+            
+            # Create new stream
+            stream = Stream(
+                streamer_id=stream_data['streamer_id'],
+                title=stream_data.get('title', 'Unknown Stream'),
+                category_name=stream_data.get('category_name', 'Unknown'),
+                language=stream_data.get('language', 'en'),
+                started_at=stream_data.get('started_at', datetime.now()),
+                is_live=stream_data.get('is_live', True),
+                external_id=stream_data.get('external_id', 'unknown')
+            )
+            
+            self.db.add(stream)
+            self.db.commit()
+            self.db.refresh(stream)
+            
+            logger.info(f"Created new stream {stream.id} for streamer {stream.streamer_id}")
+            return stream
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to create stream: {e}")
+            raise RetryableError(f"Database error: {e}")
+
     def close_session(self):
         """Close database session if it exists"""
         if self.db:
