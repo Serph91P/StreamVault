@@ -91,12 +91,13 @@ async def lifespan(app: FastAPI):
         
         # Initialize background queue service
         try:
-            from app.services.init.background_queue_init import BackgroundQueueInit
-            background_queue_init = BackgroundQueueInit()
+            from app.services.init.background_queue_init import BackgroundQueueManager
+            background_queue_init = BackgroundQueueManager()
             await background_queue_init.initialize()
             logger.info("Background queue service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize background queue service: {e}")
+            logger.exception("Full error details:")
         
         # Start recording cleanup service
         try:
