@@ -365,23 +365,57 @@ class RecordingLifecycleManager:
     async def _generate_recording_path(self, streamer_id: int, stream_id: int) -> str:
         """Generate file path for recording"""
         try:
-            # Get streamer info for filename generation
+            logger.info(f"🎬 GENERATE_PATH: streamer_id={streamer_id}, stream_id={stream_id}")
+            
+            # Get streamer and stream info for filename generation
             streamer = await self.database_service.get_streamer_by_id(streamer_id)
+            stream = await self.database_service.get_stream_by_id(stream_id)
+            
+            if not streamer:
+                logger.error(f"🎬 NO_STREAMER: streamer_id={streamer_id}")
+                raise Exception(f"Streamer {streamer_id} not found")
+            
+            if not stream:
+                logger.error(f"🎬 NO_STREAM: stream_id={stream_id}")
+                raise Exception(f"Stream {stream_id} not found")
+            
+            # Create stream_data dictionary for generate_filename
+            stream_data = {
+                "id": stream.id,
+                "title": stream.title or "Unknown Stream",
+                "category_name": stream.category_name or "Unknown",
+                "language": stream.language or "en",
+                "started_at": stream.started_at or datetime.now()
+            }
+            
+            logger.info(f"🎬 CALLING_GENERATE_FILENAME: streamer={streamer.username}")
+            
+            # Use default template for now
+            template = "{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}"
             
             filename = await generate_filename(
-                streamer_username=streamer.username if streamer else f"streamer_{streamer_id}",
-                stream_id=stream_id,
-                timestamp=datetime.now()
+                streamer=streamer,
+                stream_data=stream_data,
+                template=template
             )
             
+            # Add .ts extension
+            if not filename.endswith('.ts'):
+                filename += '.ts'
+            
             recordings_dir = self.config_manager.get_recordings_directory()
-            return str(Path(recordings_dir) / filename)
+            full_path = str(Path(recordings_dir) / filename)
+            
+            logger.info(f"🎬 GENERATED_PATH: {full_path}")
+            return full_path
             
         except Exception as e:
-            logger.error(f"Failed to generate recording path: {e}")
+            logger.error(f"🎬 GENERATE_PATH_ERROR: Failed to generate recording path: {e}", exc_info=True)
             # Fallback path
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            return f"/recordings/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
+            fallback_path = f"/recordings/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
+            logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
+            return fallback_path
 
     # Shutdown methods
     
