@@ -172,8 +172,8 @@ class RecordingDatabaseService:
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
             
             if recording:
-                old_path = recording.file_path
-                recording.file_path = new_path
+                old_path = recording.path
+                recording.path = new_path
                 self.db.commit()
                 logger.info(f"Updated recording {recording_id} path: {old_path} → {new_path}")
             else:
