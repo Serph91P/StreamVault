@@ -107,32 +107,49 @@ export function usePWA() {
       }
 
       // Get existing subscription or create new one
+      console.log('🔔 Starting push subscription process...')
       let subscription = await registration.value.pushManager.getSubscription()
+      console.log('🔔 Existing subscription:', subscription ? 'Found' : 'None')
       
       if (!subscription) {
+        console.log('🔔 Fetching VAPID public key...')
         // Generate VAPID keys on server side and use the public key here
         const response = await fetch('/api/push/vapid-public-key')
         const { publicKey } = await response.json()
+        console.log('🔔 VAPID public key received:', publicKey?.substring(0, 20) + '...')
 
+        console.log('🔔 Creating new push subscription...')
         subscription = await registration.value.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey)
         })
+        console.log('🔔 New subscription created:', subscription)
       }
 
+      console.log('🔔 Sending subscription to server...')
+      const subscriptionData = {
+        subscription: subscription.toJSON(),
+        userAgent: navigator.userAgent
+      }
+      console.log('🔔 Subscription data:', subscriptionData)
+      
       // Send subscription to server
-      await fetch('/api/push/subscribe', {
+      const serverResponse = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          subscription: subscription.toJSON(),
-          userAgent: navigator.userAgent
-        })
+        body: JSON.stringify(subscriptionData)
       })
+      
+      const result = await serverResponse.json()
+      console.log('🔔 Server response:', result)
+      
+      if (!serverResponse.ok) {
+        throw new Error(`Server error: ${result.message || 'Unknown error'}`)
+      }
 
-      console.log('Push subscription successful:', subscription)
+      console.log('🔔 Push subscription successful!')
       return subscription
     } catch (error) {
       console.error('Push subscription failed:', error)
