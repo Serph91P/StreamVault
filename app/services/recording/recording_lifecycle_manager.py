@@ -414,9 +414,9 @@ class RecordingLifecycleManager:
             )
             
             # Clean up filename and add .ts extension
-            # Remove any existing video extensions from the filename
+            # Remove any existing video extensions from the filename (case-insensitive)
             for ext in self.SUPPORTED_VIDEO_EXTENSIONS:
-                if filename.endswith(ext):
+                if filename.lower().endswith(ext):
                     filename = filename[:-len(ext)]
                     break  # Stop after first match to avoid unnecessary iterations
             
@@ -509,8 +509,9 @@ class RecordingLifecycleManager:
             file_size = Path(recording_path).stat().st_size
             logger.info(f"🎬 RECORDING_FILE_FOUND: {recording_path} ({file_size} bytes)")
             
-            # Import background queue service
+            # Import background queue service and TaskPriority
             from app.services.background_queue_service import background_queue_service
+            from app.services.queues.task_progress_tracker import TaskPriority
             background_queue = background_queue_service
             
             # Schedule post-processing tasks
@@ -526,7 +527,7 @@ class RecordingLifecycleManager:
                     "streamer_name": streamer_data.username,
                     "stream_title": stream_data.title or "Unknown Stream"
                 },
-                priority=1
+                priority=TaskPriority.HIGH
             )
             
             # 2. Metadata generation task
@@ -540,7 +541,7 @@ class RecordingLifecycleManager:
                     "streamer_name": streamer_data.username,
                     "stream_title": stream_data.title or "Unknown Stream"
                 },
-                priority=2
+                priority=TaskPriority.NORMAL
             )
             
             # 3. Thumbnail generation task
@@ -551,7 +552,7 @@ class RecordingLifecycleManager:
                     "video_path": recording_path.replace('.ts', '.mp4'),
                     "streamer_name": streamer_data.username
                 },
-                priority=3
+                priority=TaskPriority.NORMAL
             )
             
             # 4. Cleanup task (remove .ts files after processing)
@@ -562,7 +563,7 @@ class RecordingLifecycleManager:
                     "cleanup_paths": [recording_path],  # Remove .ts file
                     "streamer_name": streamer_data.username
                 },
-                priority=4
+                priority=TaskPriority.LOW
             )
             
             logger.info(f"🎬 POST_PROCESSING_SCHEDULED: recording_id={recording_id}")
