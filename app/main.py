@@ -89,6 +89,15 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
         
+        # Initialize background queue service
+        try:
+            from app.services.init.background_queue_init import BackgroundQueueInit
+            background_queue_init = BackgroundQueueInit()
+            await background_queue_init.initialize()
+            logger.info("Background queue service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize background queue service: {e}")
+        
         # Start recording cleanup service
         try:
             from app.services.system.cleanup_service import CleanupService

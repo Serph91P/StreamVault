@@ -123,9 +123,10 @@ class RecordingLifecycleManager:
                     additional_data={'reason': reason}
                 )
             
-            # If successfully stopped, trigger post-processing
-            if success and reason == "automatic":
-                logger.info(f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}")
+            # Trigger post-processing for automatic stops (stream ended)
+            # Even if process termination failed, streamlink may have finished correctly
+            if reason == "automatic":
+                logger.info(f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, success={success}")
                 await self._trigger_post_processing(recording_id)
             
             return success
@@ -452,21 +453,51 @@ class RecordingLifecycleManager:
                 logger.error(f"Streamer {stream_data.streamer_id} not found for post-processing")
                 return
             
-            # Get path to recording file
+            # For segmented recordings, find the actual segments
             recording_path = recording_data.path
             if not recording_path:
                 logger.error(f"No recording path found for recording {recording_id}")
                 return
+                
+            # Check if this is a segmented recording
+            segments_dir = recording_path.replace('.ts', '_segments')
+            if Path(segments_dir).exists():
+                logger.info(f"🎬 SEGMENTED_RECORDING_DETECTED: {segments_dir}")
+                
+                # Find all segment files
+                segment_files = list(Path(segments_dir).glob("*_part*.ts"))
+                segment_files.sort()  # Sort to maintain order
+                
+                if segment_files:
+                    logger.info(f"🎬 FOUND_SEGMENTS: {len(segment_files)} segments")
+                    
+                    # Use the first segment as the main recording path for now
+                    # TODO: Implement segment concatenation
+                    recording_path = str(segment_files[0])
+                    
+                    # Update the recording path in database
+                    await self.database_service.update_recording_path(recording_id, recording_path)
+                else:
+                    logger.warning(f"🎬 NO_SEGMENTS_FOUND: {segments_dir}")
+                    return
+            
+            # Verify the recording file exists
+            if not Path(recording_path).exists():
+                logger.error(f"🎬 RECORDING_FILE_NOT_FOUND: {recording_path}")
+                return
+            
+            file_size = Path(recording_path).stat().st_size
+            logger.info(f"🎬 RECORDING_FILE_FOUND: {recording_path} ({file_size} bytes)")
             
             # Import background queue service
-            from app.services.system.background_queue_service import get_background_queue_service
-            background_queue = get_background_queue_service()
+            from app.services.background_queue_service import background_queue_service
+            background_queue = background_queue_service
             
             # Schedule post-processing tasks
             logger.info(f"🎬 SCHEDULING_POST_PROCESSING_TASKS: recording_id={recording_id}")
             
             # 1. MP4 remux task
-            await background_queue.add_task(
+            await background_queue.enqueue_task(
                 "mp4_remux",
                 {
                     "recording_id": recording_id,
@@ -479,7 +510,7 @@ class RecordingLifecycleManager:
             )
             
             # 2. Metadata generation task
-            await background_queue.add_task(
+            await background_queue.enqueue_task(
                 "metadata_generation",
                 {
                     "recording_id": recording_id,
@@ -493,7 +524,7 @@ class RecordingLifecycleManager:
             )
             
             # 3. Thumbnail generation task
-            await background_queue.add_task(
+            await background_queue.enqueue_task(
                 "thumbnail_generation",
                 {
                     "recording_id": recording_id,
@@ -504,7 +535,7 @@ class RecordingLifecycleManager:
             )
             
             # 4. Cleanup task (remove .ts files after processing)
-            await background_queue.add_task(
+            await background_queue.enqueue_task(
                 "cleanup",
                 {
                     "recording_id": recording_id,
