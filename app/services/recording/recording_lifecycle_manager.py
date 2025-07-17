@@ -601,10 +601,28 @@ class RecordingLifecycleManager:
 
     async def _get_or_create_stream(self, streamer_id: int, stream_info: Dict[str, Any]):
         """Get existing stream or create new one"""
-        # This would typically involve database operations
-        # For now, return a mock stream object
-        class MockStream:
-            def __init__(self):
-                self.id = hash(f"{streamer_id}_{stream_info.get('id', 'unknown')}")
-        
-        return MockStream()
+        try:
+            # Check if stream already exists
+            existing_stream = await self.database_service.get_stream_by_external_id(
+                stream_info.get('id', 'unknown')
+            )
+            
+            if existing_stream:
+                return existing_stream
+            
+            # Create new stream
+            stream_data = {
+                'streamer_id': streamer_id,
+                'title': stream_info.get('title', 'Unknown Stream'),
+                'category_name': stream_info.get('game_name', 'Unknown'),
+                'language': stream_info.get('language', 'en'),
+                'started_at': datetime.now(),
+                'is_live': True,
+                'external_id': stream_info.get('id', 'unknown')
+            }
+            
+            return await self.database_service.create_stream(stream_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to get or create stream: {e}")
+            return None
