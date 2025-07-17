@@ -12,28 +12,7 @@ const totalStreamers = computed(() => streamers.value.length)
 const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
 const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
 
-// Category history - get unique categories from streamers
-const categoryHistory = computed(() => {
-  const categories = new Map()
-  streamers.value.forEach(streamer => {
-    if (streamer.category_name) {
-      categories.set(streamer.category_name, {
-        name: streamer.category_name,
-        lastSeen: streamer.last_updated || new Date().toISOString(),
-        streamerCount: (categories.get(streamer.category_name)?.streamerCount || 0) + 1
-      })
-    }
-  })
-  return Array.from(categories.values())
-    .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
-    .slice(0, 6) // Show only top 6 categories
-})
 
-// Get category image URL
-const getCategoryImageUrl = (categoryName: string) => {
-  if (!categoryName) return ''
-  return `/api/categories/image/${encodeURIComponent(categoryName)}`
-}
 
 // For last recording - derived from streamers data (no API calls)
 const lastRecording = ref<any>(null)
@@ -150,11 +129,7 @@ watch(streamers, () => {
   updateLastRecording()
 }, { deep: true })
 
-// Handle image errors
-const handleImageError = (event: Event) => {
-  const img = event.target as HTMLImageElement
-  img.src = '/images/categories/default-category.svg'
-}
+
 
 onMounted(async () => {
   await fetchStreamers()
@@ -196,32 +171,6 @@ onMounted(async () => {
         <div class="dashboard-actions">
           <router-link to="/streamers" class="btn btn-primary">Manage Streamers</router-link>
           <router-link to="/add-streamer" class="btn btn-secondary">Add New Streamer</router-link>
-        </div>
-      </div>
-      
-      <!-- Category History Section -->
-      <div v-if="categoryHistory.length > 0" class="category-history">
-        <h3>Recent Categories</h3>
-        <div class="category-grid">
-          <div 
-            v-for="category in categoryHistory" 
-            :key="category.name"
-            class="category-card"
-          >
-            <div class="category-image-container">
-              <img 
-                :src="getCategoryImageUrl(category.name)"
-                :alt="category.name"
-                class="category-image"
-                @error="handleImageError"
-              />
-            </div>
-            <div class="category-info">
-              <h4>{{ category.name }}</h4>
-              <p>{{ category.streamerCount }} {{ category.streamerCount === 1 ? 'streamer' : 'streamers' }}</p>
-              <small>Last seen: {{ new Date(category.lastSeen).toLocaleDateString() }}</small>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -293,68 +242,5 @@ onMounted(async () => {
   }
 }
 
-.category-history {
-  background: var(--background-secondary);
-  border-radius: var(--radius-md);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  padding: 1.5rem 2rem;
-  margin-bottom: 2rem;
-}
 
-.category-history h3 {
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-  font-size: 1.5rem;
-}
-
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.category-card {
-  background: var(--background-card);
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease;
-}
-
-.category-card:hover {
-  transform: translateY(-2px);
-}
-
-.category-image-container {
-  width: 100%;
-  height: 120px;
-  margin-bottom: 1rem;
-  border-radius: 6px;
-  overflow: hidden;
-  background: #f8f9fa;
-}
-
-.category-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
-}
-
-.category-info h4 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-primary);
-  font-size: 1.1rem;
-}
-
-.category-info p {
-  margin: 0 0 0.25rem 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.category-info small {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
 </style>
