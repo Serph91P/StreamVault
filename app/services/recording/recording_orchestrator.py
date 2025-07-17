@@ -21,6 +21,7 @@ from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
+from app.services.process_monitor import process_monitor
 
 logger = logging.getLogger("streamvault")
 
