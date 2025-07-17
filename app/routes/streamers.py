@@ -770,6 +770,10 @@ async def delete_all_streams(
             # Delete all stream events for this stream
             db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
             
+            # Delete active recording state for this stream
+            from app.models import ActiveRecordingState
+            db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream.id).delete()
+            
             # Delete the stream record itself
             db.delete(stream)
         
