@@ -410,9 +410,14 @@ class RecordingLifecycleManager:
                 template=template
             )
             
+            # Clean up filename and add .ts extension
+            # Remove any existing video extensions from the filename
+            for ext in ['.mp4', '.ts', '.mkv', '.avi', '.mov']:
+                if filename.endswith(ext):
+                    filename = filename[:-len(ext)]
+            
             # Add .ts extension
-            if not filename.endswith('.ts'):
-                filename += '.ts'
+            filename += '.ts'
             
             recordings_dir = self.config_manager.get_recordings_directory()
             
