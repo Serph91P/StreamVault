@@ -15,6 +15,7 @@ import warnings
 from typing import Dict, Any, Optional, Callable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
+from .process_monitor import process_monitor
 
 logger = logging.getLogger("streamvault")
 
@@ -44,12 +45,18 @@ class BackgroundQueueService:
         await self.queue_manager.start()
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
+        
+        # Start process monitor
+        await process_monitor.start()
 
     async def stop(self):
         """Stop the background queue service"""
         await self.queue_manager.stop()
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
+        
+        # Stop process monitor
+        await process_monitor.stop()
 
     def register_task_handler(self, task_type: str, handler: Callable):
         """Register a handler for a specific task type"""
@@ -106,7 +113,21 @@ class BackgroundQueueService:
 
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
-        return self.queue_manager.get_queue_statistics()
+        queue_stats = self.queue_manager.get_queue_statistics()
+        
+        # Add process monitor statistics
+        if process_monitor:
+            try:
+                process_stats = process_monitor.get_system_status()
+                queue_stats.update({
+                    "process_monitor": process_stats,
+                    "active_processes": process_stats.get("active_processes", 0),
+                    "recording_active": process_stats.get("recording_active", False)
+                })
+            except Exception as e:
+                logger.warning(f"Could not get process monitor stats: {e}")
+                
+        return queue_stats
 
     async def get_queue_stats(self) -> Dict[str, Any]:
         """Get queue statistics (async wrapper for API compatibility)"""
@@ -122,6 +143,13 @@ class BackgroundQueueService:
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""
         await self.queue_manager.send_queue_statistics()
+        
+        # Also send process monitor statistics
+        if process_monitor:
+            try:
+                await process_monitor.send_system_status()
+            except Exception as e:
+                logger.warning(f"Could not send process monitor stats: {e}")
 
     # External task tracking methods
     
