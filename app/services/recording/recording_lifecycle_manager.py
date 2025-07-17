@@ -34,13 +34,15 @@ class RecordingLifecycleManager:
     async def start_recording(self, stream_id: int, streamer_id: int, **kwargs) -> Optional[int]:
         """Start a new recording"""
         try:
+            logger.info(f"🎬 LIFECYCLE_START: stream_id={stream_id}, streamer_id={streamer_id}")
+            
             if self._is_shutting_down:
-                logger.warning("Cannot start recording during shutdown")
+                logger.warning("🎬 SHUTDOWN_BLOCK: Cannot start recording during shutdown")
                 return None
             
             # Check capacity
             if not self.state_manager.can_start_new_recording():
-                logger.warning("Cannot start recording: at maximum capacity")
+                logger.warning("🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity")
                 return None
             
             # Generate file path
@@ -225,16 +227,33 @@ class RecordingLifecycleManager:
     async def _start_recording_process(self, recording_id: int, file_path: str, streamer_id: int) -> bool:
         """Start the actual recording process"""
         try:
+            logger.info(f"🎬 LIFECYCLE_START_PROCESS: recording_id={recording_id}, file_path={file_path}")
+            
             if not self.process_manager:
-                logger.error("Process manager not available")
+                logger.error("🎬 NO_PROCESS_MANAGER: Process manager not available")
                 return False
             
-            # Start recording via process manager
-            success = await self.process_manager.start_recording_process(
-                recording_id=recording_id,
-                file_path=file_path,
-                streamer_id=streamer_id
+            # Get the Stream object from the recording to use the new API properly
+            recording = await self.database_service.get_recording_by_id(recording_id)
+            if not recording:
+                logger.error(f"🎬 NO_RECORDING: Recording {recording_id} not found")
+                return False
+            
+            stream = await self.database_service.get_stream_by_id(recording.stream_id)
+            if not stream:
+                logger.error(f"🎬 NO_STREAM: Stream {recording.stream_id} not found for recording {recording_id}")
+                return False
+            
+            logger.info(f"🎬 CALLING_NEW_API: stream_id={stream.id}, output_path={file_path}")
+            
+            # Use the new ProcessManager API with proper parameters
+            process = await self.process_manager.start_recording_process(
+                stream=stream,
+                output_path=file_path,
+                quality="best"  # TODO: Get quality from recording settings
             )
+            
+            success = process is not None
             
             if success:
                 # Start monitoring task
@@ -252,20 +271,32 @@ class RecordingLifecycleManager:
     async def _stop_recording_process(self, recording_id: int) -> bool:
         """Stop the recording process"""
         try:
+            logger.info(f"🎬 LIFECYCLE_STOP_PROCESS: recording_id={recording_id}")
+            
             if not self.process_manager:
-                logger.warning("Process manager not available")
+                logger.warning("🎬 NO_PROCESS_MANAGER: Process manager not available")
                 return False
             
             # Cancel monitoring task
             self.state_manager.cancel_recording_task(recording_id)
             
-            # Stop recording process
-            success = await self.process_manager.stop_recording_process(recording_id)
+            # Get recording to find stream ID
+            recording = await self.database_service.get_recording_by_id(recording_id)
+            if not recording:
+                logger.error(f"🎬 NO_RECORDING: Recording {recording_id} not found for stop")
+                return False
+            
+            # Use new ProcessManager API - process_id format is "stream_{stream_id}"
+            process_id = f"stream_{recording.stream_id}"
+            logger.info(f"🎬 TERMINATING_PROCESS: process_id={process_id}")
+            
+            success = await self.process_manager.terminate_process(process_id)
+            logger.info(f"🎬 STOP_RESULT: success={success}")
             
             return success
             
         except Exception as e:
-            logger.error(f"Failed to stop recording process {recording_id}: {e}")
+            logger.error(f"🎬 STOP_ERROR: Failed to stop recording process {recording_id}: {e}")
             return False
 
     async def _handle_recording_completion(self, recording_id: int) -> None:
@@ -385,9 +416,24 @@ class RecordingLifecycleManager:
     
     async def _check_recording_process(self, recording_id: int) -> bool:
         """Check if recording process is still running"""
-        if not self.process_manager:
+        try:
+            if not self.process_manager:
+                return False
+            
+            # Get recording to find stream ID
+            recording = await self.database_service.get_recording_by_id(recording_id)
+            if not recording:
+                return False
+            
+            # Check if process is active using new API
+            process_id = f"stream_{recording.stream_id}"
+            is_active = process_id in self.process_manager.active_processes
+            
+            return is_active
+            
+        except Exception as e:
+            logger.error(f"🎬 CHECK_PROCESS_ERROR: {e}")
             return False
-        return await self.process_manager.is_recording_active(recording_id)
 
     async def _update_recording_progress(self, recording_id: int) -> None:
         """Update recording progress"""

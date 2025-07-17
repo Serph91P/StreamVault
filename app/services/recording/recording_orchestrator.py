@@ -65,7 +65,10 @@ class RecordingOrchestrator:
 
     async def start_recording(self, stream_id: int, streamer_id: int, **kwargs) -> Optional[int]:
         """Start a new recording - main entry point"""
-        return await self.lifecycle_manager.start_recording(stream_id, streamer_id, **kwargs)
+        logger.info(f"🎬 ORCHESTRATOR_START: stream_id={stream_id}, streamer_id={streamer_id}")
+        result = await self.lifecycle_manager.start_recording(stream_id, streamer_id, **kwargs)
+        logger.info(f"🎬 ORCHESTRATOR_RESULT: recording_id={result}")
+        return result
 
     async def stop_recording(self, recording_id: int, reason: str = "manual") -> bool:
         """Stop an active recording"""
