@@ -22,6 +22,7 @@ class RecordingLifecycleManager:
     # Constants for segment file patterns
     SEGMENT_FILE_PATTERN = "*_part*.ts"
     SEGMENT_DIR_SUFFIX = "_segments"
+    SEGMENT_PART_IDENTIFIER = "_part"
     
     def __init__(self, config_manager=None, process_manager=None, 
                  database_service=None, websocket_service=None, state_manager=None):
@@ -567,7 +568,7 @@ class RecordingLifecycleManager:
             
             # Create output path
             first_segment = Path(segment_files[0])
-            output_path = first_segment.parent.parent / f"{first_segment.stem.split('_part')[0]}.ts"
+            output_path = first_segment.parent.parent / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
             
             # Create concat file list for FFmpeg
             concat_file_path = first_segment.parent / f"concat_list_{recording_id}.txt"
