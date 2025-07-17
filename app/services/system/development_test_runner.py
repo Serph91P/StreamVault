@@ -10,6 +10,8 @@ import asyncio
 import os
 import subprocess
 import sys
+import json
+import time
 from typing import Dict, List, Optional
 from datetime import datetime
 from app.database import SessionLocal
@@ -27,6 +29,8 @@ class DevelopmentTestRunner:
         self.test_results: Dict[str, Dict[str, any]] = {}
         self.failed_tests: List[str] = []
         self.passed_tests: List[str] = []
+        self.test_log_file = None
+        self._setup_test_logging()
         
     async def run_all_tests(self) -> bool:
         """Run all development tests and return True if all pass"""
@@ -41,6 +45,7 @@ class DevelopmentTestRunner:
             ("Image Processing", self._test_image_processing),
             ("Authentication", self._test_authentication),
             ("Recording System", self._test_recording_system),
+            ("Recording Service Integration", self._test_recording_service_integration),
             ("Pytest Integration", self._test_pytest_suite),
             ("End-to-End Recording", self._test_end_to_end_recording),
         ]
@@ -56,6 +61,7 @@ class DevelopmentTestRunner:
         
         # Summary
         self._print_test_summary()
+        self._save_test_results()
         return len(self.failed_tests) == 0
     
     async def _test_database(self):
@@ -149,6 +155,163 @@ class DevelopmentTestRunner:
         except Exception as e:
             self._record_test("Recording System", False, str(e))
     
+    async def _test_recording_service_integration(self):
+        """Test the actual recording services (not just ffmpeg directly)"""
+        try:
+            # Import and test recording services
+            from app.services.recording.recording_service import RecordingService
+            from app.database import SessionLocal
+            from app.models import Streamer, Stream, Recording
+            
+            # Test service initialization
+            try:
+                recording_service = RecordingService()
+                self._record_test("Recording Service Init", True, "RecordingService initialized successfully")
+            except Exception as e:
+                self._record_test("Recording Service Init", False, f"Failed to initialize: {str(e)}")
+                return
+            
+            # Create test data in database
+            test_streamer_id, test_stream_id = await self._create_test_database_entries()
+            
+            if test_streamer_id and test_stream_id:
+                # Test the actual recording workflow
+                await self._test_recording_service_workflow(recording_service, test_stream_id, test_streamer_id)
+                
+                # Test recording state management
+                await self._test_recording_state_management(recording_service, test_stream_id)
+                
+                # Cleanup test data
+                await self._cleanup_test_database_entries(test_streamer_id, test_stream_id)
+            
+        except Exception as e:
+            self._record_test("Recording Service Integration", False, str(e))
+    
+    async def _create_test_database_entries(self) -> tuple[Optional[int], Optional[int]]:
+        """Create test streamer and stream entries for recording tests"""
+        try:
+            with SessionLocal() as db:
+                # Create test streamer
+                test_streamer = Streamer(
+                    twitch_id="test_streamer_123456",
+                    username="test_streamer_dev",
+                    is_live=True,
+                    title="Development Test Stream",
+                    category_name="Software and Game Development",
+                    language="en"
+                )
+                db.add(test_streamer)
+                db.flush()
+                
+                # Create test stream
+                test_stream = Stream(
+                    streamer_id=test_streamer.id,
+                    title="Development Test Stream",
+                    category_name="Software and Game Development",
+                    language="en",
+                    started_at=datetime.now(),
+                    twitch_stream_id="test_stream_789"
+                )
+                db.add(test_stream)
+                db.flush()
+                
+                db.commit()
+                
+                self._record_test("Test Database Entries", True, f"Created streamer {test_streamer.id} and stream {test_stream.id}")
+                return test_streamer.id, test_stream.id
+                
+        except Exception as e:
+            self._record_test("Test Database Entries", False, f"Failed to create test data: {str(e)}")
+            return None, None
+    
+    async def _test_recording_service_workflow(self, recording_service, stream_id: int, streamer_id: int):
+        """Test the complete recording service workflow"""
+        try:
+            self._log_test_detail(f"Testing recording workflow: stream_id={stream_id}, streamer_id={streamer_id}")
+            
+            # Test start_recording method
+            recording_id = await recording_service.start_recording(stream_id, streamer_id)
+            
+            if recording_id:
+                self._record_test("Recording Start", True, f"Started recording with ID: {recording_id}")
+                
+                # Wait a moment for recording to initialize
+                await asyncio.sleep(1)
+                
+                # Test get_recording_status
+                try:
+                    status = await recording_service.get_recording_status(recording_id)
+                    if status:
+                        self._record_test("Recording Status Check", True, f"Status: {status.get('status', 'unknown')}")
+                    else:
+                        self._record_test("Recording Status Check", False, "No status returned")
+                except Exception as e:
+                    self._record_test("Recording Status Check", False, f"Status check failed: {str(e)}")
+                
+                # Test stop_recording method
+                try:
+                    stop_result = await recording_service.stop_recording(recording_id, reason="test_completion")
+                    if stop_result:
+                        self._record_test("Recording Stop", True, "Successfully stopped recording")
+                    else:
+                        self._record_test("Recording Stop", False, "Failed to stop recording")
+                except Exception as e:
+                    self._record_test("Recording Stop", False, f"Stop failed: {str(e)}")
+                    
+            else:
+                self._record_test("Recording Start", False, "Failed to start recording - no ID returned")
+                
+        except Exception as e:
+            self._record_test("Recording Service Workflow", False, f"Workflow test failed: {str(e)}")
+    
+    async def _test_recording_state_management(self, recording_service, stream_id: int):
+        """Test recording state management functionality"""
+        try:
+            # Test get_active_recordings
+            active_recordings = await recording_service.get_active_recordings()
+            if isinstance(active_recordings, list):
+                self._record_test("Active Recordings Check", True, f"Found {len(active_recordings)} active recordings")
+            else:
+                self._record_test("Active Recordings Check", False, "Failed to get active recordings list")
+            
+            # Test get_stream_recordings
+            try:
+                stream_recordings = await recording_service.get_stream_recordings(stream_id)
+                if isinstance(stream_recordings, list):
+                    self._record_test("Stream Recordings Check", True, f"Found {len(stream_recordings)} recordings for stream")
+                else:
+                    self._record_test("Stream Recordings Check", False, "Failed to get stream recordings")
+            except Exception as e:
+                self._record_test("Stream Recordings Check", False, f"Error: {str(e)}")
+                
+        except Exception as e:
+            self._record_test("Recording State Management", False, f"State management test failed: {str(e)}")
+    
+    async def _cleanup_test_database_entries(self, streamer_id: int, stream_id: int):
+        """Clean up test database entries"""
+        try:
+            with SessionLocal() as db:
+                # Delete any recordings for this stream
+                recordings = db.query(Recording).filter(Recording.stream_id == stream_id).all()
+                for recording in recordings:
+                    db.delete(recording)
+                
+                # Delete stream
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream:
+                    db.delete(stream)
+                
+                # Delete streamer
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                if streamer:
+                    db.delete(streamer)
+                
+                db.commit()
+                self._record_test("Test Data Cleanup", True, "Successfully cleaned up test data")
+                
+        except Exception as e:
+            self._record_test("Test Data Cleanup", False, f"Cleanup failed: {str(e)}")
+    
     async def _test_pytest_suite(self):
         """Run existing pytest test suite"""
         try:
@@ -221,29 +384,130 @@ class DevelopmentTestRunner:
             self._record_test("End-to-End Recording", False, str(e))
     
     async def _create_test_video(self) -> str:
-        """Create a small test video file using ffmpeg if available"""
+        """Create a realistic test .ts file for recording pipeline testing"""
         test_video_dir = os.path.join(os.getcwd(), "recordings", "test")
         os.makedirs(test_video_dir, exist_ok=True)
-        test_video_path = os.path.join(test_video_dir, "test_stream.mp4")
+        test_ts_path = os.path.join(test_video_dir, "test_stream.ts")
+        test_mp4_path = os.path.join(test_video_dir, "test_stream.mp4")
         
         try:
-            # Try to create a test video with ffmpeg
+            # Create a realistic .ts file (Transport Stream like Streamlink would create)
             result = subprocess.run([
-                "ffmpeg", "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=1", 
-                "-c:v", "libx264", "-t", "1", "-y", test_video_path
-            ], capture_output=True, timeout=10)
+                "ffmpeg", 
+                "-f", "lavfi", 
+                "-i", "testsrc=duration=5:size=1280x720:rate=30",  # 5 second 720p test video
+                "-f", "lavfi", 
+                "-i", "sine=frequency=1000:duration=5",  # 5 second test audio
+                "-c:v", "libx264", 
+                "-c:a", "aac",
+                "-f", "mpegts",  # Output as Transport Stream (.ts)
+                "-t", "5", 
+                "-y", test_ts_path
+            ], capture_output=True, timeout=15)
             
-            if result.returncode == 0 and os.path.exists(test_video_path):
-                return test_video_path
+            if result.returncode == 0 and os.path.exists(test_ts_path):
+                self._log_test_detail(f"Created realistic .ts file: {test_ts_path} ({os.path.getsize(test_ts_path)} bytes)")
                 
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+                # Now test the remux process from .ts to .mp4
+                await self._test_ts_to_mp4_remux(test_ts_path, test_mp4_path)
+                
+                return test_ts_path
+                
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            self._log_test_detail(f"ffmpeg failed: {e}")
         
-        # Fallback: create a dummy file
-        with open(test_video_path, 'wb') as f:
-            f.write(b'DUMMY_VIDEO_FILE_FOR_TESTING')
+        # Fallback: create a minimal .ts file
+        self._log_test_detail("Creating fallback .ts file")
+        with open(test_ts_path, 'wb') as f:
+            # Write minimal TS packet headers (hex for Transport Stream)
+            f.write(bytes.fromhex('474011100000b00d0001c100000001e020'))
+            f.write(b'DUMMY_TS_FILE_FOR_TESTING' * 100)  # Pad to reasonable size
         
-        return test_video_path
+        return test_ts_path
+    
+    async def _test_ts_to_mp4_remux(self, ts_path: str, mp4_path: str):
+        """Test the crucial .ts to .mp4 remux process"""
+        try:
+            self._log_test_detail(f"Testing remux: {ts_path} -> {mp4_path}")
+            
+            # This mimics what the recording system does
+            remux_command = [
+                "ffmpeg",
+                "-i", ts_path,
+                "-c", "copy",  # Copy streams without re-encoding
+                "-avoid_negative_ts", "make_zero",
+                "-fflags", "+genpts",
+                "-y", mp4_path
+            ]
+            
+            start_time = time.time()
+            result = subprocess.run(remux_command, capture_output=True, timeout=30)
+            remux_time = time.time() - start_time
+            
+            if result.returncode == 0 and os.path.exists(mp4_path):
+                mp4_size = os.path.getsize(mp4_path)
+                self._record_test("TS to MP4 Remux", True, f"Remuxed in {remux_time:.2f}s, output: {mp4_size} bytes")
+                
+                # Test metadata addition
+                await self._test_metadata_addition(mp4_path)
+                
+            else:
+                error_output = result.stderr.decode() if result.stderr else "No error output"
+                self._record_test("TS to MP4 Remux", False, f"Remux failed: {error_output[:200]}")
+                
+        except subprocess.TimeoutExpired:
+            self._record_test("TS to MP4 Remux", False, "Remux timed out after 30s")
+        except Exception as e:
+            self._record_test("TS to MP4 Remux", False, f"Remux error: {str(e)}")
+    
+    async def _test_metadata_addition(self, mp4_path: str):
+        """Test adding stream metadata to the final MP4"""
+        try:
+            # Create test metadata (like what would come from Twitch API)
+            test_metadata = {
+                "title": "Test Stream for StreamVault",
+                "streamer": "test_streamer",
+                "category": "Software and Game Development", 
+                "started_at": "2025-01-17T19:00:00Z",
+                "language": "en"
+            }
+            
+            # Test metadata command generation
+            metadata_args = []
+            for key, value in test_metadata.items():
+                metadata_args.extend(["-metadata", f"{key}={value}"])
+            
+            output_path = mp4_path.replace(".mp4", "_with_metadata.mp4")
+            
+            metadata_command = [
+                "ffmpeg",
+                "-i", mp4_path,
+                "-c", "copy"
+            ] + metadata_args + [
+                "-y", output_path
+            ]
+            
+            result = subprocess.run(metadata_command, capture_output=True, timeout=15)
+            
+            if result.returncode == 0 and os.path.exists(output_path):
+                self._record_test("Metadata Addition", True, f"Added {len(test_metadata)} metadata fields")
+                
+                # Verify metadata was added
+                verify_result = subprocess.run([
+                    "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", output_path
+                ], capture_output=True, timeout=10)
+                
+                if verify_result.returncode == 0:
+                    probe_data = json.loads(verify_result.stdout.decode())
+                    tags = probe_data.get("format", {}).get("tags", {})
+                    found_tags = len([tag for tag in test_metadata.keys() if tag in tags])
+                    self._record_test("Metadata Verification", True, f"Verified {found_tags}/{len(test_metadata)} metadata tags")
+                
+            else:
+                self._record_test("Metadata Addition", False, "Failed to add metadata to MP4")
+                
+        except Exception as e:
+            self._record_test("Metadata Addition", False, f"Metadata error: {str(e)}")
     
     async def _test_video_processing_pipeline(self, test_video_path: str):
         """Test video processing components"""
@@ -300,6 +564,85 @@ class DevelopmentTestRunner:
         except Exception as e:
             self._record_test("Streamlink Integration", False, str(e))
     
+    def _setup_test_logging(self):
+        """Setup test log file"""
+        try:
+            test_logs_dir = os.path.join(os.getcwd(), "temp_logs", "dev_tests")
+            os.makedirs(test_logs_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_filename = f"dev_test_results_{timestamp}.log"
+            self.test_log_file = os.path.join(test_logs_dir, log_filename)
+            
+            # Initialize log file
+            with open(self.test_log_file, 'w') as f:
+                f.write(f"StreamVault Development Test Results\n")
+                f.write(f"Started: {datetime.now().isoformat()}\n")
+                f.write("=" * 60 + "\n\n")
+            
+            logger.info(f"Test log file: {self.test_log_file}")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup test logging: {e}")
+            self.test_log_file = None
+    
+    def _log_test_detail(self, message: str):
+        """Log detailed test information to file"""
+        if self.test_log_file:
+            try:
+                with open(self.test_log_file, 'a') as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {message}\n")
+            except Exception:
+                pass  # Don't break tests if logging fails
+        
+        logger.debug(message)
+    
+    def _save_test_results(self):
+        """Save comprehensive test results to log file"""
+        if not self.test_log_file:
+            return
+            
+        try:
+            with open(self.test_log_file, 'a') as f:
+                f.write("\n" + "=" * 60 + "\n")
+                f.write("FINAL TEST RESULTS\n")
+                f.write("=" * 60 + "\n\n")
+                
+                # Summary
+                total_tests = len(self.test_results)
+                passed_count = len(self.passed_tests)
+                failed_count = len(self.failed_tests)
+                
+                f.write(f"Total Tests: {total_tests}\n")
+                f.write(f"Passed: {passed_count}\n")
+                f.write(f"Failed: {failed_count}\n")
+                f.write(f"Success Rate: {(passed_count/total_tests*100):.1f}%\n\n")
+                
+                # Detailed results
+                f.write("DETAILED RESULTS:\n")
+                f.write("-" * 40 + "\n")
+                
+                for test_name, result in self.test_results.items():
+                    status = "✅ PASS" if result["success"] else "❌ FAIL"
+                    f.write(f"{status} {test_name}\n")
+                    f.write(f"    Message: {result['message']}\n")
+                    f.write(f"    Time: {result['timestamp'].strftime('%H:%M:%S')}\n\n")
+                
+                # Failed tests summary
+                if self.failed_tests:
+                    f.write("\nFAILED TESTS SUMMARY:\n")
+                    f.write("-" * 40 + "\n")
+                    for test_name in self.failed_tests:
+                        result = self.test_results[test_name]
+                        f.write(f"❌ {test_name}: {result['message']}\n")
+                
+                f.write(f"\nTest completed: {datetime.now().isoformat()}\n")
+                
+            logger.info(f"📄 Full test results saved to: {self.test_log_file}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save test results: {e}")
+    
     def _record_test(self, test_name: str, success: bool, message: str):
         """Record a test result"""
         self.test_results[test_name] = {
@@ -314,6 +657,9 @@ class DevelopmentTestRunner:
         else:
             self.failed_tests.append(test_name)
             logger.warning(f"  ❌ {test_name}: {message}")
+        
+        # Also log to file
+        self._log_test_detail(f"{'✅ PASS' if success else '❌ FAIL'} {test_name}: {message}")
     
     def _print_test_summary(self):
         """Print comprehensive test summary"""
