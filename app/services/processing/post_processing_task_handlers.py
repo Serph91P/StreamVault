@@ -32,7 +32,7 @@ class PostProcessingTaskHandlers:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
     
-    async def handle_metadata_generation(self, task):
+    async def handle_metadata_generation(self, task, progress_callback=None):
         """Handle metadata generation task"""
         payload = task.payload
         stream_id = payload['stream_id']
@@ -77,7 +77,7 @@ class PostProcessingTaskHandlers:
             )
             raise
     
-    async def handle_chapters_generation(self, task):
+    async def handle_chapters_generation(self, task, progress_callback=None):
         """Handle chapters generation task"""
         payload = task.payload
         stream_id = payload['stream_id']
@@ -121,7 +121,7 @@ class PostProcessingTaskHandlers:
             )
             raise
     
-    async def handle_mp4_remux(self, task):
+    async def handle_mp4_remux(self, task, progress_callback=None):
         """Handle MP4 remux task"""
         payload = task.payload
         stream_id = payload['stream_id']
@@ -234,7 +234,7 @@ class PostProcessingTaskHandlers:
             )
             raise
     
-    async def handle_thumbnail_generation(self, task):
+    async def handle_thumbnail_generation(self, task, progress_callback=None):
         """Handle thumbnail generation task"""
         payload = task.payload
         stream_id = payload['stream_id']
@@ -280,7 +280,7 @@ class PostProcessingTaskHandlers:
             )
             raise
     
-    async def handle_mp4_validation(self, task):
+    async def handle_mp4_validation(self, task, progress_callback=None):
         """Handle MP4 validation task"""
         payload = task.payload
         stream_id = payload['stream_id']
@@ -347,7 +347,7 @@ class PostProcessingTaskHandlers:
             )
             raise
 
-    async def handle_cleanup(self, task):
+    async def handle_cleanup(self, task, progress_callback=None):
         """Handle cleanup task with intelligent TS cleanup"""
         payload = task.payload
         stream_id = payload['stream_id']
