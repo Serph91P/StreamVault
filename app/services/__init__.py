@@ -26,7 +26,7 @@ from app.services.notification_service import NotificationService
 from app.services.streamer_service import StreamerService
 from app.services.system.logging_service import LoggingService
 from app.services.media.metadata_service import MetadataService
-from app.services.communication.enhanced_push_service import EnhancedPushService
+from app.services.communication.webpush_service import ModernWebPushService
 from app.services.system.cleanup_service import CleanupService
 from app.services.core.settings_service import SettingsService
 # Removed: CategoryImageService - now handled by unified_image_service
@@ -50,7 +50,7 @@ __all__ = [
 
     "MigrationService",
     "CleanupService",
-    "EnhancedPushService",
+    "ModernWebPushService",
     "SettingsService",
     "ThumbnailService",
     "ArtworkService",
