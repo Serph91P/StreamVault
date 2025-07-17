@@ -303,8 +303,19 @@ class EventHandlerRegistry:
                     
                     logger.info(f"🎬 STREAM_OFFLINE_NOTIFICATION_SENT: streamer={streamer.username}")
                     logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
-                    # Automatic stop when stream goes offline
-                    await self.recording_service.stop_recording(streamer.id, reason="automatic")
+                    
+                    # Find active recording for this streamer
+                    active_recording = db.query(Recording).filter(
+                        Recording.stream_id == stream.id,
+                        Recording.status == "recording"
+                    ).first()
+                    
+                    if active_recording:
+                        logger.info(f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}")
+                        # Automatic stop when stream goes offline
+                        await self.recording_service.stop_recording(active_recording.id, reason="automatic")
+                    else:
+                        logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream.id}")
             
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
