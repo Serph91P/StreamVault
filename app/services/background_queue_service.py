@@ -15,9 +15,14 @@ import warnings
 from typing import Dict, Any, Optional, Callable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
-from .process_monitor import process_monitor
 
 logger = logging.getLogger("streamvault")
+
+try:
+    from .process_monitor import process_monitor
+except ImportError:
+    logger.warning("ProcessMonitor not available, process monitoring disabled")
+    process_monitor = None
 
 
 class BackgroundQueueService:
@@ -47,7 +52,8 @@ class BackgroundQueueService:
         self.dependency_worker = self.queue_manager.dependency_worker
         
         # Start process monitor
-        await process_monitor.start()
+        if process_monitor:
+            await process_monitor.start()
 
     async def stop(self):
         """Stop the background queue service"""
@@ -56,7 +62,8 @@ class BackgroundQueueService:
         self.dependency_worker = self.queue_manager.dependency_worker
         
         # Stop process monitor
-        await process_monitor.stop()
+        if process_monitor:
+            await process_monitor.stop()
 
     def register_task_handler(self, task_type: str, handler: Callable):
         """Register a handler for a specific task type"""
