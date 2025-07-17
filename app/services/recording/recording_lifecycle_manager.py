@@ -24,6 +24,9 @@ class RecordingLifecycleManager:
     SEGMENT_DIR_SUFFIX = "_segments"
     SEGMENT_PART_IDENTIFIER = "_part"
     
+    # Supported video extensions for filename cleanup
+    SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.ts', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm']
+    
     def __init__(self, config_manager=None, process_manager=None, 
                  database_service=None, websocket_service=None, state_manager=None):
         self.config_manager = config_manager
@@ -412,9 +415,10 @@ class RecordingLifecycleManager:
             
             # Clean up filename and add .ts extension
             # Remove any existing video extensions from the filename
-            for ext in ['.mp4', '.ts', '.mkv', '.avi', '.mov']:
+            for ext in self.SUPPORTED_VIDEO_EXTENSIONS:
                 if filename.endswith(ext):
                     filename = filename[:-len(ext)]
+                    break  # Stop after first match to avoid unnecessary iterations
             
             # Add .ts extension
             filename += '.ts'
