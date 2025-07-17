@@ -25,7 +25,12 @@ class BackgroundQueueManager:
     async def initialize(self):
         """Initialize the background queue service with task handlers"""
         if self.is_initialized:
-            logger.warning("Background queue already initialized")
+            logger.debug("Background queue already initialized, skipping...")
+            return
+        
+        if self.queue_service.is_running:
+            logger.info("Background queue service is already running")
+            self.is_initialized = True
             return
         
         logger.info("Initializing background queue service...")
