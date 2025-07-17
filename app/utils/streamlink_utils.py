@@ -124,7 +124,7 @@ def get_streamlink_command(
     if not log_path:
         # Lazy import to avoid circular dependencies
         from importlib import import_module
-        logging_service = import_module("app.services.logging_service").logging_service
+        logging_service = import_module("app.services.system.logging_service").logging_service
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
