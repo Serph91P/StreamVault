@@ -11,6 +11,9 @@ from app.services.processing.post_processing_task_handlers import post_processin
 
 logger = logging.getLogger("streamvault")
 
+# Backward compatibility alias - will be set after class definition
+BackgroundQueueInit = None
+
 class BackgroundQueueManager:
     """Manager for background queue initialization and lifecycle"""
     
@@ -173,3 +176,6 @@ async def cancel_stream_tasks(stream_id: int):
     """Cancel all tasks for a stream"""
     queue_service = get_background_queue_service()
     return await queue_service.cancel_stream_tasks(stream_id)
+
+# Set backward compatibility alias
+BackgroundQueueInit = BackgroundQueueManager
