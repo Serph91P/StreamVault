@@ -23,6 +23,9 @@ logger = logging.getLogger("streamvault")
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes"""
 
+    # Constants for segment file patterns (must match RecordingLifecycleManager)
+    SEGMENT_PART_IDENTIFIER = "_part"
+
     def __init__(self, config_manager=None):
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
@@ -87,7 +90,7 @@ class ProcessManager:
         segment_dir.mkdir(parents=True, exist_ok=True)
         
         # Create first segment path
-        segment_filename = f"{base_path.stem}_part001.ts"
+        segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}001.ts"
         current_segment_path = segment_dir / segment_filename
         
         segment_info = {
@@ -238,7 +241,7 @@ class ProcessManager:
             # Prepare next segment
             segment_info['segment_count'] += 1
             base_path = Path(segment_info['base_output_path'])
-            segment_filename = f"{base_path.stem}_part{segment_info['segment_count']:03d}.ts"
+            segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
             next_segment_path = Path(segment_info['segment_dir']) / segment_filename
             
             segment_info['current_segment_path'] = str(next_segment_path)
