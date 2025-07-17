@@ -394,7 +394,6 @@ async def rate_limit_middleware(request: Request, call_next):
     # Skip rate limiting for health checks, static files, and internal API calls
     if (request.url.path in ["/health", "/favicon.ico"] or 
         request.url.path.startswith("/assets/") or
-        request.url.path.startswith("/images/") or      # Skip rate limiting for static images
         request.url.path.startswith("/api/images/") or  # Skip rate limiting for image API calls
         request.url.path.startswith("/api/sync/") or    # Skip rate limiting for sync API calls
         request.url.path.startswith("/data/")):         # Skip rate limiting for data files
