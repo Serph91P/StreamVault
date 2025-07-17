@@ -1,8 +1,8 @@
 """
 StreamerImageService - Profile image downloading and caching
 
-Extracted from streamer_service.py God Class
-Handles profile image downloading and caching using the unified image service.
+DEPRECATED: Use UnifiedImageService directly instead
+This is just a wrapper around UnifiedImageService for backward compatibility.
 """
 
 import logging

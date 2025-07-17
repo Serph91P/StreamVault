@@ -35,7 +35,7 @@ class TaskQueueManager:
     async def start(self):
         """Start the queue manager and all components"""
         if self.is_running:
-            logger.warning("TaskQueueManager already running")
+            logger.debug("TaskQueueManager already running, skipping start...")
             return
             
         self.is_running = True

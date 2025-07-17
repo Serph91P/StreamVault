@@ -108,7 +108,7 @@ class DevelopmentTestRunner:
             ("ThumbnailService", "app.services.images.thumbnail_service", "ThumbnailService"),
             
             # Communication services
-            ("EnhancedPushService", "app.services.communication.enhanced_push_service", "EnhancedPushService"),
+            ("ModernWebPushService", "app.services.communication.webpush_service", "ModernWebPushService"),
             ("WebSocketManager", "app.services.communication.websocket_manager", "WebSocketManager"),
             
             # Processing services

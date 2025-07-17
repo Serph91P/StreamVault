@@ -39,6 +39,9 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
                     future=True,
                     pool_pre_ping=True,  # Verify connections before use
                     pool_recycle=3600,   # Recycle connections after 1 hour
+                    pool_size=20,        # Increase pool size from 5 to 20
+                    max_overflow=30,     # Increase overflow from 10 to 30
+                    pool_timeout=10,     # Reduce timeout from 30 to 10 seconds
                     connect_args={
                         "connect_timeout": 10,
                         "application_name": "StreamVault"
@@ -75,5 +78,8 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
