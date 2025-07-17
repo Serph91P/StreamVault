@@ -803,9 +803,9 @@ onMounted(async () => {
 }
 
 .stream-details {
-  border-top: 1px solid #dee2e6;
+  border-top: 1px solid var(--border-color, #2d2d35);
   padding: 20px;
-  background: #f8f9fa;
+  background: var(--background-card, #1f1f23);
 }
 
 .stream-stats {
@@ -822,14 +822,14 @@ onMounted(async () => {
 .stat-label {
   display: block;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-secondary, #b1b1b9);
   margin-bottom: 4px;
 }
 
 .stat-value {
   display: block;
   font-weight: bold;
-  color: #333;
+  color: var(--text-primary, #f1f1f3);
 }
 
 .stream-actions {
@@ -857,12 +857,12 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--primary-color, #42b883);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--primary-color-dark, #2f9c6a);
 }
 
 .btn-secondary {
@@ -875,12 +875,12 @@ onMounted(async () => {
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger-color, #ff4757);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-color-dark, #c82333);
 }
 
 /* Modal Styles */

@@ -78,7 +78,20 @@ watch(messages, (newMessages) => {
       updateLastRecording()
       break
     }
-    case 'recording.started': {
+    case 'active_recordings_update': {
+      // Update the activeRecordings state directly with the received data
+      activeRecordings.value = message.data || []
+      
+      // Update streamer recording status based on active recordings
+      for (const streamer of streamers.value) {
+        const isRecording = activeRecordings.value.some(recording => 
+          String(recording.streamer_id) === String(streamer.id)
+        )
+        streamer.is_recording = isRecording
+      }
+      break
+    }
+    case 'recording_started': {
       const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {
@@ -88,7 +101,7 @@ watch(messages, (newMessages) => {
       fetchActiveRecordings()
       break
     }
-    case 'recording.stopped': {
+    case 'recording_stopped': {
       const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {

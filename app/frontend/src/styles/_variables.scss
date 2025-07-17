@@ -100,6 +100,19 @@ $vue-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --primary-color-light: #{$primary-color-light};
   --primary-color-dark: #{$primary-color-dark};
   
+  // Alle Farben als CSS-Variablen
+  --background-dark: #{$background-dark};
+  --background-darker: #{$background-darker};
+  --background-card: #{$background-card};
+  --text-primary: #{$text-primary};
+  --text-secondary: #{$text-secondary};
+  --border-color: #{$border-color};
+  --danger-color: #{$danger-color};
+  --success-color: #{$success-color};
+  --warning-color: #{$warning-color};
+  --info-color: #{$info-color};
+  --secondary-color: #{$secondary-color};
+  
   // Farbwerte als RGB für alpha-Operationen
   --primary-color-rgb: 66, 184, 131;
   --background-darker-rgb: 24, 24, 27;

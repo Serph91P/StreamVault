@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue';
+import WebSocketMonitor from '../WebSocketMonitor.vue';
 // Reactive data
 const healthStatus = ref(null);
 const healthCheckLoading = ref(false);
@@ -366,6 +367,17 @@ if (__VLS_ctx.systemInfo) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
     (__VLS_ctx.systemInfo.settings.proxy_configured ? 'Configured' : 'Direct Connection');
 }
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "websocket-section" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "section-header" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({});
+/** @type {[typeof WebSocketMonitor, ]} */ ;
+// @ts-ignore
+const __VLS_0 = __VLS_asFunctionalComponent(WebSocketMonitor, new WebSocketMonitor({}));
+const __VLS_1 = __VLS_0({}, ...__VLS_functionalComponentArgsRest(__VLS_0));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "test-suite-section" },
 });
@@ -749,6 +761,8 @@ if (__VLS_ctx.showLogsModal) {
 /** @type {__VLS_StyleScopedClasses['info-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['error']} */ ;
 /** @type {__VLS_StyleScopedClasses['info-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['websocket-section']} */ ;
+/** @type {__VLS_StyleScopedClasses['section-header']} */ ;
 /** @type {__VLS_StyleScopedClasses['test-suite-section']} */ ;
 /** @type {__VLS_StyleScopedClasses['section-header']} */ ;
 /** @type {__VLS_StyleScopedClasses['test-controls']} */ ;
@@ -840,6 +854,7 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            WebSocketMonitor: WebSocketMonitor,
             healthStatus: healthStatus,
             healthCheckLoading: healthCheckLoading,
             systemInfo: systemInfo,

@@ -68,7 +68,7 @@ class Stream(Base):
     # Relationships
     streamer = relationship("Streamer", backref="streams")
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
-    active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False)
+    active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False, cascade="all, delete-orphan")
     
     @property
     def is_live(self):
@@ -266,7 +266,7 @@ class ActiveRecordingState(Base):
     )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stream_id = Column(Integer, ForeignKey('streams.id'), nullable=False, unique=True)
+    stream_id = Column(Integer, ForeignKey('streams.id', ondelete='CASCADE'), nullable=False, unique=True)
     recording_id = Column(Integer, ForeignKey('recordings.id'), nullable=False)
     process_id = Column(Integer, nullable=False)  # OS process ID
     process_identifier = Column(String(100), nullable=False)  # Internal process identifier
