@@ -401,7 +401,7 @@ class RecordingLifecycleManager:
             
             logger.info(f"🎬 CALLING_GENERATE_FILENAME: streamer={streamer.username}")
             
-            # Use media server structure template (like Plex/Jellyfin)
+            # Use media server structure template (like Plex/Jellyfin) - no extension here!
             template = "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
             
             filename = await generate_filename(
