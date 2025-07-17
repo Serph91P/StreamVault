@@ -43,6 +43,19 @@ class QueueTask:
     max_retries: int = 3
     progress: float = 0.0
     
+    def __lt__(self, other):
+        """Enable comparison for PriorityQueue"""
+        if not isinstance(other, QueueTask):
+            return NotImplemented
+        # Compare by created_at timestamp for FIFO ordering of same priority tasks
+        return self.created_at < other.created_at
+    
+    def __eq__(self, other):
+        """Enable equality comparison"""
+        if not isinstance(other, QueueTask):
+            return NotImplemented
+        return self.id == other.id
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary for serialization"""
         return {
