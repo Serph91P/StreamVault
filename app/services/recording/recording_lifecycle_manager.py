@@ -49,7 +49,6 @@ class RecordingLifecycleManager:
             # Create recording in database
             recording = await self.database_service.create_recording(
                 stream_id=stream_id,
-                streamer_id=streamer_id, 
                 file_path=file_path
             )
             
