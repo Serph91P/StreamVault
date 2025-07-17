@@ -47,12 +47,18 @@ export interface PreserveTimeframe {
 }
 
 export interface ActiveRecording {
+  id: number;              // recording_id
+  stream_id: number;
   streamer_id: number;
   streamer_name: string;
+  title: string;
   started_at: string;
+  file_path: string;
+  status: string;
   duration: number;
-  output_path: string;
-  quality: string;
+  // Legacy fields for backwards compatibility
+  output_path?: string;
+  quality?: string;
 }
 
 export const QUALITY_OPTIONS = [
