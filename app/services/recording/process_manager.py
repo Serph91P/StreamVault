@@ -113,20 +113,33 @@ class ProcessManager:
     ) -> Optional[asyncio.subprocess.Process]:
         """Start recording a single segment"""
         try:
+            # Get streamer info from database using streamer_id
+            from app.database import SessionLocal
+            from app.models import Streamer
+            
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if not streamer:
+                    raise Exception(f"Streamer {stream.streamer_id} not found")
+                
+                streamer_name = streamer.username
+            
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
             
+            logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
+            
             # Generate streamlink command for this segment
             cmd = get_streamlink_command(
-                streamer_name=stream.streamer.username,
+                streamer_name=streamer_name,
                 quality=quality,
                 output_path=segment_path,
                 proxy_settings=proxy_settings
             )
             
-            logger.info(f"Starting segment {segment_info['segment_count']} for {stream.streamer.username}")
-            logger.debug(f"Segment path: {segment_path}")
-            logger.debug(f"Streamlink command: {' '.join(cmd)}")
+            logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")
+            logger.debug(f"🎬 Segment path: {segment_path}")
+            logger.debug(f"🎬 Streamlink command: {' '.join(cmd)}")
             
             # Start the process
             process = await asyncio.create_subprocess_exec(
