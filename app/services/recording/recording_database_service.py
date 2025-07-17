@@ -104,6 +104,11 @@ class RecordingDatabaseService:
         except Exception as e:
             logger.error(f"Failed to get recording {recording_id}: {e}")
             raise RetryableError(f"Database error: {e}")
+    
+    # Alias for compatibility
+    async def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
+        """Alias for get_recording - for compatibility"""
+        return await self.get_recording(recording_id)
 
     @database_retry
     async def get_active_recordings_from_db(self) -> List[Recording]:
