@@ -38,13 +38,14 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
                     url, 
                     future=True,
                     pool_pre_ping=True,  # Verify connections before use
-                    pool_recycle=3600,   # Recycle connections after 1 hour
-                    pool_size=50,        # Increase pool size to handle more concurrent requests
-                    max_overflow=100,    # Increase overflow to handle spikes
-                    pool_timeout=30,     # Increase timeout to avoid premature failures
+                    pool_recycle=1800,   # Recycle connections after 30 minutes (was 1 hour)
+                    pool_size=20,        # Reduce pool size for better resource management
+                    max_overflow=50,     # Reduce overflow but still handle spikes
+                    pool_timeout=15,     # Reduce timeout to fail faster and free resources
                     connect_args={
-                        "connect_timeout": 10,
-                        "application_name": "StreamVault"
+                        "connect_timeout": 5,  # Reduce connect timeout
+                        "application_name": "StreamVault",
+                        "server_side_binding": True  # Enable server-side prepared statements
                     }
                 )
             
@@ -75,11 +76,18 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
+    """Enhanced database session with better error handling and resource cleanup"""
     db = SessionLocal()
     try:
         yield db
-    except Exception:
+    except Exception as e:
+        logger = logging.getLogger("streamvault")
+        logger.error(f"Database session error: {e}")
         db.rollback()
         raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            logger = logging.getLogger("streamvault")
+            logger.warning(f"Error closing database session: {e}")
