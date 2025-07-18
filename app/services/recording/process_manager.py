@@ -42,6 +42,14 @@ class ProcessManager:
         self.max_file_size_gb = 100  # Start new segment if file exceeds this size
         self.monitor_interval_seconds = 600  # Check every 10 minutes (less frequent)
         
+        # Initialize structured logging service
+        try:
+            from app.services.system.logging_service import logging_service
+            self.logging_service = logging_service
+        except Exception as e:
+            logger.warning(f"Could not initialize logging service: {e}")
+            self.logging_service = None
+        
         # Try to import psutil for process monitoring
         try:
             import psutil
@@ -149,6 +157,28 @@ class ProcessManager:
             logger.debug(f"🎬 Segment path: {segment_path}")
             logger.debug(f"🎬 Streamlink command: {' '.join(cmd)}")
             
+            # Log to structured logging service
+            if self.logging_service:
+                self.logging_service.log_streamlink_start(
+                    streamer_name=streamer_name,
+                    quality=quality,
+                    output_path=segment_path,
+                    cmd=cmd
+                )
+                
+                # Create streamlink log file for this streamer
+                streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                logger.info(f"Streamlink logs for {streamer_name} will be written to: {streamlink_log_path}")
+                
+                # Initialize the log file
+                with open(streamlink_log_path, 'w', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting streamlink recording for {streamer_name}\n")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {segment_path}\n")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Segment: {segment_info['segment_count']}\n")
+                    f.write("=" * 80 + "\n")
+            
             # Start the process
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -164,6 +194,28 @@ class ProcessManager:
                 logger.error(f"🎬 PROCESS_FAILED_IMMEDIATELY: PID would be {process.pid}, exit code {process.returncode}")
                 logger.error(f"🎬 STDOUT: {stdout.decode()}")
                 logger.error(f"🎬 STDERR: {stderr.decode()}")
+                
+                # Log to structured logging service
+                if self.logging_service:
+                    self.logging_service.log_streamlink_output(
+                        streamer_name=streamer_name,
+                        stdout=stdout,
+                        stderr=stderr,
+                        exit_code=process.returncode
+                    )
+                    
+                    # Also append to the streamer-specific log file
+                    streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                    try:
+                        with open(streamlink_log_path, 'a', encoding='utf-8') as f:
+                            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})\n")
+                            if stdout:
+                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout.decode()}\n")
+                            if stderr:
+                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr.decode()}\n")
+                    except Exception as e:
+                        logger.warning(f"Could not write to streamlink log file: {e}")
+                        
                 raise ProcessError(f"Streamlink process failed immediately: {stderr.decode()}")
             
             process_id = f"stream_{stream.id}"
@@ -322,6 +374,30 @@ class ProcessManager:
                     logger.error(f"Recording process failed with exit code {process.returncode} (PID: {process.pid})")
                     if stderr:
                         logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')[:1000]}")
+                
+                # Log to structured logging service
+                if self.logging_service:
+                    # Get streamer name from database for logging
+                    try:
+                        from app.database import SessionLocal
+                        from app.models import Stream, Streamer
+                        
+                        with SessionLocal() as db:
+                            # Get stream from process_id in the segment info
+                            stream_id = process_id.split('_')[1] if process_id else None
+                            if stream_id:
+                                stream = db.query(Stream).filter(Stream.id == int(stream_id)).first()
+                                if stream:
+                                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                                    if streamer:
+                                        self.logging_service.log_streamlink_output(
+                                            streamer_name=streamer.username,
+                                            stdout=stdout,
+                                            stderr=stderr,
+                                            exit_code=process.returncode or 0
+                                        )
+                    except Exception as e:
+                        logger.warning(f"Could not log streamlink output to structured logging: {e}")
                         
                 return process.returncode or 0
             

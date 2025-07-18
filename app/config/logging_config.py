@@ -2,6 +2,7 @@ import logging
 import sys
 import json
 from datetime import datetime
+from pathlib import Path
 from app.config.settings import settings
 
 class JSONFormatter(logging.Formatter):
@@ -29,10 +30,15 @@ class JSONFormatter(logging.Formatter):
             log_entry['stream_id'] = record.stream_id
         if hasattr(record, 'operation'):
             log_entry['operation'] = record.operation
+        if hasattr(record, 'recording_id'):
+            log_entry['recording_id'] = record.recording_id
+        if hasattr(record, 'task_id'):
+            log_entry['task_id'] = record.task_id
             
         return json.dumps(log_entry)
 
 def setup_logging():
+    """Setup logging with structured file outputs"""
     logger = logging.getLogger('streamvault')
     logger.setLevel(settings.LOG_LEVEL)
 
@@ -51,9 +57,46 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # File handler for persistent logs
-    file_handler = logging.FileHandler('streamvault.log')
+    # Ensure log directories exist
+    logs_dir = Path("/app/logs")
+    app_logs_dir = logs_dir / "app"
+    app_logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    # File handler for persistent logs in the app directory
+    file_handler = logging.FileHandler(app_logs_dir / 'streamvault.log')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+    # Initialize the structured logging service
+    try:
+        from app.services.system.logging_service import logging_service
+        logger.info("Structured logging service initialized")
+        
+        # Schedule periodic cleanup of old logs
+        import asyncio
+        import threading
+        
+        def start_cleanup_scheduler():
+            """Start the log cleanup scheduler in a separate thread"""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def cleanup_scheduler():
+                """Schedule periodic log cleanup"""
+                while True:
+                    await asyncio.sleep(24 * 3600)  # Run every 24 hours
+                    try:
+                        logging_service.cleanup_old_logs()
+                    except Exception as e:
+                        logger.error(f"Error during scheduled log cleanup: {e}")
+            
+            loop.run_until_complete(cleanup_scheduler())
+        
+        # Start the cleanup scheduler in a daemon thread
+        cleanup_thread = threading.Thread(target=start_cleanup_scheduler, daemon=True)
+        cleanup_thread.start()
+        
+    except Exception as e:
+        logger.warning(f"Could not initialize structured logging service: {e}")
 
     return logger
