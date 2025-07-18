@@ -4,6 +4,7 @@ from app.database import get_db
 from app.models import Stream, StreamMetadata, Recording, StreamEvent, ActiveRecordingState
 from app.services.background_queue_service import background_queue_service
 import logging
+from pathlib import Path
 
 logger = logging.getLogger("streamvault")
 
@@ -50,10 +51,57 @@ async def delete_stream(
         # Check for recordings associated with this stream and collect their paths
         recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
         for recording in recordings:
-            if recording.path:
-                files_to_delete.append(recording.path)
+            # Check both path and file_path attributes for compatibility
+            file_path = getattr(recording, 'file_path', None) or getattr(recording, 'path', None)
+            if file_path:
+                files_to_delete.append(file_path)
+                
+                # Also check for related files (.ts, .mp4, segment directories)
+                file_path_obj = Path(file_path)
+                
+                # Check for .ts version if we have .mp4
+                if file_path_obj.suffix == '.mp4':
+                    ts_version = file_path_obj.with_suffix('.ts')
+                    if ts_version.exists():
+                        files_to_delete.append(str(ts_version))
+                
+                # Check for .mp4 version if we have .ts
+                elif file_path_obj.suffix == '.ts':
+                    mp4_version = file_path_obj.with_suffix('.mp4')
+                    if mp4_version.exists():
+                        files_to_delete.append(str(mp4_version))
+                
+                # Check for segment directories
+                segments_dir = file_path_obj.parent / f"{file_path_obj.stem}_segments"
+                if segments_dir.exists() and segments_dir.is_dir():
+                    files_to_delete.append(str(segments_dir))
+            
             # Delete recording record
             db.delete(recording)
+        
+        # Also check the stream's recording_path
+        if stream.recording_path:
+            files_to_delete.append(stream.recording_path)
+            
+            # Check for related files for the stream's recording_path too
+            stream_file = Path(stream.recording_path)
+            
+            # Check for .ts version if we have .mp4
+            if stream_file.suffix == '.mp4':
+                ts_version = stream_file.with_suffix('.ts')
+                if ts_version.exists():
+                    files_to_delete.append(str(ts_version))
+            
+            # Check for .mp4 version if we have .ts
+            elif stream_file.suffix == '.ts':
+                mp4_version = stream_file.with_suffix('.mp4')
+                if mp4_version.exists():
+                    files_to_delete.append(str(mp4_version))
+            
+            # Check for segment directories
+            segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
+            if segments_dir.exists() and segments_dir.is_dir():
+                files_to_delete.append(str(segments_dir))
         
         # Delete all stream events for this stream
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
@@ -69,11 +117,14 @@ async def delete_stream(
         
         # Schedule file deletion in background
         if files_to_delete:
+            # Remove duplicates while preserving order
+            unique_files = list(dict.fromkeys(files_to_delete))
+            
             background_queue = background_queue_service
             await background_queue.enqueue_task(
                 "cleanup",
                 {
-                    "cleanup_paths": files_to_delete,
+                    "cleanup_paths": unique_files,
                     "stream_id": stream_id
                 }
             )
@@ -81,7 +132,7 @@ async def delete_stream(
         return {
             "success": True,
             "message": f"Stream {stream_id} deleted successfully",
-            "deleted_files_count": len(files_to_delete)
+            "deleted_files_count": len(unique_files) if files_to_delete else 0
         }
         
     except Exception as e:
