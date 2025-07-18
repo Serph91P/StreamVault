@@ -113,10 +113,10 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
         ).join(
             Streamer, Stream.streamer_id == Streamer.id
         ).filter(
-            Recording.file_path.isnot(None),
-            Recording.file_path != "",
+            Recording.path.isnot(None),
+            Recording.path != "",
             Recording.status.in_(['completed', 'post_processing'])
-        ).order_by(Recording.started_at.desc()).all()
+        ).order_by(Recording.start_time.desc()).all()
         
         logger.debug(f"Found {len(recordings_with_files)} recordings with file paths")
         
@@ -130,7 +130,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                 
             try:
                 # Try both .ts and .mp4 files
-                recording_path = Path(recording.file_path)
+                recording_path = Path(recording.path)
                 mp4_path = recording_path.with_suffix('.mp4')
                 
                 final_path = None
@@ -151,8 +151,8 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         logger.debug(f"Auto-updated recording_path for stream {stream.id}: {final_path}")
                     
                     duration = None
-                    if recording.started_at and recording.ended_at:
-                        duration = (recording.ended_at - recording.started_at).total_seconds()
+                    if recording.start_time and recording.end_time:
+                        duration = (recording.end_time - recording.start_time).total_seconds()
                     elif stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
                     
@@ -163,9 +163,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "streamer_id": streamer.id,
                         "file_path": str(final_path),
                         "file_size": file_stats.st_size,
-                        "created_at": (recording.started_at or stream.started_at).isoformat() if (recording.started_at or stream.started_at) else None,
-                        "started_at": (recording.started_at or stream.started_at).isoformat() if (recording.started_at or stream.started_at) else None,
-                        "ended_at": (recording.ended_at or stream.ended_at).isoformat() if (recording.ended_at or stream.ended_at) else None,
+                        "created_at": (recording.start_time or stream.started_at).isoformat() if (recording.start_time or stream.started_at) else None,
+                        "started_at": (recording.start_time or stream.started_at).isoformat() if (recording.start_time or stream.started_at) else None,
+                        "ended_at": (recording.end_time or stream.ended_at).isoformat() if (recording.end_time or stream.ended_at) else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
