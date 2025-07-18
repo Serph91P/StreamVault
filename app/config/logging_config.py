@@ -91,6 +91,7 @@ def setup_logging():
                         logger.error(f"Error during scheduled log cleanup: {e}")
             
             cleanup_task = loop.create_task(cleanup_scheduler())
+            loop.run_forever()
         
         # Start the cleanup scheduler in a daemon thread
         cleanup_thread = threading.Thread(target=start_cleanup_scheduler, daemon=True)
