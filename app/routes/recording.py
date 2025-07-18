@@ -234,7 +234,15 @@ async def get_active_recordings():
     """Get all active recordings"""
     import time
     from sqlalchemy.exc import TimeoutError, OperationalError
-    from app.utils.cache import app_cache
+    try:
+        from app.utils.cache import app_cache
+    except ImportError:
+        # Fallback if cache module is not available
+        class DummyCache:
+            def delete(self, key): pass
+            def get(self, key): return None
+            def set(self, key, value, ttl=None): pass
+        app_cache = DummyCache()
     
     # Check cache first (with short TTL to reduce database load)
     cache_key = "active_recordings"
