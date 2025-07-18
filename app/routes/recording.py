@@ -232,52 +232,89 @@ async def get_all_streamer_recording_settings():
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
     """Get all active recordings"""
-    try:
-        # Get active recordings directly from database instead of state manager
-        # This ensures we only get recordings that are truly active
-        result = []
-        
-        # Use a new session for database queries
-        with SessionLocal() as db:
-            # Get active recordings from database - only status "recording"
-            active_recordings = db.query(Recording).filter(
-                Recording.status == "recording"
-            ).all()
+    import time
+    from sqlalchemy.exc import TimeoutError, OperationalError
+    from app.utils.cache import app_cache
+    
+    # Check cache first (with short TTL to reduce database load)
+    cache_key = "active_recordings"
+    cached_result = app_cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Returning {len(cached_result)} active recordings from cache")
+        return cached_result
+    
+    max_retries = 3
+    retry_delay = 0.1
+    
+    for attempt in range(max_retries):
+        try:
+            # Get active recordings directly from database instead of state manager
+            # This ensures we only get recordings that are truly active
+            result = []
             
-            for recording in active_recordings:
-                try:
-                    # Get stream and streamer info
-                    stream = db.query(Stream).filter(Stream.id == recording.stream_id).first()
-                    if stream and stream.streamer:
-                        # Calculate duration
-                        duration = 0
-                        if recording.start_time:
-                            duration = int((datetime.now(timezone.utc) - recording.start_time).total_seconds())
-                        
-                        # Create schema object with all required fields
-                        active_recording = ActiveRecordingSchema(
-                            id=recording.id,
-                            stream_id=recording.stream_id,
-                            streamer_id=stream.streamer_id,
-                            streamer_name=stream.streamer.username,
-                            title=stream.title or '',
-                            started_at=recording.start_time.isoformat() if recording.start_time else '',
-                            file_path=recording.path or '',
-                            status=recording.status,
-                            duration=duration
-                        )
-                        result.append(active_recording)
-                except Exception as e:
-                    logger.warning(f"Error processing active recording {recording.id}: {e}")
+            # Use a new session for database queries with proper error handling
+            with SessionLocal() as db:
+                # Optimized query with joins to reduce database round trips
+                active_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+                    Recording.status == "recording"
+                ).options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                ).all()
+                
+                for recording in active_recordings:
+                    try:
+                        # Stream and streamer info already loaded via joinedload
+                        stream = recording.stream
+                        if stream and stream.streamer:
+                            # Calculate duration
+                            duration = 0
+                            if recording.start_time:
+                                duration = int((datetime.now(timezone.utc) - recording.start_time).total_seconds())
+                            
+                            # Create schema object with all required fields
+                            active_recording = ActiveRecordingSchema(
+                                id=recording.id,
+                                stream_id=recording.stream_id,
+                                streamer_id=stream.streamer_id,
+                                streamer_name=stream.streamer.username,
+                                title=stream.title or '',
+                                started_at=recording.start_time.isoformat() if recording.start_time else '',
+                                file_path=recording.path or '',
+                                status=recording.status,
+                                duration=duration
+                            )
+                            result.append(active_recording)
+                    except Exception as e:
+                        logger.warning(f"Error processing active recording {recording.id}: {e}")
+                        continue
+            
+            # Cache the result for a short time (2 seconds) to reduce database load
+            app_cache.set(cache_key, result, ttl=2)
+            
+            logger.info(f"Returning {len(result)} active recordings")
+            return result
+            
+        except (TimeoutError, OperationalError) as e:
+            if "QueuePool" in str(e) or "timeout" in str(e).lower():
+                logger.warning(f"Database connection pool issue on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
                     continue
-        
-        logger.info(f"Returning {len(result)} active recordings")
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error fetching active recordings: {e}", exc_info=True)
-        # Return empty list on error
-        return []
+                else:
+                    logger.error(f"Database connection pool exhausted after {max_retries} attempts")
+                    # Return cached result if available, even if expired
+                    fallback_result = app_cache.get(cache_key + "_fallback")
+                    if fallback_result is not None:
+                        logger.info(f"Returning fallback cached result with {len(fallback_result)} recordings")
+                        return fallback_result
+                    return []  # Return empty list instead of failing
+            else:
+                logger.error(f"Database error: {e}")
+                return []
+        except Exception as e:
+            logger.error(f"Error fetching active recordings: {e}", exc_info=True)
+            # Return empty list on error
+            return []
 
 @router.post("/stop/{streamer_id}")
 async def stop_recording(streamer_id: int):
