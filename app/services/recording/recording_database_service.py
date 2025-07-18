@@ -50,10 +50,10 @@ class RecordingDatabaseService:
             recording.status = status
             
             if path:
-                recording.file_path = path
+                recording.path = path
             
             if duration_seconds is not None:
-                recording.duration_seconds = duration_seconds
+                recording.duration = duration_seconds
             
             if status == "completed":
                 recording.end_time = datetime.utcnow()
