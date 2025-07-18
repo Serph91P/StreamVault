@@ -78,20 +78,23 @@ def setup_logging():
         
         def start_cleanup_scheduler():
             """Start the log cleanup scheduler in a separate thread"""
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            import time
             
-            async def cleanup_scheduler():
+            def cleanup_scheduler():
                 """Schedule periodic log cleanup"""
                 while True:
-                    await asyncio.sleep(24 * 3600)  # Run every 24 hours
+                    time.sleep(24 * 3600)  # Run every 24 hours
                     try:
                         logging_service.cleanup_old_logs()
                     except Exception as e:
                         logger.error(f"Error during scheduled log cleanup: {e}")
             
-            cleanup_task = loop.create_task(cleanup_scheduler())
-            loop.run_forever()
+            try:
+                cleanup_scheduler()
+            except KeyboardInterrupt:
+                logger.info("Log cleanup scheduler stopped")
+            except Exception as e:
+                logger.error(f"Log cleanup scheduler error: {e}")
         
         # Start the cleanup scheduler in a daemon thread
         cleanup_thread = threading.Thread(target=start_cleanup_scheduler, daemon=True)
