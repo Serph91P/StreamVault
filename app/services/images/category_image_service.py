@@ -28,16 +28,23 @@ class CategoryImageService:
     def _ensure_categories_dir(self):
         """Ensure categories directory exists"""
         if self.categories_dir is None:
-            images_base_dir = self.download_service.get_images_base_dir()
-            self.categories_dir = images_base_dir / "categories"
-            self.categories_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                images_base_dir = self.download_service.get_images_base_dir()
+                self.categories_dir = images_base_dir / "categories"
+                self.categories_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to initialize categories directory: {e}")
+                # Fallback to a temporary path
+                from pathlib import Path
+                self.categories_dir = Path("/tmp/categories")
+                self.categories_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_existing_cache(self):
         """Load information about already cached category images"""
         try:
             self._ensure_categories_dir()
             
-            if self.categories_dir and self.categories_dir.exists():
+            if self.categories_dir is not None and self.categories_dir.exists():
                 for image_file in self.categories_dir.glob("*.jpg"):
                     category_name = self._filename_to_category(image_file.stem)
                     if category_name:
@@ -46,6 +53,8 @@ class CategoryImageService:
             logger.info(f"Loaded category image cache: {len(self._category_cache)} categories")
         except Exception as e:
             logger.error(f"Error loading category image cache: {e}")
+            # Initialize empty cache if loading fails
+            self._category_cache = {}
 
     def _filename_to_category(self, filename: str) -> Optional[str]:
         """Convert filename back to category name"""
@@ -78,6 +87,11 @@ class CategoryImageService:
             return None
             
         try:
+            self._ensure_categories_dir()
+            if self.categories_dir is None:
+                logger.error("Categories directory not initialized")
+                return None
+                
             safe_name = self.download_service.sanitize_filename(category_name)
             filename = f"{safe_name}.jpg"
             file_path = self.categories_dir / filename
@@ -99,8 +113,14 @@ class CategoryImageService:
             return None
 
     def get_cached_category_image(self, category_name: str) -> Optional[str]:
-        """Get cached category image path"""
-        return self._category_cache.get(category_name)
+        """Get cached category image path with fast fallback"""
+        # First check the memory cache (fastest)
+        cached_path = self._category_cache.get(category_name)
+        if cached_path:
+            return cached_path
+        
+        # Return default image to avoid blocking on database
+        return "/images/categories/default-category.svg"
 
     async def update_category_image(self, category_name: str, box_art_url: str) -> bool:
         """Update a category's image in database and cache"""
