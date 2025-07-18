@@ -7,8 +7,9 @@ import logging
 from typing import Dict, List, Any
 from app.dependencies import websocket_manager
 from app.database import SessionLocal
-from app.models import Recording
+from app.models import Recording, Stream
 from sqlalchemy import and_
+from sqlalchemy.orm import joinedload
 from datetime import datetime
 
 logger = logging.getLogger("streamvault")
@@ -69,8 +70,10 @@ class WebSocketBroadcastTask:
         """Broadcast current active recordings to all WebSocket clients"""
         try:
             with SessionLocal() as db:
-                # Get all currently active recordings
-                active_recordings = db.query(Recording).filter(
+                # Get all currently active recordings with joined relationships
+                active_recordings = db.query(Recording).options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                ).filter(
                     and_(
                         Recording.status == "recording",
                         Recording.path.isnot(None)

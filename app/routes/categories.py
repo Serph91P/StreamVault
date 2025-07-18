@@ -143,13 +143,32 @@ async def get_favorite_categories(
 
 @router.get("/image/{category_name}")
 async def get_category_image(category_name: str):
-    """Get the URL for a category image"""
+    """Get the URL for a category image - with caching to reduce database load"""
     try:
+        # Use cached URL if available to reduce database queries
         image_url = unified_image_service.get_category_image_url(category_name)
         return {"category_name": category_name, "image_url": image_url}
     except Exception as e:
         logger.error(f"Error getting category image for {category_name}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get category image")
+
+@router.post("/images/batch")
+async def get_multiple_category_images(category_names: List[str]):
+    """Get URLs for multiple category images in a single request to reduce load"""
+    try:
+        results = {}
+        for category_name in category_names:
+            try:
+                image_url = unified_image_service.get_category_image_url(category_name)
+                results[category_name] = image_url
+            except Exception as e:
+                logger.warning(f"Failed to get image for {category_name}: {e}")
+                results[category_name] = None
+        
+        return {"category_images": results}
+    except Exception as e:
+        logger.error(f"Error getting batch category images: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get category images")
 
 @router.post("/preload-images")
 async def preload_category_images(
@@ -159,8 +178,6 @@ async def preload_category_images(
     """Preload category images in the background"""
     try:
         # Start the preloading in the background
-        # Use unified image service for category sync
-        from app.services.images.image_sync_service import image_sync_service
         for category_name in category_names:
             background_tasks.add_task(unified_image_service.download_category_image, category_name)
         
