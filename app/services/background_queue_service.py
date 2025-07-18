@@ -18,11 +18,8 @@ from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 
 logger = logging.getLogger("streamvault")
 
-try:
-    from .process_monitor import process_monitor
-except ImportError:
-    logger.warning("ProcessMonitor not available, process monitoring disabled")
-    process_monitor = None
+# ProcessMonitor integration temporarily disabled for stability
+process_monitor = None
 
 
 class BackgroundQueueService:
@@ -51,9 +48,9 @@ class BackgroundQueueService:
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
         
-        # Start process monitor
-        if process_monitor:
-            await process_monitor.start()
+        # Start process monitor - temporarily disabled
+        # if process_monitor:
+        #     await process_monitor.start()
 
     async def stop(self):
         """Stop the background queue service"""
@@ -61,9 +58,9 @@ class BackgroundQueueService:
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
         
-        # Stop process monitor
-        if process_monitor:
-            await process_monitor.stop()
+        # Stop process monitor - temporarily disabled
+        # if process_monitor:
+        #     await process_monitor.stop()
 
     def register_task_handler(self, task_type: str, handler: Callable):
         """Register a handler for a specific task type"""
@@ -151,12 +148,12 @@ class BackgroundQueueService:
         """Send queue statistics via WebSocket"""
         await self.queue_manager.send_queue_statistics()
         
-        # Also send process monitor statistics
-        if process_monitor:
-            try:
-                await process_monitor.send_system_status()
-            except Exception as e:
-                logger.warning(f"Could not send process monitor stats: {e}")
+        # Also send process monitor statistics - temporarily disabled
+        # if process_monitor:
+        #     try:
+        #         await process_monitor.send_system_status()
+        #     except Exception as e:
+        #         logger.warning(f"Could not send process monitor stats: {e}")
 
     # External task tracking methods
     

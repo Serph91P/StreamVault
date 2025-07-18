@@ -38,12 +38,9 @@ from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
-try:
-    from app.services.process_monitor import ProcessMonitor, process_monitor
-except ImportError:
-    # ProcessMonitor not available, disable process monitoring
-    ProcessMonitor = None
-    process_monitor = None
+# ProcessMonitor integration temporarily disabled for stability
+ProcessMonitor = None
+process_monitor = None
 
 __all__ = [
     "LoggingService",
