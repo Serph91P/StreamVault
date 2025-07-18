@@ -333,8 +333,10 @@ class TaskQueueManager:
             raise ValueError("Missing required parameters for post-processing")
         
         # Ensure all parameters are correctly typed after validation
-        assert stream_id is not None and recording_id is not None
-        assert ts_file_path and output_dir and streamer_name and started_at
+        if stream_id is None or recording_id is None:
+            raise ValueError("stream_id and recording_id must not be None")
+        if not all([ts_file_path, output_dir, streamer_name, started_at]):
+            raise ValueError("ts_file_path, output_dir, streamer_name, and started_at must not be empty or None")
         
         # Create task factory and generate tasks
         task_factory = RecordingTaskFactory()
