@@ -18,6 +18,17 @@ class WorkerManager:
     """Manages worker threads and task execution"""
     
     def __init__(self, max_workers: int = 3, progress_tracker: Optional[TaskProgressTracker] = None, completion_callback: Optional[Callable] = None):
+        """
+        Initialize the WorkerManager.
+        
+        Args:
+            max_workers (int): The maximum number of worker threads to run concurrently.
+            progress_tracker (Optional[TaskProgressTracker]): An optional tracker for monitoring task progress.
+            completion_callback (Optional[Callable]): An optional callback function executed when a task completes.
+                The callback should have the signature `async def callback(task_id: str, success: bool) -> None`,
+                where `task_id` is the ID of the completed task and `success` indicates whether 
+                the task completed successfully (True) or failed (False).
+        """
         self.max_workers = max_workers
         self.progress_tracker = progress_tracker
         self.completion_callback = completion_callback
@@ -96,7 +107,7 @@ class WorkerManager:
                     
                     # Notify completion callback (for dependency management)
                     if self.completion_callback:
-                        await self.completion_callback(task.id, True)
+                        await self.completion_callback(task.id, success=True)
                     
                     logger.info(f"Worker {worker_name} completed task {task.id}")
                     
@@ -110,7 +121,7 @@ class WorkerManager:
                     
                     # Notify completion callback about failure
                     if self.completion_callback:
-                        await self.completion_callback(task.id, False)
+                        await self.completion_callback(task.id, success=False)
                 
                 finally:
                     # Mark task as done in the queue
