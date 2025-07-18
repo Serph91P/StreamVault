@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from app.utils.path_utils import generate_filename
 from app.services.api.twitch_api import twitch_api
+from app.utils.cache import app_cache
 
 logger = logging.getLogger("streamvault")
 
@@ -81,6 +82,9 @@ class RecordingLifecycleManager:
             success = await self._start_recording_process(recording_id, file_path, streamer_id)
             
             if success:
+                # Invalidate active recordings cache
+                app_cache.delete("active_recordings")
+                
                 # Send WebSocket notification
                 if self.websocket_service:
                     await self.websocket_service.send_recording_started(
@@ -122,6 +126,9 @@ class RecordingLifecycleManager:
             
             # Remove from active recordings
             self.state_manager.remove_active_recording(recording_id)
+            
+            # Invalidate active recordings cache
+            app_cache.delete("active_recordings")
             
             # Send WebSocket notification
             if self.websocket_service:
