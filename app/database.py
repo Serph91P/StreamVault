@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import OperationalError
@@ -44,14 +44,12 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
                     pool_timeout=15,     # Reduce timeout to fail faster and free resources
                     connect_args={
                         "connect_timeout": 5,  # Reduce connect timeout
-                        "application_name": "StreamVault",
-                        "server_side_binding": True  # Enable server-side prepared statements
+                        "application_name": "StreamVault"
                     }
                 )
             
             # Test the connection
             with engine.connect() as conn:
-                from sqlalchemy.sql import text
                 conn.execute(text("SELECT 1"))
             
             logger.info(f"✅ Database connection established successfully on attempt {attempt + 1}")
