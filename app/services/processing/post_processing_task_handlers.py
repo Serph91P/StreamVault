@@ -133,8 +133,17 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             ts_file_path=ts_file_path,
             mp4_output_path=mp4_output_path,
-            operation='mp4_remux_start'
+            operation='mp4_remux_start',
+            streamer_name=streamer_name
         )
+        
+        # Log to structured logging service
+        if self.logging_service:
+            self.logging_service.log_recording_activity(
+                "MP4_REMUX_START",
+                streamer_name,
+                f"Remuxing {ts_file_path} to {mp4_output_path}"
+            )
         
         try:
             # Check if TS file exists
@@ -349,6 +358,7 @@ class PostProcessingTaskHandlers:
         mp4_path = payload['mp4_path']
         intelligent_cleanup = payload.get('intelligent_cleanup', False)
         max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
+        streamer_name = payload.get('streamer_name', f'stream_{stream_id}')
         
         log_with_context(
             logger, 'info',
@@ -357,8 +367,17 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             files_to_remove=files_to_remove,
             intelligent_cleanup=intelligent_cleanup,
-            operation='cleanup_start'
+            operation='cleanup_start',
+            streamer_name=streamer_name
         )
+        
+        # Log to structured logging service
+        if self.logging_service:
+            self.logging_service.log_recording_activity(
+                "CLEANUP_START",
+                streamer_name,
+                f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
+            )
         
         try:
             # Validation should have already passed, but double-check
