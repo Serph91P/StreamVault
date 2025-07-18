@@ -164,9 +164,9 @@ class RecordingStateManager:
                 return {}
             
             state_data = await state_persistence_service.load_state('active_recordings')
-            if state_data and 'active_recordings' in state_data:
-                logger.info(f"Loaded {len(state_data['active_recordings'])} recordings from persistence")
-                return state_data['active_recordings']
+            if state_data:
+                logger.info(f"Loaded {len(state_data)} recordings from persistence")
+                return {'active_recordings': state_data}
             
             return {}
             
