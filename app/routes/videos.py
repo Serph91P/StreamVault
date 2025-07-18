@@ -513,74 +513,6 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
         logger.error(f"Error getting videos for streamer {streamer_name}: {e}")
         raise HTTPException(status_code=500, detail=safe_error_message(e))
 
-@router.get("/videos/debug/{stream_id}")
-async def debug_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Debug endpoint to test video access without streaming"""
-    try:
-        logger.info(f"DEBUG VIDEO ACCESS: stream_id={stream_id}")
-        logger.info(f"DEBUG: Request headers: {dict(request.headers)}")
-        logger.info(f"DEBUG: Request cookies: {dict(request.cookies)}")
-        
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
-            logger.error("DEBUG: No session token found")
-            return {"error": "No session token", "headers": dict(request.headers)}
-        
-        logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
-        
-        # Validate session
-        from app.services.core.auth_service import AuthService
-        auth_service = AuthService(db)
-        session_valid = await auth_service.validate_session(session_token)
-        logger.info(f"DEBUG: Session validation result: {session_valid}")
-        
-        if not session_valid:
-            logger.error("DEBUG: Session validation failed")
-            return {"error": "Session validation failed", "token": session_token[:20]}
-        
-        # Get stream from database
-        stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream:
-            logger.error(f"DEBUG: Stream not found: stream_id={stream_id}")
-            return {"error": "Stream not found", "stream_id": stream_id}
-        
-        logger.info(f"DEBUG: Found stream: {stream.title}, recording_path: {stream.recording_path}")
-        
-        if not stream.recording_path:
-            return {"error": "No recording path", "stream": {"id": stream.id, "title": stream.title}}
-        
-        file_path = Path(stream.recording_path)
-        file_exists = file_path.exists()
-        
-        logger.info(f"DEBUG: File path: {file_path}, exists: {file_exists}")
-        
-        result = {
-            "success": True,
-            "stream_id": stream_id,
-            "stream": {
-                "id": stream.id,
-                "title": stream.title,
-                "recording_path": stream.recording_path,
-            },
-            "file": {
-                "path": str(file_path),
-                "exists": file_exists,
-                "size": file_path.stat().st_size if file_exists else 0,
-            },
-            "session": {
-                "token": session_token[:20] + "...",
-                "valid": session_valid,
-            }
-        }
-        
-        logger.info(f"DEBUG: Result: {result}")
-        return result
-        
-    except Exception as e:
-        logger.error(f"DEBUG: Exception: {e}")
-        return {"error": "An internal error has occurred."}
-
 @router.get("/videos/streamer/{streamer_id}")
 async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session = Depends(get_db)):
     """Get all videos for a specific streamer"""
@@ -768,6 +700,58 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         raise
     except Exception as e:
         logger.error(f"Error in stream_video_by_filename: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/videos/{stream_id}/chapters")
+async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Get chapters for a video (placeholder for future implementation)"""
+    try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        # TODO: Implement actual chapter detection from video file
+        # For now, return empty chapters array
+        chapters = []
+        
+        # If stream has duration, create some sample chapters for testing
+        if stream.started_at and stream.ended_at:
+            duration = (stream.ended_at - stream.started_at).total_seconds()
+            if duration > 0:
+                # Create chapters every 10 minutes for testing
+                chapter_interval = 600  # 10 minutes
+                current_time = 0
+                chapter_num = 1
+                
+                while current_time < duration:
+                    chapters.append({
+                        "id": chapter_num,
+                        "title": f"Chapter {chapter_num}",
+                        "start_time": current_time,
+                        "end_time": min(current_time + chapter_interval, duration)
+                    })
+                    current_time += chapter_interval
+                    chapter_num += 1
+        
+        logger.info(f"Returning {len(chapters)} chapters for stream {stream_id}")
+        return chapters
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting chapters for stream {stream_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/test/{stream_id}")
