@@ -9,7 +9,7 @@ import mimetypes
 import re
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, Stream, Streamer
+from app.models import RecordingSettings, Stream, Streamer, Recording
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
 logger = logging.getLogger("streamvault")
@@ -64,6 +64,10 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
     videos = []
     
     try:
+        # First check how many streams exist at all
+        total_streams = db.query(Stream).count()
+        logger.debug(f"Total streams in database: {total_streams}")
+        
         # Query all streams that have recording paths
         streams = db.query(Stream, Streamer).join(
             Streamer, Stream.streamer_id == Streamer.id
@@ -73,6 +77,17 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
         ).order_by(Stream.started_at.desc()).all()
         
         logger.debug(f"Found {len(streams)} streams with recording paths in database")
+        
+        # Debug: check what streams exist without recording paths
+        if len(streams) == 0 and total_streams > 0:
+            streams_without_paths = db.query(Stream.id, Stream.title, Stream.recording_path, Stream.status).all()
+            logger.debug(f"Streams without recording paths: {[(s.id, s.title, s.recording_path, s.status) for s in streams_without_paths]}")
+            
+            # Check for any completed streams that might have files
+            completed_streams = db.query(Stream).filter(Stream.status == 'completed').all()
+            logger.debug(f"Completed streams: {len(completed_streams)}")
+            for stream in completed_streams:
+                logger.debug(f"  Stream {stream.id}: title='{stream.title}', recording_path='{stream.recording_path}', status='{stream.status}'")
         
         for stream, streamer in streams:
             try:
@@ -110,6 +125,44 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
             except Exception as e:
                 logger.error(f"Error processing stream {stream.id}: {e}")
                 continue
+        
+        # Temporary: If no videos with recording_path, show active recordings for debugging
+        if len(videos) == 0:
+            active_recordings = db.query(Recording).filter(Recording.status == 'recording').all()
+            logger.debug(f"Active recordings found: {len(active_recordings)}")
+            
+            # Show some completed recordings as placeholders
+            completed_recordings = db.query(Recording).filter(Recording.status == 'completed').limit(5).all()
+            logger.debug(f"Completed recordings found: {len(completed_recordings)}")
+            
+            for recording in completed_recordings:
+                if recording.file_path and os.path.exists(recording.file_path):
+                    stream = db.query(Stream).filter(Stream.id == recording.stream_id).first()
+                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first() if stream else None
+                    
+                    if stream and streamer:
+                        file_stats = os.stat(recording.file_path)
+                        duration = None
+                        if recording.started_at and recording.ended_at:
+                            duration = (recording.ended_at - recording.started_at).total_seconds()
+                        
+                        video_info = {
+                            "id": stream.id,
+                            "title": stream.title or f"Stream {stream.id}",
+                            "streamer_name": streamer.username,
+                            "streamer_id": streamer.id,
+                            "file_path": recording.file_path,
+                            "file_size": file_stats.st_size,
+                            "created_at": recording.started_at.isoformat() if recording.started_at else None,
+                            "started_at": recording.started_at.isoformat() if recording.started_at else None,
+                            "ended_at": recording.ended_at.isoformat() if recording.ended_at else None,
+                            "duration": duration,
+                            "category_name": stream.category_name,
+                            "language": stream.language,
+                            "thumbnail_url": None
+                        }
+                        videos.append(video_info)
+                        logger.debug(f"Added video from recording: {stream.title} by {streamer.username}")
         
         logger.info(f"Returning {len(videos)} videos")
         
