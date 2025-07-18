@@ -122,8 +122,11 @@ class MigrationService:
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
         """Get all migration scripts from the migrations directory"""
-        # Get to the project root directory (4 levels up from app/services/system/migration_service.py)
-        migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'migrations')
+        # Get to the container root directory (3 levels up from app/services/system/migration_service.py)
+        # __file__ = /app/app/services/system/migration_service.py
+        # 3 levels up = /app/
+        # migrations_dir = /app/migrations/
+        migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '..', 'migrations')
         migration_scripts = glob.glob(os.path.join(migrations_dir, '*.py'))
         # Filter out __init__.py and any other non-migration files
         migration_scripts = [script for script in migration_scripts if os.path.basename(script) != '__init__.py' 
