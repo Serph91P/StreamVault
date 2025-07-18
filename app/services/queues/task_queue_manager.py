@@ -20,6 +20,9 @@ logger = logging.getLogger("streamvault")
 class TaskQueueManager:
     """Core queue management and task orchestration"""
     
+    # Constants
+    DEFAULT_STREAMER_NAME_FORMAT = "streamer_{stream_id}"
+    
     def __init__(self, max_workers: int = 3, websocket_manager=None):
         self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self.is_running = False
@@ -318,7 +321,7 @@ class TaskQueueManager:
             output_dir = str(Path(ts_file_path).parent)
         
         if not streamer_name:
-            streamer_name = f"streamer_{stream_id}"
+            streamer_name = self.DEFAULT_STREAMER_NAME_FORMAT.format(stream_id=stream_id)
         
         if not started_at:
             from datetime import datetime
@@ -328,6 +331,10 @@ class TaskQueueManager:
         if not all([stream_id is not None, recording_id is not None, ts_file_path, output_dir, streamer_name, started_at]):
             logger.error(f"Missing required parameters for post-processing: stream_id={stream_id}, recording_id={recording_id}, ts_file_path={ts_file_path}, output_dir={output_dir}, streamer_name={streamer_name}, started_at={started_at}")
             raise ValueError("Missing required parameters for post-processing")
+        
+        # Ensure all parameters are correctly typed after validation
+        assert stream_id is not None and recording_id is not None
+        assert ts_file_path and output_dir and streamer_name and started_at
         
         # Create task factory and generate tasks
         task_factory = RecordingTaskFactory()
