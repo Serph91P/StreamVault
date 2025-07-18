@@ -20,13 +20,16 @@ logger = logging.getLogger("streamvault")
 class TaskQueueManager:
     """Core queue management and task orchestration"""
     
+    # Constants
+    DEFAULT_STREAMER_NAME_FORMAT = "streamer_{stream_id}"
+    
     def __init__(self, max_workers: int = 3, websocket_manager=None):
         self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self.is_running = False
         
         # Initialize components
         self.progress_tracker = TaskProgressTracker(websocket_manager)
-        self.worker_manager = WorkerManager(max_workers, self.progress_tracker)
+        self.worker_manager = WorkerManager(max_workers, self.progress_tracker, self.mark_task_completed)
         self.dependency_manager = TaskDependencyManager()
         
         # Dependency management
@@ -35,7 +38,7 @@ class TaskQueueManager:
     async def start(self):
         """Start the queue manager and all components"""
         if self.is_running:
-            logger.warning("TaskQueueManager already running")
+            logger.debug("TaskQueueManager already running, skipping start...")
             return
             
         self.is_running = True
@@ -120,9 +123,9 @@ class TaskQueueManager:
         # Create dependency task
         dep_task = Task(
             id=task_id,
-            task_type=task_type,
+            type=task_type,
             payload=payload,
-            dependencies=dependencies or [],
+            dependencies=set(dependencies or []),
             status=DepTaskStatus.PENDING
         )
         
@@ -186,7 +189,7 @@ class TaskQueueManager:
             if success:
                 await self.dependency_manager.mark_task_completed(task_id)
             else:
-                await self.dependency_manager.mark_task_failed(task_id)
+                await self.dependency_manager.mark_task_failed(task_id, "Task execution failed")
             logger.debug(f"Task {task_id} marked as {'completed' if success else 'failed'} in dependency manager")
         except Exception as e:
             logger.warning(f"Failed to update task {task_id} in dependency manager: {e}")
@@ -272,3 +275,86 @@ class TaskQueueManager:
     def has_handler(self, task_type: str) -> bool:
         """Check if handler is registered for task type"""
         return self.worker_manager.has_handler(task_type)
+    
+    async def enqueue_recording_post_processing(self, *args, **kwargs):
+        """Enqueue a complete post-processing chain for a recording"""
+        from app.services.processing.recording_task_factory import RecordingTaskFactory
+        
+        # Handle single payload argument (from coordinator)
+        if len(args) == 1 and isinstance(args[0], dict):
+            payload = args[0]
+            stream_id = payload.get('stream_id')
+            recording_id = payload.get('recording_id')
+            ts_file_path = payload.get('ts_file_path')
+            output_dir = payload.get('output_dir')
+            streamer_name = payload.get('streamer_name')
+            started_at = payload.get('started_at')
+            cleanup_ts_file = payload.get('cleanup_ts_file', True)
+        else:
+            # Extract parameters from kwargs
+            stream_id = kwargs.get('stream_id')
+            recording_id = kwargs.get('recording_id')
+            ts_file_path = kwargs.get('ts_file_path')
+            output_dir = kwargs.get('output_dir')
+            streamer_name = kwargs.get('streamer_name')
+            started_at = kwargs.get('started_at')
+            cleanup_ts_file = kwargs.get('cleanup_ts_file', True)
+        
+        # Type conversion and validation
+        if stream_id is not None and not isinstance(stream_id, int):
+            try:
+                stream_id = int(stream_id)
+            except (ValueError, TypeError):
+                logger.error(f"Invalid stream_id: {stream_id}")
+                raise ValueError(f"Invalid stream_id: {stream_id}")
+        
+        if recording_id is not None and not isinstance(recording_id, int):
+            try:
+                recording_id = int(recording_id)
+            except (ValueError, TypeError):
+                logger.error(f"Invalid recording_id: {recording_id}")
+                raise ValueError(f"Invalid recording_id: {recording_id}")
+        
+        # For missing values, try to derive them or use defaults
+        if not output_dir and ts_file_path:
+            from pathlib import Path
+            output_dir = str(Path(ts_file_path).parent)
+        
+        if not streamer_name:
+            streamer_name = self.DEFAULT_STREAMER_NAME_FORMAT.format(stream_id=stream_id)
+        
+        if not started_at:
+            from datetime import datetime
+            started_at = datetime.now().isoformat()
+        
+        # Final validation
+        if not all([stream_id is not None, recording_id is not None, ts_file_path, output_dir, streamer_name, started_at]):
+            logger.error(f"Missing required parameters for post-processing: stream_id={stream_id}, recording_id={recording_id}, ts_file_path={ts_file_path}, output_dir={output_dir}, streamer_name={streamer_name}, started_at={started_at}")
+            raise ValueError("Missing required parameters for post-processing")
+        
+        # Ensure all parameters are correctly typed after validation
+        if stream_id is None or recording_id is None:
+            raise ValueError("stream_id and recording_id must not be None")
+        if not all([ts_file_path, output_dir, streamer_name, started_at]):
+            raise ValueError("ts_file_path, output_dir, streamer_name, and started_at must not be empty or None")
+        
+        # Create task factory and generate tasks
+        task_factory = RecordingTaskFactory()
+        tasks = task_factory.create_post_processing_chain(
+            stream_id=stream_id,
+            recording_id=recording_id,
+            ts_file_path=ts_file_path,
+            output_dir=output_dir,
+            streamer_name=streamer_name,
+            started_at=started_at,
+            cleanup_ts_file=cleanup_ts_file
+        )
+        
+        # Add tasks to dependency manager
+        for task in tasks:
+            await self.dependency_manager.add_task(task)
+        
+        logger.info(f"Enqueued {len(tasks)} post-processing tasks for recording {recording_id}")
+        
+        # Return task IDs for tracking
+        return [task.id for task in tasks]

@@ -41,13 +41,21 @@ async def subscribe_to_push(
 ):
     """Subscribe a client to push notifications"""
     try:
+        logger.info("🔔 PUSH_SUBSCRIBE_REQUEST: Starting subscription process")
+        logger.debug(f"🔔 Request data keys: {list(subscription_data.keys())}")
+        
         subscription = subscription_data.get('subscription', {})
         user_agent = subscription_data.get('userAgent', '')
         
+        logger.debug(f"🔔 Subscription keys: {list(subscription.keys()) if subscription else 'None'}")
+        logger.debug(f"🔔 User agent: {user_agent[:50]}..." if user_agent else "🔔 No user agent")
+        
         if not subscription or 'endpoint' not in subscription:
+            logger.error("🔔 INVALID_SUBSCRIPTION_DATA: Missing subscription or endpoint")
             raise HTTPException(status_code=400, detail="Invalid subscription data")
         
         endpoint = subscription['endpoint']
+        logger.debug(f"🔔 Endpoint: {endpoint[:50]}...")
         
         # Check if subscription already exists
         existing = db.query(PushSubscription).filter(
@@ -55,11 +63,13 @@ async def subscribe_to_push(
         ).first()
         
         if existing:
+            logger.info(f"🔔 UPDATING_EXISTING_SUBSCRIPTION: id={existing.id}")
             # Update existing subscription
             existing.subscription_data = json.dumps(subscription)
             existing.user_agent = user_agent
             existing.is_active = True
         else:
+            logger.info("🔔 CREATING_NEW_SUBSCRIPTION")
             # Create new subscription
             new_subscription = PushSubscription(
                 endpoint=endpoint,
@@ -71,7 +81,10 @@ async def subscribe_to_push(
         
         db.commit()
         
-        logger.info(f"Push subscription added/updated: {endpoint[:50]}...")
+        # Verify subscription was saved
+        total_active = db.query(PushSubscription).filter(PushSubscription.is_active == True).count()
+        logger.info(f"🔔 SUBSCRIPTION_SAVED: endpoint={endpoint[:50]}...")
+        logger.info(f"🔔 TOTAL_ACTIVE_SUBSCRIPTIONS: count={total_active}")
         
         return {
             "success": True,
@@ -119,7 +132,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
     try:
         logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
         
-        from app.services.communication.enhanced_push_service import EnhancedPushService, enhanced_push_service
+        from app.services.communication.webpush_service import ModernWebPushService
         from app.models import GlobalSettings, NotificationSettings, Streamer
         
         # Check VAPID configuration
@@ -130,7 +143,14 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 "message": "Push notification service is not properly configured. Please contact an administrator."
             }
         
-        push_service = enhanced_push_service
+        # Initialize push service
+        vapid_claims = {
+            "sub": getattr(settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
+        }
+        push_service = ModernWebPushService(
+            vapid_private_key=settings.VAPID_PRIVATE_KEY,
+            vapid_claims=vapid_claims
+        )
         
         # Check global notification settings
         global_settings = db.query(GlobalSettings).first()
@@ -173,7 +193,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 
                 logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
                 
-                success = await push_service.send_notification(subscription_data, notification_data)
+                success = push_service.send_notification(subscription_data, notification_data)
                 if success:
                     sent_count += 1
                     logger.info(f"🧪 TEST_SUCCESS: {endpoint}...")

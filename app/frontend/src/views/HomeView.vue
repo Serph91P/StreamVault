@@ -12,6 +12,8 @@ const totalStreamers = computed(() => streamers.value.length)
 const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
 const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
 
+
+
 // For last recording - derived from streamers data (no API calls)
 const lastRecording = ref<any>(null)
 const lastRecordingStreamer = ref<any>(null)
@@ -78,32 +80,45 @@ watch(messages, (newMessages) => {
       updateLastRecording()
       break
     }
-    case 'recording.started': {
+    case 'active_recordings_update': {
+      // Update the activeRecordings state directly with the received data
+      activeRecordings.value = message.data || []
+      
+      // Update streamer recording status based on active recordings
+      for (const streamer of streamers.value) {
+        const isRecording = activeRecordings.value.some(recording => 
+          String(recording.streamer_id) === String(streamer.id)
+        )
+        streamer.is_recording = isRecording
+      }
+      break
+    }
+    case 'recording_started': {
       const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {
         streamer.is_recording = true
       }
-      // Refresh active recordings count
-      fetchActiveRecordings()
+      // Don't fetch - rely on WebSocket updates
       break
     }
-    case 'recording.stopped': {
+    case 'recording_stopped': {
       const streamerId = Number(message.data.streamer_id)
       const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
       if (streamer) {
         streamer.is_recording = false
       }
-      // Refresh active recordings count
-      fetchActiveRecordings()
+      // Don't fetch - rely on WebSocket updates
       break
     }
   }
 }, { deep: true })
 
-// Connection status handling
+// Connection status handling - only fetch once on initial connection
+let hasInitialFetch = false
 watch(connectionStatus, (status) => {
-  if (status === 'connected') {
+  if (status === 'connected' && !hasInitialFetch) {
+    hasInitialFetch = true
     void fetchStreamers()
     void fetchActiveRecordings()
   }
@@ -113,6 +128,8 @@ watch(connectionStatus, (status) => {
 watch(streamers, () => {
   updateLastRecording()
 }, { deep: true })
+
+
 
 onMounted(async () => {
   await fetchStreamers()
@@ -224,4 +241,6 @@ onMounted(async () => {
     flex-direction: column;
   }
 }
+
+
 </style>

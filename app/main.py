@@ -13,6 +13,8 @@ from app.routes import videos
 from app.routes import images
 from app.routes import api_images
 from app.routes import background_queue
+from app.routes import streams
+from app.services.system.development_test_runner import run_development_tests
 import logging
 import hmac
 import hashlib
@@ -87,6 +89,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
         
+        # Initialize background queue service
+        try:
+            from app.services.init.background_queue_init import BackgroundQueueManager
+            background_queue_init = BackgroundQueueManager()
+            await background_queue_init.initialize()
+            logger.info("Background queue service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize background queue service: {e}")
+            logger.exception("Full error details:")
+        
         # Start recording cleanup service
         try:
             from app.services.system.cleanup_service import CleanupService
@@ -129,6 +141,16 @@ async def lifespan(app: FastAPI):
             logger.info("WebSocket broadcast task started")
         except Exception as e:
             logger.error(f"Error starting WebSocket broadcast task: {e}", exc_info=True)
+        
+        # Run development tests if in debug mode
+        try:
+            test_success = await run_development_tests()
+            if test_success:
+                logger.info("✅ All development tests passed")
+            else:
+                logger.warning("⚠️ Some development tests failed - check logs above")
+        except Exception as e:
+            logger.error(f"Error running development tests: {e}", exc_info=True)
         
         logger.info("Application startup complete")
         
@@ -595,6 +617,7 @@ app.include_router(videos.router)  # Router already has /api prefix
 app.include_router(images.router)  # Images serving routes
 app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
+app.include_router(streams.router)  # Stream management routes
 
 # Push notification routes
 from app.routes import push as push_router

@@ -69,7 +69,7 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
                                 # MP4 is ready and stable, safe to remove TS
                                 os.remove(output_path)
                                 logger.info(f"Process-aware cleanup: Removed TS file {output_path} (waited {elapsed:.0f}s)")
-                                return
+                                return True
                                 
                             except Exception as e:
                                 logger.warning(f"MP4 file not readable yet, will retry: {e}")
@@ -79,7 +79,7 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
             # Check if we've exceeded max wait time
             if elapsed > max_wait_time:
                 logger.warning(f"Process-aware cleanup timeout ({max_wait_time}s), keeping TS file: {output_path}")
-                return
+                return False
             
             # Wait before next check
             await asyncio.sleep(check_interval)

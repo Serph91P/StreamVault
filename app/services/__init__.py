@@ -26,7 +26,7 @@ from app.services.notification_service import NotificationService
 from app.services.streamer_service import StreamerService
 from app.services.system.logging_service import LoggingService
 from app.services.media.metadata_service import MetadataService
-from app.services.communication.enhanced_push_service import EnhancedPushService
+from app.services.communication.webpush_service import ModernWebPushService
 from app.services.system.cleanup_service import CleanupService
 from app.services.core.settings_service import SettingsService
 # Removed: CategoryImageService - now handled by unified_image_service
@@ -38,6 +38,9 @@ from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
+# ProcessMonitor integration temporarily disabled for stability
+ProcessMonitor = None
+process_monitor = None
 
 __all__ = [
     "LoggingService",
@@ -46,10 +49,10 @@ __all__ = [
     "NotificationService",
     "MetadataService",
     "AuthService",
-    "CategoryImageService",
+
     "MigrationService",
     "CleanupService",
-    "EnhancedPushService",
+    "ModernWebPushService",
     "SettingsService",
     "ThumbnailService",
     "ArtworkService",
@@ -58,6 +61,8 @@ __all__ = [
     "ModernWebPushService",  # Changed from WebPushService
     "ConnectionManager",
     "UnifiedImageService",
+    "ProcessMonitor",
+    "process_monitor",
     # Export recording components
     "ConfigManager",
     "ProcessManager",

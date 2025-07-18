@@ -33,12 +33,43 @@ export function useRecordingSettings() {
         }
       } else if (latestMessage.type === 'recording_started') {
         
-        // Refresh active recordings or add the new recording
-        fetchActiveRecordings();
-      } else if (latestMessage.type === 'recording_stopped') {
+        // Add the new recording to active recordings
+        if (latestMessage.data) {
+          const newRecording = {
+            ...latestMessage.data,
+            streamer_id: parseInt(latestMessage.data.streamer_id.toString())
+          };
+          
+          // Check if recording already exists to avoid duplicates
+          const existingIndex = activeRecordings.value.findIndex(
+            rec => rec.id === newRecording.recording_id
+          );
+          
+          if (existingIndex === -1) {
+            activeRecordings.value.push(newRecording);
+          } else {
+            // Update existing recording
+            activeRecordings.value[existingIndex] = newRecording;
+          }
+        }
+      } else if (latestMessage.type === 'recording_stopped' || latestMessage.type === 'recording_status_update') {
+        
+        // Handle recording stopped or status update
+        if (latestMessage.type === 'recording_status_update') {
+          // For status updates, only remove if status indicates recording is no longer active
+          const inactiveStatuses = ['completed', 'failed', 'stopped', 'cancelled'];
+          if (!inactiveStatuses.includes(latestMessage.data?.status)) {
+            return; // Recording is still active, don't remove from list
+          }
+        }
         
         // Remove the recording from active recordings
-        if (latestMessage.data?.streamer_id) {
+        if (latestMessage.data?.recording_id) {
+          activeRecordings.value = activeRecordings.value.filter(
+            rec => rec.id !== latestMessage.data.recording_id
+          );
+        } else if (latestMessage.data?.streamer_id) {
+          // Fallback to streamer_id if recording_id not available
           activeRecordings.value = activeRecordings.value.filter(
             rec => rec.streamer_id !== latestMessage.data.streamer_id
           );

@@ -17,7 +17,8 @@ from app.models import Streamer
 from app.schemas.streamers import StreamerResponse
 from app.services.communication.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
-from app.services.streamers import StreamerRepository, TwitchIntegrationService, StreamerImageService
+from app.services.streamers import StreamerRepository, TwitchIntegrationService
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -33,7 +34,7 @@ class StreamerService:
         # Initialize the refactored services
         self.repository = StreamerRepository(db)
         self.twitch_service = TwitchIntegrationService(event_registry)
-        self.image_service = StreamerImageService()
+        self.image_service = unified_image_service
         
         # Legacy properties for compatibility
         self.twitch_api = self.twitch_service.twitch_api
@@ -80,10 +81,11 @@ class StreamerService:
         """Get streamer by username"""
         return self.repository.get_streamer_by_username(username)
 
-    # Delegate methods to StreamerImageService
+    # Delegate methods to UnifiedImageService
     async def download_profile_image(self, url: str, streamer_id: str) -> str:
         """Download and cache profile image"""
-        return await self.image_service.download_profile_image(url, streamer_id)
+        result = await self.image_service.download_profile_image(int(streamer_id), url)
+        return result or url
 
     # Combined methods that use multiple services
     async def add_streamer(self, username: str, display_name: str = None) -> Optional[Streamer]:
@@ -107,8 +109,8 @@ class StreamerService:
             
             # Cache profile image
             cached_image_path = await self.image_service.download_profile_image(
-                user_data['profile_image_url'],
-                user_data['id']
+                int(user_data['id']),
+                user_data['profile_image_url']
             )
             
             # Check if streamer is currently live
@@ -126,7 +128,7 @@ class StreamerService:
             new_streamer = self.repository.create_streamer(
                 user_data=user_data,
                 display_name=display_name,
-                cached_image_path=cached_image_path,
+                cached_image_path=cached_image_path or user_data['profile_image_url'],
                 stream_info=stream_info
             )
             
@@ -193,10 +195,11 @@ class StreamerService:
             
             # Update profile image if changed
             if user_data.get('profile_image_url') != streamer.original_profile_image_url:
-                cached_path = await self.image_service.refresh_profile_image(
+                cached_path = await self.image_service.update_streamer_profile_image(
                     streamer.id, user_data['profile_image_url']
                 )
-                user_data['cached_profile_image'] = cached_path
+                if cached_path:
+                    user_data['cached_profile_image'] = self.image_service.get_cached_profile_image(streamer.id)
             
             # Update streamer in database
             self.repository.update_streamer(
@@ -243,6 +246,14 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Error checking bulk live status: {e}")
             return {}
+
+    async def get_all_streamers(self) -> List[Streamer]:
+        """Get all streamers from the database"""
+        try:
+            return self.repository.get_all_streamers_raw()
+        except Exception as e:
+            logger.error(f"Error getting all streamers: {e}")
+            return []
 
     async def close(self):
         """Close all services"""

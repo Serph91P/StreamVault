@@ -32,9 +32,8 @@ class PostProcessingTaskHandlers:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
     
-    async def handle_metadata_generation(self, task):
+    async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
-        payload = task.payload
         stream_id = payload['stream_id']
         base_filename = payload['base_filename']
         output_dir = payload['output_dir']
@@ -42,7 +41,7 @@ class PostProcessingTaskHandlers:
         log_with_context(
             logger, 'info',
             f"Starting metadata generation for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             operation='metadata_generation_start'
         )
@@ -61,7 +60,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'info',
                 f"Metadata generation completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 operation='metadata_generation_complete'
             )
@@ -70,23 +69,22 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"Metadata generation failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='metadata_generation_error'
             )
             raise
     
-    async def handle_chapters_generation(self, task):
+    async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
-        payload = task.payload
         stream_id = payload['stream_id']
         mp4_path = payload['mp4_path']
         
         log_with_context(
             logger, 'info',
             f"Starting chapters generation for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             operation='chapters_generation_start'
         )
@@ -104,7 +102,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'info',
                 f"Chapters generation completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 chapter_formats=list(chapter_info.keys()),
                 operation='chapters_generation_complete'
@@ -114,16 +112,15 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"Chapters generation failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='chapters_generation_error'
             )
             raise
     
-    async def handle_mp4_remux(self, task):
+    async def handle_mp4_remux(self, payload, progress_callback=None):
         """Handle MP4 remux task"""
-        payload = task.payload
         stream_id = payload['stream_id']
         ts_file_path = payload['ts_file_path']
         mp4_output_path = payload['mp4_output_path']
@@ -132,12 +129,21 @@ class PostProcessingTaskHandlers:
         log_with_context(
             logger, 'info',
             f"Starting MP4 remux for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             ts_file_path=ts_file_path,
             mp4_output_path=mp4_output_path,
-            operation='mp4_remux_start'
+            operation='mp4_remux_start',
+            streamer_name=streamer_name
         )
+        
+        # Log to structured logging service
+        if self.logging_service:
+            self.logging_service.log_recording_activity(
+                "MP4_REMUX_START",
+                streamer_name,
+                f"Remuxing {ts_file_path} to {mp4_output_path}"
+            )
         
         try:
             # Check if TS file exists
@@ -217,7 +223,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'info',
                 f"MP4 remux completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 mp4_output_path=mp4_output_path,
                 operation='mp4_remux_complete'
@@ -227,16 +233,15 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"MP4 remux failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='mp4_remux_error'
             )
             raise
     
-    async def handle_thumbnail_generation(self, task):
+    async def handle_thumbnail_generation(self, payload, progress_callback=None):
         """Handle thumbnail generation task"""
-        payload = task.payload
         stream_id = payload['stream_id']
         mp4_path = payload['mp4_path']
         output_dir = payload['output_dir']
@@ -244,7 +249,7 @@ class PostProcessingTaskHandlers:
         log_with_context(
             logger, 'info',
             f"Starting thumbnail generation for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             mp4_path=mp4_path,
             operation='thumbnail_generation_start'
@@ -263,7 +268,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'info',
                 f"Thumbnail generation completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 thumbnail_path=thumbnail_path,
                 operation='thumbnail_generation_complete'
@@ -273,16 +278,15 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"Thumbnail generation failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='thumbnail_generation_error'
             )
             raise
     
-    async def handle_mp4_validation(self, task):
+    async def handle_mp4_validation(self, payload, progress_callback=None):
         """Handle MP4 validation task"""
-        payload = task.payload
         stream_id = payload['stream_id']
         mp4_path = payload['mp4_path']
         ts_file_path = payload['ts_file_path']
@@ -292,7 +296,7 @@ class PostProcessingTaskHandlers:
         log_with_context(
             logger, 'info',
             f"Starting MP4 validation for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             mp4_path=mp4_path,
             operation='mp4_validation_start'
@@ -330,7 +334,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'info',
                 f"MP4 validation completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 mp4_size=mp4_size,
                 operation='mp4_validation_complete'
@@ -340,31 +344,40 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"MP4 validation failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='mp4_validation_error'
             )
             raise
 
-    async def handle_cleanup(self, task):
+    async def handle_cleanup(self, payload, progress_callback=None):
         """Handle cleanup task with intelligent TS cleanup"""
-        payload = task.payload
         stream_id = payload['stream_id']
         files_to_remove = payload['files_to_remove']
         mp4_path = payload['mp4_path']
         intelligent_cleanup = payload.get('intelligent_cleanup', False)
         max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
+        streamer_name = payload.get('streamer_name', f'stream_{stream_id}')
         
         log_with_context(
             logger, 'info',
             f"Starting cleanup for stream {stream_id}",
-            task_id=task.id,
+            task_id=payload.get('task_id'),
             stream_id=stream_id,
             files_to_remove=files_to_remove,
             intelligent_cleanup=intelligent_cleanup,
-            operation='cleanup_start'
+            operation='cleanup_start',
+            streamer_name=streamer_name
         )
+        
+        # Log to structured logging service
+        if self.logging_service:
+            self.logging_service.log_recording_activity(
+                "CLEANUP_START",
+                streamer_name,
+                f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
+            )
         
         try:
             # Validation should have already passed, but double-check
@@ -379,22 +392,33 @@ class PostProcessingTaskHandlers:
             for file_path in files_to_remove:
                 if os.path.exists(file_path):
                     try:
-                        # Use intelligent cleanup for TS files if requested
-                        if intelligent_cleanup and file_path.endswith('.ts'):
-                            await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
+                        # Check if it's a directory
+                        if os.path.isdir(file_path):
+                            # Remove directory and all its contents
+                            import shutil
+                            shutil.rmtree(file_path)
+                            logger.info(f"Removed directory: {file_path}")
+                            removed_files.append(file_path)
                         else:
-                            # Simple file removal
-                            os.remove(file_path)
-                            
-                        removed_files.append(file_path)
-                        logger.info(f"Removed file: {file_path}")
+                            # Use intelligent cleanup for TS files if requested
+                            if intelligent_cleanup and file_path.endswith('.ts'):
+                                cleanup_success = await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
+                                if cleanup_success:
+                                    removed_files.append(file_path)
+                                else:
+                                    logger.warning(f"Intelligent cleanup failed for {file_path}, keeping file")
+                            else:
+                                # Simple file removal
+                                os.remove(file_path)
+                                logger.info(f"Removed file: {file_path}")
+                                removed_files.append(file_path)
                     except Exception as e:
-                        logger.warning(f"Failed to remove file {file_path}: {e}")
+                        logger.warning(f"Failed to remove {file_path}: {e}")
             
             log_with_context(
                 logger, 'info',
                 f"Cleanup completed for stream {stream_id}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 removed_files=removed_files,
                 operation='cleanup_complete'
@@ -404,7 +428,7 @@ class PostProcessingTaskHandlers:
             log_with_context(
                 logger, 'error',
                 f"Cleanup failed for stream {stream_id}: {e}",
-                task_id=task.id,
+                task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='cleanup_error'

@@ -65,25 +65,30 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
             
             # If no database episode numbers found, try to extract from existing recording paths as fallback
             if max_episode_num == 0:
-                streams = (
-                    db.query(Stream)
+                # Look in Recording table instead of Stream table for recording paths
+                from app.models import Recording
+                
+                recordings = (
+                    db.query(Recording)
+                    .join(Stream, Recording.stream_id == Stream.id)
                     .filter(
                         Stream.streamer_id == streamer_id,
-                        extract("year", Stream.started_at) == now.year,
-                        extract("month", Stream.started_at) == now.month,
+                        extract("year", Recording.start_time) == now.year,
+                        extract("month", Recording.start_time) == now.month,
+                        Recording.path.isnot(None)
                     )
-                    .order_by(Stream.started_at.desc())
+                    .order_by(Recording.start_time.desc())
                     .all()
                 )
                 
                 current_month_year = f"{now.year}{now.month:02d}"
                 
-                for stream in streams:
-                    if stream.recording_path and "S" in stream.recording_path and "E" in stream.recording_path:
+                for recording in recordings:
+                    if recording.path and "S" in recording.path and "E" in recording.path:
                         try:
                             # Extract episode number from path like "S202507E02"
                             import re
-                            match = re.search(rf'S{current_month_year}E(\d+)', stream.recording_path)
+                            match = re.search(rf'S{current_month_year}E(\d+)', recording.path)
                             if match:
                                 episode_num = int(match.group(1))
                                 max_episode_num = max(max_episode_num, episode_num)

@@ -20,8 +20,16 @@ from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
 
+# ProcessMonitor integration temporarily disabled for stability
+process_monitor = None
+ProcessType = None
+ProcessStatus = None
+
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes"""
+
+    # Constants for segment file patterns (must match RecordingLifecycleManager)
+    SEGMENT_PART_IDENTIFIER = "_part"
 
     def __init__(self, config_manager=None):
         self.active_processes = {}
@@ -33,6 +41,14 @@ class ProcessManager:
         self.segment_duration_hours = 23.98  # Split streams at 23h59min to avoid streamlink cutoff
         self.max_file_size_gb = 100  # Start new segment if file exceeds this size
         self.monitor_interval_seconds = 600  # Check every 10 minutes (less frequent)
+        
+        # Initialize structured logging service
+        try:
+            from app.services.system.logging_service import logging_service
+            self.logging_service = logging_service
+        except Exception as e:
+            logger.warning(f"Could not initialize logging service: {e}")
+            self.logging_service = None
         
         # Try to import psutil for process monitoring
         try:
@@ -87,7 +103,7 @@ class ProcessManager:
         segment_dir.mkdir(parents=True, exist_ok=True)
         
         # Create first segment path
-        segment_filename = f"{base_path.stem}_part001.ts"
+        segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}001.ts"
         current_segment_path = segment_dir / segment_filename
         
         segment_info = {
@@ -113,20 +129,69 @@ class ProcessManager:
     ) -> Optional[asyncio.subprocess.Process]:
         """Start recording a single segment"""
         try:
+            # Get streamer info from database using streamer_id
+            from app.database import SessionLocal
+            from app.models import Streamer
+            
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if not streamer:
+                    raise Exception(f"Streamer {stream.streamer_id} not found")
+                
+                streamer_name = streamer.username
+            
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
             
+            logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
+            
             # Generate streamlink command for this segment
             cmd = get_streamlink_command(
-                streamer_name=stream.streamer.username,
+                streamer_name=streamer_name,
                 quality=quality,
                 output_path=segment_path,
                 proxy_settings=proxy_settings
             )
             
-            logger.info(f"Starting segment {segment_info['segment_count']} for {stream.streamer.username}")
-            logger.debug(f"Segment path: {segment_path}")
-            logger.debug(f"Streamlink command: {' '.join(cmd)}")
+            logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")
+            logger.debug(f"🎬 Segment path: {segment_path}")
+            logger.debug(f"🎬 Streamlink command: {' '.join(cmd)}")
+            
+            # Log to structured logging service
+            if self.logging_service:
+                self.logging_service.log_streamlink_start(
+                    streamer_name=streamer_name,
+                    quality=quality,
+                    output_path=segment_path,
+                    cmd=cmd
+                )
+                
+                # Create streamlink log file for this streamer
+                streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                logger.info(f"Streamlink logs for {streamer_name} will be written to: {streamlink_log_path}")
+                
+                # Initialize the log file using proper logging
+                streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
+                
+                # Remove any existing FileHandler instances for this logger to prevent memory leaks
+                for handler in list(streamer_logger.handlers):
+                    if isinstance(handler, logging.FileHandler):
+                        streamer_logger.removeHandler(handler)
+                        handler.close()
+                
+                # Add a new FileHandler
+                file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
+                file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+                streamer_logger.addHandler(file_handler)
+                streamer_logger.setLevel(logging.INFO)
+                streamer_logger.propagate = False
+                
+                streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
+                streamer_logger.info(f"Quality: {quality}")
+                streamer_logger.info(f"Output: {segment_path}")
+                streamer_logger.info(f"Command: {' '.join(cmd)}")
+                streamer_logger.info(f"Segment: {segment_info['segment_count']}")
+                streamer_logger.info("=" * 80)
             
             # Start the process
             process = await asyncio.create_subprocess_exec(
@@ -134,6 +199,37 @@ class ProcessManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+            
+            # Add immediate check to see if process started successfully
+            await asyncio.sleep(0.1)  # Give process time to start
+            if process.returncode is not None:
+                # Process already ended, capture output
+                stdout, stderr = await process.communicate()
+                logger.error(f"🎬 PROCESS_FAILED_IMMEDIATELY: PID would be {process.pid}, exit code {process.returncode}")
+                logger.error(f"🎬 STDOUT: {stdout.decode()}")
+                logger.error(f"🎬 STDERR: {stderr.decode()}")
+                
+                # Log to structured logging service
+                if self.logging_service:
+                    self.logging_service.log_streamlink_output(
+                        streamer_name=streamer_name,
+                        stdout=stdout,
+                        stderr=stderr,
+                        exit_code=process.returncode
+                    )
+                    
+                    # Also append to the streamer-specific log file using proper logging
+                    streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
+                    try:
+                        streamer_logger.error(f"PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})")
+                        if stdout:
+                            streamer_logger.error(f"STDOUT:\n{stdout.decode()}")
+                        if stderr:
+                            streamer_logger.error(f"STDERR:\n{stderr.decode()}")
+                    except Exception as e:
+                        logger.warning(f"Could not write to streamlink log file: {e}")
+                        
+                raise ProcessError(f"Streamlink process failed immediately: {stderr.decode()}")
             
             process_id = f"stream_{stream.id}"
             async with self.lock:
@@ -145,6 +241,22 @@ class ProcessManager:
                 'start_time': datetime.now(),
                 'process_pid': process.pid
             })
+            
+            # Register process with ProcessMonitor - temporarily disabled
+            # if process_monitor and ProcessType:
+            #     await process_monitor.register_process(
+            #         process_id=f"streamlink_{stream.id}_{segment_info['segment_count']}",
+            #         process_type=ProcessType.STREAMLINK,
+            #         pid=process.pid,
+            #         command=' '.join(cmd),
+            #         streamer_id=stream.streamer_id,
+            #         stream_id=stream.id,
+            #         metadata={
+            #             'segment_path': segment_path,
+            #             'segment_count': segment_info['segment_count'],
+            #             'quality': quality
+            #         }
+            #     )
                 
             logger.info(f"Started segment recording for stream {stream.id} with PID {process.pid}")
             return process
@@ -215,7 +327,7 @@ class ProcessManager:
             # Prepare next segment
             segment_info['segment_count'] += 1
             base_path = Path(segment_info['base_output_path'])
-            segment_filename = f"{base_path.stem}_part{segment_info['segment_count']:03d}.ts"
+            segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
             next_segment_path = Path(segment_info['segment_dir']) / segment_filename
             
             segment_info['current_segment_path'] = str(next_segment_path)
@@ -275,8 +387,32 @@ class ProcessManager:
                     logger.error(f"Recording process failed with exit code {process.returncode} (PID: {process.pid})")
                     if stderr:
                         logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')[:1000]}")
+                
+                # Log to structured logging service
+                if self.logging_service:
+                    # Get streamer name from database for logging
+                    try:
+                        from app.database import SessionLocal
+                        from app.models import Stream, Streamer
                         
-                return process.returncode
+                        with SessionLocal() as db:
+                            # Get stream from process_id in the segment info
+                            stream_id = process_id.split('_')[1] if process_id else None
+                            if stream_id:
+                                stream = db.query(Stream).filter(Stream.id == int(stream_id)).first()
+                                if stream:
+                                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                                    if streamer:
+                                        self.logging_service.log_streamlink_output(
+                                            streamer_name=streamer.username,
+                                            stdout=stdout,
+                                            stderr=stderr,
+                                            exit_code=process.returncode or 0
+                                        )
+                    except Exception as e:
+                        logger.warning(f"Could not log streamlink output to structured logging: {e}")
+                        
+                return process.returncode or 0
             
         except Exception as e:
             logger.error(f"Error monitoring process {process.pid}: {e}", exc_info=True)
@@ -511,3 +647,56 @@ class ProcessManager:
     def is_shutting_down(self) -> bool:
         """Check if process manager is shutting down"""
         return self._is_shutting_down
+
+    async def get_recording_progress(self, recording_id: int) -> Optional[Dict]:
+        """Get progress information for a recording
+        
+        Args:
+            recording_id: ID of the recording to check progress for
+            
+        Returns:
+            Dictionary with progress information or None if not found
+        """
+        try:
+            process_id = f"stream_{recording_id}"
+            
+            async with self.lock:
+                if process_id not in self.active_processes:
+                    return None
+                    
+                process = self.active_processes[process_id]
+                
+                # Check if process is still running
+                if process.returncode is not None:
+                    return {"status": "completed", "exit_code": process.returncode}
+                
+                # Get basic process info
+                progress = {
+                    "status": "running",
+                    "pid": process.pid,
+                    "duration": None,
+                    "file_size": None,
+                    "segment_count": 1
+                }
+                
+                # Add segment info if available
+                if process_id in self.long_stream_processes:
+                    segment_info = self.long_stream_processes[process_id]
+                    progress["segment_count"] = segment_info.get("segment_count", 1)
+                    
+                    # Calculate duration if we have start time
+                    if "segment_start_time" in segment_info:
+                        duration = datetime.now() - segment_info["segment_start_time"]
+                        progress["duration"] = int(duration.total_seconds())
+                    
+                    # Get file size if available
+                    current_path = segment_info.get("current_segment_path")
+                    if current_path and await async_file.exists(current_path):
+                        file_size = await async_file.getsize(current_path)
+                        progress["file_size"] = file_size
+                
+                return progress
+                
+        except Exception as e:
+            logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
+            return None

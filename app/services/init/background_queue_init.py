@@ -11,6 +11,9 @@ from app.services.processing.post_processing_task_handlers import post_processin
 
 logger = logging.getLogger("streamvault")
 
+# Backward compatibility alias - will be set after class definition
+BackgroundQueueInit = None
+
 class BackgroundQueueManager:
     """Manager for background queue initialization and lifecycle"""
     
@@ -22,7 +25,12 @@ class BackgroundQueueManager:
     async def initialize(self):
         """Initialize the background queue service with task handlers"""
         if self.is_initialized:
-            logger.warning("Background queue already initialized")
+            logger.debug("Background queue already initialized, skipping...")
+            return
+        
+        if self.queue_service.is_running:
+            logger.info("Background queue service is already running")
+            self.is_initialized = True
             return
         
         logger.info("Initializing background queue service...")
@@ -173,3 +181,6 @@ async def cancel_stream_tasks(stream_id: int):
     """Cancel all tasks for a stream"""
     queue_service = get_background_queue_service()
     return await queue_service.cancel_stream_tasks(stream_id)
+
+# Set backward compatibility alias
+BackgroundQueueInit = BackgroundQueueManager

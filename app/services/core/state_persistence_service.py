@@ -167,16 +167,22 @@ class StatePersistenceService:
         
         try:
             with SessionLocal() as db:
-                state = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.stream_id == stream_id
-                ).first()
-                
-                if state:
-                    state.last_heartbeat = datetime.now(timezone.utc)
-                    db.commit()
-                    return True
-                else:
-                    logger.warning(f"No active recording state found for heartbeat update: {stream_id}")
+                # Use explicit transaction with rollback on error
+                try:
+                    state = db.query(ActiveRecordingState).filter(
+                        ActiveRecordingState.stream_id == stream_id
+                    ).first()
+                    
+                    if state:
+                        state.last_heartbeat = datetime.now(timezone.utc)
+                        db.commit()
+                        return True
+                    else:
+                        logger.warning(f"No active recording state found for heartbeat update: {stream_id}")
+                        return False
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"Error updating heartbeat for stream {stream_id}: {e}")
                     return False
                     
         except Exception as e:
@@ -197,6 +203,10 @@ class StatePersistenceService:
         except Exception as e:
             logger.error(f"Error getting active recordings: {e}", exc_info=True)
             return []
+    
+    async def load_state(self) -> List[ActiveRecordingState]:
+        """Load all active recordings from persistent storage"""
+        return await self.get_all_active_recordings()
             
     async def cleanup_stale_entries(self) -> int:
         """Clean up stale entries where processes no longer exist"""

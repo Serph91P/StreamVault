@@ -71,15 +71,14 @@ class RecordingDatabaseService:
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
-    async def create_recording(self, stream_id: int, streamer_id: int, file_path: str) -> Recording:
+    async def create_recording(self, stream_id: int, file_path: str) -> Recording:
         """Create a new recording entry"""
         try:
             self._ensure_db_session()
             
             recording = Recording(
                 stream_id=stream_id,
-                streamer_id=streamer_id,
-                file_path=file_path,
+                path=file_path,
                 status="recording",
                 start_time=datetime.utcnow()
             )
@@ -105,6 +104,11 @@ class RecordingDatabaseService:
         except Exception as e:
             logger.error(f"Failed to get recording {recording_id}: {e}")
             raise RetryableError(f"Database error: {e}")
+    
+    # Alias for compatibility
+    async def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
+        """Alias for get_recording - for compatibility"""
+        return await self.get_recording(recording_id)
 
     @database_retry
     async def get_active_recordings_from_db(self) -> List[Recording]:
@@ -168,8 +172,8 @@ class RecordingDatabaseService:
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
             
             if recording:
-                old_path = recording.file_path
-                recording.file_path = new_path
+                old_path = recording.path
+                recording.path = new_path
                 self.db.commit()
                 logger.info(f"Updated recording {recording_id} path: {old_path} → {new_path}")
             else:
@@ -227,6 +231,45 @@ class RecordingDatabaseService:
             return self.db.query(Stream).filter(Stream.id == stream_id).first()
         except Exception as e:
             logger.error(f"Failed to get stream {stream_id}: {e}")
+            raise RetryableError(f"Database error: {e}")
+
+    @database_retry
+    async def get_stream_by_external_id(self, external_id: str) -> Optional[Stream]:
+        """Get stream by external ID"""
+        try:
+            self._ensure_db_session()
+            return self.db.query(Stream).filter(Stream.external_id == external_id).first()
+        except Exception as e:
+            logger.error(f"Failed to get stream by external ID {external_id}: {e}")
+            raise RetryableError(f"Database error: {e}")
+
+    @database_retry
+    async def create_stream(self, stream_data: Dict[str, Any]) -> Optional[Stream]:
+        """Create a new stream record"""
+        try:
+            self._ensure_db_session()
+            
+            # Create new stream
+            stream = Stream(
+                streamer_id=stream_data['streamer_id'],
+                title=stream_data.get('title', 'Unknown Stream'),
+                category_name=stream_data.get('category_name', 'Unknown'),
+                language=stream_data.get('language', 'en'),
+                started_at=stream_data.get('started_at', datetime.now()),
+                is_live=stream_data.get('is_live', True),
+                external_id=stream_data.get('external_id', 'unknown')
+            )
+            
+            self.db.add(stream)
+            self.db.commit()
+            self.db.refresh(stream)
+            
+            logger.info(f"Created new stream {stream.id} for streamer {stream.streamer_id}")
+            return stream
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to create stream: {e}")
             raise RetryableError(f"Database error: {e}")
 
     def close_session(self):

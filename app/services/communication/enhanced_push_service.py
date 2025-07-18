@@ -1,5 +1,6 @@
 """
 Enhanced Push Service using a more modern implementation
+DEPRECATED: Use ModernWebPushService directly instead
 """
 import json
 import logging
@@ -11,6 +12,7 @@ from .webpush_service import ModernWebPushService, WebPushException
 
 logger = logging.getLogger("streamvault")
 
+# DEPRECATED: Use ModernWebPushService directly
 class EnhancedPushService:
     def __init__(self):
         self.settings = settings

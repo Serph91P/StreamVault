@@ -1,17 +1,15 @@
 <template>
   <div class="video-modal-overlay" @click="closeModal">
     <div class="video-modal" @click.stop>
+      <!-- Modal Header -->
       <div class="modal-header">
-        <h2>{{ video.title }}</h2>
-        <button @click="closeModal" class="close-btn">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <h2>{{ video.title || 'Video Player' }}</h2>
+        <button @click="closeModal" class="close-btn">×</button>
       </div>
       
+      <!-- Modal Content -->
       <div class="modal-content">
+        <!-- Video Container -->
         <div class="video-container">
           <video 
             ref="videoPlayer"
@@ -22,96 +20,79 @@
             @loadstart="onLoadStart"
             @canplay="onCanPlay"
             @error="onError"
+            @timeupdate="updateCurrentChapter"
           >
             Your browser does not support the video tag.
           </video>
-            <div v-if="loading" class="video-loading">
+            
+          <!-- Loading State -->
+          <div v-if="loading" class="video-loading">
             <div class="loading-spinner"></div>
             <p>Loading video...</p>
           </div>
           
+          <!-- Error State -->
           <div v-if="error" class="video-error">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
+            <div class="error-icon">⚠️</div>
             <h3>Could not load video</h3>
             <p>{{ errorMessage }}</p>
-            <button @click="retryVideo" class="retry-btn">Retry</button>
-          </div>
-
-          <!-- Chapter Navigation -->
-          <div v-if="chapters.length > 0 && !loading && !error" class="chapter-navigation">
-            <button 
-              @click="toggleChapters" 
-              class="chapters-toggle-btn"
-              :class="{ active: showChapters }"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="9" y1="9" x2="15" y2="9"></line>
-                <line x1="9" y1="12" x2="15" y2="12"></line>
-                <line x1="9" y1="15" x2="15" y2="15"></line>
-              </svg>
-              Chapters ({{ chapters.length }})
-            </button>
-            <div v-if="showChapters" class="chapters-list">
-              <div 
-                v-for="(chapter, index) in chapters" 
-                :key="index"
-                @click="jumpToChapter(chapter)"
-                class="chapter-item"
-                :class="{ active: currentChapter === index }"
-              >
-                <div class="chapter-time">{{ formatChapterTime(chapter.start_time) }}</div>
-                <div class="chapter-title">{{ chapter.title || `Chapter ${index + 1}` }}</div>
-              </div>
-            </div>
+            <button @click="retryVideo" class="retry-btn">🔄 Retry</button>
           </div>
         </div>
         
+        <!-- Video Details -->
         <div class="video-details">
           <div class="video-info">
             <h3>{{ video.streamer_name }}</h3>
             <p class="video-date">{{ formatDate(video.created_at) }}</p>
             <div class="video-stats">
               <span v-if="video.duration" class="stat">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12,6 12,12 16,14"></polyline>
-                </svg>
-                {{ formatDuration(video.duration) }}
+                🕐 {{ formatDuration(video.duration) }}
               </span>
               <span v-if="video.file_size" class="stat">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14,2 14,8 20,8"></polyline>
-                </svg>
-                {{ formatFileSize(video.file_size) }}
+                📄 {{ formatFileSize(video.file_size) }}
               </span>
             </div>
           </div>
           
           <div class="video-actions">
-            <button @click="downloadVideo" class="action-btn download-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Download
+            <button @click="downloadVideo" class="action-btn">
+              ⬇️ Download
             </button>
-              <button @click="shareVideo" class="action-btn share-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="18" cy="5" r="3"></circle>
-                <circle cx="6" cy="12" r="3"></circle>
-                <circle cx="18" cy="19" r="3"></circle>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-              </svg>
-              Share
+            <button @click="shareVideo" class="action-btn">
+              🔗 Share
             </button>
+            <button 
+              v-if="chapters.length > 0"
+              @click="toggleChapters" 
+              class="action-btn"
+              :class="{ 'active': showChapters }"
+            >
+              📋 Chapters ({{ chapters.length }})
+            </button>
+          </div>
+        </div>
+        
+        <!-- Chapter Navigation -->
+        <div v-if="chapters.length > 0 && showChapters" class="chapters-panel">
+          <div class="chapters-header">
+            <h4>📋 Chapters</h4>
+            <button @click="toggleChapters" class="close-chapters-btn">×</button>
+          </div>
+          <div class="chapters-list">
+            <div 
+              v-for="(chapter, index) in chapters" 
+              :key="index"
+              @click="jumpToChapter(chapter)"
+              class="chapter-item"
+              :class="{ 'active': currentChapter === index }"
+            >
+              <div class="chapter-number">{{ index + 1 }}</div>
+              <div class="chapter-content">
+                <div class="chapter-title">{{ chapter.title || `Chapter ${index + 1}` }}</div>
+                <div class="chapter-time">{{ formatChapterTime(chapter.start_time) }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -245,11 +226,10 @@ const fallbackShare = () => {
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
+  return date.toLocaleDateString('de-DE', {
     year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
   })
@@ -258,7 +238,6 @@ const formatDate = (dateString) => {
 const formatDuration = (seconds) => {
   if (!seconds) return 'Unknown'
   
-  // Round to whole seconds to avoid decimal display
   const totalSeconds = Math.round(seconds)
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
@@ -283,16 +262,12 @@ const formatFileSize = (bytes) => {
 const loadChapters = async () => {
   try {
     if (!props.video.streamer_id || !props.video.id) {
-      console.warn('Missing streamer_id or stream id for loading chapters', {
-        streamer_id: props.video.streamer_id,
-        video_id: props.video.id
-      })
+      console.warn('Missing streamer_id or stream id for loading chapters')
       return
     }
     
     const response = await streamerApi.getStreamChapters(props.video.streamer_id, props.video.id)
     chapters.value = response.chapters || []
-
   } catch (error) {
     console.error('Failed to load chapters:', error)
     chapters.value = []
@@ -313,15 +288,12 @@ const jumpToChapter = (chapter) => {
     // Update current chapter
     const chapterIndex = chapters.value.indexOf(chapter)
     currentChapter.value = chapterIndex
-    
-
   } catch (error) {
     console.error('Failed to jump to chapter:', error)
   }
 }
 
 const parseTimeToSeconds = (timeString) => {
-  // Handle different time formats: "HH:MM:SS.mmm", "MM:SS", ISO datetime
   if (!timeString) return 0
   
   // If it looks like an ISO datetime, convert to seconds from start
@@ -334,11 +306,9 @@ const parseTimeToSeconds = (timeString) => {
   // Handle "HH:MM:SS.mmm" or "MM:SS" format
   const parts = timeString.split(':')
   if (parts.length === 2) {
-    // MM:SS format
     const [minutes, seconds] = parts
     return parseInt(minutes) * 60 + parseFloat(seconds)
   } else if (parts.length === 3) {
-    // HH:MM:SS.mmm format
     const [hours, minutes, seconds] = parts
     return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
   }
@@ -410,60 +380,69 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
 }
 
 .video-modal {
-  background: var(--bg-secondary, #2d2d2d);
-  border-radius: 12px;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
   max-width: 90vw;
   max-height: 90vh;
-  width: 1000px;
+  width: 100%;
+  max-width: 1000px;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color, #404040);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-card);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: var(--text-primary, #ffffff);
-  font-size: 1.3rem;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 600;
   flex: 1;
-  margin-right: 20px;
+  margin-right: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary);
   cursor: pointer;
-  padding: 5px;
-  border-radius: 6px;
-  transition: all 0.3s;
+  padding: 4px;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: color 0.2s;
 }
 
 .close-btn:hover {
-  background: var(--bg-tertiary, #404040);
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .modal-content {
   display: flex;
   flex-direction: column;
-  height: calc(90vh - 100px);
-  max-height: 800px;
+  flex: 1;
+  min-height: 0;
 }
 
 .video-container {
@@ -473,12 +452,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 300px;
 }
 
 .video-player {
   width: 100%;
   height: 100%;
-  max-height: 500px;
+  max-height: 60vh;
   object-fit: contain;
 }
 
@@ -490,16 +470,17 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
   text-align: center;
   color: white;
+  padding: 20px;
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255,255,255,0.3);
-  border-top: 4px solid white;
+  border-top: 4px solid var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
+  margin: 0 auto 16px;
 }
 
 @keyframes spin {
@@ -507,7 +488,8 @@ onBeforeUnmount(() => {
   100% { transform: rotate(360deg); }
 }
 
-.video-error svg {
+.error-icon {
+  font-size: 48px;
   margin-bottom: 16px;
 }
 
@@ -522,318 +504,325 @@ onBeforeUnmount(() => {
 }
 
 .retry-btn {
-  background: var(--primary-color, #6f42c1);
+  background: var(--primary-color);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
+  padding: 12px 24px;
+  border-radius: var(--border-radius);
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.3s;
+  transition: all 0.2s;
 }
 
 .retry-btn:hover {
-  background: var(--primary-hover, #5a359a);
+  background: var(--primary-color-hover);
 }
 
 .video-details {
-  padding: 20px;
+  padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.video-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .video-info h3 {
   margin: 0 0 8px 0;
-  color: var(--primary-color, #6f42c1);
-  font-size: 1.2rem;
+  color: var(--primary-color);
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .video-date {
   margin: 0 0 12px 0;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .video-stats {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .stat {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--text-secondary, #b0b0b0);
+  gap: 4px;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .video-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .action-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px 16px;
-  border: 2px solid var(--border-color, #404040);
-  background: transparent;
-  color: var(--text-primary, #ffffff);
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border-radius: var(--border-radius);
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.3s;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .action-btn:hover {
-  background: var(--primary-color, #6f42c1);
-  border-color: var(--primary-color, #6f42c1);
+  background: var(--background-dark);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
-/* Chapter Navigation Styles */
-.chapter-navigation {
-  position: absolute;
-  top: 20px;
-  right: 20px;
+.action-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+/* Chapter Panel */
+.chapters-panel {
+  background: var(--background-darker);
+  border-top: 1px solid var(--border-color);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.chapters-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-darker);
+  position: sticky;
+  top: 0;
   z-index: 10;
 }
 
-.chapters-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.3s;
-  backdrop-filter: blur(4px);
+.chapters-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.chapters-toggle-btn:hover,
-.chapters-toggle-btn.active {
-  background: rgba(0, 0, 0, 0.95);
-  border-color: var(--primary-color, #6f42c1);
-  color: var(--primary-color, #6f42c1);
+.close-chapters-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.close-chapters-btn:hover {
+  color: var(--text-primary);
 }
 
 .chapters-list {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  min-width: 250px;
-  max-width: 350px;
-  max-height: 300px;
-  overflow-y: auto;
-  background: rgba(0, 0, 0, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  padding: 8px;
 }
 
 .chapter-item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 16px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
   cursor: pointer;
-  transition: all 0.3s;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.chapter-item:last-child {
-  border-bottom: none;
+  transition: all 0.2s;
+  border-radius: var(--border-radius);
+  border: 1px solid transparent;
 }
 
 .chapter-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-dark);
+  border-color: var(--border-color);
 }
 
 .chapter-item.active {
-  background: var(--primary-color, #6f42c1);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
   color: white;
 }
 
-.chapter-time {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 500;
-  font-family: 'Courier New', monospace;
+.chapter-number {
+  width: 32px;
+  height: 32px;
+  background: var(--background-card);
+  color: var(--text-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
-.chapter-item.active .chapter-time {
-  color: rgba(255, 255, 255, 0.9);
+.chapter-item.active .chapter-number {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.chapter-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .chapter-title {
-  font-size: 0.9rem;
-  color: white;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin-bottom: 4px;
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Chapter Navigation */
-.chapter-navigation {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  z-index: 10;
-}
-
-.chapters-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.7);
+.chapter-item.active .chapter-title {
   color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s;
-  backdrop-filter: blur(5px);
-}
-
-.chapters-toggle-btn:hover,
-.chapters-toggle-btn.active {
-  background: rgba(111, 66, 193, 0.8);
-  border-color: var(--primary-color, #6f42c1);
-}
-
-.chapters-list {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  background: rgba(0, 0, 0, 0.9);
-  border-radius: 8px;
-  padding: 8px 0;
-  min-width: 250px;
-  max-width: 350px;
-  max-height: 300px;
-  overflow-y: auto;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.chapter-item {
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  border-left: 3px solid transparent;
-}
-
-.chapter-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.chapter-item.active {
-  background: rgba(111, 66, 193, 0.3);
-  border-left-color: var(--primary-color, #6f42c1);
 }
 
 .chapter-time {
   font-size: 0.8rem;
-  color: var(--primary-color, #6f42c1);
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.chapter-title {
-  font-size: 0.9rem;
-  color: white;
-  line-height: 1.3;
-  word-wrap: break-word;
-}
-
-.chapter-item.active .chapter-title {
+  color: var(--text-secondary);
+  font-family: monospace;
   font-weight: 500;
+}
+
+.chapter-item.active .chapter-time {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .video-modal-overlay {
-    padding: 10px;
+    padding: 8px;
   }
   
   .video-modal {
-    width: 100%;
     max-width: 100vw;
     max-height: 100vh;
+    width: 100%;
+    height: 100%;
     border-radius: 0;
   }
   
   .modal-header {
-    padding: 15px;
+    padding: 12px 16px;
   }
   
   .modal-header h2 {
     font-size: 1.1rem;
   }
   
-  .modal-content {
-    height: calc(100vh - 80px);
+  .video-container {
+    min-height: 200px;
+  }
+  
+  .video-player {
+    max-height: 50vh;
   }
   
   .video-details {
     flex-direction: column;
     gap: 16px;
+    padding: 16px;
   }
   
   .video-actions {
-    align-self: stretch;
+    width: 100%;
   }
   
   .action-btn {
     flex: 1;
     justify-content: center;
+    padding: 12px 8px;
   }
-
-  /* Chapter Navigation Mobile */
-  .chapter-navigation {
-    top: 10px;
-    right: 10px;
+  
+  .chapters-panel {
+    max-height: 200px;
   }
-
-  .chapters-toggle-btn {
-    padding: 6px 10px;
+  
+  .chapters-header {
+    padding: 12px 16px;
+  }
+  
+  .chapter-item {
+    padding: 16px 12px;
+  }
+  
+  .chapter-number {
+    width: 28px;
+    height: 28px;
     font-size: 0.8rem;
   }
+}
 
-  .chapters-list {
-    min-width: 200px;
-    max-width: 280px;
-    max-height: 250px;
-    right: -10px;
+/* Small mobile screens */
+@media (max-width: 480px) {
+  .video-modal-overlay {
+    padding: 0;
   }
-
+  
+  .video-modal {
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  
+  .modal-header {
+    padding: 10px 12px;
+  }
+  
+  .modal-header h2 {
+    font-size: 1rem;
+  }
+  
+  .video-details {
+    padding: 12px;
+  }
+  
+  .video-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .video-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .action-btn {
+    width: 100%;
+    padding: 14px;
+  }
+  
+  .chapters-panel {
+    max-height: 150px;
+  }
+  
   .chapter-item {
-    padding: 8px 12px;
-  }
-
-  .chapter-time {
-    font-size: 0.75rem;
-  }
-
-  .chapter-title {
-    font-size: 0.85rem;
+    padding: 12px;
   }
 }
 
@@ -843,21 +832,12 @@ onBeforeUnmount(() => {
     display: none;
   }
   
-  .modal-content {
-    height: calc(100vh - 60px);
+  .video-player {
+    max-height: 80vh;
   }
   
-  .modal-header {
-    padding: 10px 15px;
-  }
-
-  .chapter-navigation {
-    top: 60px;
-    right: 10px;
-  }
-
-  .chapters-list {
-    max-height: 200px;
+  .chapters-panel {
+    max-height: 120px;
   }
 }
 </style>

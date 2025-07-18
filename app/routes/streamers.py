@@ -205,6 +205,33 @@ async def resubscribe_all(
         logger.error(f"Error in resubscribe_all: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/debug-live-status")
+async def debug_live_status(
+    streamer_service: StreamerService = Depends(get_streamer_service)
+):
+    """Debug endpoint to check live status of all streamers in database"""
+    try:
+        streamers = await streamer_service.get_all_streamers()
+        debug_info = []
+        
+        for streamer in streamers:
+            debug_info.append({
+                "id": streamer.id,
+                "username": streamer.username,
+                "twitch_id": streamer.twitch_id,
+                "is_live": streamer.is_live,
+                "title": streamer.title,
+                "category_name": streamer.category_name,
+                "language": streamer.language,
+                "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
+                "active_stream_id": streamer.active_stream_id
+            })
+        
+        return {"streamers": debug_info}
+    except Exception as e:
+        logger.error(f"Error in debug_live_status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{username}")
 async def add_streamer(
     username: str,
@@ -769,6 +796,10 @@ async def delete_all_streams(
             
             # Delete all stream events for this stream
             db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
+            
+            # Delete active recording state for this stream
+            from app.models import ActiveRecordingState
+            db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream.id).delete()
             
             # Delete the stream record itself
             db.delete(stream)
