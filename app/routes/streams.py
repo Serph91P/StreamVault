@@ -70,13 +70,12 @@ async def delete_stream(
         # Schedule file deletion in background
         if files_to_delete:
             background_queue = background_queue_service
-            await background_queue.add_task(
+            await background_queue.enqueue_task(
                 "cleanup",
                 {
                     "cleanup_paths": files_to_delete,
                     "stream_id": stream_id
-                },
-                priority=3
+                }
             )
         
         return {
