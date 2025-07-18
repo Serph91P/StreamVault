@@ -178,8 +178,6 @@ async def preload_category_images(
     """Preload category images in the background"""
     try:
         # Start the preloading in the background
-        # Use unified image service for category sync
-        from app.services.images.image_sync_service import image_sync_service
         for category_name in category_names:
             background_tasks.add_task(unified_image_service.download_category_image, category_name)
         
