@@ -12,7 +12,15 @@ from datetime import datetime
 from pathlib import Path
 from app.utils.path_utils import generate_filename
 from app.services.api.twitch_api import twitch_api
-from app.utils.cache import app_cache
+try:
+    from app.utils.cache import app_cache
+except ImportError:
+    # Fallback if cache module is not available
+    class DummyCache:
+        def delete(self, key): pass
+        def get(self, key): return None
+        def set(self, key, value, ttl=None): pass
+    app_cache = DummyCache()
 
 logger = logging.getLogger("streamvault")
 
