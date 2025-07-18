@@ -4,13 +4,13 @@ Recordings API Routes
 Provides endpoints for recordings management and querying.
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, and_
 from typing import List, Optional
 import logging
 
 from app.database import get_db
-from app.models import Recording, Streamer
+from app.models import Recording, Streamer, Stream
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
@@ -20,26 +20,29 @@ logger = logging.getLogger("streamvault")
 async def get_latest_recording(db: Session = Depends(get_db)):
     """Get the most recent completed recording for performance optimization"""
     try:
-        latest_recording = db.query(Recording)\
-            .filter(Recording.status == 'completed')\
-            .order_by(desc(Recording.ended_at))\
+        latest_recording = db.query(Recording).options(
+            joinedload(Recording.stream).joinedload(Stream.streamer)
+        ).filter(Recording.status == 'completed')\
+            .order_by(desc(Recording.end_time))\
             .first()
         
         if not latest_recording:
             return {"recording": None}
         
         # Get streamer info
-        streamer = db.query(Streamer).filter(Streamer.id == latest_recording.streamer_id).first()
+        streamer = None
+        if latest_recording.stream:
+            streamer = latest_recording.stream.streamer
         
         result = {
             "id": latest_recording.id,
-            "streamer_id": latest_recording.streamer_id,
+            "stream_id": latest_recording.stream_id,
             "streamer_name": streamer.username if streamer else "Unknown",
-            "title": latest_recording.title,
-            "started_at": latest_recording.started_at.isoformat() if latest_recording.started_at else None,
-            "ended_at": latest_recording.ended_at.isoformat() if latest_recording.ended_at else None,
+            "title": latest_recording.stream.title if latest_recording.stream else "No Title",
+            "started_at": latest_recording.start_time.isoformat() if latest_recording.start_time else None,
+            "ended_at": latest_recording.end_time.isoformat() if latest_recording.end_time else None,
             "duration": latest_recording.duration,
-            "file_path": latest_recording.file_path,
+            "file_path": latest_recording.path,
             "status": latest_recording.status
         }
         
@@ -55,28 +58,29 @@ async def get_recent_recordings(
 ):
     """Get recent recordings for performance optimization"""
     try:
-        recent_recordings = db.query(Recording)\
-            .filter(Recording.status == 'completed')\
-            .order_by(desc(Recording.ended_at))\
+        recent_recordings = db.query(Recording).options(
+            joinedload(Recording.stream).joinedload(Stream.streamer)
+        ).filter(Recording.status == 'completed')\
+            .order_by(desc(Recording.end_time))\
             .limit(limit)\
             .all()
         
         # Get streamer info for all recordings
-        streamer_ids = [r.streamer_id for r in recent_recordings]
-        streamers = db.query(Streamer).filter(Streamer.id.in_(streamer_ids)).all()
-        streamer_map = {s.id: s.username for s in streamers}
-        
         results = []
         for recording in recent_recordings:
+            streamer = None
+            if recording.stream:
+                streamer = recording.stream.streamer
+                
             result = {
                 "id": recording.id,
-                "streamer_id": recording.streamer_id,
-                "streamer_name": streamer_map.get(recording.streamer_id, "Unknown"),
-                "title": recording.title,
-                "started_at": recording.started_at.isoformat() if recording.started_at else None,
-                "ended_at": recording.ended_at.isoformat() if recording.ended_at else None,
+                "stream_id": recording.stream_id,
+                "streamer_name": streamer.username if streamer else "Unknown",
+                "title": recording.stream.title if recording.stream else "No Title",
+                "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                "ended_at": recording.end_time.isoformat() if recording.end_time else None,
                 "duration": recording.duration,
-                "file_path": recording.file_path,
+                "file_path": recording.path,
                 "status": recording.status
             }
             results.append(result)
