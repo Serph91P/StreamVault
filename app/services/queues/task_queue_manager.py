@@ -29,7 +29,7 @@ class TaskQueueManager:
         
         # Initialize components
         self.progress_tracker = TaskProgressTracker(websocket_manager)
-        self.worker_manager = WorkerManager(max_workers, self.progress_tracker)
+        self.worker_manager = WorkerManager(max_workers, self.progress_tracker, self.mark_task_completed)
         self.dependency_manager = TaskDependencyManager()
         
         # Dependency management
@@ -189,7 +189,7 @@ class TaskQueueManager:
             if success:
                 await self.dependency_manager.mark_task_completed(task_id)
             else:
-                await self.dependency_manager.mark_task_failed(task_id)
+                await self.dependency_manager.mark_task_failed(task_id, "Task execution failed")
             logger.debug(f"Task {task_id} marked as {'completed' if success else 'failed'} in dependency manager")
         except Exception as e:
             logger.warning(f"Failed to update task {task_id} in dependency manager: {e}")

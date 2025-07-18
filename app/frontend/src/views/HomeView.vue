@@ -99,8 +99,7 @@ watch(messages, (newMessages) => {
       if (streamer) {
         streamer.is_recording = true
       }
-      // Refresh active recordings count
-      fetchActiveRecordings()
+      // Don't fetch - rely on WebSocket updates
       break
     }
     case 'recording_stopped': {
@@ -109,16 +108,17 @@ watch(messages, (newMessages) => {
       if (streamer) {
         streamer.is_recording = false
       }
-      // Refresh active recordings count
-      fetchActiveRecordings()
+      // Don't fetch - rely on WebSocket updates
       break
     }
   }
 }, { deep: true })
 
-// Connection status handling
+// Connection status handling - only fetch once on initial connection
+let hasInitialFetch = false
 watch(connectionStatus, (status) => {
-  if (status === 'connected') {
+  if (status === 'connected' && !hasInitialFetch) {
+    hasInitialFetch = true
     void fetchStreamers()
     void fetchActiveRecordings()
   }
