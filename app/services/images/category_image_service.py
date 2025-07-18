@@ -6,6 +6,7 @@ Handles downloading, caching, and serving of category/game images.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
@@ -18,6 +19,9 @@ logger = logging.getLogger("streamvault")
 
 class CategoryImageService:
     """Handles category/game image management"""
+    
+    # Constants
+    DEFAULT_CATEGORY_IMAGE_PATH = "/images/categories/default-category.svg"
     
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
@@ -35,8 +39,7 @@ class CategoryImageService:
             except Exception as e:
                 logger.error(f"Failed to initialize categories directory: {e}")
                 # Fallback to a temporary path
-                from pathlib import Path
-                self.categories_dir = Path("/tmp/categories")
+                self.categories_dir = Path(tempfile.gettempdir()) / "categories"
                 self.categories_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_existing_cache(self):
@@ -120,7 +123,7 @@ class CategoryImageService:
             return cached_path
         
         # Return default image to avoid blocking on database
-        return "/images/categories/default-category.svg"
+        return self.DEFAULT_CATEGORY_IMAGE_PATH
 
     async def update_category_image(self, category_name: str, box_art_url: str) -> bool:
         """Update a category's image in database and cache"""
