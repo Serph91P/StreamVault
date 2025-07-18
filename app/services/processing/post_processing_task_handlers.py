@@ -398,16 +398,17 @@ class PostProcessingTaskHandlers:
                             import shutil
                             shutil.rmtree(file_path)
                             logger.info(f"Removed directory: {file_path}")
+                            removed_files.append(file_path)
                         else:
                             # Use intelligent cleanup for TS files if requested
                             if intelligent_cleanup and file_path.endswith('.ts'):
                                 await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
+                                removed_files.append(file_path)
                             else:
                                 # Simple file removal
                                 os.remove(file_path)
                                 logger.info(f"Removed file: {file_path}")
-                            
-                        removed_files.append(file_path)
+                                removed_files.append(file_path)
                     except Exception as e:
                         logger.warning(f"Failed to remove {file_path}: {e}")
             
