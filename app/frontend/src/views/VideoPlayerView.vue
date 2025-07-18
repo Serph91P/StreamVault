@@ -93,7 +93,7 @@ const loadChapterData = async () => {
     
     // Create chapter data structure compatible with the video player
     chapterData.value = {
-      chapters: chapters.map((chapter: any) => ({
+      chapters: chapters.map((chapter) => ({
         start_time: chapter.start_time.toString(),
         title: chapter.title,
         type: 'chapter'
