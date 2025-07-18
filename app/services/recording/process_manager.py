@@ -17,9 +17,13 @@ from app.utils.streamlink_utils import get_streamlink_command, get_proxy_setting
 from app.services.recording.exceptions import ProcessError, StreamUnavailableError
 from app.models import Stream
 from app.utils import async_file
-from app.services.process_monitor import process_monitor, ProcessType, ProcessStatus
 
 logger = logging.getLogger("streamvault")
+
+# ProcessMonitor integration temporarily disabled for stability
+process_monitor = None
+ProcessType = None
+ProcessStatus = None
 
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes"""
@@ -173,20 +177,21 @@ class ProcessManager:
                 'process_pid': process.pid
             })
             
-            # Register process with ProcessMonitor
-            await process_monitor.register_process(
-                process_id=f"streamlink_{stream.id}_{segment_info['segment_count']}",
-                process_type=ProcessType.STREAMLINK,
-                pid=process.pid,
-                command=' '.join(cmd),
-                streamer_id=stream.streamer_id,
-                stream_id=stream.id,
-                metadata={
-                    'segment_path': segment_path,
-                    'segment_count': segment_info['segment_count'],
-                    'quality': quality
-                }
-            )
+            # Register process with ProcessMonitor - temporarily disabled
+            # if process_monitor and ProcessType:
+            #     await process_monitor.register_process(
+            #         process_id=f"streamlink_{stream.id}_{segment_info['segment_count']}",
+            #         process_type=ProcessType.STREAMLINK,
+            #         pid=process.pid,
+            #         command=' '.join(cmd),
+            #         streamer_id=stream.streamer_id,
+            #         stream_id=stream.id,
+            #         metadata={
+            #             'segment_path': segment_path,
+            #             'segment_count': segment_info['segment_count'],
+            #             'quality': quality
+            #         }
+            #     )
                 
             logger.info(f"Started segment recording for stream {stream.id} with PID {process.pid}")
             return process
