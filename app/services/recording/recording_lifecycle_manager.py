@@ -584,12 +584,20 @@ class RecordingLifecycleManager:
             )
             
             # 4. Cleanup task (after everything)
+            files_to_remove = [recording_path]  # Remove .ts file
+            
+            # Also remove segments directory if it exists
+            segments_dir = recording_path.replace('.ts', self.SEGMENT_DIR_SUFFIX)
+            if Path(segments_dir).exists():
+                files_to_remove.append(segments_dir)
+                logger.info(f"🎬 CLEANUP_SCHEDULED: Will remove segments directory {segments_dir}")
+            
             await background_queue.enqueue_task_with_dependencies(
                 "cleanup",
                 {
                     "recording_id": recording_id,
                     "stream_id": stream_data.id,
-                    "files_to_remove": [recording_path],  # Remove .ts file
+                    "files_to_remove": files_to_remove,
                     "mp4_path": mp4_path,
                     "streamer_name": streamer_data.username
                 },
