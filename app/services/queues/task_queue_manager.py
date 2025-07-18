@@ -123,9 +123,9 @@ class TaskQueueManager:
         # Create dependency task
         dep_task = Task(
             id=task_id,
-            task_type=task_type,
+            type=task_type,
             payload=payload,
-            dependencies=dependencies or [],
+            dependencies=set(dependencies or []),
             status=DepTaskStatus.PENDING
         )
         
