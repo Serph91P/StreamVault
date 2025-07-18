@@ -194,6 +194,10 @@ class BackgroundQueueService:
     def has_handler(self, task_type: str) -> bool:
         """Check if handler is registered for task type"""
         return self.queue_manager.has_handler(task_type)
+    
+    async def enqueue_recording_post_processing(self, **kwargs):
+        """Enqueue a complete post-processing chain for a recording"""
+        return await self.queue_manager.enqueue_recording_post_processing(**kwargs)
 
     # Properties for legacy compatibility
     
