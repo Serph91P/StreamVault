@@ -204,7 +204,7 @@ class StatePersistenceService:
             logger.error(f"Error getting active recordings: {e}", exc_info=True)
             return []
     
-    async def load_state(self) -> List[ActiveRecordingState]:
+    async def load_state(self, state_type: str = 'active_recordings') -> List[ActiveRecordingState]:
         """Load all active recordings from persistent storage (alias for get_all_active_recordings)"""
         return await self.get_all_active_recordings()
             
