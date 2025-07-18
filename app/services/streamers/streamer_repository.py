@@ -86,6 +86,10 @@ class StreamerRepository:
             # Return empty list on error to prevent frontend issues
             return []
 
+    def get_all_streamers_raw(self) -> List[Streamer]:
+        """Get all streamers as raw Streamer objects (for debugging)"""
+        return self.db.query(Streamer).order_by(Streamer.username).all()
+
     def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         """Get streamer by username (case insensitive)"""
         return self.db.query(Streamer).filter(Streamer.username.ilike(username)).first()
@@ -106,10 +110,14 @@ class StreamerRepository:
             streamer_name = display_name or user_data.get('display_name') or user_data['login']
             
             # Determine live status and stream info
+            # stream_info will be None if the stream is offline, or contain actual data if live
             is_live = stream_info is not None
             current_title = stream_info.get('title', '') if stream_info else None
             current_category = stream_info.get('game_name', '') if stream_info else None
             current_language = stream_info.get('language', '') if stream_info else None
+            
+            # Debug logging to identify the issue
+            logger.debug(f"Creating streamer {streamer_name}: stream_info={stream_info}, is_live={is_live}")
             
             # Create new streamer
             new_streamer = Streamer(
