@@ -17,9 +17,10 @@ logger = logging.getLogger("streamvault")
 class WorkerManager:
     """Manages worker threads and task execution"""
     
-    def __init__(self, max_workers: int = 3, progress_tracker: Optional[TaskProgressTracker] = None):
+    def __init__(self, max_workers: int = 3, progress_tracker: Optional[TaskProgressTracker] = None, completion_callback: Optional[Callable] = None):
         self.max_workers = max_workers
         self.progress_tracker = progress_tracker
+        self.completion_callback = completion_callback
         self.workers: List[asyncio.Task] = []
         self.is_running = False
         self.task_handlers: Dict[str, Callable] = {}
@@ -93,6 +94,10 @@ class WorkerManager:
                         self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
                         self.progress_tracker.update_task_progress(task.id, 100.0)
                     
+                    # Notify completion callback (for dependency management)
+                    if self.completion_callback:
+                        await self.completion_callback(task.id, True)
+                    
                     logger.info(f"Worker {worker_name} completed task {task.id}")
                     
                 except Exception as e:
@@ -102,6 +107,10 @@ class WorkerManager:
                     
                     # Handle task failure and potential retry
                     await self._handle_task_failure(task, error_msg, worker_name)
+                    
+                    # Notify completion callback about failure
+                    if self.completion_callback:
+                        await self.completion_callback(task.id, False)
                 
                 finally:
                     # Mark task as done in the queue
