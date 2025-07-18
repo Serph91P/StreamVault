@@ -537,8 +537,9 @@ class RecordingLifecycleManager:
                 "mp4_remux",
                 {
                     "recording_id": recording_id,
-                    "input_path": recording_path,
-                    "output_path": recording_path.replace('.ts', '.mp4'),
+                    "stream_id": stream_data.id,
+                    "ts_file_path": recording_path,
+                    "mp4_output_path": recording_path.replace('.ts', '.mp4'),
                     "streamer_name": streamer_data.username,
                     "stream_title": stream_data.title or "Unknown Stream"
                 },
@@ -546,13 +547,20 @@ class RecordingLifecycleManager:
             )
             
             # 2. Metadata generation task
+            import os
+            mp4_path = recording_path.replace('.ts', '.mp4')
+            base_filename = os.path.splitext(os.path.basename(mp4_path))[0]
+            output_dir = os.path.dirname(mp4_path)
+            
             await background_queue.enqueue_task(
                 "metadata_generation",
                 {
                     "recording_id": recording_id,
                     "stream_id": stream_data.id,
                     "streamer_id": streamer_data.id,
-                    "video_path": recording_path.replace('.ts', '.mp4'),
+                    "base_filename": base_filename,
+                    "output_dir": output_dir,
+                    "video_path": mp4_path,
                     "streamer_name": streamer_data.username,
                     "stream_title": stream_data.title or "Unknown Stream"
                 },
@@ -564,7 +572,9 @@ class RecordingLifecycleManager:
                 "thumbnail_generation",
                 {
                     "recording_id": recording_id,
-                    "video_path": recording_path.replace('.ts', '.mp4'),
+                    "stream_id": stream_data.id,
+                    "mp4_path": mp4_path,
+                    "output_dir": output_dir,
                     "streamer_name": streamer_data.username
                 },
                 priority=TaskPriority.NORMAL
@@ -575,7 +585,9 @@ class RecordingLifecycleManager:
                 "cleanup",
                 {
                     "recording_id": recording_id,
-                    "cleanup_paths": [recording_path],  # Remove .ts file
+                    "stream_id": stream_data.id,
+                    "files_to_remove": [recording_path],  # Remove .ts file
+                    "mp4_path": mp4_path,
                     "streamer_name": streamer_data.username
                 },
                 priority=TaskPriority.LOW
