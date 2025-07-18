@@ -28,6 +28,14 @@ class PostProcessingTasks:
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
         
+        # Initialize logging service
+        try:
+            from app.services.system.logging_service import logging_service
+            self.logging_service = logging_service
+        except Exception as e:
+            logger.warning(f"Could not initialize logging service: {e}")
+            self.logging_service = None
+        
     async def handle_video_conversion(self, task: QueueTask):
         """Convert .ts file to .mp4 with metadata and chapters"""
         payload = task.payload
