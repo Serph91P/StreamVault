@@ -8,6 +8,7 @@ Handles all database operations, session management, and data persistence for re
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from sqlalchemy.orm import joinedload
 from app.models import Recording, Stream, Streamer
 from app.database import get_db, SessionLocal
 from app.utils.retry_decorator import database_retry, RetryableError, NonRetryableError
@@ -96,14 +97,15 @@ class RecordingDatabaseService:
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
-    async def get_recording(self, recording_id: int) -> Optional[Recording]:
-        """Get recording by ID"""
-        try:
-            self._ensure_db_session()
-            return self.db.query(Recording).filter(Recording.id == recording_id).first()
-        except Exception as e:
-            logger.error(f"Failed to get recording {recording_id}: {e}")
-            raise RetryableError(f"Database error: {e}")
+    def get_recording(self, recording_id: int) -> Recording:
+        """Get a single recording by ID with eager loading of relationships."""
+        self._ensure_db_session()
+        return (
+            self.db.query(Recording)
+            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+            .filter(Recording.id == recording_id)
+            .first()
+        )
     
     # Alias for compatibility
     async def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
