@@ -129,7 +129,7 @@ class StreamerService:
                 user_data=user_data,
                 display_name=display_name,
                 cached_image_path=cached_image_path or user_data['profile_image_url'],
-                stream_info=stream_info or {}
+                stream_info=stream_info
             )
             
             # Subscribe to EventSub events
@@ -246,6 +246,14 @@ class StreamerService:
         except Exception as e:
             logger.error(f"Error checking bulk live status: {e}")
             return {}
+
+    async def get_all_streamers(self) -> List[Streamer]:
+        """Get all streamers from the database"""
+        try:
+            return self.repository.get_all_streamers_raw()
+        except Exception as e:
+            logger.error(f"Error getting all streamers: {e}")
+            return []
 
     async def close(self):
         """Close all services"""
