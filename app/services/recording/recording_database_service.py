@@ -97,7 +97,7 @@ class RecordingDatabaseService:
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
-    def get_recording(self, recording_id: int) -> Recording:
+    def get_recording(self, recording_id: int) -> Optional[Recording]:
         """Get a single recording by ID with eager loading of relationships."""
         self._ensure_db_session()
         return (
