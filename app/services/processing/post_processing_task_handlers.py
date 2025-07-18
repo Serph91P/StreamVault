@@ -402,8 +402,11 @@ class PostProcessingTaskHandlers:
                         else:
                             # Use intelligent cleanup for TS files if requested
                             if intelligent_cleanup and file_path.endswith('.ts'):
-                                await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
-                                removed_files.append(file_path)
+                                cleanup_success = await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
+                                if cleanup_success:
+                                    removed_files.append(file_path)
+                                else:
+                                    logger.warning(f"Intelligent cleanup failed for {file_path}, keeping file")
                             else:
                                 # Simple file removal
                                 os.remove(file_path)
