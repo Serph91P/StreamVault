@@ -163,10 +163,11 @@ class RecordingStateManager:
                 logger.warning("State persistence service not available")
                 return {}
             
-            state_data = await state_persistence_service.load_state('active_recordings')
-            if state_data and 'active_recordings' in state_data:
-                logger.info(f"Loaded {len(state_data['active_recordings'])} recordings from persistence")
-                return state_data['active_recordings']
+            state_data = await state_persistence_service.load_state()
+            if state_data:
+                logger.info(f"Loaded {len(state_data)} recordings from persistence")
+                # Convert List[ActiveRecordingState] to Dict format expected by recovery logic
+                return {recording.stream_id: recording for recording in state_data}
             
             return {}
             

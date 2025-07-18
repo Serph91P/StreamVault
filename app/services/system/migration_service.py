@@ -9,6 +9,7 @@ import glob
 import logging
 import importlib.util
 import importlib
+from pathlib import Path
 from typing import List, Tuple
 from sqlalchemy import text, inspect
 from sqlalchemy.sql import func
@@ -122,8 +123,12 @@ class MigrationService:
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
         """Get all migration scripts from the migrations directory"""
-        migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'migrations')
-        migration_scripts = glob.glob(os.path.join(migrations_dir, '*.py'))
+        # Get to the container root directory using pathlib for clarity
+        # __file__ = /app/app/services/system/migration_service.py
+        # 3 levels up = /app/
+        # migrations_dir = /app/migrations/
+        migrations_dir = Path(__file__).parent.parent.parent / 'migrations'
+        migration_scripts = glob.glob(str(migrations_dir / '*.py'))
         # Filter out __init__.py and any other non-migration files
         migration_scripts = [script for script in migration_scripts if os.path.basename(script) != '__init__.py' 
                             and os.path.basename(script) != 'create_migration.py'

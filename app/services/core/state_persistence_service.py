@@ -205,7 +205,7 @@ class StatePersistenceService:
             return []
     
     async def load_state(self) -> List[ActiveRecordingState]:
-        """Load all active recordings from persistent storage (alias for get_all_active_recordings)"""
+        """Load all active recordings from persistent storage"""
         return await self.get_all_active_recordings()
             
     async def cleanup_stale_entries(self) -> int:

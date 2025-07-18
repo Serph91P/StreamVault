@@ -172,12 +172,19 @@ class ProcessManager:
                 
                 # Initialize the log file using proper logging
                 streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
-                if not any(isinstance(handler, logging.FileHandler) and os.path.abspath(handler.baseFilename) == os.path.abspath(streamlink_log_path) for handler in streamer_logger.handlers):
-                    file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
-                    file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-                    streamer_logger.addHandler(file_handler)
-                    streamer_logger.setLevel(logging.INFO)
-                    streamer_logger.propagate = False
+                
+                # Remove any existing FileHandler instances for this logger to prevent memory leaks
+                for handler in list(streamer_logger.handlers):
+                    if isinstance(handler, logging.FileHandler):
+                        streamer_logger.removeHandler(handler)
+                        handler.close()
+                
+                # Add a new FileHandler
+                file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
+                file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+                streamer_logger.addHandler(file_handler)
+                streamer_logger.setLevel(logging.INFO)
+                streamer_logger.propagate = False
                 
                 streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
                 streamer_logger.info(f"Quality: {quality}")
