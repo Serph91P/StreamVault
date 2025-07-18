@@ -51,13 +51,11 @@ async def delete_stream(
         # Check for recordings associated with this stream and collect their paths
         recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
         for recording in recordings:
-            # Check both path and file_path attributes for compatibility
-            file_path = getattr(recording, 'file_path', None) or getattr(recording, 'path', None)
-            if file_path:
-                files_to_delete.append(file_path)
+            if recording.path:
+                files_to_delete.append(recording.path)
                 
                 # Also check for related files (.ts, .mp4, segment directories)
-                file_path_obj = Path(file_path)
+                file_path_obj = Path(recording.path)
                 
                 # Check for .ts version if we have .mp4
                 if file_path_obj.suffix == '.mp4':
