@@ -170,14 +170,21 @@ class ProcessManager:
                 streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
                 logger.info(f"Streamlink logs for {streamer_name} will be written to: {streamlink_log_path}")
                 
-                # Initialize the log file
-                with open(streamlink_log_path, 'w', encoding='utf-8') as f:
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting streamlink recording for {streamer_name}\n")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {segment_path}\n")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Segment: {segment_info['segment_count']}\n")
-                    f.write("=" * 80 + "\n")
+                # Initialize the log file using proper logging
+                streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
+                if not any(isinstance(handler, logging.FileHandler) and os.path.abspath(handler.baseFilename) == os.path.abspath(streamlink_log_path) for handler in streamer_logger.handlers):
+                    file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
+                    file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+                    streamer_logger.addHandler(file_handler)
+                    streamer_logger.setLevel(logging.INFO)
+                    streamer_logger.propagate = False
+                
+                streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
+                streamer_logger.info(f"Quality: {quality}")
+                streamer_logger.info(f"Output: {segment_path}")
+                streamer_logger.info(f"Command: {' '.join(cmd)}")
+                streamer_logger.info(f"Segment: {segment_info['segment_count']}")
+                streamer_logger.info("=" * 80)
             
             # Start the process
             process = await asyncio.create_subprocess_exec(
@@ -204,15 +211,14 @@ class ProcessManager:
                         exit_code=process.returncode
                     )
                     
-                    # Also append to the streamer-specific log file
-                    streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                    # Also append to the streamer-specific log file using proper logging
+                    streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
                     try:
-                        with open(streamlink_log_path, 'a', encoding='utf-8') as f:
-                            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})\n")
-                            if stdout:
-                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout.decode()}\n")
-                            if stderr:
-                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr.decode()}\n")
+                        streamer_logger.error(f"PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})")
+                        if stdout:
+                            streamer_logger.error(f"STDOUT:\n{stdout.decode()}")
+                        if stderr:
+                            streamer_logger.error(f"STDERR:\n{stderr.decode()}")
                     except Exception as e:
                         logger.warning(f"Could not write to streamlink log file: {e}")
                         
