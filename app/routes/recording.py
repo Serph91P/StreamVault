@@ -13,6 +13,9 @@ import json
 from typing import List, Dict
 from datetime import datetime, timezone
 
+# Cache constants
+FALLBACK_SUFFIX = "_fallback"
+
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(
@@ -299,7 +302,7 @@ async def get_active_recordings():
             # Cache the result for a short time (2 seconds) to reduce database load
             app_cache.set(cache_key, result, ttl=2)
             # Store a longer-term fallback cache for emergencies
-            app_cache.set(cache_key + "_fallback", result, ttl=300)
+            app_cache.set(f"{cache_key}{FALLBACK_SUFFIX}", result, ttl=300)
             
             logger.info(f"Returning {len(result)} active recordings")
             return result
@@ -313,7 +316,7 @@ async def get_active_recordings():
                 else:
                     logger.error(f"Database connection pool exhausted after {max_retries} attempts")
                     # Return cached result if available, even if expired
-                    fallback_result = app_cache.get(cache_key + "_fallback")
+                    fallback_result = app_cache.get(f"{cache_key}{FALLBACK_SUFFIX}")
                     if fallback_result is not None:
                         logger.info(f"Returning fallback cached result with {len(fallback_result)} recordings")
                         return fallback_result
