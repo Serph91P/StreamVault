@@ -290,6 +290,8 @@ async def get_active_recordings():
             
             # Cache the result for a short time (2 seconds) to reduce database load
             app_cache.set(cache_key, result, ttl=2)
+            # Store a longer-term fallback cache for emergencies
+            app_cache.set(cache_key + "_fallback", result, ttl=300)
             
             logger.info(f"Returning {len(result)} active recordings")
             return result
