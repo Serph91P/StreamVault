@@ -529,30 +529,16 @@ class RecordingLifecycleManager:
             from app.services.queues.task_progress_tracker import TaskPriority
             background_queue = background_queue_service
             
-            # Schedule post-processing tasks
+            # Schedule post-processing tasks with dependencies
             logger.info(f"🎬 SCHEDULING_POST_PROCESSING_TASKS: recording_id={recording_id}")
             
-            # 1. MP4 remux task
-            await background_queue.enqueue_task(
-                "mp4_remux",
-                {
-                    "recording_id": recording_id,
-                    "stream_id": stream_data.id,
-                    "ts_file_path": recording_path,
-                    "mp4_output_path": recording_path.replace('.ts', '.mp4'),
-                    "streamer_name": streamer_data.username,
-                    "stream_title": stream_data.title or "Unknown Stream"
-                },
-                priority=TaskPriority.HIGH
-            )
-            
-            # 2. Metadata generation task
             import os
             mp4_path = recording_path.replace('.ts', '.mp4')
             base_filename = os.path.splitext(os.path.basename(mp4_path))[0]
             output_dir = os.path.dirname(mp4_path)
             
-            await background_queue.enqueue_task(
+            # 1. Metadata generation task (run first)
+            metadata_task_id = await background_queue.enqueue_task_with_dependencies(
                 "metadata_generation",
                 {
                     "recording_id": recording_id,
@@ -564,11 +550,27 @@ class RecordingLifecycleManager:
                     "streamer_name": streamer_data.username,
                     "stream_title": stream_data.title or "Unknown Stream"
                 },
-                priority=TaskPriority.NORMAL
+                dependencies=[],  # No dependencies - run first
+                priority=TaskPriority.HIGH
             )
             
-            # 3. Thumbnail generation task
-            await background_queue.enqueue_task(
+            # 2. MP4 remux task (after metadata)
+            mp4_remux_task_id = await background_queue.enqueue_task_with_dependencies(
+                "mp4_remux",
+                {
+                    "recording_id": recording_id,
+                    "stream_id": stream_data.id,
+                    "ts_file_path": recording_path,
+                    "mp4_output_path": mp4_path,
+                    "streamer_name": streamer_data.username,
+                    "stream_title": stream_data.title or "Unknown Stream"
+                },
+                dependencies=[metadata_task_id],  # Wait for metadata
+                priority=TaskPriority.HIGH
+            )
+            
+            # 3. Thumbnail generation task (after MP4 remux)
+            thumbnail_task_id = await background_queue.enqueue_task_with_dependencies(
                 "thumbnail_generation",
                 {
                     "recording_id": recording_id,
@@ -577,11 +579,12 @@ class RecordingLifecycleManager:
                     "output_dir": output_dir,
                     "streamer_name": streamer_data.username
                 },
+                dependencies=[mp4_remux_task_id],  # Wait for MP4 remux
                 priority=TaskPriority.NORMAL
             )
             
-            # 4. Cleanup task (remove .ts files after processing)
-            await background_queue.enqueue_task(
+            # 4. Cleanup task (after everything)
+            await background_queue.enqueue_task_with_dependencies(
                 "cleanup",
                 {
                     "recording_id": recording_id,
@@ -590,6 +593,7 @@ class RecordingLifecycleManager:
                     "mp4_path": mp4_path,
                     "streamer_name": streamer_data.username
                 },
+                dependencies=[thumbnail_task_id],  # Wait for thumbnail generation
                 priority=TaskPriority.LOW
             )
             
