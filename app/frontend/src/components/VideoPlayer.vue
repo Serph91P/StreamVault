@@ -1,5 +1,6 @@
 <template>
   <div class="video-player-container">
+    <!-- Video Element -->
     <div class="video-wrapper" ref="videoWrapper">
       <video 
         ref="videoElement"
@@ -9,10 +10,10 @@
         @loadstart="onLoadStart"
         @canplay="onCanPlay"
         @error="onVideoError"
-        @abort="onVideoError"
         controls
         preload="metadata"
         class="video-element"
+        :class="{ 'fullscreen': isFullscreen }"
       >
         <!-- WebVTT chapters track -->
         <track 
@@ -26,44 +27,6 @@
         Your browser does not support the video tag.
       </video>
       
-      <!-- Custom Chapter Navigation Overlay -->
-      <div v-if="chapters.length > 0 && showChapterUI" class="chapter-overlay">
-        <div class="chapter-navigation">
-          <div class="chapter-list">
-            <div 
-              v-for="(chapter, index) in chapters" 
-              :key="index"
-              class="chapter-item"
-              :class="{ 'active': currentChapterIndex === index }"
-              @click="seekToChapter(chapter.startTime)"
-            >
-              <div class="chapter-thumbnail" v-if="chapter.thumbnail">
-                <img :src="chapter.thumbnail" :alt="chapter.title" />
-              </div>
-              <div class="chapter-info">
-                <div class="chapter-title">{{ chapter.title }}</div>
-                <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
-                <div class="chapter-duration" v-if="chapter.duration">
-                  {{ formatDuration(chapter.duration) }}
-                </div>
-              </div>
-              <div class="chapter-game-icon" v-if="chapter.gameIcon">
-                <img 
-                  v-if="!chapter.gameIcon.startsWith('icon:')"
-                  :src="chapter.gameIcon" 
-                  :alt="chapter.title" 
-                />
-                <i 
-                  v-else 
-                  :class="chapter.gameIcon.replace('icon:', '')"
-                  class="category-icon"
-                ></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Chapter Progress Bar -->
       <div v-if="chapters.length > 0" class="chapter-progress-bar">
         <div 
@@ -78,37 +41,61 @@
           @click="seekToChapter(chapter.startTime)"
         ></div>
       </div>
+      
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading video...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-if="error" class="error-overlay">
+        <div class="error-icon">⚠️</div>
+        <div class="error-message">{{ error }}</div>
+        <button @click="retryLoad" class="retry-btn">🔄 Retry</button>
+      </div>
     </div>
 
     <!-- Video Controls Extension -->
     <div class="video-controls-extension">
+      <!-- Chapter Controls -->
       <div class="chapter-controls">
         <button 
+          v-if="chapters.length > 0"
           @click="toggleChapterUI" 
-          class="chapter-toggle-btn"
+          class="control-btn"
           :class="{ 'active': showChapterUI }"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/>
-          </svg>
-          Chapters ({{ chapters.length }})
+          📋 Chapters ({{ chapters.length }})
         </button>
         
-        <button @click="previousChapter" :disabled="currentChapterIndex <= 0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
-          </svg>
-          Previous
+        <button 
+          v-if="chapters.length > 0"
+          @click="previousChapter" 
+          :disabled="currentChapterIndex <= 0"
+          class="control-btn"
+        >
+          ⏮️ Previous
         </button>
         
-        <button @click="nextChapter" :disabled="currentChapterIndex >= chapters.length - 1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 18l8.5-6L6 6v12zm8.5-6l8.5 6V6z"/>
-          </svg>
-          Next
+        <button 
+          v-if="chapters.length > 0"
+          @click="nextChapter" 
+          :disabled="currentChapterIndex >= chapters.length - 1"
+          class="control-btn"
+        >
+          ⏭️ Next
+        </button>
+        
+        <button 
+          @click="toggleFullscreen"
+          class="control-btn"
+        >
+          {{ isFullscreen ? '🪟' : '⛶' }} {{ isFullscreen ? 'Exit' : 'Fullscreen' }}
         </button>
       </div>
 
+      <!-- Current Chapter Info -->
       <div class="current-chapter-info" v-if="currentChapter">
         <div class="current-chapter-title">{{ currentChapter.title }}</div>
         <div class="current-chapter-progress">
@@ -117,17 +104,48 @@
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner"></div>
-      <div>Loading video...</div>
-    </div>
-
-    <!-- Error State -->
-    <div v-if="error" class="error-overlay">
-      <div class="error-icon">⚠️</div>
-      <div class="error-message">{{ error }}</div>
-      <button @click="retryLoad" class="retry-btn">Retry</button>
+    <!-- Chapter List (Mobile-friendly) -->
+    <div v-if="showChapterUI && chapters.length > 0" class="chapter-list-panel">
+      <div class="chapter-list-header">
+        <h3>📋 Chapters</h3>
+        <button @click="toggleChapterUI" class="close-btn">×</button>
+      </div>
+      <div class="chapter-list">
+        <div 
+          v-for="(chapter, index) in chapters" 
+          :key="index"
+          class="chapter-item"
+          :class="{ 'active': currentChapterIndex === index }"
+          @click="seekToChapter(chapter.startTime)"
+        >
+          <div class="chapter-thumbnail" v-if="chapter.thumbnail">
+            <img :src="chapter.thumbnail" :alt="chapter.title" />
+          </div>
+          <div class="chapter-icon" v-else-if="chapter.gameIcon">
+            <img 
+              v-if="!chapter.gameIcon.startsWith('icon:')"
+              :src="chapter.gameIcon" 
+              :alt="chapter.title" 
+            />
+            <i 
+              v-else 
+              :class="chapter.gameIcon.replace('icon:', '')"
+              class="category-icon"
+            ></i>
+          </div>
+          <div class="chapter-placeholder" v-else>
+            🎬
+          </div>
+          
+          <div class="chapter-info">
+            <div class="chapter-title">{{ chapter.title }}</div>
+            <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
+            <div class="chapter-duration" v-if="chapter.duration">
+              {{ formatDuration(chapter.duration) }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -175,6 +193,7 @@ const currentTime = ref(0)
 const videoDuration = ref(0)
 const showChapterUI = ref(false)
 const chapters = ref<Chapter[]>([])
+const isFullscreen = ref(false)
 
 // Category images composable
 const { getCategoryImage } = useCategoryImages()
@@ -191,6 +210,18 @@ const currentChapterIndex = computed(() => {
 
 const currentChapter = computed(() => {
   return chapters.value[currentChapterIndex.value] || null
+})
+
+// Video URL decoding
+const decodedVideoSrc = computed(() => {
+  if (!props.videoSrc) return ''
+  
+  try {
+    return decodeURIComponent(props.videoSrc)
+  } catch (error) {
+    console.error('Error decoding video src:', error)
+    return props.videoSrc
+  }
 })
 
 // Event handlers
@@ -228,6 +259,19 @@ const retryLoad = () => {
   }
 }
 
+// Fullscreen handling
+const toggleFullscreen = () => {
+  if (!videoWrapper.value) return
+  
+  if (!document.fullscreenElement) {
+    videoWrapper.value.requestFullscreen()
+    isFullscreen.value = true
+  } else {
+    document.exitFullscreen()
+    isFullscreen.value = false
+  }
+}
+
 // Chapter navigation
 const seekToChapter = (startTime: number) => {
   if (videoElement.value) {
@@ -256,7 +300,6 @@ const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
   if (props.chapters && props.chapters.length > 0) {
     chapters.value = convertApiChaptersToInternal(props.chapters)
-
     return
   }
 
@@ -308,18 +351,15 @@ const parseTimeStringToSeconds = (timeString: string): number => {
   
   // Handle ISO datetime format
   if (timeString.includes('T')) {
-    // For now, just return 0 as we'd need the stream start time to calculate offset
     return 0
   }
   
   // Handle HH:MM:SS.mmm or MM:SS format
   const parts = timeString.split(':')
   if (parts.length === 2) {
-    // MM:SS format
     const [minutes, seconds] = parts
     return parseInt(minutes) * 60 + parseFloat(seconds)
   } else if (parts.length === 3) {
-    // HH:MM:SS.mmm format
     const [hours, minutes, seconds] = parts
     return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
   }
@@ -335,7 +375,7 @@ const parseWebVTTChapters = (vttText: string) => {
   while (i < lines.length) {
     const line = lines[i].trim()
     
-    // Look for timestamp line (e.g., "00:00:00.000 --> 00:05:30.000")
+    // Look for timestamp line
     const timeMatch = line.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)
     if (timeMatch) {
       const startTime = parseVTTTime(timeMatch[1])
@@ -431,46 +471,45 @@ const onKeyDown = (event: KeyboardEvent) => {
         toggleChapterUI()
       }
       break
+    case 'f':
+    case 'F':
+      if (!event.ctrlKey && !event.metaKey) {
+        event.preventDefault()
+        toggleFullscreen()
+      }
+      break
   }
+}
+
+// Fullscreen change handler
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
 }
 
 onMounted(() => {
   loadChapters()
   document.addEventListener('keydown', onKeyDown)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
 })
 
 // Watch for changes in chapters prop
 watch(() => props.chapters, (newChapters) => {
   if (newChapters && newChapters.length > 0) {
     chapters.value = convertApiChaptersToInternal(newChapters)
-
   }
 }, { immediate: true })
-
-const decodedVideoSrc = computed(() => {
-  if (!props.videoSrc) return ''
-  
-  try {
-    // URL decode the video source to handle special characters
-    const decoded = decodeURIComponent(props.videoSrc)
-
-    return decoded
-  } catch (error) {
-    console.error('Error decoding video src:', error)
-    return props.videoSrc
-  }
-})
 </script>
 
 <style scoped>
 .video-player-container {
   position: relative;
-  background: #000;
-  border-radius: 8px;
+  background: var(--background-darker);
+  border-radius: var(--border-radius);
   overflow: hidden;
   width: 100%;
   max-width: 100%;
@@ -479,6 +518,7 @@ const decodedVideoSrc = computed(() => {
 .video-wrapper {
   position: relative;
   width: 100%;
+  background: #000;
 }
 
 .video-element {
@@ -488,118 +528,8 @@ const decodedVideoSrc = computed(() => {
   display: block;
 }
 
-/* Chapter Overlay */
-.chapter-overlay {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 100%;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.9), transparent);
-  padding: 20px 20px 20px 40px;
-  overflow-y: auto;
-  z-index: 10;
-  transition: transform 0.3s ease;
-}
-
-.chapter-navigation {
-  height: 100%;
-}
-
-.chapter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.chapter-item {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.chapter-item:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateX(-4px);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-}
-
-.chapter-item.active {
-  border-color: #9146ff;
-  background: rgba(145, 70, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(145, 70, 255, 0.3);
-}
-
-.chapter-thumbnail {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.chapter-thumbnail img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.chapter-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.chapter-title {
-  font-weight: 600;
-  color: white;
-  font-size: 14px;
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chapter-time {
-  font-size: 12px;
-  color: #ccc;
-  font-family: monospace;
-}
-
-.chapter-duration {
-  font-size: 11px;
-  color: #999;
-}
-
-.chapter-game-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.chapter-game-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.chapter-game-icon .category-icon {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: #9146ff;
+.video-element.fullscreen {
+  max-height: 100vh;
 }
 
 /* Chapter Progress Bar */
@@ -617,90 +547,12 @@ const decodedVideoSrc = computed(() => {
   height: 100%;
   cursor: pointer;
   transition: height 0.2s ease;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 .chapter-segment:hover {
   height: 8px;
   opacity: 1;
-}
-
-/* Video Controls Extension */
-.video-controls-extension {
-  background: linear-gradient(to bottom, #1a1a1a, #2d2d2d);
-  padding: 12px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 2px solid #444;
-  box-shadow: 0 -4px 8px rgba(0,0,0,0.3);
-}
-
-.chapter-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.chapter-toggle-btn {
-  background: #333;
-  border: none;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: background 0.2s ease;
-}
-
-.chapter-toggle-btn:hover {
-  background: #555;
-}
-
-.chapter-toggle-btn.active {
-  background: #9146ff;
-}
-
-.chapter-controls button {
-  background: #333;
-  border: none;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  transition: background 0.2s ease;
-}
-
-.chapter-controls button:hover:not(:disabled) {
-  background: #555;
-}
-
-.chapter-controls button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.current-chapter-info {
-  text-align: right;
-  color: white;
-}
-
-.current-chapter-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-
-.current-chapter-progress {
-  font-size: 12px;
-  color: #ccc;
-  font-family: monospace;
 }
 
 /* Loading and Error States */
@@ -724,7 +576,7 @@ const decodedVideoSrc = computed(() => {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #9146ff;
+  border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -746,60 +598,305 @@ const decodedVideoSrc = computed(() => {
 }
 
 .retry-btn {
-  background: #9146ff;
+  background: var(--primary-color);
   border: none;
   color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 12px 24px;
+  border-radius: var(--border-radius);
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 
 .retry-btn:hover {
-  background: #7c3aed;
+  background: var(--primary-color-hover);
+  transform: translateY(-1px);
+}
+
+/* Video Controls Extension */
+.video-controls-extension {
+  background: var(--background-card);
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  gap: 16px;
+}
+
+.chapter-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.control-btn {
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.control-btn:hover:not(:disabled) {
+  background: var(--background-dark);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.control-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.current-chapter-info {
+  text-align: right;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.current-chapter-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-chapter-progress {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+/* Chapter List Panel */
+.chapter-list-panel {
+  background: var(--background-card);
+  border-top: 1px solid var(--border-color);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.chapter-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--background-card);
+  z-index: 10;
+}
+
+.chapter-list-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.chapter-list {
+  padding: 8px;
+}
+
+.chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: var(--border-radius);
+  border: 1px solid transparent;
+}
+
+.chapter-item:hover {
+  background: var(--background-darker);
+  border-color: var(--border-color);
+}
+
+.chapter-item.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.chapter-item.active .chapter-time,
+.chapter-item.active .chapter-duration {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.chapter-thumbnail,
+.chapter-icon,
+.chapter-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-darker);
+}
+
+.chapter-thumbnail img,
+.chapter-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chapter-placeholder {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.chapter-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chapter-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin-bottom: 4px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chapter-time {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.chapter-duration {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-  .chapter-overlay {
-    width: 100%;
-    height: auto;
-    position: static;
-    background: rgba(0, 0, 0, 0.9);
-    padding: 16px;
-  }
-
   .video-controls-extension {
     flex-direction: column;
     gap: 12px;
-    align-items: stretch;
+    padding: 12px;
   }
 
   .chapter-controls {
     justify-content: center;
+    width: 100%;
+  }
+
+  .control-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 0.8rem;
   }
 
   .current-chapter-info {
     text-align: center;
+    width: 100%;
+  }
+
+  .current-chapter-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .chapter-item {
     flex-direction: column;
     text-align: center;
+    padding: 16px;
   }
 
-  .chapter-progress-bar {
-    height: 6px;
+  .chapter-thumbnail,
+  .chapter-icon,
+  .chapter-placeholder {
+    width: 80px;
+    height: 80px;
+  }
+
+  .chapter-info {
+    width: 100%;
+  }
+
+  .chapter-title {
+    text-align: center;
+  }
+
+  .chapter-list-panel {
+    max-height: 300px;
   }
 }
 
-/* Hide chapter overlay by default on mobile */
-@media (max-width: 768px) {
-  .chapter-overlay {
-    transform: translateY(100%);
+/* Very small screens */
+@media (max-width: 480px) {
+  .video-controls-extension {
+    padding: 8px;
   }
-  
-  .chapter-overlay.show {
-    transform: translateY(0);
+
+  .chapter-controls {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .control-btn {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .chapter-list-header {
+    padding: 12px;
+  }
+
+  .chapter-item {
+    padding: 12px;
+  }
+
+  .chapter-thumbnail,
+  .chapter-icon,
+  .chapter-placeholder {
+    width: 60px;
+    height: 60px;
   }
 }
 </style>
