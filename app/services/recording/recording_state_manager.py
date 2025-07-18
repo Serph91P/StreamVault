@@ -233,7 +233,7 @@ class RecordingStateManager:
                 return False
             
             # Check if recording file still exists
-            file_path = recording_data.get('file_path') or recording.file_path
+            file_path = recording_data.get('file_path') or recording.path
             if file_path and not Path(file_path).exists():
                 logger.warning(f"Recording file {file_path} no longer exists")
                 # Mark recording as failed
