@@ -172,8 +172,8 @@ class ProcessManager:
                 
                 # Initialize the log file using proper logging
                 streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
-                if not any(isinstance(handler, logging.FileHandler) and handler.baseFilename == streamlink_log_path for handler in streamer_logger.handlers):
-                    file_handler = logging.FileHandler(streamlink_log_path, mode='w', encoding='utf-8')
+                if not any(isinstance(handler, logging.FileHandler) and os.path.abspath(handler.baseFilename) == os.path.abspath(streamlink_log_path) for handler in streamer_logger.handlers):
+                    file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
                     file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
                     streamer_logger.addHandler(file_handler)
                     streamer_logger.setLevel(logging.INFO)
