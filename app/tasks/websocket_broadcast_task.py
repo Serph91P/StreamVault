@@ -54,6 +54,9 @@ class WebSocketBroadcastTask:
                     # Broadcast active recordings
                     await self._broadcast_active_recordings()
                     
+                    # Broadcast background queue status
+                    await self._broadcast_background_queue_status()
+                    
                     # Wait 10 seconds before next broadcast
                     await asyncio.sleep(10)
                     
@@ -75,7 +78,7 @@ class WebSocketBroadcastTask:
                     joinedload(Recording.stream).joinedload(Stream.streamer)
                 ).filter(
                     and_(
-                        Recording.status == "recording",
+                        Recording.status.in_(["recording", "processing"]),
                         Recording.path.isnot(None)
                     )
                 ).all()
@@ -99,9 +102,78 @@ class WebSocketBroadcastTask:
                 if websocket_manager and len(websocket_manager.active_connections) > 0:
                     await websocket_manager.send_active_recordings_update(recordings_data)
                     logger.debug(f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients")
+                elif websocket_manager:
+                    logger.debug(f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings")
+                else:
+                    logger.warning("WebSocket manager not available - cannot broadcast recordings")
                 
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
+    
+    async def _broadcast_background_queue_status(self):
+        """Broadcast current background queue status to all WebSocket clients"""
+        try:
+            from app.services.background_queue_service import background_queue_service
+            
+            if background_queue_service:
+                # Get queue statistics safely
+                try:
+                    queue_stats = background_queue_service.get_queue_statistics()
+                    active_tasks = background_queue_service.get_active_tasks()
+                    recent_tasks = background_queue_service.get_completed_tasks()
+                    
+                    # Convert tasks to serializable format
+                    active_tasks_data = []
+                    for task_id, task in active_tasks.items():
+                        active_tasks_data.append({
+                            "id": task_id,
+                            "task_type": task.task_type,
+                            "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
+                            "progress": task.progress,
+                            "created_at": task.created_at.isoformat() if task.created_at else None,
+                            "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                            "stream_id": task.payload.get("stream_id"),
+                            "recording_id": task.payload.get("recording_id")
+                        })
+                    
+                    recent_tasks_data = []
+                    for task_id, task in list(recent_tasks.items())[-10:]:  # Last 10 tasks
+                        recent_tasks_data.append({
+                            "id": task_id,
+                            "task_type": task.task_type,
+                            "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
+                            "progress": task.progress,
+                            "created_at": task.created_at.isoformat() if task.created_at else None,
+                            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                            "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                            "error_message": task.error_message
+                        })
+                    
+                    # Prepare data for frontend
+                    queue_data = {
+                        "stats": queue_stats,
+                        "active_tasks": active_tasks_data,
+                        "recent_tasks": recent_tasks_data
+                    }
+                    
+                    # Send via WebSocket if we have connected clients
+                    if websocket_manager and len(websocket_manager.active_connections) > 0:
+                        message = {
+                            "type": "background_queue_update",
+                            "data": queue_data
+                        }
+                        await websocket_manager.send_notification(message)
+                        logger.debug(f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent")
+                    
+                except AttributeError as e:
+                    logger.warning(f"Background queue service method not available: {e}")
+                except Exception as e:
+                    logger.error(f"Error getting queue data: {e}")
+                
+        except ImportError as e:
+            logger.warning(f"Background queue service not available: {e}")
+        except Exception as e:
+            logger.error(f"Error broadcasting background queue status: {e}")
     
     def _calculate_duration(self, start_time: datetime) -> int:
         """Calculate recording duration in seconds"""
