@@ -50,10 +50,20 @@ class ConfigManager:
                     self._global_settings = db.query(RecordingSettings).first()
                     self.last_refresh = datetime.now()
             except Exception as e:
-                # Handle case where recording_settings table doesn't exist yet (during migration)
-                logger.warning(f"Could not access recording_settings table: {e}")
-                logger.info("Using default settings - table may not exist yet during migration")
-                return None
+                error_msg = str(e).lower()
+                if "relation" in error_msg and "does not exist" in error_msg:
+                    # Handle case where RecordingSettings table doesn't exist yet (during migration)
+                    logger.warning(f"RecordingSettings table doesn't exist yet: {e}")
+                    logger.info("Using default settings - RecordingSettings table may not exist yet during migration")
+                    return None
+                elif "connection" in error_msg or "database" in error_msg:
+                    # Database connection issues
+                    logger.error(f"Database connection error accessing RecordingSettings: {e}")
+                    return None
+                else:
+                    # Other unexpected errors
+                    logger.error(f"Unexpected error accessing RecordingSettings: {e}")
+                    return None
         return self._global_settings
 
     def get_streamer_settings(
@@ -70,10 +80,20 @@ class ConfigManager:
                     )
                     self.last_refresh = datetime.now()
             except Exception as e:
-                # Handle case where table doesn't exist yet (during migration)
-                logger.warning(f"Could not access streamer_recording_settings table: {e}")
-                logger.info("Using default settings - table may not exist yet during migration")
-                return None
+                error_msg = str(e).lower()
+                if "relation" in error_msg and "does not exist" in error_msg:
+                    # Handle case where StreamerRecordingSettings table doesn't exist yet (during migration)
+                    logger.warning(f"StreamerRecordingSettings table doesn't exist yet: {e}")
+                    logger.info("Using default settings - StreamerRecordingSettings table may not exist yet during migration")
+                    return None
+                elif "connection" in error_msg or "database" in error_msg:
+                    # Database connection issues
+                    logger.error(f"Database connection error accessing StreamerRecordingSettings: {e}")
+                    return None
+                else:
+                    # Other unexpected errors
+                    logger.error(f"Unexpected error accessing StreamerRecordingSettings: {e}")
+                    return None
         return self._streamer_settings.get(streamer_id)
 
     def is_recording_enabled(self, streamer_id: int) -> bool:
