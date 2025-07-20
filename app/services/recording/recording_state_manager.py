@@ -8,6 +8,7 @@ Handles active recordings state, task tracking, and recovery after restarts.
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List
+from pathlib import Path
 from datetime import datetime
 from app.services.core.state_persistence_service import state_persistence_service
 
@@ -233,7 +234,7 @@ class RecordingStateManager:
                 return False
             
             # Check if recording file still exists
-            file_path = recording_data.get('file_path') or recording.file_path
+            file_path = recording_data.get('file_path') or recording.path
             if file_path and not Path(file_path).exists():
                 logger.warning(f"Recording file {file_path} no longer exists")
                 # Mark recording as failed
@@ -245,7 +246,7 @@ class RecordingStateManager:
             # Add to active recordings
             self.add_active_recording(recording_id, {
                 'file_path': file_path,
-                'streamer_id': recording.streamer_id,
+                'streamer_id': recording.stream.streamer_id if recording.stream else None,
                 'stream_id': recording.stream_id,
                 'recovered': True,
                 **recording_data

@@ -9,7 +9,7 @@ import mimetypes
 import re
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, Stream, Streamer
+from app.models import RecordingSettings, Stream, Streamer, Recording
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 
 logger = logging.getLogger("streamvault")
@@ -64,25 +64,23 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
     videos = []
     
     try:
-        # Query all streams that have recording paths
-        streams = db.query(Stream, Streamer).join(
+        # Strategy 1: Get videos from streams that have recording_path set
+        streams_with_paths = db.query(Stream, Streamer).join(
             Streamer, Stream.streamer_id == Streamer.id
         ).filter(
             Stream.recording_path.isnot(None),
             Stream.recording_path != ""
         ).order_by(Stream.started_at.desc()).all()
         
-        logger.debug(f"Found {len(streams)} streams with recording paths in database")
+        logger.debug(f"Found {len(streams_with_paths)} streams with recording paths")
         
-        for stream, streamer in streams:
+        for stream, streamer in streams_with_paths:
             try:
-                # Verify the file exists
                 recording_path = Path(stream.recording_path)
                 
                 if recording_path.exists() and recording_path.is_file():
                     file_stats = recording_path.stat()
                     
-                    # Calculate duration if available
                     duration = None
                     if stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
@@ -100,16 +98,91 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None  # TODO: Generate thumbnails
+                        "thumbnail_url": None
                     }
                     videos.append(video_info)
-                    logger.debug(f"Added video: {stream.title} by {streamer.username}")
-                else:
-                    logger.warning(f"Recording file not found: {stream.recording_path}")
+                    logger.debug(f"Added video from stream: {stream.title} by {streamer.username}")
                     
             except Exception as e:
                 logger.error(f"Error processing stream {stream.id}: {e}")
                 continue
+        
+        # Strategy 2: Get videos from recordings that have valid files but no recording_path in stream
+        recordings_with_files = db.query(Recording, Stream, Streamer).join(
+            Stream, Recording.stream_id == Stream.id
+        ).join(
+            Streamer, Stream.streamer_id == Streamer.id
+        ).filter(
+            Recording.path.isnot(None),
+            Recording.path != "",
+            Recording.status.in_(['completed', 'post_processing'])
+        ).order_by(Recording.start_time.desc()).all()
+        
+        logger.debug(f"Found {len(recordings_with_files)} recordings with file paths")
+        
+        # Keep track of streams we've already added to avoid duplicates
+        added_stream_ids = {video["id"] for video in videos}
+        
+        for recording, stream, streamer in recordings_with_files:
+            # Skip if we already added this stream
+            if stream.id in added_stream_ids:
+                continue
+                
+            try:
+                # Try both .ts and .mp4 files
+                recording_path = Path(recording.path)
+                mp4_path = recording_path.with_suffix('.mp4')
+                
+                final_path = None
+                file_stats = None
+                
+                # Prefer .mp4 if it exists
+                if mp4_path.exists():
+                    final_path = mp4_path
+                    file_stats = mp4_path.stat()
+                elif recording_path.exists():
+                    final_path = recording_path
+                    file_stats = recording_path.stat()
+                
+                if final_path and file_stats:
+                    # Update the stream's recording_path for future use
+                    if not stream.recording_path:
+                        stream.recording_path = str(final_path)
+                        logger.debug(f"Auto-updated recording_path for stream {stream.id}: {final_path}")
+                    
+                    duration = None
+                    if recording.start_time and recording.end_time:
+                        duration = (recording.end_time - recording.start_time).total_seconds()
+                    elif stream.started_at and stream.ended_at:
+                        duration = (stream.ended_at - stream.started_at).total_seconds()
+                    
+                    video_info = {
+                        "id": stream.id,
+                        "title": stream.title or f"Stream {stream.id}",
+                        "streamer_name": streamer.username,
+                        "streamer_id": streamer.id,
+                        "file_path": str(final_path),
+                        "file_size": file_stats.st_size,
+                        "created_at": (recording.start_time or stream.started_at).isoformat() if (recording.start_time or stream.started_at) else None,
+                        "started_at": (recording.start_time or stream.started_at).isoformat() if (recording.start_time or stream.started_at) else None,
+                        "ended_at": (recording.end_time or stream.ended_at).isoformat() if (recording.end_time or stream.ended_at) else None,
+                        "duration": duration,
+                        "category_name": stream.category_name,
+                        "language": stream.language,
+                        "thumbnail_url": None
+                    }
+                    videos.append(video_info)
+                    added_stream_ids.add(stream.id)
+                    logger.debug(f"Added video from recording: {stream.title} by {streamer.username}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing recording {recording.id}: {e}")
+                continue
+        
+        # Commit any auto-updates to recording_path
+        if len(videos) > len(streams_with_paths):
+            db.commit()
+            logger.debug(f"Auto-updated {len(videos) - len(streams_with_paths)} recording paths")
         
         logger.info(f"Returning {len(videos)} videos")
         

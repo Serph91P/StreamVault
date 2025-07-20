@@ -193,8 +193,12 @@ export const recordingApi = {
         return api.post(`/api/recordings/start/${streamerId}`)
     },
 
+    async forceStartRecording(streamerId) {
+        return api.post(`/api/recording/force-start/${streamerId}`)
+    },
+
     async stopRecording(streamerId) {
-        return api.post(`/api/recordings/stop/${streamerId}`)
+        return api.post(`/api/recording/stop/${streamerId}`)
     },
 
     async getRecordingStatus(streamerId) {

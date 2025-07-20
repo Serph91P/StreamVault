@@ -104,6 +104,7 @@
             
             <!-- Stream Actions -->
             <div class="stream-actions">
+              <!-- Watch Video Button (für beendete Streams mit Recording) -->
               <button 
                 v-if="stream.ended_at && hasRecording(stream)"
                 @click="watchVideo(stream)" 
@@ -113,6 +114,31 @@
                 ▶️ Watch
               </button>
               
+              <!-- Force Start Recording Button (für laufende Streams ohne Recording) -->
+              <button 
+                v-if="!stream.ended_at && !isStreamBeingRecorded(stream)"
+                @click="forceStartRecording(stream.streamer_id)" 
+                class="btn btn-success"
+                :disabled="forceRecordingStreamerId === stream.streamer_id"
+                title="Force Start Recording"
+              >
+                <span v-if="forceRecordingStreamerId === stream.streamer_id">⏳</span>
+                <span v-else>🔴 Force Recording</span>
+              </button>
+              
+              <!-- Stop Recording Button (für laufende Aufnahmen) -->
+              <button 
+                v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
+                @click="stopRecording(stream.streamer_id)" 
+                class="btn btn-warning"
+                :disabled="stoppingRecordingStreamerId === stream.streamer_id"
+                title="Stop Recording"
+              >
+                <span v-if="stoppingRecordingStreamerId === stream.streamer_id">⏳</span>
+                <span v-else>⏹️ Stop Recording</span>
+              </button>
+              
+              <!-- Details Toggle Button -->
               <button 
                 @click="toggleStreamExpansion(stream.id)"
                 class="btn btn-secondary"
@@ -121,6 +147,7 @@
                 {{ expandedStreams[stream.id] ? '▲' : '▼' }} Details
               </button>
               
+              <!-- Delete Stream Button -->
               <button 
                 @click="confirmDeleteStream(stream)" 
                 class="btn btn-danger" 
@@ -227,6 +254,7 @@ import { useStreams } from '@/composables/useStreams'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
+import { recordingApi } from '@/services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -245,6 +273,8 @@ const deletingAllStreams = ref(false)
 const showDeleteModal = ref(false)
 const showDeleteAllModal = ref(false)
 const streamToDelete = ref<any>(null)
+const forceRecordingStreamerId = ref<number | null>(null)
+const stoppingRecordingStreamerId = ref<number | null>(null)
 
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})
@@ -364,10 +394,18 @@ const handleBack = () => {
 }
 
 const watchVideo = (stream: any) => {
-  if (stream.recordings && stream.recordings.length > 0) {
-    const recording = stream.recordings[0]
-    router.push(`/videos/${recording.id}`)
-  }
+  // Navigate to video player with stream details
+  router.push({
+    name: 'VideoPlayer',
+    params: {
+      streamerId: stream.streamer_id,
+      streamId: stream.id
+    },
+    query: {
+      title: stream.title,
+      streamerName: streamerName.value
+    }
+  })
 }
 
 // Delete Functions
@@ -446,6 +484,66 @@ const cancelDeleteAll = () => {
   showDeleteAllModal.value = false
 }
 
+// Force Recording Method
+const forceStartRecording = async (streamerId: number) => {
+  try {
+    forceRecordingStreamerId.value = streamerId
+    
+    const response = await recordingApi.forceStartRecording(streamerId)
+    
+    if (response.data.status === 'success') {
+      // Update local recording state immediately
+      const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
+      if (activeStream) {
+        localRecordingState.value[activeStream.id] = true
+      }
+    }
+  } catch (error: any) {
+    console.error('Error force starting recording:', error)
+    
+    let errorMessage = 'Failed to start recording.'
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    alert(errorMessage)
+  } finally {
+    forceRecordingStreamerId.value = null
+  }
+}
+
+// Stop Recording Method
+const stopRecording = async (streamerId: number) => {
+  try {
+    stoppingRecordingStreamerId.value = streamerId
+    
+    const response = await recordingApi.stopRecording(streamerId)
+    
+    if (response.data.status === 'success') {
+      // Update local recording state immediately
+      const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
+      if (activeStream) {
+        localRecordingState.value[activeStream.id] = false
+      }
+    }
+  } catch (error: any) {
+    console.error('Error stopping recording:', error)
+    
+    let errorMessage = 'Failed to stop recording.'
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    alert(errorMessage)
+  } finally {
+    stoppingRecordingStreamerId.value = null
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   if (streamerId.value) {
@@ -453,7 +551,7 @@ onMounted(async () => {
     await fetchActiveRecordings()
     
     // Preload category images
-    const categories = [...new Set(streams.value.map(s => s.category_name).filter(Boolean))] as string[]
+    const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
     await preloadCategoryImages(categories)
   }
 })
@@ -678,6 +776,7 @@ onMounted(async () => {
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -694,6 +793,84 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 15px;
+  min-height: 40px;
+  align-items: center;
+}
+
+.stream-actions .btn {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.stream-actions .btn-success {
+  background: #22c55e;
+  color: white;
+  border: 1px solid #22c55e;
+}
+
+.stream-actions .btn-success:hover {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+.stream-actions .btn-warning {
+  background: #f59e0b;
+  color: white;
+  border: 1px solid #f59e0b;
+}
+
+.stream-actions .btn-warning:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+}
+
+.stream-actions .btn-info {
+  background: #3b82f6;
+  color: white;
+  border: 1px solid #3b82f6;
+}
+
+.stream-actions .btn-info:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.stream-actions .btn-primary {
+  background: #6366f1;
+  color: white;
+  border: 1px solid #6366f1;
+}
+
+.stream-actions .btn-primary:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+}
+
+.stream-actions .btn-secondary {
+  background: #6b7280;
+  color: white;
+  border: 1px solid #6b7280;
+}
+
+.stream-actions .btn-secondary:hover {
+  background: #4b5563;
+  border-color: #6366f1;
+}
+
+.stream-actions .btn-danger {
+  background: #ef4444;
+  color: white;
+  border: 1px solid #ef4444;
+}
+
+.stream-actions .btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
 }
 
 .stream-details {
@@ -859,6 +1036,7 @@ onMounted(async () => {
   
   .stream-grid {
     grid-template-columns: 1fr;
+    gap: 15px;
   }
   
   .page-header {
@@ -873,12 +1051,31 @@ onMounted(async () => {
     gap: 10px;
   }
   
+  .header-info h1 {
+    font-size: 1.5rem;
+  }
+  
   .stream-actions {
-    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+  }
+  
+  .stream-actions .btn {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    min-width: 80px;
   }
   
   .details-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .stream-card {
+    border-radius: 8px;
+  }
+  
+  .stream-info {
+    padding: 15px;
   }
 }
 </style>

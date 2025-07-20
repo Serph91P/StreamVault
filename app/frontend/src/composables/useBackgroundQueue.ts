@@ -187,7 +187,18 @@ export function useBackgroundQueue() {
     const latestMessage = newMessages[newMessages.length - 1]
     
     // Handle queue-related WebSocket messages
-    if (latestMessage.type === 'queue_stats_update') {
+    if (latestMessage.type === 'background_queue_update') {
+      // Update all data from WebSocket broadcast
+      if (latestMessage.data.stats) {
+        Object.assign(queueStats.value, latestMessage.data.stats)
+      }
+      if (latestMessage.data.active_tasks) {
+        activeTasks.value = latestMessage.data.active_tasks
+      }
+      if (latestMessage.data.recent_tasks) {
+        recentTasks.value = latestMessage.data.recent_tasks
+      }
+    } else if (latestMessage.type === 'queue_stats_update') {
       Object.assign(queueStats.value, latestMessage.data)
     } else if (latestMessage.type === 'task_status_update') {
       const taskData = latestMessage.data
