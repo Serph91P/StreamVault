@@ -123,17 +123,52 @@ class MigrationService:
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
         """Get all migration scripts from the migrations directory"""
-        # Get to the container root directory using pathlib for clarity
-        # __file__ = /app/app/services/system/migration_service.py
-        # 3 levels up = /app/
-        # migrations_dir = /app/migrations/
-        migrations_dir = Path(__file__).parent.parent.parent / 'migrations'
+        # Based on Dockerfile structure:
+        # This service is at: /app/app/services/system/migration_service.py
+        # Migrations are at: /app/migrations/
+        # Path depth constants for clarity
+        MIGRATION_SERVICE_DEPTH = 3  # From /app/app/services/system/ to /app/
+        FALLBACK_DEPTH = 2           # From /app/app/services/system/ to /app/app/
+        
+        current_file = Path(__file__)
+        
+        # Try the correct path based on Dockerfile structure
+        migrations_dir = current_file.parents[MIGRATION_SERVICE_DEPTH] / 'migrations'  # /app/migrations
+        
+        if not migrations_dir.exists() or not migrations_dir.is_dir():
+            logger.warning(f"Expected migrations directory not found at: {migrations_dir}")
+            # Try fallback paths
+            fallback_paths = [
+                Path('/app/migrations'),                                    # Absolute path
+                Path('./migrations'),                                      # Relative to working directory
+                current_file.parents[FALLBACK_DEPTH] / 'migrations',      # /app/app/migrations
+            ]
+            
+            for path in fallback_paths:
+                if path.exists() and path.is_dir():
+                    migrations_dir = path
+                    logger.info(f"Found migrations directory at fallback path: {migrations_dir}")
+                    break
+            else:
+                logger.error("Could not find migrations directory")
+                return []
+        else:
+            logger.info(f"Found migrations directory at: {migrations_dir}")
+            
         migration_scripts = glob.glob(str(migrations_dir / '*.py'))
         # Filter out __init__.py and any other non-migration files
         migration_scripts = [script for script in migration_scripts if os.path.basename(script) != '__init__.py' 
                             and os.path.basename(script) != 'create_migration.py'
                             and os.path.basename(script) != 'template_migration.py'
                             and os.path.basename(script) != 'manage.py']
+        
+        # Sort migration scripts to ensure consistent order
+        migration_scripts.sort()
+        
+        logger.info(f"Found {len(migration_scripts)} migration scripts in {migrations_dir}")
+        for script in migration_scripts:
+            logger.debug(f"Migration script: {os.path.basename(script)}")
+            
         return migration_scripts
     
     @staticmethod
