@@ -108,9 +108,9 @@ class RecordingDatabaseService:
         )
     
     # Alias for compatibility
-    async def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
+    def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
         """Alias for get_recording - for compatibility"""
-        return await self.get_recording(recording_id)
+        return self.get_recording(recording_id)
 
     @database_retry
     async def get_active_recordings_from_db(self) -> List[Recording]:
