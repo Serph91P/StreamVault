@@ -207,7 +207,7 @@
                   <span v-if="deletingStreamId === stream.id">
                     <i class="fas fa-spinner fa-spin"></i>
                   </span>
-                  <span v-else">
+                  <span v-else>
                     <i class="fas fa-trash"></i>
                   </span>
                 </button>
@@ -1084,54 +1084,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.stream-actions .btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--border-radius);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-decoration: none;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--primary-color);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-color-hover);
-}
-
-.btn-secondary {
-  background: var(--background-darker);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--background-dark);
-  border-color: var(--primary-color);
-}
-
-.btn-danger {
-  background: var(--danger-color);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-color-hover);
 }
 
 .stream-details {
