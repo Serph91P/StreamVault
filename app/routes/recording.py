@@ -429,7 +429,7 @@ async def update_streamer_recording_settings(
         logger.error(f"Error updating streamer recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.post("/force/{streamer_id}")
+@router.post("/force-start/{streamer_id}")
 async def force_start_recording(streamer_id: int):
     """Manually start a recording for an active stream"""
     try:

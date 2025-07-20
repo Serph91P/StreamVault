@@ -263,7 +263,7 @@ class RecordingLifecycleManager:
                 return False
             
             # Get the Stream object from the recording to use the new API properly
-            recording = await self.database_service.get_recording_by_id(recording_id)
+            recording = self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 logger.error(f"🎬 NO_RECORDING: Recording {recording_id} not found")
                 return False
@@ -310,7 +310,7 @@ class RecordingLifecycleManager:
             self.state_manager.cancel_recording_task(recording_id)
             
             # Get recording to find stream ID
-            recording = await self.database_service.get_recording_by_id(recording_id)
+            recording = self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 logger.error(f"🎬 NO_RECORDING: Recording {recording_id} not found for stop")
                 return False
@@ -465,7 +465,7 @@ class RecordingLifecycleManager:
             logger.info(f"🎬 POST_PROCESSING_START: recording_id={recording_id}")
             
             # Get recording info
-            recording_data = await self.database_service.get_recording_by_id(recording_id)
+            recording_data = self.database_service.get_recording_by_id(recording_id)
             if not recording_data:
                 logger.error(f"Recording {recording_id} not found for post-processing")
                 return
@@ -766,7 +766,7 @@ class RecordingLifecycleManager:
                 return False
             
             # Get recording to find stream ID
-            recording = await self.database_service.get_recording_by_id(recording_id)
+            recording = self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 return False
             

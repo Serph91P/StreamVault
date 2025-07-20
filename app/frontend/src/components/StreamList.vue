@@ -56,6 +56,7 @@
           <!-- Stream Thumbnail -->
           <div class="stream-thumbnail">
             <div class="thumbnail-container">
+              <!-- Category/Game Image -->
               <div v-if="stream.category_name" class="category-image-container">
                 <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
                   <div class="category-icon">
@@ -71,22 +72,15 @@
                     class="category-image"
                   />
                 </template>
+                <div class="category-overlay">
+                  <span class="category-label">{{ stream.category_name }}</span>
+                </div>
               </div>
               <div v-else class="category-placeholder">
-                <i class="fas fa-video"></i>
-              </div>
-              
-              <!-- Status Badges -->
-              <div class="status-badges">
-                <span class="status-badge" :class="{ 'live': !stream.ended_at }">
-                  {{ !stream.ended_at ? 'LIVE' : 'ENDED' }}
-                </span>
-                <span 
-                  v-if="!stream.ended_at && isStreamBeingRecorded(stream)" 
-                  class="recording-badge"
-                >
-                  REC
-                </span>
+                <div class="placeholder-content">
+                  <i class="fas fa-gamepad"></i>
+                  <span>No Category</span>
+                </div>
               </div>
             </div>
           </div>
@@ -97,66 +91,127 @@
               <h3 class="stream-title">{{ stream.title || 'Untitled Stream' }}</h3>
               <div class="stream-meta">
                 <span class="stream-date">{{ formatDate(stream.started_at) }}</span>
-                <span v-if="stream.category_name" class="stream-category">{{ stream.category_name }}</span>
-                <span class="stream-duration">{{ calculateDuration(stream) }}</span>
+                <span v-if="stream.category_name" class="stream-category">
+                  <i class="fas fa-tag"></i> {{ stream.category_name }}
+                </span>
+                <span class="stream-duration">
+                  <i class="fas fa-clock"></i> {{ calculateDuration(stream) }}
+                </span>
+              </div>
+              
+              <!-- Recording Status Indicator -->
+              <div class="recording-status">
+                <div v-if="!stream.ended_at" class="live-status">
+                  <span class="status-indicator live">
+                    <i class="fas fa-circle"></i> LIVE
+                  </span>
+                  <span 
+                    v-if="isStreamBeingRecorded(stream)" 
+                    class="status-indicator recording"
+                  >
+                    <i class="fas fa-record-vinyl recording-pulse"></i> RECORDING
+                  </span>
+                  <span 
+                    v-else 
+                    class="status-indicator not-recording"
+                  >
+                    <i class="fas fa-circle-o"></i> NOT RECORDING
+                  </span>
+                </div>
+                <div v-else class="ended-status">
+                  <span class="status-indicator ended">
+                    <i class="fas fa-stop-circle"></i> ENDED
+                  </span>
+                  <span 
+                    v-if="hasRecording(stream)" 
+                    class="status-indicator has-recording"
+                  >
+                    <i class="fas fa-video"></i> VIDEO AVAILABLE
+                  </span>
+                  <span 
+                    v-else 
+                    class="status-indicator no-recording"
+                  >
+                    <i class="fas fa-video-slash"></i> NO VIDEO
+                  </span>
+                </div>
               </div>
             </div>
             
             <!-- Stream Actions -->
             <div class="stream-actions">
-              <!-- Watch Video Button (für beendete Streams mit Recording) -->
-              <button 
-                v-if="stream.ended_at && hasRecording(stream)"
-                @click="watchVideo(stream)" 
-                class="btn btn-primary"
-                title="Watch Video"
-              >
-                ▶️ Watch
-              </button>
+              <!-- Recording Actions (Primary Actions) -->
+              <div class="recording-actions">
+                <!-- Watch Video Button (for ended streams with recording) -->
+                <button 
+                  v-if="stream.ended_at && hasRecording(stream)"
+                  @click="watchVideo(stream)" 
+                  class="btn btn-primary action-btn"
+                  title="Watch Video"
+                >
+                  <i class="fas fa-play"></i> Watch Video
+                </button>
+                
+                <!-- Force Start Recording Button (for live streams without recording) -->
+                <button 
+                  v-if="!stream.ended_at && !isStreamBeingRecorded(stream)"
+                  @click="forceStartRecording(stream.streamer_id)" 
+                  class="btn btn-success action-btn"
+                  :disabled="forceRecordingStreamerId === stream.streamer_id"
+                  title="Force Start Recording"
+                >
+                  <span v-if="forceRecordingStreamerId === stream.streamer_id">
+                    <i class="fas fa-spinner fa-spin"></i> Starting...
+                  </span>
+                  <span v-else>
+                    <i class="fas fa-record-vinyl"></i> Force Recording
+                  </span>
+                </button>
+                
+                <!-- Stop Recording Button (for active recordings) -->
+                <button 
+                  v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
+                  @click="stopRecording(stream.streamer_id)" 
+                  class="btn btn-warning action-btn"
+                  :disabled="stoppingRecordingStreamerId === stream.streamer_id"
+                  title="Stop Recording"
+                >
+                  <span v-if="stoppingRecordingStreamerId === stream.streamer_id">
+                    <i class="fas fa-spinner fa-spin"></i> Stopping...
+                  </span>
+                  <span v-else>
+                    <i class="fas fa-stop"></i> Stop Recording
+                  </span>
+                </button>
+              </div>
               
-              <!-- Force Start Recording Button (für laufende Streams ohne Recording) -->
-              <button 
-                v-if="!stream.ended_at && !isStreamBeingRecorded(stream)"
-                @click="forceStartRecording(stream.streamer_id)" 
-                class="btn btn-success"
-                :disabled="forceRecordingStreamerId === stream.streamer_id"
-                title="Force Start Recording"
-              >
-                <span v-if="forceRecordingStreamerId === stream.streamer_id">⏳</span>
-                <span v-else>🔴 Force Recording</span>
-              </button>
-              
-              <!-- Stop Recording Button (für laufende Aufnahmen) -->
-              <button 
-                v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
-                @click="stopRecording(stream.streamer_id)" 
-                class="btn btn-warning"
-                :disabled="stoppingRecordingStreamerId === stream.streamer_id"
-                title="Stop Recording"
-              >
-                <span v-if="stoppingRecordingStreamerId === stream.streamer_id">⏳</span>
-                <span v-else>⏹️ Stop Recording</span>
-              </button>
-              
-              <!-- Details Toggle Button -->
-              <button 
-                @click="toggleStreamExpansion(stream.id)"
-                class="btn btn-secondary"
-                title="Show Details"
-              >
-                {{ expandedStreams[stream.id] ? '▲' : '▼' }} Details
-              </button>
-              
-              <!-- Delete Stream Button -->
-              <button 
-                @click="confirmDeleteStream(stream)" 
-                class="btn btn-danger" 
-                :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamBeingRecorded(stream))"
-                title="Delete Stream"
-              >
-                <span v-if="deletingStreamId === stream.id">⏳</span>
-                <span v-else>🗑️</span>
-              </button>
+              <!-- Secondary Actions -->
+              <div class="secondary-actions">
+                <!-- Details Toggle Button -->
+                <button 
+                  @click="toggleStreamExpansion(stream.id)"
+                  class="btn btn-secondary action-btn"
+                  title="Show/Hide Details"
+                >
+                  <i :class="expandedStreams[stream.id] ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+                  {{ expandedStreams[stream.id] ? 'Hide' : 'Show' }} Details
+                </button>
+                
+                <!-- Delete Stream Button -->
+                <button 
+                  @click="confirmDeleteStream(stream)" 
+                  class="btn btn-danger action-btn" 
+                  :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamBeingRecorded(stream))"
+                  title="Delete Stream"
+                >
+                  <span v-if="deletingStreamId === stream.id">
+                    <i class="fas fa-spinner fa-spin"></i>
+                  </span>
+                  <span v-else">
+                    <i class="fas fa-trash"></i>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
           
@@ -789,14 +844,144 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
+/* Recording Status Indicators */
+.recording-status {
+  margin-top: 8px;
+}
+
+.live-status, .ended-status {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.status-indicator.live {
+  background: #ef4444;
+  color: white;
+}
+
+.status-indicator.recording {
+  background: #22c55e;
+  color: white;
+}
+
+.status-indicator.not-recording {
+  background: #6b7280;
+  color: white;
+}
+
+.status-indicator.ended {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.status-indicator.has-recording {
+  background: #3b82f6;
+  color: white;
+}
+
+.status-indicator.no-recording {
+  background: #6b7280;
+  color: #d1d5db;
+}
+
+.recording-pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Improved Category Placeholder */
+.category-placeholder .placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.category-placeholder .placeholder-content i {
+  font-size: 2rem;
+  color: var(--text-secondary);
+}
+
+.category-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Improved Button Styling */
 .stream-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 15px;
+}
+
+.recording-actions, .secondary-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: 15px;
-  min-height: 40px;
   align-items: center;
+}
+
+.recording-actions {
+  min-height: 40px;
+}
+
+.secondary-actions {
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.action-btn {
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.action-btn i {
+  margin-right: 6px;
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .stream-actions .btn {
@@ -805,72 +990,148 @@ onMounted(async () => {
   border-radius: 6px;
   font-weight: 600;
   transition: all 0.2s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stream-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .stream-actions .btn-success {
   background: #22c55e;
   color: white;
-  border: 1px solid #22c55e;
+  border-color: #16a34a;
 }
 
-.stream-actions .btn-success:hover {
+.stream-actions .btn-success:hover:not(:disabled) {
   background: #16a34a;
-  transform: translateY(-1px);
+  border-color: #15803d;
 }
 
 .stream-actions .btn-warning {
   background: #f59e0b;
   color: white;
-  border: 1px solid #f59e0b;
+  border-color: #d97706;
 }
 
-.stream-actions .btn-warning:hover {
+.stream-actions .btn-warning:hover:not(:disabled) {
   background: #d97706;
-  transform: translateY(-1px);
+  border-color: #b45309;
 }
 
 .stream-actions .btn-info {
   background: #3b82f6;
   color: white;
-  border: 1px solid #3b82f6;
+  border-color: #2563eb;
 }
 
-.stream-actions .btn-info:hover {
+.stream-actions .btn-info:hover:not(:disabled) {
   background: #2563eb;
-  transform: translateY(-1px);
+  border-color: #1d4ed8;
 }
 
 .stream-actions .btn-primary {
   background: #6366f1;
   color: white;
-  border: 1px solid #6366f1;
+  border-color: #4f46e5;
 }
 
-.stream-actions .btn-primary:hover {
+.stream-actions .btn-primary:hover:not(:disabled) {
   background: #4f46e5;
-  transform: translateY(-1px);
+  border-color: #4338ca;
 }
 
 .stream-actions .btn-secondary {
   background: #6b7280;
   color: white;
-  border: 1px solid #6b7280;
+  border-color: #4b5563;
 }
 
-.stream-actions .btn-secondary:hover {
+.stream-actions .btn-secondary:hover:not(:disabled) {
   background: #4b5563;
-  border-color: #6366f1;
+  border-color: #374151;
 }
 
 .stream-actions .btn-danger {
   background: #ef4444;
   color: white;
-  border: 1px solid #ef4444;
+  border-color: #dc2626;
 }
 
-.stream-actions .btn-danger:hover {
+.stream-actions .btn-danger:hover:not(:disabled) {
   background: #dc2626;
-  transform: translateY(-1px);
+  border-color: #b91c1c;
+}
+
+.stream-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.stream-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.stream-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stream-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-color-hover);
+}
+
+.btn-secondary {
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--background-dark);
+  border-color: var(--primary-color);
+}
+
+.btn-danger {
+  background: var(--danger-color);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-color-hover);
 }
 
 .stream-details {
