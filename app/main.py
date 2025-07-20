@@ -67,6 +67,15 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Database migration failed: {e}")
             logger.warning("⚠️ Application will continue but may have limited functionality")
         
+        # Create any remaining tables from models (after migrations)
+        logger.info("🔄 Creating remaining tables from models...")
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            logger.info("✅ All model tables ensured")
+        except Exception as e:
+            logger.error(f"❌ Error creating model tables: {e}")
+            logger.warning("⚠️ Application will continue but may have limited functionality")
+        
         # Initialize EventSub
         event_registry = await get_event_registry()
         await event_registry.initialize_eventsub()
@@ -246,7 +255,6 @@ async def lifespan(app: FastAPI):
 
 # Initialize application components
 logger = setup_logging()
-models.Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
