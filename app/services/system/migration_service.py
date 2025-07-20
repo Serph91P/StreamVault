@@ -126,19 +126,22 @@ class MigrationService:
         # Based on Dockerfile structure:
         # This service is at: /app/app/services/system/migration_service.py
         # Migrations are at: /app/migrations/
-        # So we need to go 4 levels up: app/services/system/migration_service.py -> app/services/system -> app/services -> app -> /app
+        # Path depth constants for clarity
+        MIGRATION_SERVICE_DEPTH = 3  # From /app/app/services/system/ to /app/
+        FALLBACK_DEPTH = 2           # From /app/app/services/system/ to /app/app/
+        
         current_file = Path(__file__)
         
         # Try the correct path based on Dockerfile structure
-        migrations_dir = current_file.parent.parent.parent.parent / 'migrations'  # /app/migrations from /app/app/services/system/
+        migrations_dir = current_file.parents[MIGRATION_SERVICE_DEPTH] / 'migrations'  # /app/migrations
         
         if not migrations_dir.exists() or not migrations_dir.is_dir():
             logger.warning(f"Expected migrations directory not found at: {migrations_dir}")
             # Try fallback paths
             fallback_paths = [
-                Path('/app/migrations'),           # Absolute path
-                Path('./migrations'),             # Relative to working directory
-                current_file.parent.parent.parent / 'migrations',  # /app/app/migrations
+                Path('/app/migrations'),                                    # Absolute path
+                Path('./migrations'),                                      # Relative to working directory
+                current_file.parents[FALLBACK_DEPTH] / 'migrations',      # /app/app/migrations
             ]
             
             for path in fallback_paths:
