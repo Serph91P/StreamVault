@@ -42,6 +42,50 @@ class ConfigManager:
         self._streamer_settings = {}
         self.last_refresh = datetime.min
 
+    def _categorize_database_error(self, error: Exception, table_name: str) -> Optional[str]:
+        """Categorize database errors for better handling.
+        
+        Args:
+            error: The exception that was raised
+            table_name: Name of the table being accessed
+            
+        Returns:
+            Error category string or None to continue default handling
+        """
+        error_msg = str(error).lower()
+        
+        # Check for table/relation doesn't exist
+        if "relation" in error_msg and "does not exist" in error_msg:
+            logger.warning(f"{table_name} table doesn't exist yet: {error}")
+            logger.info(f"Using default settings - {table_name} table may not exist yet during migration")
+            return "table_not_exists"
+        
+        # Check for connection issues
+        elif "connection" in error_msg or "database" in error_msg:
+            logger.error(f"Database connection error accessing {table_name}: {error}")
+            return "connection_error"
+        
+        # Check for specific SQLAlchemy errors by type
+        error_type = type(error).__name__
+        if "ProgrammingError" in error_type or "OperationalError" in error_type:
+            # These are typically schema/table issues
+            logger.warning(f"Database schema error accessing {table_name}: {error}")
+            return "schema_error"
+        
+        # Other unexpected errors
+        logger.error(f"Unexpected error accessing {table_name}: {error}")
+        return "unexpected_error"
+
+    def _is_cache_valid(self) -> bool:
+        """Check if the cached settings are still valid"""
+        return (datetime.now() - self.last_refresh).total_seconds() < self.cache_timeout
+
+    def invalidate_cache(self):
+        """Force invalidation of the cache"""
+        self._global_settings = None
+        self._streamer_settings = {}
+        self.last_refresh = datetime.min
+
     def get_global_settings(self) -> Optional[RecordingSettings]:
         """Get global recording settings, using cache if valid"""
         if not self._global_settings or not self._is_cache_valid():
@@ -50,19 +94,8 @@ class ConfigManager:
                     self._global_settings = db.query(RecordingSettings).first()
                     self.last_refresh = datetime.now()
             except Exception as e:
-                error_msg = str(e).lower()
-                if "relation" in error_msg and "does not exist" in error_msg:
-                    # Handle case where RecordingSettings table doesn't exist yet (during migration)
-                    logger.warning(f"RecordingSettings table doesn't exist yet: {e}")
-                    logger.info("Using default settings - RecordingSettings table may not exist yet during migration")
-                    return None
-                elif "connection" in error_msg or "database" in error_msg:
-                    # Database connection issues
-                    logger.error(f"Database connection error accessing RecordingSettings: {e}")
-                    return None
-                else:
-                    # Other unexpected errors
-                    logger.error(f"Unexpected error accessing RecordingSettings: {e}")
+                error_category = self._categorize_database_error(e, "RecordingSettings")
+                if error_category in ["table_not_exists", "connection_error", "schema_error", "unexpected_error"]:
                     return None
         return self._global_settings
 
@@ -80,19 +113,8 @@ class ConfigManager:
                     )
                     self.last_refresh = datetime.now()
             except Exception as e:
-                error_msg = str(e).lower()
-                if "relation" in error_msg and "does not exist" in error_msg:
-                    # Handle case where StreamerRecordingSettings table doesn't exist yet (during migration)
-                    logger.warning(f"StreamerRecordingSettings table doesn't exist yet: {e}")
-                    logger.info("Using default settings - StreamerRecordingSettings table may not exist yet during migration")
-                    return None
-                elif "connection" in error_msg or "database" in error_msg:
-                    # Database connection issues
-                    logger.error(f"Database connection error accessing StreamerRecordingSettings: {e}")
-                    return None
-                else:
-                    # Other unexpected errors
-                    logger.error(f"Unexpected error accessing StreamerRecordingSettings: {e}")
+                error_category = self._categorize_database_error(e, "StreamerRecordingSettings")
+                if error_category in ["table_not_exists", "connection_error", "schema_error", "unexpected_error"]:
                     return None
         return self._streamer_settings.get(streamer_id)
 
