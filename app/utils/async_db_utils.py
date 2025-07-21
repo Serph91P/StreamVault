@@ -52,6 +52,13 @@ def get_async_session_maker():
     return _async_session_maker
 
 
+async def get_async_session():
+    """Get an async database session context manager"""
+    async_session = get_async_session_maker()
+    async with async_session() as session:
+        yield session
+
+
 async def get_all_streamers() -> List[Streamer]:
     """
     Get all streamers using async database session.
