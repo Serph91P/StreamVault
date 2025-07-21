@@ -5,7 +5,10 @@ import logging
 import subprocess
 import tempfile
 from datetime import datetime
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+from app.services.system.logging_service import logging_service
 
 logger = logging.getLogger("streamvault")
 
