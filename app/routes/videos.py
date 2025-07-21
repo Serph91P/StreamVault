@@ -35,12 +35,8 @@ def secure_filename(filename):
     return filename
 
 def get_recordings_directory():
-    """Get the recordings directory from database settings"""
-    with SessionLocal() as db:
-        settings = db.query(RecordingSettings).first()
-        if settings and settings.output_directory:
-            return settings.output_directory
-        return "/app/recordings"  # fallback
+    """Get the recordings directory - hardcoded for Docker consistency"""
+    return "/recordings"
 
 def is_video_file(filename: str) -> bool:
     """Check if a file is a video file based on its extension"""
