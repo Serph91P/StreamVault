@@ -47,6 +47,7 @@ class ImageMigrationService:
             
             # Process streamers in batches for better performance
             async for batch in batch_process_items(streamers, batch_size=5, max_concurrent=2):
+                # Process each streamer in the batch using asyncio.as_completed for better memory management
                 batch_tasks = []
                 for streamer in batch:
                     try:
@@ -56,18 +57,17 @@ class ImageMigrationService:
                         logger.error(f"Error creating migration task for streamer {streamer.username}: {e}")
                         stats["errors"] += 1
                 
-                # Process batch concurrently
+                # Process tasks as they complete to avoid memory buildup
                 if batch_tasks:
-                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-                    
-                    for i, result in enumerate(batch_results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Error migrating images for streamer {batch[i].username}: {result}")
-                            stats["errors"] += 1
-                        else:
+                    for completed_task in asyncio.as_completed(batch_tasks):
+                        try:
+                            result = await completed_task
                             stats["streamers_migrated"] += 1
                             stats["images_moved"] += result["images_moved"]
                             stats["duplicates_found"] += result["duplicates_found"]
+                        except Exception as e:
+                            logger.error(f"Error migrating images for streamer: {e}")
+                            stats["errors"] += 1
             
             # Clean up old directories
             cleanup_result = await self.cleanup_old_directories()
