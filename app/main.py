@@ -93,8 +93,15 @@ async def lifespan(app: FastAPI):
         from app.services.images.image_refresh_service import image_refresh_service
         
         try:
-            # Run image refresh in background (non-blocking)
-            asyncio.create_task(image_refresh_service.check_and_refresh_missing_images())
+            # Run image refresh in background (non-blocking) with error handling
+            async def safe_image_refresh():
+                try:
+                    await image_refresh_service.check_and_refresh_missing_images()
+                    logger.info("✅ Image refresh task completed successfully")
+                except Exception as e:
+                    logger.error(f"❌ Image refresh task failed: {e}")
+            
+            asyncio.create_task(safe_image_refresh())
             logger.info("✅ Image refresh task started in background")
         except Exception as e:
             logger.error(f"❌ Image refresh failed to start: {e}")
