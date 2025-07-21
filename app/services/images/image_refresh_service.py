@@ -7,12 +7,14 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Streamer, Category, Stream
 from app.services.unified_image_service import unified_image_service
 from app.utils.file_utils import sanitize_filename
+from app.utils.async_db_utils import get_async_session
 
 logger = logging.getLogger("streamvault")
 
@@ -104,10 +106,8 @@ class ImageRefreshService:
             )
             if cached_path:
                 # Update database with cached path using proper session
-                from app.utils.async_db_utils import get_async_session
                 async with get_async_session() as db:
                     # Re-fetch the streamer in this session context
-                    from sqlalchemy import select
                     stmt = select(Streamer).where(Streamer.id == streamer.id)
                     result = await db.execute(stmt)
                     db_streamer = result.scalar_one_or_none()
