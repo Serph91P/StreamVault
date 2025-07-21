@@ -42,9 +42,15 @@ class ImageDownloadService:
                 # Get recordings directory from config
                 self.recordings_dir = Path(self.config_manager.get_recordings_directory())
                 
-                # Create hidden .images directory in recordings
-                self.images_base_dir = self.recordings_dir / ".images"
+                # Use unified .media directory instead of separate .images and .artwork
+                self.images_base_dir = self.recordings_dir / ".media"
                 self.images_base_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Create subdirectories for organization
+                (self.images_base_dir / "profiles").mkdir(exist_ok=True)
+                (self.images_base_dir / "categories").mkdir(exist_ok=True)
+                (self.images_base_dir / "artwork").mkdir(exist_ok=True)
+                (self.images_base_dir / "thumbnails").mkdir(exist_ok=True)
                 
                 self._initialized = True
                 logger.info(f"Image download service initialized, storage: {self.images_base_dir}")
@@ -52,8 +58,12 @@ class ImageDownloadService:
                 logger.error(f"Failed to initialize image download service: {e}")
                 # Fallback to a default directory if config fails
                 self.recordings_dir = Path("/recordings")
-                self.images_base_dir = self.recordings_dir / ".images"
+                self.images_base_dir = self.recordings_dir / ".media"
                 self.images_base_dir.mkdir(parents=True, exist_ok=True)
+                (self.images_base_dir / "profiles").mkdir(exist_ok=True)
+                (self.images_base_dir / "categories").mkdir(exist_ok=True)
+                (self.images_base_dir / "artwork").mkdir(exist_ok=True)
+                (self.images_base_dir / "thumbnails").mkdir(exist_ok=True)
                 self._initialized = True
                 logger.warning(f"Image download service initialized with fallback directory: {self.images_base_dir}")
 
