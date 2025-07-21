@@ -438,7 +438,8 @@ class RecordingLifecycleManager:
             # Add .ts extension
             filename += '.ts'
             
-            recordings_dir = self.config_manager.get_recordings_directory()
+            # Hardcoded Docker path - always /recordings in container
+            recordings_dir = "/recordings"
             
             # Create full path with streamer directory and season structure
             streamer_dir = Path(recordings_dir) / streamer.username
