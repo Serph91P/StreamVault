@@ -3,6 +3,7 @@ Async database utilities for StreamVault
 """
 import asyncio
 from typing import List, Any, Optional
+from urllib.parse import urlparse, urlunparse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
@@ -22,7 +23,6 @@ def get_async_engine():
     """Get or create async database engine"""
     global _async_engine
     if _async_engine is None:
-        from urllib.parse import urlparse, urlunparse
         database_url = get_database_url()
         # Parse the database URL
         parsed_url = urlparse(database_url)

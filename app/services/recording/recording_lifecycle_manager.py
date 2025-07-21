@@ -138,6 +138,13 @@ class RecordingLifecycleManager:
                 status="stopped" if success else "failed"
             )
             
+            # Trigger database event for orphaned recovery
+            try:
+                from app.services.recording.database_event_orphaned_recovery import on_recording_status_changed
+                await on_recording_status_changed(recording_id, "active", "stopped" if success else "failed")
+            except Exception as e:
+                logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
+            
             # Remove from active recordings
             self.state_manager.remove_active_recording(recording_id)
             
