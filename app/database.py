@@ -73,6 +73,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+def get_database_url():
+    """Get the database URL for async connections"""
+    return DATABASE_URL
+
 def get_db():
     """Enhanced database session with better error handling and resource cleanup"""
     db = SessionLocal()
