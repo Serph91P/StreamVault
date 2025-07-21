@@ -4,6 +4,7 @@ API endpoints for background queue monitoring
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 import logging
+from datetime import datetime
 
 from app.services.init.background_queue_init import get_background_queue_service
 from app.dependencies import get_db
@@ -76,7 +77,6 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
             recent_tasks.append(task_info)
         
         # Sort all tasks together by completion/creation time
-        from datetime import datetime
         recent_tasks.sort(
             key=lambda x: x.get('completed_at') or x.get('created_at') or datetime.min.isoformat(),
             reverse=True
@@ -275,3 +275,55 @@ async def enqueue_thumbnail_generation(
     except Exception as e:
         logger.error(f"Error enqueuing thumbnail generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enqueue thumbnail generation")
+
+@router.post("/cleanup-stuck-tasks")
+async def cleanup_stuck_tasks() -> Dict[str, Any]:
+    """Clean up tasks that are stuck in pending state for too long"""
+    try:
+        queue_service = get_background_queue_service()
+        cleanup_count = 0
+        now = datetime.now(datetime.now().astimezone().tzinfo)
+        
+        # Clean up tasks older than 1 hour that are still pending
+        tasks_to_cleanup = []
+        for task_id, task in queue_service.active_tasks.items():
+            if task.status.value == 'pending':
+                task_age_hours = (now - task.created_at).total_seconds() / 3600
+                if task_age_hours > 1:  # More than 1 hour old
+                    tasks_to_cleanup.append((task_id, task.task_type, task_age_hours))
+        
+        # Clean up stuck external tasks
+        external_to_cleanup = []
+        for task_id, task in queue_service.external_tasks.items():
+            if task.status.value in ['pending', 'running']:
+                task_age_hours = (now - task.created_at).total_seconds() / 3600
+                if task_age_hours > 2:  # More than 2 hours old for external tasks
+                    external_to_cleanup.append((task_id, task.task_type, task_age_hours))
+        
+        # Clean up internal tasks
+        for task_id, task_type, age_hours in tasks_to_cleanup:
+            try:
+                await queue_service.queue_manager.mark_task_completed(task_id, success=False)
+                cleanup_count += 1
+                logger.info(f"Cleaned up stuck task {task_id} ({task_type}) - age: {age_hours:.1f}h")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup task {task_id}: {e}")
+        
+        # Clean up external tasks
+        for task_id, task_type, age_hours in external_to_cleanup:
+            try:
+                queue_service.complete_external_task(task_id, success=False)
+                cleanup_count += 1
+                logger.info(f"Cleaned up stuck external task {task_id} ({task_type}) - age: {age_hours:.1f}h")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup external task {task_id}: {e}")
+        
+        return {
+            "success": True,
+            "cleaned_up_count": cleanup_count,
+            "internal_tasks": len(tasks_to_cleanup),
+            "external_tasks": len(external_to_cleanup)
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up stuck tasks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to clean up stuck tasks")
