@@ -288,7 +288,13 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
         tasks_to_cleanup = []
         for task_id, task in queue_service.active_tasks.items():
             if task.status.value == 'pending':
-                task_age_hours = (now - task.created_at).total_seconds() / 3600
+                # Make both timestamps timezone-aware for comparison
+                task_created = task.created_at
+                if task_created.tzinfo is None:
+                    from datetime import timezone
+                    task_created = task_created.replace(tzinfo=timezone.utc)
+                
+                task_age_hours = (now - task_created).total_seconds() / 3600
                 if task_age_hours > 1:  # More than 1 hour old
                     tasks_to_cleanup.append((task_id, task.task_type, task_age_hours))
         
@@ -296,7 +302,13 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
         external_to_cleanup = []
         for task_id, task in queue_service.external_tasks.items():
             if task.status.value in ['pending', 'running']:
-                task_age_hours = (now - task.created_at).total_seconds() / 3600
+                # Make both timestamps timezone-aware for comparison
+                task_created = task.created_at
+                if task_created.tzinfo is None:
+                    from datetime import timezone
+                    task_created = task_created.replace(tzinfo=timezone.utc)
+                
+                task_age_hours = (now - task_created).total_seconds() / 3600
                 if task_age_hours > 2:  # More than 2 hours old for external tasks
                     external_to_cleanup.append((task_id, task.task_type, task_age_hours))
         
