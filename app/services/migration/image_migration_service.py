@@ -47,12 +47,16 @@ class ImageMigrationService:
             
             # Process streamers in batches for better performance
             async for batch in batch_process_items(streamers, batch_size=5, max_concurrent=2):
-                # Process each streamer in the batch using asyncio.as_completed for better memory management
+                # Create task-to-streamer mapping for proper error handling
+                task_streamer_map = {}
                 batch_tasks = []
+                
                 for streamer in batch:
                     try:
                         task = self.migrate_streamer_images(streamer)
                         batch_tasks.append(task)
+                        # Map task to streamer for error reporting
+                        task_streamer_map[task] = streamer
                     except Exception as e:
                         logger.error(f"Error creating migration task for streamer {streamer.username}: {e}")
                         stats["errors"] += 1
@@ -62,11 +66,20 @@ class ImageMigrationService:
                     for completed_task in asyncio.as_completed(batch_tasks):
                         try:
                             result = await completed_task
+                            # Get the streamer associated with this completed task
+                            streamer = task_streamer_map.get(completed_task)
+                            streamer_name = streamer.username if streamer else "Unknown"
+                            
                             stats["streamers_migrated"] += 1
                             stats["images_moved"] += result["images_moved"]
                             stats["duplicates_found"] += result["duplicates_found"]
+                            
+                            logger.debug(f"Successfully migrated images for streamer {streamer_name}")
                         except Exception as e:
-                            logger.error(f"Error migrating images for streamer: {e}")
+                            # Get the streamer associated with this failed task
+                            streamer = task_streamer_map.get(completed_task)
+                            streamer_name = streamer.username if streamer else "Unknown"
+                            logger.error(f"Error migrating images for streamer {streamer_name}: {e}")
                             stats["errors"] += 1
             
             # Clean up old directories
