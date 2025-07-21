@@ -17,8 +17,13 @@ class ArtworkService:
     """Service for managing artwork and metadata files separately from recordings"""
     
     def __init__(self):
-        self.artwork_base_path = Path(settings.ARTWORK_BASE_PATH)
-        # Ensure the artwork directory exists
+        # Use unified .media directory instead of separate .artwork
+        self.recordings_dir = Path(settings.RECORDINGS_DIR if hasattr(settings, 'RECORDINGS_DIR') else "/recordings")
+        self.media_base_path = self.recordings_dir / ".media"
+        self.artwork_base_path = self.media_base_path / "artwork"
+        
+        # Ensure the directories exist
+        self.media_base_path.mkdir(parents=True, exist_ok=True)
         self.artwork_base_path.mkdir(parents=True, exist_ok=True)
     
     async def close(self):
@@ -35,9 +40,14 @@ class ArtworkService:
     def get_streamer_metadata_dir(self, streamer_username: str) -> Path:
         """Get the metadata directory for a specific streamer"""
         safe_username = self._sanitize_filename(streamer_username)
-        metadata_dir = self.artwork_base_path / safe_username / "metadata"
+        metadata_dir = self.media_base_path / "metadata" / safe_username
         metadata_dir.mkdir(parents=True, exist_ok=True)
         return metadata_dir
+    
+    def get_relative_artwork_path(self, streamer_username: str, filename: str) -> str:
+        """Get relative path for artwork files (for NFO files)"""
+        safe_username = self._sanitize_filename(streamer_username)
+        return f".media/artwork/{safe_username}/{filename}"
     
     async def save_streamer_artwork(self, streamer: Streamer) -> bool:
         """Save all artwork files for a streamer in the artwork directory
