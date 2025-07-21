@@ -132,9 +132,9 @@ async def recover_specific_recording(
             recording = db.query(Recording).filter(Recording.id == recording_id).first()
             if not recording:
                 raise HTTPException(status_code=404, detail=f"Recording {recording_id} not found")
-            
+
             # Validate it's actually orphaned
-            validation = await recovery_service._validate_orphaned_recording(recording)
+            validation = await recovery_service.validate_orphaned_recording(recording)
             if not validation["valid"]:
                 return {
                     "success": False,
@@ -142,7 +142,7 @@ async def recover_specific_recording(
                 }
             
             # Trigger recovery
-            success = await recovery_service._trigger_orphaned_recovery(recording, db)
+            success = await recovery_service.trigger_orphaned_recovery(recording, db)
             
             if success:
                 return {
