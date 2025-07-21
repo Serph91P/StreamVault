@@ -29,7 +29,8 @@ class OrphanedRecoveryService:
     async def scan_and_recover_orphaned_recordings(
         self, 
         max_age_hours: int = 48,
-        dry_run: bool = False
+        dry_run: bool = False,
+        cleanup_segments: bool = True
     ) -> Dict[str, Any]:
         """
         Scan database for orphaned recordings and trigger post-processing.
@@ -37,11 +38,12 @@ class OrphanedRecoveryService:
         Args:
             max_age_hours: Only process recordings newer than this (default: 48h)
             dry_run: If True, only return what would be processed without doing it
+            cleanup_segments: If True, also cleanup orphaned segment directories
         
         Returns:
             Dictionary with recovery statistics and results
         """
-        logger.info(f"Starting orphaned recording recovery scan (max_age: {max_age_hours}h, dry_run: {dry_run})")
+        logger.info(f"Starting orphaned recording recovery scan (max_age: {max_age_hours}h, dry_run: {dry_run}, cleanup_segments: {cleanup_segments})")
         
         result = {
             "scanned_recordings": 0,
@@ -50,7 +52,10 @@ class OrphanedRecoveryService:
             "recovery_failed": 0,
             "skipped_missing_files": 0,
             "skipped_recent": 0,
+            "segments_cleaned": 0,
+            "segments_cleanup_failed": 0,
             "orphaned_recordings": [],
+            "segments_cleaned_list": [],
             "errors": []
         }
         
@@ -108,6 +113,10 @@ class OrphanedRecoveryService:
                         result["recovery_failed"] += 1
                         result["errors"].append(f"Recording {recording.id}: {str(e)}")
                         logger.error(f"Error processing recording {recording.id}: {e}", exc_info=True)
+                
+                # Cleanup orphaned segment directories if enabled
+                if cleanup_segments:
+                    await self._cleanup_orphaned_segments(db, max_age_hours, dry_run, result)
                 
         except Exception as e:
             result["errors"].append(f"Scan failed: {str(e)}")
@@ -261,8 +270,12 @@ class OrphanedRecoveryService:
                 # Find orphaned recordings
                 orphaned_recordings = await self._find_orphaned_recordings(db, max_age_hours)
                 
+                # Find orphaned segment directories
+                orphaned_segments = await self._find_orphaned_segments(db, max_age_hours)
+                
                 # Calculate statistics
                 total_size = 0
+                total_segments_size = 0
                 by_streamer = {}
                 
                 for recording in orphaned_recordings:
@@ -272,18 +285,33 @@ class OrphanedRecoveryService:
                         
                         streamer_name = recording.stream.streamer.username if recording.stream and recording.stream.streamer else 'unknown'
                         if streamer_name not in by_streamer:
-                            by_streamer[streamer_name] = {'count': 0, 'size': 0}
+                            by_streamer[streamer_name] = {'count': 0, 'size': 0, 'segments': 0, 'segments_size': 0}
                         
                         by_streamer[streamer_name]['count'] += 1
                         by_streamer[streamer_name]['size'] += file_size
                 
+                # Add segment statistics
+                for segment_info in orphaned_segments:
+                    total_segments_size += segment_info['size']
+                    streamer_name = segment_info['streamer_name']
+                    
+                    if streamer_name not in by_streamer:
+                        by_streamer[streamer_name] = {'count': 0, 'size': 0, 'segments': 0, 'segments_size': 0}
+                    
+                    by_streamer[streamer_name]['segments'] += 1
+                    by_streamer[streamer_name]['segments_size'] += segment_info['size']
+                
                 return {
                     "total_orphaned": len(orphaned_recordings),
+                    "total_orphaned_segments": len(orphaned_segments),
                     "total_size_bytes": total_size,
                     "total_size_gb": round(total_size / (1024**3), 2),
+                    "total_segments_size_bytes": total_segments_size,
+                    "total_segments_size_gb": round(total_segments_size / (1024**3), 2),
                     "by_streamer": by_streamer,
                     "oldest_recording": min(r.created_at for r in orphaned_recordings) if orphaned_recordings else None,
-                    "newest_recording": max(r.created_at for r in orphaned_recordings) if orphaned_recordings else None
+                    "newest_recording": max(r.created_at for r in orphaned_recordings) if orphaned_recordings else None,
+                    "orphaned_segments_details": orphaned_segments
                 }
                 
         except Exception as e:
@@ -295,6 +323,188 @@ class OrphanedRecoveryService:
                 "by_streamer": {},
                 "error": str(e)
             }
+    
+    async def _cleanup_orphaned_segments(self, db: Session, max_age_hours: int, dry_run: bool, result: Dict[str, Any]):
+        """
+        Find and cleanup orphaned segment directories
+        
+        Segment directories that exist but have no corresponding .mp4 file and no active recording
+        are considered orphaned and can be safely removed.
+        """
+        try:
+            logger.info("🧹 Scanning for orphaned segment directories...")
+            
+            # Calculate cutoff time
+            cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+            recent_cutoff = datetime.utcnow() - timedelta(minutes=30)
+            
+            # Find recordings that might have orphaned segment directories
+            recordings_with_ts = (
+                db.query(Recording)
+                .join(Stream) 
+                .join(Streamer)
+                .filter(
+                    Recording.path.like('%.ts'),
+                    Recording.created_at >= cutoff_time,
+                    Recording.created_at <= recent_cutoff
+                )
+                .all()
+            )
+            
+            for recording in recordings_with_ts:
+                if not recording.path:
+                    continue
+                    
+                # Check for segment directory
+                ts_path = Path(recording.path)
+                segments_dir_name = ts_path.stem + "_segments"
+                segments_dir = ts_path.parent / segments_dir_name
+                
+                if segments_dir.exists() and segments_dir.is_dir():
+                    logger.debug(f"🔍 Found segment directory: {segments_dir}")
+                    
+                    # Check if there's a corresponding MP4 file
+                    mp4_path = ts_path.with_suffix('.mp4')
+                    
+                    # Check if MP4 exists in filesystem or database
+                    mp4_exists_file = mp4_path.exists()
+                    mp4_exists_db = (
+                        db.query(Recording)
+                        .filter(Recording.path == str(mp4_path))
+                        .first() is not None
+                    )
+                    
+                    # Check if recording is currently active (being processed)
+                    is_active = recording.status in ['recording', 'post_processing', 'processing']
+                    
+                    if not mp4_exists_file and not mp4_exists_db and not is_active:
+                        # This segment directory is orphaned
+                        logger.info(f"🗑️  Found orphaned segment directory: {segments_dir}")
+                        
+                        segment_info = {
+                            "recording_id": recording.id,
+                            "recording_path": recording.path,
+                            "segments_dir": str(segments_dir),
+                            "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
+                            "created_at": recording.created_at.isoformat() if recording.created_at else None,
+                            "cleanup_triggered": False,
+                            "error": None
+                        }
+                        
+                        if not dry_run:
+                            try:
+                                # Calculate directory size before removal
+                                import shutil
+                                dir_size = sum(
+                                    f.stat().st_size for f in segments_dir.rglob('*') if f.is_file()
+                                )
+                                
+                                # Remove the entire segment directory
+                                shutil.rmtree(segments_dir)
+                                
+                                result["segments_cleaned"] += 1
+                                segment_info["cleanup_triggered"] = True
+                                segment_info["size_cleaned"] = dir_size
+                                
+                                logger.info(f"✅ Cleaned orphaned segment directory: {segments_dir} ({dir_size / (1024**2):.1f} MB)")
+                                
+                            except Exception as e:
+                                result["segments_cleanup_failed"] += 1
+                                segment_info["error"] = str(e)
+                                result["errors"].append(f"Failed to cleanup {segments_dir}: {str(e)}")
+                                logger.error(f"❌ Failed to cleanup segment directory {segments_dir}: {e}")
+                        else:
+                            # Dry run - just count what would be cleaned
+                            try:
+                                dir_size = sum(
+                                    f.stat().st_size for f in segments_dir.rglob('*') if f.is_file()
+                                )
+                                segment_info["size_would_clean"] = dir_size
+                                logger.info(f"🔍 Would clean orphaned segment directory: {segments_dir} ({dir_size / (1024**2):.1f} MB)")
+                            except Exception as e:
+                                segment_info["error"] = f"Could not calculate size: {str(e)}"
+                        
+                        result["segments_cleaned_list"].append(segment_info)
+            
+            if result["segments_cleaned"] > 0:
+                logger.info(f"🧹 Cleaned {result['segments_cleaned']} orphaned segment directories")
+            elif len(result["segments_cleaned_list"]) > 0 and dry_run:
+                logger.info(f"🔍 Found {len(result['segments_cleaned_list'])} orphaned segment directories (dry run)")
+            else:
+                logger.debug("🧹 No orphaned segment directories found")
+                
+        except Exception as e:
+            result["errors"].append(f"Segment cleanup failed: {str(e)}")
+            logger.error(f"Error during segment cleanup: {e}", exc_info=True)
+    
+    async def _find_orphaned_segments(self, db: Session, max_age_hours: int) -> List[Dict[str, Any]]:
+        """Find orphaned segment directories for statistics"""
+        try:
+            orphaned_segments = []
+            
+            # Calculate cutoff time
+            cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+            recent_cutoff = datetime.utcnow() - timedelta(minutes=30)
+            
+            # Find recordings that might have orphaned segment directories
+            recordings_with_ts = (
+                db.query(Recording)
+                .join(Stream)
+                .join(Streamer)
+                .filter(
+                    Recording.path.like('%.ts'),
+                    Recording.created_at >= cutoff_time,
+                    Recording.created_at <= recent_cutoff
+                )
+                .all()
+            )
+            
+            for recording in recordings_with_ts:
+                if not recording.path:
+                    continue
+                    
+                # Check for segment directory
+                ts_path = Path(recording.path)
+                segments_dir_name = ts_path.stem + "_segments"
+                segments_dir = ts_path.parent / segments_dir_name
+                
+                if segments_dir.exists() and segments_dir.is_dir():
+                    # Check if there's a corresponding MP4 file
+                    mp4_path = ts_path.with_suffix('.mp4')
+                    
+                    # Check if MP4 exists in filesystem or database
+                    mp4_exists_file = mp4_path.exists()
+                    mp4_exists_db = (
+                        db.query(Recording)
+                        .filter(Recording.path == str(mp4_path))
+                        .first() is not None
+                    )
+                    
+                    # Check if recording is currently active
+                    is_active = recording.status in ['recording', 'post_processing', 'processing']
+                    
+                    if not mp4_exists_file and not mp4_exists_db and not is_active:
+                        # Calculate directory size
+                        try:
+                            dir_size = sum(
+                                f.stat().st_size for f in segments_dir.rglob('*') if f.is_file()
+                            )
+                        except:
+                            dir_size = 0
+                        
+                        orphaned_segments.append({
+                            "recording_id": recording.id,
+                            "segments_dir": str(segments_dir),
+                            "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
+                            "size": dir_size,
+                            "created_at": recording.created_at
+                        })
+            
+            return orphaned_segments
+            
+        except Exception as e:
+            logger.error(f"Error finding orphaned segments: {e}", exc_info=True)
+            return []
 
 
 # Singleton instance
