@@ -18,6 +18,8 @@ except ImportError:
     # Fallback if cache module is not available
     class DummyCache:
         def delete(self, key): pass
+        def get(self, key): return None
+        def set(self, key, value, ttl=None): pass
     app_cache = DummyCache()
 
 # Import background queue service at module level to avoid repeated imports
@@ -25,9 +27,6 @@ try:
     from app.services.background_queue_service import background_queue_service
 except ImportError:
     background_queue_service = None
-        def get(self, key): return None
-        def set(self, key, value, ttl=None): pass
-    app_cache = DummyCache()
 
 logger = logging.getLogger("streamvault")
 
