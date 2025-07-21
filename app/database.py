@@ -7,6 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import OperationalError
 
+# Get DATABASE_URL from environment (will be used by settings)
+# This is a fallback if settings are not available during early initialization
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # Use SQLite memory database for testing if no URL is provided
@@ -74,8 +76,58 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_database_url():
-    """Get the database URL for async connections"""
-    return DATABASE_URL
+    """
+    Retrieve the validated database URL for connections.
+    
+    This function provides a centralized way to access the database URL with proper
+    validation and environment-specific handling. It ensures the URL is properly
+    configured and handles testing scenarios appropriately.
+    
+    Returns:
+        str: The validated database URL.
+        
+    Raises:
+        ValueError: If DATABASE_URL is not configured properly.
+    """
+    logger = logging.getLogger("streamvault")
+    
+    # Try to get from settings first, fallback to environment variable
+    try:
+        from app.config.settings import settings
+        url = settings.DATABASE_URL
+        if not url:
+            url = DATABASE_URL  # Fallback to module-level variable
+    except ImportError:
+        # During early initialization, settings might not be available
+        url = DATABASE_URL
+    
+    # Validate the DATABASE_URL
+    if not url:
+        logger.error("DATABASE_URL is not set. Ensure the environment variable is configured.")
+        raise ValueError("DATABASE_URL is not set.")
+    
+    # Environment-specific overrides
+    if is_testing:
+        logger.info("Using in-memory SQLite database for testing.")
+        return "sqlite:///:memory:"
+    
+    # Ensure the URL uses the correct psycopg3 driver
+    if url.startswith('postgresql://'):
+        url = url.replace('postgresql://', 'postgresql+psycopg://')
+    
+    # Log the final URL for debugging (mask sensitive information)
+    masked_url = url
+    if '@' in url:
+        # Mask password in URL for security
+        parts = url.split('@')
+        if len(parts) > 1:
+            auth_part = parts[0]
+            if ':' in auth_part:
+                protocol_user = auth_part.rsplit(':', 1)[0]
+                masked_url = f"{protocol_user}:***@{parts[1]}"
+    
+    logger.debug(f"Using database URL: {masked_url}")
+    return url
 
 def get_db():
     """Enhanced database session with better error handling and resource cleanup"""
