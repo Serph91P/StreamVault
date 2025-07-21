@@ -23,6 +23,11 @@ logger = logging.getLogger("streamvault")
 class OrphanedRecoveryService:
     """Service for recovering orphaned .ts files based on database state"""
     
+    # Configuration constants
+    DEFAULT_ORPHANED_RECORDINGS_LIMIT = 100
+    FILE_TOO_RECENT_THRESHOLD_SECONDS = 1800  # 30 minutes
+    MIN_FILE_SIZE_BYTES = 1024 * 1024  # 1MB minimum
+    
     def __init__(self, recording_orchestrator: RecordingOrchestrator):
         self.recording_orchestrator = recording_orchestrator
         
@@ -125,6 +130,31 @@ class OrphanedRecoveryService:
         logger.info(f"Orphaned recovery scan completed: {result['recovery_triggered']} recoveries triggered")
         return result
     
+    async def validate_orphaned_recording(self, recording: Recording) -> Dict[str, Any]:
+        """
+        Public method to validate if a recording is suitable for orphaned recovery
+        
+        Args:
+            recording: Recording object to validate
+            
+        Returns:
+            Dict with validation result and details
+        """
+        return await self._validate_orphaned_recording(recording)
+    
+    async def trigger_orphaned_recovery(self, recording: Recording, db: Session) -> bool:
+        """
+        Public method to trigger orphaned recovery for a specific recording
+        
+        Args:
+            recording: Recording object to recover
+            db: Database session
+            
+        Returns:
+            True if recovery was triggered successfully, False otherwise
+        """
+        return await self._trigger_orphaned_recovery(recording, db)
+    
     async def _find_orphaned_recordings(self, db: Session, max_age_hours: int) -> List[Recording]:
         """Find recordings that appear to be orphaned (have .ts but no .mp4)"""
         
@@ -150,7 +180,7 @@ class OrphanedRecoveryService:
                 Recording.created_at <= recent_cutoff  # Not too recent
             )
             .order_by(Recording.created_at.desc())
-            .limit(100)  # Safety limit
+            .limit(self.DEFAULT_ORPHANED_RECORDINGS_LIMIT)  # Safety limit
             .all()
         )
         
@@ -199,13 +229,13 @@ class OrphanedRecoveryService:
         # Check file age (don't process files that are too recent)
         file_stat = file_path.stat()
         file_age = datetime.now() - datetime.fromtimestamp(file_stat.st_mtime)
-        
-        if file_age.total_seconds() < 1800:  # Less than 30 minutes old
+
+        if file_age.total_seconds() < self.FILE_TOO_RECENT_THRESHOLD_SECONDS:  # Less than 30 minutes old
             return {"valid": False, "reason": "too_recent"}
         
         # Check file size (must be reasonable)
         file_size = file_stat.st_size
-        if file_size < 1024 * 1024:  # Less than 1MB
+        if file_size < self.MIN_FILE_SIZE_BYTES:  # Less than 1MB
             return {"valid": False, "reason": "file_too_small"}
         
         return {
@@ -218,33 +248,44 @@ class OrphanedRecoveryService:
         """Trigger post-processing for an orphaned recording"""
         
         try:
+            # Lock the recording row to prevent concurrent updates
+            locked_recording = db.query(Recording).filter(Recording.id == recording.id).with_for_update().one_or_none()
+            if not locked_recording:
+                logger.error(f"Recording {recording.id} not found when attempting to lock")
+                return False
+            
+            # Check if another process already started processing this recording
+            if locked_recording.status == 'post_processing':
+                logger.info(f"Recording {recording.id} is already being processed by another process")
+                return False
+            
             # Mark recording as processing to prevent double-processing
-            recording.status = 'post_processing'
-            recording.updated_at = datetime.utcnow()
+            locked_recording.status = 'post_processing'
+            locked_recording.updated_at = datetime.utcnow()
             db.commit()
             
             # Prepare recording data for post-processing
             recording_data = {
-                'streamer_id': recording.stream.streamer_id if recording.stream else None,
-                'stream_id': recording.stream_id,
-                'started_at': recording.created_at.isoformat() if recording.created_at else datetime.utcnow().isoformat(),
-                'recording_id': recording.id,
+                'streamer_id': locked_recording.stream.streamer_id if locked_recording.stream else None,
+                'stream_id': locked_recording.stream_id,
+                'started_at': locked_recording.created_at.isoformat() if locked_recording.created_at else datetime.utcnow().isoformat(),
+                'recording_id': locked_recording.id,
                 'metadata': {
-                    'title': recording.stream.title if recording.stream else 'Recovered Stream',
-                    'streamer': recording.stream.streamer.username if recording.stream and recording.stream.streamer else 'unknown'
+                    'title': locked_recording.stream.title if locked_recording.stream else 'Recovered Stream',
+                    'streamer': locked_recording.stream.streamer.username if locked_recording.stream and locked_recording.stream.streamer else 'unknown'
                 }
             }
             
             # Trigger post-processing through orchestrator
             success = await self.recording_orchestrator.enqueue_post_processing(
-                recording.id,
-                recording.path,
+                locked_recording.id,
+                locked_recording.path,
                 recording_data
             )
             
             if not success:
                 # Revert status if post-processing failed to enqueue
-                recording.status = 'completed'
+                locked_recording.status = 'completed'
                 db.commit()
                 return False
             
@@ -254,10 +295,14 @@ class OrphanedRecoveryService:
         except Exception as e:
             # Revert status on error
             try:
-                recording.status = 'completed'
-                db.commit()
-            except:
-                pass
+                # Try to revert the status using the original recording object
+                recovery_recording = db.query(Recording).filter(Recording.id == recording.id).first()
+                if recovery_recording:
+                    recovery_recording.status = 'completed'
+                    db.commit()
+            except Exception as inner_e:
+                logger.error(f"Failed to revert recording status for recording {recording.id}: {inner_e}")
+                # Don't raise the inner exception, we want to raise the original one
             
             logger.error(f"Failed to trigger orphaned recovery for recording {recording.id}: {e}")
             return False
