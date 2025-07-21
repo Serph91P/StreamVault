@@ -31,6 +31,15 @@ async def show_statistics(max_age_hours: int = 168):
     print(f"Total orphaned recordings: {stats.get('total_orphaned', 0)}")
     print(f"Total size: {stats.get('total_size_gb', 0):.2f} GB ({stats.get('total_size_bytes', 0):,} bytes)")
     
+    # Show segment statistics if available
+    total_segments = stats.get('total_orphaned_segments', 0)
+    if total_segments > 0:
+        segments_size_gb = stats.get('total_segments_size_gb', 0)
+        segments_size_bytes = stats.get('total_segments_size_bytes', 0)
+        print(f"Orphaned segment directories: {total_segments}")
+        print(f"Segments size: {segments_size_gb:.2f} GB ({segments_size_bytes:,} bytes)")
+        print(f"Total combined size: {(stats.get('total_size_gb', 0) + segments_size_gb):.2f} GB")
+    
     if stats.get('oldest_recording'):
         print(f"Oldest recording: {stats['oldest_recording']}")
     if stats.get('newest_recording'):
@@ -39,17 +48,67 @@ async def show_statistics(max_age_hours: int = 168):
     by_streamer = stats.get('by_streamer', {})
     if by_streamer:
         print("\n📺 BY STREAMER:")
-        print("-" * 30)
+        print("-" * 50)
         for streamer, data in sorted(by_streamer.items(), key=lambda x: x[1]['count'], reverse=True):
             size_gb = data['size'] / (1024**3)
-            print(f"  {streamer}: {data['count']} recordings, {size_gb:.2f} GB")
+            line = f"  {streamer}: {data['count']} recordings, {size_gb:.2f} GB"
+            
+            # Add segment info if available
+            if data.get('segments', 0) > 0:
+                segments_size_gb = data.get('segments_size', 0) / (1024**3)
+                line += f" + {data['segments']} segment dirs ({segments_size_gb:.2f} GB)"
+            
+            print(line)
     
     if stats.get('error'):
         print(f"\n❌ Error: {stats['error']}")
 
 
-async def scan_recordings(max_age_hours: int = 48, dry_run: bool = False):
+async def scan_recordings(max_age_hours: int = 48, dry_run: bool = False, segments_only: bool = False):
     """Scan and optionally recover orphaned recordings"""
+    if segments_only:
+        action = "Scanning segment directories" if dry_run else "Cleaning segment directories"
+        print(f"🧹 {action} (max age: {max_age_hours} hours)...")
+        
+        recovery_service = await get_orphaned_recovery_service()
+        result = await recovery_service.scan_and_recover_orphaned_recordings(
+            max_age_hours=max_age_hours,
+            dry_run=dry_run,
+            cleanup_segments=True
+        )
+        
+        # Only show segment cleanup results
+        segments_cleaned = result.get('segments_cleaned', 0)
+        segments_failed = result.get('segments_cleanup_failed', 0)
+        segments_list = result.get('segments_cleaned_list', [])
+        
+        print(f"\n🧹 SEGMENT CLEANUP RESULTS")
+        print("=" * 40)
+        print(f"Segment directories found: {len(segments_list)}")
+        print(f"Segment directories cleaned: {segments_cleaned}")
+        if segments_failed > 0:
+            print(f"Cleanup failed: {segments_failed}")
+        
+        if segments_list:
+            print(f"\n🗂️  SEGMENT DIRECTORIES ({len(segments_list)}):")
+            print("-" * 50)
+            for segment in segments_list:
+                status = "✅ Cleaned" if segment['cleanup_triggered'] else "🔍 Found"
+                if segment.get('error'):
+                    status = f"❌ Error: {segment['error']}"
+                
+                size_key = 'size_cleaned' if segment.get('cleanup_triggered') else 'size_would_clean'
+                size_mb = segment.get(size_key, 0) / (1024**2) if segment.get(size_key) else 0
+                
+                print(f"  {status}")
+                print(f"    Streamer: {segment['streamer_name']}")
+                print(f"    Directory: {segment['segments_dir']}")
+                print(f"    Size: {size_mb:.1f} MB | Recording ID: {segment['recording_id']}")
+                print()
+        
+        return
+    
+    # Regular orphaned recordings scan
     action = "Scanning" if dry_run else "Recovering"
     print(f"🔍 {action} orphaned recordings (max age: {max_age_hours} hours)...")
     
@@ -67,6 +126,32 @@ async def scan_recordings(max_age_hours: int = 48, dry_run: bool = False):
     print(f"Recovery failed: {result['recovery_failed']}")
     print(f"Skipped (missing files): {result['skipped_missing_files']}")
     print(f"Skipped (too recent): {result['skipped_recent']}")
+    
+    # Show segment cleanup results if available
+    segments_cleaned = result.get('segments_cleaned', 0)
+    segments_failed = result.get('segments_cleanup_failed', 0)
+    if segments_cleaned > 0 or segments_failed > 0 or result.get('segments_cleaned_list'):
+        print(f"Segment directories cleaned: {segments_cleaned}")
+        if segments_failed > 0:
+            print(f"Segment cleanup failed: {segments_failed}")
+        
+        # Show cleaned segments
+        if result.get('segments_cleaned_list'):
+            print(f"\n🧹 SEGMENT CLEANUP ({len(result['segments_cleaned_list'])}):")
+            print("-" * 50)
+            for segment in result['segments_cleaned_list']:
+                status = "✅ Cleaned" if segment['cleanup_triggered'] else "🔍 Found"
+                if segment.get('error'):
+                    status = f"❌ Error: {segment['error']}"
+                
+                size_key = 'size_cleaned' if segment.get('cleanup_triggered') else 'size_would_clean'
+                size_mb = segment.get(size_key, 0) / (1024**2) if segment.get(size_key) else 0
+                
+                print(f"  {status}")
+                print(f"    Streamer: {segment['streamer_name']}")
+                print(f"    Directory: {segment['segments_dir']}")
+                print(f"    Size: {size_mb:.1f} MB | Recording ID: {segment['recording_id']}")
+                print()
     
     if result['errors']:
         print(f"\n❌ ERRORS ({len(result['errors'])}):")
@@ -147,11 +232,12 @@ Examples:
   %(prog)s scan --dry-run           # Scan without recovering
   %(prog)s scan --max-age 24        # Scan and recover recordings up to 24 hours old
   %(prog)s recover --id 123         # Recover specific recording ID 123
-  %(prog)s scan --interactive       # Interactive recovery with prompts
+  %(prog)s cleanup-segments         # Clean up orphaned segment directories
+  %(prog)s cleanup-segments --dry-run  # Show what segment dirs would be cleaned
         """
     )
     
-    parser.add_argument('action', choices=['stats', 'scan', 'recover'], 
+    parser.add_argument('action', choices=['stats', 'scan', 'recover', 'cleanup-segments'], 
                        help='Action to perform')
     parser.add_argument('--max-age', type=int, default=48,
                        help='Maximum age in hours for recordings to process (default: 48)')
@@ -191,6 +277,18 @@ Examples:
                 print(json.dumps(result, indent=2, default=str))
             else:
                 await scan_recordings(args.max_age, args.dry_run)
+                
+        elif args.action == 'cleanup-segments':
+            if args.json:
+                recovery_service = await get_orphaned_recovery_service()
+                result = await recovery_service.scan_and_recover_orphaned_recordings(
+                    max_age_hours=args.max_age,
+                    dry_run=args.dry_run,
+                    cleanup_segments=True
+                )
+                print(json.dumps(result, indent=2, default=str))
+            else:
+                await scan_recordings(args.max_age, args.dry_run, segments_only=True)
                 
         elif args.action == 'recover':
             if not args.id:
