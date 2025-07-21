@@ -34,6 +34,12 @@ async def get_active_tasks() -> List[Dict[str, Any]]:
             task_info = task.to_dict()
             active_tasks.append(task_info)
         
+        # Also include external tasks (like recordings)
+        for task_id, task in queue_service.external_tasks.items():
+            if task.status.value in ['running', 'pending']:
+                task_info = task.to_dict()
+                active_tasks.append(task_info)
+        
         return active_tasks
     except Exception as e:
         logger.error(f"Error getting active tasks: {e}", exc_info=True)
@@ -57,7 +63,22 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
             task_info = task.to_dict()
             recent_tasks.append(task_info)
         
-        return recent_tasks
+        # Also include completed external tasks
+        external_completed = sorted(
+            [(tid, task) for tid, task in queue_service.external_tasks.items() 
+             if task.status.value in ['completed', 'failed']],
+            key=lambda x: x[1].completed_at or x[1].created_at,
+            reverse=True
+        )
+        
+        for task_id, task in external_completed[:25]:  # Include up to 25 external tasks
+            task_info = task.to_dict()
+            recent_tasks.append(task_info)
+        
+        # Sort all tasks together by completion/creation time
+        recent_tasks.sort(key=lambda x: x.get('completed_at', x.get('created_at', '')), reverse=True)
+        
+        return recent_tasks[:50]  # Return max 50 total tasks
     except Exception as e:
         logger.error(f"Error getting recent tasks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get recent tasks")
