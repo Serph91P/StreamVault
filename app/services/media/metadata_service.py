@@ -172,12 +172,26 @@ class MetadataService:
         base_filename: str, 
         metadata: StreamMetadata
     ) -> bool:
-        """Creates NFO file for Kodi/Plex/Emby with correct image links.
-        
-        Returns:
-            bool: True on success, False on error
-        """
+        """Creates NFO file for Kodi/Plex/Emby with relative image paths."""
         try:
+            # Use relative paths for media server compatibility
+            # Images will be relative to the recording directory
+            artwork_base = ".artwork"  # Relative to recordings root
+            
+            # Create relative paths for artwork
+            safe_username = self._sanitize_filename(streamer.username)
+            poster_path = f"{artwork_base}/{safe_username}/poster.jpg"
+            banner_path = f"{artwork_base}/{safe_username}/banner.jpg"
+            fanart_path = f"{artwork_base}/{safe_username}/fanart.jpg"
+            
+            # For episode thumbnail, check if it exists locally first
+            episode_thumb_path = None
+            local_thumb = base_path / f"{base_filename}-thumb.jpg"
+            if local_thumb.exists():
+                episode_thumb_path = f"{base_filename}-thumb.jpg"  # Relative to NFO location
+            else:
+                # Fallback to artwork directory
+                episode_thumb_path = f"{artwork_base}/{safe_username}/episode-thumb.jpg"
             # Create two NFO files:
             # 1. tvshow.nfo - for show/season data (uses streamer image)
             # 2. episode.nfo - for the specific stream episode (uses stream thumbnail)
