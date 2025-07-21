@@ -19,7 +19,7 @@ async def get_queue_stats():
     try:
         stats = await background_queue_service.get_queue_stats()
         logger.debug("Background queue stats requested via REST API (consider WebSocket)")
-        return {"success": True, "stats": stats}
+        return stats  # Return stats directly, not nested in success object
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to get queue stats")
@@ -30,7 +30,8 @@ async def get_active_tasks():
     try:
         active_tasks = background_queue_service.get_active_tasks()
         logger.debug("Background queue active tasks requested via REST API (consider WebSocket)")
-        return {"success": True, "active_tasks": active_tasks}
+        # Convert to list format for frontend compatibility
+        return list(active_tasks.values()) if active_tasks else []
     except Exception as e:
         logger.error(f"Error getting active tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to get active tasks")
@@ -40,7 +41,7 @@ async def get_recent_tasks(limit: int = 50):
     """Get recently completed tasks"""
     try:
         recent_tasks = await background_queue_service.get_recent_tasks(limit=limit)
-        return {"success": True, "recent_tasks": recent_tasks}
+        return recent_tasks  # Should already be in correct format
     except Exception as e:
         logger.error(f"Error getting recent tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to get recent tasks")
