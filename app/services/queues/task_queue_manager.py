@@ -25,10 +25,10 @@ class TaskQueueManager:
     
     def __init__(self, max_workers: int = 3, websocket_manager=None):
         self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
-        self.is_running = False
+        self._is_running = False  # Use private attribute for internal state
         
-        # Initialize components
-        self.progress_tracker = TaskProgressTracker(websocket_manager)
+        # Initialize components with queue manager reference
+        self.progress_tracker = TaskProgressTracker(websocket_manager, queue_manager=self)
         self.worker_manager = WorkerManager(max_workers, self.progress_tracker, self.mark_task_completed)
         self.dependency_manager = TaskDependencyManager()
         
@@ -36,13 +36,18 @@ class TaskQueueManager:
         self.dependency_worker: Optional[asyncio.Task] = None
         self.stats_worker: Optional[asyncio.Task] = None
 
+    @property
+    def is_running(self) -> bool:
+        """Get the current running status"""
+        return self._is_running
+
     async def start(self):
         """Start the queue manager and all components"""
-        if self.is_running:
+        if self._is_running:
             logger.debug("TaskQueueManager already running, skipping start...")
             return
             
-        self.is_running = True
+        self._is_running = True
         
         # Start worker manager
         await self.worker_manager.start(self.task_queue)
@@ -57,10 +62,10 @@ class TaskQueueManager:
 
     async def stop(self):
         """Stop the queue manager and all components"""
-        if not self.is_running:
+        if not self._is_running:
             return
             
-        self.is_running = False
+        self._is_running = False
         
         # Cancel dependency worker
         if self.dependency_worker:
@@ -169,7 +174,7 @@ class TaskQueueManager:
         """Worker that manages task dependencies"""
         logger.info("Dependency worker started")
         
-        while self.is_running:
+        while self._is_running:
             try:
                 # Get ready tasks from dependency manager
                 ready_tasks = await self.dependency_manager.get_ready_tasks()
@@ -203,7 +208,7 @@ class TaskQueueManager:
         """Worker that periodically broadcasts queue statistics"""
         logger.info("Stats broadcast worker started")
         
-        while self.is_running:
+        while self._is_running:
             try:
                 # Send queue statistics via WebSocket
                 await self.progress_tracker.send_queue_statistics()
