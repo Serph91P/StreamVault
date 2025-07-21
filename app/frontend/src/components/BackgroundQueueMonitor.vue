@@ -55,7 +55,7 @@
             <div v-for="task in activeTasks" :key="task.id" class="task-item">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
-                <span class="task-streamer">{{ task.payload.streamer_name }}</span>
+                <span class="task-streamer">{{ task.payload?.streamer_name || 'Unknown' }}</span>
               </div>
               
               <div class="task-progress">
@@ -82,7 +82,7 @@
             <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
-                <span class="task-streamer">{{ task.payload.streamer_name }}</span>
+                <span class="task-streamer">{{ task.payload?.streamer_name || 'Unknown' }}</span>
               </div>
               
               <div class="task-status">
@@ -146,7 +146,14 @@ const formatTaskType = (taskType: string) => {
     'image_download': 'Image Download',
     'profile_image_sync': 'Profile Image Sync',
     'category_image_sync': 'Category Image Sync',
-    'image_cleanup': 'Image Cleanup'
+    'image_cleanup': 'Image Cleanup',
+    'stream_processing': 'Stream Processing',
+    'recording_post_processing': 'Recording Post-Processing',
+    'file_conversion': 'File Conversion',
+    'database_update': 'Database Update',
+    'notification_send': 'Send Notification',
+    'image_refresh': 'Image Refresh',
+    'image_migration': 'Image Migration'
   }
   return types[taskType] || taskType
 }
