@@ -76,7 +76,11 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
             recent_tasks.append(task_info)
         
         # Sort all tasks together by completion/creation time
-        recent_tasks.sort(key=lambda x: x.get('completed_at', x.get('created_at', '')), reverse=True)
+        from datetime import datetime
+        recent_tasks.sort(
+            key=lambda x: x.get('completed_at') or x.get('created_at') or datetime.min.isoformat(),
+            reverse=True
+        )
         
         return recent_tasks[:50]  # Return max 50 total tasks
     except Exception as e:
@@ -88,12 +92,12 @@ async def get_task_status(task_id: str) -> Dict[str, Any]:
     """Get status of a specific task"""
     try:
         queue_service = get_background_queue_service()
-        task_info = await queue_service.get_task_status(task_id)
+        task = queue_service.get_task(task_id)
         
-        if not task_info:
+        if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        return task_info
+        return task.to_dict()
     except HTTPException:
         raise
     except Exception as e:
@@ -105,7 +109,29 @@ async def get_stream_tasks(stream_id: int) -> Dict[str, Any]:
     """Get all tasks for a specific stream"""
     try:
         queue_service = get_background_queue_service()
-        stream_tasks = await queue_service.get_stream_task_status(stream_id)
+        
+        # Get all tasks (active, completed, external) for this stream
+        stream_tasks = {
+            "active": [],
+            "completed": [],
+            "external": []
+        }
+        
+        # Check active tasks
+        for task_id, task in queue_service.active_tasks.items():
+            if task.payload.get('stream_id') == stream_id:
+                stream_tasks["active"].append(task.to_dict())
+        
+        # Check completed tasks
+        for task_id, task in queue_service.completed_tasks.items():
+            if task.payload.get('stream_id') == stream_id:
+                stream_tasks["completed"].append(task.to_dict())
+        
+        # Check external tasks
+        for task_id, task in queue_service.external_tasks.items():
+            if task.payload.get('stream_id') == stream_id:
+                stream_tasks["external"].append(task.to_dict())
+        
         return stream_tasks
     except Exception as e:
         logger.error(f"Error getting stream tasks: {e}", exc_info=True)
@@ -116,7 +142,35 @@ async def cancel_stream_tasks(stream_id: int) -> Dict[str, Any]:
     """Cancel all tasks for a specific stream"""
     try:
         queue_service = get_background_queue_service()
-        cancelled_count = await queue_service.cancel_stream_tasks(stream_id)
+        cancelled_count = 0
+        
+        # Cancel active tasks for this stream
+        tasks_to_cancel = []
+        for task_id, task in queue_service.active_tasks.items():
+            if task.payload.get('stream_id') == stream_id:
+                tasks_to_cancel.append(task_id)
+        
+        # Cancel external tasks for this stream
+        external_to_cancel = []
+        for task_id, task in queue_service.external_tasks.items():
+            if task.payload.get('stream_id') == stream_id and task.status.value in ['running', 'pending']:
+                external_to_cancel.append(task_id)
+        
+        # Cancel the tasks using the queue manager
+        for task_id in tasks_to_cancel:
+            try:
+                await queue_service.queue_manager.mark_task_completed(task_id, success=False)
+                cancelled_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to cancel task {task_id}: {e}")
+        
+        # Mark external tasks as cancelled
+        for task_id in external_to_cancel:
+            try:
+                queue_service.complete_external_task(task_id, success=False)
+                cancelled_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to cancel external task {task_id}: {e}")
         
         return {
             "success": True,
