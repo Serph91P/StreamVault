@@ -181,7 +181,7 @@ export function useBackgroundQueue() {
   }
 
   // Watch for WebSocket messages
-  watch(messages, (newMessages) => {
+  watch(messages, async (newMessages) => {
     if (newMessages.length === 0) return
     
     const latestMessage = newMessages[newMessages.length - 1]
@@ -200,6 +200,11 @@ export function useBackgroundQueue() {
       }
     } else if (latestMessage.type === 'queue_stats_update') {
       Object.assign(queueStats.value, latestMessage.data)
+      // Refresh task lists when queue stats update
+      await Promise.all([
+        fetchActiveTasks(),
+        fetchRecentTasks()
+      ])
     } else if (latestMessage.type === 'task_status_update') {
       const taskData = latestMessage.data
       
