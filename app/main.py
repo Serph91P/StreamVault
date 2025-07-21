@@ -88,6 +88,18 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Image migration failed: {e}")
             logger.warning("⚠️ Continuing startup without image migration")
         
+        # Image refresh check for missing images
+        logger.info("🔄 Checking for missing images...")
+        from app.services.images.image_refresh_service import image_refresh_service
+        
+        try:
+            # Run image refresh in background (non-blocking)
+            asyncio.create_task(image_refresh_service.check_and_refresh_missing_images())
+            logger.info("✅ Image refresh task started in background")
+        except Exception as e:
+            logger.error(f"❌ Image refresh failed to start: {e}")
+            logger.warning("⚠️ Images may not be available until manually refreshed")
+        
         # Create any remaining tables from models (after migrations)
         logger.info("🔄 Creating remaining tables from models...")
         try:
@@ -715,8 +727,9 @@ app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 # Mount images directory for unified image service
 import os
 from pathlib import Path
-recordings_dir = os.getenv("RECORDINGS_DIR", "/recordings")
-images_dir = Path(recordings_dir) / ".images"
+# Hardcoded Docker path - always /recordings in container
+recordings_dir = "/recordings"
+images_dir = Path(recordings_dir) / ".media"
 # Create the directory if it doesn't exist
 images_dir.mkdir(parents=True, exist_ok=True)
 # Create subdirectories
