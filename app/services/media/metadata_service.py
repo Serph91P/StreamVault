@@ -174,24 +174,21 @@ class MetadataService:
     ) -> bool:
         """Creates NFO file for Kodi/Plex/Emby with relative image paths."""
         try:
-            # Use relative paths for media server compatibility
-            # Images will be relative to the recording directory
-            artwork_base = ".artwork"  # Relative to recordings root
-            
-            # Create relative paths for artwork
+            # Use hidden .media directory to avoid Emby/Jellyfin creating seasons from image folders
             safe_username = self._sanitize_filename(streamer.username)
-            poster_path = f"{artwork_base}/{safe_username}/poster.jpg"
-            banner_path = f"{artwork_base}/{safe_username}/banner.jpg"
-            fanart_path = f"{artwork_base}/{safe_username}/fanart.jpg"
             
-            # For episode thumbnail, check if it exists locally first
+            # Artwork paths in hidden .media directory (relative to recordings root)
+            poster_path = f".media/artwork/{safe_username}/poster.jpg"
+            banner_path = f".media/artwork/{safe_username}/banner.jpg" 
+            fanart_path = f".media/artwork/{safe_username}/fanart.jpg"
+            
+            # Episode thumbnail in same directory as video
             episode_thumb_path = None
             local_thumb = base_path / f"{base_filename}-thumb.jpg"
             if local_thumb.exists():
-                episode_thumb_path = f"{base_filename}-thumb.jpg"  # Relative to NFO location
+                episode_thumb_path = f"{base_filename}-thumb.jpg"
             else:
-                # Fallback to artwork directory
-                episode_thumb_path = f"{artwork_base}/{safe_username}/episode-thumb.jpg"
+                episode_thumb_path = f".media/artwork/{safe_username}/poster.jpg"  # Fallback
             # Create two NFO files:
             # 1. tvshow.nfo - for show/season data (uses streamer image)
             # 2. episode.nfo - for the specific stream episode (uses stream thumbnail)
@@ -222,27 +219,21 @@ class MetadataService:
             ET.SubElement(show_root, "studio").text = "Twitch"
             ET.SubElement(show_root, "plot").text = f"Streams by {streamer.username} on Twitch."
             
-            # Important for Plex: Use artwork service instead of local images
-            # Store artwork in separate directory to avoid Emby/Plex confusion
+            # Important for Plex: Store artwork in hidden .media directory
             if streamer.profile_image_url:
-                # Save artwork to dedicated artwork directory (not in recordings)
-                await artwork_service.save_streamer_artwork(streamer)
-                await artwork_service.save_streamer_metadata(streamer)
+                # Save artwork to .media directory (avoids Emby creating seasons from folders)
+                await artwork_service.save_streamer_artwork_to_media_directory(streamer)
                 
-                # Get artwork directory path for NFO references
-                artwork_dir = artwork_service.get_streamer_artwork_dir(streamer.username)
-                
-                # Images for the show - use relative paths for media server access
-                # Media servers can access both /recordings and /recordings/.artwork
+                # Relative paths to .media directory from streamer directory
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
-                poster_element.text = f"../.artwork/{streamer.username}/poster.jpg"
+                poster_element.text = f".media/artwork/{safe_username}/poster.jpg"
                 
                 banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
-                banner_element.text = f"../.artwork/{streamer.username}/banner.jpg"
+                banner_element.text = f".media/artwork/{safe_username}/banner.jpg"
                 
                 # Fanart (background image)
                 fanart = ET.SubElement(show_root, "fanart")
-                ET.SubElement(fanart, "thumb").text = f"../.artwork/{streamer.username}/fanart.jpg"
+                ET.SubElement(fanart, "thumb").text = f".media/artwork/{safe_username}/fanart.jpg"
                 
             # Genre/Category
             if streamer.category_name:
@@ -254,8 +245,8 @@ class MetadataService:
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                # Reference actor image from artwork directory with relative path
-                ET.SubElement(actor, "thumb").text = f"../.artwork/{streamer.username}/poster.jpg"
+                # Actor image from .media directory
+                ET.SubElement(actor, "thumb").text = f".media/artwork/{safe_username}/poster.jpg"
                 
             ET.SubElement(actor, "role").text = "Streamer"
             
@@ -274,9 +265,9 @@ class MetadataService:
                 # Season title
                 ET.SubElement(season_root, "title").text = f"Season {stream.started_at.strftime('%Y-%m')}"
                 
-                # Season poster - reference artwork directory with relative path
+                # Season poster from .media directory
                 if streamer.profile_image_url:
-                    ET.SubElement(season_root, "thumb").text = f"../../.artwork/{streamer.username}/season.jpg"
+                    ET.SubElement(season_root, "thumb").text = f".media/artwork/{safe_username}/poster.jpg"
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
@@ -331,7 +322,8 @@ class MetadataService:
             actor = ET.SubElement(episode_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                ET.SubElement(actor, "thumb").text = "../actors/"+streamer.username+".jpg" if is_in_season_dir else "actors/"+streamer.username+".jpg"
+                # Actor image from .media directory
+                ET.SubElement(actor, "thumb").text = f".media/artwork/{safe_username}/poster.jpg"
             ET.SubElement(actor, "role").text = "Streamer"
             
             # IMPORTANT: Thumbnails for the episode with different standard names
