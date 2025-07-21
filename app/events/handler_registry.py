@@ -306,17 +306,35 @@ class EventHandlerRegistry:
                     logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
                     
                     # Find active recording for this streamer
-                    active_recording = db.query(Recording).filter(
-                        Recording.stream_id == stream.id,
-                        Recording.status == "recording"
-                    ).first()
+                    if stream and stream.id:
+                        # Find recording by stream ID if stream exists
+                        active_recording = db.query(Recording).filter(
+                            Recording.stream_id == stream.id,
+                            Recording.status == "recording"
+                        ).first()
+                    else:
+                        # Fallback: Find recording by streamer ID if stream is None
+                        logger.warning(f"🎬 STREAM_IS_NONE: Finding recording by streamer_id={streamer.id}")
+                        # Get the most recent stream for this streamer
+                        recent_stream = db.query(Stream).filter(
+                            Stream.streamer_id == streamer.id
+                        ).order_by(Stream.created_at.desc()).first()
+                        
+                        if recent_stream:
+                            active_recording = db.query(Recording).filter(
+                                Recording.stream_id == recent_stream.id,
+                                Recording.status == "recording"
+                            ).first()
+                        else:
+                            active_recording = None
                     
                     if active_recording:
                         logger.info(f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}")
                         # Automatic stop when stream goes offline
                         await self.recording_service.stop_recording(active_recording.id, reason="automatic")
                     else:
-                        logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream.id}")
+                        stream_id_info = stream.id if stream else "None"
+                        logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}")
             
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
