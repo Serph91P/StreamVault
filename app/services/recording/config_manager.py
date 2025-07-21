@@ -167,15 +167,12 @@ class ConfigManager:
         return 0  # 0 means unlimited
         
     def get_output_directory(self) -> str:
-        """Get the output directory for recordings"""
-        global_settings = self.get_global_settings()
-        if global_settings and global_settings.output_directory:
-            return global_settings.output_directory
-        return "/recordings"  # Default directory
+        """Get output directory - hardcoded for Docker consistency"""
+        return "/recordings"
     
     def get_recordings_directory(self) -> str:
-        """Alias for get_output_directory for compatibility"""
-        return self.get_output_directory()
+        """Get recordings directory - hardcoded for Docker consistency"""
+        return "/recordings"
     
     def get_max_concurrent_recordings(self) -> int:
         """Get maximum number of concurrent recordings"""
