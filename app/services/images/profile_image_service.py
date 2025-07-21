@@ -40,7 +40,8 @@ class ProfileImageService:
             if self.profiles_dir and self.profiles_dir.exists():
                 for image_file in self.profiles_dir.glob("*.jpg"):
                     streamer_id = image_file.stem.replace("streamer_", "")
-                    self._profile_cache[streamer_id] = f"/data/images/profiles/{image_file.name}"
+                    relative_path = f"/data/images/profiles/{image_file.name}"
+                    self._profile_cache[streamer_id] = relative_path
             
             logger.info(f"Loaded profile image cache: {len(self._profile_cache)} profiles")
         except Exception as e:
