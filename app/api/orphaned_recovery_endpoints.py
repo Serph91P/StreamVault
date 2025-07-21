@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
-from app.middleware.auth import require_auth
 
 logger = logging.getLogger("streamvault")
 
@@ -26,8 +25,7 @@ class OrphanedRecoveryStatsRequest(BaseModel):
 
 @router.get("/statistics")
 async def get_orphaned_statistics(
-    max_age_hours: int = 168,
-    _: dict = Depends(require_auth)
+    max_age_hours: int = 168
 ) -> Dict[str, Any]:
     """Get statistics about orphaned recordings"""
     try:
@@ -47,8 +45,7 @@ async def get_orphaned_statistics(
 @router.post("/scan")
 async def scan_orphaned_recordings(
     request: OrphanedRecoveryScanRequest,
-    background_tasks: BackgroundTasks,
-    _: dict = Depends(require_auth)
+    background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Scan for orphaned recordings and optionally trigger recovery"""
     try:
@@ -91,8 +88,7 @@ async def scan_orphaned_recordings(
 @router.post("/recover-all")
 async def recover_all_orphaned(
     background_tasks: BackgroundTasks,
-    max_age_hours: int = 48,
-    _: dict = Depends(require_auth)
+    max_age_hours: int = 48
 ) -> Dict[str, Any]:
     """Trigger recovery for all orphaned recordings (background task)"""
     try:
@@ -117,8 +113,7 @@ async def recover_all_orphaned(
 
 @router.post("/recover-recording/{recording_id}")
 async def recover_specific_recording(
-    recording_id: int,
-    _: dict = Depends(require_auth)
+    recording_id: int
 ) -> Dict[str, Any]:
     """Trigger recovery for a specific recording"""
     try:
