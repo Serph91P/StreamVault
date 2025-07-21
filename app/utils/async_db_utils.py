@@ -1,0 +1,148 @@
+"""
+Async database utilities for StreamVault
+"""
+import asyncio
+from typing import List, Any, Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
+import logging
+
+from app.database import get_database_url
+from app.models import Streamer, Stream
+
+logger = logging.getLogger(__name__)
+
+# Create async engine and session maker
+_async_engine = None
+_async_session_maker = None
+
+
+def get_async_engine():
+    """Get or create async database engine"""
+    global _async_engine
+    if _async_engine is None:
+        database_url = get_database_url()
+        # Convert sync URL to async URL
+        if database_url.startswith("sqlite:///"):
+            async_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+        else:
+            async_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+        
+        _async_engine = create_async_engine(async_url, echo=False)
+    return _async_engine
+
+
+def get_async_session_maker():
+    """Get or create async session maker"""
+    global _async_session_maker
+    if _async_session_maker is None:
+        _async_session_maker = async_sessionmaker(
+            bind=get_async_engine(),
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+    return _async_session_maker
+
+
+async def get_all_streamers() -> List[Streamer]:
+    """
+    Get all streamers using async database session.
+    
+    Returns:
+        List of all Streamer objects
+    """
+    async_session = get_async_session_maker()
+    async with async_session() as session:
+        try:
+            result = await session.execute(select(Streamer))
+            streamers = result.scalars().all()
+            return list(streamers)
+        except Exception as e:
+            logger.error(f"Error fetching streamers: {e}")
+            return []
+
+
+async def get_recent_streams(limit: int = 100) -> List[Stream]:
+    """
+    Get recent streams using async database session.
+    
+    Args:
+        limit: Maximum number of streams to return
+        
+    Returns:
+        List of recent Stream objects
+    """
+    async_session = get_async_session_maker()
+    async with async_session() as session:
+        try:
+            from sqlalchemy import desc
+            result = await session.execute(
+                select(Stream)
+                .filter(Stream.thumbnail_url.isnot(None))
+                .order_by(desc(Stream.created_at))
+                .limit(limit)
+            )
+            streams = result.scalars().all()
+            return list(streams)
+        except Exception as e:
+            logger.error(f"Error fetching recent streams: {e}")
+            return []
+
+
+async def get_streamers_with_streams() -> List[Streamer]:
+    """
+    Get all streamers with their streams loaded using async database session.
+    
+    Returns:
+        List of Streamer objects with streams relationship loaded
+    """
+    async_session = get_async_session_maker()
+    async with async_session() as session:
+        try:
+            result = await session.execute(
+                select(Streamer).options(selectinload(Streamer.streams))
+            )
+            streamers = result.scalars().all()
+            return list(streamers)
+        except Exception as e:
+            logger.error(f"Error fetching streamers with streams: {e}")
+            return []
+
+
+async def batch_process_items(items: List[Any], batch_size: int = 10, max_concurrent: int = 3):
+    """
+    Process items in batches with concurrency control.
+    
+    Args:
+        items: List of items to process
+        batch_size: Number of items per batch
+        max_concurrent: Maximum concurrent batch operations
+        
+    Yields:
+        Batches of items for processing
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    for i in range(0, len(items), batch_size):
+        batch = items[i:i + batch_size]
+        async with semaphore:
+            yield batch
+            # Small delay to prevent overwhelming the system
+            await asyncio.sleep(0.1)
+
+
+async def run_in_thread_pool(func, *args, **kwargs):
+    """
+    Run a synchronous function in a thread pool to avoid blocking async context.
+    
+    Args:
+        func: Synchronous function to run
+        *args: Positional arguments for the function
+        **kwargs: Keyword arguments for the function
+        
+    Returns:
+        Result of the function execution
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, func, *args, **kwargs)

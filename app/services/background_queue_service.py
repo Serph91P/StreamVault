@@ -108,8 +108,13 @@ class BackgroundQueueService:
         return self.queue_manager.get_task(task_id)
 
     def get_active_tasks(self) -> Dict[str, QueueTask]:
-        """Get all active tasks"""
-        return self.queue_manager.get_active_tasks()
+        """Get all active tasks including external tasks"""
+        active_tasks = self.queue_manager.get_active_tasks()
+        external_tasks = self.queue_manager.progress_tracker.external_tasks
+        
+        # Combine both dictionaries
+        all_active_tasks = {**active_tasks, **external_tasks}
+        return all_active_tasks
 
     def get_completed_tasks(self) -> Dict[str, QueueTask]:
         """Get all completed tasks"""

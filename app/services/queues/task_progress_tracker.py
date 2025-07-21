@@ -71,8 +71,9 @@ class QueueTask:
 class TaskProgressTracker:
     """Handles task progress tracking and WebSocket notifications"""
     
-    def __init__(self, websocket_manager=None):
+    def __init__(self, websocket_manager=None, queue_manager=None):
         self.websocket_manager = websocket_manager
+        self.queue_manager = queue_manager  # Reference to queue manager for status
         self.active_tasks: Dict[str, QueueTask] = {}
         self.completed_tasks: Dict[str, QueueTask] = {}
         self.external_tasks: Dict[str, QueueTask] = {}  # For external jobs like recordings
@@ -153,6 +154,8 @@ class TaskProgressTracker:
             # Send WebSocket update (throttled to avoid spam)
             if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
                 self._create_background_task(self._send_task_update(task))
+                # Also send dedicated progress update for responsive UI
+                self._create_background_task(self._send_progress_update(task_id, task.progress))
 
     def register_progress_callback(self, task_id: str, callback: Callable[[float], None]):
         """Register a progress callback for a task"""
@@ -190,12 +193,39 @@ class TaskProgressTracker:
         task = self.get_task(task_id)
         return task.progress if task else None
 
+    def _get_worker_count(self) -> int:
+        """Get the current number of active workers"""
+        try:
+            if self.queue_manager and hasattr(self.queue_manager, 'worker_manager'):
+                return self.queue_manager.worker_manager.get_active_worker_count()
+            return 0
+        except Exception:
+            return 0
+
+    def _get_is_running(self) -> bool:
+        """Get the current running status of the queue"""
+        try:
+            if self.queue_manager:
+                # Use the public property instead of accessing private attribute
+                return self.queue_manager.is_running
+            return False
+        except Exception:
+            return False
+
     def get_statistics(self) -> Dict[str, Any]:
         """Get queue statistics"""
+        # Count tasks by status
+        pending_tasks = len([t for t in self.active_tasks.values() if t.status == TaskStatus.PENDING])
+        running_tasks = len([t for t in self.active_tasks.values() if t.status == TaskStatus.RUNNING])
+        
         return {
             **self.stats,
-            'active_tasks': len(self.active_tasks),
-            'external_tasks': len(self.external_tasks)
+            'active_tasks': len(self.active_tasks) + len(self.external_tasks),
+            'pending_tasks': pending_tasks,
+            'running_tasks': running_tasks,
+            'external_tasks': len(self.external_tasks),
+            'workers': self._get_worker_count(),
+            'is_running': self._get_is_running()
         }
 
     # External task tracking methods (for recordings, etc.)
@@ -264,9 +294,9 @@ class TaskProgressTracker:
             
         try:
             message = {
-                "type": "task_update",
+                "type": "task_status_update",
                 "data": {
-                    "task_id": task.id,
+                    "id": task.id,
                     "task_type": task.task_type,
                     "status": task.status.value,
                     "progress": task.progress,
@@ -274,7 +304,8 @@ class TaskProgressTracker:
                     "started_at": task.started_at.isoformat() if task.started_at else None,
                     "completed_at": task.completed_at.isoformat() if task.completed_at else None,
                     "error_message": task.error_message,
-                    "retry_count": task.retry_count
+                    "retry_count": task.retry_count,
+                    "payload": task.payload
                 }
             }
             
@@ -282,6 +313,25 @@ class TaskProgressTracker:
             
         except Exception as e:
             logger.warning(f"Failed to send WebSocket task update for {task.id}: {e}")
+
+    async def _send_progress_update(self, task_id: str, progress: float):
+        """Send dedicated progress update via WebSocket"""
+        if not self.websocket_manager:
+            return
+            
+        try:
+            message = {
+                "type": "task_progress_update",
+                "data": {
+                    "task_id": task_id,
+                    "progress": progress
+                }
+            }
+            
+            await self.websocket_manager.send_notification(message)
+            
+        except Exception as e:
+            logger.warning(f"Failed to send WebSocket progress update for {task_id}: {e}")
 
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""
@@ -291,7 +341,7 @@ class TaskProgressTracker:
         try:
             stats = self.get_statistics()
             message = {
-                "type": "queue_statistics",
+                "type": "queue_stats_update",
                 "data": stats
             }
             

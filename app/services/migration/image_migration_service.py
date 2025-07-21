@@ -7,12 +7,14 @@ Cleans up old directories and prevents duplicates.
 import os
 import shutil
 import logging
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Streamer
+from app.utils.file_utils import sanitize_filename, safe_remove_directory, validate_directory_path
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +41,33 @@ class ImageMigrationService:
         }
         
         try:
-            # Get all streamers from database using proper session management
-            with SessionLocal() as db:
-                streamers = db.query(Streamer).all()
-                
-                for streamer in streamers:
+            # Get all streamers from database using async session management
+            from app.utils.async_db_utils import get_all_streamers, batch_process_items
+            streamers = await get_all_streamers()
+            
+            # Process streamers in batches for better performance
+            async for batch in batch_process_items(streamers, batch_size=5, max_concurrent=2):
+                batch_tasks = []
+                for streamer in batch:
                     try:
-                        result = await self.migrate_streamer_images(streamer, db)
-                        stats["streamers_migrated"] += 1
-                        stats["images_moved"] += result["images_moved"]
-                        stats["duplicates_found"] += result["duplicates_found"]
+                        task = self.migrate_streamer_images(streamer)
+                        batch_tasks.append(task)
                     except Exception as e:
-                        logger.error(f"Error migrating images for streamer {streamer.username}: {e}")
+                        logger.error(f"Error creating migration task for streamer {streamer.username}: {e}")
                         stats["errors"] += 1
+                
+                # Process batch concurrently
+                if batch_tasks:
+                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                    
+                    for i, result in enumerate(batch_results):
+                        if isinstance(result, Exception):
+                            logger.error(f"Error migrating images for streamer {batch[i].username}: {result}")
+                            stats["errors"] += 1
+                        else:
+                            stats["streamers_migrated"] += 1
+                            stats["images_moved"] += result["images_moved"]
+                            stats["duplicates_found"] += result["duplicates_found"]
             
             # Clean up old directories
             cleanup_result = await self.cleanup_old_directories()
@@ -65,7 +81,7 @@ class ImageMigrationService:
             stats["errors"] += 1
             return stats
     
-    async def migrate_streamer_images(self, streamer: Streamer, db: Session) -> Dict[str, int]:
+    async def migrate_streamer_images(self, streamer: Streamer) -> Dict[str, int]:
         """
         Migrate images for a specific streamer
         """
@@ -75,7 +91,7 @@ class ImageMigrationService:
         }
         
         # Get streamer directory
-        streamer_dir = self.recordings_dir / self._sanitize_filename(streamer.username)
+        streamer_dir = self.recordings_dir / sanitize_filename(streamer.username)
         
         if not streamer_dir.exists():
             logger.warning(f"Streamer directory not found: {streamer_dir}")
@@ -83,7 +99,7 @@ class ImageMigrationService:
         
         # Create .media directory structure (hidden from media servers)
         media_dir = self.recordings_dir / ".media"
-        artwork_dir = media_dir / "artwork" / self._sanitize_filename(streamer.username)
+        artwork_dir = media_dir / "artwork" / sanitize_filename(streamer.username)
         profiles_dir = media_dir / "profiles"
         categories_dir = media_dir / "categories"
         
@@ -95,14 +111,14 @@ class ImageMigrationService:
         migration_sources = [
             # Old .images structure
             self.old_images_dir / "profiles" / f"streamer_{streamer.id}.jpg",
-            self.old_images_dir / "artwork" / self._sanitize_filename(streamer.username) / "poster.jpg",
-            self.old_images_dir / "artwork" / self._sanitize_filename(streamer.username) / "banner.jpg",
-            self.old_images_dir / "artwork" / self._sanitize_filename(streamer.username) / "fanart.jpg",
+            self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "poster.jpg",
+            self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "banner.jpg",
+            self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "fanart.jpg",
             
             # Old .artwork structure
-            self.old_artwork_dir / self._sanitize_filename(streamer.username) / "poster.jpg",
-            self.old_artwork_dir / self._sanitize_filename(streamer.username) / "banner.jpg",
-            self.old_artwork_dir / self._sanitize_filename(streamer.username) / "fanart.jpg",
+            self.old_artwork_dir / sanitize_filename(streamer.username) / "poster.jpg",
+            self.old_artwork_dir / sanitize_filename(streamer.username) / "banner.jpg",
+            self.old_artwork_dir / sanitize_filename(streamer.username) / "fanart.jpg",
         ]
         
         # Target files in .media directory structure
@@ -163,11 +179,13 @@ class ImageMigrationService:
         for directory in directories_to_check:
             if directory.exists():
                 try:
-                    # Check if directory is empty or only contains empty subdirectories
+                    # Use safe directory removal with path validation
                     if self._is_directory_empty_recursive(directory):
-                        shutil.rmtree(directory)
-                        logger.info(f"Removed empty directory: {directory}")
-                        result["directories_removed"] += 1
+                        if safe_remove_directory(directory, self.recordings_dir):
+                            logger.info(f"Safely removed empty directory: {directory}")
+                            result["directories_removed"] += 1
+                        else:
+                            logger.error(f"Failed to safely remove directory: {directory}")
                     else:
                         logger.warning(f"Directory not empty, keeping: {directory}")
                         # List remaining files for debugging
@@ -210,13 +228,6 @@ class ImageMigrationService:
             return True
         except Exception:
             return False
-    
-    def _sanitize_filename(self, filename: str) -> str:
-        """Sanitize filename for filesystem use"""
-        import re
-        sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
-        sanitized = sanitized.strip('. ')
-        return sanitized or "unknown"
 
 # Global instance
 image_migration_service = ImageMigrationService()

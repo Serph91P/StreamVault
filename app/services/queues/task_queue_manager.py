@@ -25,50 +25,71 @@ class TaskQueueManager:
     
     def __init__(self, max_workers: int = 3, websocket_manager=None):
         self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
-        self.is_running = False
+        self._is_running = False  # Use private attribute for internal state
         
-        # Initialize components
-        self.progress_tracker = TaskProgressTracker(websocket_manager)
+        # Initialize components with queue manager reference
+        self.progress_tracker = TaskProgressTracker(websocket_manager, queue_manager=self)
         self.worker_manager = WorkerManager(max_workers, self.progress_tracker, self.mark_task_completed)
         self.dependency_manager = TaskDependencyManager()
         
         # Dependency management
         self.dependency_worker: Optional[asyncio.Task] = None
+        self.stats_worker: Optional[asyncio.Task] = None
+
+    @property
+    def is_running(self) -> bool:
+        """Get the current running status"""
+        return self._is_running
 
     async def start(self):
         """Start the queue manager and all components"""
-        if self.is_running:
+        if self._is_running:
             logger.debug("TaskQueueManager already running, skipping start...")
             return
             
-        self.is_running = True
+        self._is_running = True
         
         # Start worker manager
         await self.worker_manager.start(self.task_queue)
         
         # Start dependency worker
         self.dependency_worker = asyncio.create_task(self._dependency_worker())
+        
+        # Start statistics broadcast worker
+        self.stats_worker = asyncio.create_task(self._stats_broadcast_worker())
             
-        logger.info("TaskQueueManager started with dependency management")
+        logger.info("TaskQueueManager started with dependency management and stats broadcasting")
 
     async def stop(self):
         """Stop the queue manager and all components"""
-        if not self.is_running:
+        if not self._is_running:
             return
             
-        self.is_running = False
+        self._is_running = False
         
         # Cancel dependency worker
         if self.dependency_worker:
             self.dependency_worker.cancel()
         
+        # Cancel stats worker
+        if self.stats_worker:
+            self.stats_worker.cancel()
+        
         # Stop worker manager
         await self.worker_manager.stop()
         
-        # Wait for dependency worker to finish
+        # Wait for workers to finish
+        workers_to_wait = []
         if self.dependency_worker:
-            await asyncio.gather(self.dependency_worker, return_exceptions=True)
-            self.dependency_worker = None
+            workers_to_wait.append(self.dependency_worker)
+        if self.stats_worker:
+            workers_to_wait.append(self.stats_worker)
+            
+        if workers_to_wait:
+            await asyncio.gather(*workers_to_wait, return_exceptions=True)
+            
+        self.dependency_worker = None
+        self.stats_worker = None
         
         # Shutdown dependency manager
         await self.dependency_manager.shutdown()
@@ -153,7 +174,7 @@ class TaskQueueManager:
         """Worker that manages task dependencies"""
         logger.info("Dependency worker started")
         
-        while self.is_running:
+        while self._is_running:
             try:
                 # Get ready tasks from dependency manager
                 ready_tasks = await self.dependency_manager.get_ready_tasks()
@@ -182,6 +203,27 @@ class TaskQueueManager:
                 await asyncio.sleep(1)
                 
         logger.info("Dependency worker stopped")
+
+    async def _stats_broadcast_worker(self):
+        """Worker that periodically broadcasts queue statistics"""
+        logger.info("Stats broadcast worker started")
+        
+        while self._is_running:
+            try:
+                # Send queue statistics via WebSocket
+                await self.progress_tracker.send_queue_statistics()
+                
+                # Wait 10 seconds before next broadcast
+                await asyncio.sleep(10)
+                
+            except asyncio.CancelledError:
+                logger.info("Stats broadcast worker cancelled")
+                break
+            except Exception as e:
+                logger.warning(f"Stats broadcast worker error: {e}")
+                await asyncio.sleep(5)  # Wait shorter on error
+                
+        logger.info("Stats broadcast worker stopped")
 
     async def mark_task_completed(self, task_id: str, success: bool = True):
         """Mark a task as completed in dependency manager"""
