@@ -22,12 +22,19 @@ def get_async_engine():
     """Get or create async database engine"""
     global _async_engine
     if _async_engine is None:
+        from urllib.parse import urlparse, urlunparse
         database_url = get_database_url()
-        # Convert sync URL to async URL
-        if database_url.startswith("sqlite:///"):
-            async_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+        # Parse the database URL
+        parsed_url = urlparse(database_url)
+        # Update the scheme for async support
+        if parsed_url.scheme == "sqlite":
+            async_scheme = "sqlite+aiosqlite"
+        elif parsed_url.scheme == "postgresql":
+            async_scheme = "postgresql+asyncpg"
         else:
-            async_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+            raise ValueError(f"Unsupported database scheme: {parsed_url.scheme}")
+        # Reconstruct the URL with the updated scheme
+        async_url = urlunparse(parsed_url._replace(scheme=async_scheme))
         
         _async_engine = create_async_engine(async_url, echo=False)
     return _async_engine
@@ -110,7 +117,7 @@ async def get_streamers_with_streams() -> List[Streamer]:
             return []
 
 
-async def batch_process_items(items: List[Any], batch_size: int = 10, max_concurrent: int = 3):
+async def batch_process_items(items: List[Any], batch_size: int = 10, max_concurrent: int = 3, sleep_duration: float = 0.1):
     """
     Process items in batches with concurrency control.
     
@@ -118,6 +125,7 @@ async def batch_process_items(items: List[Any], batch_size: int = 10, max_concur
         items: List of items to process
         batch_size: Number of items per batch
         max_concurrent: Maximum concurrent batch operations
+        sleep_duration: Delay between batches to prevent system overload (seconds)
         
     Yields:
         Batches of items for processing
@@ -129,7 +137,7 @@ async def batch_process_items(items: List[Any], batch_size: int = 10, max_concur
         async with semaphore:
             yield batch
             # Small delay to prevent overwhelming the system
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(sleep_duration)
 
 
 async def run_in_thread_pool(func, *args, **kwargs):
