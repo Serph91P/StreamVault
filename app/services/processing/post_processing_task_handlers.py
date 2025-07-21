@@ -354,11 +354,16 @@ class PostProcessingTaskHandlers:
     async def handle_cleanup(self, payload, progress_callback=None):
         """Handle cleanup task with intelligent TS cleanup"""
         stream_id = payload['stream_id']
-        files_to_remove = payload['files_to_remove']
+        files_to_remove = payload.get('files_to_remove', [])  # Default to empty list if not provided
         mp4_path = payload['mp4_path']
         intelligent_cleanup = payload.get('intelligent_cleanup', False)
         max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
         streamer_name = payload.get('streamer_name', f'stream_{stream_id}')
+        
+        # Validate that files_to_remove is a list
+        if not isinstance(files_to_remove, list):
+            logger.warning(f"files_to_remove is not a list: {type(files_to_remove)}, converting to list")
+            files_to_remove = [files_to_remove] if files_to_remove else []
         
         log_with_context(
             logger, 'info',
