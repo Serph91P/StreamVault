@@ -73,7 +73,7 @@ export function useBackgroundQueue() {
       const response = await fetch('/api/background-queue/active-tasks')
       if (response.ok) {
         const tasks = await response.json()
-        activeTasks.value = tasks
+        activeTasks.value = Array.isArray(tasks) ? tasks : []
       }
     } catch (error) {
       console.error('Failed to fetch active tasks:', error)
@@ -85,7 +85,7 @@ export function useBackgroundQueue() {
       const response = await fetch('/api/background-queue/recent-tasks')
       if (response.ok) {
         const tasks = await response.json()
-        recentTasks.value = tasks
+        recentTasks.value = Array.isArray(tasks) ? tasks : []
       }
     } catch (error) {
       console.error('Failed to fetch recent tasks:', error)
