@@ -71,8 +71,9 @@ class QueueTask:
 class TaskProgressTracker:
     """Handles task progress tracking and WebSocket notifications"""
     
-    def __init__(self, websocket_manager=None):
+    def __init__(self, websocket_manager=None, queue_manager=None):
         self.websocket_manager = websocket_manager
+        self.queue_manager = queue_manager  # Reference to queue manager for status
         self.active_tasks: Dict[str, QueueTask] = {}
         self.completed_tasks: Dict[str, QueueTask] = {}
         self.external_tasks: Dict[str, QueueTask] = {}  # For external jobs like recordings
@@ -192,6 +193,25 @@ class TaskProgressTracker:
         task = self.get_task(task_id)
         return task.progress if task else None
 
+    def _get_worker_count(self) -> int:
+        """Get the current number of active workers"""
+        try:
+            if self.queue_manager and hasattr(self.queue_manager, 'worker_manager'):
+                return self.queue_manager.worker_manager.get_active_worker_count()
+            return 0
+        except Exception:
+            return 0
+
+    def _get_is_running(self) -> bool:
+        """Get the current running status of the queue"""
+        try:
+            if self.queue_manager:
+                # Use the public property instead of accessing private attribute
+                return self.queue_manager.is_running
+            return False
+        except Exception:
+            return False
+
     def get_statistics(self) -> Dict[str, Any]:
         """Get queue statistics"""
         # Count tasks by status
@@ -204,8 +224,8 @@ class TaskProgressTracker:
             'pending_tasks': pending_tasks,
             'running_tasks': running_tasks,
             'external_tasks': len(self.external_tasks),
-            'workers': 0,  # Will be updated by worker manager if needed
-            'is_running': True
+            'workers': self._get_worker_count(),
+            'is_running': self._get_is_running()
         }
 
     # External task tracking methods (for recordings, etc.)

@@ -22,6 +22,12 @@ except ImportError:
         def set(self, key, value, ttl=None): pass
     app_cache = DummyCache()
 
+# Import background queue service at module level to avoid repeated imports
+try:
+    from app.services.background_queue_service import background_queue_service
+except ImportError:
+    background_queue_service = None
+
 logger = logging.getLogger("streamvault")
 
 
@@ -287,20 +293,20 @@ class RecordingLifecycleManager:
             if success:
                 # Register recording as external task in background queue for monitoring
                 try:
-                    from app.services.background_queue_service import background_queue_service
-                    task_payload = {
-                        'recording_id': recording_id,
-                        'streamer_id': streamer_id,
-                        'streamer_name': stream.streamer.username if stream.streamer else 'unknown',
-                        'stream_id': stream.id,
-                        'file_path': file_path
-                    }
-                    background_queue_service.add_external_task(
-                        f"recording_{recording_id}",
-                        "recording",
-                        task_payload
-                    )
-                    logger.debug(f"Registered recording {recording_id} as external task")
+                    if background_queue_service:
+                        task_payload = {
+                            'recording_id': recording_id,
+                            'streamer_id': streamer_id,
+                            'streamer_name': stream.streamer.username if stream.streamer else 'Unknown',
+                            'stream_id': stream.id,
+                            'file_path': file_path
+                        }
+                        background_queue_service.add_external_task(
+                            f"recording_{recording_id}",
+                            "recording",
+                            task_payload
+                        )
+                        logger.debug(f"Registered recording {recording_id} as external task")
                 except Exception as e:
                     logger.warning(f"Failed to register recording {recording_id} as external task: {e}")
                 
@@ -386,12 +392,12 @@ class RecordingLifecycleManager:
             
             # Complete external task in background queue
             try:
-                from app.services.background_queue_service import background_queue_service
-                background_queue_service.complete_external_task(
-                    f"recording_{recording_id}",
-                    success=True
-                )
-                logger.debug(f"Marked recording {recording_id} as completed in background queue")
+                if background_queue_service:
+                    background_queue_service.complete_external_task(
+                        f"recording_{recording_id}",
+                        success=True
+                    )
+                    logger.debug(f"Marked recording {recording_id} as completed in background queue")
             except Exception as e:
                 logger.warning(f"Failed to complete external task for recording {recording_id}: {e}")
             
@@ -410,12 +416,12 @@ class RecordingLifecycleManager:
             
             # Mark external task as failed in background queue
             try:
-                from app.services.background_queue_service import background_queue_service
-                background_queue_service.complete_external_task(
-                    f"recording_{recording_id}",
-                    success=False
-                )
-                logger.debug(f"Marked recording {recording_id} as failed in background queue")
+                if background_queue_service:
+                    background_queue_service.complete_external_task(
+                        f"recording_{recording_id}",
+                        success=False
+                    )
+                    logger.debug(f"Marked recording {recording_id} as failed in background queue")
             except Exception as e:
                 logger.warning(f"Failed to mark external task as failed for recording {recording_id}: {e}")
             
@@ -566,8 +572,7 @@ class RecordingLifecycleManager:
             file_size = Path(recording_path).stat().st_size
             logger.info(f"🎬 RECORDING_FILE_FOUND: {recording_path} ({file_size} bytes)")
             
-            # Import background queue service and TaskPriority
-            from app.services.background_queue_service import background_queue_service
+            # Import TaskPriority only, background_queue_service already imported at module level
             from app.services.queues.task_progress_tracker import TaskPriority
             background_queue = background_queue_service
             
@@ -835,11 +840,11 @@ class RecordingLifecycleManager:
                 
                 # Update external task progress in background queue
                 try:
-                    from app.services.background_queue_service import background_queue_service
-                    background_queue_service.update_external_task_progress(
-                        f"recording_{recording_id}",
-                        progress_percent
-                    )
+                    if background_queue_service:
+                        background_queue_service.update_external_task_progress(
+                            f"recording_{recording_id}",
+                            progress_percent
+                        )
                 except Exception as e:
                     logger.debug(f"Failed to update external task progress: {e}")
                 
@@ -861,12 +866,12 @@ class RecordingLifecycleManager:
             
             # Mark external task as failed in background queue
             try:
-                from app.services.background_queue_service import background_queue_service
-                background_queue_service.complete_external_task(
-                    f"recording_{recording_id}",
-                    success=False
-                )
-                logger.debug(f"Marked recording {recording_id} as failed in background queue")
+                if background_queue_service:
+                    background_queue_service.complete_external_task(
+                        f"recording_{recording_id}",
+                        success=False
+                    )
+                    logger.debug(f"Marked recording {recording_id} as failed in background queue")
             except Exception as e:
                 logger.warning(f"Failed to mark external task as failed for recording {recording_id}: {e}")
                 
@@ -878,7 +883,7 @@ class RecordingLifecycleManager:
         try:
             # Check if stream already exists
             existing_stream = await self.database_service.get_stream_by_external_id(
-                stream_info.get('id', 'unknown')
+                stream_info.get('id', 'Unknown')
             )
             
             if existing_stream:
@@ -892,7 +897,7 @@ class RecordingLifecycleManager:
                 'language': stream_info.get('language', 'en'),
                 'started_at': datetime.now(),
                 'is_live': True,
-                'external_id': stream_info.get('id', 'unknown')
+                'external_id': stream_info.get('id', 'Unknown')
             }
             
             return await self.database_service.create_stream(stream_data)
