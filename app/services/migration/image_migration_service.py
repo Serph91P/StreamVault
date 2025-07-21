@@ -21,7 +21,8 @@ class ImageMigrationService:
     """Service to migrate images from old structure to new simplified structure"""
     
     def __init__(self):
-        self.recordings_dir = Path(settings.RECORDINGS_DIR if hasattr(settings, 'RECORDINGS_DIR') else "/recordings")
+        # Hardcoded Docker path - always /recordings in container
+        self.recordings_dir = Path("/recordings")
         self.old_images_dir = self.recordings_dir / ".images"
         self.old_artwork_dir = self.recordings_dir / ".artwork"
         
