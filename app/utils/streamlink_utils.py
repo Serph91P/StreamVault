@@ -14,8 +14,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
 from app.models import GlobalSettings
-# Use lazy imports to avoid circular dependencies
-# We'll import logging_service when needed
+from app.services.system.logging_service import logging_service
 
 # Get the logger
 logger = logging.getLogger(__name__)
@@ -122,9 +121,6 @@ def get_streamlink_command(
     
     # Use the streamlink log path for this recording session if not provided
     if not log_path:
-        # Lazy import to avoid circular dependencies
-        from importlib import import_module
-        logging_service = import_module("app.services.system.logging_service").logging_service
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command with enhanced stability parameters
