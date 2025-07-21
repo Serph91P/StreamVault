@@ -206,7 +206,8 @@ class TaskProgressTracker:
         """Get the current running status of the queue"""
         try:
             if self.queue_manager:
-                return getattr(self.queue_manager, '_is_running', False)
+                # Use the public property instead of accessing private attribute
+                return self.queue_manager.is_running
             return False
         except Exception:
             return False
