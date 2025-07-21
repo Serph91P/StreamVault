@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Streamer, Category, Stream
-from app.services.images.unified_image_service import unified_image_service
+from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -22,6 +22,14 @@ class ImageRefreshService:
         # Hardcoded Docker path - always /recordings in container
         self.recordings_dir = Path("/recordings")
         self.media_dir = self.recordings_dir / ".media"
+        
+    def _sanitize_filename(self, filename: str) -> str:
+        """Sanitize filename for safe file operations"""
+        import re
+        # Remove dangerous characters and limit length
+        safe_name = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        safe_name = re.sub(r'[^\w\-_. ]', '_', safe_name)
+        return safe_name[:100].strip()
         
     async def check_and_refresh_missing_images(self) -> Dict[str, int]:
         """Check for missing images and re-download them"""
@@ -106,7 +114,7 @@ class ImageRefreshService:
                 for category in categories:
                     if category.box_art_url and category.box_art_url.startswith('http'):
                         # Check if cached file exists
-                        safe_name = unified_image_service.download_service.sanitize_filename(category.name)
+                        safe_name = self._sanitize_filename(category.name)
                         expected_path = self.media_dir / "categories" / f"{safe_name}.jpg"
                         
                         if not expected_path.exists():
