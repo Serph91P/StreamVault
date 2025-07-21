@@ -66,6 +66,13 @@ class BackgroundQueueManager:
             self.task_handlers.handle_cleanup
         )
         
+        # Register orphaned recovery handler
+        from app.services.recording.orphaned_recovery_tasks import handle_orphaned_recovery_check
+        self.queue_service.register_task_handler(
+            'orphaned_recovery_check',
+            handle_orphaned_recovery_check
+        )
+        
         # Start the queue service
         await self.queue_service.start()
         
