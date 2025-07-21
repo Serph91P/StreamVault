@@ -11,9 +11,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal
 from app.models import Streamer
-from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +39,19 @@ class ImageMigrationService:
         }
         
         try:
-            # Get all streamers from database
-            db = next(get_db())
-            streamers = db.query(Streamer).all()
-            
-            for streamer in streamers:
-                try:
-                    result = await self.migrate_streamer_images(streamer, db)
-                    stats["streamers_migrated"] += 1
-                    stats["images_moved"] += result["images_moved"]
-                    stats["duplicates_found"] += result["duplicates_found"]
-                except Exception as e:
-                    logger.error(f"Error migrating images for streamer {streamer.username}: {e}")
-                    stats["errors"] += 1
+            # Get all streamers from database using proper session management
+            with SessionLocal() as db:
+                streamers = db.query(Streamer).all()
+                
+                for streamer in streamers:
+                    try:
+                        result = await self.migrate_streamer_images(streamer, db)
+                        stats["streamers_migrated"] += 1
+                        stats["images_moved"] += result["images_moved"]
+                        stats["duplicates_found"] += result["duplicates_found"]
+                    except Exception as e:
+                        logger.error(f"Error migrating images for streamer {streamer.username}: {e}")
+                        stats["errors"] += 1
             
             # Clean up old directories
             cleanup_result = await self.cleanup_old_directories()
