@@ -103,10 +103,23 @@ class ImageRefreshService:
                 streamer.profile_image_url
             )
             if cached_path:
-                # Update database with cached path
-                streamer.profile_image_url = cached_path
-                logger.info(f"Successfully refreshed profile image for streamer {streamer.id}")
-                return True
+                # Update database with cached path using proper session
+                from app.utils.async_db_utils import get_async_session
+                async with get_async_session() as db:
+                    # Re-fetch the streamer in this session context
+                    from sqlalchemy import select
+                    stmt = select(Streamer).where(Streamer.id == streamer.id)
+                    result = await db.execute(stmt)
+                    db_streamer = result.scalar_one_or_none()
+                    
+                    if db_streamer:
+                        db_streamer.profile_image_url = cached_path
+                        await db.commit()
+                        logger.info(f"Successfully refreshed profile image for streamer {streamer.id}")
+                        return True
+                    else:
+                        logger.warning(f"Streamer {streamer.id} not found in database")
+                        return False
             else:
                 logger.warning(f"Failed to download profile image for streamer {streamer.id}")
                 return False
