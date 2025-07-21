@@ -27,7 +27,7 @@ class LoggingService:
         # Create directories
         self._ensure_log_directories()
         
-        # Initialize loggers
+                # Initialize loggers
         self._setup_loggers()
         
         # Clean up old logs on initialization
@@ -37,8 +37,6 @@ class LoggingService:
         """Create log directories if they don't exist"""
         for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
             log_dir.mkdir(parents=True, exist_ok=True)
-            # Ensure proper permissions
-            os.chmod(log_dir, 0o755)
     
     def _setup_loggers(self):
         """Setup separate loggers for different components"""
@@ -60,7 +58,7 @@ class LoggingService:
         # FFmpeg logger (now streamer-specific, so this is for general/fallback messages only)
         self.ffmpeg_logger = logging.getLogger("streamvault.ffmpeg")
         ffmpeg_handler = TimedRotatingFileHandler(
-            self.ffmpeg_logs_dir / "ffmpeg_system.log",  # Changed from generic ffmpeg.log
+            self.ffmpeg_logs_dir / "ffmpeg_system.log",
             when="midnight",
             interval=1,
             backupCount=30,
@@ -72,30 +70,26 @@ class LoggingService:
         self.ffmpeg_logger.addHandler(ffmpeg_handler)
         self.ffmpeg_logger.setLevel(logging.DEBUG)
         
-        # Recording activity logger
+        # Recording logger for recording activities
         self.recording_logger = logging.getLogger("streamvault.recording")
         recording_handler = TimedRotatingFileHandler(
-            self.app_logs_dir / "recording_activity.log",
+            self.app_logs_dir / "recording.log",
             when="midnight",
             interval=1,
             backupCount=30,
             encoding="utf-8"
         )
         recording_handler.setFormatter(
-            logging.Formatter("[{asctime}][{levelname}] {message}", style="{")
+            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
         )
         self.recording_logger.addHandler(recording_handler)
         self.recording_logger.setLevel(logging.DEBUG)
     
     def get_streamlink_log_path(self, streamer_name: str) -> str:
         """Get log file path for a specific streamer's streamlink session"""
-        today = datetime.now().strftime("%Y-%m-%d")
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Format consistently with FFmpeg logs: streamer_streamlink_timestamp_date.log
-        streamer_name = streamer_name.replace(" ", "_")  # Remove spaces from streamer name
-        log_file = self.streamlink_logs_dir / f"{streamer_name}_streamlink_{timestamp_str}_{today}.log"
-        return str(log_file)
+        safe_streamer_name = "".join(c for c in streamer_name if c.isalnum() or c in ('-', '_')).lower()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return str(self.streamlink_logs_dir / f"{safe_streamer_name}_streamlink_{timestamp}.log")
     
     def get_ffmpeg_log_path(self, operation: str, streamer_name: str) -> str:
         """Get log file path for FFmpeg operations with mandatory streamer name"""
