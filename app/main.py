@@ -67,6 +67,27 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Database migration failed: {e}")
             logger.warning("⚠️ Application will continue but may have limited functionality")
         
+        # Image migration check and execution
+        logger.info("🖼️ Checking image migration status...")
+        from app.services.migration.image_migration_service import image_migration_service
+        
+        try:
+            # Check if migration is needed
+            old_dirs_exist = (
+                image_migration_service.old_images_dir.exists() or 
+                image_migration_service.old_artwork_dir.exists()
+            )
+            
+            if old_dirs_exist:
+                logger.info("🔄 Running image migration from old directory structure...")
+                migration_stats = await image_migration_service.migrate_all_images()
+                logger.info(f"✅ Image migration completed: {migration_stats}")
+            else:
+                logger.info("✅ No image migration needed - directory structure is up to date")
+        except Exception as e:
+            logger.error(f"❌ Image migration failed: {e}")
+            logger.warning("⚠️ Continuing startup without image migration")
+        
         # Create any remaining tables from models (after migrations)
         logger.info("🔄 Creating remaining tables from models...")
         try:
@@ -634,6 +655,10 @@ app.include_router(push_router.router)
 # Admin routes
 from app.routes import admin as admin_router
 app.include_router(admin_router.router)
+
+# Migration routes
+from app.routes import migration as migration_router
+app.include_router(migration_router.router)
 
 # Explicit SPA routes - these must come after API routes but before static files
 @app.get("/streamers")
