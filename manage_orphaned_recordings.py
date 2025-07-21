@@ -10,13 +10,24 @@ import asyncio
 import argparse
 import sys
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 
-# Add the app directory to the path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add the app directory to the path - more robust approach
+script_dir = Path(__file__).resolve().parent
+app_root = script_dir
+if app_root not in sys.path:
+    sys.path.insert(0, str(app_root))
 
-from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+# Verify we can import before proceeding
+try:
+    from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+except ImportError as e:
+    print(f"❌ Failed to import StreamVault modules. Make sure you're running from the project root: {e}")
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Script location: {script_dir}")
+    sys.exit(1)
 
 
 async def show_statistics(max_age_hours: int = 168):
