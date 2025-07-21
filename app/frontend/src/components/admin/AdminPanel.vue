@@ -116,6 +116,15 @@
       <WebSocketMonitor />
     </div>
 
+    <!-- Background Queue Monitoring -->
+    <div class="background-queue-section">
+      <div class="section-header">
+        <h2>Background Jobs & Services</h2>
+        <p class="section-description">Real-time monitoring of background tasks, recording services, and system processes</p>
+      </div>
+      <BackgroundQueueMonitor />
+    </div>
+
     <!-- Test Suite -->
     <div class="test-suite-section">
       <div class="section-header">
@@ -300,6 +309,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
+import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 
 // Reactive data
 const healthStatus = ref<any>(null)
@@ -677,6 +687,23 @@ onMounted(() => {
   padding: 20px;
   margin-bottom: 30px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* WebSocket and Background Queue Sections */
+.websocket-section,
+.background-queue-section {
+  background: var(--color-background-soft);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.section-description {
+  color: var(--color-text-light);
+  font-size: 0.9em;
+  margin: 5px 0 0 0;
+  font-style: italic;
 }
 
 .test-controls {
