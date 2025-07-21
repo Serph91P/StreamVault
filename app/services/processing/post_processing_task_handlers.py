@@ -428,6 +428,15 @@ class PostProcessingTaskHandlers:
                 removed_files=removed_files,
                 operation='cleanup_complete'
             )
+            
+            # Trigger database event for orphaned recovery after cleanup completion
+            try:
+                from app.services.recording.database_event_orphaned_recovery import on_post_processing_completed
+                recording_id = payload.get('recording_id')
+                if recording_id:
+                    await on_post_processing_completed(recording_id, "cleanup")
+            except Exception as e:
+                logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
                 
         except Exception as e:
             log_with_context(
