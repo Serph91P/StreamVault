@@ -222,7 +222,7 @@ class MetadataService:
             # Important for Plex: Store artwork in hidden .media directory
             if streamer.profile_image_url:
                 # Save artwork to .media directory (avoids Emby creating seasons from folders)
-                await artwork_service.save_streamer_artwork_to_media_directory(streamer)
+                await artwork_service.save_streamer_artwork(streamer)
                 
                 # Relative paths to .media directory from streamer directory
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
