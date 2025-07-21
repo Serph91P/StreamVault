@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Stream, Streamer
-from app.config.settings import settings
 from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
@@ -18,7 +17,8 @@ class ArtworkService:
     
     def __init__(self):
         # Use unified .media directory instead of separate .artwork
-        self.recordings_dir = Path(settings.RECORDINGS_DIR if hasattr(settings, 'RECORDINGS_DIR') else "/recordings")
+        # Hardcoded Docker path - always /recordings in container
+        self.recordings_dir = Path("/recordings")
         self.media_base_path = self.recordings_dir / ".media"
         self.artwork_base_path = self.media_base_path / "artwork"
         
