@@ -389,7 +389,7 @@ class EventHandlerRegistry:
                     else:
                         logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
                 
-                    # Send notification only via notification_service to avoid duplicates
+                    # Send notification via notification_service - settings check handled internally
                     logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
