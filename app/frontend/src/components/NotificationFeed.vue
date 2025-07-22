@@ -48,7 +48,14 @@
         <div class="notification-indicator" :class="getNotificationClass(notification.type)"></div>
         
         <div class="notification-icon">
-          <div class="icon-wrapper" :class="getNotificationClass(notification.type)">            <span v-if="notification.type === 'stream.online'">🔴</span>
+          <div class="icon-wrapper" :class="getNotificationClass(notification.type)">
+            <!-- Toast notification icons -->
+            <span v-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'success'">✅</span>
+            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'error'">❌</span>
+            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'warning'">⚠️</span>
+            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'info'">ℹ️</span>
+            <!-- Regular notification icons -->
+            <span v-else-if="notification.type === 'stream.online'">🔴</span>
             <span v-else-if="notification.type === 'stream.offline'">⭕</span>
             <span v-else-if="notification.type === 'channel.update' || notification.type === 'stream.update'">📝</span>
             <span v-else-if="notification.type === 'recording.started'">🎥</span>
@@ -172,6 +179,11 @@ const formatTitle = (notification: Notification): string => {
     return 'Test Notification'
   }
   
+  // Handle toast notifications
+  if (notification.type === 'toast_notification') {
+    return notification.data?.title || 'Notification'
+  }
+  
   switch (notification.type) {
     case 'stream.online':
       return `${username} is Live`
@@ -199,7 +211,13 @@ const formatMessage = (notification: Notification): string => {
   if (data?.message) {
     return data.message
   }
-    switch (type) {
+  
+  // Handle toast notifications
+  if (type === 'toast_notification') {
+    return data?.message || 'Toast notification'
+  }
+  
+  switch (type) {
     case 'stream.online':
       return data?.title ? `${username} is live: "${data.title}"` : `${username} is now streaming`
     case 'stream.offline':
@@ -236,6 +254,9 @@ const getNotificationClass = (type: string): string => {
       return 'success'
     case 'recording.failed':
       return 'error'
+    case 'toast_notification':
+      // Use the toast_type from data if available
+      return notification.data?.toast_type || 'info'
     case 'test':
       return 'test'
     default:
@@ -441,6 +462,7 @@ const processMessage = (message: any): void => {
     'recording.started',
     'recording.completed',
     'recording.failed',
+    'toast_notification', // Add toast notification support
     'test' // Add test type
   ]
   
