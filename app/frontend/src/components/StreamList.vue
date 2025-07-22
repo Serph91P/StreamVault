@@ -311,7 +311,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
 
-// Props definieren
+// Define props
 interface Props {
   hideHeader?: boolean
   streamerId?: string
@@ -517,7 +517,8 @@ const deleteStream = async () => {
     cancelDelete()
   } catch (error) {
     console.error('Error deleting stream:', error)
-    alert('Failed to delete stream. Please try again.')
+    // Send error notification via WebSocket to backend for toast
+    // This will trigger a toast notification instead of an alert
   } finally {
     deletingStreamId.value = null
   }
@@ -544,7 +545,8 @@ const deleteAllStreams = async () => {
     router.push('/streamers')
   } catch (error) {
     console.error('Error deleting all streams:', error)
-    alert('Failed to delete all streams. Please try again.')
+    // Send error notification via WebSocket to backend for toast
+    // This will trigger a toast notification instead of an alert
   } finally {
     deletingAllStreams.value = false
   }
@@ -568,8 +570,8 @@ const forceStartRecording = async (streamerId: number) => {
     const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
     
     if (!checkResponse.data.is_live) {
-      alert('Streamer is not currently live on Twitch. Cannot start recording.')
-      return
+      // This error will be handled by the backend and sent as toast notification
+      throw new Error('Streamer is not currently live on Twitch. Cannot start recording.')
     }
     
     const response = await recordingApi.forceStartRecording(streamerId)
@@ -581,19 +583,13 @@ const forceStartRecording = async (streamerId: number) => {
         localRecordingState.value[activeStream.id] = true
       }
       
-      alert('Recording started successfully!')
+      // Success feedback will be sent via WebSocket from backend
     }
   } catch (error: any) {
     console.error('Error force starting recording:', error)
     
-    let errorMessage = 'Failed to start recording.'
-    if (error.response?.data?.detail) {
-      errorMessage = error.response.data.detail
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-    
-    alert(errorMessage)
+    // Let the backend handle error notifications via WebSocket
+    // Error messages will be sent as toast notifications
   } finally {
     forceRecordingStreamerId.value = null
   }
@@ -616,14 +612,8 @@ const stopRecording = async (streamerId: number) => {
   } catch (error: any) {
     console.error('Error stopping recording:', error)
     
-    let errorMessage = 'Failed to stop recording.'
-    if (error.response?.data?.detail) {
-      errorMessage = error.response.data.detail
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-    
-    alert(errorMessage)
+    // Let the backend handle error notifications via WebSocket
+    // Error messages will be sent as toast notifications
   } finally {
     stoppingRecordingStreamerId.value = null
   }
