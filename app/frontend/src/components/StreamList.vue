@@ -909,12 +909,10 @@ onMounted(async () => {
   color: var(--text-primary);
   font-weight: 600;
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   flex: 1;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .stream-meta-badges {
@@ -996,12 +994,10 @@ onMounted(async () => {
   color: var(--text-primary);
   font-weight: 600;
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   flex: 1;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .stream-meta {
