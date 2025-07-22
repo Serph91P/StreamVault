@@ -25,8 +25,8 @@ class OrphanedRecoveryService:
     
     # Configuration constants
     DEFAULT_ORPHANED_RECORDINGS_LIMIT = 100
-    FILE_TOO_RECENT_THRESHOLD_SECONDS = 1800  # 30 minutes
-    MIN_FILE_SIZE_BYTES = 1024 * 1024  # 1MB minimum
+    FILE_TOO_RECENT_THRESHOLD_SECONDS = 1800  # 30 minutes - don't process files that are too recent
+    MIN_FILE_SIZE_BYTES = 1024 * 1024  # 1MB minimum file size requirement
     
     def __init__(self, recording_orchestrator: RecordingOrchestrator):
         self.recording_orchestrator = recording_orchestrator
