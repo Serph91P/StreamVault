@@ -604,7 +604,11 @@ const hasRecording = (stream: any): boolean => {
 
 // UI Actions
 const toggleStreamExpansion = (streamId: number) => {
-  expandedStreams.value[streamId] = !expandedStreams.value[streamId]
+  if (expandedStreams.value.has(streamId)) {
+    expandedStreams.value.delete(streamId)
+  } else {
+    expandedStreams.value.add(streamId)
+  }
 }
 
 const handleBack = () => {
