@@ -3,6 +3,17 @@ Process management for recording service.
 
 This module handles subprocess creation and management, specifically for streamlink recording processes.
 Includes support for 24h+ streams through segment splitting and automatic process rotation.
+
+Dependency Injection:
+    The ProcessManager can accept a post_processing_callback in its constructor or via 
+    set_post_processing_callback() to avoid circular imports and follow proper architecture.
+    
+    Example usage:
+        async def post_processing_callback(recording_id: int, file_path: str):
+            # Handle post-processing for completed recording
+            pass
+            
+        process_manager = ProcessManager(post_processing_callback=post_processing_callback)
 """
 import logging
 import asyncio
@@ -32,11 +43,12 @@ class ProcessManager:
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager=None, post_processing_callback=None):
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
         self.config_manager = config_manager
+        self.post_processing_callback = post_processing_callback  # Injected dependency
         
         # Configuration for long stream handling (avoid streamlink 24h cutoff)
         self.segment_duration_hours = 23.98  # Split streams at 23h59min to avoid streamlink cutoff
@@ -495,6 +507,16 @@ class ProcessManager:
             # Create new filename in parent directory
             final_path = parent_dir / concatenated_file.name
             
+            # Check if target file already exists and create unique name if needed
+            if final_path.exists():
+                counter = 1
+                base_name = final_path.stem
+                extension = final_path.suffix
+                while final_path.exists():
+                    final_path = parent_dir / f"{base_name}_copy{counter}{extension}"
+                    counter += 1
+                logger.warning(f"Target file existed, using unique name: {final_path}")
+            
             # Move the file
             if concatenated_file.exists():
                 shutil.move(str(concatenated_file), str(final_path))
@@ -509,36 +531,78 @@ class ProcessManager:
             logger.error(f"Error moving concatenated file: {e}", exc_info=True)
 
     async def _trigger_post_processing_for_segmented_recording(self, segment_info: Dict):
-        """Trigger post-processing for the segmented recording"""
+        """Trigger post-processing for the segmented recording using injected callback"""
         try:
             # Use the final output path (moved file) for post-processing
             output_path = segment_info.get('final_output_path', segment_info['base_output_path'])
             stream_id = segment_info['stream_id']
             
-            # Import here to avoid circular imports
+            if self.post_processing_callback:
+                # Use the injected callback to trigger post-processing
+                await self.post_processing_callback(
+                    recording_id=stream_id,
+                    file_path=output_path
+                )
+                logger.info(f"Triggered post-processing for segmented recording {stream_id} via callback")
+            else:
+                # Fallback to direct service access (with circular import handling)
+                logger.warning("No post-processing callback available, using fallback method")
+                await self._fallback_trigger_post_processing(stream_id, output_path)
+                
+        except Exception as e:
+            logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
+
+    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str):
+        """Fallback method for post-processing when no callback is injected"""
+        try:
+            # Import here to avoid circular imports (only used as fallback)
             from app.routes.recording import get_recording_service
             
-            # Get recording service and lifecycle manager
+            # Get recording service and orchestrator
             recording_service = get_recording_service()
             if recording_service and recording_service.orchestrator:
-                lifecycle_manager = recording_service.orchestrator.lifecycle_manager
-                
-                # First, update the recording status in database with the correct path
-                if lifecycle_manager.database_service:
-                    await lifecycle_manager.database_service.update_recording_status(
+                # Use the orchestrator's public enqueue_post_processing method
+                # First get the recording data
+                recording_data = recording_service.orchestrator.database_service.get_recording_by_id(stream_id)
+                if recording_data:
+                    # Update recording status first
+                    await recording_service.orchestrator.database_service.update_recording_status(
                         recording_id=stream_id,
                         status="completed",
                         path=output_path
                     )
-                
-                # Then trigger post-processing
-                await lifecycle_manager._trigger_post_processing(stream_id)
-                logger.info(f"Updated recording status and triggered post-processing for segmented recording {stream_id}")
+                    
+                    # Get additional data needed for post-processing
+                    stream_data = await recording_service.orchestrator.database_service.get_stream_by_id(recording_data.stream_id)
+                    if stream_data:
+                        streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
+                        if streamer_data:
+                            # Create recording data dict for post-processing
+                            recording_data_dict = {
+                                'streamer_name': streamer_data.username,
+                                'started_at': recording_data.started_at.isoformat() if recording_data.started_at else None,
+                                'stream_id': stream_data.id,
+                                'recording_id': stream_id
+                            }
+                            
+                            # Use the public enqueue_post_processing method
+                            await recording_service.orchestrator.enqueue_post_processing(
+                                recording_id=stream_id,
+                                ts_file_path=output_path,
+                                recording_data=recording_data_dict
+                            )
+                            logger.info(f"Enqueued post-processing for segmented recording {stream_id}")
+                        else:
+                            logger.error(f"Streamer data not found for recording {stream_id}")
+                    else:
+                        logger.error(f"Stream data not found for recording {stream_id}")
+                else:
+                    logger.error(f"Recording data not found for recording {stream_id}")
             else:
                 logger.warning(f"Could not trigger post-processing - recording service not available")
                 
         except Exception as e:
-            logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
+            logger.error(f"Error in fallback post-processing trigger: {e}", exc_info=True)
 
     async def _cleanup_segments(self, segment_info: Dict):
         """Clean up segment files after successful concatenation"""
@@ -762,3 +826,12 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
             return None
+
+    def set_post_processing_callback(self, callback):
+        """Set the post-processing callback for dependency injection
+        
+        Args:
+            callback: Async function that takes (recording_id, file_path) parameters
+        """
+        self.post_processing_callback = callback
+        logger.info("Post-processing callback set for ProcessManager")
