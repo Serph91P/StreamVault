@@ -470,13 +470,75 @@ class ProcessManager:
             if process.returncode == 0:
                 logger.info(f"Successfully concatenated segments into {output_path}")
                 
-                # Clean up segment files and directory
+                # Move concatenated file from segments directory to parent directory
+                await self._move_concatenated_file_to_parent(segment_info)
+                
+                # Trigger post-processing for the moved file
+                await self._trigger_post_processing_for_segmented_recording(segment_info)
+                
+                # Clean up segment files and directory only after post-processing starts
                 await self._cleanup_segments(segment_info)
             else:
                 logger.error(f"Failed to concatenate segments: {stderr.decode('utf-8', errors='replace')[:500]}")
                 
         except Exception as e:
             logger.error(f"Error finalizing segmented recording: {e}", exc_info=True)
+
+    async def _move_concatenated_file_to_parent(self, segment_info: Dict):
+        """Move concatenated TS file from segments directory to parent directory"""
+        try:
+            segment_dir = Path(segment_info['segment_dir'])
+            parent_dir = segment_dir.parent
+            concatenated_file = Path(segment_info['base_output_path'])
+            
+            # Create new filename in parent directory
+            final_path = parent_dir / concatenated_file.name
+            
+            # Move the file
+            if concatenated_file.exists():
+                import shutil
+                shutil.move(str(concatenated_file), str(final_path))
+                logger.info(f"Moved concatenated file from {concatenated_file} to {final_path}")
+                
+                # Update the segment_info with new path for post-processing
+                segment_info['final_output_path'] = str(final_path)
+            else:
+                logger.error(f"Concatenated file not found: {concatenated_file}")
+                
+        except Exception as e:
+            logger.error(f"Error moving concatenated file: {e}", exc_info=True)
+
+    async def _trigger_post_processing_for_segmented_recording(self, segment_info: Dict):
+        """Trigger post-processing for the segmented recording"""
+        try:
+            # Use the final output path (moved file) for post-processing
+            output_path = segment_info.get('final_output_path', segment_info['base_output_path'])
+            stream_id = segment_info['stream_id']
+            
+            # Import here to avoid circular imports
+            from app.routes.recording import get_recording_service
+            
+            # Get recording service and lifecycle manager
+            recording_service = get_recording_service()
+            if recording_service and recording_service.orchestrator:
+                lifecycle_manager = recording_service.orchestrator.lifecycle_manager
+                
+                # First, update the recording status in database with the correct path
+                if lifecycle_manager.database_service:
+                    await lifecycle_manager.database_service.update_recording_status(
+                        recording_id=stream_id,
+                        status="completed",
+                        path=output_path
+                    )
+                
+                # Then trigger post-processing
+                await lifecycle_manager._trigger_post_processing(stream_id)
+                logger.info(f"Updated recording status and triggered post-processing for segmented recording {stream_id}")
+            else:
+                logger.warning(f"Could not trigger post-processing - recording service not available")
+                
+        except Exception as e:
+            logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
 
     async def _cleanup_segments(self, segment_info: Dict):
         """Clean up segment files after successful concatenation"""
