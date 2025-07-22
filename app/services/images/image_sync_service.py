@@ -18,35 +18,42 @@ class ImageSyncService:
     def __init__(self):
         self._sync_queue = asyncio.Queue()
         self._sync_task = None
+        self._running = False
         
     async def start_sync_worker(self):
         """Start the background sync worker"""
         if self._sync_task is None or self._sync_task.done():
+            self._running = True
             self._sync_task = asyncio.create_task(self._sync_worker())
             logger.info("Image sync worker started")
-            
-            # Schedule initial sync as background task (non-blocking)
-            asyncio.create_task(self._initial_sync_delayed())
     
     async def stop_sync_worker(self):
         """Stop the background sync worker"""
+        self._running = False
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
             try:
                 await self._sync_task
             except asyncio.CancelledError:
                 pass
-            logger.info("Image sync worker stopped")
+        logger.info("Image sync worker stopped")
     
     async def _sync_worker(self):
         """Background worker that processes sync requests"""
-        while True:
+        logger.info("Image sync background worker started")
+        while self._running:
             try:
-                # Get next sync request
-                sync_request = await self._sync_queue.get()
-                
-                # Process the sync request
+                # Wait for sync request with timeout to check _running periodically
+                sync_request = await asyncio.wait_for(self._sync_queue.get(), timeout=5.0)
                 await self._process_sync_request(sync_request)
+            except asyncio.TimeoutError:
+                continue  # Check if still running
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in image sync worker: {e}")
+                await asyncio.sleep(1)
+        logger.info("Image sync background worker stopped")
                 
                 # Add delay between requests to avoid rate limiting
                 await asyncio.sleep(0.5)  # 500ms delay between requests
