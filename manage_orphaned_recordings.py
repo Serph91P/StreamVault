@@ -207,7 +207,7 @@ async def recover_specific(recording_id: int):
             print(f"📁 Found recording: {recording.path}")
             
             # Validate it's orphaned
-            validation = await recovery_service._validate_orphaned_recording(recording)
+            validation = await recovery_service.validate_orphaned_recording(recording)
             if not validation["valid"]:
                 print(f"❌ Recording is not suitable for recovery: {validation['reason']}")
                 return False
@@ -217,7 +217,7 @@ async def recover_specific(recording_id: int):
             print(f"   File age: {validation.get('file_age_seconds', 0) / 3600:.1f} hours")
             
             # Trigger recovery
-            success = await recovery_service._trigger_orphaned_recovery(recording, db)
+            success = await recovery_service.trigger_orphaned_recovery(recording, db)
             
             if success:
                 print(f"✅ Recovery triggered successfully for recording {recording_id}")

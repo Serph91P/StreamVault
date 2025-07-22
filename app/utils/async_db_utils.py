@@ -56,7 +56,10 @@ async def get_async_session():
     """Get an async database session context manager"""
     async_session = get_async_session_maker()
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 async def get_all_streamers() -> List[Streamer]:
