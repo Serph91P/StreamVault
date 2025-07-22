@@ -33,14 +33,14 @@
         
         <div class="header-actions">
           <button 
-            @click="forceStartRecording(streamerId)" 
+            @click="forceStartRecording(Number(streamerId))" 
             class="btn btn-success"
-            :disabled="forceRecordingStreamerId === streamerId"
+            :disabled="forceRecordingStreamerId === Number(streamerId)"
             title="Force Start Recording for this Streamer"
             aria-label="Force start recording for current streamer - checks if streamer is live and starts recording immediately"
-            :aria-describedby="forceRecordingStreamerId === streamerId ? 'force-recording-status' : undefined"
+            :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
           >
-            <span v-if="forceRecordingStreamerId === streamerId" id="force-recording-status">
+            <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
             </span>
             <span v-else>
@@ -203,7 +203,7 @@
           
           <!-- Expanded Details -->
           <div 
-            v-if="expandedStreams[stream.id]" 
+            v-if="expandedStreams.has(stream.id)" 
             class="stream-details"
             :id="`stream-details-${stream.id}`"
           >
@@ -272,9 +272,9 @@
                   </div>
                   
                   <!-- Additional Categories (if available from database) -->
-                  <div v-if="stream.categories && stream.categories.length > 1" class="additional-categories">
+                  <div v-if="(stream as any).categories && (stream as any).categories.length > 1" class="additional-categories">
                     <div 
-                      v-for="category in stream.categories.slice(1)" 
+                      v-for="category in (stream as any).categories.slice(1)" 
                       :key="category.name"
                       class="category-item"
                     >
@@ -346,9 +346,9 @@
                       </span>
                     </span>
                   </div>
-                  <div v-if="stream.recordings && stream.recordings.length > 0" class="status-item">
+                  <div v-if="(stream as any).recordings && (stream as any).recordings.length > 0" class="status-item">
                     <span class="status-label">Recording Files:</span>
-                    <span class="status-value">{{ stream.recordings.length }} file(s)</span>
+                    <span class="status-value">{{ (stream as any).recordings.length }} file(s)</span>
                   </div>
                 </div>
               </div>
@@ -474,7 +474,7 @@ const { messages } = useWebSocket()
 const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 
 // UI State
-const expandedStreams = ref<Record<number, boolean>>({})
+const expandedStreams = ref<Set<number>>(new Set())
 const deletingStreamId = ref<number | null>(null)
 const deletingAllStreams = ref(false)
 const showDeleteModal = ref(false)
@@ -780,6 +780,48 @@ const stopRecording = async (streamerId: number) => {
     // Let the backend handle error notifications via WebSocket
     // Error messages will be sent as toast notifications
     // Don't show additional UI errors here to avoid double notifications
+  } finally {
+    stoppingRecordingStreamerId.value = null
+  }
+}
+
+// UI Actions
+const toggleDetails = (streamId: number) => {
+  if (expandedStreams.value.has(streamId)) {
+    expandedStreams.value.delete(streamId)
+  } else {
+    expandedStreams.value.add(streamId)
+  }
+}
+
+const hasActiveRecording = (stream: any): boolean => {
+  return isStreamBeingRecorded(stream)
+}
+
+const forceStopRecording = async (stream: any) => {
+  if (!stream || stream.ended_at) return
+  
+  const streamerId = Number(stream.streamer_id)
+  stoppingRecordingStreamerId.value = streamerId
+  
+  try {
+    const response = await fetch(`/api/recordings/force-stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ streamer_id: streamerId })
+    })
+    
+    if (response.ok) {
+      console.log('Force stop recording successful')
+      // Update local state immediately
+      localRecordingState.value[stream.id] = false
+    } else {
+      console.error('Force stop recording failed')
+    }
+  } catch (error) {
+    console.error('Error force stopping recording:', error)
   } finally {
     stoppingRecordingStreamerId.value = null
   }
