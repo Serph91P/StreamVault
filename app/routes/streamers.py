@@ -232,6 +232,36 @@ async def debug_live_status(
         logger.error(f"Error in debug_live_status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/{streamer_id}/live-status")
+async def check_streamer_live_status(
+    streamer_id: int,
+    db: Session = Depends(get_db),
+    streamer_service: StreamerService = Depends(get_streamer_service)
+):
+    """Check if a specific streamer is currently live via Twitch API"""
+    try:
+        # Get streamer from database
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        # Check live status via Twitch API
+        is_live = await streamer_service.check_streamer_live_status(streamer.twitch_id)
+        
+        return {
+            "streamer_id": streamer_id,
+            "username": streamer.username,
+            "twitch_id": streamer.twitch_id,
+            "is_live": is_live,
+            "database_is_live": streamer.is_live,  # What the database thinks
+            "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking live status for streamer {streamer_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{username}")
 async def add_streamer(
     username: str,
