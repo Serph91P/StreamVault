@@ -9,7 +9,7 @@ import shutil
 import logging
 import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union, Awaitable, Any
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -48,7 +48,7 @@ class ImageMigrationService:
             # Process streamers in batches for better performance
             async for batch in batch_process_items(streamers, batch_size=5, max_concurrent=2):
                 # Create task-to-streamer mapping for O(1) lookup performance
-                task_to_streamer_map = {}
+                task_to_streamer_map: Dict[Awaitable[Any], Streamer] = {}
                 tasks = []
                 
                 for streamer in batch:
@@ -208,10 +208,17 @@ class ImageMigrationService:
         
         return result
     
-    def _get_streamer_for_task(self, task_to_streamer_map: Dict, task) -> Optional[Streamer]:
+    def _get_streamer_for_task(self, task_to_streamer_map: Dict[Awaitable[Any], Streamer], task: Awaitable[Any]) -> Optional[Streamer]:
         """
         Helper function to get streamer associated with a task.
         Uses O(1) dictionary lookup instead of O(n) linear search.
+        
+        Args:
+            task_to_streamer_map: Dictionary mapping awaitable objects (Tasks/Futures) to Streamer instances
+            task: The awaitable object to look up (Task or Future from as_completed)
+            
+        Returns:
+            The Streamer associated with the task, or None if not found
         """
         return task_to_streamer_map.get(task)
     
