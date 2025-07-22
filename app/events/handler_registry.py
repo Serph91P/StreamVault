@@ -9,6 +9,7 @@ from app.database import SessionLocal
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
+from app.services.recording.config_manager import ConfigManager
 from app.services.api.twitch_api import twitch_api
 from app.models import (
     Streamer, 
@@ -27,6 +28,7 @@ logger = logging.getLogger('streamvault')
 class EventHandlerRegistry:
     def __init__(self, connection_manager: ConnectionManager, settings=None):
         self.recording_service = RecordingService()
+        self.config_manager = ConfigManager()
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -251,10 +253,7 @@ class EventHandlerRegistry:
                     logger.info(f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}")
 
                     # Check if recording is enabled for this streamer before starting
-                    from app.services.recording.config_manager import ConfigManager
-                    config_manager = ConfigManager()
-                    
-                    if config_manager.is_recording_enabled(streamer.id):
+                    if self.config_manager.is_recording_enabled(streamer.id):
                         logger.info(f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})")
                         streamer_id = streamer.id
                         stream_id = stream.id
