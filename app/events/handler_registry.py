@@ -250,9 +250,17 @@ class EventHandlerRegistry:
                     
                     logger.info(f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}")
 
-                    streamer_id = streamer.id
-                    stream_id = stream.id
-                    await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
+                    # Check if recording is enabled for this streamer before starting
+                    from app.services.recording.config_manager import ConfigManager
+                    config_manager = ConfigManager()
+                    
+                    if config_manager.is_recording_enabled(streamer.id):
+                        logger.info(f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})")
+                        streamer_id = streamer.id
+                        stream_id = stream.id
+                        await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
+                    else:
+                        logger.info(f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer")
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
