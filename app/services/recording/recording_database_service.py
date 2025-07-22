@@ -237,10 +237,10 @@ class RecordingDatabaseService:
 
     @database_retry
     async def get_stream_by_external_id(self, external_id: str) -> Optional[Stream]:
-        """Get stream by external ID"""
+        """Get stream by external ID (twitch_stream_id)"""
         try:
             self._ensure_db_session()
-            return self.db.query(Stream).filter(Stream.external_id == external_id).first()
+            return self.db.query(Stream).filter(Stream.twitch_stream_id == external_id).first()
         except Exception as e:
             logger.error(f"Failed to get stream by external ID {external_id}: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -258,8 +258,7 @@ class RecordingDatabaseService:
                 category_name=stream_data.get('category_name', 'Unknown'),
                 language=stream_data.get('language', 'en'),
                 started_at=stream_data.get('started_at', datetime.now()),
-                is_live=stream_data.get('is_live', True),
-                external_id=stream_data.get('external_id', 'unknown')
+                twitch_stream_id=stream_data.get('external_id', 'unknown')
             )
             
             self.db.add(stream)
