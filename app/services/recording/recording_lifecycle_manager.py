@@ -896,7 +896,7 @@ class RecordingLifecycleManager:
         """Get existing stream or create new one"""
         try:
             # Check if stream already exists
-            existing_stream = await self.database_service.get_stream_by_external_id(
+            existing_stream = await self.database_service.get_stream_by_twitch_stream_id(
                 stream_info.get('id', 'Unknown')
             )
             
@@ -911,7 +911,7 @@ class RecordingLifecycleManager:
                 'language': stream_info.get('language', 'en'),
                 'started_at': datetime.now(),
                 'is_live': True,
-                'external_id': stream_info.get('id', 'Unknown')
+                'twitch_stream_id': stream_info.get('id', 'Unknown')  # Use consistent field name
             }
             
             return await self.database_service.create_stream(stream_data)

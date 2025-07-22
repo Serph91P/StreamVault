@@ -33,12 +33,35 @@
         
         <div class="header-actions">
           <button 
+            @click="forceStartRecording(streamerId)" 
+            class="btn btn-success"
+            :disabled="forceRecordingStreamerId === streamerId"
+            title="Force Start Recording for this Streamer"
+            aria-label="Force start recording for current streamer - checks if streamer is live and starts recording immediately"
+            :aria-describedby="forceRecordingStreamerId === streamerId ? 'force-recording-status' : undefined"
+          >
+            <span v-if="forceRecordingStreamerId === streamerId" id="force-recording-status">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
+            </span>
+            <span v-else>
+              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record
+            </span>
+          </button>
+          
+          <button 
             v-if="streams.length > 1"
             @click="confirmDeleteAllStreams" 
             class="btn btn-danger"
             :disabled="deletingAllStreams"
+            aria-label="Delete all streams for this streamer permanently"
+            :aria-describedby="deletingAllStreams ? 'delete-all-status' : undefined"
           >
-            🗑️ {{ deletingAllStreams ? 'Deleting...' : `Delete All (${streams.length})` }}
+            <span v-if="deletingAllStreams" id="delete-all-status">
+              🗑️ Deleting...
+            </span>
+            <span v-else>
+              🗑️ Delete All ({{ streams.length }})
+            </span>
           </button>
         </div>
       </div>
@@ -54,88 +77,46 @@
             'recording': isStreamBeingRecorded(stream)
           }"
         >
-          <!-- Stream Thumbnail -->
-          <div class="stream-thumbnail">
-            <div class="thumbnail-container">
-              <!-- Category/Game Image -->
-              <div v-if="stream.category_name" class="category-image-container">
-                <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
-                  <div class="category-icon">
-                    <i :class="`fas ${getCategoryImageSrc(stream.category_name).replace('icon:', '')}`"></i>
-                  </div>
-                </template>
-                <template v-else>
-                  <img 
-                    :src="getCategoryImageSrc(stream.category_name)"
-                    :alt="stream.category_name" 
-                    @error="handleImageError($event, stream.category_name)"
-                    loading="lazy"
-                    class="category-image"
-                  />
-                </template>
-                <div class="category-overlay">
-                  <span class="category-label">{{ stream.category_name }}</span>
-                </div>
-              </div>
-              <div v-else class="category-placeholder">
-                <div class="placeholder-content">
-                  <i class="fas fa-gamepad"></i>
-                  <span>No Category</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
           <!-- Stream Info -->
           <div class="stream-info">
             <div class="stream-header">
-              <h3 class="stream-title">{{ stream.title || 'Untitled Stream' }}</h3>
+              <div class="title-and-badges">
+                <h3 class="stream-title">{{ stream.title || 'Untitled Stream' }}</h3>
+                <div class="stream-meta-badges">
+                  <span v-if="!stream.ended_at" class="status-badge live">
+                    <i class="fas fa-circle"></i> LIVE
+                  </span>
+                  <span v-else class="status-badge ended">
+                    <i class="fas fa-stop-circle"></i> ENDED
+                  </span>
+                  
+                  <span 
+                    v-if="!stream.ended_at && isStreamBeingRecorded(stream)" 
+                    class="status-badge recording"
+                  >
+                    <i class="fas fa-record-vinyl recording-pulse"></i> RECORDING
+                  </span>
+                  <span 
+                    v-else-if="!stream.ended_at" 
+                    class="status-badge not-recording"
+                  >
+                    <i class="fas fa-circle-o"></i> NOT RECORDING
+                  </span>
+                  
+                  <span 
+                    v-if="stream.ended_at && hasRecording(stream)" 
+                    class="status-badge has-recording"
+                  >
+                    <i class="fas fa-video"></i> VIDEO
+                  </span>
+                </div>
+              </div>
+              
               <div class="stream-meta">
                 <span class="stream-date">{{ formatDate(stream.started_at) }}</span>
                 <span v-if="stream.category_name" class="stream-category">
                   <i class="fas fa-tag"></i> {{ stream.category_name }}
                 </span>
-                <span class="stream-duration">
-                  <i class="fas fa-clock"></i> {{ calculateDuration(stream) }}
-                </span>
-              </div>
-              
-              <!-- Recording Status Indicator -->
-              <div class="recording-status">
-                <div v-if="!stream.ended_at" class="live-status">
-                  <span class="status-indicator live">
-                    <i class="fas fa-circle"></i> LIVE
-                  </span>
-                  <span 
-                    v-if="isStreamBeingRecorded(stream)" 
-                    class="status-indicator recording"
-                  >
-                    <i class="fas fa-record-vinyl recording-pulse"></i> RECORDING
-                  </span>
-                  <span 
-                    v-else 
-                    class="status-indicator not-recording"
-                  >
-                    <i class="fas fa-circle-o"></i> NOT RECORDING
-                  </span>
-                </div>
-                <div v-else class="ended-status">
-                  <span class="status-indicator ended">
-                    <i class="fas fa-stop-circle"></i> ENDED
-                  </span>
-                  <span 
-                    v-if="hasRecording(stream)" 
-                    class="status-indicator has-recording"
-                  >
-                    <i class="fas fa-video"></i> VIDEO AVAILABLE
-                  </span>
-                  <span 
-                    v-else 
-                    class="status-indicator no-recording"
-                  >
-                    <i class="fas fa-video-slash"></i> NO VIDEO
-                  </span>
-                </div>
               </div>
             </div>
             
@@ -149,8 +130,9 @@
                   @click="watchVideo(stream)" 
                   class="btn btn-primary action-btn"
                   title="Watch Video"
+                  :aria-label="`Watch recorded video of ${stream.title || 'Untitled Stream'}`"
                 >
-                  <i class="fas fa-play"></i> Watch Video
+                  <i class="fas fa-play" aria-hidden="true"></i> Watch Video
                 </button>
                 
                 <!-- Force Start Recording Button - ALWAYS AVAILABLE -->
@@ -159,56 +141,60 @@
                   class="btn btn-success action-btn"
                   :disabled="forceRecordingStreamerId === stream.streamer_id || (!stream.ended_at && isStreamBeingRecorded(stream))"
                   :title="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Already Recording' : 'Force Start Recording (checks if really live)'"
+                  :aria-label="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Recording already in progress for this stream' : `Force start recording for ${stream.title || 'Untitled Stream'} - validates if streamer is live first`"
+                  :aria-describedby="forceRecordingStreamerId === stream.streamer_id ? `force-recording-status-${stream.id}` : undefined"
                 >
-                  <span v-if="forceRecordingStreamerId === stream.streamer_id">
-                    <i class="fas fa-spinner fa-spin"></i> Starting...
+                  <span v-if="forceRecordingStreamerId === stream.streamer_id" :id="`force-recording-status-${stream.id}`">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
                   </span>
                   <span v-else>
-                    <i class="fas fa-record-vinyl"></i> Force Recording
+                    <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Recording
                   </span>
                 </button>
                 
                 <!-- Stop Recording Button (for active recordings) -->
+                                <!-- Stop Recording Button -->
                 <button 
-                  v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
-                  @click="stopRecording(stream.streamer_id)" 
-                  class="btn btn-warning action-btn"
-                  :disabled="stoppingRecordingStreamerId === stream.streamer_id"
+                  v-if="!stream.ended_at && hasActiveRecording(stream)"
+                  @click="forceStopRecording(stream)" 
+                  class="btn btn-danger action-btn"
                   title="Stop Recording"
+                  :aria-label="`Stop recording ${stream.title || 'stream'} (currently recording)`"
                 >
-                  <span v-if="stoppingRecordingStreamerId === stream.streamer_id">
-                    <i class="fas fa-spinner fa-spin"></i> Stopping...
-                  </span>
-                  <span v-else>
-                    <i class="fas fa-stop"></i> Stop Recording
-                  </span>
+                  <i class="fas fa-stop" aria-hidden="true"></i> Stop Recording
                 </button>
               </div>
               
               <!-- Secondary Actions -->
               <div class="secondary-actions">
                 <!-- Details Toggle Button -->
+                <!-- Details Toggle Button -->
                 <button 
-                  @click="toggleStreamExpansion(stream.id)"
-                  class="btn btn-secondary action-btn"
-                  title="Show/Hide Details"
+                  @click="toggleDetails(stream.id)" 
+                  class="btn btn-secondary details-toggle"
+                  :title="expandedStreams.has(stream.id) ? 'Hide details' : 'Show details'"
+                  :aria-label="`${expandedStreams.has(stream.id) ? 'Hide' : 'Show'} details for ${stream.title || 'stream'}`"
+                  :aria-expanded="expandedStreams.has(stream.id)"
+                  :aria-controls="`stream-details-${stream.id}`"
                 >
-                  <i :class="expandedStreams[stream.id] ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
-                  {{ expandedStreams[stream.id] ? 'Hide' : 'Show' }} Details
-                </button>
-                
-                <!-- Delete Stream Button -->
+                  <i 
+                    :class="['fas', expandedStreams.has(stream.id) ? 'fa-chevron-up' : 'fa-chevron-down']" 
+                    aria-hidden="true"
+                  ></i>
+                  {{ expandedStreams.has(stream.id) ? 'Hide Details' : 'Show Details' }}
+                </button>                <!-- Delete Stream Button -->
                 <button 
                   @click="confirmDeleteStream(stream)" 
                   class="btn btn-danger action-btn" 
                   :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamBeingRecorded(stream))"
                   title="Delete Stream"
+                  :aria-label="`Delete stream ${stream.title || 'Untitled Stream'} - this action cannot be undone`"
                 >
                   <span v-if="deletingStreamId === stream.id">
-                    <i class="fas fa-spinner fa-spin"></i>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                   </span>
                   <span v-else>
-                    <i class="fas fa-trash"></i>
+                    <i class="fas fa-trash" aria-hidden="true"></i>
                   </span>
                 </button>
               </div>
@@ -216,38 +202,155 @@
           </div>
           
           <!-- Expanded Details -->
-          <div v-if="expandedStreams[stream.id]" class="stream-details">
-            <div class="details-grid">
-              <div class="detail-item">
-                <span class="detail-label">Duration:</span>
-                <span class="detail-value">{{ calculateDuration(stream) }}</span>
+          <div 
+            v-if="expandedStreams[stream.id]" 
+            class="stream-details"
+            :id="`stream-details-${stream.id}`"
+          >
+            <div class="details-sections">
+              <!-- Basic Information Section -->
+              <div class="details-section">
+                <h4 class="section-title">
+                  <i class="fas fa-info-circle"></i> Stream Information
+                </h4>
+                <div class="details-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Duration:</span>
+                    <span class="detail-value">{{ calculateDuration(stream) }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Started:</span>
+                    <span class="detail-value">{{ formatDate(stream.started_at) }}</span>
+                  </div>
+                  <div v-if="stream.ended_at" class="detail-item">
+                    <span class="detail-label">Ended:</span>
+                    <span class="detail-value">{{ formatDate(stream.ended_at) }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Language:</span>
+                    <span class="detail-value">{{ stream.language || 'Unknown' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Stream ID:</span>
+                    <span class="detail-value">{{ stream.id }}</span>
+                  </div>
+                  <div v-if="stream.twitch_stream_id" class="detail-item">
+                    <span class="detail-label">Twitch Stream ID:</span>
+                    <span class="detail-value">{{ stream.twitch_stream_id }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="detail-item">
-                <span class="detail-label">Started:</span>
-                <span class="detail-value">{{ formatDate(stream.started_at) }}</span>
+
+              <!-- Categories Section -->
+              <div class="details-section">
+                <h4 class="section-title">
+                  <i class="fas fa-tags"></i> Categories
+                </h4>
+                <div class="categories-container">
+                  <!-- Current/Main Category -->
+                  <div v-if="stream.category_name" class="category-item main-category">
+                    <div class="category-image-wrapper">
+                      <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
+                        <div class="category-icon-small">
+                          <i :class="`fas ${getCategoryImageSrc(stream.category_name).replace('icon:', '')}`"></i>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <img 
+                          :src="getCategoryImageSrc(stream.category_name)"
+                          :alt="stream.category_name" 
+                          @error="handleImageError($event, stream.category_name)"
+                          loading="lazy"
+                          class="category-image-small"
+                        />
+                      </template>
+                    </div>
+                    <div class="category-info">
+                      <span class="category-name">{{ stream.category_name }}</span>
+                      <span class="category-type">Main Category</span>
+                    </div>
+                  </div>
+                  
+                  <!-- Additional Categories (if available from database) -->
+                  <div v-if="stream.categories && stream.categories.length > 1" class="additional-categories">
+                    <div 
+                      v-for="category in stream.categories.slice(1)" 
+                      :key="category.name"
+                      class="category-item"
+                    >
+                      <div class="category-image-wrapper">
+                        <template v-if="getCategoryImageSrc(category.name).startsWith('icon:')">
+                          <div class="category-icon-small">
+                            <i :class="`fas ${getCategoryImageSrc(category.name).replace('icon:', '')}`"></i>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <img 
+                            :src="getCategoryImageSrc(category.name)"
+                            :alt="category.name" 
+                            @error="handleImageError($event, category.name)"
+                            loading="lazy"
+                            class="category-image-small"
+                          />
+                        </template>
+                      </div>
+                      <div class="category-info">
+                        <span class="category-name">{{ category.name }}</span>
+                        <span v-if="category.duration" class="category-duration">
+                          {{ formatDuration(category.duration) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Fallback if no categories -->
+                  <div v-if="!stream.category_name" class="no-categories">
+                    <i class="fas fa-question-circle"></i>
+                    <span>No category information available</span>
+                  </div>
+                </div>
               </div>
-              <div v-if="stream.ended_at" class="detail-item">
-                <span class="detail-label">Ended:</span>
-                <span class="detail-value">{{ formatDate(stream.ended_at) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Category:</span>
-                <span class="detail-value">{{ stream.category_name || 'Unknown' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Language:</span>
-                <span class="detail-value">{{ stream.language || 'Unknown' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Recording:</span>
-                <span class="detail-value">
-                  <span v-if="!stream.ended_at">
-                    {{ isStreamBeingRecorded(stream) ? '🔴 Recording' : '⭕ Not Recording' }}
-                  </span>
-                  <span v-else>
-                    {{ hasRecording(stream) ? '✅ Available' : '❌ Not Available' }}
-                  </span>
-                </span>
+
+              <!-- Recording Status Section -->
+              <div class="details-section">
+                <h4 class="section-title">
+                  <i class="fas fa-video"></i> Recording Status
+                </h4>
+                <div class="recording-status-details">
+                  <div class="status-item">
+                    <span class="status-label">Current Status:</span>
+                    <span class="status-value">
+                      <span v-if="!stream.ended_at">
+                        <span v-if="isStreamBeingRecorded(stream)" class="status-recording">
+                          <i class="fas fa-record-vinyl recording-pulse"></i> Currently Recording
+                        </span>
+                        <span v-else class="status-not-recording">
+                          <i class="fas fa-circle-o"></i> Not Recording
+                        </span>
+                      </span>
+                      <span v-else>
+                        <span class="status-ended">
+                          <i class="fas fa-stop-circle"></i> Stream Ended
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                  <div class="status-item">
+                    <span class="status-label">Recording Available:</span>
+                    <span class="status-value">
+                      <span v-if="hasRecording(stream)" class="status-available">
+                        <i class="fas fa-check-circle"></i> Yes
+                      </span>
+                      <span v-else class="status-unavailable">
+                        <i class="fas fa-times-circle"></i> No
+                      </span>
+                    </span>
+                  </div>
+                  <div v-if="stream.recordings && stream.recordings.length > 0" class="status-item">
+                    <span class="status-label">Recording Files:</span>
+                    <span class="status-value">{{ stream.recordings.length }} file(s)</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -260,7 +363,13 @@
       <div class="modal">
         <div class="modal-header">
           <h3>Delete Stream</h3>
-          <button @click="cancelDelete" class="close-btn">×</button>
+          <button 
+            @click="cancelDelete" 
+            class="close-btn"
+            aria-label="Close delete confirmation dialog"
+          >
+            ×
+          </button>
         </div>
         <div class="modal-body">
           <p>Are you sure you want to delete this stream?</p>
@@ -272,8 +381,19 @@
           <p class="warning">⚠️ This action cannot be undone and will delete all associated files.</p>
         </div>
         <div class="modal-actions">
-          <button @click="cancelDelete" class="btn btn-secondary">Cancel</button>
-          <button @click="deleteStream" class="btn btn-danger" :disabled="deletingStreamId !== null">
+          <button 
+            @click="cancelDelete" 
+            class="btn btn-secondary"
+            aria-label="Cancel stream deletion"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="deleteStream" 
+            class="btn btn-danger" 
+            :disabled="deletingStreamId !== null"
+            :aria-label="`Confirm deletion of stream ${streamToDelete?.title || 'Untitled'} - this action cannot be undone`"
+          >
             {{ deletingStreamId !== null ? '⏳ Deleting...' : '🗑️ Delete Stream' }}
           </button>
         </div>
@@ -285,15 +405,32 @@
       <div class="modal">
         <div class="modal-header">
           <h3>Delete All Streams</h3>
-          <button @click="cancelDeleteAll" class="close-btn">×</button>
+          <button 
+            @click="cancelDeleteAll" 
+            class="close-btn"
+            aria-label="Close delete all confirmation dialog"
+          >
+            ×
+          </button>
         </div>
         <div class="modal-body">
           <p>Delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
           <p class="warning">⚠️ This will permanently delete all stream records and files. This action cannot be undone!</p>
         </div>
         <div class="modal-actions">
-          <button @click="cancelDeleteAll" class="btn btn-secondary">Cancel</button>
-          <button @click="deleteAllStreams" class="btn btn-danger" :disabled="deletingAllStreams">
+          <button 
+            @click="cancelDeleteAll" 
+            class="btn btn-secondary"
+            aria-label="Cancel delete all operation"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="deleteAllStreams" 
+            class="btn btn-danger" 
+            :disabled="deletingAllStreams"
+            :aria-label="`Confirm deletion of all ${streams.length} streams - this action cannot be undone`"
+          >
             {{ deletingAllStreams ? '⏳ Deleting...' : '🗑️ Delete All Streams' }}
           </button>
         </div>
@@ -439,6 +576,17 @@ const calculateDuration = (stream: any): string => {
   const start = new Date(stream.started_at)
   const end = new Date(stream.ended_at)
   const durationMs = end.getTime() - start.getTime()
+  const hours = Math.floor(durationMs / (1000 * 60 * 60))
+  const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  } else {
+    return `${minutes}m`
+  }
+}
+
+const formatDuration = (durationMs: number): string => {
   const hours = Math.floor(durationMs / (1000 * 60 * 60))
   const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
   
@@ -785,79 +933,25 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
 }
 
-.stream-thumbnail {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-
-.thumbnail-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.category-image-container {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.category-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.category-icon, .category-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--background-darker);
-  color: var(--text-secondary);
-  font-size: 3rem;
-}
-
-.status-badges {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  gap: 8px;
-  flex-direction: column;
-}
-
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  background: var(--background-darker);
-  color: var(--text-secondary);
-}
-
-.status-badge.live {
-  background: var(--danger-color);
-  color: white;
-}
-
-.recording-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  background: var(--success-color);
-  color: white;
-}
-
+/* New simplified header styles */
 .stream-info {
   padding: 20px;
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 15px;
+}
+
+.stream-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title-and-badges {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 15px;
 }
 
@@ -867,33 +961,20 @@ onMounted(async () => {
   color: var(--text-primary);
   font-weight: 600;
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  flex: 1;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
-.stream-meta {
+.stream-meta-badges {
   display: flex;
+  gap: 6px;
   flex-wrap: wrap;
-  gap: 12px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
-/* Recording Status Indicators */
-.recording-status {
-  margin-top: 8px;
-}
-
-.live-status, .ended-status {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.status-indicator {
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -904,34 +985,29 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 
-.status-indicator.live {
+.status-badge.live {
   background: #ef4444;
   color: white;
 }
 
-.status-indicator.recording {
+.status-badge.ended {
+  background: #6b7280;
+  color: white;
+}
+
+.status-badge.recording {
   background: #22c55e;
   color: white;
 }
 
-.status-indicator.not-recording {
+.status-badge.not-recording {
   background: #6b7280;
   color: white;
 }
 
-.status-indicator.ended {
-  background: #374151;
-  color: #d1d5db;
-}
-
-.status-indicator.has-recording {
+.status-badge.has-recording {
   background: #3b82f6;
   color: white;
-}
-
-.status-indicator.no-recording {
-  background: #6b7280;
-  color: #d1d5db;
 }
 
 .recording-pulse {
@@ -943,34 +1019,111 @@ onMounted(async () => {
   50% { opacity: 0.5; }
 }
 
-/* Improved Category Placeholder */
-.category-placeholder .placeholder-content {
+.stream-info {
+  padding: 20px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 1rem;
-  text-align: center;
+  gap: 15px;
 }
 
-.category-placeholder .placeholder-content i {
-  font-size: 2rem;
+.stream-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title-and-badges {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.stream-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.3;
+  flex: 1;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.stream-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
-.category-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  color: white;
-  padding: 8px 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
+.stream-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-/* Improved Button Styling */
+.stream-meta-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.recording-pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Header Actions Styling */
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.header-actions .btn {
+  font-weight: 600;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header-actions .btn-success {
+  background: #22c55e;
+  color: white;
+  border-color: #16a34a;
+}
+
+.header-actions .btn-success:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #15803d;
+}
+
+.header-actions .btn-danger {
+  background: #ef4444;
+  color: white;
+  border-color: #dc2626;
+}
+
+.header-actions .btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #b91c1c;
+}
+
+/* Button Styling */
 .stream-actions {
   display: flex;
   flex-direction: column;
@@ -1130,6 +1283,34 @@ onMounted(async () => {
   background: var(--background-darker);
 }
 
+/* New details sections styling */
+.details-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.details-section {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 16px;
+}
+
+.section-title {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title i {
+  color: var(--primary-color);
+}
+
 .details-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1151,6 +1332,141 @@ onMounted(async () => {
 .detail-value {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+/* Categories Section Styling */
+.categories-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: var(--background-darker);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.category-item.main-category {
+  border-color: var(--primary-color);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.category-image-wrapper {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--background-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-image-small {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-icon-small {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+}
+
+.category-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.category-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.category-type {
+  font-size: 0.8rem;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.category-duration {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.additional-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.no-categories {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Recording Status Details */
+.recording-status-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.status-item:last-child {
+  border-bottom: none;
+}
+
+.status-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.status-value {
+  font-weight: 600;
+}
+
+.status-recording {
+  color: #22c55e;
+}
+
+.status-not-recording {
+  color: #6b7280;
+}
+
+.status-ended {
+  color: #6b7280;
+}
+
+.status-available {
+  color: #22c55e;
+}
+
+.status-unavailable {
+  color: #ef4444;
 }
 
 .btn {
