@@ -251,7 +251,7 @@ const handleImageError = (event: Event) => {
 // Initialize component
 onMounted(() => {
   fetchCategories();
-});// Debug-Output
+}); // Debug-Output
 watch(categories, (newCategories) => {
   if (newCategories.length > 0) {
     
