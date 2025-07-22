@@ -12,17 +12,18 @@
       <h3>No Streams Found</h3>
       <p>This streamer hasn't streamed yet or all streams have been deleted.</p>
       <button @click="handleBack" class="btn btn-primary">
-        ← Back to Streamers
+        <i class="fas fa-arrow-left"></i> Back to Streamers
       </button>
     </div>
     
     <!-- Streams Content -->
     <div v-else class="streams-content">
-      <!-- Header -->
-      <div class="page-header">
+      <!-- Header (conditional) -->
+      <div v-if="!hideHeader" class="page-header">
         <div class="header-left">
           <button @click="handleBack" class="back-button">
-            ← Streamers
+            <i class="fas fa-arrow-left"></i>
+            Streamers
           </button>
           <div class="header-info">
             <h1>{{ streamerName || 'Recent Streams' }}</h1>
@@ -152,13 +153,12 @@
                   <i class="fas fa-play"></i> Watch Video
                 </button>
                 
-                <!-- Force Start Recording Button (for live streams without recording) -->
+                <!-- Force Start Recording Button - ALWAYS AVAILABLE -->
                 <button 
-                  v-if="!stream.ended_at && !isStreamBeingRecorded(stream)"
                   @click="forceStartRecording(stream.streamer_id)" 
                   class="btn btn-success action-btn"
-                  :disabled="forceRecordingStreamerId === stream.streamer_id"
-                  title="Force Start Recording"
+                  :disabled="forceRecordingStreamerId === stream.streamer_id || (!stream.ended_at && isStreamBeingRecorded(stream))"
+                  :title="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Already Recording' : 'Force Start Recording (checks if really live)'"
                 >
                   <span v-if="forceRecordingStreamerId === stream.streamer_id">
                     <i class="fas fa-spinner fa-spin"></i> Starting...
@@ -311,10 +311,25 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
 
+// Props definieren
+interface Props {
+  hideHeader?: boolean
+  streamerId?: string
+  streamerName?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  hideHeader: false,
+  streamerId: '',
+  streamerName: ''
+})
+
 const route = useRoute()
 const router = useRouter()
-const streamerId = computed(() => route.params.id as string || route.query.id as string)
-const streamerName = computed(() => route.query.name as string)
+
+// Use props or route parameters
+const streamerId = computed(() => props.streamerId || route.params.id as string || route.query.id as string)
+const streamerName = computed(() => props.streamerName || route.query.name as string)
 
 const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
@@ -445,6 +460,11 @@ const toggleStreamExpansion = (streamId: number) => {
 }
 
 const handleBack = () => {
+  if (props.hideHeader) {
+    // In embedded mode, emit event to parent instead of navigating
+    // This allows the parent component to handle the navigation
+    return
+  }
   router.push('/streamers')
 }
 
@@ -544,6 +564,14 @@ const forceStartRecording = async (streamerId: number) => {
   try {
     forceRecordingStreamerId.value = streamerId
     
+    // First check if streamer is really live via Twitch API
+    const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
+    
+    if (!checkResponse.data.is_live) {
+      alert('Streamer is not currently live on Twitch. Cannot start recording.')
+      return
+    }
+    
     const response = await recordingApi.forceStartRecording(streamerId)
     
     if (response.data.status === 'success') {
@@ -552,6 +580,8 @@ const forceStartRecording = async (streamerId: number) => {
       if (activeStream) {
         localRecordingState.value[activeStream.id] = true
       }
+      
+      alert('Recording started successfully!')
     }
   } catch (error: any) {
     console.error('Error force starting recording:', error)
