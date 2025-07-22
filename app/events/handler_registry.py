@@ -9,6 +9,7 @@ from app.database import SessionLocal
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
+from app.services.recording.config_manager import ConfigManager
 from app.services.api.twitch_api import twitch_api
 from app.models import (
     Streamer, 
@@ -27,6 +28,7 @@ logger = logging.getLogger('streamvault')
 class EventHandlerRegistry:
     def __init__(self, connection_manager: ConnectionManager, settings=None):
         self.recording_service = RecordingService()
+        self.config_manager = ConfigManager()
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -250,9 +252,14 @@ class EventHandlerRegistry:
                     
                     logger.info(f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}")
 
-                    streamer_id = streamer.id
-                    stream_id = stream.id
-                    await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
+                    # Check if recording is enabled for this streamer before starting
+                    if self.config_manager.is_recording_enabled(streamer.id):
+                        logger.info(f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})")
+                        streamer_id = streamer.id
+                        stream_id = stream.id
+                        await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
+                    else:
+                        logger.info(f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer")
             
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
@@ -381,7 +388,7 @@ class EventHandlerRegistry:
                     else:
                         logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
                 
-                    # Send notification only via notification_service to avoid duplicates
+                    # Send notification via notification_service - settings check handled internally
                     logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
                     notification_result = await self.notification_service.send_stream_notification(
                         streamer_name=streamer.username,
