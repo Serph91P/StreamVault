@@ -4,7 +4,7 @@ API endpoints for background queue monitoring
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.init.background_queue_init import get_background_queue_service
 from app.dependencies import get_db
@@ -282,7 +282,7 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
     try:
         queue_service = get_background_queue_service()
         cleanup_count = 0
-        now = datetime.now(datetime.now().astimezone().tzinfo)
+        now = datetime.now(timezone.utc)
         
         # Clean up tasks older than 1 hour that are still pending
         tasks_to_cleanup = []
@@ -291,7 +291,6 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
                 # Make both timestamps timezone-aware for comparison
                 task_created = task.created_at
                 if task_created.tzinfo is None:
-                    from datetime import timezone
                     task_created = task_created.replace(tzinfo=timezone.utc)
                 
                 task_age_hours = (now - task_created).total_seconds() / 3600
@@ -305,7 +304,6 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
                 # Make both timestamps timezone-aware for comparison
                 task_created = task.created_at
                 if task_created.tzinfo is None:
-                    from datetime import timezone
                     task_created = task_created.replace(tzinfo=timezone.utc)
                 
                 task_age_hours = (now - task_created).total_seconds() / 3600
