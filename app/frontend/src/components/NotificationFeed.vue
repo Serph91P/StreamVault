@@ -44,11 +44,11 @@
       <div v-for="notification in sortedNotifications" 
           :key="notification.id" 
           class="notification-item"
-          :class="getNotificationClass(notification.type)">
-        <div class="notification-indicator" :class="getNotificationClass(notification.type)"></div>
+          :class="getNotificationClass(notification.type, notification)">
+        <div class="notification-indicator" :class="getNotificationClass(notification.type, notification)"></div>
         
         <div class="notification-icon">
-          <div class="icon-wrapper" :class="getNotificationClass(notification.type)">
+          <div class="icon-wrapper" :class="getNotificationClass(notification.type, notification)">
             <!-- Toast notification icons -->
             <span v-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'success'">✅</span>
             <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'error'">❌</span>
@@ -239,7 +239,7 @@ const formatMessage = (notification: Notification): string => {
 }
 
 // Get CSS class based on notification type
-const getNotificationClass = (type: string): string => {
+const getNotificationClass = (type: string, notification?: Notification): string => {
   switch (type) {
     case 'stream.online':
       return 'online'
@@ -256,7 +256,7 @@ const getNotificationClass = (type: string): string => {
       return 'error'
     case 'toast_notification':
       // Use the toast_type from data if available
-      return notification.data?.toast_type || 'info'
+      return notification?.data?.toast_type || 'info'
     case 'test':
       return 'test'
     default:
