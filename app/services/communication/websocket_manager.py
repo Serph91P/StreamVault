@@ -206,6 +206,63 @@ class ConnectionManager:
         await self.send_notification(message)
         logger.debug(f"WebSocketManager: Sent recording job update for {recording_info.get('streamer_name')}")
 
+    async def send_toast_notification(self, toast_type: str, title: str, message: str, duration: int = 5000, extra_data: Dict[str, Any] = None):
+        """Send toast notification to all connected clients"""
+        notification = {
+            "type": "toast_notification",
+            "data": {
+                "toast_type": toast_type,  # 'success', 'error', 'warning', 'info'
+                "title": title,
+                "message": message,
+                "duration": duration,
+                "timestamp": datetime.utcnow().isoformat(),
+                **(extra_data or {})
+            }
+        }
+        await self.send_notification(notification)
+        logger.info(f"WebSocketManager: Sent {toast_type} toast: {title} - {message}")
+
+    async def send_force_recording_feedback(self, success: bool, streamer_name: str, message: str, extra_data: Dict[str, Any] = None):
+        """Send force recording feedback as toast notification"""
+        toast_type = "success" if success else "error"
+        title = f"Force Recording - {streamer_name}"
+        
+        await self.send_toast_notification(
+            toast_type=toast_type,
+            title=title,
+            message=message,
+            duration=6000,  # Longer duration for recording feedback
+            extra_data={
+                "action": "force_recording",
+                "streamer_name": streamer_name,
+                "success": success,
+                **(extra_data or {})
+            }
+        )
+
+    async def send_live_status_feedback(self, streamer_name: str, is_live: bool, extra_data: Dict[str, Any] = None):
+        """Send live status check feedback as toast notification"""
+        title = f"Live Status - {streamer_name}"
+        if is_live:
+            message = "Streamer is currently live on Twitch"
+            toast_type = "success"
+        else:
+            message = "Streamer is not currently live on Twitch"
+            toast_type = "warning"
+        
+        await self.send_toast_notification(
+            toast_type=toast_type,
+            title=title,
+            message=message,
+            duration=4000,
+            extra_data={
+                "action": "live_status_check",
+                "streamer_name": streamer_name,
+                "is_live": is_live,
+                **(extra_data or {})
+            }
+        )
+
 
 # Global instance for backward compatibility
 websocket_manager = ConnectionManager()

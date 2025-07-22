@@ -12,17 +12,18 @@
       <h3>No Streams Found</h3>
       <p>This streamer hasn't streamed yet or all streams have been deleted.</p>
       <button @click="handleBack" class="btn btn-primary">
-        ← Back to Streamers
+        <i class="fas fa-arrow-left"></i> Back to Streamers
       </button>
     </div>
     
     <!-- Streams Content -->
     <div v-else class="streams-content">
-      <!-- Header -->
-      <div class="page-header">
+      <!-- Header (conditional) -->
+      <div v-if="!hideHeader" class="page-header">
         <div class="header-left">
           <button @click="handleBack" class="back-button">
-            ← Streamers
+            <i class="fas fa-arrow-left"></i>
+            Streamers
           </button>
           <div class="header-info">
             <h1>{{ streamerName || 'Recent Streams' }}</h1>
@@ -152,13 +153,12 @@
                   <i class="fas fa-play"></i> Watch Video
                 </button>
                 
-                <!-- Force Start Recording Button (for live streams without recording) -->
+                <!-- Force Start Recording Button - ALWAYS AVAILABLE -->
                 <button 
-                  v-if="!stream.ended_at && !isStreamBeingRecorded(stream)"
                   @click="forceStartRecording(stream.streamer_id)" 
                   class="btn btn-success action-btn"
-                  :disabled="forceRecordingStreamerId === stream.streamer_id"
-                  title="Force Start Recording"
+                  :disabled="forceRecordingStreamerId === stream.streamer_id || (!stream.ended_at && isStreamBeingRecorded(stream))"
+                  :title="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Already Recording' : 'Force Start Recording (checks if really live)'"
                 >
                   <span v-if="forceRecordingStreamerId === stream.streamer_id">
                     <i class="fas fa-spinner fa-spin"></i> Starting...
@@ -311,10 +311,25 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
 
+// Define props
+interface Props {
+  hideHeader?: boolean
+  streamerId?: string
+  streamerName?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  hideHeader: false,
+  streamerId: '',
+  streamerName: ''
+})
+
 const route = useRoute()
 const router = useRouter()
-const streamerId = computed(() => route.params.id as string || route.query.id as string)
-const streamerName = computed(() => route.query.name as string)
+
+// Use props or route parameters
+const streamerId = computed(() => props.streamerId || route.params.id as string || route.query.id as string)
+const streamerName = computed(() => props.streamerName || route.query.name as string)
 
 const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
@@ -445,6 +460,11 @@ const toggleStreamExpansion = (streamId: number) => {
 }
 
 const handleBack = () => {
+  if (props.hideHeader) {
+    // In embedded mode, emit event to parent instead of navigating
+    // This allows the parent component to handle the navigation
+    return
+  }
   router.push('/streamers')
 }
 
@@ -497,7 +517,8 @@ const deleteStream = async () => {
     cancelDelete()
   } catch (error) {
     console.error('Error deleting stream:', error)
-    alert('Failed to delete stream. Please try again.')
+    // Send error notification via WebSocket to backend for toast
+    // This will trigger a toast notification instead of an alert
   } finally {
     deletingStreamId.value = null
   }
@@ -524,7 +545,8 @@ const deleteAllStreams = async () => {
     router.push('/streamers')
   } catch (error) {
     console.error('Error deleting all streams:', error)
-    alert('Failed to delete all streams. Please try again.')
+    // Send error notification via WebSocket to backend for toast
+    // This will trigger a toast notification instead of an alert
   } finally {
     deletingAllStreams.value = false
   }
@@ -544,26 +566,47 @@ const forceStartRecording = async (streamerId: number) => {
   try {
     forceRecordingStreamerId.value = streamerId
     
+    // First check if streamer is really live via Twitch API
+    let isLive = false
+    let apiCheckFailed = false
+    
+    try {
+      const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
+      isLive = checkResponse?.data?.is_live || false
+    } catch (apiError) {
+      // If API check fails, mark as failed but don't assume the stream is live
+      // This prevents unnecessary recording attempts on definitely offline streams
+      apiCheckFailed = true
+      console.warn('Live status check failed, API may be temporarily unavailable:', apiError)
+    }
+    
+    if (apiCheckFailed) {
+      // When API check fails, let backend handle validation entirely
+      // Don't make assumptions about live status
+      console.warn('Cannot verify live status due to API failure, proceeding with backend validation')
+    } else if (!isLive) {
+      // Show user-friendly message but still proceed (backend will validate)
+      console.warn('Streamer appears to be offline according to API, but continuing with force recording attempt')
+      // Note: Backend will still validate and send appropriate notifications
+    }
+    
     const response = await recordingApi.forceStartRecording(streamerId)
     
-    if (response.data.status === 'success') {
+    if (response?.data?.status === 'success') {
       // Update local recording state immediately
       const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
       if (activeStream) {
         localRecordingState.value[activeStream.id] = true
       }
+      
+      // Success feedback will be sent via WebSocket from backend
     }
   } catch (error: any) {
     console.error('Error force starting recording:', error)
     
-    let errorMessage = 'Failed to start recording.'
-    if (error.response?.data?.detail) {
-      errorMessage = error.response.data.detail
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-    
-    alert(errorMessage)
+    // Let the backend handle error notifications via WebSocket
+    // Error messages will be sent as toast notifications
+    // Don't show additional UI errors here to avoid double notifications
   } finally {
     forceRecordingStreamerId.value = null
   }
@@ -576,7 +619,7 @@ const stopRecording = async (streamerId: number) => {
     
     const response = await recordingApi.stopRecording(streamerId)
     
-    if (response.data.status === 'success') {
+    if (response?.data?.status === 'success') {
       // Update local recording state immediately
       const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
       if (activeStream) {
@@ -586,14 +629,9 @@ const stopRecording = async (streamerId: number) => {
   } catch (error: any) {
     console.error('Error stopping recording:', error)
     
-    let errorMessage = 'Failed to stop recording.'
-    if (error.response?.data?.detail) {
-      errorMessage = error.response.data.detail
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-    
-    alert(errorMessage)
+    // Let the backend handle error notifications via WebSocket
+    // Error messages will be sent as toast notifications
+    // Don't show additional UI errors here to avoid double notifications
   } finally {
     stoppingRecordingStreamerId.value = null
   }

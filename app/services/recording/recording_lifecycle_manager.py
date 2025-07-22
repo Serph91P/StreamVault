@@ -138,6 +138,13 @@ class RecordingLifecycleManager:
                 status="stopped" if success else "failed"
             )
             
+            # Trigger database event for orphaned recovery
+            try:
+                from app.services.recording.database_event_orphaned_recovery import on_recording_status_changed
+                await on_recording_status_changed(recording_id, "active", "stopped" if success else "failed")
+            except Exception as e:
+                logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
+            
             # Remove from active recordings
             self.state_manager.remove_active_recording(recording_id)
             
@@ -639,15 +646,22 @@ class RecordingLifecycleManager:
                 files_to_remove.append(segments_dir)
                 logger.info(f"🎬 CLEANUP_SCHEDULED: Will remove segments directory {segments_dir}")
             
+            # Ensure all required fields are present in cleanup payload
+            cleanup_payload = {
+                "recording_id": recording_id,
+                "stream_id": stream_data.id,
+                "files_to_remove": files_to_remove,
+                "mp4_path": mp4_path,
+                "streamer_name": streamer_data.username,
+                "intelligent_cleanup": True,
+                "max_wait_time": 300
+            }
+            
+            logger.info(f"🎬 CLEANUP_PAYLOAD: {cleanup_payload}")
+            
             await background_queue.enqueue_task_with_dependencies(
                 "cleanup",
-                {
-                    "recording_id": recording_id,
-                    "stream_id": stream_data.id,
-                    "files_to_remove": files_to_remove,
-                    "mp4_path": mp4_path,
-                    "streamer_name": streamer_data.username
-                },
+                cleanup_payload,
                 dependencies=[thumbnail_task_id],  # Wait for thumbnail generation
                 priority=TaskPriority.LOW
             )

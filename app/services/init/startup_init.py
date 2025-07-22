@@ -40,6 +40,9 @@ async def initialize_background_services():
         # Recover active recordings from persistence
         await recover_active_recordings()
         
+        # Recover orphaned recordings (unfinished post-processing jobs)
+        await recover_orphaned_recordings()
+        
         logger.info("Background services initialized successfully")
         
     except Exception as e:
@@ -64,6 +67,40 @@ async def recover_active_recordings():
     except Exception as e:
         logger.error(f"Failed to recover active recordings: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
+
+async def recover_orphaned_recordings():
+    """Recover orphaned .ts files that need post-processing"""
+    try:
+        logger.info("Starting orphaned recordings recovery scan...")
+        
+        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        
+        # Get orphaned recovery service
+        recovery_service = await get_orphaned_recovery_service()
+        
+        # First get statistics
+        stats = await recovery_service.get_orphaned_statistics(max_age_hours=48)
+        
+        if stats.get("total_orphaned", 0) > 0:
+            logger.info(f"Found {stats['total_orphaned']} orphaned recordings ({stats['total_size_gb']} GB)")
+            
+            # Trigger recovery for orphaned recordings
+            result = await recovery_service.scan_and_recover_orphaned_recordings(
+                max_age_hours=48,  # Only process recordings from last 48 hours
+                dry_run=False
+            )
+            
+            if result["recovery_triggered"] > 0:
+                logger.info(f"Triggered post-processing for {result['recovery_triggered']} orphaned recordings")
+            else:
+                logger.info("No orphaned recordings required processing")
+        else:
+            logger.info("No orphaned recordings found")
+        
+    except Exception as e:
+        logger.error(f"Failed to recover orphaned recordings: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
 
 async def shutdown_background_services():
     """Shutdown all background services"""

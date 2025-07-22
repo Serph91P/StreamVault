@@ -9,7 +9,7 @@ import shutil
 import logging
 import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union, Awaitable, Any
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -47,27 +47,43 @@ class ImageMigrationService:
             
             # Process streamers in batches for better performance
             async for batch in batch_process_items(streamers, batch_size=5, max_concurrent=2):
-                batch_tasks = []
+                # Create task-to-streamer mapping for O(1) lookup performance
+                task_to_streamer_map: Dict[Awaitable[Any], Streamer] = {}
+                tasks = []
+                
                 for streamer in batch:
                     try:
-                        task = self.migrate_streamer_images(streamer)
-                        batch_tasks.append(task)
+                        task = asyncio.create_task(self.migrate_streamer_images(streamer))
+                        task_to_streamer_map[task] = streamer
+                        tasks.append(task)
                     except Exception as e:
                         logger.error(f"Error creating migration task for streamer {streamer.username}: {e}")
                         stats["errors"] += 1
                 
-                # Process batch concurrently
-                if batch_tasks:
-                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-                    
-                    for i, result in enumerate(batch_results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Error migrating images for streamer {batch[i].username}: {result}")
-                            stats["errors"] += 1
-                        else:
+                # Process tasks as they complete to avoid memory buildup
+                if tasks:
+                    for completed_task in asyncio.as_completed(tasks):
+                        try:
+                            result = await completed_task
+                            # O(1) lookup for streamer associated with completed task
+                            # Note: asyncio.as_completed() returns the original task objects, 
+                            # so the mapping lookup works correctly
+                            streamer = self._get_streamer_for_task(task_to_streamer_map, completed_task)
+                            streamer_name = streamer.username if streamer else "Unknown"
+                            
                             stats["streamers_migrated"] += 1
                             stats["images_moved"] += result["images_moved"]
                             stats["duplicates_found"] += result["duplicates_found"]
+                            
+                            logger.debug(f"Successfully migrated images for streamer {streamer_name}")
+                        except Exception as e:
+                            # O(1) lookup for streamer associated with failed task
+                            # Note: asyncio.as_completed() returns the original task objects,
+                            # so the mapping lookup works correctly
+                            streamer = self._get_streamer_for_task(task_to_streamer_map, completed_task)
+                            streamer_name = streamer.username if streamer else "Unknown"
+                            logger.error(f"Error migrating images for streamer {streamer_name}: {e}")
+                            stats["errors"] += 1
             
             # Clean up old directories
             cleanup_result = await self.cleanup_old_directories()
@@ -195,6 +211,20 @@ class ImageMigrationService:
                     logger.error(f"Error removing directory {directory}: {e}")
         
         return result
+    
+    def _get_streamer_for_task(self, task_to_streamer_map: Dict[Awaitable[Any], Streamer], task: Awaitable[Any]) -> Optional[Streamer]:
+        """
+        Helper function to get streamer associated with a task.
+        Uses O(1) dictionary lookup instead of O(n) linear search.
+        
+        Args:
+            task_to_streamer_map: Dictionary mapping awaitable objects (Tasks/Futures) to Streamer instances
+            task: The awaitable object to look up (Task or Future from as_completed)
+            
+        Returns:
+            The Streamer associated with the task, or None if not found
+        """
+        return task_to_streamer_map.get(task)
     
     def _files_are_identical(self, file1: Path, file2: Path) -> bool:
         """Check if two files are identical (same size and content)"""

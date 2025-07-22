@@ -147,7 +147,7 @@ class BackgroundQueueService:
         completed_tasks = self.get_completed_tasks()
         # Convert to list and limit
         recent_list = list(completed_tasks.values())[-limit:]
-        return {task.task_id: task for task in recent_list}
+        return {task.id: task for task in recent_list}
 
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""

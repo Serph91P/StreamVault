@@ -44,6 +44,17 @@
       />
     </div>
     
+    <!-- Toast notifications -->
+    <ToastNotification 
+      v-for="toast in activeToasts" 
+      :key="toast.id"
+      :message="toast.message"
+      :type="toast.type"
+      :duration="toast.duration"
+      :data="toast.data"
+      @dismiss="removeToast"
+    />
+    
     <div class="main-content">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
@@ -116,6 +127,7 @@
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
+import ToastNotification from '@/components/ToastNotification.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -125,6 +137,9 @@ const showNotifications = ref(false)
 const unreadCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
+// Toast notification management
+const activeToasts = ref([])
+
 const { messages } = useWebSocket()
 const { logout: authLogout, checkStoredAuth } = useAuth()
 
@@ -132,6 +147,51 @@ const { logout: authLogout, checkStoredAuth } = useAuth()
 async function logout() {
   if (confirm('Are you sure you want to logout?')) {
     await authLogout()
+  }
+}
+
+// Toast notification functions
+function addToast(message, type = 'info', duration = 5000, data = null) {
+  const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  
+  const toast = {
+    id,
+    message,
+    type,
+    duration,
+    data
+  }
+  
+  activeToasts.value.push(toast)
+  
+  // Auto-remove after duration (unless duration is 0 for persistent toasts)
+  if (duration > 0) {
+    setTimeout(() => {
+      removeToast(id)
+    }, duration)
+  }
+}
+
+function removeToast(toastId) {
+  const index = activeToasts.value.findIndex(toast => toast.id === toastId)
+  if (index > -1) {
+    activeToasts.value.splice(index, 1)
+  }
+}
+
+// Process toast notifications from WebSocket
+function processToastNotification(message) {
+  if (message.type === 'toast_notification') {
+    const { 
+      message: toastMessage, 
+      type = 'info', 
+      duration = 5000, 
+      data = null 
+    } = message.data || {}
+    
+    if (toastMessage) {
+      addToast(toastMessage, type, duration, data)
+    }
   }
 }
 
@@ -146,12 +206,18 @@ const processWebSocketMessage = (message) => {
     return
   }
   
+  // Process toast notifications first
+  if (message.type === 'toast_notification') {
+    processToastNotification(message)
+    return // Don't store toast notifications in regular notification history
+  }
+  
   // Skip connection status messages
   if (message.type === 'connection.status') {
     return
   }
   
-  // Valid notification types
+  // Valid notification types for history
   const validTypes = [
     'stream.online', 
     'stream.offline',

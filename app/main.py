@@ -667,6 +667,10 @@ app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
 
+# Orphaned recovery routes
+from app.api import orphaned_recovery_endpoints
+app.include_router(orphaned_recovery_endpoints.router)
+
 # Push notification routes
 from app.routes import push as push_router
 app.include_router(push_router.router)

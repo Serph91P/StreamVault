@@ -126,7 +126,7 @@ const notificationStreamerSettings = ref<StreamerNotificationSettings[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 // Poll for active recordings
-let pollingInterval: number | undefined = undefined
+const pollingInterval: number | undefined = undefined
 
 onMounted(async () => {
   isLoading.value = true

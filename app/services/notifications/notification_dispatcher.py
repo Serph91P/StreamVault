@@ -28,18 +28,19 @@ class NotificationDispatcher:
         try:
             logger.info(f"🔔 SEND_STREAM_NOTIFICATION: streamer={streamer_name}, event={event_type}, details_keys={list(details.keys())}")
             
+            # Check if we should send notifications for this event type and streamer
+            if 'streamer_id' in details:
+                should_send = await self.push_service.should_notify(details['streamer_id'], event_type)
+                logger.debug(f"Notification check for streamer {details['streamer_id']} and event {event_type}: should_send={should_send}")
+                if not should_send:
+                    logger.debug(f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}")
+                    return
+            
             # Send WebSocket notification first
             await self._send_websocket_notification(streamer_name, event_type, details)
             
             # Send push notifications to all active subscribers
             await self.push_service.send_push_notifications(streamer_name, event_type, details)
-            
-            # Check if we should send external notifications
-            if 'streamer_id' in details:
-                should_send = await self.push_service.should_notify(details['streamer_id'], event_type)
-                if not should_send:
-                    logger.debug(f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}")
-                    return
             
             # Send external notification (Apprise)
             await self.external_service.send_stream_notification(streamer_name, event_type, details)
