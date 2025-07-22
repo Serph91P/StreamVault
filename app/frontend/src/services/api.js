@@ -203,6 +203,10 @@ export const recordingApi = {
 
     async getRecordingStatus(streamerId) {
         return api.get(`/api/recordings/status/${streamerId}`)
+    },
+
+    async checkStreamerLiveStatus(streamerId) {
+        return api.get(`/api/streamers/${streamerId}/live-status`)
     }
 }
 

@@ -64,6 +64,15 @@ class StreamerService:
         """Get current stream information"""
         return await self.twitch_service.get_stream_info(twitch_id)
 
+    async def check_streamer_live_status(self, twitch_id: str) -> bool:
+        """Check if a specific streamer is currently live via Twitch API"""
+        try:
+            stream_info = await self.twitch_service.get_stream_info(twitch_id)
+            return stream_info is not None
+        except Exception as e:
+            logger.error(f"Error checking live status for {twitch_id}: {e}")
+            return False
+
     async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Fetch game data from Twitch API"""
         return await self.twitch_service.get_game_data(game_id)

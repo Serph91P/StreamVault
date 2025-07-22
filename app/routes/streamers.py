@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.services.unified_image_service import unified_image_service
+from app.services.communication.websocket_manager import websocket_manager
 from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
@@ -230,6 +231,53 @@ async def debug_live_status(
         return {"streamers": debug_info}
     except Exception as e:
         logger.error(f"Error in debug_live_status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{streamer_id}/live-status")
+async def check_streamer_live_status(
+    streamer_id: int,
+    db: Session = Depends(get_db),
+    streamer_service: StreamerService = Depends(get_streamer_service)
+):
+    """Check if a specific streamer is currently live via Twitch API"""
+    try:
+        # Get streamer from database
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        # Check live status via Twitch API
+        is_live = await streamer_service.check_streamer_live_status(streamer.twitch_id)
+        
+        # Send live status feedback via WebSocket
+        await websocket_manager.send_live_status_feedback(
+            streamer_name=streamer.username,
+            is_live=is_live
+        )
+        
+        return {
+            "streamer_id": streamer_id,
+            "username": streamer.username,
+            "twitch_id": streamer.twitch_id,
+            "is_live": is_live,
+            "database_is_live": streamer.is_live,  # What the database thinks
+            "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking live status for streamer {streamer_id}: {e}", exc_info=True)
+        
+        # Send error toast notification
+        try:
+            await websocket_manager.send_toast_notification(
+                toast_type="error",
+                title="Live Status Check Failed",
+                message=f"Failed to check live status: {str(e)}"
+            )
+        except Exception as notification_error:
+            logger.error(f"Failed to send error notification: {notification_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{username}")
