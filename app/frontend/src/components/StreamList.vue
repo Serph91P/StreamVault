@@ -37,12 +37,14 @@
             class="btn btn-success"
             :disabled="forceRecordingStreamerId === streamerId"
             title="Force Start Recording for this Streamer"
+            aria-label="Force start recording for current streamer - checks if streamer is live and starts recording immediately"
+            :aria-describedby="forceRecordingStreamerId === streamerId ? 'force-recording-status' : undefined"
           >
-            <span v-if="forceRecordingStreamerId === streamerId">
-              <i class="fas fa-spinner fa-spin"></i> Starting...
+            <span v-if="forceRecordingStreamerId === streamerId" id="force-recording-status">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
             </span>
             <span v-else>
-              <i class="fas fa-record-vinyl"></i> Force Record
+              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record
             </span>
           </button>
           
@@ -51,8 +53,15 @@
             @click="confirmDeleteAllStreams" 
             class="btn btn-danger"
             :disabled="deletingAllStreams"
+            aria-label="Delete all streams for this streamer permanently"
+            :aria-describedby="deletingAllStreams ? 'delete-all-status' : undefined"
           >
-            🗑️ {{ deletingAllStreams ? 'Deleting...' : `Delete All (${streams.length})` }}
+            <span v-if="deletingAllStreams" id="delete-all-status">
+              🗑️ Deleting...
+            </span>
+            <span v-else>
+              🗑️ Delete All ({{ streams.length }})
+            </span>
           </button>
         </div>
       </div>
@@ -121,8 +130,9 @@
                   @click="watchVideo(stream)" 
                   class="btn btn-primary action-btn"
                   title="Watch Video"
+                  :aria-label="`Watch recorded video of ${stream.title || 'Untitled Stream'}`"
                 >
-                  <i class="fas fa-play"></i> Watch Video
+                  <i class="fas fa-play" aria-hidden="true"></i> Watch Video
                 </button>
                 
                 <!-- Force Start Recording Button - ALWAYS AVAILABLE -->
@@ -131,56 +141,60 @@
                   class="btn btn-success action-btn"
                   :disabled="forceRecordingStreamerId === stream.streamer_id || (!stream.ended_at && isStreamBeingRecorded(stream))"
                   :title="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Already Recording' : 'Force Start Recording (checks if really live)'"
+                  :aria-label="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Recording already in progress for this stream' : `Force start recording for ${stream.title || 'Untitled Stream'} - validates if streamer is live first`"
+                  :aria-describedby="forceRecordingStreamerId === stream.streamer_id ? `force-recording-status-${stream.id}` : undefined"
                 >
-                  <span v-if="forceRecordingStreamerId === stream.streamer_id">
-                    <i class="fas fa-spinner fa-spin"></i> Starting...
+                  <span v-if="forceRecordingStreamerId === stream.streamer_id" :id="`force-recording-status-${stream.id}`">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
                   </span>
                   <span v-else>
-                    <i class="fas fa-record-vinyl"></i> Force Recording
+                    <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Recording
                   </span>
                 </button>
                 
                 <!-- Stop Recording Button (for active recordings) -->
+                                <!-- Stop Recording Button -->
                 <button 
-                  v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
-                  @click="stopRecording(stream.streamer_id)" 
-                  class="btn btn-warning action-btn"
-                  :disabled="stoppingRecordingStreamerId === stream.streamer_id"
+                  v-if="!stream.ended_at && hasActiveRecording(stream)"
+                  @click="forceStopRecording(stream)" 
+                  class="btn btn-danger action-btn"
                   title="Stop Recording"
+                  :aria-label="`Stop recording ${stream.title || 'stream'} (currently recording)`"
                 >
-                  <span v-if="stoppingRecordingStreamerId === stream.streamer_id">
-                    <i class="fas fa-spinner fa-spin"></i> Stopping...
-                  </span>
-                  <span v-else>
-                    <i class="fas fa-stop"></i> Stop Recording
-                  </span>
+                  <i class="fas fa-stop" aria-hidden="true"></i> Stop Recording
                 </button>
               </div>
               
               <!-- Secondary Actions -->
               <div class="secondary-actions">
                 <!-- Details Toggle Button -->
+                <!-- Details Toggle Button -->
                 <button 
-                  @click="toggleStreamExpansion(stream.id)"
-                  class="btn btn-secondary action-btn"
-                  title="Show/Hide Details"
+                  @click="toggleDetails(stream.id)" 
+                  class="btn btn-secondary details-toggle"
+                  :title="expandedStreams.has(stream.id) ? 'Hide details' : 'Show details'"
+                  :aria-label="`${expandedStreams.has(stream.id) ? 'Hide' : 'Show'} details for ${stream.title || 'stream'}`"
+                  :aria-expanded="expandedStreams.has(stream.id)"
+                  :aria-controls="`stream-details-${stream.id}`"
                 >
-                  <i :class="expandedStreams[stream.id] ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
-                  {{ expandedStreams[stream.id] ? 'Hide' : 'Show' }} Details
-                </button>
-                
-                <!-- Delete Stream Button -->
+                  <i 
+                    :class="['fas', expandedStreams.has(stream.id) ? 'fa-chevron-up' : 'fa-chevron-down']" 
+                    aria-hidden="true"
+                  ></i>
+                  {{ expandedStreams.has(stream.id) ? 'Hide Details' : 'Show Details' }}
+                </button>                <!-- Delete Stream Button -->
                 <button 
                   @click="confirmDeleteStream(stream)" 
                   class="btn btn-danger action-btn" 
                   :disabled="deletingStreamId === stream.id || (!stream.ended_at && isStreamBeingRecorded(stream))"
                   title="Delete Stream"
+                  :aria-label="`Delete stream ${stream.title || 'Untitled Stream'} - this action cannot be undone`"
                 >
                   <span v-if="deletingStreamId === stream.id">
-                    <i class="fas fa-spinner fa-spin"></i>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                   </span>
                   <span v-else>
-                    <i class="fas fa-trash"></i>
+                    <i class="fas fa-trash" aria-hidden="true"></i>
                   </span>
                 </button>
               </div>
@@ -188,7 +202,11 @@
           </div>
           
           <!-- Expanded Details -->
-          <div v-if="expandedStreams[stream.id]" class="stream-details">
+          <div 
+            v-if="expandedStreams[stream.id]" 
+            class="stream-details"
+            :id="`stream-details-${stream.id}`"
+          >
             <div class="details-sections">
               <!-- Basic Information Section -->
               <div class="details-section">
@@ -345,7 +363,13 @@
       <div class="modal">
         <div class="modal-header">
           <h3>Delete Stream</h3>
-          <button @click="cancelDelete" class="close-btn">×</button>
+          <button 
+            @click="cancelDelete" 
+            class="close-btn"
+            aria-label="Close delete confirmation dialog"
+          >
+            ×
+          </button>
         </div>
         <div class="modal-body">
           <p>Are you sure you want to delete this stream?</p>
@@ -357,8 +381,19 @@
           <p class="warning">⚠️ This action cannot be undone and will delete all associated files.</p>
         </div>
         <div class="modal-actions">
-          <button @click="cancelDelete" class="btn btn-secondary">Cancel</button>
-          <button @click="deleteStream" class="btn btn-danger" :disabled="deletingStreamId !== null">
+          <button 
+            @click="cancelDelete" 
+            class="btn btn-secondary"
+            aria-label="Cancel stream deletion"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="deleteStream" 
+            class="btn btn-danger" 
+            :disabled="deletingStreamId !== null"
+            :aria-label="`Confirm deletion of stream ${streamToDelete?.title || 'Untitled'} - this action cannot be undone`"
+          >
             {{ deletingStreamId !== null ? '⏳ Deleting...' : '🗑️ Delete Stream' }}
           </button>
         </div>
@@ -370,15 +405,32 @@
       <div class="modal">
         <div class="modal-header">
           <h3>Delete All Streams</h3>
-          <button @click="cancelDeleteAll" class="close-btn">×</button>
+          <button 
+            @click="cancelDeleteAll" 
+            class="close-btn"
+            aria-label="Close delete all confirmation dialog"
+          >
+            ×
+          </button>
         </div>
         <div class="modal-body">
           <p>Delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
           <p class="warning">⚠️ This will permanently delete all stream records and files. This action cannot be undone!</p>
         </div>
         <div class="modal-actions">
-          <button @click="cancelDeleteAll" class="btn btn-secondary">Cancel</button>
-          <button @click="deleteAllStreams" class="btn btn-danger" :disabled="deletingAllStreams">
+          <button 
+            @click="cancelDeleteAll" 
+            class="btn btn-secondary"
+            aria-label="Cancel delete all operation"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="deleteAllStreams" 
+            class="btn btn-danger" 
+            :disabled="deletingAllStreams"
+            :aria-label="`Confirm deletion of all ${streams.length} streams - this action cannot be undone`"
+          >
             {{ deletingAllStreams ? '⏳ Deleting...' : '🗑️ Delete All Streams' }}
           </button>
         </div>
