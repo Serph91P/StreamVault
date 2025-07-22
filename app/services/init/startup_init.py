@@ -37,6 +37,9 @@ async def initialize_background_services():
         # Initialize background queue
         await initialize_background_queue()
         
+        # Initialize image sync service for automatic image downloads
+        await initialize_image_sync_service()
+        
         # Recover active recordings from persistence
         await recover_active_recordings()
         
@@ -102,10 +105,34 @@ async def recover_orphaned_recordings():
         # Don't raise - this is not critical for startup
 
 
+async def initialize_image_sync_service():
+    """Initialize automatic image sync service"""
+    try:
+        logger.info("Initializing automatic image sync service...")
+        
+        from app.services.images.auto_image_sync_service import auto_image_sync_service
+        
+        # Start the background sync worker
+        await auto_image_sync_service.start_sync_worker()
+        
+        # Perform initial sync of all existing categories and streamers
+        await auto_image_sync_service.sync_all_existing_categories()
+        await auto_image_sync_service.sync_all_existing_streamers()
+        
+        logger.info("Image sync service initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize image sync service: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
 async def shutdown_background_services():
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
+        
+        # Shutdown image sync service
+        from app.services.images.auto_image_sync_service import auto_image_sync_service
+        await auto_image_sync_service.stop_sync_worker()
         
         # Shutdown background queue
         await shutdown_background_queue()

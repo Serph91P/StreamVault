@@ -104,7 +104,7 @@
                   </span>
                   
                   <span 
-                    v-if="stream.ended_at && hasRecording(stream as ExtendedStream)" 
+                    v-if="stream.ended_at && hasRecording(stream)" 
                     class="status-badge has-recording"
                   >
                     <i class="fas fa-video"></i> VIDEO
@@ -126,7 +126,7 @@
               <div class="recording-actions">
                 <!-- Watch Video Button (for ended streams with recording) -->
                 <button 
-                  v-if="stream.ended_at && hasRecording(stream as ExtendedStream)"
+                  v-if="stream.ended_at && hasRecording(stream)"
                   @click="watchVideo(stream)" 
                   class="btn btn-primary action-btn"
                   title="Watch Video"
@@ -338,13 +338,17 @@
                   <div class="status-item">
                     <span class="status-label">Recording Available:</span>
                     <span class="status-value">
-                      <span v-if="hasRecording(stream as ExtendedStream)" class="status-available">
+                      <span v-if="hasRecording(stream)" class="status-available">
                         <i class="fas fa-check-circle"></i> Yes
                       </span>
                       <span v-else class="status-unavailable">
                         <i class="fas fa-times-circle"></i> No
                       </span>
                     </span>
+                  </div>
+                  <div v-if="stream.recording_path" class="status-item">
+                    <span class="status-label">Recording Path:</span>
+                    <span class="status-value">{{ stream.recording_path }}</span>
                   </div>
                   <div v-if="(stream as ExtendedStream).recordings && (stream as ExtendedStream).recordings!.length > 0" class="status-item">
                     <span class="status-label">Recording Files:</span>
@@ -622,9 +626,15 @@ const formatDuration = (durationMs: number): string => {
   }
 }
 
-const hasRecording = (stream: ExtendedStream): boolean => {
-  // Check if stream has associated recording files
-  return Boolean(stream.recordings && stream.recordings.length > 0)
+const hasRecording = (stream: Stream): boolean => {
+  // Check if stream has a recording path (primary method)
+  if (stream.recording_path && stream.recording_path.trim() !== '') {
+    return true
+  }
+  
+  // Fallback: Check if stream has associated recording files (extended property)
+  const extendedStream = stream as ExtendedStream
+  return Boolean(extendedStream.recordings && extendedStream.recordings.length > 0)
 }
 
 // UI Actions
