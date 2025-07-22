@@ -34,12 +34,8 @@ class RecordingOrchestrator:
     def __init__(self, db=None):
         # Initialize existing managers
         self.config_manager = ConfigManager()
-        self.process_manager = ProcessManager(config_manager=self.config_manager)
-        self.recording_logger = RecordingLogger(config_manager=self.config_manager)
-        self.notification_manager = NotificationManager(config_manager=self.config_manager)
-        self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
         
-        # Initialize refactored services
+        # Initialize refactored services first (needed for callback)
         self.database_service = RecordingDatabaseService(db)
         self.state_manager = RecordingStateManager(self.config_manager)
         # Import websocket_manager here to avoid circular imports
@@ -48,6 +44,59 @@ class RecordingOrchestrator:
         self.post_processing_coordinator = PostProcessingCoordinator(
             self.config_manager, self.websocket_service
         )
+        
+        # Create post-processing callback for ProcessManager dependency injection
+        async def post_processing_callback(recording_id: int, file_path: str):
+            """Callback for ProcessManager to trigger post-processing"""
+            try:
+                # Get recording data needed for post-processing
+                recording_data = self.database_service.get_recording_by_id(recording_id)
+                if recording_data:
+                    # Update recording status first
+                    await self.database_service.update_recording_status(
+                        recording_id=recording_id,
+                        status="completed",
+                        path=file_path
+                    )
+                    
+                    # Get additional data needed for post-processing
+                    stream_data = await self.database_service.get_stream_by_id(recording_data.stream_id)
+                    if stream_data:
+                        streamer_data = await self.database_service.get_streamer_by_id(stream_data.streamer_id)
+                        if streamer_data:
+                            # Create recording data dict for post-processing
+                            recording_data_dict = {
+                                'streamer_name': streamer_data.username,
+                                'started_at': recording_data.started_at.isoformat() if recording_data.started_at else None,
+                                'stream_id': stream_data.id,
+                                'recording_id': recording_id
+                            }
+                            
+                            # Use the post-processing coordinator
+                            await self.post_processing_coordinator.enqueue_post_processing(
+                                recording_id, file_path, recording_data_dict
+                            )
+                            logger.info(f"Triggered post-processing via callback for recording {recording_id}")
+                        else:
+                            logger.error(f"Streamer data not found for recording {recording_id}")
+                    else:
+                        logger.error(f"Stream data not found for recording {recording_id}")
+                else:
+                    logger.error(f"Recording data not found for recording {recording_id}")
+            except Exception as e:
+                logger.error(f"Error in post-processing callback: {e}", exc_info=True)
+        
+        # Initialize ProcessManager with the post-processing callback
+        self.process_manager = ProcessManager(
+            config_manager=self.config_manager,
+            post_processing_callback=post_processing_callback
+        )
+        
+        # Initialize remaining managers
+        self.recording_logger = RecordingLogger(config_manager=self.config_manager)
+        self.notification_manager = NotificationManager(config_manager=self.config_manager)
+        self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
+        
         self.lifecycle_manager = RecordingLifecycleManager(
             config_manager=self.config_manager,
             process_manager=self.process_manager,
