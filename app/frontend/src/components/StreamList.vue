@@ -567,16 +567,26 @@ const forceStartRecording = async (streamerId: number) => {
     forceRecordingStreamerId.value = streamerId
     
     // First check if streamer is really live via Twitch API
-    const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
+    let isLive = false
+    try {
+      const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
+      isLive = checkResponse?.data?.is_live || false
+    } catch (apiError) {
+      // If API check fails, proceed anyway and let backend handle the validation
+      // This prevents UI from blocking when Twitch API is temporarily unavailable
+      console.warn('Live status check failed, proceeding with force recording:', apiError)
+      isLive = true // Assume live to proceed with recording attempt
+    }
     
-    if (!checkResponse.data.is_live) {
-      // This error will be handled by the backend and sent as toast notification
-      throw new Error('Streamer is not currently live on Twitch. Cannot start recording.')
+    if (!isLive) {
+      // Show user-friendly message but don't block the operation completely
+      console.warn('Streamer appears to be offline, but continuing with force recording attempt')
+      // Note: Backend will still validate and send appropriate notifications
     }
     
     const response = await recordingApi.forceStartRecording(streamerId)
     
-    if (response.data.status === 'success') {
+    if (response?.data?.status === 'success') {
       // Update local recording state immediately
       const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
       if (activeStream) {
@@ -590,6 +600,7 @@ const forceStartRecording = async (streamerId: number) => {
     
     // Let the backend handle error notifications via WebSocket
     // Error messages will be sent as toast notifications
+    // Don't show additional UI errors here to avoid double notifications
   } finally {
     forceRecordingStreamerId.value = null
   }
@@ -602,7 +613,7 @@ const stopRecording = async (streamerId: number) => {
     
     const response = await recordingApi.stopRecording(streamerId)
     
-    if (response.data.status === 'success') {
+    if (response?.data?.status === 'success') {
       // Update local recording state immediately
       const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
       if (activeStream) {
@@ -614,6 +625,7 @@ const stopRecording = async (streamerId: number) => {
     
     // Let the backend handle error notifications via WebSocket
     // Error messages will be sent as toast notifications
+    // Don't show additional UI errors here to avoid double notifications
   } finally {
     stoppingRecordingStreamerId.value = null
   }
