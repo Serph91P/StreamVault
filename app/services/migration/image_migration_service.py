@@ -66,6 +66,8 @@ class ImageMigrationService:
                         try:
                             result = await completed_task
                             # O(1) lookup for streamer associated with completed task
+                            # Note: asyncio.as_completed() returns the original task objects, 
+                            # so the mapping lookup works correctly
                             streamer = self._get_streamer_for_task(task_to_streamer_map, completed_task)
                             streamer_name = streamer.username if streamer else "Unknown"
                             
@@ -76,6 +78,8 @@ class ImageMigrationService:
                             logger.debug(f"Successfully migrated images for streamer {streamer_name}")
                         except Exception as e:
                             # O(1) lookup for streamer associated with failed task
+                            # Note: asyncio.as_completed() returns the original task objects,
+                            # so the mapping lookup works correctly
                             streamer = self._get_streamer_for_task(task_to_streamer_map, completed_task)
                             streamer_name = streamer.username if streamer else "Unknown"
                             logger.error(f"Error migrating images for streamer {streamer_name}: {e}")
