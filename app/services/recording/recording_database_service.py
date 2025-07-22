@@ -66,7 +66,7 @@ class RecordingDatabaseService:
             
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to update recording {recording_id} status: {e}")
+            logger.error(f"Failed to update recording {recording_id} status to '{status}': {e}")
             if "not found" in str(e).lower():
                 raise NonRetryableError(f"Recording not found: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -93,7 +93,7 @@ class RecordingDatabaseService:
             
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to create recording: {e}")
+            logger.error(f"Failed to create recording for stream_id={stream_id}, file_path='{file_path}': {e}")
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
@@ -153,7 +153,7 @@ class RecordingDatabaseService:
             return result if result else None
             
         except Exception as e:
-            logger.error(f"Failed to get stream {stream_id} with streamer: {e}")
+            logger.error(f"Failed to get stream_id={stream_id} with streamer details: {e}")
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
@@ -183,7 +183,7 @@ class RecordingDatabaseService:
                 
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to update recording {recording_id} path: {e}")
+            logger.error(f"Failed to update recording {recording_id} path from '{recording.path if 'recording' in locals() and recording else 'unknown'}' to '{new_path}': {e}")
             if "not found" in str(e).lower():
                 raise NonRetryableError(f"Recording not found: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -210,7 +210,7 @@ class RecordingDatabaseService:
                 
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to mark recording {recording_id} as failed: {e}")
+            logger.error(f"Failed to mark recording {recording_id} as failed with error_message='{error_message}': {e}")
             if "not found" in str(e).lower():
                 raise NonRetryableError(f"Recording not found: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -236,14 +236,13 @@ class RecordingDatabaseService:
             raise RetryableError(f"Database error: {e}")
 
     @database_retry
-    async def get_stream_by_external_id(self, external_id: str) -> Optional[Stream]:
-        """Get stream by external ID (twitch_stream_id)"""
+    async def get_stream_by_twitch_stream_id(self, twitch_stream_id: str) -> Optional[Stream]:
+        """Get stream by Twitch stream ID for consistency with database field name"""
         try:
-            self._ensure_db_session()
-            return self.db.query(Stream).filter(Stream.twitch_stream_id == external_id).first()
+            return self.db.query(Stream).filter(Stream.twitch_stream_id == twitch_stream_id).first()
         except Exception as e:
-            logger.error(f"Failed to get stream by external ID {external_id}: {e}")
-            raise RetryableError(f"Database error: {e}")
+            logger.error(f"Failed to get stream by Twitch stream ID {twitch_stream_id}: {e}")
+            return None
 
     @database_retry
     async def create_stream(self, stream_data: Dict[str, Any]) -> Optional[Stream]:
