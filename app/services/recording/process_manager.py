@@ -7,6 +7,7 @@ Includes support for 24h+ streams through segment splitting and automatic proces
 import logging
 import asyncio
 import os
+import shutil
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Tuple
@@ -496,7 +497,6 @@ class ProcessManager:
             
             # Move the file
             if concatenated_file.exists():
-                import shutil
                 shutil.move(str(concatenated_file), str(final_path))
                 logger.info(f"Moved concatenated file from {concatenated_file} to {final_path}")
                 
