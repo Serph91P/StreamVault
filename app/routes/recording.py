@@ -7,6 +7,7 @@ from app.services.recording.recording_service import RecordingService  # Changed
 from app.services.recording.config_manager import FILENAME_PRESETS  # Import FILENAME_PRESETS from config_manager
 from app.services.system.logging_service import logging_service
 from app.services.unified_image_service import unified_image_service
+from app.services.communication.websocket_manager import websocket_manager
 from sqlalchemy.orm import Session, joinedload
 import logging
 import json
@@ -333,19 +334,55 @@ async def get_active_recordings():
 async def stop_recording(streamer_id: int):
     """Manually stop an active recording"""
     try:
+        # Get streamer info for notifications
+        with SessionLocal() as db:
+            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+        
         # Log the stop request
         logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
         
         result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
             logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
+            
+            # Send success toast notification
+            await websocket_manager.send_toast_notification(
+                toast_type="success",
+                title=f"Recording Stopped - {streamer_name}",
+                message="Recording stopped successfully!"
+            )
+            
             return {"status": "success", "message": "Recording stopped successfully"}
         else:
             logging_service.log_recording_activity("STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning")
+            
+            # Send warning toast notification
+            await websocket_manager.send_toast_notification(
+                toast_type="warning",
+                title=f"Stop Recording - {streamer_name}",
+                message="No active recording found to stop."
+            )
+            
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
         logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "API_STOP_ERROR", str(e))
         logger.error(f"Error stopping recording: {e}")
+        
+        # Send error toast notification
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+                
+            await websocket_manager.send_toast_notification(
+                toast_type="error",
+                title=f"Stop Recording - {streamer_name}",
+                message=f"Failed to stop recording: {str(e)}"
+            )
+        except Exception as notification_error:
+            logger.error(f"Failed to send error notification: {notification_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
@@ -433,12 +470,25 @@ async def update_streamer_recording_settings(
 async def force_start_recording(streamer_id: int):
     """Manually start a recording for an active stream"""
     try:
+        # Get streamer info for notifications
+        with SessionLocal() as db:
+            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+        
         # Log force start attempt
         logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
         
         result = await get_recording_service().force_start_recording(streamer_id)
         if result:
             logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
+            
+            # Send success toast notification
+            await websocket_manager.send_force_recording_feedback(
+                success=True,
+                streamer_name=streamer_name,
+                message="Recording started successfully!"
+            )
+            
             return {"status": "success", "message": "Recording started successfully"}
         else:
             # Provide more helpful error message
@@ -449,13 +499,39 @@ async def force_start_recording(streamer_id: int):
             logger.error(f"4. The stream URL is not accessible")
             
             logging_service.log_recording_activity("FORCE_START_FAILED", f"Streamer {streamer_id}", "Force start failed - streamer may be offline or stream inaccessible", "warning")
+            
+            # Send error toast notification
+            await websocket_manager.send_force_recording_feedback(
+                success=False,
+                streamer_name=streamer_name,
+                message="Failed to start recording. Streamer may be offline or stream not accessible."
+            )
+            
             raise HTTPException(
                 status_code=400, 
                 detail="Failed to start recording. The streamer may be offline, or the stream may not be accessible. Check the logs for more details."
             )
+    except HTTPException:
+        # Re-raise HTTP exceptions without modification
+        raise
     except Exception as e:
         logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "FORCE_START_ERROR", str(e))
         logger.error(f"Error force starting recording: {e}", exc_info=True)
+        
+        # Send error toast notification for unexpected errors
+        try:
+            with SessionLocal() as db:
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+                
+            await websocket_manager.send_force_recording_feedback(
+                success=False,
+                streamer_name=streamer_name,
+                message=f"Internal error: {str(e)}"
+            )
+        except Exception as notification_error:
+            logger.error(f"Failed to send error notification: {notification_error}")
+        
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
