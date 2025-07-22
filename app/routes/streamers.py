@@ -474,6 +474,8 @@ async def get_streams_by_streamer_id(
                 "category_name": stream.category_name,
                 "language": stream.language,
                 "twitch_stream_id": stream.twitch_stream_id,
+                "recording_path": stream.recording_path,  # Add recording path to API response
+                "episode_number": stream.episode_number,
                 "events": formatted_events
             })
         
