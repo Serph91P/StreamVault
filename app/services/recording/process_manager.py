@@ -21,7 +21,7 @@ import os
 import shutil
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Callable, Awaitable
 from pathlib import Path
 
 # Import utilities
@@ -43,7 +43,7 @@ class ProcessManager:
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
 
-    def __init__(self, config_manager=None, post_processing_callback=None):
+    def __init__(self, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None):
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
@@ -539,10 +539,7 @@ class ProcessManager:
             
             if self.post_processing_callback:
                 # Use the injected callback to trigger post-processing
-                await self.post_processing_callback(
-                    recording_id=stream_id,
-                    file_path=output_path
-                )
+                await self.post_processing_callback(stream_id, output_path)
                 logger.info(f"Triggered post-processing for segmented recording {stream_id} via callback")
             else:
                 # Fallback to direct service access (with circular import handling)
@@ -827,11 +824,11 @@ class ProcessManager:
             logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
             return None
 
-    def set_post_processing_callback(self, callback):
+    def set_post_processing_callback(self, callback: Optional[Callable[[int, str], Awaitable[None]]]):
         """Set the post-processing callback for dependency injection
         
         Args:
-            callback: Async function that takes (recording_id, file_path) parameters
+            callback: Async function that takes (recording_id: int, file_path: str) parameters
         """
         self.post_processing_callback = callback
         logger.info("Post-processing callback set for ProcessManager")
