@@ -46,6 +46,13 @@ class ImageSyncService:
                 # Wait for sync request with timeout to check _running periodically
                 sync_request = await asyncio.wait_for(self._sync_queue.get(), timeout=5.0)
                 await self._process_sync_request(sync_request)
+                
+                # Add delay between requests to avoid rate limiting
+                await asyncio.sleep(0.5)  # 500ms delay between requests
+                
+                # Mark task as done
+                self._sync_queue.task_done()
+                
             except asyncio.TimeoutError:
                 continue  # Check if still running
             except asyncio.CancelledError:
@@ -54,18 +61,6 @@ class ImageSyncService:
                 logger.error(f"Error in image sync worker: {e}")
                 await asyncio.sleep(1)
         logger.info("Image sync background worker stopped")
-                
-                # Add delay between requests to avoid rate limiting
-                await asyncio.sleep(0.5)  # 500ms delay between requests
-                
-                # Mark task as done
-                self._sync_queue.task_done()
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in image sync worker: {e}")
-                await asyncio.sleep(5)  # Wait before continuing
     
     async def _process_sync_request(self, sync_request: dict):
         """Process a single sync request"""
@@ -100,7 +95,10 @@ class ImageSyncService:
         
         if category_name:
             logger.info(f"Syncing category image for {category_name}")
-            await unified_image_service.download_category_image(category_name, image_url)
+            if image_url:
+                await unified_image_service.download_category_image(category_name, image_url)
+            else:
+                await unified_image_service.download_category_image(category_name, "")
     
     async def _sync_stream_artwork(self, sync_request: dict):
         """Sync stream artwork"""
@@ -122,7 +120,7 @@ class ImageSyncService:
             "profile_image_url": profile_image_url
         })
     
-    async def request_category_image_sync(self, category_name: str, image_url: str = None):
+    async def request_category_image_sync(self, category_name: str, image_url: Optional[str] = None):
         """Request sync of a category image"""
         await self._sync_queue.put({
             "type": "category_image",
