@@ -22,6 +22,7 @@ from app.models import (
     Recording
 )
 from app.config.settings import settings as app_settings
+from app.services.images.auto_image_sync_service import auto_image_sync_service
 
 logger = logging.getLogger('streamvault')
 
@@ -434,6 +435,14 @@ class EventHandlerRegistry:
                             category.last_seen = datetime.now(timezone.utc)
                         
                         db.commit()
+
+                        # Automatically sync category image after category creation/update
+                        logger.info(f"🎬 AUTO_CATEGORY_SYNC: Requesting category image sync for category={category_name}")
+                        try:
+                            await auto_image_sync_service.request_category_image_sync(category_name, category.box_art_url)
+                            logger.info(f"🎬 AUTO_CATEGORY_SYNC_REQUESTED: Successfully requested category image sync for {category_name}")
+                        except Exception as img_error:
+                            logger.error(f"🎬 AUTO_CATEGORY_SYNC_ERROR: Failed to sync category image for {category_name}: {img_error}", exc_info=True)
 
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
