@@ -33,14 +33,14 @@
         
         <div class="header-actions">
           <button 
-            @click="forceStartRecording(streamerId)" 
+            @click="forceStartRecording(Number(streamerId))" 
             class="btn btn-success"
-            :disabled="forceRecordingStreamerId === streamerId"
+            :disabled="forceRecordingStreamerId === Number(streamerId)"
             title="Force Start Recording for this Streamer"
             aria-label="Force start recording for current streamer - checks if streamer is live and starts recording immediately"
-            :aria-describedby="forceRecordingStreamerId === streamerId ? 'force-recording-status' : undefined"
+            :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
           >
-            <span v-if="forceRecordingStreamerId === streamerId" id="force-recording-status">
+            <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
             </span>
             <span v-else>
@@ -104,7 +104,7 @@
                   </span>
                   
                   <span 
-                    v-if="stream.ended_at && hasRecording(stream)" 
+                    v-if="stream.ended_at && hasRecording(stream as ExtendedStream)" 
                     class="status-badge has-recording"
                   >
                     <i class="fas fa-video"></i> VIDEO
@@ -126,7 +126,7 @@
               <div class="recording-actions">
                 <!-- Watch Video Button (for ended streams with recording) -->
                 <button 
-                  v-if="stream.ended_at && hasRecording(stream)"
+                  v-if="stream.ended_at && hasRecording(stream as ExtendedStream)"
                   @click="watchVideo(stream)" 
                   class="btn btn-primary action-btn"
                   title="Watch Video"
@@ -155,7 +155,7 @@
                 <!-- Stop Recording Button (for active recordings) -->
                                 <!-- Stop Recording Button -->
                 <button 
-                  v-if="!stream.ended_at && hasActiveRecording(stream)"
+                  v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
                   @click="forceStopRecording(stream)" 
                   class="btn btn-danger action-btn"
                   title="Stop Recording"
@@ -203,7 +203,7 @@
           
           <!-- Expanded Details -->
           <div 
-            v-if="expandedStreams[stream.id]" 
+            v-if="expandedStreams.has(stream.id)" 
             class="stream-details"
             :id="`stream-details-${stream.id}`"
           >
@@ -272,9 +272,9 @@
                   </div>
                   
                   <!-- Additional Categories (if available from database) -->
-                  <div v-if="stream.categories && stream.categories.length > 1" class="additional-categories">
+                  <div v-if="(stream as ExtendedStream).categories && (stream as ExtendedStream).categories!.length > 1" class="additional-categories">
                     <div 
-                      v-for="category in stream.categories.slice(1)" 
+                      v-for="category in (stream as ExtendedStream).categories!.slice(1)" 
                       :key="category.name"
                       class="category-item"
                     >
@@ -338,7 +338,7 @@
                   <div class="status-item">
                     <span class="status-label">Recording Available:</span>
                     <span class="status-value">
-                      <span v-if="hasRecording(stream)" class="status-available">
+                      <span v-if="hasRecording(stream as ExtendedStream)" class="status-available">
                         <i class="fas fa-check-circle"></i> Yes
                       </span>
                       <span v-else class="status-unavailable">
@@ -346,9 +346,9 @@
                       </span>
                     </span>
                   </div>
-                  <div v-if="stream.recordings && stream.recordings.length > 0" class="status-item">
+                  <div v-if="(stream as ExtendedStream).recordings && (stream as ExtendedStream).recordings!.length > 0" class="status-item">
                     <span class="status-label">Recording Files:</span>
-                    <span class="status-value">{{ stream.recordings.length }} file(s)</span>
+                    <span class="status-value">{{ (stream as ExtendedStream).recordings!.length }} file(s)</span>
                   </div>
                 </div>
               </div>
@@ -447,6 +447,30 @@ import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
+import type { Stream } from '@/types/streams'
+
+// Extend the base Stream interface with additional properties
+interface StreamCategory {
+  name: string
+  duration?: number
+}
+
+interface StreamRecording {
+  id: number
+  file_path: string
+  file_size?: number
+  created_at: string
+}
+
+interface ExtendedStream extends Stream {
+  categories?: StreamCategory[]
+  recordings?: StreamRecording[]
+}
+
+// Type guard to check if stream has required properties
+const hasValidStartDate = (stream: Stream): stream is Stream & { started_at: string } => {
+  return stream.started_at !== null
+}
 
 // Define props
 interface Props {
@@ -474,12 +498,12 @@ const { messages } = useWebSocket()
 const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 
 // UI State
-const expandedStreams = ref<Record<number, boolean>>({})
+const expandedStreams = ref<Set<number>>(new Set())
 const deletingStreamId = ref<number | null>(null)
 const deletingAllStreams = ref(false)
 const showDeleteModal = ref(false)
 const showDeleteAllModal = ref(false)
-const streamToDelete = ref<any>(null)
+const streamToDelete = ref<ExtendedStream | null>(null)
 const forceRecordingStreamerId = ref<number | null>(null)
 const stoppingRecordingStreamerId = ref<number | null>(null)
 
@@ -501,7 +525,7 @@ const sortedStreams = computed(() => {
 })
 
 // Check if a specific stream is being recorded
-const isStreamBeingRecorded = (stream: any): boolean => {
+const isStreamBeingRecorded = (stream: Stream): boolean => {
   if (!stream || stream.ended_at) return false
   
   const streamId = Number(stream.id)
@@ -570,8 +594,9 @@ const formatDate = (dateString: string | null): string => {
   })
 }
 
-const calculateDuration = (stream: any): string => {
+const calculateDuration = (stream: Stream): string => {
   if (!stream.ended_at) return 'Live'
+  if (!hasValidStartDate(stream)) return 'Unknown'
   
   const start = new Date(stream.started_at)
   const end = new Date(stream.ended_at)
@@ -597,14 +622,18 @@ const formatDuration = (durationMs: number): string => {
   }
 }
 
-const hasRecording = (stream: any): boolean => {
+const hasRecording = (stream: ExtendedStream): boolean => {
   // Check if stream has associated recording files
-  return stream.recordings && stream.recordings.length > 0
+  return Boolean(stream.recordings && stream.recordings.length > 0)
 }
 
 // UI Actions
-const toggleStreamExpansion = (streamId: number) => {
-  expandedStreams.value[streamId] = !expandedStreams.value[streamId]
+const toggleDetails = (streamId: number) => {
+  if (expandedStreams.value.has(streamId)) {
+    expandedStreams.value.delete(streamId)
+  } else {
+    expandedStreams.value.add(streamId)
+  }
 }
 
 const handleBack = () => {
@@ -616,7 +645,7 @@ const handleBack = () => {
   router.push('/streamers')
 }
 
-const watchVideo = (stream: any) => {
+const watchVideo = (stream: Stream) => {
   // Navigate to video player with stream details
   router.push({
     name: 'VideoPlayer',
@@ -632,8 +661,8 @@ const watchVideo = (stream: any) => {
 }
 
 // Delete Functions
-const confirmDeleteStream = (stream: any) => {
-  streamToDelete.value = stream
+const confirmDeleteStream = (stream: Stream) => {
+  streamToDelete.value = stream as ExtendedStream
   showDeleteModal.value = true
 }
 
@@ -657,7 +686,7 @@ const deleteStream = async () => {
     }
     
     // Remove from local state
-    const index = streams.value.findIndex(s => s.id === streamToDelete.value.id)
+    const index = streams.value.findIndex(s => s.id === streamToDelete.value!.id)
     if (index > -1) {
       streams.value.splice(index, 1)
     }
@@ -780,6 +809,35 @@ const stopRecording = async (streamerId: number) => {
     // Let the backend handle error notifications via WebSocket
     // Error messages will be sent as toast notifications
     // Don't show additional UI errors here to avoid double notifications
+  } finally {
+    stoppingRecordingStreamerId.value = null
+  }
+}
+
+const forceStopRecording = async (stream: Stream) => {
+  if (!stream || stream.ended_at) return
+  
+  const streamerId = Number(stream.streamer_id)
+  stoppingRecordingStreamerId.value = streamerId
+  
+  try {
+    const response = await fetch(`/api/recordings/force-stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ streamer_id: streamerId })
+    })
+    
+    if (response.ok) {
+      console.log('Force stop recording successful')
+      // Update local state immediately
+      localRecordingState.value[stream.id] = false
+    } else {
+      console.error('Force stop recording failed')
+    }
+  } catch (error) {
+    console.error('Error force stopping recording:', error)
   } finally {
     stoppingRecordingStreamerId.value = null
   }
