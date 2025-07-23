@@ -136,7 +136,8 @@ class ImageRefreshService:
             # Use async database operations
             from app.utils.async_db_utils import get_async_session
             
-            async with get_async_session() as session:
+            session = await get_async_session()
+            async with session:
                 result = await session.execute(select(Category))
                 categories = result.scalars().all()
                 
