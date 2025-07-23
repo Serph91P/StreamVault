@@ -257,7 +257,7 @@ class RecordingDatabaseService:
                 category_name=stream_data.get('category_name', 'Unknown'),
                 language=stream_data.get('language', 'en'),
                 started_at=stream_data.get('started_at', datetime.now()),
-                twitch_stream_id=stream_data.get('external_id', 'unknown')
+                twitch_stream_id=stream_data.get('twitch_stream_id', stream_data.get('external_id', 'unknown'))
             )
             
             self.db.add(stream)

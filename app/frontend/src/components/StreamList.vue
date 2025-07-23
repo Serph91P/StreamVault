@@ -514,6 +514,14 @@ const stoppingRecordingStreamerId = ref<number | null>(null)
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})
 
+// Cache for recording availability
+const recordingAvailabilityCache = ref<Record<number, { hasRecording: boolean, checked: boolean }>>({})
+
+// Debouncing for API calls
+const pendingVerifications = ref<Set<number>>(new Set())
+const verificationQueue = ref<number[]>([])
+let verificationTimeout: NodeJS.Timeout | null = null
+
 // Computed Properties
 const sortedStreams = computed(() => {
   return [...streams.value].sort((a, b) => {
@@ -627,14 +635,172 @@ const formatDuration = (durationMs: number): string => {
 }
 
 const hasRecording = (stream: Stream): boolean => {
-  // Check if stream has a recording path (primary method)
+  // Check cache first
+  if (recordingAvailabilityCache.value[stream.id]?.checked) {
+    return recordingAvailabilityCache.value[stream.id].hasRecording
+  }
+  
+  // Quick check: if stream has recording_path, assume it has recording
+  // This is for immediate UI response, but we'll verify asynchronously
   if (stream.recording_path && stream.recording_path.trim() !== '') {
+    // Cache this result temporarily
+    recordingAvailabilityCache.value[stream.id] = { hasRecording: true, checked: false }
+    // Queue for verification with debouncing
+    queueRecordingVerification(stream.id)
     return true
   }
   
-  // Fallback: Check if stream has associated recording files (extended property)
-  const extendedStream = stream as ExtendedStream
-  return Boolean(extendedStream.recordings && extendedStream.recordings.length > 0)
+  // If no recording_path, assume no recording but verify asynchronously
+  recordingAvailabilityCache.value[stream.id] = { hasRecording: false, checked: false }
+  queueRecordingVerification(stream.id)
+  return false
+}
+
+// Queue recording verification with debouncing
+const queueRecordingVerification = (streamId: number) => {
+  // Avoid duplicate requests
+  if (pendingVerifications.value.has(streamId)) {
+    return
+  }
+  
+  // Add to pending set and queue
+  pendingVerifications.value.add(streamId)
+  verificationQueue.value.push(streamId)
+  
+  // Clear existing timeout and set new one
+  if (verificationTimeout) {
+    clearTimeout(verificationTimeout)
+  }
+  
+  // Debounce: wait 300ms before processing queue
+  verificationTimeout = setTimeout(() => {
+    processVerificationQueue()
+  }, 300)
+}
+
+// Process queued verifications in batches
+const processVerificationQueue = async () => {
+  if (verificationQueue.value.length === 0) return
+  
+  const streamIds = [...verificationQueue.value]
+  verificationQueue.value = []
+  
+  // Process in batches to avoid overwhelming the API
+  const batchSize = 10
+  for (let i = 0; i < streamIds.length; i += batchSize) {
+    const batch = streamIds.slice(i, i + batchSize)
+    await verifyRecordingsBatch(batch)
+    
+    // Small delay between batches to prevent API overload
+    if (i + batchSize < streamIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+}
+
+// Verify recordings for a batch of stream IDs
+const verifyRecordingsBatch = async (streamIds: number[]) => {
+  try {
+    const response = await fetch('/api/streams/check-recordings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(streamIds)
+    })
+    
+    if (response.ok) {
+      const results = await response.json()
+      
+      // Update cache with batch results
+      for (const [streamId, result] of Object.entries(results)) {
+        recordingAvailabilityCache.value[parseInt(streamId)] = {
+          hasRecording: (result as any).has_recording,
+          checked: true
+        }
+        // Remove from pending set
+        pendingVerifications.value.delete(parseInt(streamId))
+      }
+    } else {
+      // Fallback to individual checks if batch fails
+      for (const streamId of streamIds) {
+        await verifyRecordingExists(streamId)
+      }
+    }
+  } catch (error) {
+    console.error('Error in batch recording verification:', error)
+    // Fallback to individual checks
+    for (const streamId of streamIds) {
+      await verifyRecordingExists(streamId)
+    }
+  }
+}
+
+// Async function to verify if recording actually exists (individual)
+const verifyRecordingExists = async (streamId: number) => {
+  try {
+    const response = await fetch(`/api/stream/${streamId}/has-recording`, {
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      // Update cache with actual result
+      recordingAvailabilityCache.value[streamId] = {
+        hasRecording: data.has_recording,
+        checked: true
+      }
+    }
+    
+    // Remove from pending set
+    pendingVerifications.value.delete(streamId)
+  } catch (error) {
+    console.error(`Error verifying recording for stream ${streamId}:`, error)
+    // Keep previous assumption if API fails
+    if (recordingAvailabilityCache.value[streamId]) {
+      recordingAvailabilityCache.value[streamId].checked = true
+    }
+    pendingVerifications.value.delete(streamId)
+  }
+}
+
+// Batch function to verify recordings for all streams
+const verifyAllRecordings = async () => {
+  if (streams.value.length === 0) return
+  
+  try {
+    const streamIds = streams.value.map(stream => stream.id)
+    const response = await fetch('/api/streams/check-recordings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(streamIds)
+    })
+    
+    if (response.ok) {
+      const results = await response.json()
+      
+      // Update cache with all results
+      for (const [streamIdStr, result] of Object.entries(results)) {
+        const streamId = parseInt(streamIdStr)
+        recordingAvailabilityCache.value[streamId] = {
+          hasRecording: (result as any).has_recording,
+          checked: true
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error verifying recordings for all streams:', error)
+    // Fall back to individual checks if batch fails
+    for (const stream of streams.value) {
+      if (!recordingAvailabilityCache.value[stream.id]?.checked) {
+        verifyRecordingExists(stream.id)
+      }
+    }
+  }
 }
 
 // UI Actions
@@ -858,6 +1024,14 @@ onMounted(async () => {
   if (streamerId.value) {
     await fetchStreams(streamerId.value)
     await fetchActiveRecordings()
+    
+    // Clear recording availability cache when streams are loaded
+    recordingAvailabilityCache.value = {}
+    
+    // Verify all recordings in batch after streams are loaded
+    setTimeout(() => {
+      verifyAllRecordings()
+    }, 100) // Small delay to allow UI to render first
     
     // Preload category images
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]

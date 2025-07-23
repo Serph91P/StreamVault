@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse, FileResponse
 import os
 import urllib.parse
-from typing import List
+from typing import List, Optional
 import logging
 from pathlib import Path
 import mimetypes
@@ -868,3 +868,428 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
     except Exception as e:
         logger.error(f"Error in test endpoint: {e}", exc_info=True)
         return {"error": "An internal error has occurred"}
+
+
+@router.get("/debug/videos-database")
+async def debug_videos_database(
+    db: Session = Depends(get_db),
+    streamer_username: str = Query(None, description="Filter by specific streamer username")
+):
+    """Debug endpoint to see what's in the database vs filesystem"""
+    
+    result = {
+        "streams": [],
+        "recordings": [],
+        "filesystem_check": {},
+        "summary": {},
+        "filter": {
+            "streamer_username": streamer_username,
+            "available_streamers": []
+        }
+    }
+    
+    # Get available streamers for reference
+    available_streamers = db.query(Streamer.username).distinct().all()
+    result["filter"]["available_streamers"] = [s.username for s in available_streamers]
+    
+    # Build query for streams
+    streams_query = db.query(Stream, Streamer).join(
+        Streamer, Stream.streamer_id == Streamer.id
+    )
+    
+    # Apply filter if streamer_username is provided
+    if streamer_username:
+        streams_query = streams_query.filter(Streamer.username == streamer_username)
+    
+    streams = streams_query.order_by(Stream.started_at.desc()).limit(50).all()  # Limit for performance
+    
+    for stream, streamer in streams:
+        stream_info = {
+            "id": stream.id,
+            "title": stream.title,
+            "streamer_name": streamer.username,
+            "started_at": stream.started_at.isoformat() if stream.started_at else None,
+            "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+            "recording_path": stream.recording_path,
+            "category_name": stream.category_name,
+            "is_live": stream.is_live
+        }
+        
+        # Check if recording_path file exists
+        if stream.recording_path:
+            try:
+                path = Path(stream.recording_path)
+                stream_info["recording_path_exists"] = path.exists()
+                if path.exists():
+                    stream_info["recording_path_size"] = path.stat().st_size
+            except Exception as e:
+                stream_info["recording_path_error"] = str(e)
+        
+        result["streams"].append(stream_info)
+    
+    # Build query for recordings
+    recordings_query = db.query(Recording, Stream, Streamer).join(
+        Stream, Recording.stream_id == Stream.id
+    ).join(
+        Streamer, Stream.streamer_id == Streamer.id
+    )
+    
+    # Apply filter if streamer_username is provided
+    if streamer_username:
+        recordings_query = recordings_query.filter(Streamer.username == streamer_username)
+    
+    recordings = recordings_query.order_by(Recording.start_time.desc()).limit(50).all()  # Limit for performance
+    
+    for recording, stream, streamer in recordings:
+        recording_info = {
+            "id": recording.id,
+            "stream_id": recording.stream_id,
+            "status": recording.status,
+            "path": recording.path,
+            "start_time": recording.start_time.isoformat() if recording.start_time else None,
+            "end_time": recording.end_time.isoformat() if recording.end_time else None,
+            "stream_title": stream.title,
+            "streamer_name": streamer.username
+        }
+        
+        # Check if recording path file exists
+        if recording.path:
+            try:
+                ts_path = Path(recording.path)
+                mp4_path = ts_path.with_suffix('.mp4')
+                
+                recording_info["ts_path_exists"] = ts_path.exists()
+                recording_info["mp4_path_exists"] = mp4_path.exists()
+                
+                if ts_path.exists():
+                    recording_info["ts_path_size"] = ts_path.stat().st_size
+                if mp4_path.exists():
+                    recording_info["mp4_path_size"] = mp4_path.stat().st_size
+                    recording_info["mp4_path"] = str(mp4_path)
+                    
+            except Exception as e:
+                recording_info["path_check_error"] = str(e)
+        
+        result["recordings"].append(recording_info)
+    
+    # Check filesystem directly - build path based on streamer filter or scan all
+    base_recordings_dir = Path("/recordings")
+    if streamer_username and base_recordings_dir.exists():
+        # Check specific streamer directory
+        streamer_recordings_dir = base_recordings_dir / streamer_username
+        if streamer_recordings_dir.exists():
+            result["filesystem_check"]["recordings_dir_exists"] = True
+            result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+            
+            # List subdirectories for the specific streamer
+            subdirs = []
+            for item in streamer_recordings_dir.iterdir():
+                if item.is_dir():
+                    subdirs.append({
+                        "name": item.name,
+                        "files": []
+                    })
+                    # List files in subdirectory
+                    for file in item.iterdir():
+                        if file.suffix in ['.mp4', '.ts']:
+                            subdirs[-1]["files"].append({
+                                "name": file.name,
+                                "size": file.stat().st_size,
+                                "path": str(file)
+                            })
+            
+            result["filesystem_check"]["subdirectories"] = subdirs
+        else:
+            result["filesystem_check"]["recordings_dir_exists"] = False
+            result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+            result["filesystem_check"]["error"] = f"Streamer directory not found: {streamer_recordings_dir}"
+    
+    elif base_recordings_dir.exists():
+        # Scan all streamer directories if no specific filter
+        result["filesystem_check"]["recordings_dir_exists"] = True
+        result["filesystem_check"]["all_streamers"] = []
+        
+        for streamer_dir in base_recordings_dir.iterdir():
+            if streamer_dir.is_dir():
+                result["filesystem_check"]["all_streamers"].append({
+                    "name": streamer_dir.name,
+                    "path": str(streamer_dir),
+                    "file_count": len([f for f in streamer_dir.rglob("*") if f.is_file() and f.suffix in ['.mp4', '.ts']])
+                })
+    else:
+        result["filesystem_check"]["recordings_dir_exists"] = False
+    
+    # Summary
+    result["summary"] = {
+        "total_streams": len(result["streams"]),
+        "total_recordings": len(result["recordings"]),
+        "streams_with_recording_path": len([s for s in result["streams"] if s.get("recording_path")]),
+        "recordings_with_path": len([r for r in result["recordings"] if r.get("path")]),
+        "mp4_files_found": len([r for r in result["recordings"] if r.get("mp4_path_exists")])
+    }
+    
+    return result
+
+
+@router.get("/debug/recordings-directory")
+async def debug_recordings_directory(
+    streamer_username: str = Query(None, description="Filter by specific streamer username")
+):
+    """Debug endpoint to list contents of recordings directory"""
+    
+    result = {
+        "base_recordings_dir": "/recordings",
+        "filter": {
+            "streamer_username": streamer_username
+        },
+        "directories": []
+    }
+    
+    try:
+        base_dir = Path("/recordings")
+        if base_dir.exists():
+            result["base_recordings_dir_exists"] = True
+            
+            if streamer_username:
+                # Check specific streamer directory
+                streamer_dir = base_dir / streamer_username
+                if streamer_dir.exists():
+                    streamer_info = {
+                        "name": streamer_dir.name,
+                        "path": str(streamer_dir),
+                        "subdirectories": [],
+                        "total_files": 0,
+                        "total_size_mb": 0
+                    }
+                    
+                    # List season directories
+                    for season_dir in streamer_dir.iterdir():
+                        if season_dir.is_dir():
+                            season_info = {
+                                "name": season_dir.name,
+                                "path": str(season_dir),
+                                "files": [],
+                                "file_count": 0,
+                                "total_size_mb": 0
+                            }
+                            
+                            # List files in season directory
+                            for file in season_dir.iterdir():
+                                if file.is_file():
+                                    file_size = file.stat().st_size
+                                    season_info["files"].append({
+                                        "name": file.name,
+                                        "size": file_size,
+                                        "size_mb": round(file_size / (1024*1024), 2),
+                                        "path": str(file),
+                                        "extension": file.suffix
+                                    })
+                                    season_info["file_count"] += 1
+                                    season_info["total_size_mb"] += round(file_size / (1024*1024), 2)
+                            
+                            streamer_info["subdirectories"].append(season_info)
+                            streamer_info["total_files"] += season_info["file_count"]
+                            streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                    
+                    result["directories"].append(streamer_info)
+                else:
+                    result["error"] = f"Streamer directory not found: {streamer_dir}"
+            
+            else:
+                # List all streamer directories (with performance limits)
+                for streamer_dir in base_dir.iterdir():
+                    if streamer_dir.is_dir():
+                        streamer_info = {
+                            "name": streamer_dir.name,
+                            "path": str(streamer_dir),
+                            "subdirectories": [],
+                            "total_files": 0,
+                            "total_size_mb": 0
+                        }
+                        
+                        # List season directories (limit to avoid performance issues)
+                        season_count = 0
+                        for season_dir in streamer_dir.iterdir():
+                            if season_dir.is_dir() and season_count < 10:  # Limit seasons shown
+                                season_info = {
+                                    "name": season_dir.name,
+                                    "path": str(season_dir),
+                                    "files": [],
+                                    "file_count": 0,
+                                    "total_size_mb": 0
+                                }
+                                
+                                # Count files without listing all (for performance)
+                                file_count = 0
+                                total_size = 0
+                                for file in season_dir.iterdir():
+                                    if file.is_file():
+                                        file_count += 1
+                                        total_size += file.stat().st_size
+                                        
+                                        # Only list first 5 files for preview
+                                        if len(season_info["files"]) < 5:
+                                            season_info["files"].append({
+                                                "name": file.name,
+                                                "size": file.stat().st_size,
+                                                "size_mb": round(file.stat().st_size / (1024*1024), 2),
+                                                "path": str(file),
+                                                "extension": file.suffix
+                                            })
+                                
+                                season_info["file_count"] = file_count
+                                season_info["total_size_mb"] = round(total_size / (1024*1024), 2)
+                                
+                                streamer_info["subdirectories"].append(season_info)
+                                streamer_info["total_files"] += file_count
+                                streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                                season_count += 1
+                        
+                        result["directories"].append(streamer_info)
+        else:
+            result["base_recordings_dir_exists"] = False
+            
+    except Exception as e:
+        result["error"] = str(e)
+    
+    return result
+
+
+@router.get("/stream/{stream_id}/has-recording")
+async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
+    """Check if a specific stream has a recording available"""
+    
+    try:
+        # Get the stream
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        # Strategy 1: Check if stream has recording_path set and file exists
+        if stream.recording_path and stream.recording_path.strip():
+            recording_path = Path(stream.recording_path)
+            if recording_path.exists() and recording_path.is_file():
+                return {
+                    "has_recording": True,
+                    "file_path": str(recording_path),
+                    "file_size": recording_path.stat().st_size,
+                    "method": "stream_recording_path"
+                }
+        
+        # Strategy 2: Check if there's a recording in the database for this stream
+        recording = db.query(Recording).filter(
+            Recording.stream_id == stream_id,
+            Recording.status.in_(['completed', 'post_processing'])
+        ).first()
+        
+        if recording and recording.path:
+            # Try both .ts and .mp4 files
+            ts_path = Path(recording.path)
+            mp4_path = ts_path.with_suffix('.mp4')
+            
+            # Prefer .mp4 if it exists
+            if mp4_path.exists():
+                return {
+                    "has_recording": True,
+                    "file_path": str(mp4_path),
+                    "file_size": mp4_path.stat().st_size,
+                    "method": "recording_mp4_file"
+                }
+            elif ts_path.exists():
+                return {
+                    "has_recording": True,
+                    "file_path": str(ts_path),
+                    "file_size": ts_path.stat().st_size,
+                    "method": "recording_ts_file"
+                }
+        
+        # No recording found
+        return {
+            "has_recording": False,
+            "method": "none"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking recording for stream {stream_id}: {e}")
+        return {
+            "has_recording": False,
+            "error": str(e),
+            "method": "error"
+        }
+
+
+@router.post("/streams/check-recordings")
+async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
+    """Check recording availability for multiple streams at once"""
+    
+    results = {}
+    
+    try:
+        # Get all streams at once
+        streams = db.query(Stream).filter(Stream.id.in_(stream_ids)).all()
+        stream_dict = {stream.id: stream for stream in streams}
+        
+        # Get all recordings for these streams at once
+        recordings = db.query(Recording).filter(
+            Recording.stream_id.in_(stream_ids),
+            Recording.status.in_(['completed', 'post_processing'])
+        ).all()
+        recording_dict = {recording.stream_id: recording for recording in recordings}
+        
+        for stream_id in stream_ids:
+            stream = stream_dict.get(stream_id)
+            if not stream:
+                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
+                continue
+            
+            # Strategy 1: Check stream.recording_path
+            if stream.recording_path and stream.recording_path.strip():
+                try:
+                    recording_path = Path(stream.recording_path)
+                    if recording_path.exists() and recording_path.is_file():
+                        results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "stream_recording_path"
+                        }
+                        continue
+                except Exception:
+                    pass  # Continue to next strategy
+            
+            # Strategy 2: Check recording in database
+            recording = recording_dict.get(stream_id)
+            if recording and recording.path:
+                try:
+                    ts_path = Path(recording.path)
+                    mp4_path = ts_path.with_suffix('.mp4')
+                    
+                    # Prefer .mp4 if it exists
+                    if mp4_path.exists():
+                        results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(mp4_path),
+                            "file_size": mp4_path.stat().st_size,
+                            "method": "recording_mp4_file"
+                        }
+                        continue
+                    elif ts_path.exists():
+                        results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(ts_path),
+                            "file_size": ts_path.stat().st_size,
+                            "method": "recording_ts_file"
+                        }
+                        continue
+                except Exception:
+                    pass  # Continue to no recording found
+            
+            # No recording found
+            results[stream_id] = {"has_recording": False, "method": "none"}
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error checking recordings for multiple streams: {e}")
+        # Return error state for all requested streams
+        return {stream_id: {"has_recording": False, "error": str(e), "method": "error"} for stream_id in stream_ids}

@@ -76,7 +76,7 @@ class ProcessManager:
         self._is_shutting_down = False
 
     async def start_recording_process(
-        self, stream: Stream, output_path: str, quality: str
+        self, stream: Stream, output_path: str, quality: str, recording_id: int = None
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
         
@@ -84,13 +84,14 @@ class ProcessManager:
             stream: Stream object to record
             output_path: Path where the recording should be saved
             quality: Quality setting for the stream
+            recording_id: ID of the recording entry (optional, for segmented recording tracking)
             
         Returns:
             Process object or None if failed
         """
         try:
             # Initialize segmented recording for long streams
-            segment_info = await self._initialize_segmented_recording(stream, output_path, quality)
+            segment_info = await self._initialize_segmented_recording(stream, output_path, quality, recording_id)
             
             # Start the first segment
             process = await self._start_segment(
@@ -110,7 +111,7 @@ class ProcessManager:
             logger.error(f"Failed to start recording process for stream {stream.id}: {e}", exc_info=True)
             raise ProcessError(f"Failed to start recording: {e}")
 
-    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str) -> Dict:
+    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str, recording_id: int = None) -> Dict:
         """Initialize segmented recording structure for long streams"""
         base_path = Path(output_path)
         segment_dir = base_path.parent / f"{base_path.stem}_segments"
@@ -122,6 +123,7 @@ class ProcessManager:
         
         segment_info = {
             'stream_id': stream.id,
+            'recording_id': recording_id,  # Store recording_id for proper post-processing
             'base_output_path': str(output_path),
             'segment_dir': str(segment_dir),
             'current_segment_path': str(current_segment_path),
@@ -537,20 +539,22 @@ class ProcessManager:
             # Use the final output path (moved file) for post-processing
             output_path = segment_info.get('final_output_path', segment_info['base_output_path'])
             stream_id = segment_info['stream_id']
+            # Get recording_id from segment_info if available
+            recording_id = segment_info.get('recording_id')
             
-            if self.post_processing_callback:
-                # Use the injected callback to trigger post-processing
-                await self.post_processing_callback(stream_id, output_path)
-                logger.info(f"Triggered post-processing for segmented recording {stream_id} via callback")
+            if self.post_processing_callback and recording_id:
+                # Use the injected callback to trigger post-processing with correct recording_id
+                await self.post_processing_callback(recording_id, output_path)
+                logger.info(f"Triggered post-processing for segmented recording {recording_id} (stream {stream_id}) via callback")
             else:
                 # Fallback to direct service access (with circular import handling)
-                logger.warning("No post-processing callback available, using fallback method")
-                await self._fallback_trigger_post_processing(stream_id, output_path)
+                logger.warning("No post-processing callback available or recording_id missing, using fallback method")
+                await self._fallback_trigger_post_processing(stream_id, output_path, recording_id)
                 
         except Exception as e:
             logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
 
-    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str):
+    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str, recording_id: int = None):
         """Fallback method for post-processing when no callback is injected"""
         try:
             # Import here to avoid circular imports (only used as fallback)
@@ -559,43 +563,54 @@ class ProcessManager:
             # Get recording service and orchestrator
             recording_service = get_recording_service()
             if recording_service and recording_service.orchestrator:
-                # Use the orchestrator's public enqueue_post_processing method
-                # First get the recording data
-                recording_data = recording_service.orchestrator.database_service.get_recording_by_id(stream_id)
-                if recording_data:
-                    # Update recording status first
-                    await recording_service.orchestrator.database_service.update_recording_status(
-                        recording_id=stream_id,
-                        status="completed",
-                        path=output_path
-                    )
-                    
-                    # Get additional data needed for post-processing
-                    stream_data = await recording_service.orchestrator.database_service.get_stream_by_id(recording_data.stream_id)
-                    if stream_data:
-                        streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
-                        if streamer_data:
-                            # Create recording data dict for post-processing
-                            recording_data_dict = {
-                                'streamer_name': streamer_data.username,
-                                'started_at': recording_data.started_at.isoformat() if recording_data.started_at else None,
-                                'stream_id': stream_data.id,
-                                'recording_id': stream_id
-                            }
-                            
-                            # Use the public enqueue_post_processing method
-                            await recording_service.orchestrator.enqueue_post_processing(
-                                recording_id=stream_id,
-                                ts_file_path=output_path,
-                                recording_data=recording_data_dict
-                            )
-                            logger.info(f"Enqueued post-processing for segmented recording {stream_id}")
+                # If recording_id is not provided, try to find it by stream_id
+                if not recording_id:
+                    # Look for active recording for this stream
+                    recordings = await recording_service.orchestrator.database_service.get_recordings_by_status("recording")
+                    for recording in recordings:
+                        if recording.stream_id == stream_id:
+                            recording_id = recording.id
+                            break
+                
+                if recording_id:
+                    # Get recording data using correct recording_id
+                    recording_data = recording_service.orchestrator.database_service.get_recording_by_id(recording_id)
+                    if recording_data:
+                        # Update recording status using correct recording_id
+                        await recording_service.orchestrator.database_service.update_recording_status(
+                            recording_id=recording_id,  # Use actual recording_id
+                            status="completed",
+                            path=output_path
+                        )
+                        
+                        # Get additional data needed for post-processing
+                        stream_data = await recording_service.orchestrator.database_service.get_stream_by_id(recording_data.stream_id)
+                        if stream_data:
+                            streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
+                            if streamer_data:
+                                # Create recording data dict for post-processing
+                                recording_data_dict = {
+                                    'streamer_name': streamer_data.username,
+                                    'started_at': recording_data.start_time.isoformat() if recording_data.start_time else None,
+                                    'stream_id': stream_data.id,
+                                    'recording_id': recording_id  # Use correct recording_id
+                                }
+                                
+                                # Use the public enqueue_post_processing method with correct recording_id
+                                await recording_service.orchestrator.enqueue_post_processing(
+                                    recording_id=recording_id,  # Use actual recording_id
+                                    ts_file_path=output_path,
+                                    recording_data=recording_data_dict
+                                )
+                                logger.info(f"Enqueued post-processing for segmented recording {recording_id} (stream {stream_id})")
+                            else:
+                                logger.error(f"Streamer data not found for recording {recording_id}")
                         else:
-                            logger.error(f"Streamer data not found for recording {stream_id}")
+                            logger.error(f"Stream data not found for recording {recording_id}")
                     else:
-                        logger.error(f"Stream data not found for recording {stream_id}")
+                        logger.error(f"Recording data not found for recording {recording_id}")
                 else:
-                    logger.error(f"Recording data not found for recording {stream_id}")
+                    logger.error(f"Could not find recording_id for stream {stream_id}")
             else:
                 logger.warning(f"Could not trigger post-processing - recording service not available")
                 
