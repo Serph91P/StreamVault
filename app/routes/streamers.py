@@ -284,9 +284,10 @@ async def check_streamer_live_status(
 async def add_streamer(
     username: str,
     data: Dict[str, Any] = Body(...),
-    streamer_service: StreamerService = Depends(get_streamer_service)
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    db: Session = Depends(get_db)
 ):
-    """Add a new streamer"""
+    """Add a new streamer with optional recording settings"""
     try:
         # Use the username from the path parameter
         username = username.strip()
@@ -301,6 +302,33 @@ async def add_streamer(
         
         if not new_streamer:
             raise HTTPException(status_code=400, detail="Failed to add streamer")
+        
+        # Process recording settings if provided
+        recording_enabled = True  # Default value
+        if 'recording' in data and isinstance(data['recording'], dict):
+            recording_settings = data['recording']
+            recording_enabled = recording_settings.get('enabled', True)
+            
+            # Create or update streamer recording settings
+            streamer_recording_settings = db.query(StreamerRecordingSettings).filter(
+                StreamerRecordingSettings.streamer_id == new_streamer.id
+            ).first()
+            
+            if not streamer_recording_settings:
+                streamer_recording_settings = StreamerRecordingSettings(
+                    streamer_id=new_streamer.id
+                )
+                db.add(streamer_recording_settings)
+            
+            # Update recording settings
+            streamer_recording_settings.enabled = recording_enabled
+            if 'quality' in recording_settings and recording_settings['quality']:
+                streamer_recording_settings.quality = recording_settings['quality']
+            if 'custom_filename' in recording_settings and recording_settings['custom_filename']:
+                streamer_recording_settings.custom_filename = recording_settings['custom_filename']
+            
+            db.commit()
+            logger.info(f"Set recording settings for streamer {new_streamer.username}: enabled={recording_enabled}")
             
         # Convert to response format
         return {
@@ -313,7 +341,7 @@ async def add_streamer(
             ),
             "is_live": new_streamer.is_live,
             "is_recording": False,
-            "recording_enabled": True,
+            "recording_enabled": recording_enabled,
             "active_stream_id": None,
             "title": new_streamer.title,
             "category_name": new_streamer.category_name,
