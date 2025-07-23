@@ -389,6 +389,15 @@ class PostProcessingTaskHandlers:
             logger.warning(f"files_to_remove is not a list: {type(files_to_remove)}, converting to list")
             files_to_remove = [files_to_remove] if files_to_remove else []
         
+        # For post-processing cleanup, validate MP4 file exists early (fail fast)
+        if not is_deletion_cleanup:
+            if not mp4_path or not os.path.exists(mp4_path):
+                raise Exception("MP4 file not found, not removing source files")
+            
+            mp4_size = os.path.getsize(mp4_path)
+            if mp4_size < 1024 * 1024:  # Less than 1MB
+                raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
+        
         log_with_context(
             logger, 'info',
             f"Starting {'deletion' if is_deletion_cleanup else 'post-processing'} cleanup for stream {stream_id}",
@@ -405,21 +414,12 @@ class PostProcessingTaskHandlers:
         if self.logging_service:
             cleanup_type = "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
             self.logging_service.log_recording_activity(
-                cleanup_type,
+                f"{cleanup_type}_START",
                 streamer_name,
                 f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
             )
         
         try:
-            # For post-processing cleanup, validate MP4 file exists
-            if not is_deletion_cleanup:
-                if not mp4_path or not os.path.exists(mp4_path):
-                    raise Exception("MP4 file not found, not removing source files")
-                
-                mp4_size = os.path.getsize(mp4_path)
-                if mp4_size < 1024 * 1024:  # Less than 1MB
-                    raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
-            
             removed_files = []
             for file_path in files_to_remove:
                 if os.path.exists(file_path):
