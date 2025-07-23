@@ -224,6 +224,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if stream:
+                    # Capture old path only for logging
                     old_path = stream.recording_path
                     stream.recording_path = mp4_output_path
                     db.commit()
