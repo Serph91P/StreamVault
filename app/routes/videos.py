@@ -91,6 +91,32 @@ def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
     
     return chapters
 
+def get_video_thumbnail_url(stream_id: int, recording_path: str) -> Optional[str]:
+    """Get the correct thumbnail URL for a video"""
+    try:
+        recording_path_obj = Path(recording_path)
+        base_filename = recording_path_obj.stem
+        video_dir = recording_path_obj.parent
+        
+        # Priority order for thumbnail files:
+        # 1. {base_filename}-thumb.jpg (Plex format, usually correct)
+        # 2. {base_filename}_thumbnail.jpg (fallback)
+        
+        thumbnail_candidates = [
+            video_dir / f"{base_filename}-thumb.jpg",
+            video_dir / f"{base_filename}_thumbnail.jpg",
+        ]
+        
+        for thumbnail_path in thumbnail_candidates:
+            if thumbnail_path.exists() and thumbnail_path.is_file():
+                # Return relative URL for API access
+                return f"/api/videos/thumbnail/{stream_id}"
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error getting thumbnail for stream {stream_id}: {e}")
+        return None
+
 router = APIRouter(
     prefix="/api",
     tags=["videos"]
@@ -172,7 +198,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
                     }
                     videos.append(video_info)
                     logger.debug(f"Added video from stream: {stream.title} by {streamer.username}")
@@ -243,7 +269,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(final_path))
                     }
                     videos.append(video_info)
                     added_stream_ids.add(stream.id)
@@ -334,6 +360,170 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.error(f"DEBUG: Exception: {e}")
         # Don't expose internal error details to users
         return {"error": "Internal error occurred", "success": False}
+
+@router.get("/videos/thumbnail/{stream_id}")
+async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Serve video thumbnail image"""
+    try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            raise HTTPException(status_code=404, detail="Stream or recording not found")
+        
+        recording_path = Path(stream.recording_path)
+        base_filename = recording_path.stem
+        video_dir = recording_path.parent
+        
+        # Priority order for thumbnail files (use the correct one, not the black one)
+        thumbnail_candidates = [
+            video_dir / f"{base_filename}-thumb.jpg",        # Plex format (usually correct)
+            video_dir / f"{base_filename}_thumbnail.jpg",    # Fallback format
+        ]
+        
+        thumbnail_path = None
+        for candidate in thumbnail_candidates:
+            if candidate.exists() and candidate.is_file():
+                thumbnail_path = candidate
+                break
+        
+        if not thumbnail_path:
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+        
+        # Return the thumbnail file
+        return FileResponse(
+            str(thumbnail_path),
+            media_type="image/jpeg",
+            filename=f"thumbnail_{stream_id}.jpg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving thumbnail for stream {stream_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/videos/public/{stream_id}")
+async def stream_video_public(stream_id: int, token: str = Query(...), request: Request = None, db: Session = Depends(get_db)):
+    """Stream video with token-based authentication for external players like VLC"""
+    try:
+        logger.info(f"Public video stream request for stream_id: {stream_id} with token: {token[:20]}...")
+        
+        # Validate token (simple implementation - in production use JWT or similar)
+        # For now, we'll accept the session token as URL parameter
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        
+        # Try to validate the token as a session token
+        if not await auth_service.validate_session(token):
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        file_path = Path(stream.recording_path)
+        
+        # Verify file exists
+        if not file_path.exists() or not file_path.is_file():
+            logger.error(f"Video file not found: {stream.recording_path}")
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Get file info
+        try:
+            file_size = file_path.stat().st_size
+        except OSError as e:
+            logger.error(f"Error accessing file: {e}")
+            raise HTTPException(status_code=500, detail="Error accessing file")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "video/mp4"
+            
+        # Handle range requests (important for seeking in VLC)
+        range_header = request.headers.get('range') if request else None
+        if range_header:
+            try:
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                if not range_match:
+                    raise HTTPException(status_code=400, detail="Invalid range header")
+                
+                start = int(range_match.group(1))
+                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                
+                if start >= file_size or end >= file_size or start > end:
+                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                
+                chunk_size = end - start + 1
+                
+                def generate_chunk():
+                    with open(str(file_path), 'rb') as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            read_size = min(8192, remaining)
+                            data = f.read(read_size)
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+                
+                headers = {
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(chunk_size),
+                    "Content-Type": mime_type,
+                    "Cache-Control": "no-cache"
+                }
+                
+                return StreamingResponse(
+                    generate_chunk(),
+                    status_code=206,
+                    headers=headers
+                )
+            except ValueError:
+                # Invalid range header, serve full file
+                pass
+        
+        # No range request, stream entire file
+        def generate_file():
+            with open(str(file_path), 'rb') as f:
+                while True:
+                    data = f.read(8192)
+                    if not data:
+                        break
+                    yield data
+        
+        headers = {
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Type": mime_type,
+            "Cache-Control": "no-cache"
+        }
+        
+        return StreamingResponse(
+            generate_file(),
+            headers=headers
+        )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error streaming public video {stream_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/stream/{stream_id}")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
@@ -714,7 +904,7 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
                     }
                     videos.append(video_info)
                 else:
