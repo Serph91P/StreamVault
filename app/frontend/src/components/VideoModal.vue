@@ -196,13 +196,24 @@ const downloadVideo = () => {
 }
 
 const shareVideo = async () => {
-  // Create a specific video URL using the correct route structure
-  const videoUrl = `${window.location.origin}/streamer/${props.video.streamer_id}/stream/${props.video.id}/watch`
+  // Get session token for public URL
+  const sessionToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('session='))
+    ?.split('=')[1]
+  
+  if (!sessionToken) {
+    alert('Unable to generate share link: No active session')
+    return
+  }
+  
+  // Create a direct video stream URL with token that works in VLC and other media players
+  const directVideoUrl = `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}`
   
   const shareData = {
     title: props.video.title,
-    text: `Check out this video from ${props.video.streamer_name}!`,
-    url: videoUrl
+    text: `Check out this video from ${props.video.streamer_name}! Open in VLC or any media player.`,
+    url: directVideoUrl
   }
   
   if (navigator.share) {
@@ -210,20 +221,28 @@ const shareVideo = async () => {
       await navigator.share(shareData)
     } catch (err) {
       if (err.name !== 'AbortError') {
-        fallbackShare(videoUrl)
+        fallbackShare(directVideoUrl)
       }
     }
   } else {
-    fallbackShare(videoUrl)
+    fallbackShare(directVideoUrl)
   }
 }
 
 const fallbackShare = (url) => {
-  const shareUrl = url || `${window.location.origin}/streamer/${props.video.streamer_id}/stream/${props.video.id}/watch`
+  const sessionToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('session='))
+    ?.split('=')[1]
+    
+  const shareUrl = url || (sessionToken ? 
+    `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}` :
+    `${window.location.origin}/api/videos/stream/${props.video.id}`)
+    
   navigator.clipboard.writeText(shareUrl).then(() => {
-    alert('Link copied to clipboard!')
+    alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')
   }).catch(() => {
-    alert(`Share link: ${shareUrl}`)
+    alert(`Direct video link: ${shareUrl}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
   })
 }
 
