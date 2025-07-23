@@ -50,8 +50,9 @@ class LoggingService:
         self.streamer_log_retention_days = 14  # Keep streamer-specific logs for 14 days
         self.system_log_retention_days = 30    # Keep system logs for 30 days
         
-        # Track tested directories to avoid repeated permission tests
-        self._permission_tested_dirs = set()
+        # Track tested directories with their results to avoid repeated permission tests
+        self._permission_test_results = {}  # {dir_path: (result, timestamp)}
+        self._permission_retest_interval = 300  # Re-test permissions every 5 minutes
         
         # Create directories
         self._ensure_log_directories()
@@ -110,18 +111,52 @@ class LoggingService:
 
     def _test_all_permissions(self):
         """Test write permissions for all log directories (optional performance check)"""
+        current_time = time.time()
         for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
-            self._test_write_permissions(log_dir)
-            self._permission_tested_dirs.add(str(log_dir))
+            result = self._test_write_permissions(log_dir)
+            self._permission_test_results[str(log_dir)] = (result, current_time)
 
     def _ensure_write_permission(self, log_dir: Path) -> bool:
-        """Ensure write permissions for a directory, testing only once per directory"""
+        """Ensure write permissions for a directory, with intelligent caching and re-testing"""
         log_dir_str = str(log_dir)
-        if log_dir_str not in self._permission_tested_dirs:
-            result = self._test_write_permissions(log_dir)
-            self._permission_tested_dirs.add(log_dir_str)
-            return result
-        return True  # Assume it's OK if already tested
+        current_time = time.time()
+        
+        # Check if we have a cached result and if it's still valid
+        if log_dir_str in self._permission_test_results:
+            cached_result, test_time = self._permission_test_results[log_dir_str]
+            time_since_test = current_time - test_time
+            
+            # If the cached result was successful and recent, use it
+            if cached_result and time_since_test < self._permission_retest_interval:
+                logger.debug(f"Using cached permission result for {log_dir}: {cached_result}")
+                return cached_result
+            
+            # If the cached result was a failure, or it's been too long, re-test
+            if not cached_result or time_since_test >= self._permission_retest_interval:
+                logger.debug(f"Re-testing permissions for {log_dir} (cached: {cached_result}, age: {time_since_test:.1f}s)")
+                result = self._test_write_permissions(log_dir)
+                self._permission_test_results[log_dir_str] = (result, current_time)
+                return result
+        
+        # No cached result, test for the first time
+        logger.debug(f"Testing permissions for {log_dir} for the first time")
+        result = self._test_write_permissions(log_dir)
+        self._permission_test_results[log_dir_str] = (result, current_time)
+        return result
+
+    def _force_permission_retest(self, log_dir: Path) -> bool:
+        """Force immediate re-testing of write permissions for critical operations"""
+        log_dir_str = str(log_dir)
+        current_time = time.time()
+        
+        logger.debug(f"Force re-testing permissions for {log_dir}")
+        result = self._test_write_permissions(log_dir)
+        self._permission_test_results[log_dir_str] = (result, current_time)
+        
+        if not result:
+            logger.warning(f"⚠️ Forced permission re-test failed for {log_dir}")
+        
+        return result
 
     def _setup_loggers(self):
         """Setup separate loggers for different components"""
@@ -234,6 +269,9 @@ class LoggingService:
             logger.debug(f"✅ FFmpeg per-streamer log created: {log_path}")
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create per-streamer log file {log_path}: {e}")
+            # Force re-test permissions on failure for more accurate diagnostics
+            if not self._force_permission_retest(log_dir):
+                logger.error(f"❌ Confirmed: No write permissions for {log_dir}")
         except Exception as e:
             logger.error(f"❌ Unexpected error creating per-streamer log file {log_path}: {e}")
         
@@ -265,6 +303,10 @@ class LoggingService:
                         self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
         except (OSError, PermissionError) as e:
             logger.error(f"Could not write to per-streamer log file {log_path}: {e}")
+            # Force re-test permissions on failure for more accurate diagnostics
+            log_dir = Path(log_path).parent
+            if not self._force_permission_retest(log_dir):
+                logger.error(f"❌ Confirmed: No write permissions for {log_dir}")
         except Exception as e:
             logger.error(f"Unexpected error writing to per-streamer log file {log_path}: {e}")
             
