@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Stream, Streamer, Recording
+from app.utils.streamer_cache import get_valid_streamers, get_cache_info, invalidate_streamer_cache
 from pathlib import Path
 import os
 import re
@@ -121,12 +122,8 @@ async def debug_videos_database(
         if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
             result["filesystem_check"]["error"] = "Invalid streamer username format"
         else:
-            # Get list of valid streamer directories from filesystem (whitelist approach)
-            valid_streamers = []
-            if base_recordings_dir.exists():
-                for item in base_recordings_dir.iterdir():
-                    if item.is_dir():
-                        valid_streamers.append(item.name)
+            # Get list of valid streamer directories from filesystem (cached whitelist approach)
+            valid_streamers = get_valid_streamers(base_recordings_dir)
             
             # Check if requested streamer exists in whitelist
             if streamer_username not in valid_streamers:
@@ -318,3 +315,40 @@ async def debug_recordings_directory(
         result["error"] = "An internal error occurred while accessing recordings directory"
     
     return result
+
+
+@router.get("/streamer-cache")
+async def debug_streamer_cache():
+    """Debug endpoint to view and manage streamer directory cache"""
+    cache_info = get_cache_info()
+    
+    return {
+        "cache_status": cache_info,
+        "operations": {
+            "refresh": "POST /api/debug/streamer-cache/refresh",
+            "invalidate": "POST /api/debug/streamer-cache/invalidate"
+        }
+    }
+
+
+@router.post("/streamer-cache/refresh")
+async def refresh_streamer_cache():
+    """Force refresh of streamer directory cache"""
+    base_recordings_dir = Path("/recordings")
+    valid_streamers = get_valid_streamers(base_recordings_dir, force_refresh=True)
+    
+    return {
+        "message": "Streamer cache refreshed",
+        "streamer_count": len(valid_streamers),
+        "streamers": valid_streamers
+    }
+
+
+@router.post("/streamer-cache/invalidate")
+async def invalidate_cache():
+    """Invalidate streamer directory cache"""
+    invalidate_streamer_cache()
+    
+    return {
+        "message": "Streamer cache invalidated"
+    }
