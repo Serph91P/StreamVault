@@ -30,8 +30,8 @@ pillow==11.3.0
 apprise==1.9.3
 py-vapid==1.9.2
 
-# System monitoring
-psutil==7.0.0
+# System monitoring - using version compatible with safety
+psutil==6.1.1
 
 # Additional security packages
 safety==3.6.0
