@@ -86,7 +86,7 @@ def get_async_session_maker():
     return _async_session_maker
 
 
-async def get_async_session():
+def get_async_session():
     """Get an async database session that must be used in async context manager"""
     async_session_maker = get_async_session_maker()
     return async_session_maker()
