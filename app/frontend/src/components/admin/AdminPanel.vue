@@ -276,6 +276,26 @@
       </div>
     </div>
 
+    <!-- Video Debug Section -->
+    <div class="video-debug-section">
+      <div class="section-header">
+        <h2>Video & Recording Debug</h2>
+        <p class="section-description">Debug video availability and recording file system status</p>
+      </div>
+
+      <div class="debug-actions">
+        <button @click="loadVideosDebug" :disabled="videosDebugLoading" class="btn btn-info">
+          <i class="fas fa-database"></i>
+          {{ videosDebugLoading ? 'Loading...' : 'Check Videos Database' }}
+        </button>
+        
+        <button @click="loadRecordingsDirectory" :disabled="recordingsDirectoryLoading" class="btn btn-secondary">
+          <i class="fas fa-folder-open"></i>
+          {{ recordingsDirectoryLoading ? 'Loading...' : 'Scan Recordings Directory' }}
+        </button>
+      </div>
+    </div>
+
     <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
       <div class="modal" @click.stop>
@@ -299,6 +319,162 @@
           </div>
           <div class="logs-content">
             <pre v-if="logs">{{ logs.logs.join('\n') }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Videos Debug Modal -->
+    <div v-if="showVideosDebugModal" class="modal-overlay" @click="showVideosDebugModal = false">
+      <div class="modal videos-debug-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Videos Database Debug</h3>
+          <button @click="showVideosDebugModal = false" class="close-btn">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div v-if="videosDebugData" class="debug-content">
+            <!-- Summary -->
+            <div class="debug-section">
+              <h4>Summary</h4>
+              <div class="summary-stats">
+                <div class="stat">
+                  <span class="count">{{ videosDebugData.summary.total_streams }}</span>
+                  <span class="label">Total Streams</span>
+                </div>
+                <div class="stat">
+                  <span class="count">{{ videosDebugData.summary.total_recordings }}</span>
+                  <span class="label">Total Recordings</span>
+                </div>
+                <div class="stat">
+                  <span class="count">{{ videosDebugData.summary.streams_with_recording_path }}</span>
+                  <span class="label">Streams with Path</span>
+                </div>
+                <div class="stat">
+                  <span class="count">{{ videosDebugData.summary.mp4_files_found }}</span>
+                  <span class="label">MP4 Files Found</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Streams -->
+            <div class="debug-section">
+              <h4>Recent Streams ({{ videosDebugData.streams.length }})</h4>
+              <div class="debug-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Streamer</th>
+                      <th>Title</th>
+                      <th>Recording Path</th>
+                      <th>File Exists</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="stream in videosDebugData.streams.slice(0, 10)" :key="stream.id">
+                      <td>{{ stream.id }}</td>
+                      <td>{{ stream.streamer_name }}</td>
+                      <td>{{ stream.title || 'N/A' }}</td>
+                      <td class="path-cell">{{ stream.recording_path || 'None' }}</td>
+                      <td>
+                        <span v-if="stream.recording_path_exists" class="text-green">
+                          <i class="fas fa-check"></i> Yes
+                        </span>
+                        <span v-else-if="stream.recording_path" class="text-red">
+                          <i class="fas fa-times"></i> No
+                        </span>
+                        <span v-else class="text-gray">N/A</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Recordings -->
+            <div class="debug-section">
+              <h4>Recent Recordings ({{ videosDebugData.recordings.length }})</h4>
+              <div class="debug-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Stream ID</th>
+                      <th>Streamer</th>
+                      <th>Status</th>
+                      <th>TS File</th>
+                      <th>MP4 File</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="recording in videosDebugData.recordings.slice(0, 10)" :key="recording.id">
+                      <td>{{ recording.id }}</td>
+                      <td>{{ recording.stream_id }}</td>
+                      <td>{{ recording.streamer_name }}</td>
+                      <td>{{ recording.status }}</td>
+                      <td>
+                        <span v-if="recording.ts_path_exists" class="text-green">
+                          <i class="fas fa-check"></i>
+                        </span>
+                        <span v-else class="text-red">
+                          <i class="fas fa-times"></i>
+                        </span>
+                      </td>
+                      <td>
+                        <span v-if="recording.mp4_path_exists" class="text-green">
+                          <i class="fas fa-check"></i>
+                        </span>
+                        <span v-else class="text-red">
+                          <i class="fas fa-times"></i>
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recordings Directory Modal -->
+    <div v-if="showRecordingsDirectoryModal" class="modal-overlay" @click="showRecordingsDirectoryModal = false">
+      <div class="modal recordings-directory-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Recordings Directory Scan</h3>
+          <button @click="showRecordingsDirectoryModal = false" class="close-btn">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div v-if="recordingsDirectoryData" class="debug-content">
+            <div v-if="recordingsDirectoryData.base_recordings_dir_exists">
+              <div class="debug-section">
+                <h4>Streamer Directories</h4>
+                <div v-for="streamer in recordingsDirectoryData.directories" :key="streamer.name" class="streamer-section">
+                  <h5>{{ streamer.name }} ({{ streamer.total_files }} files, {{ streamer.total_size_mb }}MB)</h5>
+                  <div v-for="season in streamer.subdirectories" :key="season.name" class="season-section">
+                    <h6>{{ season.name }} ({{ season.file_count }} files, {{ season.total_size_mb }}MB)</h6>
+                    <div class="files-list">
+                      <div v-for="file in season.files.slice(0, 5)" :key="file.name" class="file-item">
+                        <span class="file-name">{{ file.name }}</span>
+                        <span class="file-size">{{ file.size_mb }}MB</span>
+                        <span class="file-ext" :class="file.extension">{{ file.extension }}</span>
+                      </div>
+                      <div v-if="season.files.length > 5" class="more-files">
+                        ... and {{ season.files.length - 5 }} more files
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="error">
+              Recording directory {{ recordingsDirectoryData.base_recordings_dir }} does not exist!
+            </div>
           </div>
         </div>
       </div>
@@ -328,6 +504,14 @@ const logLevel = ref('INFO')
 const logLines = ref(200)
 const resultFilter = ref('all')
 const expandedDetails = ref<string[]>([])
+
+// Video Debug data
+const videosDebugData = ref<any>(null)
+const videosDebugLoading = ref(false)
+const recordingsDirectoryData = ref<any>(null)
+const recordingsDirectoryLoading = ref(false)
+const showVideosDebugModal = ref(false)
+const showRecordingsDirectoryModal = ref(false)
 
 // Computed
 const filteredResults = computed(() => {
@@ -433,6 +617,51 @@ const toggleDetails = (testName: string) => {
     expandedDetails.value.splice(index, 1)
   } else {
     expandedDetails.value.push(testName)
+  }
+}
+
+// Video Debug Methods
+const loadVideosDebug = async () => {
+  videosDebugLoading.value = true
+  try {
+    const response = await fetch('/api/admin/debug/videos-database', {
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const result = await response.json()
+    videosDebugData.value = result.data
+    showVideosDebugModal.value = true
+  } catch (error) {
+    console.error('Failed to load videos debug:', error)
+    alert('Failed to load videos debug data')
+  } finally {
+    videosDebugLoading.value = false
+  }
+}
+
+const loadRecordingsDirectory = async () => {
+  recordingsDirectoryLoading.value = true
+  try {
+    const response = await fetch('/api/admin/debug/recordings-directory', {
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const result = await response.json()
+    recordingsDirectoryData.value = result.data
+    showRecordingsDirectoryModal.value = true
+  } catch (error) {
+    console.error('Failed to load recordings directory:', error)
+    alert('Failed to load recordings directory data')
+  } finally {
+    recordingsDirectoryLoading.value = false
   }
 }
 
@@ -1034,14 +1263,335 @@ onMounted(() => {
   line-height: 1.4;
 }
 
+/* Video Debug Section */
+.video-debug-section {
+  background: rgba(29, 78, 216, 0.1);
+  border: 2px solid rgba(29, 78, 216, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.video-debug-actions {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.debug-btn {
+  background: linear-gradient(145deg, #1d4ed8, #1e40af);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-btn:hover {
+  background: linear-gradient(145deg, #1e40af, #1d4ed8);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.4);
+}
+
+.debug-btn:disabled {
+  background: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.debug-btn.loading {
+  position: relative;
+  color: transparent;
+}
+
+.debug-btn.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.videos-debug-modal {
+  width: 1200px;
+}
+
+.recordings-directory-modal {
+  width: 1000px;
+}
+
+.modal-header {
+  background: linear-gradient(145deg, #1f2937, #374151);
+  color: white;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: calc(90vh - 80px);
+  overflow-y: auto;
+}
+
+.debug-content {
+  color: #1f2937;
+}
+
+.debug-section {
+  margin-bottom: 30px;
+}
+
+.debug-section h4 {
+  color: #1d4ed8;
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 600;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  background: #f8fafc;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+
+.stat .count {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-bottom: 5px;
+}
+
+.stat .label {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.debug-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.debug-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.debug-table th {
+  background: #f8fafc;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 14px;
+}
+
+.debug-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.debug-table tr:hover {
+  background: #f8fafc;
+}
+
+.path-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+}
+
+.text-green {
+  color: #059669;
+  font-weight: 600;
+}
+
+.text-red {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.text-gray {
+  color: #6b7280;
+}
+
+.streamer-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 4px solid #1d4ed8;
+}
+
+.streamer-section h5 {
+  margin: 0 0 15px 0;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.season-section {
+  margin-bottom: 15px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.season-section h6 {
+  margin: 0 0 10px 0;
+  color: #374151;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.files-list {
+  display: grid;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.file-name {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  color: #374151;
+}
+
+.file-size {
+  color: #6b7280;
+  margin-right: 10px;
+}
+
+.file-ext {
+  background: #e2e8f0;
+  color: #374151;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.file-ext.mp4 {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.file-ext.ts {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.more-files {
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Utility classes */
-.text-green { color: #2ecc71; }
+.text-green { color: #059669; font-weight: 600; }
 .text-yellow { color: #f1c40f; }
-.text-red { color: #e74c3c; }
-.text-gray { color: #95a5a6; }
+.text-red { color: #dc2626; font-weight: 600; }
+.text-gray { color: #6b7280; }
 
 .error {
-  color: #e74c3c;
-  font-style: italic;
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  font-weight: 500;
 }
 </style>
