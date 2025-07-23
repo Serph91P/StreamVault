@@ -118,7 +118,7 @@ async def debug_videos_database(
     base_recordings_dir = Path("/recordings")
     if streamer_username and base_recordings_dir.exists():
         # Validate streamer_username to prevent directory traversal
-        if not streamer_username or not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
             result["filesystem_check"]["error"] = "Invalid streamer username format"
         else:
             # Check specific streamer directory
@@ -204,7 +204,7 @@ async def debug_recordings_directory(
             
             if streamer_username:
                 # Validate streamer_username to prevent directory traversal
-                if not streamer_username or not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+                if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
                     result["error"] = "Invalid streamer username format"
                 else:
                     # Check specific streamer directory
