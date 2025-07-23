@@ -84,11 +84,11 @@ class ConnectionManager:
         for connection_id, ws in self.active_connections.items():
             # Check if the connection is still active
             try:
-                # If we can't access client_state or it's not connected, consider it stale
-                if not hasattr(ws, 'client_state') or ws.client_state.name != 'CONNECTED':
+                # Use the proper enum value instead of string comparison
+                if not hasattr(ws, 'client_state') or ws.client_state != WebSocketState.CONNECTED:
                     stale_connections.append(connection_id)
-            except (AttributeError, RuntimeError):
-                # Connection is likely closed
+            except AttributeError:
+                # Connection is likely closed due to missing client_state
                 stale_connections.append(connection_id)
         
         for connection_id in stale_connections:
@@ -100,8 +100,8 @@ class ConnectionManager:
 
     async def send_notification_to_socket(self, websocket: WebSocket, message: Dict[str, Any]):
         try:
-            # Check if the connection is still active
-            if hasattr(websocket, 'client_state') and websocket.client_state.name == 'CONNECTED':
+            # Check if the connection is still active using proper enum comparison
+            if hasattr(websocket, 'client_state') and websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_json(message)
                 return True
         except Exception as e:
