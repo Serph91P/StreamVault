@@ -882,7 +882,7 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
         if not stream:
             raise HTTPException(status_code=404, detail="Stream not found")
         
-        # Simple check: if stream has recording_path set and file exists
+        # Method 1: Check stream.recording_path (legacy system)
         if stream.recording_path and stream.recording_path.strip():
             recording_path = Path(stream.recording_path)
             if recording_path.exists() and recording_path.is_file():
@@ -891,6 +891,22 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
                     "file_path": str(recording_path),
                     "file_size": recording_path.stat().st_size,
                     "method": "stream_recording_path"
+                }
+        
+        # Method 2: Check Recording model (new system)
+        recording = db.query(Recording).filter(
+            Recording.stream_id == stream_id,
+            Recording.status == "completed"
+        ).first()
+        
+        if recording and recording.path and recording.path.strip():
+            recording_path = Path(recording.path)
+            if recording_path.exists() and recording_path.is_file():
+                return {
+                    "has_recording": True,
+                    "file_path": str(recording_path),
+                    "file_size": recording_path.stat().st_size,
+                    "method": "recording_model"
                 }
         
         # No recording found
@@ -918,8 +934,17 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
         # Get all streams at once
         streams = db.query(Stream).filter(Stream.id.in_(stream_ids)).all()
         
+        # Get all recordings for these streams at once
+        recordings = db.query(Recording).filter(
+            Recording.stream_id.in_(stream_ids),
+            Recording.status == "completed"
+        ).all()
+        
+        # Create recording lookup by stream_id
+        recordings_by_stream = {rec.stream_id: rec for rec in recordings}
+        
         for stream in streams:
-            # Simple check: if stream has recording_path set and file exists
+            # Method 1: Check stream.recording_path (legacy system)
             if stream.recording_path and stream.recording_path.strip():
                 try:
                     recording_path = Path(stream.recording_path)
@@ -929,6 +954,22 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
                             "file_path": str(recording_path),
                             "file_size": recording_path.stat().st_size,
                             "method": "stream_recording_path"
+                        }
+                        continue
+                except Exception:
+                    pass
+            
+            # Method 2: Check Recording model (new system)
+            recording = recordings_by_stream.get(stream.id)
+            if recording and recording.path and recording.path.strip():
+                try:
+                    recording_path = Path(recording.path)
+                    if recording_path.exists() and recording_path.is_file():
+                        results[stream.id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "recording_model"
                         }
                         continue
                 except Exception:
