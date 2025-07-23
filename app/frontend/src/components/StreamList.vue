@@ -514,14 +514,6 @@ const stoppingRecordingStreamerId = ref<number | null>(null)
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})
 
-// Cache for recording availability - simplified
-const recordingAvailabilityCache = ref<Record<number, boolean>>({})
-
-// Debouncing for API calls - REMOVED FOR PERFORMANCE
-// const pendingVerifications = ref<Set<number>>(new Set())
-// const verificationQueue = ref<number[]>([])
-// let verificationTimeout: NodeJS.Timeout | null = null
-
 // Computed Properties
 const sortedStreams = computed(() => {
   return [...streams.value].sort((a, b) => {
@@ -859,9 +851,6 @@ onMounted(async () => {
   if (streamerId.value) {
     await fetchStreams(streamerId.value)
     await fetchActiveRecordings()
-    
-    // Clear recording availability cache when streams are loaded
-    recordingAvailabilityCache.value = {}
     
     // Preload category images
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
