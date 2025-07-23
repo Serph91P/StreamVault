@@ -268,8 +268,8 @@ class PostProcessingTaskHandlers:
         )
         
         try:
-            # Generate thumbnail from MP4
-            thumbnail_path = await self.thumbnail_service.generate_thumbnail_from_mp4(
+            # Generate unified thumbnail from MP4 (only creates -thumb.jpg format)
+            thumbnail_path = await self.thumbnail_service.create_unified_thumbnail(
                 stream_id=stream_id,
                 mp4_path=mp4_path
             )
