@@ -10,34 +10,36 @@ from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 logger = logging.getLogger("streamvault")
 
+# Import settings at module level for better performance
+try:
+    from app.config.settings import settings
+    _SETTINGS_AVAILABLE = True
+except (ImportError, AttributeError) as e:
+    logger.warning(f"Could not import settings at module level: {e}")
+    _SETTINGS_AVAILABLE = False
+    settings = None
+
 
 class LoggingService:
     """Enhanced logging service for StreamVault with separate logging for FFmpeg and Streamlink"""
     
-    def __init__(self, logs_base_dir: str = None):
+    def __init__(self, logs_base_dir: str = None, test_permissions: bool = False):
         # Determine the logs directory based on environment
         if logs_base_dir is None:
             # Try to get from settings first
-            try:
-                from app.config.settings import settings
-                if hasattr(settings, 'LOGS_DIR'):
-                    logs_base_dir = settings.LOGS_DIR
+            if _SETTINGS_AVAILABLE and settings and hasattr(settings, 'LOGS_DIR'):
+                logs_base_dir = settings.LOGS_DIR
+            else:
+                # Fallback logic: use local directory if it exists, otherwise use Docker path
+                local_logs = "logs_local"
+                docker_logs = "/app/logs"
+                
+                if os.path.exists(local_logs):
+                    logs_base_dir = local_logs
+                    logger.info(f"Using local logs directory: {local_logs}")
                 else:
-                    # Fallback logic: use local directory if it exists, otherwise use Docker path
-                    import os
-                    local_logs = "logs_local"
-                    docker_logs = "/app/logs"
-                    
-                    if os.path.exists(local_logs):
-                        logs_base_dir = local_logs
-                        logger.info(f"Using local logs directory: {local_logs}")
-                    else:
-                        logs_base_dir = docker_logs
-                        logger.info(f"Using Docker logs directory: {docker_logs}")
-            except Exception as e:
-                # Final fallback
-                logs_base_dir = "/app/logs"
-                logger.warning(f"Could not determine logs directory from settings, using default: {e}")
+                    logs_base_dir = docker_logs
+                    logger.info(f"Using Docker logs directory: {docker_logs}")
         
         self.logs_base_dir = Path(logs_base_dir)
         self.streamlink_logs_dir = self.logs_base_dir / "streamlink"
@@ -48,10 +50,17 @@ class LoggingService:
         self.streamer_log_retention_days = 14  # Keep streamer-specific logs for 14 days
         self.system_log_retention_days = 30    # Keep system logs for 30 days
         
+        # Track tested directories to avoid repeated permission tests
+        self._permission_tested_dirs = set()
+        
         # Create directories
         self._ensure_log_directories()
         
-                # Initialize loggers
+        # Test write permissions if requested (optional for performance)
+        if test_permissions:
+            self._test_all_permissions()
+        
+        # Initialize loggers
         self._setup_loggers()
         
         logger.info(f"🎯 LoggingService initialized successfully:")
@@ -64,8 +73,11 @@ class LoggingService:
         try:
             self.cleanup_old_logs()
             logger.info("✅ Log cleanup completed during initialization")
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.error(f"❌ Log cleanup failed during initialization: {e}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during log cleanup: {e}")
+            raise
     
     def _ensure_log_directories(self):
         """Create log directories if they don't exist"""
@@ -73,20 +85,44 @@ class LoggingService:
             for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
                 log_dir.mkdir(parents=True, exist_ok=True)
                 logger.info(f"✅ Log directory ensured: {log_dir}")
-                
-                # Test write permissions
-                test_file = log_dir / "test_write.tmp"
-                try:
-                    test_file.write_text("test")
-                    test_file.unlink()
-                    logger.debug(f"✅ Write permissions confirmed for: {log_dir}")
-                except Exception as e:
-                    logger.error(f"❌ No write permissions for {log_dir}: {e}")
                     
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.error(f"❌ Failed to create log directories: {e}")
             raise
+        except Exception as e:
+            logger.error(f"❌ Unexpected error creating log directories: {e}")
+            raise
     
+    def _test_write_permissions(self, log_dir: Path) -> bool:
+        """Test write permissions for a log directory (called only when needed)"""
+        test_file = log_dir / "test_write.tmp"
+        try:
+            test_file.write_text("test")
+            test_file.unlink()
+            logger.debug(f"✅ Write permissions confirmed for: {log_dir}")
+            return True
+        except (OSError, PermissionError) as e:
+            logger.error(f"❌ No write permissions for {log_dir}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Unexpected error testing write permissions for {log_dir}: {e}")
+            return False
+
+    def _test_all_permissions(self):
+        """Test write permissions for all log directories (optional performance check)"""
+        for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
+            self._test_write_permissions(log_dir)
+            self._permission_tested_dirs.add(str(log_dir))
+
+    def _ensure_write_permission(self, log_dir: Path) -> bool:
+        """Ensure write permissions for a directory, testing only once per directory"""
+        log_dir_str = str(log_dir)
+        if log_dir_str not in self._permission_tested_dirs:
+            result = self._test_write_permissions(log_dir)
+            self._permission_tested_dirs.add(log_dir_str)
+            return result
+        return True  # Assume it's OK if already tested
+
     def _setup_loggers(self):
         """Setup separate loggers for different components"""
         # Streamlink logger
@@ -187,13 +223,19 @@ class LoggingService:
         logger.debug(f"📝 FFmpeg per-streamer log path: {log_path}")
         
         # Create a per-streamer log file for this operation
+        log_dir = Path(log_path).parent
+        if not self._ensure_write_permission(log_dir):
+            logger.warning(f"⚠️ Write permission issue for {log_dir}, attempting to create log anyway")
+        
         try:
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {operation} operation for streamer: {streamer_name}\n")
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
             logger.debug(f"✅ FFmpeg per-streamer log created: {log_path}")
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create per-streamer log file {log_path}: {e}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error creating per-streamer log file {log_path}: {e}")
         
         logger.debug(f"✅ FFmpeg start logged for {streamer_name}")
         return log_path
@@ -221,8 +263,10 @@ class LoggingService:
                         self.ffmpeg_logger.info(f"{prefix} STDERR:\n{stderr_text}")
                     else:
                         self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.error(f"Could not write to per-streamer log file {log_path}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error writing to per-streamer log file {log_path}: {e}")
             
         # Still log to main system log
         if stdout:
@@ -269,8 +313,10 @@ class LoggingService:
             )
             
             logger.info("Log cleanup completed")
+        except (OSError, PermissionError) as e:
+            logger.error(f"Error during log cleanup: {e}")
         except Exception as e:
-            logger.error(f"Error during log cleanup: {e}", exc_info=True)
+            logger.error(f"Unexpected error during log cleanup: {e}", exc_info=True)
     
     def _is_system_log(self, filename: str) -> bool:
         """Determine if a file is a system log or a streamer-specific log.
@@ -329,8 +375,10 @@ class LoggingService:
                 else:
                     skipped_count += 1
                     
+            except (OSError, PermissionError) as e:
+                logger.error(f"Error processing log file {log_file} (permissions): {e}")
             except Exception as e:
-                logger.error(f"Error processing log file {log_file}: {e}", exc_info=True)
+                logger.error(f"Unexpected error processing log file {log_file}: {e}", exc_info=True)
         
         logger.info(f"Cleaned {directory}: deleted {deleted_count} log files, kept {skipped_count}")
     
@@ -409,6 +457,5 @@ class LoggingService:
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
         self.recording_logger.info(f"[CONFIG_CHANGE] {target}: {setting} changed from '{old_value}' to '{new_value}'")
 
-
-# Global logging service instance
-logging_service = LoggingService()
+# Global logging service instance (no permission testing for better startup performance)
+logging_service = LoggingService(test_permissions=False)
