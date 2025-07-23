@@ -2,21 +2,50 @@
 Async database utilities for StreamVault
 """
 import asyncio
-from typing import List, Any, Optional
-from urllib.parse import urlparse, urlunparse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from typing import List, Optional, Dict, Any
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from app.database import get_async_session_maker, get_database_url
+from app.models import Stream, Streamer, Recording, StreamEvent
+from urllib.parse import urlparse, urlunparse
 import logging
 
-from app.database import get_database_url
-from app.models import Streamer, Stream
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("streamvault")
 
 # Create async engine and session maker
 _async_engine = None
 _async_session_maker = None
+
+async def get_recent_streams(limit: int = 10) -> List[Stream]:
+    """
+    Get recent streams using async database session.
+    
+    Args:
+        limit: Maximum number of streams to return
+        
+    Returns:
+        List of recent Stream objects
+    """
+    async_session = get_async_session_maker()
+    async with async_session() as session:
+        try:
+            from sqlalchemy import desc
+            # Get recent completed streams (those with recording_path or ended_at)
+            result = await session.execute(
+                select(Stream)
+                .filter(
+                    (Stream.ended_at.isnot(None)) | 
+                    (Stream.recording_path.isnot(None))
+                )
+                .order_by(desc(Stream.started_at))
+                .limit(limit)
+            )
+            streams = result.scalars().all()
+            return list(streams)
+        except Exception as e:
+            logger.error(f"Error fetching recent streams: {e}")
+            return []
 
 
 def get_async_engine():
@@ -83,33 +112,6 @@ async def get_all_streamers() -> List[Streamer]:
             return list(streamers)
         except Exception as e:
             logger.error(f"Error fetching streamers: {e}")
-            return []
-
-
-async def get_recent_streams(limit: int = 100) -> List[Stream]:
-    """
-    Get recent streams using async database session.
-    
-    Args:
-        limit: Maximum number of streams to return
-        
-    Returns:
-        List of recent Stream objects
-    """
-    async_session = get_async_session_maker()
-    async with async_session() as session:
-        try:
-            from sqlalchemy import desc
-            result = await session.execute(
-                select(Stream)
-                .filter(Stream.thumbnail_url.isnot(None))
-                .order_by(desc(Stream.created_at))
-                .limit(limit)
-            )
-            streams = result.scalars().all()
-            return list(streams)
-        except Exception as e:
-            logger.error(f"Error fetching recent streams: {e}")
             return []
 
 
