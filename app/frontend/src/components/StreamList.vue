@@ -153,15 +153,20 @@
                 </button>
                 
                 <!-- Stop Recording Button (for active recordings) -->
-                                <!-- Stop Recording Button -->
                 <button 
                   v-if="!stream.ended_at && isStreamBeingRecorded(stream)"
                   @click="forceStopRecording(stream)" 
                   class="btn btn-danger action-btn"
                   title="Stop Recording"
+                  :disabled="stoppingRecordingStreamerId === stream.streamer_id"
                   :aria-label="`Stop recording ${stream.title || 'stream'} (currently recording)`"
                 >
-                  <i class="fas fa-stop" aria-hidden="true"></i> Stop Recording
+                  <span v-if="stoppingRecordingStreamerId === stream.streamer_id">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Stopping...
+                  </span>
+                  <span v-else>
+                    <i class="fas fa-stop" aria-hidden="true"></i> Stop Recording
+                  </span>
                 </button>
               </div>
               
@@ -792,31 +797,7 @@ const forceStartRecording = async (streamerId: number) => {
   }
 }
 
-// Stop Recording Method
-const stopRecording = async (streamerId: number) => {
-  try {
-    stoppingRecordingStreamerId.value = streamerId
-    
-    const response = await recordingApi.stopRecording(streamerId)
-    
-    if (response?.data?.status === 'success') {
-      // Update local recording state immediately
-      const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
-      if (activeStream) {
-        localRecordingState.value[activeStream.id] = false
-      }
-    }
-  } catch (error: any) {
-    console.error('Error stopping recording:', error)
-    
-    // Let the backend handle error notifications via WebSocket
-    // Error messages will be sent as toast notifications
-    // Don't show additional UI errors here to avoid double notifications
-  } finally {
-    stoppingRecordingStreamerId.value = null
-  }
-}
-
+// Force Stop Recording Method
 const forceStopRecording = async (stream: Stream) => {
   if (!stream || stream.ended_at) return
   
@@ -829,18 +810,29 @@ const forceStopRecording = async (stream: Stream) => {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({ streamer_id: streamerId })
     })
     
     if (response.ok) {
-      console.log('Force stop recording successful')
+      const result = await response.json()
+      console.log('Force stop recording successful:', result)
+      
       // Update local state immediately
       localRecordingState.value[stream.id] = false
+      
+      // Success notification will be sent via WebSocket from backend
     } else {
-      console.error('Force stop recording failed')
+      const errorData = await response.json()
+      console.error('Force stop recording failed:', errorData)
+      
+      // Error notification will be sent via WebSocket from backend
     }
   } catch (error) {
     console.error('Error force stopping recording:', error)
+    
+    // Let the backend handle error notifications via WebSocket
+    // Error messages will be sent as toast notifications
   } finally {
     stoppingRecordingStreamerId.value = null
   }
