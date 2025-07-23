@@ -10,11 +10,87 @@ import re
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, Stream, Streamer, Recording
+from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 from app.utils.streamer_cache import get_valid_streamers
 
 logger = logging.getLogger("streamvault")
+
+def parse_vtt_chapters(vtt_content: str) -> list:
+    """Parse WebVTT chapter format"""
+    chapters = []
+    chapter_blocks = re.split(r'\n\n+', vtt_content.strip())
+    
+    for block in chapter_blocks:
+        if 'WEBVTT' in block or not block.strip():
+            continue
+            
+        lines = block.strip().split('\n')
+        if len(lines) >= 2:
+            # First line might be a chapter identifier, or it might be the timestamp
+            if '-->' in lines[0]:
+                timestamp_line = lines[0]
+                title_line = lines[1] if len(lines) > 1 else "Chapter"
+            elif len(lines) > 1 and '-->' in lines[1]:
+                timestamp_line = lines[1]
+                title_line = lines[2] if len(lines) > 2 else lines[0]
+            else:
+                continue
+                
+            # Parse timestamp "00:00:00.000 --> 00:10:00.000"
+            if '-->' in timestamp_line:
+                start_time, _ = timestamp_line.split('-->')
+                start_time = start_time.strip()
+                
+                # Convert timestamp to seconds
+                time_parts = start_time.split(':')
+                if len(time_parts) == 3:
+                    hours, minutes, seconds = time_parts
+                    total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+                    
+                    chapters.append({
+                        'id': len(chapters) + 1,
+                        'start': total_seconds,
+                        'title': title_line.strip()
+                    })
+    
+    return chapters
+
+def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
+    """Parse FFmpeg chapter format"""
+    chapters = []
+    chapter_blocks = re.split(r'\[CHAPTER\]', ffmpeg_content)
+    
+    for block in chapter_blocks:
+        if not block.strip():
+            continue
+            
+        lines = block.strip().split('\n')
+        start_time = None
+        title = None
+        
+        for line in lines:
+            if line.startswith('TIMEBASE='):
+                continue
+            elif line.startswith('START='):
+                # Extract start time in timebase units
+                start_value = line.split('=')[1]
+                try:
+                    start_time = float(start_value)
+                except (ValueError, IndexError):
+                    continue
+            elif line.startswith('title='):
+                title = line.split('=', 1)[1] if '=' in line else None
+        
+        if start_time is not None:
+            chapters.append({
+                'id': len(chapters) + 1,
+                'start': start_time,
+                'title': title or f"Chapter {len(chapters) + 1}"
+            })
+    
+    return chapters
+
 router = APIRouter(
     prefix="/api",
     tags=["videos"]
@@ -775,7 +851,7 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
 
 @router.get("/videos/{stream_id}/chapters")
 async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get chapters for a video (placeholder for future implementation)"""
+    """Get chapters for a video from metadata files"""
     try:
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
@@ -793,25 +869,46 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
         if not stream:
             raise HTTPException(status_code=404, detail="Stream not found")
         
-        # TODO: Implement actual chapter detection from video file
-        # For now, return empty chapters array
+        # Get metadata for this stream
+        from app.models import StreamMetadata
+        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        
         chapters = []
         
-        # If stream has duration, create some sample chapters for testing
-        if stream.started_at and stream.ended_at:
+        # Try to load chapters from VTT file first (best for web)
+        if metadata and metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
+            try:
+                with open(metadata.chapters_vtt_path, 'r', encoding='utf-8') as f:
+                    vtt_content = f.read()
+                    chapters = parse_vtt_chapters(vtt_content)
+                    logger.info(f"Loaded {len(chapters)} chapters from VTT file")
+            except Exception as e:
+                logger.warning(f"Failed to load VTT chapters: {e}")
+        
+        # Fallback to FFmpeg chapters format if VTT not available
+        if not chapters and metadata and metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists():
+            try:
+                with open(metadata.chapters_ffmpeg_path, 'r', encoding='utf-8') as f:
+                    ffmpeg_content = f.read()
+                    chapters = parse_ffmpeg_chapters(ffmpeg_content)
+                    logger.info(f"Loaded {len(chapters)} chapters from FFmpeg file")
+            except Exception as e:
+                logger.warning(f"Failed to load FFmpeg chapters: {e}")
+        
+        # If no chapters found, create some sample ones for testing if duration exists
+        if not chapters and stream.started_at and stream.ended_at:
             duration = (stream.ended_at - stream.started_at).total_seconds()
-            if duration > 0:
-                # Create chapters every 10 minutes for testing
-                chapter_interval = 600  # 10 minutes
+            if duration > 60:  # Only create chapters for streams longer than 1 minute
+                # Create chapters every 10 minutes for longer streams
+                chapter_interval = min(600, duration / 4)  # Max 4 chapters or every 10 minutes
                 current_time = 0
                 chapter_num = 1
                 
-                while current_time < duration:
+                while current_time < duration and chapter_num <= 10:  # Max 10 chapters
                     chapters.append({
                         "id": chapter_num,
                         "title": f"Chapter {chapter_num}",
-                        "start_time": current_time,
-                        "end_time": min(current_time + chapter_interval, duration)
+                        "start": current_time
                     })
                     current_time += chapter_interval
                     chapter_num += 1
