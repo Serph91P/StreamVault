@@ -1,6 +1,5 @@
 from fastapi import WebSocket
 from typing import List, Dict, Any
-from starlette.websockets import WebSocketState
 import logging
 import json
 from datetime import datetime
@@ -83,7 +82,13 @@ class ConnectionManager:
         """Remove stale/closed WebSocket connections"""
         stale_connections = []
         for connection_id, ws in self.active_connections.items():
-            if ws.application_state != WebSocketState.CONNECTED:
+            # Check if the connection is still active
+            try:
+                # If we can't access client_state or it's not connected, consider it stale
+                if not hasattr(ws, 'client_state') or ws.client_state.name != 'CONNECTED':
+                    stale_connections.append(connection_id)
+            except (AttributeError, RuntimeError):
+                # Connection is likely closed
                 stale_connections.append(connection_id)
         
         for connection_id in stale_connections:
@@ -95,7 +100,8 @@ class ConnectionManager:
 
     async def send_notification_to_socket(self, websocket: WebSocket, message: Dict[str, Any]):
         try:
-            if websocket.application_state == WebSocketState.CONNECTED:
+            # Check if the connection is still active
+            if hasattr(websocket, 'client_state') and websocket.client_state.name == 'CONNECTED':
                 await websocket.send_json(message)
                 return True
         except Exception as e:
