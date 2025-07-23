@@ -1,12 +1,16 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, nextTick } from 'vue'
 
 // Cache for category images to avoid repeated API calls
 const categoryImageCache = reactive<{ [key: string]: string }>({})
 const pendingRequests = new Set<string>()
+const cacheVersion = ref(0) // Force reactivity trigger
 
 export function useCategoryImages() {
   const getCategoryImage = (categoryName: string): string => {
     if (!categoryName) return '/images/categories/default-category.svg'
+    
+    // Access cacheVersion to make this reactive
+    cacheVersion.value
     
     // Check if we have it cached
     if (categoryImageCache[categoryName]) {
@@ -66,11 +70,16 @@ export function useCategoryImages() {
           // Cache the icon fallback too to avoid repeated requests
           categoryImageCache[categoryName] = data.image_url
         }
+        
+        // Trigger reactivity update
+        cacheVersion.value++
+        await nextTick()
       }
     } catch (error) {
       console.warn(`Failed to fetch category image for ${categoryName}:`, error)
       // Cache the fallback to avoid repeated failed requests
       categoryImageCache[categoryName] = getIconFallback(categoryName)
+      cacheVersion.value++
     } finally {
       pendingRequests.delete(categoryName)
     }
@@ -139,6 +148,7 @@ export function useCategoryImages() {
     Object.keys(categoryImageCache).forEach(key => {
       delete categoryImageCache[key]
     })
+    cacheVersion.value++
     console.log('Category image cache cleared')
   }
 
@@ -149,6 +159,7 @@ export function useCategoryImages() {
     getCacheStatus,
     refreshImages,
     clearCache,
-    categoryImageCache
+    categoryImageCache,
+    cacheVersion
   }
 }
