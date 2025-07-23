@@ -28,7 +28,7 @@ class ThumbnailService:
         timestamp = int(time.time())
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"    
     async def download_thumbnail(self, stream_id: int, output_dir: str):
-        """Lädt das Stream-Thumbnail herunter"""
+        """Lädt das Stream-Thumbnail herunter und erstellt nur das korrekte Format"""
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if not stream:
@@ -41,13 +41,21 @@ class ThumbnailService:
                 logger.warning(f"Streamer with ID {stream.streamer_id} not found in thumbnail_service")
                 return None
             
-            # Verzeichnis erstellen
-            os.makedirs(output_dir, exist_ok=True)
-            thumbnail_path = os.path.join(output_dir, f"{streamer.username}_thumbnail.jpg")
+            # Verwende das korrekte Format basierend auf der recording_path
+            if stream.recording_path:
+                recording_path = Path(stream.recording_path)
+                base_filename = recording_path.stem
+                video_dir = recording_path.parent
+                thumbnail_path = video_dir / f"{base_filename}-thumb.jpg"
+            else:
+                # Fallback to output_dir if no recording_path
+                os.makedirs(output_dir, exist_ok=True)
+                thumbnail_path = Path(output_dir) / f"{streamer.username}_thumbnail.jpg"
             
             # Prüfen, ob bereits ein Thumbnail existiert
-            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-            if metadata and metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
+            if thumbnail_path.exists():
+                logger.debug(f"Thumbnail already exists: {thumbnail_path}")
+                return str(thumbnail_path)
                 logger.info(f"Using existing thumbnail for stream {stream_id} from {metadata.thumbnail_path}")
                 
                 # Kopiere auch in das Standard-Format für Plex, falls verfügbar
@@ -481,6 +489,61 @@ class ThumbnailService:
                 
             return twitch_thumbnail
     
+    async def create_unified_thumbnail(self, stream_id: int, mp4_path: str) -> Optional[str]:
+        """Create a single, unified thumbnail in the correct format
+        
+        This replaces all the complex thumbnail generation with a simple, unified approach.
+        Only creates {base_filename}-thumb.jpg next to the video file.
+        
+        Args:
+            stream_id: Stream ID for database updates
+            mp4_path: Path to the MP4 file
+            
+        Returns:
+            Path to the generated thumbnail or None on failure
+        """
+        try:
+            mp4_path_obj = Path(mp4_path)
+            if not mp4_path_obj.exists():
+                logger.error(f"MP4 file not found: {mp4_path}")
+                return None
+                
+            # Generate the unified thumbnail path
+            base_filename = mp4_path_obj.stem
+            video_dir = mp4_path_obj.parent
+            thumbnail_path = video_dir / f"{base_filename}-thumb.jpg"
+            
+            logger.info(f"Creating unified thumbnail: {mp4_path} -> {thumbnail_path}")
+            
+            # Check if thumbnail already exists and is valid
+            if thumbnail_path.exists() and thumbnail_path.stat().st_size > 1024:  # At least 1KB
+                logger.debug(f"Valid thumbnail already exists: {thumbnail_path}")
+                return str(thumbnail_path)
+            
+            # Extract thumbnail from video at 5-second mark
+            success = await self.extract_thumbnail_from_video(str(mp4_path), str(thumbnail_path), "00:00:05")
+            
+            if success and thumbnail_path.exists():
+                # Update database metadata
+                with SessionLocal() as db:
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                    if not metadata:
+                        metadata = StreamMetadata(stream_id=stream_id)
+                        db.add(metadata)
+                    
+                    metadata.thumbnail_path = str(thumbnail_path)
+                    db.commit()
+                    
+                logger.info(f"Successfully created unified thumbnail: {thumbnail_path}")
+                return str(thumbnail_path)
+            else:
+                logger.error(f"Failed to extract thumbnail from {mp4_path}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error creating unified thumbnail for {mp4_path}: {e}")
+            return None
+
     async def generate_thumbnail_from_mp4(self, stream_id: int, mp4_path: str) -> Optional[str]:
         """Generate thumbnail from MP4 file with all Plex/Emby compatibility features
         
