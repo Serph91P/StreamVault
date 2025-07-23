@@ -15,16 +15,16 @@ The Unified Image Service provides centralized image management for StreamVault,
 ```
 /recordings/.images/
 ├── profiles/          # Streamer profile images
-│   ├── streamer_123.jpg
-│   └── streamer_456.jpg
+│   ├── profile_avatar_123.jpg
+│   └── profile_avatar_456.jpg
 ├── categories/        # Category/game images
 │   ├── just_chatting.jpg
 │   └── league_of_legends.jpg
 └── artwork/          # Stream artwork/thumbnails
-    ├── streamer_123/
+    ├── profile_avatar_123/
     │   ├── stream_789.jpg
     │   └── stream_790.jpg
-    └── streamer_456/
+    └── profile_avatar_456/
         └── stream_791.jpg
 ```
 
@@ -58,7 +58,7 @@ The service is automatically integrated into the streamers API. Profile images n
 
 // After: Uses cached local URLs with fallback
 {
-  "profile_image_url": "/data/images/profiles/streamer_123.jpg"
+  "profile_image_url": "/data/images/profiles/profile_avatar_123.jpg"
 }
 ```
 
@@ -95,7 +95,7 @@ The `.images` directory is hidden and won't be detected as media by most media s
 ### Metadata Integration
 Images can be referenced in NFO files using relative paths:
 ```xml
-<thumb>/recordings/.images/profiles/streamer_123.jpg</thumb>
+<thumb>/recordings/.images/profiles/profile_avatar_123.jpg</thumb>
 ```
 
 ## Performance
