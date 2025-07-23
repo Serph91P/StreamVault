@@ -417,6 +417,7 @@ class EventHandlerRegistry:
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
                         
                         if not category:
+                            # Get game data and download image immediately
                             streamer_service = StreamerService(
                                 db=db, 
                                 websocket_manager=self.manager,
@@ -424,25 +425,39 @@ class EventHandlerRegistry:
                             )
                             game_data = await streamer_service.get_game_data(category_id)
                             
+                            # Create category with HTTP URL initially
                             category = Category(
                                 twitch_id=category_id,
                                 name=category_name,
                                 box_art_url=game_data.get("box_art_url") if game_data else None
                             )
                             db.add(category)
+                            db.commit()  # Commit first so category has an ID
+                            
+                            # Now immediately download and set correct local URL
+                            if game_data and game_data.get("box_art_url"):
+                                try:
+                                    # Import the image service
+                                    from app.services.unified_image_service import unified_image_service
+                                    
+                                    # Download the image and get local URL
+                                    local_url = await unified_image_service.download_category_image(
+                                        category_name, 
+                                        game_data.get("box_art_url")
+                                    )
+                                    
+                                    if local_url:
+                                        category.box_art_url = local_url
+                                        logger.info(f"Set category {category_name} image URL to: {local_url}")
+                                    
+                                except Exception as img_error:
+                                    logger.error(f"Failed to download category image for {category_name}: {img_error}")
+                            
                         else:
                             category.name = category_name
                             category.last_seen = datetime.now(timezone.utc)
                         
                         db.commit()
-
-                        # Automatically sync category image after category creation/update
-                        logger.info(f"🎬 AUTO_CATEGORY_SYNC: Requesting category image sync for category={category_name}")
-                        try:
-                            await auto_image_sync_service.request_category_image_sync(category_name, category.box_art_url)
-                            logger.info(f"🎬 AUTO_CATEGORY_SYNC_REQUESTED: Successfully requested category image sync for {category_name}")
-                        except Exception as img_error:
-                            logger.error(f"🎬 AUTO_CATEGORY_SYNC_ERROR: Failed to sync category image for {category_name}: {img_error}", exc_info=True)
 
                         users_with_favorite = db.query(User).join(FavoriteCategory).filter(
                             FavoriteCategory.category_id == category.id
