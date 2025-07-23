@@ -872,6 +872,86 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
         return {"error": "An internal error has occurred"}
 
 
+@router.get("/stream/{stream_id}/has-recording")
+async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
+    """Check if a specific stream has a recording available - simplified version"""
+    
+    try:
+        # Get the stream
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        # Simple check: if stream has recording_path set and file exists
+        if stream.recording_path and stream.recording_path.strip():
+            recording_path = Path(stream.recording_path)
+            if recording_path.exists() and recording_path.is_file():
+                return {
+                    "has_recording": True,
+                    "file_path": str(recording_path),
+                    "file_size": recording_path.stat().st_size,
+                    "method": "stream_recording_path"
+                }
+        
+        # No recording found
+        return {
+            "has_recording": False,
+            "method": "none"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking recording for stream {stream_id}: {e}")
+        return {
+            "has_recording": False,
+            "error": str(e),
+            "method": "error"
+        }
+
+
+@router.post("/streams/check-recordings")
+async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
+    """Check recording availability for multiple streams at once - simplified version"""
+    
+    results = {}
+    
+    try:
+        # Get all streams at once
+        streams = db.query(Stream).filter(Stream.id.in_(stream_ids)).all()
+        
+        for stream in streams:
+            # Simple check: if stream has recording_path set and file exists
+            if stream.recording_path and stream.recording_path.strip():
+                try:
+                    recording_path = Path(stream.recording_path)
+                    if recording_path.exists() and recording_path.is_file():
+                        results[stream.id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "stream_recording_path"
+                        }
+                        continue
+                except Exception:
+                    pass
+            
+            # No recording found for this stream
+            results[stream.id] = {"has_recording": False, "method": "none"}
+        
+        # Add results for any stream IDs that weren't found in database
+        for stream_id in stream_ids:
+            if stream_id not in results:
+                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
+        
+        return {
+            "success": True,
+            "data": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking stream recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
+
+
 @router.get("/debug/videos-database")
 async def debug_videos_database(
     db: Session = Depends(get_db),
@@ -1288,136 +1368,3 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
             "method": "error"
         }
 
-
-@router.post("/streams/check-recordings")
-async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
-    """Check recording availability for multiple streams at once with smart detection"""
-    
-    results = {}
-    
-    try:
-        # Get all streams at once
-        streams = db.query(Stream).filter(Stream.id.in_(stream_ids)).all()
-        stream_dict = {stream.id: stream for stream in streams}
-        
-        # Get all recordings for these streams at once
-        recordings = db.query(Recording).filter(
-            Recording.stream_id.in_(stream_ids),
-            Recording.status.in_(['completed', 'post_processing'])
-        ).all()
-        recording_dict = {recording.stream_id: recording for recording in recordings}
-        
-        # Get all streamers at once for filesystem search
-        streamer_ids = list(set(stream.streamer_id for stream in streams))
-        streamers = db.query(Streamer).filter(Streamer.id.in_(streamer_ids)).all()
-        streamer_dict = {streamer.id: streamer for streamer in streamers}
-        
-        for stream_id in stream_ids:
-            stream = stream_dict.get(stream_id)
-            if not stream:
-                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
-                continue
-            
-            # Strategy 1: Check stream.recording_path
-            if stream.recording_path and stream.recording_path.strip():
-                try:
-                    recording_path = Path(stream.recording_path)
-                    if recording_path.exists() and recording_path.is_file():
-                        results[stream_id] = {
-                            "has_recording": True,
-                            "file_path": str(recording_path),
-                            "file_size": recording_path.stat().st_size,
-                            "method": "stream_recording_path"
-                        }
-                        continue
-                except Exception:
-                    pass  # Continue to next strategy
-            
-            # Strategy 2: Check recording in database
-            recording = recording_dict.get(stream_id)
-            if recording and recording.path:
-                try:
-                    ts_path = Path(recording.path)
-                    mp4_path = ts_path.with_suffix('.mp4')
-                    
-                    # Prefer .mp4 if it exists
-                    if mp4_path.exists():
-                        # Update stream.recording_path for future lookups
-                        stream.recording_path = str(mp4_path)
-                        results[stream_id] = {
-                            "has_recording": True,
-                            "file_path": str(mp4_path),
-                            "file_size": mp4_path.stat().st_size,
-                            "method": "recording_mp4_file"
-                        }
-                        continue
-                    elif ts_path.exists():
-                        results[stream_id] = {
-                            "has_recording": True,
-                            "file_path": str(ts_path),
-                            "file_size": ts_path.stat().st_size,
-                            "method": "recording_ts_file"
-                        }
-                        continue
-                except Exception:
-                    pass  # Continue to next strategy
-            
-            # Strategy 3: Smart filesystem search
-            if stream.streamer_id and stream.started_at:
-                try:
-                    streamer = streamer_dict.get(stream.streamer_id)
-                    if streamer:
-                        recordings_base = Path("/recordings")
-                        if recordings_base.exists():
-                            streamer_dir = recordings_base / streamer.username
-                            if streamer_dir.exists():
-                                # Search for files around the stream time
-                                stream_date = stream.started_at.date()
-                                potential_files = []
-                                
-                                # Look for video files created on the same date
-                                for ext in ['.mp4', '.ts']:
-                                    for recording_file in streamer_dir.rglob(f"*{ext}"):
-                                        try:
-                                            file_date = datetime.fromtimestamp(recording_file.stat().st_mtime).date()
-                                            if file_date == stream_date:
-                                                potential_files.append(recording_file)
-                                        except Exception:
-                                            continue
-                                
-                                if potential_files:
-                                    # Prefer .mp4 over .ts
-                                    mp4_files = [f for f in potential_files if f.suffix == '.mp4']
-                                    if mp4_files:
-                                        best_file = mp4_files[0]
-                                    else:
-                                        best_file = potential_files[0]
-                                    
-                                    # Update database with found file
-                                    stream.recording_path = str(best_file)
-                                    
-                                    results[stream_id] = {
-                                        "has_recording": True,
-                                        "file_path": str(best_file),
-                                        "file_size": best_file.stat().st_size,
-                                        "method": "filesystem_search"
-                                    }
-                                    continue
-                except Exception:
-                    pass  # Continue to no recording found
-            
-            # No recording found
-            results[stream_id] = {"has_recording": False, "method": "none"}
-        
-        # Commit any database updates
-        if any(stream_dict[sid].recording_path for sid in stream_ids if sid in stream_dict):
-            db.commit()
-        
-        return {
-            "success": True,
-            "data": results
-        }
-        
-    except Exception as e:
-        logger.error(f"Error checking stream recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
