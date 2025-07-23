@@ -23,6 +23,7 @@ class Recording(Base):
     status = Column(String, nullable=False, index=True)  # "recording", "completed", "error"
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationship to Stream
     stream = relationship("Stream", backref="recordings")
