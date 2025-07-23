@@ -353,7 +353,9 @@
                   </div>
                   <div v-if="stream.recording_path" class="status-item">
                     <span class="status-label">Recording Path:</span>
-                    <span class="status-value">{{ stream.recording_path }}</span>
+                    <span class="status-value recording-path" :title="getDisplayPath(stream.recording_path)">
+                      {{ getDisplayPath(stream.recording_path) }}
+                    </span>
                   </div>
                   <div v-if="(stream as ExtendedStream).recordings && (stream as ExtendedStream).recordings!.length > 0" class="status-item">
                     <span class="status-label">Recording Files:</span>
@@ -579,6 +581,20 @@ watch(messages, (newMessages) => {
 const getCategoryImageSrc = (categoryName: string): string => {
   const imageUrl = getCategoryImage(categoryName)
   return imageUrl || 'icon:fa-gamepad'
+}
+
+const getDisplayPath = (recordingPath: string): string => {
+  if (!recordingPath) return ''
+  
+  // Extract filename from path and add .mp4 extension if missing
+  const filename = recordingPath.split(/[\/\\]/).pop() || recordingPath
+  
+  // Add .mp4 extension if not present
+  if (!filename.toLowerCase().endsWith('.mp4')) {
+    return filename + '.mp4'
+  }
+  
+  return filename
 }
 
 const handleImageError = (event: Event, categoryName: string) => {
@@ -1500,6 +1516,14 @@ onMounted(async () => {
 
 .status-value {
   font-weight: 600;
+}
+
+.status-value.recording-path {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 
 .status-recording {
