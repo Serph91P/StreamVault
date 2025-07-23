@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
+from app.utils.streamer_cache import get_valid_streamers
 
 logger = logging.getLogger("streamvault")
 router = APIRouter(
@@ -979,12 +980,8 @@ async def debug_videos_database(
         if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
             result["filesystem_check"]["error"] = "Invalid streamer username format"
         else:
-            # Get list of valid streamer directories from filesystem (whitelist approach)
-            valid_streamers = []
-            if base_recordings_dir.exists():
-                for item in base_recordings_dir.iterdir():
-                    if item.is_dir():
-                        valid_streamers.append(item.name)
+            # Get list of valid streamer directories from filesystem (cached whitelist approach)
+            valid_streamers = get_valid_streamers(base_recordings_dir)
             
             # Check if requested streamer exists in whitelist
             if streamer_username not in valid_streamers:
