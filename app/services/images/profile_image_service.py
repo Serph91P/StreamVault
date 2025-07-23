@@ -32,6 +32,15 @@ class ProfileImageService:
             self.profiles_dir = images_base_dir / "profiles"
             self.profiles_dir.mkdir(parents=True, exist_ok=True)
     
+    def _extract_streamer_id_from_filename(self, image_file: Path) -> Optional[str]:
+        """Extract streamer ID from profile image filename (supports both old and new formats)"""
+        if image_file.stem.startswith("profile_avatar_"):
+            return image_file.stem.replace("profile_avatar_", "")
+        elif image_file.stem.startswith("streamer_"):
+            return image_file.stem.replace("streamer_", "")
+        else:
+            return None  # File doesn't match expected patterns
+    
     def _load_existing_cache(self):
         """Load information about already cached profile images"""
         try:
@@ -39,12 +48,8 @@ class ProfileImageService:
             
             if self.profiles_dir and self.profiles_dir.exists():
                 for image_file in self.profiles_dir.glob("*.jpg"):
-                    # Handle both old format (streamer_X) and new format (profile_avatar_X)
-                    if image_file.stem.startswith("profile_avatar_"):
-                        streamer_id = image_file.stem.replace("profile_avatar_", "")
-                    elif image_file.stem.startswith("streamer_"):
-                        streamer_id = image_file.stem.replace("streamer_", "")
-                    else:
+                    streamer_id = self._extract_streamer_id_from_filename(image_file)
+                    if streamer_id is None:
                         continue  # Skip files that don't match expected patterns
                     
                     relative_path = f"/data/images/profiles/{image_file.name}"
@@ -172,23 +177,19 @@ class ProfileImageService:
                 active_streamer_ids = set(str(s.id) for s in db.query(Streamer.id).all())
             
             # Check cached images (both old and new format)
-            for pattern in ["streamer_*.jpg", "profile_avatar_*.jpg"]:
-                for image_file in self.profiles_dir.glob(pattern):
-                    if image_file.stem.startswith("profile_avatar_"):
-                        streamer_id = image_file.stem.replace("profile_avatar_", "")
-                    elif image_file.stem.startswith("streamer_"):
-                        streamer_id = image_file.stem.replace("streamer_", "")
-                    else:
-                        continue
-                    
-                    if streamer_id not in active_streamer_ids:
-                        try:
-                            image_file.unlink()
-                            # Remove from cache
-                            self._profile_cache.pop(streamer_id, None)
-                            cleaned_count += 1
-                            logger.info(f"Removed unused profile image: {image_file.name}")
-                        except Exception as e:
+            for image_file in self.profiles_dir.glob("*.jpg"):
+                streamer_id = self._extract_streamer_id_from_filename(image_file)
+                if streamer_id is None:
+                    continue  # Skip files that don't match expected patterns
+                
+                if streamer_id not in active_streamer_ids:
+                    try:
+                        image_file.unlink()
+                        # Remove from cache
+                        self._profile_cache.pop(streamer_id, None)
+                        cleaned_count += 1
+                        logger.info(f"Removed unused profile image: {image_file.name}")
+                    except Exception as e:
                         logger.error(f"Error removing profile image {image_file}: {e}")
                         
         except Exception as e:
