@@ -220,6 +220,17 @@ class PostProcessingTaskHandlers:
             if not await ffmpeg_utils.validate_mp4(mp4_output_path):
                 raise Exception("MP4 validation failed")
                 
+            # Update Stream.recording_path to the MP4 file
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream:
+                    old_path = stream.recording_path
+                    stream.recording_path = mp4_output_path
+                    db.commit()
+                    logger.info(f"Updated Stream.recording_path for stream {stream_id}: {old_path} -> {mp4_output_path}")
+                else:
+                    logger.warning(f"Stream {stream_id} not found for recording_path update")
+                
             log_with_context(
                 logger, 'info',
                 f"MP4 remux completed for stream {stream_id}",
