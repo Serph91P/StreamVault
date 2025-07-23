@@ -18,7 +18,7 @@ python-jose[cryptography]==3.4.0
 cryptography==45.0.4
 
 # API and data handling
-python-multipart==0.0.19
+python-multipart==0.0.20
 pydantic-settings==2.6.1
 aiohttp==3.12.14
 aiofiles==24.1.0
@@ -27,12 +27,12 @@ aiofiles==24.1.0
 pillow==11.3.0
 
 # Notifications
-apprise==1.9.2
+apprise==1.9.3
 py-vapid==1.9.2
 
 # System monitoring
-psutil>=7.0.0
+psutil==7.0.0
 
 # Additional security packages
-safety>=3.0.0
-bandit>=1.7.0
+safety==3.6.0
+bandit==1.8.6
