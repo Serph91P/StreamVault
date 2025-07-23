@@ -2,7 +2,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.routing import APIRoute
-from starlette.routing import WebSocketRoute
 from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
