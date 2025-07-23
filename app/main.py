@@ -755,8 +755,9 @@ images_dir.mkdir(parents=True, exist_ok=True)
 (images_dir / "profiles").mkdir(parents=True, exist_ok=True)
 (images_dir / "categories").mkdir(parents=True, exist_ok=True)
 (images_dir / "artwork").mkdir(parents=True, exist_ok=True)
-# Mount the images directory
+# Mount the images directory under both /data/images and /api/media for compatibility
 app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
+app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
 
 # PWA Files serving - these must be at root level
 @app.get("/manifest.json")
