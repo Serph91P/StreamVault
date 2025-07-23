@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import Stream, Streamer, Recording
 from pathlib import Path
 import os
+import re
 from typing import Optional
 
 router = APIRouter(prefix="/api/debug", tags=["debug"])
@@ -116,34 +117,45 @@ async def debug_videos_database(
     # Check filesystem directly - build path based on streamer filter or scan all
     base_recordings_dir = Path("/recordings")
     if streamer_username and base_recordings_dir.exists():
-        # Check specific streamer directory
-        streamer_recordings_dir = base_recordings_dir / streamer_username
-        if streamer_recordings_dir.exists():
-            result["filesystem_check"]["recordings_dir_exists"] = True
-            result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
-            
-            # List subdirectories for the specific streamer
-            subdirs = []
-            for item in streamer_recordings_dir.iterdir():
-                if item.is_dir():
-                    subdirs.append({
-                        "name": item.name,
-                        "files": []
-                    })
-                    # List files in subdirectory
-                    for file in item.iterdir():
-                        if file.suffix in ['.mp4', '.ts']:
-                            subdirs[-1]["files"].append({
-                                "name": file.name,
-                                "size": file.stat().st_size,
-                                "path": str(file)
-                            })
-            
-            result["filesystem_check"]["subdirectories"] = subdirs
+        # Validate streamer_username to prevent directory traversal
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+            result["filesystem_check"]["error"] = "Invalid streamer username format"
         else:
-            result["filesystem_check"]["recordings_dir_exists"] = False
-            result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
-            result["filesystem_check"]["error"] = f"Streamer directory not found: {streamer_recordings_dir}"
+            # Check specific streamer directory
+            streamer_recordings_dir = base_recordings_dir / streamer_username
+            # Normalize and validate the path to prevent directory traversal
+            try:
+                streamer_recordings_dir = streamer_recordings_dir.resolve()
+                if not str(streamer_recordings_dir).startswith(str(base_recordings_dir.resolve())):
+                    result["filesystem_check"]["error"] = "Invalid path - directory traversal detected"
+                elif streamer_recordings_dir.exists():
+                    result["filesystem_check"]["recordings_dir_exists"] = True
+                    result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+                    
+                    # List subdirectories for the specific streamer
+                    subdirs = []
+                    for item in streamer_recordings_dir.iterdir():
+                        if item.is_dir():
+                            subdirs.append({
+                                "name": item.name,
+                                "files": []
+                            })
+                            # List files in subdirectory
+                            for file in item.iterdir():
+                                if file.suffix in ['.mp4', '.ts']:
+                                    subdirs[-1]["files"].append({
+                                        "name": file.name,
+                                        "size": file.stat().st_size,
+                                        "path": str(file)
+                                    })
+                    
+                    result["filesystem_check"]["subdirectories"] = subdirs
+                else:
+                    result["filesystem_check"]["recordings_dir_exists"] = False
+                    result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+                    result["filesystem_check"]["error"] = f"Streamer directory not found: {streamer_recordings_dir}"
+            except Exception:
+                result["filesystem_check"]["error"] = "Failed to access streamer directory"
     
     elif base_recordings_dir.exists():
         # Scan all streamer directories if no specific filter
@@ -191,49 +203,60 @@ async def debug_recordings_directory(
             result["base_recordings_dir_exists"] = True
             
             if streamer_username:
-                # Check specific streamer directory
-                streamer_dir = base_dir / streamer_username
-                if streamer_dir.exists():
-                    streamer_info = {
-                        "name": streamer_dir.name,
-                        "path": str(streamer_dir),
-                        "subdirectories": [],
-                        "total_files": 0,
-                        "total_size_mb": 0
-                    }
-                    
-                    # List season directories
-                    for season_dir in streamer_dir.iterdir():
-                        if season_dir.is_dir():
-                            season_info = {
-                                "name": season_dir.name,
-                                "path": str(season_dir),
-                                "files": [],
-                                "file_count": 0,
+                # Validate streamer_username to prevent directory traversal
+                if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+                    result["error"] = "Invalid streamer username format"
+                else:
+                    # Check specific streamer directory
+                    streamer_dir = base_dir / streamer_username
+                    # Normalize and validate the path to prevent directory traversal
+                    try:
+                        streamer_dir = streamer_dir.resolve()
+                        if not str(streamer_dir).startswith(str(base_dir.resolve())):
+                            result["error"] = "Invalid path - directory traversal detected"
+                        elif streamer_dir.exists():
+                            streamer_info = {
+                                "name": streamer_dir.name,
+                                "path": str(streamer_dir),
+                                "subdirectories": [],
+                                "total_files": 0,
                                 "total_size_mb": 0
                             }
                             
-                            # List files in season directory
-                            for file in season_dir.iterdir():
-                                if file.is_file():
-                                    file_size = file.stat().st_size
-                                    season_info["files"].append({
-                                        "name": file.name,
-                                        "size": file_size,
-                                        "size_mb": round(file_size / (1024*1024), 2),
-                                        "path": str(file),
-                                        "extension": file.suffix
-                                    })
-                                    season_info["file_count"] += 1
-                                    season_info["total_size_mb"] += round(file_size / (1024*1024), 2)
+                            # List season directories
+                            for season_dir in streamer_dir.iterdir():
+                                if season_dir.is_dir():
+                                    season_info = {
+                                        "name": season_dir.name,
+                                        "path": str(season_dir),
+                                        "files": [],
+                                        "file_count": 0,
+                                        "total_size_mb": 0
+                                    }
+                                    
+                                    # List files in season directory
+                                    for file in season_dir.iterdir():
+                                        if file.is_file():
+                                            file_size = file.stat().st_size
+                                            season_info["files"].append({
+                                                "name": file.name,
+                                                "size": file_size,
+                                                "size_mb": round(file_size / (1024*1024), 2),
+                                                "path": str(file),
+                                                "extension": file.suffix
+                                            })
+                                            season_info["file_count"] += 1
+                                            season_info["total_size_mb"] += round(file_size / (1024*1024), 2)
+                                    
+                                    streamer_info["subdirectories"].append(season_info)
+                                    streamer_info["total_files"] += season_info["file_count"]
+                                    streamer_info["total_size_mb"] += season_info["total_size_mb"]
                             
-                            streamer_info["subdirectories"].append(season_info)
-                            streamer_info["total_files"] += season_info["file_count"]
-                            streamer_info["total_size_mb"] += season_info["total_size_mb"]
-                    
-                    result["directories"].append(streamer_info)
-                else:
-                    result["error"] = f"Streamer directory not found: {streamer_dir}"
+                            result["directories"].append(streamer_info)
+                        else:
+                            result["error"] = f"Streamer directory not found: {streamer_dir}"
+                    except Exception:
+                        result["error"] = "Failed to access streamer directory"
             
             else:
                 # List all streamer directories
@@ -290,6 +313,6 @@ async def debug_recordings_directory(
             result["base_recordings_dir_exists"] = False
             
     except Exception as e:
-        result["error"] = str(e)
+        result["error"] = "An internal error occurred while accessing recordings directory"
     
     return result
