@@ -74,6 +74,23 @@ export function useRecordingSettings() {
             rec => rec.streamer_id !== latestMessage.data.streamer_id
           );
         }
+      } else if (latestMessage.type === 'recording_completed') {
+        
+        // Recording completed - remove from active recordings and trigger stream refresh
+        if (latestMessage.data?.recording_id) {
+          activeRecordings.value = activeRecordings.value.filter(
+            rec => rec.id !== latestMessage.data.recording_id
+          );
+          
+          // Emit event to trigger stream refresh in components that listen for it
+          window.dispatchEvent(new CustomEvent('recording_completed', {
+            detail: {
+              recording_id: latestMessage.data.recording_id,
+              file_path: latestMessage.data.file_path,
+              stream_id: latestMessage.data.stream_id
+            }
+          }));
+        }
       }
     }
   }, { deep: true });
