@@ -39,6 +39,9 @@ export function useStreams() {
     }
   }
 
+  // Constants
+  const REFRESH_DELAY_MS = 1000
+
   /**
    * Refresh streams when a recording is completed
    */
@@ -47,8 +50,10 @@ export function useStreams() {
     if (currentStreamerId.value) {
       // Delay refresh slightly to ensure database is updated
       setTimeout(() => {
-        fetchStreams(currentStreamerId.value!)
-      }, 1000)
+        if (currentStreamerId.value) {
+          fetchStreams(currentStreamerId.value)
+        }
+      }, REFRESH_DELAY_MS)
     }
   }
 
