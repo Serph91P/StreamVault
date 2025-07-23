@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import mimetypes
 import re
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording
@@ -142,7 +143,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                     file_stats = recording_path.stat()
                 
                 if final_path and file_stats:
-                    # Update the stream's recording_path for future use
+                    # Update the stream's recording_path for future use (self-healing)
                     if not stream.recording_path:
                         stream.recording_path = str(final_path)
                         logger.debug(f"Auto-updated recording_path for stream {stream.id}: {final_path}")
@@ -1178,7 +1179,7 @@ async def debug_recordings_directory(
 
 @router.get("/stream/{stream_id}/has-recording")
 async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
-    """Check if a specific stream has a recording available"""
+    """Check if a specific stream has a recording available with comprehensive file search"""
     
     try:
         # Get the stream
@@ -1210,6 +1211,9 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
             
             # Prefer .mp4 if it exists
             if mp4_path.exists():
+                # Update stream.recording_path to point to MP4 for future lookups
+                stream.recording_path = str(mp4_path)
+                db.commit()
                 return {
                     "has_recording": True,
                     "file_path": str(mp4_path),
@@ -1223,6 +1227,52 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
                     "file_size": ts_path.stat().st_size,
                     "method": "recording_ts_file"
                 }
+        
+        # Strategy 3: Smart filesystem search based on stream metadata
+        if stream.streamer_id and stream.started_at:
+            try:
+                # Get streamer info
+                from app.models import Streamer
+                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                if streamer:
+                    recordings_base = Path("/recordings")
+                    if recordings_base.exists():
+                        streamer_dir = recordings_base / streamer.username
+                        if streamer_dir.exists():
+                            # Search for files around the stream time
+                            stream_date = stream.started_at.date()
+                            potential_files = []
+                            
+                            # Look for video files created on the same date
+                            for ext in ['.mp4', '.ts']:
+                                for recording_file in streamer_dir.rglob(f"*{ext}"):
+                                    try:
+                                        file_date = datetime.fromtimestamp(recording_file.stat().st_mtime).date()
+                                        if file_date == stream_date:
+                                            potential_files.append(recording_file)
+                                    except Exception:
+                                        continue
+                            
+                            if potential_files:
+                                # Prefer .mp4 over .ts
+                                mp4_files = [f for f in potential_files if f.suffix == '.mp4']
+                                if mp4_files:
+                                    best_file = mp4_files[0]
+                                else:
+                                    best_file = potential_files[0]
+                                
+                                # Update database with found file
+                                stream.recording_path = str(best_file)
+                                db.commit()
+                                
+                                return {
+                                    "has_recording": True,
+                                    "file_path": str(best_file),
+                                    "file_size": best_file.stat().st_size,
+                                    "method": "filesystem_search"
+                                }
+            except Exception as e:
+                logger.debug(f"Filesystem search failed for stream {stream_id}: {e}")
         
         # No recording found
         return {
@@ -1241,7 +1291,7 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
 
 @router.post("/streams/check-recordings")
 async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
-    """Check recording availability for multiple streams at once"""
+    """Check recording availability for multiple streams at once with smart detection"""
     
     results = {}
     
@@ -1257,6 +1307,11 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
         ).all()
         recording_dict = {recording.stream_id: recording for recording in recordings}
         
+        # Get all streamers at once for filesystem search
+        streamer_ids = list(set(stream.streamer_id for stream in streams))
+        streamers = db.query(Streamer).filter(Streamer.id.in_(streamer_ids)).all()
+        streamer_dict = {streamer.id: streamer for streamer in streamers}
+        
         for stream_id in stream_ids:
             stream = stream_dict.get(stream_id)
             if not stream:
@@ -1269,6 +1324,103 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
                     recording_path = Path(stream.recording_path)
                     if recording_path.exists() and recording_path.is_file():
                         results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "stream_recording_path"
+                        }
+                        continue
+                except Exception:
+                    pass  # Continue to next strategy
+            
+            # Strategy 2: Check recording in database
+            recording = recording_dict.get(stream_id)
+            if recording and recording.path:
+                try:
+                    ts_path = Path(recording.path)
+                    mp4_path = ts_path.with_suffix('.mp4')
+                    
+                    # Prefer .mp4 if it exists
+                    if mp4_path.exists():
+                        # Update stream.recording_path for future lookups
+                        stream.recording_path = str(mp4_path)
+                        results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(mp4_path),
+                            "file_size": mp4_path.stat().st_size,
+                            "method": "recording_mp4_file"
+                        }
+                        continue
+                    elif ts_path.exists():
+                        results[stream_id] = {
+                            "has_recording": True,
+                            "file_path": str(ts_path),
+                            "file_size": ts_path.stat().st_size,
+                            "method": "recording_ts_file"
+                        }
+                        continue
+                except Exception:
+                    pass  # Continue to next strategy
+            
+            # Strategy 3: Smart filesystem search
+            if stream.streamer_id and stream.started_at:
+                try:
+                    streamer = streamer_dict.get(stream.streamer_id)
+                    if streamer:
+                        recordings_base = Path("/recordings")
+                        if recordings_base.exists():
+                            streamer_dir = recordings_base / streamer.username
+                            if streamer_dir.exists():
+                                # Search for files around the stream time
+                                stream_date = stream.started_at.date()
+                                potential_files = []
+                                
+                                # Look for video files created on the same date
+                                for ext in ['.mp4', '.ts']:
+                                    for recording_file in streamer_dir.rglob(f"*{ext}"):
+                                        try:
+                                            file_date = datetime.fromtimestamp(recording_file.stat().st_mtime).date()
+                                            if file_date == stream_date:
+                                                potential_files.append(recording_file)
+                                        except Exception:
+                                            continue
+                                
+                                if potential_files:
+                                    # Prefer .mp4 over .ts
+                                    mp4_files = [f for f in potential_files if f.suffix == '.mp4']
+                                    if mp4_files:
+                                        best_file = mp4_files[0]
+                                    else:
+                                        best_file = potential_files[0]
+                                    
+                                    # Update database with found file
+                                    stream.recording_path = str(best_file)
+                                    
+                                    results[stream_id] = {
+                                        "has_recording": True,
+                                        "file_path": str(best_file),
+                                        "file_size": best_file.stat().st_size,
+                                        "method": "filesystem_search"
+                                    }
+                                    continue
+                except Exception:
+                    pass  # Continue to no recording found
+            
+            # No recording found
+            results[stream_id] = {"has_recording": False, "method": "none"}
+        
+        # Commit any database updates
+        if any(stream_dict[sid].recording_path for sid in stream_ids if sid in stream_dict):
+            db.commit()
+        
+        return {
+            "success": True,
+            "data": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking stream recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
                             "has_recording": True,
                             "file_path": str(recording_path),
                             "file_size": recording_path.stat().st_size,

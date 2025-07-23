@@ -281,6 +281,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error stopping image sync service: {e}")
     
+    # Stop recording auto-fix service
+    try:
+        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        await recording_auto_fix_service.stop()
+        logger.info("✅ Recording auto-fix service stopped")
+    except Exception as e:
+        logger.error(f"❌ Error stopping recording auto-fix service: {e}")
+    
     # Close database connections
     try:
         from sqlalchemy.ext.asyncio import AsyncEngine

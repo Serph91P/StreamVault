@@ -46,6 +46,9 @@ async def initialize_background_services():
         # Recover orphaned recordings (unfinished post-processing jobs)
         await recover_orphaned_recordings()
         
+        # Start automatic recording database fix service
+        await start_recording_auto_fix_service()
+        
         logger.info("Background services initialized successfully")
         
     except Exception as e:
@@ -125,10 +128,33 @@ async def initialize_image_sync_service():
         logger.error(f"Failed to initialize image sync service: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
 
+async def start_recording_auto_fix_service():
+    """Start automatic recording database fix service"""
+    try:
+        logger.info("Starting automatic recording database fix service...")
+        
+        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        
+        # Start the auto-fix service
+        await recording_auto_fix_service.start()
+        
+        logger.info("Recording auto-fix service started successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to start recording auto-fix service: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
 async def shutdown_background_services():
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
+        
+        # Shutdown recording auto-fix service
+        try:
+            from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+            await recording_auto_fix_service.stop()
+        except Exception as e:
+            logger.error(f"Error shutting down recording auto-fix service: {e}")
         
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service

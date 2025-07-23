@@ -757,3 +757,250 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
     except Exception as e:
         logger.error(f"Error checking stream recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
+
+@router.post("/recordings/fix-availability")
+async def fix_recording_availability(
+    streamer_id: Optional[int] = None,
+    dry_run: bool = True
+) -> Dict[str, Any]:
+    """Fix recording_path fields based on actual file existence"""
+    try:
+        from app.database import SessionLocal
+        from app.models import Stream
+        from pathlib import Path
+        import os
+        
+        results = {
+            "checked": 0,
+            "fixed": 0,
+            "errors": 0,
+            "details": []
+        }
+        
+        with SessionLocal() as db:
+            # Get streams to check
+            query = db.query(Stream)
+            if streamer_id:
+                query = query.filter(Stream.streamer_id == streamer_id)
+            
+            streams = query.all()
+            
+            for stream in streams:
+                results["checked"] += 1
+                stream_result = {
+                    "stream_id": stream.id,
+                    "streamer_id": stream.streamer_id,
+                    "title": stream.title,
+                    "current_recording_path": stream.recording_path,
+                    "action": "none"
+                }
+                
+                try:
+                    # Check if recording_path exists and is correct
+                    has_file = False
+                    correct_path = None
+                    
+                    # Look for .ts recording file in expected location
+                    recordings_base = Path("/recordings")
+                    if recordings_base.exists():
+                        # Get streamer info
+                        from app.models import Streamer
+                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if streamer:
+                            streamer_dir = recordings_base / streamer.username
+                            if streamer_dir.exists():
+                                # Look for recording files
+                                for recording_file in streamer_dir.rglob("*.ts"):
+                                    # Check if filename contains stream info
+                                    if (stream.title and any(word in recording_file.name.lower() 
+                                           for word in stream.title.lower().split()[:3] if len(word) > 3)) or \
+                                       f"stream_{stream.id}" in recording_file.name.lower():
+                                        has_file = True
+                                        correct_path = str(recording_file)
+                                        break
+                                
+                                # If no specific match, look for files around the stream time
+                                if not has_file and stream.started_at:
+                                    import datetime
+                                    stream_date = stream.started_at.date()
+                                    for recording_file in streamer_dir.rglob("*.ts"):
+                                        file_date = datetime.datetime.fromtimestamp(recording_file.stat().st_mtime).date()
+                                        if file_date == stream_date:
+                                            has_file = True
+                                            correct_path = str(recording_file)
+                                            break
+                    
+                    # Determine action needed
+                    if has_file and not stream.recording_path:
+                        # File exists but recording_path is empty
+                        stream_result["action"] = "set_path"
+                        stream_result["new_path"] = correct_path
+                        if not dry_run:
+                            stream.recording_path = correct_path
+                            results["fixed"] += 1
+                    elif has_file and stream.recording_path and not Path(stream.recording_path).exists():
+                        # recording_path set but file doesn't exist at that path
+                        stream_result["action"] = "update_path"
+                        stream_result["old_path"] = stream.recording_path
+                        stream_result["new_path"] = correct_path
+                        if not dry_run:
+                            stream.recording_path = correct_path
+                            results["fixed"] += 1
+                    elif not has_file and stream.recording_path:
+                        # recording_path set but no file exists
+                        stream_result["action"] = "clear_path"
+                        stream_result["old_path"] = stream.recording_path
+                        if not dry_run:
+                            stream.recording_path = None
+                            results["fixed"] += 1
+                    
+                    results["details"].append(stream_result)
+                    
+                except Exception as e:
+                    logger.error(f"Error checking stream {stream.id}: {e}")
+                    results["errors"] += 1
+                    stream_result["error"] = str(e)
+                    results["details"].append(stream_result)
+            
+            if not dry_run:
+                db.commit()
+                logger.info(f"Fixed recording availability for {results['fixed']} streams")
+        
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "message": f"Checked {results['checked']} streams, {'would fix' if dry_run else 'fixed'} {results['fixed']}",
+            "data": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fixing recording availability: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Recording fix failed: {str(e)}")
+
+@router.post("/recordings/cleanup-orphaned-db")
+async def cleanup_orphaned_database_recordings(
+    max_age_hours: int = 48,
+    dry_run: bool = True
+) -> Dict[str, Any]:
+    """Clean up database recordings that have been running too long"""
+    try:
+        from app.database import SessionLocal
+        from app.models import Recording, Stream, Streamer
+        from datetime import datetime, timedelta
+        
+        results = {
+            "checked": 0,
+            "cleaned": 0,
+            "errors": 0,
+            "details": []
+        }
+        
+        # Calculate cutoff time
+        cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+        
+        with SessionLocal() as db:
+            # Find recordings that are still "recording" but started too long ago
+            orphaned_recordings = db.query(Recording).filter(
+                Recording.status == "recording",
+                Recording.start_time < cutoff_time
+            ).all()
+            
+            for recording in orphaned_recordings:
+                results["checked"] += 1
+                recording_result = {
+                    "recording_id": recording.id,
+                    "stream_id": recording.stream_id,
+                    "streamer_id": None,
+                    "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                    "duration_hours": None,
+                    "action": "none"
+                }
+                
+                try:
+                    # Get additional info
+                    if recording.stream:
+                        recording_result["streamer_id"] = recording.stream.streamer_id
+                        if recording.stream.streamer:
+                            recording_result["streamer_name"] = recording.stream.streamer.username
+                    
+                    if recording.start_time:
+                        duration = datetime.utcnow() - recording.start_time
+                        recording_result["duration_hours"] = duration.total_seconds() / 3600
+                    
+                    # Mark as completed with current time
+                    recording_result["action"] = "mark_completed"
+                    if not dry_run:
+                        recording.status = "completed"
+                        recording.end_time = datetime.utcnow()
+                        if recording.start_time:
+                            duration = recording.end_time - recording.start_time
+                            recording.duration = duration.total_seconds()
+                        results["cleaned"] += 1
+                    
+                    results["details"].append(recording_result)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing recording {recording.id}: {e}")
+                    results["errors"] += 1
+                    recording_result["error"] = str(e)
+                    results["details"].append(recording_result)
+            
+            if not dry_run:
+                db.commit()
+                logger.info(f"Cleaned up {results['cleaned']} orphaned database recordings")
+        
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "message": f"Checked {results['checked']} recordings, {'would clean' if dry_run else 'cleaned'} {results['cleaned']}",
+            "data": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cleaning orphaned recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Orphaned cleanup failed: {str(e)}")
+
+@router.post("/recordings/auto-fix-service/status")
+async def get_auto_fix_service_status() -> Dict[str, Any]:
+    """Get status of the automatic recording fix service"""
+    try:
+        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        
+        status = await recording_auto_fix_service.get_service_status()
+        
+        return {
+            "success": True,
+            "data": status
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting auto-fix service status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get service status: {str(e)}")
+
+@router.post("/recordings/auto-fix-service/trigger")
+async def trigger_auto_fix_service() -> Dict[str, Any]:
+    """Manually trigger the automatic recording fix service"""
+    try:
+        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        
+        if not recording_auto_fix_service.is_running:
+            raise HTTPException(status_code=503, detail="Auto-fix service is not running")
+        
+        # Run the fixes
+        path_results = await recording_auto_fix_service.auto_fix_recording_paths()
+        orphan_results = await recording_auto_fix_service.auto_cleanup_orphaned_recordings()
+        
+        return {
+            "success": True,
+            "message": f"Auto-fix completed: {path_results['fixed']} paths fixed, {orphan_results['cleaned']} orphaned entries cleaned",
+            "data": {
+                "recording_paths": path_results,
+                "orphaned_cleanup": orphan_results
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering auto-fix service: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Auto-fix service trigger failed: {str(e)}")
