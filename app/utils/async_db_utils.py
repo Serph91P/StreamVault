@@ -3,10 +3,10 @@ Async database utilities for StreamVault
 """
 import asyncio
 from typing import List, Optional, Dict, Any
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, desc
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from app.database import get_async_session_maker, get_database_url
+from app.database import get_database_url
 from app.models import Stream, Streamer, Recording, StreamEvent
 from urllib.parse import urlparse, urlunparse
 import logging
@@ -89,11 +89,7 @@ def get_async_session_maker():
 async def get_async_session():
     """Get an async database session context manager"""
     async_session = get_async_session_maker()
-    async with async_session() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+    return async_session()
 
 
 async def get_all_streamers() -> List[Streamer]:
