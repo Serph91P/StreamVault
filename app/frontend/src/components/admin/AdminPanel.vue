@@ -293,10 +293,18 @@
           <i class="fas fa-folder-open"></i>
           {{ recordingsDirectoryLoading ? 'Loading...' : 'Scan Recordings Directory' }}
         </button>
+        
+        <button @click="fixRecordingAvailability" :disabled="fixingRecordings" class="btn btn-warning">
+          <i class="fas fa-wrench"></i>
+          {{ fixingRecordings ? 'Fixing...' : 'Fix Recording Paths' }}
+        </button>
+        
+        <button @click="cleanupOrphanedRecordings" :disabled="cleaningOrphaned" class="btn btn-danger">
+          <i class="fas fa-broom"></i>
+          {{ cleaningOrphaned ? 'Cleaning...' : 'Cleanup Orphaned DB' }}
+        </button>
       </div>
-    </div>
-
-    <!-- Logs Modal -->
+    </div>    <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
       <div class="modal" @click.stop>
         <div class="modal-header">
@@ -511,6 +519,8 @@ const videosDebugLoading = ref(false)
 const recordingsDirectoryData = ref<any>(null)
 const recordingsDirectoryLoading = ref(false)
 const showVideosDebugModal = ref(false)
+const fixingRecordings = ref(false)
+const cleaningOrphaned = ref(false)
 const showRecordingsDirectoryModal = ref(false)
 
 // Computed
@@ -662,6 +672,100 @@ const loadRecordingsDirectory = async () => {
     alert('Failed to load recordings directory data')
   } finally {
     recordingsDirectoryLoading.value = false
+  }
+}
+
+// Recording Fix Methods
+const fixRecordingAvailability = async () => {
+  if (!confirm('This will scan all streams and fix recording_path fields based on actual files. Continue?')) {
+    return
+  }
+  
+  fixingRecordings.value = true
+  try {
+    // First do a dry run
+    const dryRunResponse = await fetch('/api/admin/recordings/fix-availability?dry_run=true', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!dryRunResponse.ok) {
+      throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
+    }
+    
+    const dryRunResult = await dryRunResponse.json()
+    const message = `Dry run completed:\n- Checked: ${dryRunResult.data.checked} streams\n- Would fix: ${dryRunResult.data.fixed} streams\n- Errors: ${dryRunResult.data.errors}\n\nProceed with actual fix?`
+    
+    if (!confirm(message)) {
+      return
+    }
+    
+    // Do the actual fix
+    const fixResponse = await fetch('/api/admin/recordings/fix-availability?dry_run=false', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!fixResponse.ok) {
+      throw new Error(`HTTP ${fixResponse.status}: ${fixResponse.statusText}`)
+    }
+    
+    const fixResult = await fixResponse.json()
+    alert(`Recording paths fixed!\n- Checked: ${fixResult.data.checked} streams\n- Fixed: ${fixResult.data.fixed} streams\n- Errors: ${fixResult.data.errors}`)
+    
+    // Refresh the videos debug data
+    await loadVideosDebug()
+    
+  } catch (error) {
+    console.error('Failed to fix recording availability:', error)
+    alert('Failed to fix recording availability: ' + String(error))
+  } finally {
+    fixingRecordings.value = false
+  }
+}
+
+const cleanupOrphanedRecordings = async () => {
+  if (!confirm('This will cleanup database recordings that have been "recording" for more than 48 hours. Continue?')) {
+    return
+  }
+  
+  cleaningOrphaned.value = true
+  try {
+    // First do a dry run
+    const dryRunResponse = await fetch('/api/admin/recordings/cleanup-orphaned-db?dry_run=true&max_age_hours=48', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!dryRunResponse.ok) {
+      throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
+    }
+    
+    const dryRunResult = await dryRunResponse.json()
+    const message = `Dry run completed:\n- Found orphaned recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
+    
+    if (!confirm(message)) {
+      return
+    }
+    
+    // Do the actual cleanup
+    const cleanupResponse = await fetch('/api/admin/recordings/cleanup-orphaned-db?dry_run=false&max_age_hours=48', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!cleanupResponse.ok) {
+      throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
+    }
+    
+    const cleanupResult = await cleanupResponse.json()
+    alert(`Orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
+    
+  } catch (error) {
+    console.error('Failed to cleanup orphaned recordings:', error)
+    alert('Failed to cleanup orphaned recordings: ' + String(error))
+  } finally {
+    cleaningOrphaned.value = false
   }
 }
 
