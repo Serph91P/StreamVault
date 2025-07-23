@@ -131,10 +131,11 @@ async def lifespan(app: FastAPI):
         
         # Start log cleanup service
         try:
-            from app.services.system.logging_service import LoggingService
-            logging_service = LoggingService()
+            from app.services.system.logging_service import logging_service
+            # Use the global logging service instance instead of creating a new one
             log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
             logger.info("Log cleanup service started")
+            logger.info(f"Logging service base directory: {logging_service.logs_base_dir}")
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
         
