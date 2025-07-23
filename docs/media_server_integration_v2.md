@@ -22,7 +22,7 @@ StreamVault has been refactored for compatibility with media server containers (
     │       ├── banner.jpg      # Banner image  
     │       └── fanart.jpg      # Background image
     ├── profiles/
-    │   └── streamer_123.jpg    # Profile images
+    │   └── profile_avatar_123.jpg    # Profile images
     └── categories/
         └── category_456.jpg    # Category icons
 ```
