@@ -107,7 +107,18 @@ class ExternalNotificationService:
                 
                 # Get cached profile image path using unified image service
                 cached_profile_image = unified_image_service.get_cached_profile_image(streamer.id)
-                profile_image_url = cached_profile_image or streamer.profile_image_url or ""
+                
+                # For notifications, prefer the original HTTP URL over cached local path
+                # Apprise needs HTTP URLs for avatar_url parameters
+                if details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
+                    # Use the original Twitch URL if available in details
+                    profile_image_url = details["profile_image_url"]
+                elif streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                    # Use the database URL if it's still a HTTP URL
+                    profile_image_url = streamer.profile_image_url
+                else:
+                    # Fallback: no image for external notifications if only local cache available
+                    profile_image_url = ""
                 
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,

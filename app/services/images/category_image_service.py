@@ -21,7 +21,7 @@ class CategoryImageService:
     """Handles category/game image management"""
     
     # Constants
-    DEFAULT_CATEGORY_IMAGE_PATH = "/images/categories/default-category.svg"
+    DEFAULT_CATEGORY_IMAGE_PATH = "/api/media/categories/default-category.svg"
     
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
@@ -51,7 +51,7 @@ class CategoryImageService:
                 for image_file in self.categories_dir.glob("*.jpg"):
                     category_name = self._filename_to_category(image_file.stem)
                     if category_name:
-                        self._category_cache[category_name] = f"/data/images/categories/{image_file.name}"
+                        self._category_cache[category_name] = f"/api/media/categories/{image_file.name}"
             
             logger.info(f"Loaded category image cache: {len(self._category_cache)} categories")
         except Exception as e:
@@ -101,7 +101,7 @@ class CategoryImageService:
             
             success = await self.download_service.download_image(box_art_url, file_path)
             if success:
-                relative_path = f"/data/images/categories/{filename}"
+                relative_path = f"/api/media/categories/{filename}"
                 self._category_cache[category_name] = relative_path
                 logger.info(f"Successfully cached category image for {category_name}")
                 return relative_path

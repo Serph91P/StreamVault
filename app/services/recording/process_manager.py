@@ -3,13 +3,25 @@ Process management for recording service.
 
 This module handles subprocess creation and management, specifically for streamlink recording processes.
 Includes support for 24h+ streams through segment splitting and automatic process rotation.
+
+Dependency Injection:
+    The ProcessManager can accept a post_processing_callback in its constructor or via 
+    set_post_processing_callback() to avoid circular imports and follow proper architecture.
+    
+    Example usage:
+        async def post_processing_callback(recording_id: int, file_path: str):
+            # Handle post-processing for completed recording
+            pass
+            
+        process_manager = ProcessManager(post_processing_callback=post_processing_callback)
 """
 import logging
 import asyncio
 import os
+import shutil
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Callable, Awaitable
 from pathlib import Path
 
 # Import utilities
@@ -31,11 +43,12 @@ class ProcessManager:
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None):
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
         self.config_manager = config_manager
+        self.post_processing_callback = post_processing_callback  # Injected dependency
         
         # Configuration for long stream handling (avoid streamlink 24h cutoff)
         self.segment_duration_hours = 23.98  # Split streams at 23h59min to avoid streamlink cutoff
@@ -46,8 +59,9 @@ class ProcessManager:
         try:
             from app.services.system.logging_service import logging_service
             self.logging_service = logging_service
+            logger.info(f"✅ ProcessManager: Logging service initialized - {logging_service.logs_base_dir}")
         except Exception as e:
-            logger.warning(f"Could not initialize logging service: {e}")
+            logger.warning(f"❌ ProcessManager: Could not initialize logging service: {e}")
             self.logging_service = None
         
         # Try to import psutil for process monitoring
@@ -62,7 +76,7 @@ class ProcessManager:
         self._is_shutting_down = False
 
     async def start_recording_process(
-        self, stream: Stream, output_path: str, quality: str
+        self, stream: Stream, output_path: str, quality: str, recording_id: int = None
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
         
@@ -70,13 +84,14 @@ class ProcessManager:
             stream: Stream object to record
             output_path: Path where the recording should be saved
             quality: Quality setting for the stream
+            recording_id: ID of the recording entry (optional, for segmented recording tracking)
             
         Returns:
             Process object or None if failed
         """
         try:
             # Initialize segmented recording for long streams
-            segment_info = await self._initialize_segmented_recording(stream, output_path, quality)
+            segment_info = await self._initialize_segmented_recording(stream, output_path, quality, recording_id)
             
             # Start the first segment
             process = await self._start_segment(
@@ -96,7 +111,7 @@ class ProcessManager:
             logger.error(f"Failed to start recording process for stream {stream.id}: {e}", exc_info=True)
             raise ProcessError(f"Failed to start recording: {e}")
 
-    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str) -> Dict:
+    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str, recording_id: int = None) -> Dict:
         """Initialize segmented recording structure for long streams"""
         base_path = Path(output_path)
         segment_dir = base_path.parent / f"{base_path.stem}_segments"
@@ -108,6 +123,7 @@ class ProcessManager:
         
         segment_info = {
             'stream_id': stream.id,
+            'recording_id': recording_id,  # Store recording_id for proper post-processing
             'base_output_path': str(output_path),
             'segment_dir': str(segment_dir),
             'current_segment_path': str(current_segment_path),
@@ -470,13 +486,136 @@ class ProcessManager:
             if process.returncode == 0:
                 logger.info(f"Successfully concatenated segments into {output_path}")
                 
-                # Clean up segment files and directory
+                # Move concatenated file from segments directory to parent directory
+                await self._move_concatenated_file_to_parent(segment_info)
+                
+                # Trigger post-processing for the moved file
+                await self._trigger_post_processing_for_segmented_recording(segment_info)
+                
+                # Clean up segment files and directory only after post-processing starts
                 await self._cleanup_segments(segment_info)
             else:
                 logger.error(f"Failed to concatenate segments: {stderr.decode('utf-8', errors='replace')[:500]}")
                 
         except Exception as e:
             logger.error(f"Error finalizing segmented recording: {e}", exc_info=True)
+
+    async def _move_concatenated_file_to_parent(self, segment_info: Dict):
+        """Move concatenated TS file from segments directory to parent directory"""
+        try:
+            segment_dir = Path(segment_info['segment_dir'])
+            parent_dir = segment_dir.parent
+            concatenated_file = Path(segment_info['base_output_path'])
+            
+            # Create new filename in parent directory
+            final_path = parent_dir / concatenated_file.name
+            
+            # Check if target file already exists and create unique name if needed
+            if final_path.exists():
+                counter = 1
+                base_name = final_path.stem
+                extension = final_path.suffix
+                while final_path.exists():
+                    final_path = parent_dir / f"{base_name}_copy{counter}{extension}"
+                    counter += 1
+                logger.warning(f"Target file existed, using unique name: {final_path}")
+            
+            # Move the file
+            if concatenated_file.exists():
+                shutil.move(str(concatenated_file), str(final_path))
+                logger.info(f"Moved concatenated file from {concatenated_file} to {final_path}")
+                
+                # Update the segment_info with new path for post-processing
+                segment_info['final_output_path'] = str(final_path)
+            else:
+                logger.error(f"Concatenated file not found: {concatenated_file}")
+                
+        except Exception as e:
+            logger.error(f"Error moving concatenated file: {e}", exc_info=True)
+
+    async def _trigger_post_processing_for_segmented_recording(self, segment_info: Dict):
+        """Trigger post-processing for the segmented recording using injected callback"""
+        try:
+            # Use the final output path (moved file) for post-processing
+            output_path = segment_info.get('final_output_path', segment_info['base_output_path'])
+            stream_id = segment_info['stream_id']
+            # Get recording_id from segment_info if available
+            recording_id = segment_info.get('recording_id')
+            
+            if self.post_processing_callback and recording_id:
+                # Use the injected callback to trigger post-processing with correct recording_id
+                await self.post_processing_callback(recording_id, output_path)
+                logger.info(f"Triggered post-processing for segmented recording {recording_id} (stream {stream_id}) via callback")
+            else:
+                # Fallback to direct service access (with circular import handling)
+                logger.warning("No post-processing callback available or recording_id missing, using fallback method")
+                await self._fallback_trigger_post_processing(stream_id, output_path, recording_id)
+                
+        except Exception as e:
+            logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
+
+    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str, recording_id: int = None):
+        """Fallback method for post-processing when no callback is injected"""
+        try:
+            # Import here to avoid circular imports (only used as fallback)
+            from app.routes.recording import get_recording_service
+            
+            # Get recording service and orchestrator
+            recording_service = get_recording_service()
+            if recording_service and recording_service.orchestrator:
+                # If recording_id is not provided, try to find it by stream_id
+                if not recording_id:
+                    # Look for active recording for this stream
+                    recordings = await recording_service.orchestrator.database_service.get_recordings_by_status("recording")
+                    for recording in recordings:
+                        if recording.stream_id == stream_id:
+                            recording_id = recording.id
+                            break
+                
+                if recording_id:
+                    # Get recording data using correct recording_id
+                    recording_data = recording_service.orchestrator.database_service.get_recording_by_id(recording_id)
+                    if recording_data:
+                        # Update recording status using correct recording_id
+                        await recording_service.orchestrator.database_service.update_recording_status(
+                            recording_id=recording_id,  # Use actual recording_id
+                            status="completed",
+                            path=output_path
+                        )
+                        
+                        # Get additional data needed for post-processing
+                        stream_data = await recording_service.orchestrator.database_service.get_stream_by_id(recording_data.stream_id)
+                        if stream_data:
+                            streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
+                            if streamer_data:
+                                # Create recording data dict for post-processing
+                                recording_data_dict = {
+                                    'streamer_name': streamer_data.username,
+                                    'started_at': recording_data.start_time.isoformat() if recording_data.start_time else None,
+                                    'stream_id': stream_data.id,
+                                    'recording_id': recording_id  # Use correct recording_id
+                                }
+                                
+                                # Use the public enqueue_post_processing method with correct recording_id
+                                await recording_service.orchestrator.enqueue_post_processing(
+                                    recording_id=recording_id,  # Use actual recording_id
+                                    ts_file_path=output_path,
+                                    recording_data=recording_data_dict
+                                )
+                                logger.info(f"Enqueued post-processing for segmented recording {recording_id} (stream {stream_id})")
+                            else:
+                                logger.error(f"Streamer data not found for recording {recording_id}")
+                        else:
+                            logger.error(f"Stream data not found for recording {recording_id}")
+                    else:
+                        logger.error(f"Recording data not found for recording {recording_id}")
+                else:
+                    logger.error(f"Could not find recording_id for stream {stream_id}")
+            else:
+                logger.warning(f"Could not trigger post-processing - recording service not available")
+                
+        except Exception as e:
+            logger.error(f"Error in fallback post-processing trigger: {e}", exc_info=True)
 
     async def _cleanup_segments(self, segment_info: Dict):
         """Clean up segment files after successful concatenation"""
@@ -700,3 +839,12 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
             return None
+
+    def set_post_processing_callback(self, callback: Optional[Callable[[int, str], Awaitable[None]]]):
+        """Set the post-processing callback for dependency injection
+        
+        Args:
+            callback: Async function that takes (recording_id: int, file_path: str) parameters
+        """
+        self.post_processing_callback = callback
+        logger.info("Post-processing callback set for ProcessManager")

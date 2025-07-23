@@ -72,10 +72,11 @@ class ImageRefreshService:
                 batch_tasks = []
                 for streamer in batch:
                     if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
-                        # Check if cached file exists
-                        expected_path = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
+                        # Check if cached file exists (try both old and new naming)
+                        expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
+                        expected_path_old = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
                         
-                        if not expected_path.exists():
+                        if not expected_path_new.exists() and not expected_path_old.exists():
                             logger.info(f"Profile image missing for streamer {streamer.id}, re-downloading...")
                             task = self._download_profile_image(streamer)
                             batch_tasks.append(task)
@@ -106,9 +107,8 @@ class ImageRefreshService:
             )
             if cached_path:
                 # Update database with cached path using proper session
-                from app.utils.async_db_utils import get_async_session_maker
-                async_session = get_async_session_maker()
-                async with async_session() as db:
+                from app.utils.async_db_utils import get_async_session
+                async with get_async_session() as db:
                     # Re-fetch the streamer in this session context
                     stmt = select(Streamer).where(Streamer.id == streamer.id)
                     result = await db.execute(stmt)
@@ -135,11 +135,9 @@ class ImageRefreshService:
         
         try:
             # Use async database operations
-            from app.utils.async_db_utils import get_async_session_maker
-            from sqlalchemy import select
-            async_session = get_async_session_maker()
+            from app.utils.async_db_utils import get_async_session
             
-            async with async_session() as session:
+            async with get_async_session() as session:
                 result = await session.execute(select(Category))
                 categories = result.scalars().all()
                 

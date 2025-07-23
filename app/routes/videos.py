@@ -1,18 +1,122 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse, FileResponse
 import os
 import urllib.parse
-from typing import List
+from typing import List, Optional
 import logging
 from pathlib import Path
 import mimetypes
 import re
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
-from app.models import RecordingSettings, Stream, Streamer, Recording
+from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
+from app.utils.streamer_cache import get_valid_streamers
 
 logger = logging.getLogger("streamvault")
+
+def parse_vtt_chapters(vtt_content: str) -> list:
+    """Parse WebVTT chapter format"""
+    chapters = []
+    chapter_blocks = re.split(r'\n\n+', vtt_content.strip())
+    
+    for block in chapter_blocks:
+        if 'WEBVTT' in block or not block.strip():
+            continue
+            
+        lines = block.strip().split('\n')
+        if len(lines) >= 2:
+            # First line might be a chapter identifier, or it might be the timestamp
+            if '-->' in lines[0]:
+                timestamp_line = lines[0]
+                title_line = lines[1] if len(lines) > 1 else "Chapter"
+            elif len(lines) > 1 and '-->' in lines[1]:
+                timestamp_line = lines[1]
+                title_line = lines[2] if len(lines) > 2 else lines[0]
+            else:
+                continue
+                
+            # Parse timestamp "00:00:00.000 --> 00:10:00.000"
+            if '-->' in timestamp_line:
+                start_time, _ = timestamp_line.split('-->')
+                start_time = start_time.strip()
+                
+                # Convert timestamp to seconds
+                time_parts = start_time.split(':')
+                if len(time_parts) == 3:
+                    hours, minutes, seconds = time_parts
+                    total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+                    
+                    chapters.append({
+                        'id': len(chapters) + 1,
+                        'start': total_seconds,
+                        'title': title_line.strip()
+                    })
+    
+    return chapters
+
+def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
+    """Parse FFmpeg chapter format"""
+    chapters = []
+    chapter_blocks = re.split(r'\[CHAPTER\]', ffmpeg_content)
+    
+    for block in chapter_blocks:
+        if not block.strip():
+            continue
+            
+        lines = block.strip().split('\n')
+        start_time = None
+        title = None
+        
+        for line in lines:
+            if line.startswith('TIMEBASE='):
+                continue
+            elif line.startswith('START='):
+                # Extract start time in timebase units
+                start_value = line.split('=')[1]
+                try:
+                    start_time = float(start_value)
+                except (ValueError, IndexError):
+                    continue
+            elif line.startswith('title='):
+                title = line.split('=', 1)[1] if '=' in line else None
+        
+        if start_time is not None:
+            chapters.append({
+                'id': len(chapters) + 1,
+                'start': start_time,
+                'title': title or f"Chapter {len(chapters) + 1}"
+            })
+    
+    return chapters
+
+def get_video_thumbnail_url(stream_id: int, recording_path: str) -> Optional[str]:
+    """Get the correct thumbnail URL for a video"""
+    try:
+        recording_path_obj = Path(recording_path)
+        base_filename = recording_path_obj.stem
+        video_dir = recording_path_obj.parent
+        
+        # Priority order for thumbnail files:
+        # 1. {base_filename}-thumb.jpg (Plex format, usually correct)
+        # 2. {base_filename}_thumbnail.jpg (fallback)
+        
+        thumbnail_candidates = [
+            video_dir / f"{base_filename}-thumb.jpg",
+            video_dir / f"{base_filename}_thumbnail.jpg",
+        ]
+        
+        for thumbnail_path in thumbnail_candidates:
+            if thumbnail_path.exists() and thumbnail_path.is_file():
+                # Return relative URL for API access
+                return f"/api/videos/thumbnail/{stream_id}"
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error getting thumbnail for stream {stream_id}: {e}")
+        return None
+
 router = APIRouter(
     prefix="/api",
     tags=["videos"]
@@ -94,7 +198,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
                     }
                     videos.append(video_info)
                     logger.debug(f"Added video from stream: {stream.title} by {streamer.username}")
@@ -141,7 +245,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                     file_stats = recording_path.stat()
                 
                 if final_path and file_stats:
-                    # Update the stream's recording_path for future use
+                    # Update the stream's recording_path for future use (self-healing)
                     if not stream.recording_path:
                         stream.recording_path = str(final_path)
                         logger.debug(f"Auto-updated recording_path for stream {stream.id}: {final_path}")
@@ -165,7 +269,7 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(final_path))
                     }
                     videos.append(video_info)
                     added_stream_ids.add(stream.id)
@@ -256,6 +360,170 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.error(f"DEBUG: Exception: {e}")
         # Don't expose internal error details to users
         return {"error": "Internal error occurred", "success": False}
+
+@router.get("/videos/thumbnail/{stream_id}")
+async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Serve video thumbnail image"""
+    try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            raise HTTPException(status_code=404, detail="Stream or recording not found")
+        
+        recording_path = Path(stream.recording_path)
+        base_filename = recording_path.stem
+        video_dir = recording_path.parent
+        
+        # Priority order for thumbnail files (use the correct one, not the black one)
+        thumbnail_candidates = [
+            video_dir / f"{base_filename}-thumb.jpg",        # Plex format (usually correct)
+            video_dir / f"{base_filename}_thumbnail.jpg",    # Fallback format
+        ]
+        
+        thumbnail_path = None
+        for candidate in thumbnail_candidates:
+            if candidate.exists() and candidate.is_file():
+                thumbnail_path = candidate
+                break
+        
+        if not thumbnail_path:
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+        
+        # Return the thumbnail file
+        return FileResponse(
+            str(thumbnail_path),
+            media_type="image/jpeg",
+            filename=f"thumbnail_{stream_id}.jpg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving thumbnail for stream {stream_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/videos/public/{stream_id}")
+async def stream_video_public(stream_id: int, token: str = Query(...), request: Request = None, db: Session = Depends(get_db)):
+    """Stream video with token-based authentication for external players like VLC"""
+    try:
+        logger.info(f"Public video stream request for stream_id: {stream_id} with token: {token[:20]}...")
+        
+        # Validate token (simple implementation - in production use JWT or similar)
+        # For now, we'll accept the session token as URL parameter
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        
+        # Try to validate the token as a session token
+        if not await auth_service.validate_session(token):
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        file_path = Path(stream.recording_path)
+        
+        # Verify file exists
+        if not file_path.exists() or not file_path.is_file():
+            logger.error(f"Video file not found: {stream.recording_path}")
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Get file info
+        try:
+            file_size = file_path.stat().st_size
+        except OSError as e:
+            logger.error(f"Error accessing file: {e}")
+            raise HTTPException(status_code=500, detail="Error accessing file")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "video/mp4"
+            
+        # Handle range requests (important for seeking in VLC)
+        range_header = request.headers.get('range') if request else None
+        if range_header:
+            try:
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                if not range_match:
+                    raise HTTPException(status_code=400, detail="Invalid range header")
+                
+                start = int(range_match.group(1))
+                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                
+                if start >= file_size or end >= file_size or start > end:
+                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                
+                chunk_size = end - start + 1
+                
+                def generate_chunk():
+                    with open(str(file_path), 'rb') as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            read_size = min(8192, remaining)
+                            data = f.read(read_size)
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+                
+                headers = {
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(chunk_size),
+                    "Content-Type": mime_type,
+                    "Cache-Control": "no-cache"
+                }
+                
+                return StreamingResponse(
+                    generate_chunk(),
+                    status_code=206,
+                    headers=headers
+                )
+            except ValueError:
+                # Invalid range header, serve full file
+                pass
+        
+        # No range request, stream entire file
+        def generate_file():
+            with open(str(file_path), 'rb') as f:
+                while True:
+                    data = f.read(8192)
+                    if not data:
+                        break
+                    yield data
+        
+        headers = {
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Type": mime_type,
+            "Cache-Control": "no-cache"
+        }
+        
+        return StreamingResponse(
+            generate_file(),
+            headers=headers
+        )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error streaming public video {stream_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/stream/{stream_id}")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
@@ -636,7 +904,7 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": None
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
                     }
                     videos.append(video_info)
                 else:
@@ -773,7 +1041,7 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
 
 @router.get("/videos/{stream_id}/chapters")
 async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get chapters for a video (placeholder for future implementation)"""
+    """Get chapters for a video from metadata files"""
     try:
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
@@ -791,25 +1059,46 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
         if not stream:
             raise HTTPException(status_code=404, detail="Stream not found")
         
-        # TODO: Implement actual chapter detection from video file
-        # For now, return empty chapters array
+        # Get metadata for this stream
+        from app.models import StreamMetadata
+        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        
         chapters = []
         
-        # If stream has duration, create some sample chapters for testing
-        if stream.started_at and stream.ended_at:
+        # Try to load chapters from VTT file first (best for web)
+        if metadata and metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
+            try:
+                with open(metadata.chapters_vtt_path, 'r', encoding='utf-8') as f:
+                    vtt_content = f.read()
+                    chapters = parse_vtt_chapters(vtt_content)
+                    logger.info(f"Loaded {len(chapters)} chapters from VTT file")
+            except Exception as e:
+                logger.warning(f"Failed to load VTT chapters: {e}")
+        
+        # Fallback to FFmpeg chapters format if VTT not available
+        if not chapters and metadata and metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists():
+            try:
+                with open(metadata.chapters_ffmpeg_path, 'r', encoding='utf-8') as f:
+                    ffmpeg_content = f.read()
+                    chapters = parse_ffmpeg_chapters(ffmpeg_content)
+                    logger.info(f"Loaded {len(chapters)} chapters from FFmpeg file")
+            except Exception as e:
+                logger.warning(f"Failed to load FFmpeg chapters: {e}")
+        
+        # If no chapters found, create some sample ones for testing if duration exists
+        if not chapters and stream.started_at and stream.ended_at:
             duration = (stream.ended_at - stream.started_at).total_seconds()
-            if duration > 0:
-                # Create chapters every 10 minutes for testing
-                chapter_interval = 600  # 10 minutes
+            if duration > 60:  # Only create chapters for streams longer than 1 minute
+                # Create chapters every 10 minutes for longer streams
+                chapter_interval = min(600, duration / 4)  # Max 4 chapters or every 10 minutes
                 current_time = 0
                 chapter_num = 1
                 
-                while current_time < duration:
+                while current_time < duration and chapter_num <= 10:  # Max 10 chapters
                     chapters.append({
                         "id": chapter_num,
                         "title": f"Chapter {chapter_num}",
-                        "start_time": current_time,
-                        "end_time": min(current_time + chapter_interval, duration)
+                        "start": current_time
                     })
                     current_time += chapter_interval
                     chapter_num += 1
@@ -868,3 +1157,435 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
     except Exception as e:
         logger.error(f"Error in test endpoint: {e}", exc_info=True)
         return {"error": "An internal error has occurred"}
+
+
+@router.get("/stream/{stream_id}/has-recording")
+async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
+    """Check if a specific stream has a recording available - simplified version"""
+    
+    try:
+        # Get the stream
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        # Method 1: Check stream.recording_path (legacy system)
+        if stream.recording_path and stream.recording_path.strip():
+            recording_path = Path(stream.recording_path)
+            if recording_path.exists() and recording_path.is_file():
+                return {
+                    "has_recording": True,
+                    "file_path": str(recording_path),
+                    "file_size": recording_path.stat().st_size,
+                    "method": "stream_recording_path"
+                }
+        
+        # Method 2: Check Recording model (new system)
+        recording = db.query(Recording).filter(
+            Recording.stream_id == stream_id,
+            Recording.status == "completed"
+        ).first()
+        
+        if recording and recording.path and recording.path.strip():
+            recording_path = Path(recording.path)
+            if recording_path.exists() and recording_path.is_file():
+                return {
+                    "has_recording": True,
+                    "file_path": str(recording_path),
+                    "file_size": recording_path.stat().st_size,
+                    "method": "recording_model"
+                }
+        
+        # No recording found
+        return {
+            "has_recording": False,
+            "method": "none"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking recording for stream {stream_id}: {e}")
+        return {
+            "has_recording": False,
+            "error": "An internal error occurred while checking the recording.",
+            "method": "error"
+        }
+
+
+@router.post("/streams/check-recordings")
+async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
+    """Check recording availability for multiple streams at once - simplified version"""
+    
+    results = {}
+    
+    try:
+        # Get all streams at once
+        streams = db.query(Stream).filter(Stream.id.in_(stream_ids)).all()
+        
+        # Get all recordings for these streams at once
+        recordings = db.query(Recording).filter(
+            Recording.stream_id.in_(stream_ids),
+            Recording.status == "completed"
+        ).all()
+        
+        # Create recording lookup by stream_id
+        # Note: If multiple completed recordings exist for the same stream, 
+        # this intentionally keeps only the most recent one (last in query result)
+        recordings_by_stream = {rec.stream_id: rec for rec in recordings}
+        
+        for stream in streams:
+            # Method 1: Check stream.recording_path (legacy system)
+            if stream.recording_path and stream.recording_path.strip():
+                try:
+                    recording_path = Path(stream.recording_path)
+                    if recording_path.exists() and recording_path.is_file():
+                        results[stream.id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "stream_recording_path"
+                        }
+                        continue
+                except Exception:
+                    pass
+            
+            # Method 2: Check Recording model (new system)
+            recording = recordings_by_stream.get(stream.id)
+            if recording and recording.path and recording.path.strip():
+                try:
+                    recording_path = Path(recording.path)
+                    if recording_path.exists() and recording_path.is_file():
+                        results[stream.id] = {
+                            "has_recording": True,
+                            "file_path": str(recording_path),
+                            "file_size": recording_path.stat().st_size,
+                            "method": "recording_model"
+                        }
+                        continue
+                except Exception:
+                    pass
+            
+            # No recording found for this stream
+            results[stream.id] = {"has_recording": False, "method": "none"}
+        
+        # Add results for any stream IDs that weren't found in database
+        for stream_id in stream_ids:
+            if stream_id not in results:
+                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
+        
+        return {
+            "success": True,
+            "data": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking stream recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Stream recording check failed due to an internal error.")
+
+
+@router.get("/debug/videos-database")
+async def debug_videos_database(
+    db: Session = Depends(get_db),
+    streamer_username: str = Query(None, description="Filter by specific streamer username")
+):
+    """Debug endpoint to see what's in the database vs filesystem"""
+    
+    result = {
+        "streams": [],
+        "recordings": [],
+        "filesystem_check": {},
+        "summary": {},
+        "filter": {
+            "streamer_username": streamer_username,
+            "available_streamers": []
+        }
+    }
+    
+    # Get available streamers for reference
+    available_streamers = db.query(Streamer.username).distinct().all()
+    result["filter"]["available_streamers"] = [s.username for s in available_streamers]
+    
+    # Build query for streams
+    streams_query = db.query(Stream, Streamer).join(
+        Streamer, Stream.streamer_id == Streamer.id
+    )
+    
+    # Apply filter if streamer_username is provided
+    if streamer_username:
+        streams_query = streams_query.filter(Streamer.username == streamer_username)
+    
+    streams = streams_query.order_by(Stream.started_at.desc()).limit(50).all()  # Limit for performance
+    
+    for stream, streamer in streams:
+        stream_info = {
+            "id": stream.id,
+            "title": stream.title,
+            "streamer_name": streamer.username,
+            "started_at": stream.started_at.isoformat() if stream.started_at else None,
+            "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+            "recording_path": stream.recording_path,
+            "category_name": stream.category_name,
+            "is_live": stream.is_live
+        }
+        
+        # Check if recording_path file exists
+        if stream.recording_path:
+            try:
+                path = Path(stream.recording_path)
+                stream_info["recording_path_exists"] = path.exists()
+                if path.exists():
+                    stream_info["recording_path_size"] = path.stat().st_size
+            except Exception as e:
+                stream_info["recording_path_error"] = str(e)
+        
+        result["streams"].append(stream_info)
+    
+    # Build query for recordings
+    recordings_query = db.query(Recording, Stream, Streamer).join(
+        Stream, Recording.stream_id == Stream.id
+    ).join(
+        Streamer, Stream.streamer_id == Streamer.id
+    )
+    
+    # Apply filter if streamer_username is provided
+    if streamer_username:
+        recordings_query = recordings_query.filter(Streamer.username == streamer_username)
+    
+    recordings = recordings_query.order_by(Recording.start_time.desc()).limit(50).all()  # Limit for performance
+    
+    for recording, stream, streamer in recordings:
+        recording_info = {
+            "id": recording.id,
+            "stream_id": recording.stream_id,
+            "status": recording.status,
+            "path": recording.path,
+            "start_time": recording.start_time.isoformat() if recording.start_time else None,
+            "end_time": recording.end_time.isoformat() if recording.end_time else None,
+            "stream_title": stream.title,
+            "streamer_name": streamer.username
+        }
+        
+        # Check if recording path file exists
+        if recording.path:
+            try:
+                ts_path = Path(recording.path)
+                mp4_path = ts_path.with_suffix('.mp4')
+                
+                recording_info["ts_path_exists"] = ts_path.exists()
+                recording_info["mp4_path_exists"] = mp4_path.exists()
+                
+                if ts_path.exists():
+                    recording_info["ts_path_size"] = ts_path.stat().st_size
+                if mp4_path.exists():
+                    recording_info["mp4_path_size"] = mp4_path.stat().st_size
+                    recording_info["mp4_path"] = str(mp4_path)
+                    
+            except Exception as e:
+                recording_info["path_check_error"] = str(e)
+        
+        result["recordings"].append(recording_info)
+    
+    # Check filesystem directly - build path based on streamer filter or scan all
+    base_recordings_dir = Path("/recordings")
+    if streamer_username and base_recordings_dir.exists():
+        # Validate streamer_username using strict whitelist approach
+        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+            result["filesystem_check"]["error"] = "Invalid streamer username format"
+        else:
+            # Get list of valid streamer directories from filesystem (cached whitelist approach)
+            valid_streamers = get_valid_streamers(base_recordings_dir)
+            
+            # Check if requested streamer exists in whitelist
+            if streamer_username not in valid_streamers:
+                result["filesystem_check"]["error"] = f"Streamer directory not found: {streamer_username}"
+                result["filesystem_check"]["available_streamers"] = valid_streamers
+            else:
+                # Safe path construction using validated name from filesystem
+                streamer_recordings_dir = base_recordings_dir / streamer_username
+                result["filesystem_check"]["recordings_dir_exists"] = True
+                result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+                
+                # List subdirectories for the specific streamer
+                subdirs = []
+                for item in streamer_recordings_dir.iterdir():
+                    if item.is_dir():
+                        subdirs.append({
+                            "name": item.name,
+                            "files": []
+                        })
+                        # List files in subdirectory
+                        for file in item.iterdir():
+                            if file.suffix in ['.mp4', '.ts']:
+                                subdirs[-1]["files"].append({
+                                    "name": file.name,
+                                    "size": file.stat().st_size,
+                                    "path": str(file)
+                                })
+                
+                result["filesystem_check"]["subdirectories"] = subdirs
+    
+    elif base_recordings_dir.exists():
+        # Scan all streamer directories if no specific filter
+        result["filesystem_check"]["recordings_dir_exists"] = True
+        result["filesystem_check"]["all_streamers"] = []
+        
+        for streamer_dir in base_recordings_dir.iterdir():
+            if streamer_dir.is_dir():
+                result["filesystem_check"]["all_streamers"].append({
+                    "name": streamer_dir.name,
+                    "path": str(streamer_dir),
+                    "file_count": len([f for f in streamer_dir.rglob("*") if f.is_file() and f.suffix in ['.mp4', '.ts']])
+                })
+    else:
+        result["filesystem_check"]["recordings_dir_exists"] = False
+    
+    # Summary
+    result["summary"] = {
+        "total_streams": len(result["streams"]),
+        "total_recordings": len(result["recordings"]),
+        "streams_with_recording_path": len([s for s in result["streams"] if s.get("recording_path")]),
+        "recordings_with_path": len([r for r in result["recordings"] if r.get("path")]),
+        "mp4_files_found": len([r for r in result["recordings"] if r.get("mp4_path_exists")])
+    }
+    
+    return result
+
+
+@router.get("/debug/recordings-directory")
+async def debug_recordings_directory(
+    streamer_username: str = Query(None, description="Filter by specific streamer username")
+):
+    """Debug endpoint to list contents of recordings directory"""
+    
+    result = {
+        "base_recordings_dir": "/recordings",
+        "filter": {
+            "streamer_username": streamer_username
+        },
+        "directories": []
+    }
+    
+    try:
+        base_dir = Path("/recordings")
+        if base_dir.exists():
+            result["base_recordings_dir_exists"] = True
+            
+            if streamer_username:
+                # Validate streamer_username using strict whitelist approach
+                if not re.match(r'^[a-zA-Z0-9\-_. ]+$', streamer_username):
+                    result["error"] = "Invalid streamer username format"
+                else:
+                    # Get list of valid streamer directories from filesystem (whitelist approach)
+                    valid_streamers = []
+                    if base_dir.exists():
+                        for item in base_dir.iterdir():
+                            if item.is_dir():
+                                valid_streamers.append(item.name)
+                    
+                    # Check if requested streamer exists in whitelist
+                    if streamer_username not in valid_streamers:
+                        result["error"] = f"Streamer directory not found: {streamer_username}"
+                        result["available_streamers"] = valid_streamers
+                    else:
+                        # Safe path construction using validated name from filesystem
+                        streamer_dir = base_dir / streamer_username
+                        streamer_info = {
+                            "name": streamer_dir.name,
+                            "path": str(streamer_dir),
+                            "subdirectories": [],
+                            "total_files": 0,
+                            "total_size_mb": 0
+                        }
+                        
+                        # List season directories
+                        for season_dir in streamer_dir.iterdir():
+                            if season_dir.is_dir():
+                                season_info = {
+                                    "name": season_dir.name,
+                                    "path": str(season_dir),
+                                    "files": [],
+                                    "file_count": 0,
+                                    "total_size_mb": 0
+                                }
+                                
+                                # List files in season directory
+                                for file in season_dir.iterdir():
+                                    if file.is_file():
+                                        file_size = file.stat().st_size
+                                        season_info["files"].append({
+                                            "name": file.name,
+                                            "size": file_size,
+                                            "size_mb": round(file_size / (1024*1024), 2),
+                                            "path": str(file),
+                                            "extension": file.suffix
+                                        })
+                                        season_info["file_count"] += 1
+                                        season_info["total_size_mb"] += round(file_size / (1024*1024), 2)
+                                
+                                streamer_info["subdirectories"].append(season_info)
+                                streamer_info["total_files"] += season_info["file_count"]
+                                streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                        
+                        result["directories"].append(streamer_info)
+            
+            else:
+                # List all streamer directories (with performance limits)
+                for streamer_dir in base_dir.iterdir():
+                    if streamer_dir.is_dir():
+                        streamer_info = {
+                            "name": streamer_dir.name,
+                            "path": str(streamer_dir),
+                            "subdirectories": [],
+                            "total_files": 0,
+                            "total_size_mb": 0
+                        }
+                        
+                        # List season directories (limit to avoid performance issues)
+                        season_count = 0
+                        for season_dir in streamer_dir.iterdir():
+                            if season_dir.is_dir() and season_count < 10:  # Limit seasons shown
+                                season_info = {
+                                    "name": season_dir.name,
+                                    "path": str(season_dir),
+                                    "files": [],
+                                    "file_count": 0,
+                                    "total_size_mb": 0
+                                }
+                                
+                                # Count files without listing all (for performance)
+                                file_count = 0
+                                total_size = 0
+                                for file in season_dir.iterdir():
+                                    if file.is_file():
+                                        file_count += 1
+                                        total_size += file.stat().st_size
+                                        
+                                        # Only list first 5 files for preview
+                                        if len(season_info["files"]) < 5:
+                                            season_info["files"].append({
+                                                "name": file.name,
+                                                "size": file.stat().st_size,
+                                                "size_mb": round(file.stat().st_size / (1024*1024), 2),
+                                                "path": str(file),
+                                                "extension": file.suffix
+                                            })
+                                
+                                season_info["file_count"] = file_count
+                                season_info["total_size_mb"] = round(total_size / (1024*1024), 2)
+                                
+                                streamer_info["subdirectories"].append(season_info)
+                                streamer_info["total_files"] += file_count
+                                streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                                season_count += 1
+                        
+                        result["directories"].append(streamer_info)
+        else:
+            result["base_recordings_dir_exists"] = False
+            
+    except Exception as e:
+        result["error"] = "An internal error occurred while accessing recordings directory"
+    
+    return result
+
+
+
+

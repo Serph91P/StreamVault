@@ -196,10 +196,24 @@ const downloadVideo = () => {
 }
 
 const shareVideo = async () => {
+  // Get session token for public URL
+  const sessionToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('session='))
+    ?.split('=')[1]
+  
+  if (!sessionToken) {
+    alert('Unable to generate share link: No active session')
+    return
+  }
+  
+  // Create a direct video stream URL with token that works in VLC and other media players
+  const directVideoUrl = `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}`
+  
   const shareData = {
     title: props.video.title,
-    text: `Check out this video from ${props.video.streamer_name}!`,
-    url: window.location.href
+    text: `Check out this video from ${props.video.streamer_name}! Open in VLC or any media player.`,
+    url: directVideoUrl
   }
   
   if (navigator.share) {
@@ -207,20 +221,28 @@ const shareVideo = async () => {
       await navigator.share(shareData)
     } catch (err) {
       if (err.name !== 'AbortError') {
-        fallbackShare()
+        fallbackShare(directVideoUrl)
       }
     }
   } else {
-    fallbackShare()
+    fallbackShare(directVideoUrl)
   }
 }
 
-const fallbackShare = () => {
-  const url = window.location.href
-  navigator.clipboard.writeText(url).then(() => {
-    alert('Link copied to clipboard!')
+const fallbackShare = (url) => {
+  const sessionToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('session='))
+    ?.split('=')[1]
+    
+  const shareUrl = url || (sessionToken ? 
+    `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}` :
+    `${window.location.origin}/api/videos/stream/${props.video.id}`)
+    
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')
   }).catch(() => {
-    alert(`Share link: ${url}`)
+    alert(`Direct video link: ${shareUrl}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
   })
 }
 
@@ -694,6 +716,7 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

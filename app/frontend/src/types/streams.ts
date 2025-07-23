@@ -16,6 +16,8 @@ export interface Stream {
   category_name: string | null
   language: string | null
   twitch_stream_id: string | null
+  recording_path: string | null
+  episode_number: number | null
   events?: StreamEvent[]
 }
 

@@ -220,6 +220,18 @@ class PostProcessingTaskHandlers:
             if not await ffmpeg_utils.validate_mp4(mp4_output_path):
                 raise Exception("MP4 validation failed")
                 
+            # Update Stream.recording_path to the MP4 file
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if stream:
+                    # Capture old path only for logging
+                    old_path = stream.recording_path
+                    stream.recording_path = mp4_output_path
+                    db.commit()
+                    logger.info(f"Updated Stream.recording_path for stream {stream_id}: {old_path} -> {mp4_output_path}")
+                else:
+                    logger.warning(f"Stream {stream_id} not found for recording_path update")
+                
             log_with_context(
                 logger, 'info',
                 f"MP4 remux completed for stream {stream_id}",
@@ -256,8 +268,8 @@ class PostProcessingTaskHandlers:
         )
         
         try:
-            # Generate thumbnail from MP4
-            thumbnail_path = await self.thumbnail_service.generate_thumbnail_from_mp4(
+            # Generate unified thumbnail from MP4 (only creates -thumb.jpg format)
+            thumbnail_path = await self.thumbnail_service.create_unified_thumbnail(
                 stream_id=stream_id,
                 mp4_path=mp4_path
             )
@@ -352,11 +364,23 @@ class PostProcessingTaskHandlers:
             raise
 
     async def handle_cleanup(self, payload, progress_callback=None):
-        """Handle cleanup task with intelligent TS cleanup"""
+        """Handle cleanup task with intelligent TS cleanup or stream deletion cleanup"""
         stream_id = payload['stream_id']
-        files_to_remove = payload.get('files_to_remove', [])  # Default to empty list if not provided
-        mp4_path = payload['mp4_path']
-        intelligent_cleanup = payload.get('intelligent_cleanup', False)
+        
+        # Handle both post-processing cleanup and stream deletion cleanup
+        if 'cleanup_paths' in payload:
+            # Stream deletion cleanup - delete everything without validation
+            files_to_remove = payload['cleanup_paths']
+            mp4_path = None
+            intelligent_cleanup = False
+            is_deletion_cleanup = True
+        else:
+            # Post-processing cleanup - requires MP4 validation
+            files_to_remove = payload.get('files_to_remove', [])
+            mp4_path = payload['mp4_path']
+            intelligent_cleanup = payload.get('intelligent_cleanup', False)
+            is_deletion_cleanup = False
+        
         max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
         streamer_name = payload.get('streamer_name', f'stream_{stream_id}')
         
@@ -365,34 +389,37 @@ class PostProcessingTaskHandlers:
             logger.warning(f"files_to_remove is not a list: {type(files_to_remove)}, converting to list")
             files_to_remove = [files_to_remove] if files_to_remove else []
         
-        log_with_context(
-            logger, 'info',
-            f"Starting cleanup for stream {stream_id}",
-            task_id=payload.get('task_id'),
-            stream_id=stream_id,
-            files_to_remove=files_to_remove,
-            intelligent_cleanup=intelligent_cleanup,
-            operation='cleanup_start',
-            streamer_name=streamer_name
-        )
-        
-        # Log to structured logging service
-        if self.logging_service:
-            self.logging_service.log_recording_activity(
-                "CLEANUP_START",
-                streamer_name,
-                f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
-            )
-        
-        try:
-            # Validation should have already passed, but double-check
+        # For post-processing cleanup, validate MP4 file exists early (fail fast)
+        if not is_deletion_cleanup:
             if not mp4_path or not os.path.exists(mp4_path):
                 raise Exception("MP4 file not found, not removing source files")
             
             mp4_size = os.path.getsize(mp4_path)
             if mp4_size < 1024 * 1024:  # Less than 1MB
                 raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
-            
+        
+        log_with_context(
+            logger, 'info',
+            f"Starting {'deletion' if is_deletion_cleanup else 'post-processing'} cleanup for stream {stream_id}",
+            task_id=payload.get('task_id'),
+            stream_id=stream_id,
+            files_to_remove=files_to_remove,
+            intelligent_cleanup=intelligent_cleanup,
+            operation='cleanup_start',
+            streamer_name=streamer_name,
+            is_deletion_cleanup=is_deletion_cleanup
+        )
+        
+        # Log to structured logging service
+        if self.logging_service:
+            cleanup_type = "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
+            self.logging_service.log_recording_activity(
+                f"{cleanup_type}_START",
+                streamer_name,
+                f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
+            )
+        
+        try:
             removed_files = []
             for file_path in files_to_remove:
                 if os.path.exists(file_path):
@@ -405,8 +432,8 @@ class PostProcessingTaskHandlers:
                             logger.info(f"Removed directory: {file_path}")
                             removed_files.append(file_path)
                         else:
-                            # Use intelligent cleanup for TS files if requested
-                            if intelligent_cleanup and file_path.endswith('.ts'):
+                            # Use intelligent cleanup for TS files if requested (only for post-processing cleanup)
+                            if not is_deletion_cleanup and intelligent_cleanup and file_path.endswith('.ts'):
                                 cleanup_success = await self._intelligent_ts_cleanup(file_path, mp4_path, max_wait_time)
                                 if cleanup_success:
                                     removed_files.append(file_path)
@@ -422,30 +449,33 @@ class PostProcessingTaskHandlers:
             
             log_with_context(
                 logger, 'info',
-                f"Cleanup completed for stream {stream_id}",
+                f"{'Deletion' if is_deletion_cleanup else 'Post-processing'} cleanup completed for stream {stream_id}",
                 task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 removed_files=removed_files,
-                operation='cleanup_complete'
+                operation='cleanup_complete',
+                is_deletion_cleanup=is_deletion_cleanup
             )
             
-            # Trigger database event for orphaned recovery after cleanup completion
-            try:
-                from app.services.recording.database_event_orphaned_recovery import on_post_processing_completed
-                recording_id = payload.get('recording_id')
-                if recording_id:
-                    await on_post_processing_completed(recording_id, "cleanup")
-            except Exception as e:
-                logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
+            # Trigger database event for orphaned recovery after cleanup completion (only for post-processing)
+            if not is_deletion_cleanup:
+                try:
+                    from app.services.recording.database_event_orphaned_recovery import on_post_processing_completed
+                    recording_id = payload.get('recording_id')
+                    if recording_id:
+                        await on_post_processing_completed(recording_id, "cleanup")
+                except Exception as e:
+                    logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
                 
         except Exception as e:
             log_with_context(
                 logger, 'error',
-                f"Cleanup failed for stream {stream_id}: {e}",
+                f"{'Deletion' if is_deletion_cleanup else 'Post-processing'} cleanup failed for stream {stream_id}: {e}",
                 task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
-                operation='cleanup_error'
+                operation='cleanup_error',
+                is_deletion_cleanup=is_deletion_cleanup
             )
             raise
     

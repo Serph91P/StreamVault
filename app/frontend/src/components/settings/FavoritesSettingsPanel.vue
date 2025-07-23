@@ -25,14 +25,6 @@
             <span class="button-icon">↻</span>
             <span class="button-text">Refresh</span>
           </button>
-          <button @click="downloadMissingImages" class="btn btn-info" :disabled="isDownloadingImages">
-            <span class="button-icon">{{ isDownloadingImages ? '⏳' : '📥' }}</span>
-            <span class="button-text">{{ isDownloadingImages ? 'Downloading...' : 'Get Images' }}</span>
-          </button>
-          <button @click="checkMissingImages" class="btn btn-warning">
-            <span class="button-icon">🔍</span>
-            <span class="button-text">Check Missing</span>
-          </button>
         </div>
       </div>
     </div>
@@ -134,7 +126,6 @@ const categories = ref<Category[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const imageErrors = ref<Set<string>>(new Set());
-const isDownloadingImages = ref(false);
 
 // Use category images composable
 const { getCategoryImage, preloadCategoryImages, refreshImages, clearCache } = useCategoryImages();
@@ -257,84 +248,10 @@ const handleImageError = (event: Event) => {
   }
 };
 
-const downloadMissingImages = async () => {
-  try {
-    isDownloadingImages.value = true;
-    error.value = null;
-    
-    // Get all category names that don't have proper images (those using icon: fallbacks)
-    const categoriesNeedingImages = categories.value.filter(category => {
-      const imageUrl = getCategoryImage(category.name);
-      return imageUrl.startsWith('icon:') || imageUrl.includes('default-category.svg');
-    }).map(category => category.name);
-    
-    if (categoriesNeedingImages.length === 0) {
-      
-      return;
-    }
-    
-    
-    
-    // Use the refresh function to force re-download even if images exist but are broken
-    const refreshResponse = await refreshImages(categoriesNeedingImages);
-    
-    if (!refreshResponse) {
-      throw new Error('Failed to start image refresh');
-    }
-    
-    
-    
-    // Wait a bit for the downloads to complete
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Clear local cache and force reload
-    clearCache();
-    
-    // Force a re-render to pick up new images  
-    await fetchCategories();
-    
-    // Preload the new images to update our local cache
-    await preloadCategoryImages(categoriesNeedingImages);
-    
-    
-  } catch (err: any) {
-    error.value = err.message || 'Failed to download category images';
-    console.error('Error downloading category images:', err);
-  } finally {
-    isDownloadingImages.value = false;
-  }
-};
-
-const checkMissingImages = async () => {
-  try {
-    const response = await fetch('/api/categories/missing-images');
-    if (response.ok) {
-      const report = await response.json();
-      
-      
-      const message = `Images Report:
-Total categories: ${report.total_categories}
-Have images: ${report.have_images}
-Missing images: ${report.missing_images}
-
-Missing categories: ${report.categories_missing_images.join(', ')}`;
-      
-      alert(message);
-    } else {
-      throw new Error('Failed to get missing images report');
-    }
-  } catch (err: any) {
-    error.value = err.message || 'Failed to check missing images';
-    console.error('Error checking missing images:', err);
-  }
-};
-
 // Initialize component
 onMounted(() => {
   fetchCategories();
-});
-
-// Debug-Output
+}); // Debug-Output
 watch(categories, (newCategories) => {
   if (newCategories.length > 0) {
     

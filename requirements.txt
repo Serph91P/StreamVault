@@ -1,5 +1,5 @@
 # Core FastAPI and server dependencies
-fastapi==0.115.5
+fastapi==0.116.1
 uvicorn[standard]==0.32.1
 
 # Database dependencies
@@ -8,6 +8,7 @@ psycopg==3.2.3
 psycopg-binary==3.2.3
 psycopg-pool==3.2.4
 alembic==1.13.1
+greenlet==3.2.3
 
 # Security dependencies - updated to latest secure versions
 python-dotenv==1.0.1
@@ -17,7 +18,7 @@ python-jose[cryptography]==3.4.0
 cryptography==45.0.4
 
 # API and data handling
-python-multipart==0.0.19
+python-multipart==0.0.20
 pydantic-settings==2.6.1
 aiohttp==3.12.14
 aiofiles==24.1.0
@@ -26,12 +27,12 @@ aiofiles==24.1.0
 pillow==11.3.0
 
 # Notifications
-apprise==1.9.2
+apprise==1.9.3
 py-vapid==1.9.2
 
-# System monitoring
-psutil>=7.0.0
+# System monitoring - using version compatible with safety
+psutil==6.1.1
 
 # Additional security packages
-safety>=3.0.0
-bandit>=1.7.0
+safety==3.6.0
+bandit==1.8.6

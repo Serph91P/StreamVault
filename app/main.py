@@ -2,7 +2,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.routing import APIRoute
-from starlette.routing import WebSocketRoute
 from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
@@ -131,10 +130,11 @@ async def lifespan(app: FastAPI):
         
         # Start log cleanup service
         try:
-            from app.services.system.logging_service import LoggingService
-            logging_service = LoggingService()
+            from app.services.system.logging_service import logging_service
+            # Use the global logging service instance instead of creating a new one
             log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
             logger.info("Log cleanup service started")
+            logger.info(f"Logging service base directory: {logging_service.logs_base_dir}")
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
         
@@ -279,6 +279,14 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Image sync service stopped")
     except Exception as e:
         logger.error(f"❌ Error stopping image sync service: {e}")
+    
+    # Stop recording auto-fix service
+    try:
+        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        await recording_auto_fix_service.stop()
+        logger.info("✅ Recording auto-fix service stopped")
+    except Exception as e:
+        logger.error(f"❌ Error stopping recording auto-fix service: {e}")
     
     # Close database connections
     try:
@@ -747,8 +755,9 @@ images_dir.mkdir(parents=True, exist_ok=True)
 (images_dir / "profiles").mkdir(parents=True, exist_ok=True)
 (images_dir / "categories").mkdir(parents=True, exist_ok=True)
 (images_dir / "artwork").mkdir(parents=True, exist_ok=True)
-# Mount the images directory
+# Mount the images directory under both /data/images and /api/media for compatibility
 app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
+app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
 
 # PWA Files serving - these must be at root level
 @app.get("/manifest.json")
