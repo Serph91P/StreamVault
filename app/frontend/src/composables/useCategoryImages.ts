@@ -1,16 +1,23 @@
-import { ref, reactive, nextTick } from 'vue'
+import { ref, reactive } from 'vue'
 
 // Cache for category images to avoid repeated API calls
 const categoryImageCache = reactive<{ [key: string]: string }>({})
 const pendingRequests = new Set<string>()
-const cacheVersion = ref(0) // Force reactivity trigger
+const cacheVersion = ref(0) // Used to force reactivity updates when cache changes
+
+// Helper function to trigger reactivity tracking
+function ensureReactivity() {
+  // Intentionally access cacheVersion.value to ensure Vue tracks this dependency
+  // This makes getCategoryImage reactive to cache updates
+  return cacheVersion.value
+}
 
 export function useCategoryImages() {
   const getCategoryImage = (categoryName: string): string => {
     if (!categoryName) return '/images/categories/default-category.svg'
     
-    // Access cacheVersion to make this reactive
-    cacheVersion.value
+    // Trigger reactivity tracking - this ensures the component re-renders when cache updates
+    ensureReactivity()
     
     // Check if we have it cached
     if (categoryImageCache[categoryName]) {
@@ -73,7 +80,6 @@ export function useCategoryImages() {
         
         // Trigger reactivity update
         cacheVersion.value++
-        await nextTick()
       }
     } catch (error) {
       console.warn(`Failed to fetch category image for ${categoryName}:`, error)
