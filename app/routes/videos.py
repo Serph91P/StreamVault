@@ -941,6 +941,8 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
         ).all()
         
         # Create recording lookup by stream_id
+        # Note: If multiple completed recordings exist for the same stream, 
+        # this intentionally keeps only the most recent one (last in query result)
         recordings_by_stream = {rec.stream_id: rec for rec in recordings}
         
         for stream in streams:
