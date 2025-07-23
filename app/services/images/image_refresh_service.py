@@ -106,9 +106,8 @@ class ImageRefreshService:
             )
             if cached_path:
                 # Update database with cached path using proper session
-                from app.utils.async_db_utils import get_async_session_maker
-                async_session = get_async_session_maker()
-                async with async_session() as db:
+                from app.utils.async_db_utils import get_async_session
+                async with get_async_session() as db:
                     # Re-fetch the streamer in this session context
                     stmt = select(Streamer).where(Streamer.id == streamer.id)
                     result = await db.execute(stmt)
@@ -135,11 +134,9 @@ class ImageRefreshService:
         
         try:
             # Use async database operations
-            from app.utils.async_db_utils import get_async_session_maker
-            from sqlalchemy import select
-            async_session = get_async_session_maker()
+            from app.utils.async_db_utils import get_async_session
             
-            async with async_session() as session:
+            async with get_async_session() as session:
                 result = await session.execute(select(Category))
                 categories = result.scalars().all()
                 
