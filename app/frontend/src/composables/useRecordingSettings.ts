@@ -87,7 +87,7 @@ export function useRecordingSettings() {
             detail: {
               recording_id: latestMessage.data.recording_id,
               file_path: latestMessage.data.file_path,
-              stream_id: latestMessage.data.stream_id
+              stream_id: latestMessage.data?.stream_id
             }
           }));
         }
