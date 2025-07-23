@@ -39,7 +39,7 @@ def get_async_engine():
         # Reconstruct the URL with the updated scheme
         async_url = urlunparse(parsed_url._replace(scheme=async_scheme))
         
-        logger.debug(f"Creating async engine with URL: {async_scheme}://***@{parsed_url.netloc}{parsed_url.path}")
+        logger.debug(f"Creating async engine with scheme: {async_scheme}, database: {parsed_url.path}")
         _async_engine = create_async_engine(async_url, echo=False)
     return _async_engine
 
