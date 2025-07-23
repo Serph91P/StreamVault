@@ -196,10 +196,13 @@ const downloadVideo = () => {
 }
 
 const shareVideo = async () => {
+  // Create a specific video URL using the correct route structure
+  const videoUrl = `${window.location.origin}/streamer/${props.video.streamer_id}/stream/${props.video.id}/watch`
+  
   const shareData = {
     title: props.video.title,
     text: `Check out this video from ${props.video.streamer_name}!`,
-    url: window.location.href
+    url: videoUrl
   }
   
   if (navigator.share) {
@@ -207,20 +210,20 @@ const shareVideo = async () => {
       await navigator.share(shareData)
     } catch (err) {
       if (err.name !== 'AbortError') {
-        fallbackShare()
+        fallbackShare(videoUrl)
       }
     }
   } else {
-    fallbackShare()
+    fallbackShare(videoUrl)
   }
 }
 
-const fallbackShare = () => {
-  const url = window.location.href
-  navigator.clipboard.writeText(url).then(() => {
+const fallbackShare = (url) => {
+  const shareUrl = url || `${window.location.origin}/streamer/${props.video.streamer_id}/stream/${props.video.id}/watch`
+  navigator.clipboard.writeText(shareUrl).then(() => {
     alert('Link copied to clipboard!')
   }).catch(() => {
-    alert(`Share link: ${url}`)
+    alert(`Share link: ${shareUrl}`)
   })
 }
 
@@ -694,6 +697,7 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
