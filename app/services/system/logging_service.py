@@ -14,7 +14,31 @@ logger = logging.getLogger("streamvault")
 class LoggingService:
     """Enhanced logging service for StreamVault with separate logging for FFmpeg and Streamlink"""
     
-    def __init__(self, logs_base_dir: str = "/app/logs"):
+    def __init__(self, logs_base_dir: str = None):
+        # Determine the logs directory based on environment
+        if logs_base_dir is None:
+            # Try to get from settings first
+            try:
+                from app.config.settings import settings
+                if hasattr(settings, 'LOGS_DIR'):
+                    logs_base_dir = settings.LOGS_DIR
+                else:
+                    # Fallback logic: use local directory if it exists, otherwise use Docker path
+                    import os
+                    local_logs = "logs_local"
+                    docker_logs = "/app/logs"
+                    
+                    if os.path.exists(local_logs):
+                        logs_base_dir = local_logs
+                        logger.info(f"Using local logs directory: {local_logs}")
+                    else:
+                        logs_base_dir = docker_logs
+                        logger.info(f"Using Docker logs directory: {docker_logs}")
+            except Exception as e:
+                # Final fallback
+                logs_base_dir = "/app/logs"
+                logger.warning(f"Could not determine logs directory from settings, using default: {e}")
+        
         self.logs_base_dir = Path(logs_base_dir)
         self.streamlink_logs_dir = self.logs_base_dir / "streamlink"
         self.ffmpeg_logs_dir = self.logs_base_dir / "ffmpeg"
@@ -30,13 +54,38 @@ class LoggingService:
                 # Initialize loggers
         self._setup_loggers()
         
+        logger.info(f"🎯 LoggingService initialized successfully:")
+        logger.info(f"  📂 Base directory: {self.logs_base_dir}")
+        logger.info(f"  📂 Streamlink logs: {self.streamlink_logs_dir}")
+        logger.info(f"  📂 FFmpeg logs: {self.ffmpeg_logs_dir}")
+        logger.info(f"  📂 App logs: {self.app_logs_dir}")
+        
         # Clean up old logs on initialization
-        self.cleanup_old_logs()
+        try:
+            self.cleanup_old_logs()
+            logger.info("✅ Log cleanup completed during initialization")
+        except Exception as e:
+            logger.error(f"❌ Log cleanup failed during initialization: {e}")
     
     def _ensure_log_directories(self):
         """Create log directories if they don't exist"""
-        for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
-            log_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
+                log_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"✅ Log directory ensured: {log_dir}")
+                
+                # Test write permissions
+                test_file = log_dir / "test_write.tmp"
+                try:
+                    test_file.write_text("test")
+                    test_file.unlink()
+                    logger.debug(f"✅ Write permissions confirmed for: {log_dir}")
+                except Exception as e:
+                    logger.error(f"❌ No write permissions for {log_dir}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to create log directories: {e}")
+            raise
     
     def _setup_loggers(self):
         """Setup separate loggers for different components"""
@@ -105,13 +154,16 @@ class LoggingService:
     
     def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
         """Log streamlink command start"""
+        logger.debug(f"🎯 Logging streamlink start for {streamer_name}")
         self.streamlink_logger.info(f"Starting recording for {streamer_name}")
         self.streamlink_logger.info(f"Quality: {quality}")
         self.streamlink_logger.info(f"Output: {output_path}")
         self.streamlink_logger.info(f"Command: {' '.join(cmd)}")
+        logger.debug(f"✅ Streamlink start logged for {streamer_name}")
     
     def log_streamlink_output(self, streamer_name: str, stdout: bytes, stderr: bytes, exit_code: int):
         """Log streamlink process output"""
+        logger.debug(f"🎯 Logging streamlink output for {streamer_name} (exit code: {exit_code})")
         if stdout:
             stdout_text = stdout.decode("utf-8", errors="ignore")
             self.streamlink_logger.info(f"[{streamer_name}] STDOUT:\n{stdout_text}")
@@ -122,23 +174,28 @@ class LoggingService:
                 self.streamlink_logger.info(f"[{streamer_name}] STDERR:\n{stderr_text}")
             else:
                 self.streamlink_logger.error(f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}")
+        logger.debug(f"✅ Streamlink output logged for {streamer_name}")
     
     def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
         """Log FFmpeg command start with mandatory streamer name"""
+        logger.debug(f"🎯 Logging FFmpeg start for {streamer_name}: {operation}")
         self.ffmpeg_logger.info(f"Starting {operation} operation for streamer: {streamer_name}")
         self.ffmpeg_logger.info(f"Command: {' '.join(cmd)}")
         
         # Generate a streamer-specific log filename for this operation
         log_path = self.get_ffmpeg_log_path(operation, streamer_name)
+        logger.debug(f"📝 FFmpeg per-streamer log path: {log_path}")
         
         # Create a per-streamer log file for this operation
         try:
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {operation} operation for streamer: {streamer_name}\n")
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+            logger.debug(f"✅ FFmpeg per-streamer log created: {log_path}")
         except Exception as e:
-            logger.error(f"Could not create per-streamer log file {log_path}: {e}")
+            logger.error(f"❌ Could not create per-streamer log file {log_path}: {e}")
         
+        logger.debug(f"✅ FFmpeg start logged for {streamer_name}")
         return log_path
     
     def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, streamer_name: str):

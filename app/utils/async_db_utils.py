@@ -32,7 +32,8 @@ def get_async_engine():
             async_scheme = "sqlite+aiosqlite"
         elif parsed_url.scheme in ("postgresql", "postgresql+psycopg"):
             # Handle both postgresql and postgresql+psycopg schemes
-            async_scheme = "postgresql+asyncpg"
+            # Use psycopg async adapter instead of asyncpg since we're using psycopg3
+            async_scheme = "postgresql+psycopg"
         else:
             raise ValueError(f"Unsupported database scheme: {parsed_url.scheme}")
         
@@ -40,6 +41,7 @@ def get_async_engine():
         async_url = urlunparse(parsed_url._replace(scheme=async_scheme))
         
         logger.debug(f"Creating async engine with scheme: {async_scheme}, database: {parsed_url.path}")
+        logger.debug(f"Original URL scheme: {parsed_url.scheme} -> Async scheme: {async_scheme}")
         _async_engine = create_async_engine(async_url, echo=False)
     return _async_engine
 
