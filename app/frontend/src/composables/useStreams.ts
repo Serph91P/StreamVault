@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { Stream } from '@/types/streams'
 
 export function useStreams() {
@@ -6,6 +6,7 @@ export function useStreams() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const streamerInfo = ref(null)
+  const currentStreamerId = ref<string | number | null>(null)
 
   /**
    * Fetch all streams for a specific streamer
@@ -13,6 +14,7 @@ export function useStreams() {
   const fetchStreams = async (streamerId: string | number) => {
     if (!streamerId) return
     
+    currentStreamerId.value = streamerId
     isLoading.value = true
     error.value = null
     
@@ -36,6 +38,28 @@ export function useStreams() {
       isLoading.value = false
     }
   }
+
+  /**
+   * Refresh streams when a recording is completed
+   */
+  const handleRecordingCompleted = (event: CustomEvent) => {
+    console.log('Recording completed, refreshing streams...', event.detail)
+    if (currentStreamerId.value) {
+      // Delay refresh slightly to ensure database is updated
+      setTimeout(() => {
+        fetchStreams(currentStreamerId.value!)
+      }, 1000)
+    }
+  }
+
+  // Listen for recording completion events
+  onMounted(() => {
+    window.addEventListener('recording_completed', handleRecordingCompleted as EventListener)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('recording_completed', handleRecordingCompleted as EventListener)
+  })
 
   return {
     streams,
