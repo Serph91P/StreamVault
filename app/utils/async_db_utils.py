@@ -87,9 +87,9 @@ def get_async_session_maker():
 
 
 async def get_async_session():
-    """Get an async database session context manager"""
-    async_session = get_async_session_maker()
-    return async_session()
+    """Get an async database session that must be used in async context manager"""
+    async_session_maker = get_async_session_maker()
+    return async_session_maker()
 
 
 async def get_all_streamers() -> List[Streamer]:
