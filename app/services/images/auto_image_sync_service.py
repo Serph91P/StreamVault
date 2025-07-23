@@ -169,37 +169,101 @@ class AutoImageSyncService:
 
     # Bulk sync operations
     
-    async def sync_all_existing_streamers(self):
-        """Sync all existing streamers' profile images"""
+    async def sync_all_existing_streamers(self, limit: int = 100, offset: int = 0):
+        """Sync existing streamers' profile images (with pagination)
+        
+        Args:
+            limit: Maximum number of streamers to process in this batch
+            offset: Number of streamers to skip (for pagination)
+            
+        Note: For syncing all streamers, use sync_all_streamers_paginated() instead
+        to avoid memory issues with large datasets.
+        """
         try:
             with SessionLocal() as db:
-                streamers = db.query(Streamer).all()
+                # Only query streamers that have HTTP URLs and need syncing
+                streamers = db.query(Streamer).filter(
+                    Streamer.profile_image_url.ilike('http%')
+                ).limit(limit).offset(offset).all()
                 
                 count = 0
                 for streamer in streamers:
-                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
-                        await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
-                        count += 1
+                    await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                    count += 1
                 
-                logger.info(f"Queued {count} streamers for profile image sync")
+                logger.info(f"Queued {count} streamers for profile image sync (batch: offset={offset}, limit={limit})")
+                return count  # Return count for pagination logic
         except Exception as e:
             logger.error(f"Error syncing existing streamers: {e}")
+            return 0
 
-    async def sync_all_existing_categories(self):
-        """Sync all existing categories' images"""
+    async def sync_all_existing_categories(self, limit: int = 100, offset: int = 0):
+        """Sync existing categories' images (with pagination)
+        
+        Args:
+            limit: Maximum number of categories to process in this batch
+            offset: Number of categories to skip (for pagination)
+            
+        Note: For syncing all categories, use sync_all_categories_paginated() instead
+        to avoid memory issues with large datasets.
+        """
         try:
             with SessionLocal() as db:
-                categories = db.query(Category).all()
+                # Only query categories that have HTTP URLs and need syncing
+                categories = db.query(Category).filter(
+                    Category.box_art_url.ilike('http%')
+                ).limit(limit).offset(offset).all()
                 
                 count = 0
                 for category in categories:
-                    if category.box_art_url and category.box_art_url.startswith('http'):
-                        await self.request_category_image_sync(category.name, category.box_art_url)
-                        count += 1
+                    await self.request_category_image_sync(category.name, category.box_art_url)
+                    count += 1
                 
-                logger.info(f"Queued {count} categories for image sync")
+                logger.info(f"Queued {count} categories for image sync (batch: offset={offset}, limit={limit})")
+                return count  # Return count for pagination logic
         except Exception as e:
             logger.error(f"Error syncing existing categories: {e}")
+            return 0
+    
+    async def sync_all_streamers_paginated(self, batch_size: int = 100):
+        """Sync all streamers using pagination to avoid memory issues"""
+        total_synced = 0
+        offset = 0
+        
+        while True:
+            batch_count = await self.sync_all_existing_streamers(limit=batch_size, offset=offset)
+            total_synced += batch_count
+            
+            if batch_count < batch_size:
+                # No more streamers to process
+                break
+                
+            offset += batch_size
+            # Small delay to prevent overwhelming the database
+            await asyncio.sleep(0.1)
+        
+        logger.info(f"Completed sync for {total_synced} streamers total")
+        return total_synced
+
+    async def sync_all_categories_paginated(self, batch_size: int = 100):
+        """Sync all categories using pagination to avoid memory issues"""
+        total_synced = 0
+        offset = 0
+        
+        while True:
+            batch_count = await self.sync_all_existing_categories(limit=batch_size, offset=offset)
+            total_synced += batch_count
+            
+            if batch_count < batch_size:
+                # No more categories to process
+                break
+                
+            offset += batch_size
+            # Small delay to prevent overwhelming the database
+            await asyncio.sleep(0.1)
+        
+        logger.info(f"Completed sync for {total_synced} categories total")
+        return total_synced
 
     def get_queue_size(self) -> int:
         """Get the current size of the sync queue"""
