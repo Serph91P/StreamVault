@@ -32,6 +32,15 @@ class ProfileImageService:
             self.profiles_dir = images_base_dir / "profiles"
             self.profiles_dir.mkdir(parents=True, exist_ok=True)
     
+    def _extract_streamer_id_from_filename(self, image_file: Path) -> Optional[str]:
+        """Extract streamer ID from profile image filename (supports both old and new formats)"""
+        if image_file.stem.startswith("profile_avatar_"):
+            return image_file.stem.replace("profile_avatar_", "")
+        elif image_file.stem.startswith("streamer_"):
+            return image_file.stem.replace("streamer_", "")
+        else:
+            return None  # File doesn't match expected patterns
+    
     def _load_existing_cache(self):
         """Load information about already cached profile images"""
         try:
@@ -39,7 +48,10 @@ class ProfileImageService:
             
             if self.profiles_dir and self.profiles_dir.exists():
                 for image_file in self.profiles_dir.glob("*.jpg"):
-                    streamer_id = image_file.stem.replace("streamer_", "")
+                    streamer_id = self._extract_streamer_id_from_filename(image_file)
+                    if streamer_id is None:
+                        continue  # Skip files that don't match expected patterns
+                    
                     relative_path = f"/data/images/profiles/{image_file.name}"
                     self._profile_cache[streamer_id] = relative_path
             
@@ -73,7 +85,7 @@ class ProfileImageService:
             return None
             
         try:
-            filename = f"streamer_{streamer_id}.jpg"
+            filename = f"profile_avatar_{streamer_id}.jpg"
             file_path = self.profiles_dir / filename
             
             success = await self.download_service.download_image(profile_image_url, file_path)
@@ -164,9 +176,11 @@ class ProfileImageService:
             with SessionLocal() as db:
                 active_streamer_ids = set(str(s.id) for s in db.query(Streamer.id).all())
             
-            # Check cached images
-            for image_file in self.profiles_dir.glob("streamer_*.jpg"):
-                streamer_id = image_file.stem.replace("streamer_", "")
+            # Check cached images (both old and new format)
+            for image_file in self.profiles_dir.glob("*.jpg"):
+                streamer_id = self._extract_streamer_id_from_filename(image_file)
+                if streamer_id is None:
+                    continue  # Skip files that don't match expected patterns
                 
                 if streamer_id not in active_streamer_ids:
                     try:

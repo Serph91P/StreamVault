@@ -11,9 +11,6 @@
       <div class="empty-icon">🎬</div>
       <h3>No Streams Found</h3>
       <p>This streamer hasn't streamed yet or all streams have been deleted.</p>
-      <button @click="handleBack" class="btn btn-primary">
-        <i class="fas fa-arrow-left"></i> Back to Streamers
-      </button>
     </div>
     
     <!-- Streams Content -->
