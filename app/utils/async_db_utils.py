@@ -30,7 +30,6 @@ async def get_recent_streams(limit: int = 10) -> List[Stream]:
     async_session = get_async_session_maker()
     async with async_session() as session:
         try:
-            from sqlalchemy import desc
             # Get recent completed streams (those with recording_path or ended_at)
             result = await session.execute(
                 select(Stream)
