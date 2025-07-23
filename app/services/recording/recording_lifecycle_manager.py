@@ -391,7 +391,10 @@ class RecordingLifecycleManager:
                 await self.websocket_service.send_recording_completed(
                     recording_id=recording_id,
                     file_path=file_path,
-                    file_size=file_size
+                    file_size=file_size,
+                    additional_data={
+                        'stream_id': recording_data.get('stream_id')
+                    }
                 )
             
             # Remove from active recordings

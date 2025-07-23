@@ -903,7 +903,7 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
         logger.error(f"Error checking recording for stream {stream_id}: {e}")
         return {
             "has_recording": False,
-            "error": str(e),
+            "error": "An internal error occurred while checking the recording.",
             "method": "error"
         }
 
@@ -949,7 +949,7 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
         
     except Exception as e:
         logger.error(f"Error checking stream recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Stream recording check failed due to an internal error.")
 
 
 @router.get("/debug/videos-database")
@@ -1257,115 +1257,5 @@ async def debug_recordings_directory(
     return result
 
 
-@router.get("/stream/{stream_id}/has-recording")
-async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
-    """Check if a specific stream has a recording available with comprehensive file search"""
-    
-    try:
-        # Get the stream
-        stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream:
-            raise HTTPException(status_code=404, detail="Stream not found")
-        
-        # Strategy 1: Check if stream has recording_path set and file exists
-        if stream.recording_path and stream.recording_path.strip():
-            recording_path = Path(stream.recording_path)
-            if recording_path.exists() and recording_path.is_file():
-                return {
-                    "has_recording": True,
-                    "file_path": str(recording_path),
-                    "file_size": recording_path.stat().st_size,
-                    "method": "stream_recording_path"
-                }
-        
-        # Strategy 2: Check if there's a recording in the database for this stream
-        recording = db.query(Recording).filter(
-            Recording.stream_id == stream_id,
-            Recording.status.in_(['completed', 'post_processing'])
-        ).first()
-        
-        if recording and recording.path:
-            # Try both .ts and .mp4 files
-            ts_path = Path(recording.path)
-            mp4_path = ts_path.with_suffix('.mp4')
-            
-            # Prefer .mp4 if it exists
-            if mp4_path.exists():
-                # Update stream.recording_path to point to MP4 for future lookups
-                stream.recording_path = str(mp4_path)
-                db.commit()
-                return {
-                    "has_recording": True,
-                    "file_path": str(mp4_path),
-                    "file_size": mp4_path.stat().st_size,
-                    "method": "recording_mp4_file"
-                }
-            elif ts_path.exists():
-                return {
-                    "has_recording": True,
-                    "file_path": str(ts_path),
-                    "file_size": ts_path.stat().st_size,
-                    "method": "recording_ts_file"
-                }
-        
-        # Strategy 3: Smart filesystem search based on stream metadata
-        if stream.streamer_id and stream.started_at:
-            try:
-                # Get streamer info
-                from app.models import Streamer
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                if streamer:
-                    recordings_base = Path("/recordings")
-                    if recordings_base.exists():
-                        streamer_dir = recordings_base / streamer.username
-                        if streamer_dir.exists():
-                            # Search for files around the stream time
-                            stream_date = stream.started_at.date()
-                            potential_files = []
-                            
-                            # Look for video files created on the same date
-                            for ext in ['.mp4', '.ts']:
-                                for recording_file in streamer_dir.rglob(f"*{ext}"):
-                                    try:
-                                        file_date = datetime.fromtimestamp(recording_file.stat().st_mtime).date()
-                                        if file_date == stream_date:
-                                            potential_files.append(recording_file)
-                                    except Exception:
-                                        continue
-                            
-                            if potential_files:
-                                # Prefer .mp4 over .ts
-                                mp4_files = [f for f in potential_files if f.suffix == '.mp4']
-                                if mp4_files:
-                                    best_file = mp4_files[0]
-                                else:
-                                    best_file = potential_files[0]
-                                
-                                # Update database with found file
-                                stream.recording_path = str(best_file)
-                                db.commit()
-                                
-                                return {
-                                    "has_recording": True,
-                                    "file_path": str(best_file),
-                                    "file_size": best_file.stat().st_size,
-                                    "method": "filesystem_search"
-                                }
-            except Exception as e:
-                logger.debug(f"Filesystem search failed for stream {stream_id}: {e}")
-        
-        # No recording found
-        return {
-            "has_recording": False,
-            "method": "none"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error checking recording for stream {stream_id}: {e}")
-        return {
-            "has_recording": False,
-            "error": str(e),
-            "method": "error"
-        }
 
 
