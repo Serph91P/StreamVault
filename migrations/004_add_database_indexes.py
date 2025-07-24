@@ -32,7 +32,6 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_username ON streamers (username)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_is_live ON streamers (is_live)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_category_name ON streamers (category_name)"))
-        session.commit()  # Commit streamers indexes
         logger.info("✅ Added streamers indexes")
         
         # Streams indexes
@@ -41,14 +40,10 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_ended_at ON streams (ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_name ON streams (category_name)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_twitch_stream_id ON streams (twitch_stream_id)"))
-        session.commit()  # Commit basic streams indexes
-        
-        # Composite streams indexes
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_active ON streams (streamer_id, ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_recent ON streams (streamer_id, started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_recent ON streams (category_name, started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_time_range ON streams (started_at, ended_at)"))
-        session.commit()  # Commit composite streams indexes
         logger.info("✅ Added streams indexes")
         
         # Recordings indexes
@@ -57,7 +52,6 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings (status)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_recordings_stream_status ON recordings (stream_id, status)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_recordings_status_time ON recordings (status, start_time)"))
-        session.commit()  # Commit recordings indexes
         logger.info("✅ Added recordings indexes")
         
         # Stream events indexes
@@ -67,10 +61,10 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_stream_events_stream_type ON stream_events (stream_id, event_type)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_stream_events_stream_time ON stream_events (stream_id, timestamp)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_stream_events_type_time ON stream_events (event_type, timestamp)"))
-        session.commit()  # Commit stream_events indexes
         logger.info("✅ Added stream_events indexes")
         
-        session.commit()  # Final commit
+        # Commit all indexes in a single transaction for optimal performance
+        session.commit()
         logger.info("🎉 Migration 004 completed successfully")
         
     except Exception as e:
