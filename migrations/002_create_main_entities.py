@@ -47,11 +47,11 @@ def run_migration():
         """))
         logger.info("✅ Created streamers table")
         
-        # 2. Streams table
+        # 2. Streams table - with NOT NULL constraint on streamer_id
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streams (
                 id SERIAL PRIMARY KEY,
-                streamer_id INTEGER REFERENCES streamers(id) ON DELETE CASCADE,
+                streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
                 stream_id VARCHAR(100) UNIQUE NOT NULL,
                 title TEXT,
                 category_id INTEGER REFERENCES categories(id),
@@ -67,13 +67,13 @@ def run_migration():
         """))
         logger.info("✅ Created streams table")
         
-        # 3. Sessions table - with ALL required columns
+        # 3. Sessions table - with NOT NULL constraints for security
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 token VARCHAR(255) NOT NULL UNIQUE,
-                expires_at TIMESTAMP WITH TIME ZONE,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
