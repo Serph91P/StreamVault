@@ -724,7 +724,7 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
             if recording and recording.path:
                 try:
                     ts_path = Path(recording.path)
-                    mp4_path = ts_path.with_suffix('.mp4')
+                    mp4_path = ts_path.with_suffix('.mp4');
                     
                     # Prefer .mp4 if it exists
                     if mp4_path.exists():
@@ -798,7 +798,7 @@ async def fix_recording_availability(
                 try:
                     # Check if recording_path exists and is correct
                     has_file = False
-                    correct_path = None
+                    correct_path = None;
                     
                     # Look for .ts recording file in expected location
                     recordings_base = Path("/recordings")
@@ -960,47 +960,95 @@ async def cleanup_orphaned_database_recordings(
         logger.error(f"Error cleaning orphaned recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Orphaned cleanup failed: {str(e)}")
 
-@router.post("/recordings/auto-fix-service/status")
-async def get_auto_fix_service_status() -> Dict[str, Any]:
-    """Get status of the automatic recording fix service"""
+@router.post("/recordings/cleanup-process-orphaned")
+async def cleanup_process_orphaned_recordings(
+    dry_run: bool = True
+) -> Dict[str, Any]:
+    """Clean up recordings marked as 'recording' but without active processes"""
     try:
-        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
+        from app.database import SessionLocal
+        from app.models import Recording, Stream, Streamer
+        from app.services.recording.recording_service import RecordingService
+        from datetime import datetime
         
-        status = await recording_auto_fix_service.get_service_status()
+        results = {
+            "checked": 0,
+            "cleaned": 0,
+            "errors": 0,
+            "details": []
+        }
+        
+        with SessionLocal() as db:
+            # Get recording service to access process_manager
+            recording_service = RecordingService()
+            process_manager = recording_service.process_manager
+            
+            # Find all recordings that are still marked as "recording"
+            recording_status_recordings = db.query(Recording).filter(
+                Recording.status == "recording"
+            ).all()
+            
+            for recording in recording_status_recordings:
+                results["checked"] += 1
+                process_id = f"stream_{recording.stream_id}"
+                has_active_process = process_id in process_manager.active_processes
+                
+                recording_result = {
+                    "recording_id": recording.id,
+                    "stream_id": recording.stream_id,
+                    "process_id": process_id,
+                    "has_active_process": has_active_process,
+                    "streamer_id": None,
+                    "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                    "duration_hours": None,
+                    "action": "none"
+                }
+                
+                try:
+                    # Get additional info
+                    if recording.stream:
+                        recording_result["streamer_id"] = recording.stream.streamer_id
+                        if recording.stream.streamer:
+                            recording_result["streamer_name"] = recording.stream.streamer.username
+                    
+                    if recording.start_time:
+                        duration = datetime.utcnow() - recording.start_time
+                        recording_result["duration_hours"] = duration.total_seconds() / 3600
+                    
+                    # If no active process, mark as completed
+                    if not has_active_process:
+                        recording_result["action"] = "mark_completed_no_process"
+                        if not dry_run:
+                            recording.status = "completed"
+                            recording.end_time = datetime.utcnow()
+                            if recording.start_time:
+                                duration = recording.end_time - recording.start_time
+                                recording.duration = duration.total_seconds()
+                            results["cleaned"] += 1
+                        else:
+                            results["cleaned"] += 1  # Count what would be cleaned in dry run
+                    else:
+                        recording_result["action"] = "keep_active_process_found"
+                    
+                    results["details"].append(recording_result)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing recording {recording.id}: {e}")
+                    results["errors"] += 1
+                    recording_result["error"] = str(e)
+                    results["details"].append(recording_result)
+            
+            if not dry_run:
+                db.commit()
+                logger.info(f"Cleaned up {results['cleaned']} process-orphaned recordings")
         
         return {
             "success": True,
-            "data": status
+            "dry_run": dry_run,
+            "message": f"Checked {results['checked']} recordings, {'would clean' if dry_run else 'cleaned'} {results['cleaned']} without active processes",
+            "data": results
         }
         
     except Exception as e:
-        logger.error(f"Error getting auto-fix service status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get service status: {str(e)}")
-
-@router.post("/recordings/auto-fix-service/trigger")
-async def trigger_auto_fix_service() -> Dict[str, Any]:
-    """Manually trigger the automatic recording fix service"""
-    try:
-        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
-        
-        if not recording_auto_fix_service.is_running:
-            raise HTTPException(status_code=503, detail="Auto-fix service is not running")
-        
-        # Run the fixes
-        path_results = await recording_auto_fix_service.auto_fix_recording_paths()
-        orphan_results = await recording_auto_fix_service.auto_cleanup_orphaned_recordings()
-        
-        return {
-            "success": True,
-            "message": f"Auto-fix completed: {path_results['fixed']} paths fixed, {orphan_results['cleaned']} orphaned entries cleaned",
-            "data": {
-                "recording_paths": path_results,
-                "orphaned_cleanup": orphan_results
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error triggering auto-fix service: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Auto-fix service trigger failed: {str(e)}")
+        logger.error(f"Error cleaning process-orphaned recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Process orphaned cleanup failed: {str(e)}")
