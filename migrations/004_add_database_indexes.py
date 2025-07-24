@@ -63,6 +63,7 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_stream_events_type_time ON stream_events (event_type, timestamp)"))
         logger.info("✅ Added stream_events indexes")
         
+        # Commit all indexes in a single transaction for optimal performance
         session.commit()
         logger.info("🎉 Migration 004 completed successfully")
         

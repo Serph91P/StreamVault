@@ -26,7 +26,7 @@ def run_migrations() -> None:
         
         # Log migration results
         for result in results:
-            migration_name, success = result[:2]  # Handle potential extra fields
+            migration_name, success, message = result  # Ensure consistent 3-element tuple unpacking
             if success:
                 logger.info(f"✅ Successfully applied migration: {migration_name}")
             else:
