@@ -303,6 +303,11 @@
           <i class="fas fa-broom"></i>
           {{ cleaningOrphaned ? 'Cleaning...' : 'Cleanup Orphaned DB' }}
         </button>
+        
+        <button @click="cleanupProcessOrphanedRecordings" :disabled="cleaningProcessOrphaned" class="btn btn-danger">
+          <i class="fas fa-broom"></i>
+          {{ cleaningProcessOrphaned ? 'Cleaning...' : 'Cleanup Process Orphaned' }}
+        </button>
       </div>
     </div>    <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
@@ -521,6 +526,7 @@ const recordingsDirectoryLoading = ref(false)
 const showVideosDebugModal = ref(false)
 const fixingRecordings = ref(false)
 const cleaningOrphaned = ref(false)
+const cleaningProcessOrphaned = ref(false)
 const showRecordingsDirectoryModal = ref(false)
 
 // Computed
@@ -766,6 +772,51 @@ const cleanupOrphanedRecordings = async () => {
     alert('Failed to cleanup orphaned recordings: ' + String(error))
   } finally {
     cleaningOrphaned.value = false
+  }
+}
+
+const cleanupProcessOrphanedRecordings = async () => {
+  if (!confirm('This will cleanup database recordings marked as "recording" but without active processes. Continue?')) {
+    return
+  }
+  
+  cleaningProcessOrphaned.value = true
+  try {
+    // First do a dry run
+    const dryRunResponse = await fetch('/api/admin/recordings/cleanup-process-orphaned?dry_run=true', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!dryRunResponse.ok) {
+      throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
+    }
+    
+    const dryRunResult = await dryRunResponse.json()
+    const message = `Dry run completed:\n- Found recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
+    
+    if (!confirm(message)) {
+      return
+    }
+    
+    // Do the actual cleanup
+    const cleanupResponse = await fetch('/api/admin/recordings/cleanup-process-orphaned?dry_run=false', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (!cleanupResponse.ok) {
+      throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
+    }
+    
+    const cleanupResult = await cleanupResponse.json()
+    alert(`Process orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
+    
+  } catch (error) {
+    console.error('Failed to cleanup process orphaned recordings:', error)
+    alert('Failed to cleanup process orphaned recordings: ' + String(error))
+  } finally {
+    cleaningProcessOrphaned.value = false
   }
 }
 
