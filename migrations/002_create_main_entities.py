@@ -27,53 +27,65 @@ def run_migration():
         session = Session()
         
         logger.info("🔄 Creating main entity tables...")
-        
-        # 1. Streamers table (no foreign keys)
+
+        # 1. Streamers table
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streamers (
                 id SERIAL PRIMARY KEY,
                 twitch_id VARCHAR(100) UNIQUE NOT NULL,
-                username VARCHAR(100) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                display_name VARCHAR(100),
                 is_live BOOLEAN DEFAULT FALSE,
-                title VARCHAR(500),
-                category_name VARCHAR(100),
-                language VARCHAR(10),
-                last_updated TIMESTAMP WITH TIME ZONE,
-                profile_image_url VARCHAR(500),
-                original_profile_image_url VARCHAR(500),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                stream_title TEXT,
+                stream_category VARCHAR(255),
+                viewer_count INTEGER DEFAULT 0,
+                last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_seen_live TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created streamers table")
         
-        # 2. Streams table (depends on streamers)
+        # 2. Streams table
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streams (
                 id SERIAL PRIMARY KEY,
-                streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                title VARCHAR(500),
-                category_name VARCHAR(100),
-                language VARCHAR(10),
-                started_at TIMESTAMP WITH TIME ZONE,
+                streamer_id INTEGER REFERENCES streamers(id) ON DELETE CASCADE,
+                stream_id VARCHAR(100) UNIQUE NOT NULL,
+                title TEXT,
+                category_id INTEGER REFERENCES categories(id),
+                started_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 ended_at TIMESTAMP WITH TIME ZONE,
-                twitch_stream_id VARCHAR(100),
+                viewer_count INTEGER DEFAULT 0,
+                is_live BOOLEAN DEFAULT TRUE,
                 recording_path VARCHAR(1024),
-                episode_number INTEGER
+                episode_number INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created streams table")
         
-        # 3. Sessions table (depends on users)
+        # 3. Sessions table - with ALL required columns
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                session_token VARCHAR(500) UNIQUE NOT NULL,
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                token VARCHAR(255) NOT NULL UNIQUE,
+                expires_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created sessions table")
+        
+        # Create indexes for sessions
+        session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+            CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+        """))
+        logger.info("✅ Created sessions indexes")
         
         session.commit()
         logger.info("🎉 Migration 002 completed successfully")
