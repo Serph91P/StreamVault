@@ -724,7 +724,7 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
             if recording and recording.path:
                 try:
                     ts_path = Path(recording.path)
-                    mp4_path = ts_path.with_suffix('.mp4');
+                    mp4_path = ts_path.with_suffix('.mp4')
                     
                     # Prefer .mp4 if it exists
                     if mp4_path.exists():
