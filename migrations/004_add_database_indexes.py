@@ -29,7 +29,8 @@ def run_migration():
         
         # Streamers indexes
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_twitch_id ON streamers (twitch_id)"))
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_username ON streamers (username)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_name ON streamers (name)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_display_name ON streamers (display_name)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_is_live ON streamers (is_live)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_category_name ON streamers (category_name)"))
         logger.info("✅ Added streamers indexes")
