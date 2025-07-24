@@ -33,8 +33,7 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(100) UNIQUE NOT NULL,
-                password_hash VARCHAR(500) NOT NULL,
-                email VARCHAR(254),
+                password VARCHAR(255) NOT NULL,
                 is_admin BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
@@ -45,9 +44,11 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS categories (
                 id SERIAL PRIMARY KEY,
-                name VARCHAR(100) UNIQUE NOT NULL,
-                box_art_url VARCHAR(500),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                twitch_id VARCHAR(255) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                box_art_url TEXT,
+                first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created categories table")
@@ -56,14 +57,14 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS global_settings (
                 id SERIAL PRIMARY KEY,
-                twitch_client_id VARCHAR(100),
-                twitch_client_secret VARCHAR(100),
-                webhook_secret VARCHAR(255),
-                max_concurrent_recordings INTEGER DEFAULT 3,
-                base_output_path VARCHAR(500) DEFAULT '/recordings',
-                recording_quality VARCHAR(50) DEFAULT 'best',
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                notification_url TEXT,
+                notifications_enabled BOOLEAN DEFAULT FALSE,
+                notify_online_global BOOLEAN DEFAULT TRUE,
+                notify_offline_global BOOLEAN DEFAULT TRUE,
+                notify_update_global BOOLEAN DEFAULT TRUE,
+                notify_favorite_category_global BOOLEAN DEFAULT TRUE,
+                http_proxy VARCHAR(255),
+                https_proxy VARCHAR(255)
             )
         """))
         logger.info("✅ Created global_settings table")
@@ -72,23 +73,25 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS recording_settings (
                 id SERIAL PRIMARY KEY,
-                max_concurrent_recordings INTEGER DEFAULT 3,
+                enabled BOOLEAN DEFAULT TRUE,
+                output_directory VARCHAR(500) DEFAULT '/recordings',
+                filename_template VARCHAR(500),
                 default_quality VARCHAR(50) DEFAULT 'best',
-                base_output_path VARCHAR(500) DEFAULT '/recordings',
-                auto_record_enabled BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                use_chapters BOOLEAN DEFAULT TRUE,
+                filename_preset VARCHAR(50) DEFAULT 'default',
+                use_category_as_chapter_title BOOLEAN DEFAULT FALSE,
+                max_streams_per_streamer INTEGER DEFAULT 0,
+                cleanup_policy TEXT
             )
         """))
         logger.info("✅ Created recording_settings table")
         
-        # 5. System config table
+        # 5. System config table (for VAPID keys etc)
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS system_config (
                 id SERIAL PRIMARY KEY,
-                key VARCHAR(100) UNIQUE NOT NULL,
+                key VARCHAR(255) UNIQUE NOT NULL,
                 value TEXT,
-                description TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
@@ -99,12 +102,12 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS push_subscriptions (
                 id SERIAL PRIMARY KEY,
-                endpoint VARCHAR(500) NOT NULL,
-                p256dh VARCHAR(500) NOT NULL,
-                auth VARCHAR(500) NOT NULL,
-                user_agent VARCHAR(500),
+                endpoint TEXT UNIQUE NOT NULL,
+                p256dh_key TEXT NOT NULL,
+                auth_key TEXT NOT NULL,
+                user_agent TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(endpoint, p256dh, auth)
+                last_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created push_subscriptions table")
