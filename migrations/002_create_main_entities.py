@@ -67,13 +67,13 @@ def run_migration():
         """))
         logger.info("✅ Created streams table")
         
-        # 3. Sessions table - with NOT NULL constraints for security
+        # 3. Sessions table - with NOT NULL constraints for security and default for expires_at
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 token VARCHAR(255) NOT NULL UNIQUE,
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
