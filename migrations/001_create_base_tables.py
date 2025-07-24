@@ -28,12 +28,12 @@ def run_migration():
         
         logger.info("🔄 Creating base tables...")
         
-        # 1. Users table
+        # 1. Users table - with password_hash instead of password
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(100) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
                 is_admin BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
@@ -69,19 +69,19 @@ def run_migration():
         """))
         logger.info("✅ Created global_settings table")
         
-        # 4. Recording settings table
+        # 4. Recording settings table with defaults
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS recording_settings (
                 id SERIAL PRIMARY KEY,
                 enabled BOOLEAN DEFAULT TRUE,
                 output_directory VARCHAR(500) DEFAULT '/recordings',
-                filename_template VARCHAR(500),
+                filename_template VARCHAR(500) DEFAULT '{streamer}/{date}_{title}_{id}',
                 default_quality VARCHAR(50) DEFAULT 'best',
                 use_chapters BOOLEAN DEFAULT TRUE,
                 filename_preset VARCHAR(50) DEFAULT 'default',
                 use_category_as_chapter_title BOOLEAN DEFAULT FALSE,
                 max_streams_per_streamer INTEGER DEFAULT 0,
-                cleanup_policy TEXT
+                cleanup_policy TEXT DEFAULT 'keep_all'
             )
         """))
         logger.info("✅ Created recording_settings table")
