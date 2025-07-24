@@ -16,6 +16,19 @@ def upgrade():
     logger.info("🔄 Adding CASCADE constraint to active_recordings_state.stream_id...")
     
     with engine.connect() as connection:
+        # First check if the table exists
+        table_exists = connection.execute(text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'active_recordings_state'
+            );
+        """)).scalar()
+        
+        if not table_exists:
+            logger.info("Table active_recordings_state does not exist yet, skipping cascade constraint...")
+            return
+        
         # Check if the constraint already exists
         result = connection.execute(text("""
             SELECT conname 
