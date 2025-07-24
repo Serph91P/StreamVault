@@ -122,7 +122,7 @@ def run_migration():
         
         # 7. Active recording state (depends on streams and recordings)
         session.execute(text("""
-            CREATE TABLE IF NOT EXISTS active_recording_state (
+            CREATE TABLE IF NOT EXISTS active_recordings_state (
                 id SERIAL PRIMARY KEY,
                 stream_id INTEGER NOT NULL REFERENCES streams(id) ON DELETE CASCADE,
                 recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
@@ -137,7 +137,7 @@ def run_migration():
                 UNIQUE(stream_id)
             )
         """))
-        logger.info("✅ Created active_recording_state table")
+        logger.info("✅ Created active_recordings_state table")
         
         session.commit()
         logger.info("🎉 Migration 003 completed successfully")
