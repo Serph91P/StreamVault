@@ -28,6 +28,13 @@ def run_migration():
         
         # Check if indices exist before creating them
         inspector = inspect(engine)
+        
+        # First check if streams table exists
+        if not inspector.has_table('streams'):
+            logger.info("Table 'streams' does not exist yet, skipping index creation...")
+            session.close()
+            return
+        
         existing_indices = inspector.get_indexes('streams')
         existing_index_names = [index['name'] for index in existing_indices]
         
