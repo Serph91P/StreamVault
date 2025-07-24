@@ -1,5 +1,6 @@
 from fastapi import WebSocket
-from typing import List, Dict, Any
+from starlette.websockets import WebSocketState
+from typing import List, Dict, Any, Optional
 import logging
 import json
 from datetime import datetime
