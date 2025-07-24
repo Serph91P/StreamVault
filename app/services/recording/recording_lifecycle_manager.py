@@ -854,7 +854,7 @@ class RecordingLifecycleManager:
             if progress is not None and isinstance(progress, dict):
                 # Extract duration as a simple percentage (for now, just show that it's running)
                 if progress.get("status") == "running":
-                    progress_percent = 50.0  # Show 50% for running recordings
+                    progress_percent = RUNNING_PROGRESS_PERCENT  # Show 50% for running recordings
                 elif progress.get("status") == "completed":
                     progress_percent = 100.0
                 else:
