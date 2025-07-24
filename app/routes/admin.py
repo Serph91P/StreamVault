@@ -798,7 +798,7 @@ async def fix_recording_availability(
                 try:
                     # Check if recording_path exists and is correct
                     has_file = False
-                    correct_path = None;
+                    correct_path = None
                     
                     # Look for .ts recording file in expected location
                     recordings_base = Path("/recordings")
