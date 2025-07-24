@@ -8,7 +8,7 @@ from app.schemas.streamers import StreamerResponse, StreamerList
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.database import SessionLocal, get_db
-from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent
+from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent, Recording, ActiveRecordingState
 from app.schemas.streams import StreamList, StreamResponse
 from sqlalchemy.orm import Session
 import logging
@@ -565,7 +565,6 @@ async def delete_stream(
             db.delete(metadata)
         
         # Check for recordings associated with this stream and collect their paths
-        from app.models import Recording
         recordings = db.query(Recording).filter(Recording.stream_id == stream_id).all()
         for recording in recordings:
             if recording.path:
@@ -577,7 +576,6 @@ async def delete_stream(
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
         
         # Delete any active recording state entries for this stream
-        from app.models import ActiveRecordingState
         db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).delete()
         
         # Delete the stream record itself
@@ -826,7 +824,6 @@ async def delete_all_streams(
         streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
         
         # Also handle orphaned recordings with null stream_id for this streamer
-        from app.models import Recording
         orphaned_recordings = db.query(Recording).filter(
             Recording.stream_id.is_(None)
         ).all()
@@ -876,7 +873,6 @@ async def delete_all_streams(
             db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
             
             # Delete active recording state for this stream
-            from app.models import ActiveRecordingState
             db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream.id).delete()
             
             # Delete the stream record itself
