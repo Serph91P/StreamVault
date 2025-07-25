@@ -41,7 +41,6 @@ def upgrade(session: Session):
         """))
         logger.info("✅ Added index for auto_record")
         
-        session.commit()
         logger.info("🎉 Migration 014 completed successfully")
         
     except Exception as e:
@@ -62,7 +61,6 @@ def downgrade(session: Session):
         session.execute(text("ALTER TABLE streamers DROP COLUMN IF EXISTS is_favorite"))
         session.execute(text("ALTER TABLE streamers DROP COLUMN IF EXISTS auto_record"))
         
-        session.commit()
         logger.info("🎉 Migration 014 downgrade completed successfully")
         
     except Exception as e:
