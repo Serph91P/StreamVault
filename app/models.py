@@ -44,6 +44,11 @@ class Streamer(Base):
     original_profile_image_url = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
+    
+    @property
+    def display_name(self):
+        """Return username as display_name for compatibility"""
+        return self.username
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (
