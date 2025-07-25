@@ -191,12 +191,6 @@ def run_migration():
                 UNIQUE(stream_id)
             )
         """))
-        
-        -- Create index for performance
-        session.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_stream_metadata_stream_id 
-            ON stream_metadata(stream_id)
-        """))
         logger.info("✅ Created stream_metadata table")
         
         # 7. Active recording state (depends on streams and recordings)
