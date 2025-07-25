@@ -233,7 +233,8 @@ export const videoApi = {
   streamVideo: (videoId: number) => 
     apiClient.get(`/api/videos/${videoId}/stream`),
 
-  // Get video stream URL (returns string for direct use in video src)
+  // Get video stream URL (returns string for direct use in video src attribute)
+  // Note: This method returns a string URL, not a Promise like other methods
   getVideoStreamUrl: (videoId: number): string => 
     `/api/videos/${videoId}/stream`,
 
@@ -247,13 +248,6 @@ export const videoApi = {
 
   // Get all videos
   getAll: (params: Record<string, any> = {}) => 
-    apiClient.get('/api/videos', params),
-
-  // Backward compatibility aliases (for existing code)
-  getVideoChapters: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}/chapters`),
-  
-  getAllVideos: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),
 }
 
