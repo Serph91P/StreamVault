@@ -1,19 +1,33 @@
+#!/usr/bin/env python
 """
 Migration 014: Add streamer preference fields
 Adds is_favorite and auto_record columns to streamers table
 """
-
+import os
+import sys
 import logging
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
-logger = logging.getLogger("migration")
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def upgrade(session: Session):
+from app.config.settings import settings
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def run_migration():
     """Add preference fields to streamers table"""
-    logger.info("🔄 Adding preference fields to streamers table...")
-    
+    session = None
     try:
+        # Connect to the database
+        engine = create_engine(settings.DATABASE_URL)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        logger.info("🔄 Adding preference fields to streamers table...")
+        
         # Add is_favorite column
         session.execute(text("""
             ALTER TABLE streamers 
@@ -41,29 +55,17 @@ def upgrade(session: Session):
         """))
         logger.info("✅ Added index for auto_record")
         
+        session.commit()
         logger.info("🎉 Migration 014 completed successfully")
         
     except Exception as e:
         logger.error(f"❌ Migration 014 failed: {e}")
-        session.rollback()
+        if session:
+            session.rollback()
         raise
+    finally:
+        if session:
+            session.close()
 
-def downgrade(session: Session):
-    """Remove preference fields from streamers table"""
-    logger.info("🔄 Removing preference fields from streamers table...")
-    
-    try:
-        # Remove indexes
-        session.execute(text("DROP INDEX IF EXISTS idx_streamers_is_favorite"))
-        session.execute(text("DROP INDEX IF EXISTS idx_streamers_auto_record"))
-        
-        # Remove columns
-        session.execute(text("ALTER TABLE streamers DROP COLUMN IF EXISTS is_favorite"))
-        session.execute(text("ALTER TABLE streamers DROP COLUMN IF EXISTS auto_record"))
-        
-        logger.info("🎉 Migration 014 downgrade completed successfully")
-        
-    except Exception as e:
-        logger.error(f"❌ Migration 014 downgrade failed: {e}")
-        session.rollback()
-        raise
+if __name__ == "__main__":
+    run_migration()
