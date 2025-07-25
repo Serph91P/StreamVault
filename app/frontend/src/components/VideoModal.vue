@@ -102,7 +102,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { streamerApi } from '../services/api.js'
+import { streamerApi } from '@/services/api'
 
 const props = defineProps({
   video: {
