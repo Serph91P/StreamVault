@@ -9,8 +9,10 @@ import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
 
@@ -21,8 +23,12 @@ def run_migration():
     """Add preference fields to streamers table"""
     session = None
     try:
+        # Validate DATABASE_URL
+        if not settings.DATABASE_URL:
+            raise ValueError("DATABASE_URL not configured")
+        
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = create_engine(settings.DATABASE_URL, echo=False)
         Session = sessionmaker(bind=engine)
         session = Session()
         
