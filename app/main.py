@@ -13,6 +13,7 @@ from app.routes import images
 from app.routes import api_images
 from app.routes import background_queue
 from app.routes import streams
+from app.routes import status
 from app.services.system.development_test_runner import run_development_tests
 import logging
 import hmac
@@ -674,6 +675,7 @@ app.include_router(images.router)  # Images serving routes
 app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
+app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
 
 # Orphaned recovery routes
 from app.api import orphaned_recovery_endpoints

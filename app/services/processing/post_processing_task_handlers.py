@@ -47,6 +47,29 @@ class PostProcessingTaskHandlers:
         )
         
         try:
+            # Update progress
+            if progress_callback:
+                progress_callback(10.0)
+            
+            # Verify input parameters
+            if not stream_id or not base_filename or not output_dir:
+                raise ValueError(f"Missing required parameters: stream_id={stream_id}, base_filename={base_filename}, output_dir={output_dir}")
+            
+            # Check if output directory exists
+            from pathlib import Path
+            output_path = Path(output_dir)
+            if not output_path.exists():
+                log_with_context(
+                    logger, 'warning',
+                    f"Output directory does not exist, creating: {output_dir}",
+                    stream_id=stream_id,
+                    operation='metadata_generation_dir_create'
+                )
+                output_path.mkdir(parents=True, exist_ok=True)
+            
+            if progress_callback:
+                progress_callback(20.0)
+            
             # Generate metadata using metadata service
             success = await self.metadata_service.generate_metadata_for_stream(
                 stream_id=stream_id,
@@ -54,8 +77,14 @@ class PostProcessingTaskHandlers:
                 base_filename=base_filename
             )
             
+            if progress_callback:
+                progress_callback(90.0)
+            
             if not success:
-                raise Exception("Metadata generation failed")
+                raise Exception("Metadata generation returned False - check metadata service logs for details")
+                
+            if progress_callback:
+                progress_callback(100.0)
                 
             log_with_context(
                 logger, 'info',

@@ -82,21 +82,38 @@ class MetadataService:
                 logger.info(f"All metadata generation tasks completed for stream {stream_id}")
                 
                 # Count successes and log errors
-                successes = 0
-                for i, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
-                        logger.error(f"{task_names[i]} failed: {result}")
-                    elif result is True:
-                        successes += 1
-                    else:
-                        # If result is not True and not an exception, it might be None or False
-                        logger.warning(f"Task {i} returned unexpected result: {result}")
+                full_successes = 0
+                partial_successes = 0
                 
-                # Return True only if at least one task succeeded
-                success = successes > 0
+                for i, result in enumerate(results):
+                    task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
+                    if isinstance(result, Exception):
+                        logger.error(f"{task_names[i]} failed: {result}", exc_info=True)
+                        # Don't fail completely for individual task failures
+                    elif result is True:
+                        full_successes += 1
+                        logger.debug(f"{task_names[i]} completed successfully")
+                    elif result is None or result is False:
+                        logger.warning(f"{task_names[i]} returned {result} - may indicate partial failure")
+                        partial_successes += 1
+                    else:
+                        logger.warning(f"{task_names[i]} returned unexpected result: {result}")
+                
+                # Return True if at least one task fully succeeded
+                success = full_successes > 0 or (full_successes == 0 and partial_successes > 0)
+                
                 if success:
-                    logger.info(f"Generated metadata for stream {stream_id}: {successes}/{len(tasks)} tasks succeeded")
+                    total_attempts = full_successes + partial_successes
+                    logger.info(f"Generated metadata for stream {stream_id}: {full_successes} full successes, {partial_successes} partial successes out of {len(tasks)} tasks")
+                    
+                    # Always commit if we have any successes to save partial progress
+                    try:
+                        db.commit()
+                        logger.debug(f"Committed metadata changes for stream {stream_id}")
+                    except Exception as commit_error:
+                        logger.error(f"Failed to commit metadata changes for stream {stream_id}: {commit_error}")
+                        db.rollback()
+                        return False
                 else:
                     logger.error(f"All metadata generation tasks failed for stream {stream_id}")
                 

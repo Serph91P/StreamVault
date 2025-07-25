@@ -30,6 +30,9 @@ except ImportError:
 
 logger = logging.getLogger("streamvault")
 
+# Constants for recording progress tracking
+RUNNING_PROGRESS_PERCENT = 50.0  # Show 50% for running recordings
+
 
 class RecordingLifecycleManager:
     """Manages recording lifecycle events and monitoring"""

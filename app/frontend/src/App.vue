@@ -129,9 +129,20 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, provide } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
+import { useHybridStatus } from '@/composables/useHybridStatus'
+
+// Provide hybrid status globally
+const hybridStatus = useHybridStatus()
+provide('hybridStatus', hybridStatus)
+
+// Initialize hybrid status system
+onMounted(() => {
+  // Start the hybrid status system
+  hybridStatus.fetchAllStatus()
+})
 
 const showNotifications = ref(false)
 const unreadCount = ref(0)
