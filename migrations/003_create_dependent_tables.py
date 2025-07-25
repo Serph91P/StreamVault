@@ -63,9 +63,10 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS notification_settings (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                notify_on_live BOOLEAN DEFAULT TRUE,
-                notify_on_title_change BOOLEAN DEFAULT FALSE,
-                notify_on_category_change BOOLEAN DEFAULT FALSE,
+                notify_online BOOLEAN DEFAULT TRUE,
+                notify_offline BOOLEAN DEFAULT TRUE,
+                notify_update BOOLEAN DEFAULT TRUE,
+                notify_favorite_category BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(streamer_id)
             )
@@ -77,9 +78,9 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS favorite_categories (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                category_name VARCHAR(100) NOT NULL,
+                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, category_name)
+                UNIQUE(user_id, category_id)
             )
         """))
         logger.info("✅ Created favorite_categories table")
@@ -89,10 +90,11 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS streamer_recording_settings (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                auto_record BOOLEAN DEFAULT FALSE,
-                quality VARCHAR(50) DEFAULT 'best',
-                output_path VARCHAR(500),
                 enabled BOOLEAN DEFAULT TRUE,
+                quality VARCHAR(50) DEFAULT 'best',
+                custom_filename VARCHAR(1024),
+                max_streams INTEGER,
+                cleanup_policy TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(streamer_id)
