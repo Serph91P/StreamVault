@@ -28,8 +28,7 @@ def run_migration():
         logger.info("🔄 Adding database indexes...")
         
         # Streamers indexes
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_name ON streamers (name)"))
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_display_name ON streamers (display_name)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_username ON streamers (username)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_is_live ON streamers (is_live)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_category_name ON streamers (category_name)"))
         logger.info("✅ Added streamers indexes")
@@ -38,8 +37,11 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams (started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_ended_at ON streams (ended_at)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_name ON streams (category_name)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_twitch_stream_id ON streams (twitch_stream_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_active ON streams (streamer_id, ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_recent ON streams (streamer_id, started_at)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_recent ON streams (category_name, started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_time_range ON streams (started_at, ended_at)"))
         logger.info("✅ Added streams indexes")
         
