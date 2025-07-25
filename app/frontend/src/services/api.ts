@@ -141,6 +141,10 @@ export const recordingApi = {
   // Get recording history
   getRecordingHistory: (params: Record<string, any> = {}) => 
     apiClient.get('/api/recordings/history', params),
+
+  // Check if streamer is live
+  checkStreamerLiveStatus: (streamerId: number) => 
+    apiClient.get(`/api/streamers/${streamerId}/live-status`),
 }
 
 // Streamers API endpoints  
@@ -168,7 +172,14 @@ export const streamersApi = {
   // Get streamer's streams
   getStreams: (streamerId: number, params: Record<string, any> = {}) => 
     apiClient.get(`/api/streamers/${streamerId}/streams`, params),
+
+  // Get stream chapters for a streamer
+  getStreamChapters: (streamerId: number, streamId: number) => 
+    apiClient.get(`/api/streamers/${streamerId}/streams/${streamId}/chapters`),
 }
+
+// Alternative export name for backwards compatibility
+export const streamerApi = streamersApi
 
 // Streams API endpoints
 export const streamsApi = {
@@ -206,6 +217,38 @@ export const systemApi = {
   // Update system settings
   updateSettings: (settings: any) => 
     apiClient.put('/api/system/settings', settings),
+}
+
+// Video API endpoints
+export const videoApi = {
+  // Get video information
+  getVideo: (videoId: number) => 
+    apiClient.get(`/api/videos/${videoId}`),
+
+  // Get video chapters
+  getChapters: (videoId: number) => 
+    apiClient.get(`/api/videos/${videoId}/chapters`),
+
+  // Stream video
+  streamVideo: (videoId: number) => 
+    apiClient.get(`/api/videos/${videoId}/stream`),
+
+  // Get video stream URL (returns string for direct use in video src attribute)
+  // Note: This method returns a string URL, not a Promise like other methods
+  getVideoStreamUrl: (videoId: number): string => 
+    `/api/videos/${videoId}/stream`,
+
+  // Get video metadata
+  getMetadata: (videoId: number) => 
+    apiClient.get(`/api/videos/${videoId}/metadata`),
+
+  // Delete video
+  deleteVideo: (videoId: number) => 
+    apiClient.delete(`/api/videos/${videoId}`),
+
+  // Get all videos
+  getAll: (params: Record<string, any> = {}) => 
+    apiClient.get('/api/videos', params),
 }
 
 // Export the main API client as default

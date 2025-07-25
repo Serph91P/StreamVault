@@ -91,7 +91,7 @@ const loadChapterData = async () => {
         error.value = null
 
         // Load video chapters using the new API
-        const chapters: any[] = await videoApi.getVideoChapters(parseInt(streamId.value))
+        const chapters: any[] = await videoApi.getChapters(parseInt(streamId.value))
 
         // Create chapter data structure compatible with the video player
         chapterData.value = {

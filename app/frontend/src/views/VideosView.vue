@@ -206,7 +206,7 @@ const loadVideos = async () => {
     try {
         loading.value = true
         error.value = null
-        const response = await videoApi.getAllVideos()
+        const response = await videoApi.getAll()
         // API returns array directly, not wrapped in data
         videos.value = Array.isArray(response) ? response : (response.data || [])
         console.log('Loaded videos:', videos.value)
