@@ -64,7 +64,7 @@
               <div v-if="presetsError" class="error-text">
                 Failed to load presets: {{ presetsError }}
               </div>
-              <input v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
+              <input ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
               <div class="help-text">
                 Choose a preset or customize the filename template.
                 <br><strong>Available variables (click to insert):</strong>
@@ -339,7 +339,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
@@ -488,6 +488,7 @@ const detectPresetFromTemplate = (template: string): string => {
 };
 
 // Create a copy of the settings for editing
+const filenameTemplateInput = ref<HTMLInputElement | null>(null);
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
@@ -566,14 +567,30 @@ const updateFilenameFromPreset = () => {
 // Function to insert variable at cursor position
 const insertVariable = (variableKey: string) => {
   const currentTemplate = data.value.filename_template || '';
-  const cursorPosition = currentTemplate.length; // Default to end if no cursor position available
+  const inputElement = filenameTemplateInput.value;
   
-  // Insert the variable at the cursor position (or end)
+  // Get the actual cursor position from the input element
+  let cursorPosition = currentTemplate.length; // Default to end
+  if (inputElement && typeof inputElement.selectionStart === 'number') {
+    cursorPosition = inputElement.selectionStart;
+  }
+  
+  // Insert the variable at the cursor position
   const newTemplate = currentTemplate.slice(0, cursorPosition) + variableKey + currentTemplate.slice(cursorPosition);
   data.value.filename_template = newTemplate;
   
   // Update the preset to "custom" when manually adding variables
   data.value.filename_preset = 'custom';
+  
+  // Focus back to input and set cursor position after the inserted variable
+  if (inputElement) {
+    inputElement.focus();
+    const newCursorPosition = cursorPosition + variableKey.length;
+    // Use nextTick to ensure the value is updated in the DOM
+    nextTick(() => {
+      inputElement.setSelectionRange(newCursorPosition, newCursorPosition);
+    });
+  }
 };
 
 const saveSettings = async () => {
