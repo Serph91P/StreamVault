@@ -42,6 +42,8 @@ class Streamer(Base):
     last_updated = Column(DateTime(timezone=True))
     profile_image_url = Column(String)
     original_profile_image_url = Column(String)
+    is_favorite = Column(Boolean, default=False, index=True)
+    auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
     
