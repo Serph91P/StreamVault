@@ -58,7 +58,8 @@ def run_migration():
                 ended_at TIMESTAMP WITH TIME ZONE,
                 twitch_stream_id VARCHAR(255),
                 recording_path VARCHAR(1024),
-                episode_number INTEGER
+                episode_number INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
         """))
         logger.info("✅ Created streams table")
