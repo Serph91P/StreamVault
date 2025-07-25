@@ -110,26 +110,68 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
+import { useHybridStatus } from '@/composables/useHybridStatus'
 
-const { 
-  activeTasks, 
-  recentTasks, 
-  queueStats, 
-  hasActiveTasks, 
-  totalProgress 
-} = useBackgroundQueue()
+// Use hybrid status for background queue
+const {
+  backgroundQueue,
+  isLoading,
+  error,
+  fetchBackgroundQueue
+} = useHybridStatus()
 
+// UI State
 const showPanel = ref(false)
 
+// Computed properties derived from hybrid status
+const queueStats = computed(() => {
+  if (!backgroundQueue.value?.stats) {
+    return {
+      total_tasks: 0,
+      active_tasks: 0,
+      completed_tasks: 0,
+      failed_tasks: 0,
+      pending_tasks: 0
+    }
+  }
+  
+  const stats = backgroundQueue.value.stats
+  return {
+    total_tasks: (stats.completed || 0) + (stats.failed || 0) + (stats.pending || 0) + (stats.running || 0),
+    active_tasks: stats.running || 0,
+    completed_tasks: stats.completed || 0,
+    failed_tasks: stats.failed || 0,
+    pending_tasks: stats.pending || 0
+  }
+})
+
+const activeTasks = computed(() => backgroundQueue.value?.active_tasks || [])
+const recentTasks = computed(() => backgroundQueue.value?.recent_tasks || [])
+
+const hasActiveTasks = computed(() => activeTasks.value.length > 0)
+
+const totalProgress = computed(() => {
+  if (!hasActiveTasks.value) return 0
+  
+  const totalProgress = activeTasks.value.reduce((sum, task) => sum + (task.progress || 0), 0)
+  return Math.round(totalProgress / activeTasks.value.length)
+})
+
 const statusIconClass = computed(() => {
-  if (queueStats.value.active_tasks > 0) return 'status-active'
+  if (isLoading.value) return 'status-loading'
+  if (error.value) return 'status-error'
   if (queueStats.value.failed_tasks > 0) return 'status-error'
+  if (queueStats.value.active_tasks > 0) return 'status-active'
   return 'status-idle'
 })
 
 const togglePanel = () => {
   showPanel.value = !showPanel.value
+  
+  // Refresh data when panel is opened
+  if (showPanel.value) {
+    fetchBackgroundQueue(false) // Force refresh
+  }
 }
 
 const formatTaskType = (taskType: string) => {
