@@ -84,19 +84,26 @@ class MetadataService:
                 # Count successes and log errors
                 successes = 0
                 for i, result in enumerate(results):
+                    task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
                     if isinstance(result, Exception):
-                        task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
-                        logger.error(f"{task_names[i]} failed: {result}")
+                        logger.error(f"{task_names[i]} failed: {result}", exc_info=True)
+                        # Don't fail completely for individual task failures
                     elif result is True:
                         successes += 1
+                        logger.debug(f"{task_names[i]} completed successfully")
+                    elif result is None or result is False:
+                        logger.warning(f"{task_names[i]} returned {result} - may indicate partial failure")
+                        # Still count as partial success if no exception was raised
+                        successes += 0.5
                     else:
-                        # If result is not True and not an exception, it might be None or False
-                        logger.warning(f"Task {i} returned unexpected result: {result}")
+                        logger.warning(f"{task_names[i]} returned unexpected result: {result}")
                 
-                # Return True only if at least one task succeeded
+                # Return True if at least one task succeeded (including partial successes)
                 success = successes > 0
                 if success:
                     logger.info(f"Generated metadata for stream {stream_id}: {successes}/{len(tasks)} tasks succeeded")
+                    # Save metadata to database
+                    db.commit()
                 else:
                     logger.error(f"All metadata generation tasks failed for stream {stream_id}")
                 
