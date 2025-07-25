@@ -37,7 +37,7 @@ def run_migration():
                 display_name VARCHAR(100),
                 is_live BOOLEAN DEFAULT FALSE,
                 stream_title TEXT,
-                stream_category VARCHAR(255),
+                category_name VARCHAR(255),
                 viewer_count INTEGER DEFAULT 0,
                 last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 last_seen_live TIMESTAMP WITH TIME ZONE,
@@ -54,7 +54,7 @@ def run_migration():
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
                 stream_id VARCHAR(100) UNIQUE NOT NULL,
                 title TEXT,
-                category_id INTEGER REFERENCES categories(id),
+                category_id INTEGER,
                 started_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 ended_at TIMESTAMP WITH TIME ZONE,
                 viewer_count INTEGER DEFAULT 0,
@@ -66,6 +66,14 @@ def run_migration():
             )
         """))
         logger.info("✅ Created streams table")
+
+        # Add foreign key constraint for category_id after table creation
+        session.execute(text("""
+            ALTER TABLE streams 
+            ADD CONSTRAINT fk_streams_category_id 
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+        """))
+        logger.info("✅ Added category foreign key constraint")
         
         # 3. Sessions table - with NOT NULL constraints for security and default for expires_at
         session.execute(text("""

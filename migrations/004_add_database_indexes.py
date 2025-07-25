@@ -39,11 +39,9 @@ def run_migration():
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams (started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_ended_at ON streams (ended_at)"))
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_name ON streams (category_name)"))
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_twitch_stream_id ON streams (twitch_stream_id)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_stream_id ON streams (stream_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_active ON streams (streamer_id, ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_recent ON streams (streamer_id, started_at)"))
-        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_recent ON streams (category_name, started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_time_range ON streams (started_at, ended_at)"))
         logger.info("✅ Added streams indexes")
         
