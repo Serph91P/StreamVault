@@ -205,8 +205,8 @@ const fetchCategories = async () => {
     }
     
     console.error('Error fetching categories:', err);
-    // Set empty array on error to show "no categories" message instead of error
-    categories.value = [];
+    // Don't clear categories array on error - keep error visible to user
+    // categories.value = []; // Removed to maintain error visibility
   } finally {
     isLoading.value = false;
   }
