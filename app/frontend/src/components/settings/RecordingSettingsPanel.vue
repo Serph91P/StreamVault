@@ -42,14 +42,6 @@
             </div>
 
             <div class="form-group">
-              <label>Output Directory:</label>
-              <input v-model="data.output_directory" class="form-control" />
-              <div class="help-text">
-                Base directory where recordings will be saved. Individual streamers will have subdirectories created here.
-              </div>
-            </div>
-
-            <div class="form-group">
               <label>Default Quality:</label>
               <select v-model="data.default_quality" class="form-control">
                 <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
@@ -75,15 +67,25 @@
               <input v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
               <div class="help-text">
                 Choose a preset or customize the filename template.
-                <br><strong>Available variables:</strong>
+                <br><strong>Available variables (click to insert):</strong>
                 <div class="variables-container">
-                  <span v-for="variable in FILENAME_VARIABLES" :key="variable.key" class="variable-tag">
+                  <button 
+                    v-for="variable in FILENAME_VARIABLES" 
+                    :key="variable.key" 
+                    @click="insertVariable(variable.key)"
+                    class="variable-tag clickable"
+                    type="button"
+                    :title="`Insert ${variable.key} - ${variable.description}`"
+                  >
                     {{ variable.key }}
-                  </span>
+                  </button>
                 </div>
                 <br><br><strong>Example output: </strong>
                 <code class="example-output">Streamername - S202506E01 - Just Chatting Stream.mp4</code>
                 <br><small>Episode numbers (E01, E02, E03) are based on stream order within the month, not date.</small>
+                <br><br><strong>💡 Advanced formatting:</strong>
+                <br><small>Use <code>{episode:02d}</code> to format numbers with leading zeros (01, 02, 03...)
+                <br>Use <code>{episode}</code> for simple numbers without padding (1, 2, 3...)</small>
               </div>
             </div>
 
@@ -488,7 +490,6 @@ const detectPresetFromTemplate = (template: string): string => {
 // Create a copy of the settings for editing
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
-  output_directory: props.settings?.output_directory ?? '/recordings',
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
   default_quality: props.settings?.default_quality ?? 'best',
@@ -562,6 +563,19 @@ const updateFilenameFromPreset = () => {
   }
 };
 
+// Function to insert variable at cursor position
+const insertVariable = (variableKey: string) => {
+  const currentTemplate = data.value.filename_template || '';
+  const cursorPosition = currentTemplate.length; // Default to end if no cursor position available
+  
+  // Insert the variable at the cursor position (or end)
+  const newTemplate = currentTemplate.slice(0, cursorPosition) + variableKey + currentTemplate.slice(cursorPosition);
+  data.value.filename_template = newTemplate;
+  
+  // Update the preset to "custom" when manually adding variables
+  data.value.filename_preset = 'custom';
+};
+
 const saveSettings = async () => {
   try {
     isSaving.value = true;
@@ -569,7 +583,6 @@ const saveSettings = async () => {
     // Save recording settings
     emits('update', {
       enabled: data.value.enabled,
-      output_directory: data.value.output_directory,
       filename_template: data.value.filename_template,
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
@@ -981,6 +994,48 @@ select.form-control option {
 
 .variable-item {
   font-size: 0.85rem;
+}
+
+/* Variables container - Desktop and general layout */
+.variables-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+  max-width: 100%;
+}
+
+.variable-tag {
+  display: inline-block;
+  background-color: var(--background-dark, #2a2a2a);
+  color: var(--text-primary, #f1f1f3);
+  border: 1px solid var(--border-color, #404040);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 0.85em;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.variable-tag.clickable {
+  cursor: pointer;
+  border-color: var(--primary-color, #42b883);
+  background-color: rgba(66, 184, 131, 0.1);
+}
+
+.variable-tag.clickable:hover {
+  background-color: var(--primary-color, #42b883);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(66, 184, 131, 0.3);
+}
+
+.variable-tag.clickable:active {
+  transform: translateY(0);
 }
 
 .filename-preview {
