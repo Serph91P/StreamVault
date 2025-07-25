@@ -41,7 +41,7 @@ def run_migration():
                 last_updated TIMESTAMP WITH TIME ZONE,
                 profile_image_url VARCHAR(255),
                 original_profile_image_url VARCHAR(255),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
         """))
         logger.info("✅ Created streamers table")
