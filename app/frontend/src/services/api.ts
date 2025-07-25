@@ -229,16 +229,12 @@ export const videoApi = {
   getChapters: (videoId: number) => 
     apiClient.get(`/api/videos/${videoId}/chapters`),
 
-  // Get video chapters (alternative method name)
-  getVideoChapters: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}/chapters`),
-
   // Stream video
   streamVideo: (videoId: number) => 
     apiClient.get(`/api/videos/${videoId}/stream`),
 
-  // Get video stream URL
-  getVideoStreamUrl: (videoId: number) => 
+  // Get video stream URL (returns string for direct use in video src)
+  getVideoStreamUrl: (videoId: number): string => 
     `/api/videos/${videoId}/stream`,
 
   // Get video metadata
@@ -253,7 +249,10 @@ export const videoApi = {
   getAll: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),
 
-  // Get all videos (alternative method name)
+  // Backward compatibility aliases (for existing code)
+  getVideoChapters: (videoId: number) => 
+    apiClient.get(`/api/videos/${videoId}/chapters`),
+  
   getAllVideos: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),
 }
