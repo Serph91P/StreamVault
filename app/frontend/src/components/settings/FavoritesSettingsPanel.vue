@@ -157,17 +157,25 @@ const fetchCategories = async () => {
   error.value = null;
   
   try {
-    
     const response = await fetch('/api/categories');
+    
     if (!response.ok) {
-      throw new Error('Failed to fetch categories');
+      // Check for specific HTTP error codes
+      if (response.status === 500) {
+        throw new Error('Server error - please check application logs');
+      } else if (response.status === 404) {
+        // Categories endpoint not found
+        categories.value = [];
+        return;
+      } else {
+        throw new Error(`Failed to fetch categories (HTTP ${response.status})`);
+      }
     }
     
     const data = await response.json();
     
-    // Wichtig: Die API gibt die Kategorien in einem "categories"-Feld zurück
+    // Handle different response formats
     if (data.categories && Array.isArray(data.categories)) {
-      
       categories.value = data.categories;
       
       // Preload category images for all categories
@@ -178,13 +186,27 @@ const fetchCategories = async () => {
       if (categoryNames.length > 0) {
         preloadCategoryImages(categoryNames);
       }
+    } else if (Array.isArray(data)) {
+      // Direct array response
+      categories.value = data;
     } else {
-      console.error('Unexpected API response format:', data);
-      throw new Error('Unexpected API response format');
+      // Unexpected format but no categories found
+      console.warn('Unexpected API response format:', data);
+      categories.value = [];
     }
   } catch (err: any) {
-    error.value = err.message || 'An error occurred while fetching categories';
+    // More user-friendly error messages
+    if (err.message.includes('Server error')) {
+      error.value = 'Server error - please try again later or check if the application is properly configured';
+    } else if (err.message.includes('Failed to fetch')) {
+      error.value = 'Network error - please check your connection and try again';
+    } else {
+      error.value = err.message || 'An error occurred while loading categories';
+    }
+    
     console.error('Error fetching categories:', err);
+    // Don't clear categories array on error - keep error visible to user
+    // categories.value = []; // Removed to maintain error visibility
   } finally {
     isLoading.value = false;
   }

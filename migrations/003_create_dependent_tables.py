@@ -63,9 +63,10 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS notification_settings (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                notify_on_live BOOLEAN DEFAULT TRUE,
-                notify_on_title_change BOOLEAN DEFAULT FALSE,
-                notify_on_category_change BOOLEAN DEFAULT FALSE,
+                notify_online BOOLEAN DEFAULT TRUE,
+                notify_offline BOOLEAN DEFAULT TRUE,
+                notify_update BOOLEAN DEFAULT TRUE,
+                notify_favorite_category BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(streamer_id)
             )
@@ -77,27 +78,76 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS favorite_categories (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                category_name VARCHAR(100) NOT NULL,
+                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, category_name)
+                UNIQUE(user_id, category_id)
             )
         """))
         logger.info("✅ Created favorite_categories table")
         
         # 5. Streamer recording settings (depends on streamers)
+        # First, check if table exists and handle auto_record field migration
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streamer_recording_settings (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                auto_record BOOLEAN DEFAULT FALSE,
-                quality VARCHAR(50) DEFAULT 'best',
-                output_path VARCHAR(500),
                 enabled BOOLEAN DEFAULT TRUE,
+                quality VARCHAR(50) DEFAULT 'best',
+                custom_filename VARCHAR(1024),
+                max_streams INTEGER,
+                cleanup_policy TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(streamer_id)
             )
         """))
+        
+        # Handle legacy auto_record field migration if it exists
+        try:
+            # Check if auto_record column exists
+            result = session.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'streamer_recording_settings' 
+                AND column_name = 'auto_record'
+            """))
+            
+            if result.fetchone():
+                logger.info("🔄 Migrating legacy auto_record field...")
+                # Migrate auto_record values to enabled field
+                session.execute(text("""
+                    UPDATE streamer_recording_settings 
+                    SET enabled = auto_record 
+                    WHERE auto_record IS NOT NULL
+                """))
+                
+                # Remove auto_record column after migration
+                session.execute(text("""
+                    ALTER TABLE streamer_recording_settings 
+                    DROP COLUMN IF EXISTS auto_record
+                """))
+                logger.info("✅ Migrated auto_record to enabled field")
+            
+            # Same for output_path - remove if exists
+            result = session.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'streamer_recording_settings' 
+                AND column_name = 'output_path'
+            """))
+            
+            if result.fetchone():
+                logger.info("🔄 Removing legacy output_path field...")
+                session.execute(text("""
+                    ALTER TABLE streamer_recording_settings 
+                    DROP COLUMN IF EXISTS output_path
+                """))
+                logger.info("✅ Removed legacy output_path field")
+                
+        except Exception as legacy_error:
+            logger.warning(f"Non-critical legacy field migration warning: {legacy_error}")
+            # Continue with migration even if legacy field handling fails
+        
         logger.info("✅ Created streamer_recording_settings table")
         
         # 6. Stream metadata (depends on streams)
