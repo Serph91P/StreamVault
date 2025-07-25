@@ -103,9 +103,9 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS push_subscriptions (
                 id SERIAL PRIMARY KEY,
-                endpoint VARCHAR UNIQUE NOT NULL,
+                endpoint VARCHAR(2048) UNIQUE NOT NULL,
                 subscription_data TEXT NOT NULL,
-                user_agent VARCHAR,
+                user_agent TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
