@@ -155,9 +155,31 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS stream_metadata (
                 id SERIAL PRIMARY KEY,
                 stream_id INTEGER NOT NULL REFERENCES streams(id) ON DELETE CASCADE,
+                
+                -- Thumbnail paths and URLs
+                thumbnail_path VARCHAR(500),
                 thumbnail_url VARCHAR(500),
-                viewer_count INTEGER,
-                max_viewer_count INTEGER,
+                
+                -- Metadata file paths
+                nfo_path VARCHAR(500),
+                json_path VARCHAR(500),
+                
+                -- Chat log paths
+                chat_path VARCHAR(500),
+                chat_srt_path VARCHAR(500),
+                
+                -- Chapter marker paths
+                chapters_path VARCHAR(500),
+                chapters_vtt_path VARCHAR(500),
+                chapters_srt_path VARCHAR(500),
+                chapters_ffmpeg_path VARCHAR(500),
+                
+                -- Stream statistics
+                avg_viewers INTEGER,
+                max_viewers INTEGER,
+                follower_count INTEGER,
+                
+                -- Legacy fields for backward compatibility
                 tags TEXT,
                 mature BOOLEAN DEFAULT FALSE,
                 original_language VARCHAR(10),
@@ -165,8 +187,15 @@ def run_migration():
                 original_category VARCHAR(100),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
                 UNIQUE(stream_id)
             )
+        """))
+        
+        -- Create index for performance
+        session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_stream_metadata_stream_id 
+            ON stream_metadata(stream_id)
         """))
         logger.info("✅ Created stream_metadata table")
         
