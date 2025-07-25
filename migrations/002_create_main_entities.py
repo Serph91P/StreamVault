@@ -32,17 +32,16 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streamers (
                 id SERIAL PRIMARY KEY,
-                twitch_id VARCHAR(100) UNIQUE NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                display_name VARCHAR(100),
+                twitch_id VARCHAR(255) UNIQUE NOT NULL,
+                username VARCHAR(255) NOT NULL,
                 is_live BOOLEAN DEFAULT FALSE,
-                stream_title TEXT,
+                title VARCHAR(255),
                 category_name VARCHAR(255),
-                viewer_count INTEGER DEFAULT 0,
-                last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                last_seen_live TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                language VARCHAR(255),
+                last_updated TIMESTAMP WITH TIME ZONE,
+                profile_image_url VARCHAR(255),
+                original_profile_image_url VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
         logger.info("✅ Created streamers table")
@@ -52,36 +51,24 @@ def run_migration():
             CREATE TABLE IF NOT EXISTS streams (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
-                stream_id VARCHAR(100) UNIQUE NOT NULL,
-                title TEXT,
-                category_id INTEGER,
-                started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                title VARCHAR(255),
+                category_name VARCHAR(255),
+                language VARCHAR(255),
+                started_at TIMESTAMP WITH TIME ZONE,
                 ended_at TIMESTAMP WITH TIME ZONE,
-                viewer_count INTEGER DEFAULT 0,
-                is_live BOOLEAN DEFAULT TRUE,
+                twitch_stream_id VARCHAR(255),
                 recording_path VARCHAR(1024),
-                episode_number INTEGER,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                episode_number INTEGER
             )
         """))
         logger.info("✅ Created streams table")
-
-        # Add foreign key constraint for category_id after table creation
-        session.execute(text("""
-            ALTER TABLE streams 
-            ADD CONSTRAINT fk_streams_category_id 
-            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-        """))
-        logger.info("✅ Added category foreign key constraint")
         
-        # 3. Sessions table - with NOT NULL constraints for security and default for expires_at
+        # 3. Sessions table - with NOT NULL constraints for security
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token VARCHAR(255) NOT NULL UNIQUE,
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                token VARCHAR(255) UNIQUE NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
@@ -91,7 +78,6 @@ def run_migration():
         session.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
         """))
         logger.info("✅ Created sessions indexes")
         
