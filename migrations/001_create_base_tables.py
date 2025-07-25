@@ -103,14 +103,44 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS push_subscriptions (
                 id SERIAL PRIMARY KEY,
-                endpoint TEXT UNIQUE NOT NULL,
-                p256dh_key TEXT NOT NULL,
-                auth_key TEXT NOT NULL,
-                user_agent TEXT,
+                endpoint VARCHAR UNIQUE NOT NULL,
+                subscription_data TEXT NOT NULL,
+                user_agent VARCHAR,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                last_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
+        
+        # Create indexes for push_subscriptions
+        session.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_push_subscriptions_endpoint 
+            ON push_subscriptions (endpoint)
+        """))
+        
+        session.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_push_subscriptions_is_active 
+            ON push_subscriptions (is_active)
+        """))
+        
+        # Create update trigger for push_subscriptions
+        session.execute(text("""
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = CURRENT_TIMESTAMP;
+                RETURN NEW;
+            END;
+            $$ language 'plpgsql';
+            
+            DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON push_subscriptions;
+            
+            CREATE TRIGGER update_push_subscriptions_updated_at
+                BEFORE UPDATE ON push_subscriptions
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column();
+        """))
+        
         logger.info("✅ Created push_subscriptions table")
         
         session.commit()
