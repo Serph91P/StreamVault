@@ -54,7 +54,7 @@ def run_migration():
                 title VARCHAR(255),
                 category_name VARCHAR(255),
                 language VARCHAR(255),
-                started_at TIMESTAMP WITH TIME ZONE,
+                started_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 ended_at TIMESTAMP WITH TIME ZONE,
                 twitch_stream_id VARCHAR(255),
                 recording_path VARCHAR(1024),
@@ -67,7 +67,7 @@ def run_migration():
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 token VARCHAR(255) UNIQUE NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
