@@ -70,7 +70,7 @@ class WebSocketBroadcastTask:
                     recording_update_counter += 1
                     queue_update_counter += 1
                     
-                    # Wait 10 seconds before next cycle (only check counters change)
+                    # Wait 10 seconds before next cycle (only counters change)
                     await asyncio.sleep(10)
                     
                 except Exception as e:
