@@ -230,7 +230,7 @@ async def get_streamers_status() -> Dict[str, Any]:
                 streamer_status.append({
                     "id": streamer.id,
                     "name": streamer.username,
-                    "display_name": streamer.display_name,
+                    "display_name": streamer.username,
                     "is_live": is_live,
                     "is_recording": is_recording,
                     "is_favorite": streamer.is_favorite,
