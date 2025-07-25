@@ -65,6 +65,7 @@ class Stream(Base):
     twitch_stream_id = Column(String, nullable=True, index=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     episode_number = Column(Integer, nullable=True)  # Episode number for this stream
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     streamer = relationship("Streamer", backref="streams")
