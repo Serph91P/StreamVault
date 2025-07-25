@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from app.database import get_db, SessionLocal
 from app.models import Recording, Stream, Streamer, NotificationSettings, PushSubscription, GlobalSettings, StreamEvent
 from app.schemas import ActiveRecordingSchema
-from app.services.queues.background_queue_service import background_queue_service
+from app.services.background_queue_service import background_queue_service
 from sqlalchemy import text
 
 router = APIRouter(prefix="/status", tags=["status"])
