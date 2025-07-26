@@ -51,7 +51,6 @@ def run_migration():
         
         # Start background task to preload existing category images
         try:
-            import asyncio
             from app.models import Category
             from app.database import SessionLocal
             
@@ -63,23 +62,9 @@ def run_migration():
                     category_names = [cat.name for cat in categories if cat.name and cat.name.strip()]
                     
                     if category_names:
-                        logger.info(f"Starting background preload for {len(category_names)} existing categories")
-                        
-                        # Create an async task to preload images
-                        # Note: This runs in background, migration doesn't wait for completion
-                        try:
-                            # Import the service here to avoid circular imports
-                            from app.services.unified_image_service import unified_image_service
-                            
-                            # Store the task to prevent garbage collection
-                            preload_task = asyncio.create_task(unified_image_service.preload_categories(category_names))
-                            logger.info("✅ Background category image preload started")
-                        except RuntimeError as e:
-                            # Specifically catch event loop errors
-                            if "no running event loop" in str(e).lower():
-                                logger.info("No event loop available, category images will be loaded on-demand")
-                            else:
-                                raise  # Re-raise other RuntimeErrors
+                        logger.info(f"Found {len(category_names)} existing categories for image preloading")
+                        logger.info("ℹ️  Category images will be loaded on-demand when first accessed")
+                        # Note: Async preloading skipped during migration - images will be loaded on-demand
                     else:
                         logger.info("No category names found to preload")
                 else:
@@ -87,7 +72,7 @@ def run_migration():
                     
         except Exception as e:
             # Don't fail the migration if preloading fails
-            logger.warning(f"Could not preload category images (will load on-demand): {e}")
+            logger.warning(f"Could not check categories for image preloading: {e}")
         
         logger.info("🎉 Migration 010 completed successfully")
         
