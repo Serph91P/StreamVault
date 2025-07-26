@@ -106,22 +106,31 @@ def run_migration():
                 logger.info("🔄 Inserting default global settings...")
                 session.execute(text("""
                     INSERT INTO global_settings (
-                        check_interval, 
-                        max_concurrent_recordings, 
-                        default_download_folder, 
+                        notification_url,
+                        notifications_enabled,
+                        notify_online_global,
+                        notify_offline_global,
+                        notify_update_global,
+                        notify_favorite_category_global,
                         http_proxy, 
                         https_proxy
                     ) VALUES (
-                        :check_interval, 
-                        :max_concurrent_recordings, 
-                        :default_download_folder, 
+                        :notification_url,
+                        :notifications_enabled,
+                        :notify_online_global,
+                        :notify_offline_global,
+                        :notify_update_global,
+                        :notify_favorite_category_global,
                         :http_proxy, 
                         :https_proxy
                     )
                 """), {
-                    "check_interval": 60,
-                    "max_concurrent_recordings": 3,
-                    "default_download_folder": "/recordings",
+                    "notification_url": None,
+                    "notifications_enabled": False,
+                    "notify_online_global": True,
+                    "notify_offline_global": True,
+                    "notify_update_global": True,
+                    "notify_favorite_category_global": True,
                     "http_proxy": None,
                     "https_proxy": None
                 })
@@ -157,11 +166,12 @@ def run_migration():
                 
                 for category in default_categories:
                     session.execute(text("""
-                        INSERT INTO categories (name, description) 
-                        VALUES (:name, :description)
+                        INSERT INTO categories (twitch_id, name, box_art_url) 
+                        VALUES (:twitch_id, :name, :box_art_url)
                     """), {
-                        "name": category, 
-                        "description": f"Default category: {category}"
+                        "twitch_id": f"default_{category.lower().replace(' ', '_').replace('&', 'and').replace('+', 'plus')}", 
+                        "name": category,
+                        "box_art_url": None
                     })
                 
                 session.commit()
