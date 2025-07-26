@@ -181,15 +181,38 @@ class AutoImageSyncService:
         """
         try:
             with SessionLocal() as db:
-                # Only query streamers that have HTTP URLs and need syncing
-                streamers = db.query(Streamer).filter(
-                    Streamer.profile_image_url.ilike('http%')
-                ).limit(limit).offset(offset).all()
+                # Query all streamers to check if they need profile image syncing
+                streamers = db.query(Streamer).limit(limit).offset(offset).all()
                 
                 count = 0
                 for streamer in streamers:
-                    await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
-                    count += 1
+                    needs_sync = False
+                    
+                    # Check if streamer has HTTP URL (needs downloading)
+                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                        needs_sync = True
+                    # Check if streamer has local path but file doesn't exist (needs re-downloading)
+                    elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/'):
+                        # Check if the local file actually exists
+                        from pathlib import Path
+                        # Correct path: /recordings/.media/profiles/ not /recordings/.media/data/images/profiles/
+                        filename = Path(streamer.profile_image_url).name
+                        local_file_path = Path(f"/recordings/.media/profiles/{filename}")
+                        if not local_file_path.exists():
+                            # File is missing, force to use the default Twitch avatar URL template
+                            logger.warning(f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}")
+                            logger.info(f"Expected file at: {local_file_path}")
+                            # Use Twitch's default profile image URL pattern
+                            twitch_profile_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{streamer.twitch_id}-profile_image-300x300.png"
+                            needs_sync = True
+                            # Temporarily update the URL for download
+                            streamer.profile_image_url = twitch_profile_url
+                        else:
+                            logger.info(f"Profile image exists for {streamer.username}: {local_file_path}")
+                    
+                    if needs_sync:
+                        await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                        count += 1
                 
                 logger.info(f"Queued {count} streamers for profile image sync (batch: offset={offset}, limit={limit})")
                 return count  # Return count for pagination logic
