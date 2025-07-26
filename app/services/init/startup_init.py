@@ -114,6 +114,7 @@ async def initialize_image_sync_service():
         logger.info("Initializing automatic image sync service...")
         
         from app.services.images.auto_image_sync_service import auto_image_sync_service
+        from app.services.unified_image_service import unified_image_service
         
         # Start the background sync worker
         await auto_image_sync_service.start_sync_worker()
@@ -121,6 +122,11 @@ async def initialize_image_sync_service():
         # Perform initial sync of all existing categories and streamers
         await auto_image_sync_service.sync_all_existing_categories()
         await auto_image_sync_service.sync_all_existing_streamers()
+        
+        # IMPORTANT: Sync all profile images to convert Twitch URLs to local paths
+        logger.info("Starting profile image sync to convert Twitch URLs to local paths...")
+        profile_stats = await unified_image_service.sync_all_profile_images()
+        logger.info(f"Profile image sync completed: {profile_stats}")
         
         logger.info("Image sync service initialized successfully")
         
