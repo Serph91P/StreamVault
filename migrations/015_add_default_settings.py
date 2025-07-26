@@ -6,6 +6,7 @@ Inserts default recording settings to ensure system works correctly
 import os
 import sys
 import logging
+import json
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -42,6 +43,14 @@ def run_migration():
             
             if result == 0:
                 logger.info("🔄 Inserting default recording settings...")
+                
+                # Create default cleanup policy as proper dictionary
+                default_cleanup_policy = {
+                    "enabled": False,
+                    "days_to_keep": 30,
+                    "max_size_gb": 100
+                }
+                
                 session.execute(text("""
                     INSERT INTO recording_settings (
                         enabled, 
@@ -54,24 +63,38 @@ def run_migration():
                         max_streams_per_streamer, 
                         cleanup_policy
                     ) VALUES (
-                        TRUE, 
-                        '/recordings', 
-                        '{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}', 
-                        'best', 
-                        TRUE, 
-                        'default', 
-                        FALSE, 
-                        0, 
-                        '{"enabled": false, "days_to_keep": 30, "max_size_gb": 100}'
+                        :enabled, 
+                        :output_directory, 
+                        :filename_template, 
+                        :default_quality, 
+                        :use_chapters, 
+                        :filename_preset, 
+                        :use_category_as_chapter_title, 
+                        :max_streams_per_streamer, 
+                        :cleanup_policy
                     )
-                """))
+                """), {
+                    "enabled": True,
+                    "output_directory": "/recordings",
+                    "filename_template": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+                    "default_quality": "best",
+                    "use_chapters": True,
+                    "filename_preset": "default",
+                    "use_category_as_chapter_title": False,
+                    "max_streams_per_streamer": 0,
+                    "cleanup_policy": json.dumps(default_cleanup_policy)
+                })
+                
+                session.commit()
                 logger.info("✅ Added default recording settings")
             else:
                 logger.info("Recording settings already exist, skipping default insertion")
                 
         except (DatabaseError, OperationalError) as e:
+            session.rollback()
             logger.warning(f"Database error while adding recording settings: {e}")
         except Exception as e:
+            session.rollback()
             logger.warning(f"Unexpected error while adding recording settings: {e}")
         
         # 2. Ensure global_settings has a default row
@@ -89,20 +112,30 @@ def run_migration():
                         http_proxy, 
                         https_proxy
                     ) VALUES (
-                        60, 
-                        3, 
-                        '/recordings', 
-                        NULL, 
-                        NULL
+                        :check_interval, 
+                        :max_concurrent_recordings, 
+                        :default_download_folder, 
+                        :http_proxy, 
+                        :https_proxy
                     )
-                """))
+                """), {
+                    "check_interval": 60,
+                    "max_concurrent_recordings": 3,
+                    "default_download_folder": "/recordings",
+                    "http_proxy": None,
+                    "https_proxy": None
+                })
+                
+                session.commit()
                 logger.info("✅ Added default global settings")
             else:
                 logger.info("Global settings already exist, skipping default insertion")
                 
         except (DatabaseError, OperationalError) as e:
+            session.rollback()
             logger.warning(f"Database error while adding global settings: {e}")
         except Exception as e:
+            session.rollback()
             logger.warning(f"Unexpected error while adding global settings: {e}")
         
         # 3. Add default categories if none exist
@@ -126,18 +159,23 @@ def run_migration():
                     session.execute(text("""
                         INSERT INTO categories (name, description) 
                         VALUES (:name, :description)
-                    """), {"name": category, "description": f"Default category: {category}"})
+                    """), {
+                        "name": category, 
+                        "description": f"Default category: {category}"
+                    })
                 
+                session.commit()
                 logger.info(f"✅ Added {len(default_categories)} default categories")
             else:
                 logger.info("Categories already exist, skipping default insertion")
                 
         except (DatabaseError, OperationalError) as e:
+            session.rollback()
             logger.warning(f"Database error while adding categories: {e}")
         except Exception as e:
+            session.rollback()
             logger.warning(f"Unexpected error while adding categories: {e}")
         
-        session.commit()
         logger.info("🎉 Migration 015 completed successfully")
         
     except Exception as e:
