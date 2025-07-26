@@ -56,7 +56,7 @@ def run_migration():
                 title VARCHAR(255),
                 category_name VARCHAR(255),
                 language VARCHAR(255),
-                started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                started_at TIMESTAMP WITH TIME ZONE,
                 ended_at TIMESTAMP WITH TIME ZONE,
                 twitch_stream_id VARCHAR(255),
                 recording_path VARCHAR(1024),
