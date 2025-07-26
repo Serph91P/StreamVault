@@ -3,6 +3,7 @@ Automatic Image Sync Service - handles background image downloading
 """
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional
 
 from app.database import SessionLocal
@@ -14,6 +15,10 @@ logger = logging.getLogger("streamvault")
 
 class AutoImageSyncService:
     """Service for automatically syncing images when entities are created/updated"""
+    
+    # Configuration constants
+    PROFILES_BASE_PATH = "/recordings/.media/profiles/"
+    TWITCH_PROFILE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
     
     def __init__(self):
         self._sync_queue = asyncio.Queue()
@@ -194,16 +199,14 @@ class AutoImageSyncService:
                     # Check if streamer has local path but file doesn't exist (needs re-downloading)
                     elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/'):
                         # Check if the local file actually exists
-                        from pathlib import Path
-                        # Correct path: /recordings/.media/profiles/ not /recordings/.media/data/images/profiles/
                         filename = Path(streamer.profile_image_url).name
-                        local_file_path = Path(f"/recordings/.media/profiles/{filename}")
+                        local_file_path = Path(self.PROFILES_BASE_PATH) / filename
                         if not local_file_path.exists():
                             # File is missing, force to use the default Twitch avatar URL template
                             logger.warning(f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}")
                             logger.info(f"Expected file at: {local_file_path}")
                             # Use Twitch's default profile image URL pattern
-                            twitch_profile_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{streamer.twitch_id}-profile_image-300x300.png"
+                            twitch_profile_url = self.TWITCH_PROFILE_URL_TEMPLATE.format(twitch_id=streamer.twitch_id)
                             needs_sync = True
                             # Temporarily update the URL for download
                             streamer.profile_image_url = twitch_profile_url
