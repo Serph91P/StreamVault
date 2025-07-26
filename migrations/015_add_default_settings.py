@@ -21,6 +21,40 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def generate_migration_category_id(category_name: str) -> str:
+    """
+    Generate a migration-specific category ID from a category name.
+    
+    This function creates a standardized twitch_id for categories added during migration
+    to avoid conflicts with real Twitch category IDs that may be added later.
+    
+    Transformation rules:
+    - Convert to lowercase
+    - Replace spaces with underscores
+    - Replace '&' with 'and' 
+    - Replace '+' with 'plus'
+    - Prefix with 'migrate_' to distinguish from real Twitch IDs
+    
+    Args:
+        category_name: The human-readable category name (e.g., "Games + Demos")
+        
+    Returns:
+        A migration-safe category ID (e.g., "migrate_games_plus_demos")
+        
+    Examples:
+        "Just Chatting" -> "migrate_just_chatting"
+        "Games + Demos" -> "migrate_games_plus_demos" 
+        "Talk Shows & Podcasts" -> "migrate_talk_shows_and_podcasts"
+    """
+    # Apply transformations in order
+    normalized = category_name.lower()
+    normalized = normalized.replace(' ', '_')
+    normalized = normalized.replace('&', 'and')
+    normalized = normalized.replace('+', 'plus')
+    
+    # Add migration prefix to avoid conflicts with real Twitch IDs
+    return f"migrate_{normalized}"
+
 def run_migration():
     """Add default settings data to ensure system functionality"""
     session = None
@@ -106,22 +140,31 @@ def run_migration():
                 logger.info("🔄 Inserting default global settings...")
                 session.execute(text("""
                     INSERT INTO global_settings (
-                        check_interval, 
-                        max_concurrent_recordings, 
-                        default_download_folder, 
+                        notification_url,
+                        notifications_enabled,
+                        notify_online_global,
+                        notify_offline_global,
+                        notify_update_global,
+                        notify_favorite_category_global,
                         http_proxy, 
                         https_proxy
                     ) VALUES (
-                        :check_interval, 
-                        :max_concurrent_recordings, 
-                        :default_download_folder, 
+                        :notification_url,
+                        :notifications_enabled,
+                        :notify_online_global,
+                        :notify_offline_global,
+                        :notify_update_global,
+                        :notify_favorite_category_global,
                         :http_proxy, 
                         :https_proxy
                     )
                 """), {
-                    "check_interval": 60,
-                    "max_concurrent_recordings": 3,
-                    "default_download_folder": "/recordings",
+                    "notification_url": None,
+                    "notifications_enabled": False,
+                    "notify_online_global": True,
+                    "notify_offline_global": True,
+                    "notify_update_global": True,
+                    "notify_favorite_category_global": True,
                     "http_proxy": None,
                     "https_proxy": None
                 })
@@ -156,12 +199,16 @@ def run_migration():
                 ]
                 
                 for category in default_categories:
+                    # Use helper function to generate migration-safe category ID
+                    migration_id = generate_migration_category_id(category)
+                    
                     session.execute(text("""
-                        INSERT INTO categories (name, description) 
-                        VALUES (:name, :description)
+                        INSERT INTO categories (twitch_id, name, box_art_url) 
+                        VALUES (:twitch_id, :name, :box_art_url)
                     """), {
-                        "name": category, 
-                        "description": f"Default category: {category}"
+                        "twitch_id": migration_id, 
+                        "name": category,
+                        "box_art_url": None
                     })
                 
                 session.commit()
