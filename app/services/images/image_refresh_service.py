@@ -73,11 +73,12 @@ class ImageRefreshService:
                 for streamer in batch:
                     if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
                         # Check if cached file exists (try both old and new naming)
-                        expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
-                        expected_path_old = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
+                        expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.twitch_id}.jpg"
+                        expected_path_old_internal = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
+                        expected_path_old_streamer = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
                         
-                        if not expected_path_new.exists() and not expected_path_old.exists():
-                            logger.info(f"Profile image missing for streamer {streamer.id}, re-downloading...")
+                        if not expected_path_new.exists() and not expected_path_old_internal.exists() and not expected_path_old_streamer.exists():
+                            logger.info(f"Profile image missing for streamer {streamer.id} (Twitch ID: {streamer.twitch_id}), re-downloading...")
                             task = self._download_profile_image(streamer)
                             batch_tasks.append(task)
                 
