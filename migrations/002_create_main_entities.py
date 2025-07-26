@@ -28,7 +28,7 @@ def run_migration():
         
         logger.info("🔄 Creating main entity tables...")
 
-        # 1. Streamers table
+        # 1. Streamers table - match the Models exactly
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streamers (
                 id SERIAL PRIMARY KEY,
@@ -41,12 +41,14 @@ def run_migration():
                 last_updated TIMESTAMP WITH TIME ZONE,
                 profile_image_url VARCHAR(255),
                 original_profile_image_url VARCHAR(255),
+                is_favorite BOOLEAN DEFAULT FALSE,
+                auto_record BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
         """))
         logger.info("✅ Created streamers table")
         
-        # 2. Streams table - with NOT NULL constraint on streamer_id
+        # 2. Streams table - match the Models exactly
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS streams (
                 id SERIAL PRIMARY KEY,
@@ -64,12 +66,13 @@ def run_migration():
         """))
         logger.info("✅ Created streams table")
         
-        # 3. Sessions table - with NOT NULL constraints for security
+        # 3. Sessions table - with NOT NULL constraints for security and expires_at
         session.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token VARCHAR(255) UNIQUE NOT NULL,
+                token VARCHAR(255) NOT NULL UNIQUE,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
@@ -79,6 +82,7 @@ def run_migration():
         session.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
         """))
         logger.info("✅ Created sessions indexes")
         
