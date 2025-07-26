@@ -51,11 +51,9 @@ def run_migration():
         
         # Start background task to preload existing category images
         try:
-            # Import the service here to avoid circular imports
-            from app.services.unified_image_service import unified_image_service
+            import asyncio
             from app.models import Category
             from app.database import SessionLocal
-            import asyncio
             
             # Get all existing categories from database
             with SessionLocal() as session:
@@ -70,12 +68,18 @@ def run_migration():
                         # Create an async task to preload images
                         # Note: This runs in background, migration doesn't wait for completion
                         try:
-                            # Try to run the async preload
-                            asyncio.create_task(unified_image_service.preload_categories(category_names))
+                            # Import the service here to avoid circular imports
+                            from app.services.unified_image_service import unified_image_service
+                            
+                            # Store the task to prevent garbage collection
+                            preload_task = asyncio.create_task(unified_image_service.preload_categories(category_names))
                             logger.info("✅ Background category image preload started")
-                        except RuntimeError:
-                            # If no event loop is running, just log and continue
-                            logger.info("No event loop available, category images will be loaded on-demand")
+                        except RuntimeError as e:
+                            # Specifically catch event loop errors
+                            if "no running event loop" in str(e).lower():
+                                logger.info("No event loop available, category images will be loaded on-demand")
+                            else:
+                                raise  # Re-raise other RuntimeErrors
                     else:
                         logger.info("No category names found to preload")
                 else:
