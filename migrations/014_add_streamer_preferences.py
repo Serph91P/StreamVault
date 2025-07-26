@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Migration 014: Add missing columns and preferences
+Migration 014: Add streamer preferences and missing table columns
 Adds is_favorite/auto_record to streamers and missing columns to other tables
 """
 import os
@@ -8,6 +8,7 @@ import sys
 import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import DatabaseError, OperationalError
 
 # Add parent directory to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -70,8 +71,10 @@ def run_migration():
                 ADD COLUMN IF NOT EXISTS last_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             """))
             logger.info("✅ Added missing columns to push_subscriptions")
+        except (DatabaseError, OperationalError) as e:
+            logger.warning(f"Database error while adding push_subscriptions columns: {e}")
         except Exception as e:
-            logger.warning(f"Could not add push_subscriptions columns: {e}")
+            logger.warning(f"Unexpected error while adding push_subscriptions columns: {e}")
         
         # 3. Add indexes for performance
         session.execute(text("""
@@ -118,8 +121,10 @@ def run_migration():
             """))
             
             logger.info("✅ Added missing indexes")
+        except (DatabaseError, OperationalError) as e:
+            logger.warning(f"Database error while adding indexes: {e}")
         except Exception as e:
-            logger.warning(f"Could not add some indexes: {e}")
+            logger.warning(f"Unexpected error while adding indexes: {e}")
         
         # 5. Create trigger for push_subscriptions updated_at
         try:
@@ -144,9 +149,11 @@ def run_migration():
                     EXECUTE FUNCTION update_updated_at_column()
             """))
             
-            logger.info("✅ Created push_subscriptions trigger")
+            logger.info("✅ Added trigger functions and triggers")
+        except (DatabaseError, OperationalError) as e:
+            logger.warning(f"Database error while adding triggers: {e}")
         except Exception as e:
-            logger.warning(f"Could not create trigger: {e}")
+            logger.warning(f"Unexpected error while adding triggers: {e}")
         
         session.commit()
         logger.info("🎉 Migration 014 completed successfully")
