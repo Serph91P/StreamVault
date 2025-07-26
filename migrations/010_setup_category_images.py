@@ -49,6 +49,46 @@ def run_migration():
                 f.write(default_svg_content)
             logger.info("✅ Created default category image")
         
+        # Start background task to preload existing category images
+        try:
+            import asyncio
+            from app.models import Category
+            from app.database import SessionLocal
+            
+            # Get all existing categories from database
+            with SessionLocal() as session:
+                categories = session.query(Category).all()
+                
+                if categories:
+                    category_names = [cat.name for cat in categories if cat.name and cat.name.strip()]
+                    
+                    if category_names:
+                        logger.info(f"Starting background preload for {len(category_names)} existing categories")
+                        
+                        # Create an async task to preload images
+                        # Note: This runs in background, migration doesn't wait for completion
+                        try:
+                            # Import the service here to avoid circular imports
+                            from app.services.unified_image_service import unified_image_service
+                            
+                            # Store the task to prevent garbage collection
+                            preload_task = asyncio.create_task(unified_image_service.preload_categories(category_names))
+                            logger.info("✅ Background category image preload started")
+                        except RuntimeError as e:
+                            # Specifically catch event loop errors
+                            if "no running event loop" in str(e).lower():
+                                logger.info("No event loop available, category images will be loaded on-demand")
+                            else:
+                                raise  # Re-raise other RuntimeErrors
+                    else:
+                        logger.info("No category names found to preload")
+                else:
+                    logger.info("No existing categories found in database")
+                    
+        except Exception as e:
+            # Don't fail the migration if preloading fails
+            logger.warning(f"Could not preload category images (will load on-demand): {e}")
+        
         logger.info("🎉 Migration 010 completed successfully")
         
     except Exception as e:
