@@ -36,7 +36,6 @@ class ProfileImageService:
             except Exception as e:
                 logger.error(f"Failed to initialize profiles directory: {e}")
                 # Fallback to a temporary path
-                import tempfile
                 self.profiles_dir = Path(tempfile.gettempdir()) / "profiles"
                 self.profiles_dir.mkdir(parents=True, exist_ok=True)
     
@@ -136,8 +135,10 @@ class ProfileImageService:
             
         try:
             filename = f"profile_avatar_{twitch_id}.jpg"
-            # Type assertion to help the type checker
-            assert self.profiles_dir is not None, "profiles_dir should be initialized"
+            # Ensure profiles directory is properly initialized
+            if self.profiles_dir is None:
+                logger.error("Profiles directory not initialized")
+                return None
             file_path = self.profiles_dir / filename
             
             success = await self.download_service.download_image(profile_image_url, file_path)
@@ -229,7 +230,9 @@ class ProfileImageService:
                 active_streamer_ids = set(str(s.id) for s in db.query(Streamer.id).all())
             
             # Check cached images (both old and new format)
-            assert self.profiles_dir is not None, "profiles_dir should be initialized"
+            if self.profiles_dir is None:
+                logger.error("Profiles directory not initialized for cleanup")
+                return cleaned_count
             for image_file in self.profiles_dir.glob("*.jpg"):
                 streamer_id = self._extract_streamer_id_from_filename(image_file)
                 if streamer_id is None:
