@@ -172,6 +172,15 @@ const navigateToTwitch = (username: string) => {
   window.open(`https://twitch.tv/${username}`, '_blank')
 }
 
+const handleImageError = (event: Event) => {
+  const target = event.target as HTMLImageElement
+  if (target) {
+    // Hide the broken image and let the placeholder show instead
+    target.style.display = 'none'
+    console.warn('Failed to load profile image:', target.src)
+  }
+}
+
 const handleDelete = async (streamerId: string) => {
   if (!confirm('Are you sure you want to delete this streamer?')) return
   
