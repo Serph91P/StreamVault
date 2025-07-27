@@ -436,7 +436,7 @@ export function useHybridStatus() {
         Date.now() - lastUpdate.value.getTime() : 
         Infinity
       
-      if (!isOnline.value || timeSinceLastUpdate > 45000) {
+      if (!isOnline.value || timeSinceLastUpdate > TIMEOUT_THRESHOLD_MS) {
         fetchAllStatus(true) // Use cache for periodic refresh
       }
     }, intervalMs)
