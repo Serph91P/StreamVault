@@ -112,7 +112,7 @@ class WebSocketBroadcastTask:
                     })
                 
                 # Calculate hash of current data to check for changes
-                current_hash = hashlib.md5(json.dumps(recordings_data, sort_keys=True).encode()).hexdigest()
+                current_hash = hashlib.sha256(json.dumps(recordings_data, sort_keys=True).encode()).hexdigest()
                 
                 # Only send if data has changed or no previous hash exists
                 if current_hash != self._last_recordings_hash:
