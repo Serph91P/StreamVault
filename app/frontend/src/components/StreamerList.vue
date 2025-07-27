@@ -107,6 +107,10 @@ interface StreamerUpdateData {
   last_updated: string
 }
 
+interface StreamerWithTwitchId {
+  twitch_id: string
+}
+
 // Use hybrid status for real-time streamer updates
 const {
   streamersStatus,
@@ -168,7 +172,7 @@ const formatDate = (date: string | undefined): string => {
   return updated.toLocaleString()
 }
 
-const getProfileImageUrl = (streamer: any): string | undefined => {
+const getProfileImageUrl = (streamer: StreamerWithTwitchId): string | undefined => {
   if (!streamer.twitch_id) return undefined
   return `/static/profiles/profile_avatar_${streamer.twitch_id}.jpg`
 }
