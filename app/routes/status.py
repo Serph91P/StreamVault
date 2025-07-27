@@ -15,6 +15,7 @@ from app.database import get_db, SessionLocal
 from app.models import Recording, Stream, Streamer, NotificationSettings, PushSubscription, GlobalSettings, StreamEvent
 from app.schemas import ActiveRecordingSchema
 from app.services.background_queue_service import background_queue_service
+from app.services.unified_image_service import unified_image_service
 from sqlalchemy import text
 
 router = APIRouter(prefix="/status", tags=["status"])
@@ -232,6 +233,10 @@ async def get_streamers_status() -> Dict[str, Any]:
                     "name": streamer.username,
                     "display_name": streamer.display_name,
                     "twitch_id": streamer.twitch_id,
+                    "profile_image_url": unified_image_service.get_profile_image_url(
+                        streamer.id, 
+                        streamer.profile_image_url
+                    ),
                     "is_live": is_live,
                     "is_recording": is_recording,
                     "is_favorite": streamer.is_favorite,
