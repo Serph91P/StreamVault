@@ -4,6 +4,8 @@ Background task for broadcasting periodic WebSocket updates
 
 import asyncio
 import logging
+import hashlib
+import json
 from typing import Dict, List, Any
 from app.dependencies import websocket_manager
 from app.database import SessionLocal
@@ -20,6 +22,9 @@ class WebSocketBroadcastTask:
     def __init__(self):
         self.is_running = False
         self._task = None
+        # Cache for detecting changes
+        self._last_recordings_hash = None
+        self._last_queue_hash = None
     
     async def start(self):
         """Start the background broadcast task"""
@@ -47,17 +52,25 @@ class WebSocketBroadcastTask:
         logger.info("WebSocket broadcast task stopped")
     
     async def _broadcast_loop(self):
-        """Main broadcast loop that runs every 10 seconds"""
+        """Main broadcast loop that runs with optimized frequency"""
         try:
+            recording_update_counter = 0
+            queue_update_counter = 0
+            
             while self.is_running:
                 try:
-                    # Broadcast active recordings
-                    await self._broadcast_active_recordings()
+                    # Broadcast active recordings every 30 seconds (reduced from 10)
+                    if recording_update_counter % 3 == 0:
+                        await self._broadcast_active_recordings()
                     
-                    # Broadcast background queue status
-                    await self._broadcast_background_queue_status()
+                    # Broadcast background queue status every 60 seconds (reduced from 10)
+                    if queue_update_counter % 6 == 0:
+                        await self._broadcast_background_queue_status()
                     
-                    # Wait 10 seconds before next broadcast
+                    recording_update_counter += 1
+                    queue_update_counter += 1
+                    
+                    # Wait 10 seconds before next cycle (only counters change)
                     await asyncio.sleep(10)
                     
                 except Exception as e:
@@ -70,7 +83,7 @@ class WebSocketBroadcastTask:
             logger.error(f"Fatal error in WebSocket broadcast loop: {e}")
     
     async def _broadcast_active_recordings(self):
-        """Broadcast current active recordings to all WebSocket clients"""
+        """Broadcast current active recordings to all WebSocket clients (only on changes)"""
         try:
             with SessionLocal() as db:
                 # Get all currently active recordings with joined relationships
@@ -98,14 +111,23 @@ class WebSocketBroadcastTask:
                         "duration": self._calculate_duration(recording.start_time) if recording.start_time else 0
                     })
                 
-                # Send via WebSocket if we have connected clients
-                if websocket_manager and len(websocket_manager.active_connections) > 0:
-                    await websocket_manager.send_active_recordings_update(recordings_data)
-                    logger.debug(f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients")
-                elif websocket_manager:
-                    logger.debug(f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings")
+                # Calculate hash of current data to check for changes
+                current_hash = hashlib.sha256(json.dumps(recordings_data, sort_keys=True).encode()).hexdigest()
+                
+                # Only send if data has changed or no previous hash exists
+                if current_hash != self._last_recordings_hash:
+                    self._last_recordings_hash = current_hash
+                    
+                    # Send via WebSocket if we have connected clients
+                    if websocket_manager and len(websocket_manager.active_connections) > 0:
+                        await websocket_manager.send_active_recordings_update(recordings_data)
+                        logger.debug(f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients (data changed)")
+                    elif websocket_manager:
+                        logger.debug(f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings")
+                    else:
+                        logger.warning("WebSocket manager not available - cannot broadcast recordings")
                 else:
-                    logger.warning("WebSocket manager not available - cannot broadcast recordings")
+                    logger.debug(f"Active recordings data unchanged - skipping broadcast ({len(recordings_data)} recordings)")
                 
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
@@ -156,14 +178,23 @@ class WebSocketBroadcastTask:
                         "recent_tasks": recent_tasks_data
                     }
                     
-                    # Send via WebSocket if we have connected clients
-                    if websocket_manager and len(websocket_manager.active_connections) > 0:
-                        message = {
-                            "type": "background_queue_update",
-                            "data": queue_data
-                        }
-                        await websocket_manager.send_notification(message)
-                        logger.debug(f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent")
+                    # Calculate hash of current data to check for changes
+                    current_hash = hashlib.sha256(json.dumps(queue_data, sort_keys=True).encode()).hexdigest()
+                    
+                    # Only send if data has changed or no previous hash exists
+                    if current_hash != self._last_queue_hash:
+                        self._last_queue_hash = current_hash
+                        
+                        # Send via WebSocket if we have connected clients
+                        if websocket_manager and len(websocket_manager.active_connections) > 0:
+                            message = {
+                                "type": "background_queue_update",
+                                "data": queue_data
+                            }
+                            await websocket_manager.send_notification(message)
+                            logger.debug(f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent (data changed)")
+                    else:
+                        logger.debug(f"Queue data unchanged - skipping broadcast ({len(active_tasks_data)} active tasks)")
                     
                 except AttributeError as e:
                     logger.warning(f"Background queue service method not available: {e}")

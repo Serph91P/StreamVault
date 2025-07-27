@@ -3,6 +3,7 @@ Automatic Image Sync Service - handles background image downloading
 """
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional
 
 from app.database import SessionLocal
@@ -14,6 +15,10 @@ logger = logging.getLogger("streamvault")
 
 class AutoImageSyncService:
     """Service for automatically syncing images when entities are created/updated"""
+    
+    # Configuration constants
+    PROFILES_BASE_PATH = "/recordings/.media/profiles/"
+    TWITCH_PROFILE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
     
     def __init__(self):
         self._sync_queue = asyncio.Queue()
@@ -181,15 +186,36 @@ class AutoImageSyncService:
         """
         try:
             with SessionLocal() as db:
-                # Only query streamers that have HTTP URLs and need syncing
-                streamers = db.query(Streamer).filter(
-                    Streamer.profile_image_url.ilike('http%')
-                ).limit(limit).offset(offset).all()
+                # Query all streamers to check if they need profile image syncing
+                streamers = db.query(Streamer).limit(limit).offset(offset).all()
                 
                 count = 0
                 for streamer in streamers:
-                    await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
-                    count += 1
+                    needs_sync = False
+                    
+                    # Check if streamer has HTTP URL (needs downloading)
+                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                        needs_sync = True
+                    # Check if streamer has local path but file doesn't exist (needs re-downloading)
+                    elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/'):
+                        # Check if the local file actually exists
+                        filename = Path(streamer.profile_image_url).name
+                        local_file_path = Path(self.PROFILES_BASE_PATH) / filename
+                        if not local_file_path.exists():
+                            # File is missing, force to use the default Twitch avatar URL template
+                            logger.warning(f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}")
+                            logger.info(f"Expected file at: {local_file_path}")
+                            # Use Twitch's default profile image URL pattern
+                            twitch_profile_url = self.TWITCH_PROFILE_URL_TEMPLATE.format(twitch_id=streamer.twitch_id)
+                            needs_sync = True
+                            # Temporarily update the URL for download
+                            streamer.profile_image_url = twitch_profile_url
+                        else:
+                            logger.info(f"Profile image exists for {streamer.username}: {local_file_path}")
+                    
+                    if needs_sync:
+                        await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                        count += 1
                 
                 logger.info(f"Queued {count} streamers for profile image sync (batch: offset={offset}, limit={limit})")
                 return count  # Return count for pagination logic

@@ -30,6 +30,9 @@ except ImportError:
 
 logger = logging.getLogger("streamvault")
 
+# Constants for recording progress tracking
+RUNNING_PROGRESS_PERCENT = 50.0  # Show 50% for running recordings
+
 
 class RecordingLifecycleManager:
     """Manages recording lifecycle events and monitoring"""
@@ -851,8 +854,16 @@ class RecordingLifecycleManager:
                 return
             
             progress = await self.process_manager.get_recording_progress(recording_id)
-            if progress is not None:
-                progress_percent = min(100.0, max(0.0, progress))
+            if progress is not None and isinstance(progress, dict):
+                # Extract duration as a simple percentage (for now, just show that it's running)
+                if progress.get("status") == "running":
+                    progress_percent = RUNNING_PROGRESS_PERCENT  # Show 50% for running recordings
+                elif progress.get("status") == "completed":
+                    progress_percent = 100.0
+                else:
+                    progress_percent = 0.0
+                    
+                progress_percent = min(100.0, max(0.0, progress_percent))
                 self.state_manager.update_active_recording(recording_id, {'progress': progress_percent})
                 
                 # Update external task progress in background queue

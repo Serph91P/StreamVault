@@ -30,6 +30,13 @@ dist/
 *.log
 *.local
 
+# TypeScript compiled files (ignore .js files when .ts exists)
+# These are auto-generated and should not be committed
+app/frontend/src/**/*.js
+!app/frontend/src/**/*.config.js
+!app/frontend/src/**/vite.config.js
+!app/frontend/src/**/eslint.config.js
+
 # General
 .DS_Store
 Thumbs.db

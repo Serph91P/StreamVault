@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 import json
+import warnings
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -42,8 +43,20 @@ class Streamer(Base):
     last_updated = Column(DateTime(timezone=True))
     profile_image_url = Column(String)
     original_profile_image_url = Column(String)
+    is_favorite = Column(Boolean, default=False, index=True)
+    auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
+    
+    @property
+    def display_name(self):
+        """[DEPRECATED] Use `username` directly instead. This property will be removed in the future."""
+        warnings.warn(
+            "The `display_name` property is deprecated and will be removed in the future. Use `username` instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return self.username
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (
@@ -65,6 +78,7 @@ class Stream(Base):
     twitch_stream_id = Column(String, nullable=True, index=True)
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     episode_number = Column(Integer, nullable=True)  # Episode number for this stream
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     streamer = relationship("Streamer", backref="streams")

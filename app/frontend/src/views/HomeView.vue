@@ -1,38 +1,54 @@
 <script setup lang="ts">
 import { onMounted, computed, ref, watch } from 'vue'
-import { useStreamers } from '@/composables/useStreamers'
-import { useRecordingSettings } from '@/composables/useRecordingSettings'
-import { useStreams } from '@/composables/useStreams'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useHybridStatus } from '@/composables/useHybridStatus'
 
-const { streamers, fetchStreamers, updateStreamer } = useStreamers()
-const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
-const { messages, connectionStatus } = useWebSocket()
-const totalStreamers = computed(() => streamers.value.length)
-const liveStreamers = computed(() => streamers.value.filter(s => s.is_live).length)
-const totalActiveRecordings = computed(() => activeRecordings.value ? activeRecordings.value.length : 0)
+// Use hybrid status system for comprehensive real-time updates
+const {
+  systemStatus,
+  streamersStatus,
+  activeRecordings,
+  notificationsStatus,
+  isLoading,
+  error,
+  fetchAllStatus,
+  lastUpdate
+} = useHybridStatus()
 
+// Computed properties derived from hybrid status
+const totalStreamers = computed(() => {
+  if (!streamersStatus.value) return 0
+  return streamersStatus.value.length
+})
 
+const liveStreamers = computed(() => {
+  if (!streamersStatus.value) return 0
+  return streamersStatus.value.filter(s => s.is_live).length
+})
 
-// For last recording - derived from streamers data (no API calls)
+const totalActiveRecordings = computed(() => {
+  if (!activeRecordings.value) return 0
+  return activeRecordings.value.length
+})
+
+// For last recording - derived from streamers data
 const lastRecording = ref<any>(null)
 const lastRecordingStreamer = ref<any>(null)
 
-// Function to derive last recording from streamers data (no API calls needed)
+// Function to derive last recording from streamers data
 function updateLastRecording() {
-  if (!streamers.value.length) {
+  if (!streamersStatus.value || streamersStatus.value.length === 0) {
     lastRecording.value = null
     lastRecordingStreamer.value = null
     return
   }
   
-  // Find the streamer with the most recent last_updated who was recently live
+  // Find the streamer with the most recent activity
   let mostRecentStreamer = null
   let mostRecentTime = null
   
-  for (const streamer of streamers.value) {
-    if (streamer.last_updated) {
-      const updateTime = new Date(streamer.last_updated)
+  for (const streamer of streamersStatus.value) {
+    if (streamer.last_seen) {
+      const updateTime = new Date(streamer.last_seen)
       if (!mostRecentTime || updateTime > mostRecentTime) {
         mostRecentTime = updateTime
         mostRecentStreamer = streamer
@@ -44,9 +60,9 @@ function updateLastRecording() {
     lastRecordingStreamer.value = mostRecentStreamer
     lastRecording.value = {
       id: `recent-${mostRecentStreamer.id}`,
-      streamer_name: mostRecentStreamer.username,
-      title: mostRecentStreamer.title || 'Recent Stream',
-      ended_at: mostRecentStreamer.last_updated,
+      streamer_name: mostRecentStreamer.name,
+      title: mostRecentStreamer.current_title || 'Recent Stream',
+      ended_at: mostRecentStreamer.last_seen,
       streamer_id: mostRecentStreamer.id
     }
   } else {
@@ -55,85 +71,19 @@ function updateLastRecording() {
   }
 }
 
-// WebSocket message handling
-watch(messages, (newMessages) => {
-  const message = newMessages[newMessages.length - 1]
-  if (!message) return
-
-  switch (message.type) {
-    case 'stream.online': {
-      updateStreamer(String(message.data.streamer_id), {
-        is_live: true,
-        title: message.data.title || '',
-        category_name: message.data.category_name || '',
-        language: message.data.language || '',
-        last_updated: new Date().toISOString()
-      })
-      updateLastRecording()
-      break
-    }
-    case 'stream.offline': {
-      updateStreamer(String(message.data.streamer_id), {
-        is_live: false,
-        last_updated: new Date().toISOString()
-      })
-      updateLastRecording()
-      break
-    }
-    case 'active_recordings_update': {
-      // Update the activeRecordings state directly with the received data
-      activeRecordings.value = message.data || []
-      
-      // Update streamer recording status based on active recordings
-      for (const streamer of streamers.value) {
-        const isRecording = activeRecordings.value.some(recording => 
-          String(recording.streamer_id) === String(streamer.id)
-        )
-        streamer.is_recording = isRecording
-      }
-      break
-    }
-    case 'recording_started': {
-      const streamerId = Number(message.data.streamer_id)
-      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
-      if (streamer) {
-        streamer.is_recording = true
-      }
-      // Don't fetch - rely on WebSocket updates
-      break
-    }
-    case 'recording_stopped': {
-      const streamerId = Number(message.data.streamer_id)
-      const streamer = streamers.value.find(s => String(s.id) === String(streamerId))
-      if (streamer) {
-        streamer.is_recording = false
-      }
-      // Don't fetch - rely on WebSocket updates
-      break
-    }
-  }
-}, { deep: true })
-
-// Connection status handling - only fetch once on initial connection
-let hasInitialFetch = false
-watch(connectionStatus, (status) => {
-  if (status === 'connected' && !hasInitialFetch) {
-    hasInitialFetch = true
-    void fetchStreamers()
-    void fetchActiveRecordings()
-  }
-}, { immediate: true })
-
-// Update last recording when streamers data changes
-watch(streamers, () => {
+// Watch for changes in streamers data to update last recording
+watch(streamersStatus, () => {
   updateLastRecording()
 }, { deep: true })
 
-
+// Watch for system updates
+watch(lastUpdate, () => {
+  updateLastRecording()
+})
 
 onMounted(async () => {
-  await fetchStreamers()
-  await fetchActiveRecordings()
+  // Initial data fetch using hybrid status system
+  await fetchAllStatus()
   updateLastRecording()
 })
 </script>

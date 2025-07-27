@@ -9,16 +9,20 @@
           <div class="streamer-info">
             <div class="profile-image-wrapper">
               <img 
-                v-if="streamer.profile_image_url" 
-                :src="streamer.profile_image_url" 
-                class="profile-image" 
-                :alt="streamer.username"
+                v-if="getProfileImageUrl(streamer)"
+                :src="getProfileImageUrl(streamer)"
+                class="profile-image"
+                :alt="streamer.name"
                 loading="lazy"
+                @error="handleImageError"
               />
+              <div v-else class="profile-image-placeholder">
+                {{ streamer.name.charAt(0).toUpperCase() }}
+              </div>
               <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
             </div>
-            <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.username)">
-              {{ streamer.username }}
+            <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.name)">
+              {{ streamer.name }}
             </h3>
           </div>
           <div class="status-badges">
@@ -33,7 +37,7 @@
               REC
             </span>
             <span 
-              v-else-if="streamer.is_live && !streamer.recording_enabled" 
+              v-else-if="streamer.is_live && !streamer.auto_record" 
               class="status-badge not-recording"
               title="Recording disabled for this streamer"
             >
@@ -42,22 +46,22 @@
           </div>
         </div>
         <div class="streamer-content">
-          <p v-if="streamer.title"><strong>Title:</strong> {{ streamer.title || '-' }}</p>
-          <p v-if="streamer.category_name"><strong>Category:</strong> {{ streamer.category_name || '-' }}</p>
-          <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
-          <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_updated) }}</p>
+          <p v-if="streamer.current_title"><strong>Title:</strong> {{ streamer.current_title || '-' }}</p>
+          <p v-if="streamer.current_category"><strong>Category:</strong> {{ streamer.current_category || '-' }}</p>
+          <p><strong>Language:</strong> {{ (streamer as any).language || '-' }}</p>
+          <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_seen || undefined) }}</p>
         </div>
         <div class="streamer-footer">
           <button 
-            @click="handleDelete(streamer.id)" 
+            @click="handleDelete(String(streamer.id))" 
             class="btn btn-danger"
-            :disabled="isDeleting === streamer.id"
+            :disabled="isDeleting === String(streamer.id)"
           >
-            <span v-if="isDeleting === streamer.id" class="loader"></span>
-            {{ isDeleting === streamer.id ? '' : 'Remove' }}
+            <span v-if="isDeleting === String(streamer.id)" class="loader"></span>
+            {{ isDeleting === String(streamer.id) ? '' : 'Remove' }}
           </button>
           <button 
-            @click="navigateToStreamerDetail(streamer.id, streamer.username)" 
+                        @click="navigateToStreamerDetail(String(streamer.id), streamer.name)" 
             class="btn btn-primary"
           >
             View Streams
@@ -79,8 +83,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
+import { useHybridStatus } from '@/composables/useHybridStatus'
 import { useStreamers } from '@/composables/useStreamers'
-import { useWebSocket } from '@/composables/useWebSocket'
 import { useRouter } from 'vue-router'
 import type { Ref } from 'vue'
 
@@ -103,8 +107,22 @@ interface StreamerUpdateData {
   last_updated: string
 }
 
-const { streamers, updateStreamer, fetchStreamers, deleteStreamer } = useStreamers()
-const { messages, connectionStatus } = useWebSocket()
+interface StreamerWithTwitchId {
+  twitch_id: string
+}
+
+// Use hybrid status for real-time streamer updates
+const {
+  streamersStatus,
+  isLoading,
+  error,
+  fetchStreamersStatus,
+  isOnline: connectionStatus
+} = useHybridStatus()
+
+// Keep useStreamers for delete operations
+const { deleteStreamer } = useStreamers()
+
 const router = useRouter()
 const isDeleting = ref<string | null>(null)
 
@@ -112,14 +130,17 @@ const emit = defineEmits<{
   streamerDeleted: []
 }>()
 
+// Use streamers from hybrid status
+const streamers = computed(() => streamersStatus.value || [])
+
 const sortedStreamers = computed(() => {
   return [...streamers.value].sort((a, b) => {
     // Sort by live status first (live streamers at top)
     if (a.is_live && !b.is_live) return -1
     if (!a.is_live && b.is_live) return 1
     
-    // Then sort by username alphabetically
-    return a.username.localeCompare(b.username)
+    // Then sort by username alphabetically  
+    return a.name.localeCompare(b.name)
   })
 })
 
@@ -151,8 +172,26 @@ const formatDate = (date: string | undefined): string => {
   return updated.toLocaleString()
 }
 
+const getProfileImageUrl = (streamer: StreamerWithTwitchId): string | undefined => {
+  if (!streamer.twitch_id) return undefined
+  return `/static/profiles/profile_avatar_${streamer.twitch_id}.jpg`
+}
+
 const navigateToTwitch = (username: string) => {
   window.open(`https://twitch.tv/${username}`, '_blank')
+}
+
+const handleImageError = (event: Event) => {
+  const target = event.target as HTMLImageElement
+  if (target) {
+    // Hide the broken image and let the placeholder show instead
+    target.style.display = 'none'
+    
+    // Only log in development mode
+    if (import.meta.env.DEV) {
+      console.warn('Failed to load profile image:', target.src)
+    }
+  }
 }
 
 const handleDelete = async (streamerId: string) => {
@@ -162,6 +201,8 @@ const handleDelete = async (streamerId: string) => {
   try {
     if (await deleteStreamer(streamerId)) {
       emit('streamerDeleted')
+      // Refresh streamers data after deletion
+      await fetchStreamersStatus(false)
     }
   } finally {
     isDeleting.value = null
@@ -176,72 +217,17 @@ const navigateToStreamerDetail = (streamerId: string, username: string) => {
   })
 }
 
-watch(messages, (newMessages) => {
-  const message = newMessages[newMessages.length - 1]
-  if (!message) return
-
-  switch (message.type) {
-    case 'channel.update': {
-      const streamerId = message.data.streamer_id
-      const streamer = streamers.value.find(s => s.id === streamerId)
-      
-      const updateData: StreamerUpdateData = {
-        title: message.data.title || '',
-        category_name: message.data.category_name || '',
-        language: message.data.language || '',
-        last_updated: new Date().toISOString()
-        // Keep current live status
-      }
-      updateStreamer(streamerId, updateData)
-      break
-    }
-    case 'stream.online': {
-      const updateData: StreamerUpdateData = {
-        is_live: true,
-        title: message.data.title || '',
-        category_name: message.data.category_name || '',
-        language: message.data.language || '',
-        last_updated: new Date().toISOString()
-      }
-      updateStreamer(message.data.streamer_id, updateData)
-      break
-    }
-    case 'stream.offline': {
-      const updateData: StreamerUpdateData = {
-        is_live: false,
-        last_updated: new Date().toISOString()
-      }
-      updateStreamer(message.data.streamer_id, updateData)
-      break
-    }
-    case 'recording.started': {
-      const streamerId = message.data.streamer_id
-      const streamer = streamers.value.find(s => s.id === streamerId)
-      if (streamer) {
-        streamer.is_recording = true
-      }
-      break
-    }
-    case 'recording.stopped': {
-      const streamerId = message.data.streamer_id
-      const streamer = streamers.value.find(s => s.id === streamerId)
-      if (streamer) {
-        streamer.is_recording = false
-      }
-      break
-    }
-  }
-}, { deep: true })
-
-// Improved connection handling
-watch(connectionStatus, (status) => {
-  if (status === 'connected') {
-    void fetchStreamers()
+// Connection status handling
+watch(() => connectionStatus.value, (status) => {
+  if (status) {
+    // Refresh when connection is established
+    fetchStreamersStatus(false)
   }
 }, { immediate: true })
 
 onMounted(() => {
-  void fetchStreamers()
+  // Initial fetch
+  fetchStreamersStatus()
 })
 </script>
 
@@ -412,6 +398,7 @@ onMounted(() => {
   color: var(--text-secondary, #adadb8);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

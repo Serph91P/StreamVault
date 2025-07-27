@@ -105,7 +105,6 @@ export function useRecordingSettings() {
         const data = await response.json();
         settings.value = {
           enabled: data.enabled,
-          output_directory: data.output_directory,
           filename_template: data.filename_template,
           filename_preset: data.filename_preset,
           default_quality: data.default_quality,
@@ -135,7 +134,6 @@ export function useRecordingSettings() {
         },
         body: JSON.stringify({
           enabled: newSettings.enabled,
-          output_directory: newSettings.output_directory,
           filename_template: newSettings.filename_template,
           filename_preset: newSettings.filename_preset,
           default_quality: newSettings.default_quality,
@@ -149,7 +147,6 @@ export function useRecordingSettings() {
         const data = await response.json();
         settings.value = {
           enabled: data.enabled,
-          output_directory: data.output_directory,
           filename_template: data.filename_template,
           filename_preset: data.filename_preset,
           default_quality: data.default_quality,

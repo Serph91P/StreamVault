@@ -27,19 +27,23 @@ def run_migration():
         
         logger.info("🔄 Adding database indexes...")
         
-        # Streamers indexes
+        # Streamers indexes - mit korrekten Spaltennamen aus den Models
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_twitch_id ON streamers (twitch_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_username ON streamers (username)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_is_live ON streamers (is_live)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_category_name ON streamers (category_name)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_is_favorite ON streamers (is_favorite)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streamers_auto_record ON streamers (auto_record)"))
         logger.info("✅ Added streamers indexes")
         
-        # Streams indexes
+        # Streams indexes - mit korrekten Spaltennamen
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_id ON streams (streamer_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_started_at ON streams (started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_ended_at ON streams (ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_name ON streams (category_name)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_twitch_stream_id ON streams (twitch_stream_id)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_title ON streams (title)"))
+        # Composite indexes für bessere Performance
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_active ON streams (streamer_id, ended_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_streamer_recent ON streams (streamer_id, started_at)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS idx_streams_category_recent ON streams (category_name, started_at)"))

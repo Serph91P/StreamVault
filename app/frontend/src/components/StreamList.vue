@@ -451,8 +451,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
-import { useRecordingSettings } from '@/composables/useRecordingSettings'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useHybridStatus } from '@/composables/useHybridStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
 import type { Stream } from '@/types/streams'
@@ -501,8 +500,7 @@ const streamerId = computed(() => props.streamerId || route.params.id as string 
 const streamerName = computed(() => props.streamerName || route.query.name as string)
 
 const { streams, isLoading, fetchStreams } = useStreams()
-const { activeRecordings, fetchActiveRecordings } = useRecordingSettings()
-const { messages } = useWebSocket()
+const { activeRecordings } = useHybridStatus()
 const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 
 // UI State
@@ -549,30 +547,11 @@ const isStreamBeingRecorded = (stream: Stream): boolean => {
     return false
   }
   
-  return activeRecordings.value.some(rec => {
+  return activeRecordings.value.some((rec: any) => {
     const recordingStreamId = Number(rec.streamer_id)
     return recordingStreamId === streamerId && !stream.ended_at
   })
 }
-
-// WebSocket message handling
-watch(messages, (newMessages) => {
-  if (!newMessages || newMessages.length === 0) return
-  
-  const latestMessage = newMessages[newMessages.length - 1]
-  
-  if (latestMessage.type === 'recording_started') {
-    const streamId = Number(latestMessage.data?.stream_id)
-    if (streamId) {
-      localRecordingState.value[streamId] = true
-    }
-  } else if (latestMessage.type === 'recording_stopped') {
-    const streamId = Number(latestMessage.data?.stream_id)
-    if (streamId) {
-      localRecordingState.value[streamId] = false
-    }
-  }
-}, { deep: true })
 
 // Utility Functions
 const getCategoryImageSrc = (categoryName: string): string => {
@@ -855,7 +834,6 @@ const forceStopRecording = async (stream: Stream) => {
 onMounted(async () => {
   if (streamerId.value) {
     await fetchStreams(streamerId.value)
-    await fetchActiveRecordings()
     
     // Preload category images
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]

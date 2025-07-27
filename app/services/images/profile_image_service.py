@@ -6,6 +6,7 @@ Handles downloading, caching, and serving of streamer profile images.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
@@ -28,9 +29,32 @@ class ProfileImageService:
     def _ensure_profiles_dir(self):
         """Ensure profiles directory exists"""
         if self.profiles_dir is None:
-            images_base_dir = self.download_service.get_images_base_dir()
-            self.profiles_dir = images_base_dir / "profiles"
-            self.profiles_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                images_base_dir = self.download_service.get_images_base_dir()
+                self.profiles_dir = images_base_dir / "profiles"
+                self.profiles_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to initialize profiles directory: {e}")
+                # Fallback to a permanent path in the data directory
+                fallback_dir = Path("/recordings/.media/profiles")
+                try:
+                    self.profiles_dir = fallback_dir
+                    self.profiles_dir.mkdir(parents=True, exist_ok=True)
+                    logger.warning(f"Using fallback profiles directory: {self.profiles_dir}")
+                except Exception as fallback_error:
+                    logger.critical(f"Failed to initialize fallback profiles directory: {fallback_error}")
+                    raise RuntimeError("Unable to initialize profiles directory or fallback directory.")
+    
+    def _get_twitch_id_for_streamer(self, streamer_id: int) -> Optional[str]:
+        """Get Twitch ID for a streamer by internal ID"""
+        try:
+            with SessionLocal() as db:
+                from app.models import Streamer
+                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                return streamer.twitch_id if streamer else None
+        except Exception as e:
+            logger.error(f"Error getting Twitch ID for streamer {streamer_id}: {e}")
+            return None
     
     def _extract_streamer_id_from_filename(self, image_file: Path) -> Optional[str]:
         """Extract streamer ID from profile image filename (supports both old and new formats)"""
@@ -48,16 +72,41 @@ class ProfileImageService:
             
             if self.profiles_dir and self.profiles_dir.exists():
                 for image_file in self.profiles_dir.glob("*.jpg"):
-                    streamer_id = self._extract_streamer_id_from_filename(image_file)
-                    if streamer_id is None:
+                    extracted_id = self._extract_streamer_id_from_filename(image_file)
+                    if extracted_id is None:
                         continue  # Skip files that don't match expected patterns
                     
-                    relative_path = f"/data/images/profiles/{image_file.name}"
-                    self._profile_cache[streamer_id] = relative_path
+                    # Convert to internal streamer ID for cache key
+                    internal_id = self._get_internal_id_for_extracted_id(extracted_id)
+                    if internal_id:
+                        relative_path = f"/data/images/profiles/{image_file.name}"
+                        self._profile_cache[str(internal_id)] = relative_path
             
             logger.info(f"Loaded profile image cache: {len(self._profile_cache)} profiles")
         except Exception as e:
             logger.error(f"Error loading profile image cache: {e}")
+
+    def _get_internal_id_for_extracted_id(self, extracted_id: str) -> Optional[int]:
+        """Convert extracted ID (could be internal ID or Twitch ID) to internal streamer ID"""
+        try:
+            with SessionLocal() as db:
+                from app.models import Streamer
+                
+                # First try as internal ID (for old files)
+                if extracted_id.isdigit():
+                    streamer = db.query(Streamer).filter(Streamer.id == int(extracted_id)).first()
+                    if streamer:
+                        return streamer.id
+                
+                # Then try as Twitch ID (for new files)
+                streamer = db.query(Streamer).filter(Streamer.twitch_id == extracted_id).first()
+                if streamer:
+                    return streamer.id
+                    
+                return None
+        except Exception as e:
+            logger.error(f"Error converting extracted ID {extracted_id} to internal ID: {e}")
+            return None
 
     async def download_profile_image(self, streamer_id: int, profile_image_url: str) -> Optional[str]:
         """
@@ -75,6 +124,12 @@ class ProfileImageService:
         if not profile_image_url:
             return None
             
+        # Get the Twitch ID for proper filename
+        twitch_id = self._get_twitch_id_for_streamer(streamer_id)
+        if not twitch_id:
+            logger.warning(f"Could not find Twitch ID for streamer {streamer_id}")
+            return None
+            
         # Check if already cached
         streamer_id_str = str(streamer_id)
         if streamer_id_str in self._profile_cache:
@@ -85,7 +140,11 @@ class ProfileImageService:
             return None
             
         try:
-            filename = f"profile_avatar_{streamer_id}.jpg"
+            filename = f"profile_avatar_{twitch_id}.jpg"
+            # Ensure profiles directory is properly initialized
+            if self.profiles_dir is None:
+                logger.error("Profiles directory not initialized")
+                return None
             file_path = self.profiles_dir / filename
             
             success = await self.download_service.download_image(profile_image_url, file_path)
@@ -177,6 +236,9 @@ class ProfileImageService:
                 active_streamer_ids = set(str(s.id) for s in db.query(Streamer.id).all())
             
             # Check cached images (both old and new format)
+            if self.profiles_dir is None:
+                logger.error("Profiles directory not initialized for cleanup")
+                return cleaned_count
             for image_file in self.profiles_dir.glob("*.jpg"):
                 streamer_id = self._extract_streamer_id_from_filename(image_file)
                 if streamer_id is None:
