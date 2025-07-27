@@ -228,15 +228,23 @@ async def get_streamers_status() -> Dict[str, Any]:
                 if is_live:
                     online_count += 1
                 
+                # Get profile image URL safely
+                profile_image_url = None
+                try:
+                    if unified_image_service:
+                        profile_image_url = unified_image_service.get_profile_image_url(
+                            streamer.id, 
+                            streamer.profile_image_url
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to get profile image URL for streamer {streamer.id}: {e}")
+                
                 streamer_status.append({
                     "id": streamer.id,
                     "name": streamer.username,
                     "display_name": streamer.display_name,
                     "twitch_id": streamer.twitch_id,
-                    "profile_image_url": unified_image_service.get_profile_image_url(
-                        streamer.id, 
-                        streamer.profile_image_url
-                    ),
+                    "profile_image_url": profile_image_url,
                     "is_live": is_live,
                     "is_recording": is_recording,
                     "is_favorite": streamer.is_favorite,
