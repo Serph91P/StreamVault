@@ -177,7 +177,11 @@ const handleImageError = (event: Event) => {
   if (target) {
     // Hide the broken image and let the placeholder show instead
     target.style.display = 'none'
-    console.warn('Failed to load profile image:', target.src)
+    
+    // Only log in development mode
+    if (import.meta.env.DEV) {
+      console.warn('Failed to load profile image:', target.src)
+    }
   }
 }
 
