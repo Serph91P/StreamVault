@@ -49,7 +49,13 @@ class Streamer(Base):
     
     @property
     def display_name(self):
-        """Return username as display_name for compatibility"""
+        """[DEPRECATED] Use `username` directly instead. This property will be removed in the future."""
+        import warnings
+        warnings.warn(
+            "The `display_name` property is deprecated and will be removed in the future. Use `username` instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.username
 class Stream(Base):
     __tablename__ = "streams"
