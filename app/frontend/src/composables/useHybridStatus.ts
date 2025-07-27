@@ -13,6 +13,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
 import { useWebSocket } from './useWebSocket'
 
+// Configuration constants
+const TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
+
 interface SystemStatus {
   active_recordings: number
   total_streamers: number
@@ -433,7 +436,7 @@ export function useHybridStatus() {
         Date.now() - lastUpdate.value.getTime() : 
         Infinity
       
-      if (!isOnline.value || timeSinceLastUpdate > 45000) {
+      if (!isOnline.value || timeSinceLastUpdate > TIMEOUT_THRESHOLD_MS) {
         fetchAllStatus(true) // Use cache for periodic refresh
       }
     }, intervalMs)
