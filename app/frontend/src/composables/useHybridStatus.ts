@@ -13,6 +13,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
 import { useWebSocket } from './useWebSocket'
 
+// Configuration constants
+const TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
+
 interface SystemStatus {
   active_recordings: number
   total_streamers: number
