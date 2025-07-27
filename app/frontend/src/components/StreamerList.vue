@@ -9,12 +9,16 @@
           <div class="streamer-info">
             <div class="profile-image-wrapper">
               <img 
-                v-if="(streamer as any).profile_image_url || (streamer as any).image_url"
-                :src="(streamer as any).profile_image_url || (streamer as any).image_url"
+                v-if="streamer.profile_image_url"
+                :src="streamer.profile_image_url"
                 class="profile-image"
                 :alt="streamer.name"
                 loading="lazy"
+                @error="handleImageError"
               />
+              <div v-else class="profile-image-placeholder">
+                {{ streamer.name.charAt(0).toUpperCase() }}
+              </div>
               <span class="status-dot" :class="{ 'live': streamer.is_live }"></span>
             </div>
             <h3 class="streamer-name-link" @click="navigateToTwitch(streamer.name)">
