@@ -231,6 +231,7 @@ async def get_streamers_status() -> Dict[str, Any]:
                     "id": streamer.id,
                     "name": streamer.username,
                     "display_name": streamer.display_name,
+                    "twitch_id": streamer.twitch_id,
                     "is_live": is_live,
                     "is_recording": is_recording,
                     "is_favorite": streamer.is_favorite,

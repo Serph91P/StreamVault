@@ -9,8 +9,8 @@
           <div class="streamer-info">
             <div class="profile-image-wrapper">
               <img 
-                v-if="streamer.profile_image_url"
-                :src="streamer.profile_image_url"
+                v-if="getProfileImageUrl(streamer)"
+                :src="getProfileImageUrl(streamer)"
                 class="profile-image"
                 :alt="streamer.name"
                 loading="lazy"
@@ -107,6 +107,10 @@ interface StreamerUpdateData {
   last_updated: string
 }
 
+interface StreamerWithTwitchId {
+  twitch_id: string
+}
+
 // Use hybrid status for real-time streamer updates
 const {
   streamersStatus,
@@ -166,6 +170,11 @@ const formatDate = (date: string | undefined): string => {
   
   // Show full date for older updates
   return updated.toLocaleString()
+}
+
+const getProfileImageUrl = (streamer: StreamerWithTwitchId): string | undefined => {
+  if (!streamer.twitch_id) return undefined
+  return `/static/profiles/profile_avatar_${streamer.twitch_id}.jpg`
 }
 
 const navigateToTwitch = (username: string) => {
