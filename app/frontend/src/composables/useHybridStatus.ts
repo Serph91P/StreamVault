@@ -47,6 +47,7 @@ interface StreamerStatus {
   name: string
   display_name: string
   twitch_id: string
+  profile_image_url?: string
   is_live: boolean
   is_recording: boolean
   is_favorite: boolean
