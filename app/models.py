@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 import json
+import warnings
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -50,7 +51,6 @@ class Streamer(Base):
     @property
     def display_name(self):
         """[DEPRECATED] Use `username` directly instead. This property will be removed in the future."""
-        import warnings
         warnings.warn(
             "The `display_name` property is deprecated and will be removed in the future. Use `username` instead.",
             DeprecationWarning,
