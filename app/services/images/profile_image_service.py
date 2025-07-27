@@ -35,9 +35,15 @@ class ProfileImageService:
                 self.profiles_dir.mkdir(parents=True, exist_ok=True)
             except Exception as e:
                 logger.error(f"Failed to initialize profiles directory: {e}")
-                # Fallback to a temporary path
-                self.profiles_dir = Path(tempfile.gettempdir()) / "profiles"
-                self.profiles_dir.mkdir(parents=True, exist_ok=True)
+                # Fallback to a permanent path in the data directory
+                fallback_dir = Path("/recordings/.media/profiles")
+                try:
+                    self.profiles_dir = fallback_dir
+                    self.profiles_dir.mkdir(parents=True, exist_ok=True)
+                    logger.warning(f"Using fallback profiles directory: {self.profiles_dir}")
+                except Exception as fallback_error:
+                    logger.critical(f"Failed to initialize fallback profiles directory: {fallback_error}")
+                    raise RuntimeError("Unable to initialize profiles directory or fallback directory.")
     
     def _get_twitch_id_for_streamer(self, streamer_id: int) -> Optional[str]:
         """Get Twitch ID for a streamer by internal ID"""
