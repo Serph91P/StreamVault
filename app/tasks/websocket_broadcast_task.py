@@ -14,6 +14,9 @@ from sqlalchemy import and_
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 
+# Configuration constants
+CLEANUP_INTERVAL_CYCLES = 30  # Number of 10-second cycles before running cleanup (5 minutes)
+
 logger = logging.getLogger("streamvault")
 
 class WebSocketBroadcastTask:
@@ -68,8 +71,8 @@ class WebSocketBroadcastTask:
                     if queue_update_counter % 6 == 0:
                         await self._broadcast_background_queue_status()
                     
-                    # Auto-cleanup stuck tasks every 5 minutes (30 cycles of 10 seconds)
-                    if cleanup_counter % 30 == 0 and cleanup_counter > 0:
+                    # Auto-cleanup stuck tasks every 5 minutes (CLEANUP_INTERVAL_CYCLES cycles of 10 seconds)
+                    if cleanup_counter % CLEANUP_INTERVAL_CYCLES == 0 and cleanup_counter > 0:
                         await self._auto_cleanup_stuck_tasks()
                     
                     recording_update_counter += 1
