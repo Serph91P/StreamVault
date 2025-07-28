@@ -4,14 +4,14 @@
       <div class="section-header">
         <h3>🔧 Background Queue Management</h3>
         <p class="section-description">
-          Behebe automatisch Probleme mit der Background Queue:
-          Recording Jobs die hängen bleiben, continuous Orphaned Recovery, und "Unknown" Task Names.
+          Automatically fix Background Queue issues:
+          Recording jobs that get stuck, continuous Orphaned Recovery, and "Unknown" task names.
         </p>
       </div>
 
       <!-- Status Overview -->
       <div class="status-card" v-if="status">
-        <h4>📊 Aktueller Status</h4>
+        <h4>📊 Current Status</h4>
         <div class="status-grid">
           <div class="status-item">
             <span class="label">External Tasks:</span>
@@ -37,12 +37,12 @@
         
         <div class="total-issues" v-if="status.total_issues > 0">
           <span class="issues-badge error">
-            ⚠️ {{ status.total_issues }} Probleme erkannt
+            ⚠️ {{ status.total_issues }} Issues Detected
           </span>
         </div>
         <div class="total-issues" v-else>
           <span class="issues-badge success">
-            ✅ Keine Probleme erkannt
+            ✅ No Issues Detected
           </span>
         </div>
       </div>
@@ -88,7 +88,7 @@
         >
           <span v-if="loading">🔄</span>
           <span v-else>🔄</span>
-          Status aktualisieren
+          Refresh Status
         </button>
 
         <button 
@@ -98,7 +98,7 @@
         >
           <span v-if="loading">⏳</span>
           <span v-else>🧹</span>
-          Alle Probleme beheben
+          Fix All Issues
         </button>
 
         <button 
@@ -108,7 +108,7 @@
         >
           <span v-if="loading">⏳</span>
           <span v-else>🔧</span>
-          Nur Stuck Recordings
+          Fix Stuck Recordings Only
         </button>
 
         <button 
@@ -118,7 +118,7 @@
         >
           <span v-if="loading">⏳</span>
           <span v-else>🛑</span>
-          Orphaned Recovery stoppen
+          Stop Orphaned Recovery
         </button>
 
         <button 
@@ -128,7 +128,7 @@
         >
           <span v-if="loading">⏳</span>
           <span v-else>🏷️</span>
-          Task Names beheben
+          Fix Task Names
         </button>
       </div>
 
@@ -138,26 +138,26 @@
           class="result-message"
           :class="{ success: lastResult.success, error: !lastResult.success }"
         >
-          <h5>{{ lastResult.success ? '✅' : '❌' }} Ergebnis</h5>
+          <h5>{{ lastResult.success ? '✅' : '❌' }} Result</h5>
           <p>{{ lastResult.message }}</p>
           
           <div class="result-details" v-if="lastResult.success">
             <div v-if="lastResult.stuck_recordings_fixed > 0">
-              🔧 Stuck Recordings behoben: {{ lastResult.stuck_recordings_fixed }}
+              🔧 Stuck Recordings Fixed: {{ lastResult.stuck_recordings_fixed }}
             </div>
             <div v-if="lastResult.orphaned_recovery_stopped > 0">
-              🛑 Orphaned Recovery gestoppt: {{ lastResult.orphaned_recovery_stopped }}
+              🛑 Orphaned Recovery Stopped: {{ lastResult.orphaned_recovery_stopped }}
             </div>
             <div v-if="lastResult.task_names_fixed > 0">
-              🏷️ Task Names behoben: {{ lastResult.task_names_fixed }}
+              🏷️ Task Names Fixed: {{ lastResult.task_names_fixed }}
             </div>
             <div v-if="lastResult.total_issues_fixed > 0" class="total-fixed">
-              <strong>🎯 Gesamt behoben: {{ lastResult.total_issues_fixed }}</strong>
+              <strong>🎯 Total Fixed: {{ lastResult.total_issues_fixed }}</strong>
             </div>
           </div>
           
           <div class="error-details" v-if="lastResult.errors && lastResult.errors.length > 0">
-            <h6>Fehler:</h6>
+            <h6>Errors:</h6>
             <ul>
               <li v-for="error in lastResult.errors" :key="error">{{ error }}</li>
             </ul>
