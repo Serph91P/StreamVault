@@ -22,6 +22,19 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants for URL patterns and template
+TWITCH_PROFILE_IMAGE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
+OLD_URL_PATTERN = r'^https://static-cdn\.jtvnw\.net/jtv_user_pictures/\d+-profile_image'
+OLD_CACHED_FILENAME_PATTERN = r'profile_avatar_\d+\.jpg'
+OLD_URL_SEARCH_PATTERN = r'jtv_user_pictures/\d+-profile_image'
+
+def validate_twitch_id(twitch_id):
+    """Validate Twitch ID to prevent URL injection"""
+    if not twitch_id:
+        return False
+    # Twitch IDs should be alphanumeric with possible hyphens/underscores
+    return re.match(r'^[a-zA-Z0-9_-]+$', str(twitch_id)) is not None
+
 def run_migration():
     """Update Twitch profile URLs to force refresh from API"""
     session = None
@@ -37,16 +50,13 @@ def run_migration():
         
         logger.info("Starting migration 016: Update Twitch Profile URLs")
         
-        # Find streamers with old numeric Twitch profile URLs
-        old_url_pattern = r'https://static-cdn\.jtvnw\.net/jtv_user_pictures/\d+-profile_image'
-        
         # Query streamers with old format URLs
         result = session.execute(text("""
             SELECT id, username, twitch_id, profile_image_url, original_profile_image_url 
             FROM streamers 
             WHERE profile_image_url ~ :pattern 
                OR original_profile_image_url ~ :pattern
-        """), {"pattern": old_url_pattern})
+        """), {"pattern": OLD_URL_PATTERN})
         
         streamers_to_update = result.fetchall()
         logger.info(f"Found {len(streamers_to_update)} streamers with old profile URLs")
@@ -56,10 +66,15 @@ def run_migration():
         for streamer in streamers_to_update:
             streamer_id, username, twitch_id, profile_url, original_url = streamer
             
+            # Validate Twitch ID before using in URL
+            if not validate_twitch_id(twitch_id):
+                logger.warning(f"Invalid Twitch ID for streamer {username}: {twitch_id}")
+                continue
+            
             logger.info(f"Updating streamer {username} (ID: {streamer_id}, Twitch ID: {twitch_id})")
             
-            # Generate new profile URL using Twitch ID
-            new_profile_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
+            # Generate new profile URL using template
+            new_profile_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(twitch_id=twitch_id)
             
             # Clear the cached profile_image_url to force re-download
             # Set it to the new URL so the image service will download it
@@ -91,7 +106,7 @@ def run_migration():
             streamer_id, username, cached_path = streamer
             
             # Check if the cached path uses old numeric ID format
-            if re.search(r'profile_avatar_\d+\.jpg', cached_path):
+            if re.search(OLD_CACHED_FILENAME_PATTERN, cached_path):
                 # Get the current original_profile_image_url to restore
                 result = session.execute(text("""
                     SELECT original_profile_image_url, twitch_id 
@@ -103,9 +118,14 @@ def run_migration():
                 if streamer_data:
                     original_url, twitch_id = streamer_data
                     
+                    # Validate Twitch ID before using in URL
+                    if not validate_twitch_id(twitch_id):
+                        logger.warning(f"Invalid Twitch ID for streamer {username}: {twitch_id}")
+                        continue
+                    
                     # If original URL is also old format, update it
-                    if not original_url or re.search(r'jtv_user_pictures/\d+-profile_image', original_url):
-                        new_original_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
+                    if not original_url or re.search(OLD_URL_SEARCH_PATTERN, original_url):
+                        new_original_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(twitch_id=twitch_id)
                     else:
                         new_original_url = original_url
                     
