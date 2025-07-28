@@ -333,9 +333,13 @@ class TaskQueueManager:
                         # Mark dependency task as running
                         await self.dependency_manager.mark_task_running(dep_task.id)
                         
-                        # Enqueue the actual task
-                        priority_value = -queue_task.priority.value
-                        await self.task_queue.put((priority_value, queue_task))
+                        # Enqueue the actual task with proper routing
+                        if self.enable_streamer_isolation:
+                            streamer_name = self._extract_streamer_name(queue_task.payload)
+                            await self._enqueue_to_streamer_queue(queue_task, streamer_name)
+                        else:
+                            priority_value = -queue_task.priority.value
+                            await self.task_queue.put((priority_value, queue_task))
                         
                         logger.debug(f"Dependency worker enqueued ready task {dep_task.id}")
                 
