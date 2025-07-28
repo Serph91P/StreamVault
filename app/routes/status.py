@@ -275,8 +275,8 @@ async def get_streams_status() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get recent streams (last 24 hours)
-            from datetime import timedelta
-            recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+            from datetime import timedelta, timezone
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
             
             recent_streams = db.query(Stream).filter(
                 Stream.created_at >= recent_cutoff
@@ -295,7 +295,15 @@ async def get_streams_status() -> Dict[str, Any]:
                 is_live = stream.ended_at is None
                 duration = None
                 if is_live and stream.started_at:
-                    duration = (datetime.utcnow() - stream.started_at).total_seconds()
+                    # Ensure both datetimes are timezone-aware
+                    now_utc = datetime.now(timezone.utc)
+                    start_time = stream.started_at
+                    
+                    # If started_at is naive, assume UTC
+                    if start_time.tzinfo is None:
+                        start_time = start_time.replace(tzinfo=timezone.utc)
+                    
+                    duration = (now_utc - start_time).total_seconds()
                 
                 streams_data.append({
                     "id": stream.id,
@@ -316,7 +324,7 @@ async def get_streams_status() -> Dict[str, Any]:
                     "live_count": len(live_streams),
                     "recorded_count": len([s for s in streams_data if s["has_recording"]])
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
     except Exception as e:
@@ -343,7 +351,7 @@ async def get_notifications_status() -> Dict[str, Any]:
             recent_events = []
             try:
                 from datetime import timedelta
-                recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+                recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
                 
                 events = db.query(StreamEvent).filter(
                     StreamEvent.timestamp >= recent_cutoff
@@ -354,7 +362,8 @@ async def get_notifications_status() -> Dict[str, Any]:
                         "id": event.id,
                         "type": event.event_type,
                         "streamer_name": event.stream.streamer.username if event.stream and event.stream.streamer else "Unknown",
-                        "message": event.message,
+                        "title": event.title,
+                        "category_name": event.category_name,
                         "timestamp": event.timestamp.isoformat()
                     })
             except Exception as e:
@@ -368,7 +377,7 @@ async def get_notifications_status() -> Dict[str, Any]:
                     "streamers_with_notifications": len(notification_settings)
                 },
                 "recent_events": recent_events,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
     except Exception as e:
