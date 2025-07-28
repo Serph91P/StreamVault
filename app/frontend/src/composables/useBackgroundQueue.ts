@@ -188,23 +188,26 @@ export function useBackgroundQueue() {
     
     // Handle queue-related WebSocket messages
     if (latestMessage.type === 'background_queue_update') {
-      // Update all data from WebSocket broadcast
+      // PRIORITY: WebSocket data overwrites everything
+      console.log('🔄 WebSocket: Updating background queue from WebSocket data')
+      
       if (latestMessage.data.stats) {
         Object.assign(queueStats.value, latestMessage.data.stats)
       }
-      if (latestMessage.data.active_tasks) {
+      if (Array.isArray(latestMessage.data.active_tasks)) {
         activeTasks.value = latestMessage.data.active_tasks
+        console.log(`🔄 WebSocket: Set ${latestMessage.data.active_tasks.length} active tasks`)
       }
-      if (latestMessage.data.recent_tasks) {
+      if (Array.isArray(latestMessage.data.recent_tasks)) {
         recentTasks.value = latestMessage.data.recent_tasks
+        console.log(`🔄 WebSocket: Set ${latestMessage.data.recent_tasks.length} recent tasks`)
       }
+      
     } else if (latestMessage.type === 'queue_stats_update') {
       Object.assign(queueStats.value, latestMessage.data)
-      // Refresh task lists when queue stats update
-      await Promise.all([
-        fetchActiveTasks(),
-        fetchRecentTasks()
-      ])
+      // Don't refresh task lists when we get WebSocket updates - trust WebSocket data
+      console.log('🔄 WebSocket: Updated queue stats only')
+      
     } else if (latestMessage.type === 'task_status_update') {
       const taskData = latestMessage.data
       
