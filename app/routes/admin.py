@@ -12,6 +12,23 @@ from pydantic import BaseModel
 # Import test service locally to avoid initialization issues
 # from app.services.test_service import test_service  # REMOVED
 
+# Constants for background queue management
+RECORDING_TASK_PREFIX = 'recording_'
+MAX_PROGRESS = 100
+ORPHANED_RECOVERY_TASK_TYPE = 'orphaned_recovery_check'
+UNKNOWN_TASK_TYPES = ['unknown', '']
+
+# Background queue service - lazy import to avoid circular dependencies
+_background_queue_service = None
+
+def get_background_queue_service():
+    """Get background queue service with lazy loading"""
+    global _background_queue_service
+    if _background_queue_service is None:
+        from app.services.background_queue_service import background_queue_service
+        _background_queue_service = background_queue_service
+    return _background_queue_service
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["admin"]
@@ -1083,8 +1100,9 @@ async def get_background_queue_status():
     Shows the current status of the Background Queue and detected issues
     """
     try:
-        from app.services.background_queue_service import background_queue_service
+        background_queue_service = get_background_queue_service()
         
+        # Use proper API methods instead of getattr when available
         external_tasks = getattr(background_queue_service, 'external_tasks', {})
         active_tasks = getattr(background_queue_service, 'active_tasks', {})
         
@@ -1093,21 +1111,21 @@ async def get_background_queue_status():
         continuous_orphaned = []
         unknown_tasks = []
         
-        # Check external tasks for stuck recordings
+        # Check external tasks for stuck recordings using constants
         for task_id, task in external_tasks.items():
-            if task_id.startswith('recording_') and task.task_type == 'recording':
-                if task.progress >= 100 and task.status.value == 'running':
+            if task_id.startswith(RECORDING_TASK_PREFIX) and task.task_type == 'recording':
+                if task.progress >= MAX_PROGRESS and task.status.value == 'running':
                     stuck_recordings.append(task_id)
             
-            if not task.task_type or task.task_type in ['unknown', '']:
+            if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
                 unknown_tasks.append(task_id)
         
-        # Check active tasks
+        # Check active tasks using constants
         for task_id, task in active_tasks.items():
-            if task.task_type == 'orphaned_recovery_check':
+            if task.task_type == ORPHANED_RECOVERY_TASK_TYPE:
                 continuous_orphaned.append(task_id)
             
-            if not task.task_type or task.task_type in ['unknown', '']:
+            if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
                 unknown_tasks.append(task_id)
         
         total_issues = len(stuck_recordings) + len(continuous_orphaned) + len(unknown_tasks)
