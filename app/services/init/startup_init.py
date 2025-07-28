@@ -2,6 +2,12 @@
 Startup initialization for background services
 """
 
+import asyncio
+import logging
+from app.services.init.background_queue_init import initialize_background_queue, shutdown_background_queue
+
+logger = logging.getLogger("streamvault")
+
 async def initialize_background_queue_with_fixes():
     """Initialize background queue with production concurrency and auth fixes"""
     try:
@@ -63,10 +69,7 @@ async def start_session_cleanup_service():
         
     except Exception as e:
         logger.error(f"❌ Failed to start session cleanup service: {e}")
-        logger.warning("⚠️ Session cleanup disabled, may cause auth issues in production")mport logging
-from app.services.init.background_queue_init import initialize_background_queue, shutdown_background_queue
-
-logger = logging.getLogger("streamvault")
+        logger.warning("⚠️ Session cleanup disabled, may cause auth issues in production")
 
 async def initialize_vapid_keys():
     """Initialize VAPID keys for push notifications at startup"""
