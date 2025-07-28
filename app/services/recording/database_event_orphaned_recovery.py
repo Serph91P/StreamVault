@@ -67,10 +67,13 @@ class DatabaseEventOrphanedRecovery:
         try:
             logger.debug(f"🔍 POST_PROCESSING_COMPLETED: {recording_id} - {task_type}")
             
-            # After any post-processing completes, check for other orphaned recordings
-            # This creates a "chain reaction" of recovery
-            if task_type in ["mp4_remux", "cleanup"] and self._should_run_orphaned_check():
-                await self._trigger_orphaned_recovery_check("post_processing_completed")
+            # FIXED: Don't trigger orphaned recovery after every post-processing completion
+            # This was causing continuous orphaned recovery checks
+            # Orphaned recovery should only run:
+            # 1. Once at startup
+            # 2. When explicitly triggered via API
+            # 3. When streams end (to catch failed recordings)
+            logger.debug(f"✅ POST_PROCESSING_COMPLETED: {task_type} for recording {recording_id} - no orphaned check needed")
                 
         except Exception as e:
             logger.error(f"Error handling post-processing completion: {e}", exc_info=True)
