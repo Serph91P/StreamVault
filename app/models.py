@@ -84,6 +84,7 @@ class Stream(Base):
     streamer = relationship("Streamer", backref="streams")
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
     active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False, cascade="all, delete-orphan")
+    events = relationship("StreamEvent", back_populates="stream", cascade="all, delete-orphan")
     
     @property
     def is_live(self):
@@ -106,6 +107,9 @@ class StreamEvent(Base):
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relationships
+    stream = relationship("Stream", back_populates="events")
     
 class User(Base):
     __tablename__ = "users"
