@@ -138,10 +138,6 @@ class UnifiedImageService:
         """Get cached category image path"""
         return self.category_service.get_cached_category_image(category_name)
 
-    def get_cached_category_image(self, category_name: str) -> Optional[str]:
-        """Get cached category image path"""
-        return self.category_service.get_cached_category_image(category_name)
-
     def get_category_image_url(self, category_name: str) -> Optional[str]:
         """Get category image URL (legacy compatibility method)"""
         return self.category_service.get_cached_category_image_with_download(category_name)
