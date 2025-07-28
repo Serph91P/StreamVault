@@ -114,45 +114,25 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 
-// Use hybrid status for background queue
+// Use WebSocket-only background queue
 const {
-  backgroundQueue,
+  queueStats,
+  activeTasks,
+  recentTasks,
   isLoading,
-  error,
-  fetchBackgroundQueue
-} = useHybridStatus()
+  connectionStatus,
+  forceRefreshFromAPI,
+  cancelStreamTasks
+} = useBackgroundQueue()
 
 // UI State
 const showPanel = ref(false)
 
-// Computed properties derived from hybrid status
-const queueStats = computed(() => {
-  if (!backgroundQueue.value?.stats) {
-    return {
-      total_tasks: 0,
-      active_tasks: 0,
-      completed_tasks: 0,
-      failed_tasks: 0,
-      pending_tasks: 0
-    }
-  }
-  
-  const stats = backgroundQueue.value.stats
-  return {
-    total_tasks: (stats.completed || 0) + (stats.failed || 0) + (stats.pending || 0) + (stats.running || 0),
-    active_tasks: stats.running || 0,
-    completed_tasks: stats.completed || 0,
-    failed_tasks: stats.failed || 0,
-    pending_tasks: stats.pending || 0
-  }
-})
-
-const activeTasks = computed(() => backgroundQueue.value?.active_tasks || [])
-const recentTasks = computed(() => backgroundQueue.value?.recent_tasks || [])
-
+// Additional computed properties
 const hasActiveTasks = computed(() => activeTasks.value.length > 0)
+const isConnected = computed(() => connectionStatus.value === 'connected')
 
 const totalProgress = computed(() => {
   if (!hasActiveTasks.value) return 0
@@ -163,7 +143,7 @@ const totalProgress = computed(() => {
 
 const statusIconClass = computed(() => {
   if (isLoading.value) return 'status-loading'
-  if (error.value) return 'status-error'
+  if (!isConnected.value) return 'status-error'
   if (queueStats.value.failed_tasks > 0) return 'status-error'
   if (queueStats.value.active_tasks > 0) return 'status-active'
   return 'status-idle'
@@ -174,7 +154,7 @@ const togglePanel = () => {
   
   // Refresh data when panel is opened
   if (showPanel.value) {
-    fetchBackgroundQueue(false) // Force refresh
+    forceRefreshFromAPI() // Force refresh via API fallback
   }
 }
 
