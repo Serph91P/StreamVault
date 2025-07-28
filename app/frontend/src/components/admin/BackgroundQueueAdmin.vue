@@ -192,7 +192,7 @@ export default {
         console.error('Error fetching background queue status:', error)
         lastResult.value = {
           success: false,
-          message: 'Fehler beim Laden des Status: ' + error.message
+          message: 'Error loading status: ' + error.message
         }
       } finally {
         loading.value = false
@@ -225,7 +225,7 @@ export default {
         console.error(`Error in ${actionName}:`, error)
         lastResult.value = {
           success: false,
-          message: `Fehler bei ${actionName}: ${error.message}`,
+          message: `Error in ${actionName}: ${error.message}`,
           errors: [error.message]
         }
       } finally {
@@ -233,7 +233,7 @@ export default {
       }
     }
 
-    const fixAllIssues = () => performCleanup('all', 'Gesamte Bereinigung')
+    const fixAllIssues = () => performCleanup('all', 'Complete Cleanup')
     const fixStuckRecordings = () => performCleanup('stuck-recordings', 'Stuck Recordings Fix')
     const stopOrphanedRecovery = () => performCleanup('orphaned-recovery', 'Orphaned Recovery Stop')
     const fixTaskNames = () => performCleanup('task-names', 'Task Names Fix')
