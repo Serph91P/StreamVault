@@ -33,18 +33,12 @@ async def get_active_tasks() -> List[Dict[str, Any]]:
         # Get active tasks from the queue service
         for task_id, task in queue_service.active_tasks.items():
             task_info = task.to_dict()
-            # Debug logging for task payload
-            streamer_name = task_info.get('payload', {}).get('streamer_name', 'NOT_FOUND')
-            logger.info(f"Active task {task_id}: type={task_info.get('task_type')}, streamer_name={streamer_name}, payload_keys={list(task_info.get('payload', {}).keys())}")
             active_tasks.append(task_info)
         
         # Also include external tasks (like recordings)
         for task_id, task in queue_service.external_tasks.items():
             if task.status.value in ['running', 'pending']:
                 task_info = task.to_dict()
-                # Debug logging for external task payload
-                streamer_name = task_info.get('payload', {}).get('streamer_name', 'NOT_FOUND')
-                logger.info(f"External task {task_id}: type={task_info.get('task_type')}, streamer_name={streamer_name}, payload_keys={list(task_info.get('payload', {}).keys())}")
                 active_tasks.append(task_info)
         
         return active_tasks
