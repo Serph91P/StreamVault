@@ -46,8 +46,8 @@
           </div>
         </div>
         <div class="streamer-content">
-          <p v-if="streamer.current_title"><strong>Title:</strong> {{ streamer.current_title || '-' }}</p>
-          <p v-if="streamer.current_category"><strong>Category:</strong> {{ streamer.current_category || '-' }}</p>
+          <p><strong>Title:</strong> {{ streamer.current_title || (streamer as any).last_title || '-' }}</p>
+          <p><strong>Category:</strong> {{ streamer.current_category || (streamer as any).last_category || '-' }}</p>
           <p><strong>Language:</strong> {{ (streamer as any).language || '-' }}</p>
           <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_seen || undefined) }}</p>
         </div>
