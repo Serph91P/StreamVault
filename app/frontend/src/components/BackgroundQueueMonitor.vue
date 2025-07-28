@@ -54,7 +54,7 @@
           <div class="task-list">
             <div v-for="task in activeTasks" :key="task.id" class="task-item">
               <div class="task-header">
-                <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
+                <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
               
@@ -85,7 +85,7 @@
           <div class="task-list">
             <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item">
               <div class="task-header">
-                <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
+                <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
               
@@ -178,7 +178,7 @@ const togglePanel = () => {
   }
 }
 
-const formatTaskType = (taskType: string) => {
+const formatTaskType = (taskType: string, task?: any) => {
   const types: Record<string, string> = {
     'video_conversion': 'Video Conversion',
     'metadata_generation': 'Metadata',
@@ -199,9 +199,16 @@ const formatTaskType = (taskType: string) => {
     'database_update': 'Database Update',
     'notification_send': 'Send Notification',
     'image_refresh': 'Image Refresh',
-    'image_migration': 'Image Migration'
+    'image_migration': 'Image Migration',
+    'orphaned_recovery_check': 'Orphaned Recovery Check'
   }
-  return types[taskType] || taskType
+  
+  // If task type is empty/undefined, try to get it from task structure
+  if (!taskType && task) {
+    taskType = task.task_type || task.type || 'unknown'
+  }
+  
+  return types[taskType] || (taskType ? taskType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown Task')
 }
 
 const getStreamerName = (task: any) => {
