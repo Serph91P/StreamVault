@@ -136,7 +136,7 @@
               :key="task.id"
               class="task-item"
             >
-              <div class="task-name">{{ task.payload?.streamer_name || task.task_type }}</div>
+              <div class="task-name">{{ task.payload?.streamer_name || task.task_type || 'Unknown Task' }}</div>
               <div class="task-progress" v-if="task.progress !== undefined">
                 Progress: {{ Math.round(task.progress) }}%
               </div>
