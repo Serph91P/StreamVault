@@ -136,9 +136,9 @@
               :key="task.id"
               class="task-item"
             >
-              <div class="task-name">{{ task.name || task.type }}</div>
+              <div class="task-name">{{ task.payload?.streamer_name || task.task_type }}</div>
               <div class="task-progress" v-if="task.progress !== undefined">
-                Progress: {{ Math.round(task.progress * 100) }}%
+                Progress: {{ Math.round(task.progress) }}%
               </div>
             </div>
           </div>
@@ -164,7 +164,7 @@
       </button>
       <button 
         class="action-button"
-        @click="() => fetchBackgroundQueue()"
+        @click="() => forceRefreshFromAPI()"
         :disabled="isLoading"
       >
         Refresh Queue
@@ -175,7 +175,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
+import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 
 // Icons (you can replace these with your preferred icon library)
 const RefreshIcon = { template: '<div class="icon refresh-icon">↻</div>' }
@@ -184,21 +185,43 @@ const RecordIcon = { template: '<div class="icon record-icon">●</div>' }
 const StatsIcon = { template: '<div class="icon stats-icon">📊</div>' }
 const QueueIcon = { template: '<div class="icon queue-icon">📋</div>' }
 
-// Use the hybrid status composable
+// Use separate composables for different data
 const {
   systemStatus,
   activeRecordings,
-  backgroundQueue,
-  isLoading,
-  error,
+  isLoading: recordingsLoading,
+  error: recordingsError,
   lastUpdate,
   isOnline,
   hasActiveRecordings,
   activeRecordingsCount,
   fetchActiveRecordings,
-  fetchBackgroundQueue,
   forceRefresh
-} = useHybridStatus()
+} = useSystemAndRecordingStatus()
+
+// Use WebSocket-only background queue
+const {
+  queueStats,
+  activeTasks,
+  recentTasks,
+  isLoading: queueLoading,
+  connectionStatus,
+  forceRefreshFromAPI
+} = useBackgroundQueue()
+
+// Combine loading states
+const isLoading = computed(() => recordingsLoading.value || queueLoading.value)
+const error = computed(() => recordingsError.value)
+
+// Background queue computed properties for template compatibility
+const backgroundQueue = computed(() => ({
+  stats: {
+    pending: queueStats.value.pending_tasks,
+    running: queueStats.value.active_tasks,
+    completed: queueStats.value.completed_tasks
+  },
+  active_tasks: activeTasks.value
+}))
 
 // Local state
 const internalError = ref<string | null>(null)
