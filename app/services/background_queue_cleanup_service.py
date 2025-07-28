@@ -11,6 +11,9 @@ import logging
 from typing import Dict, List, Any
 from datetime import datetime, timezone, timedelta
 
+# Configuration constants
+STUCK_TASK_THRESHOLD_HOURS = 3  # Hours after which a task is considered stuck
+
 logger = logging.getLogger("streamvault")
 
 
@@ -65,8 +68,8 @@ class BackgroundQueueCleanupService:
                         is_stuck = False
                         reason = ""
                         
-                        # Task running for more than 3 hours (reduced from 6)
-                        if task_age and task_age > 3:
+                        # Task running for more than the threshold hours (reduced from 6)
+                        if task_age and task_age > STUCK_TASK_THRESHOLD_HOURS:
                             is_stuck = True
                             reason = f"running for {task_age:.1f}h"
                         
@@ -148,7 +151,6 @@ class BackgroundQueueCleanupService:
                                     logger.info(f"🧹 TRACKING_REMOVED: Removed {task_id} from progress tracker")
                                 except Exception as e:
                                     logger.warning(f"Could not remove from progress tracker: {e}")
-                                self.background_queue_service.progress_tracker.remove_external_task(task_id)
                             
                             cleaned_count += 1
                             logger.info(f"✅ CLEANUP_SUCCESS: Processed stuck recording task {task_id}")
@@ -188,7 +190,7 @@ class BackgroundQueueCleanupService:
                 try:
                     # Check if it's an orphaned recovery task
                     is_orphaned_task = (
-                        hasattr(task, 'task_type') and task.task_type == 'orphaned_recovery_check' or
+                        (hasattr(task, 'task_type') and task.task_type == 'orphaned_recovery_check') or
                         'orphaned' in task_id.lower() or
                         (hasattr(task, 'task_name') and 'orphaned' in str(task.task_name).lower())
                     )
