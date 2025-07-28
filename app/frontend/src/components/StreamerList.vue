@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRouter } from 'vue-router'
 import type { Ref } from 'vue'
@@ -118,7 +118,7 @@ const {
   error,
   fetchStreamersStatus,
   isOnline: connectionStatus
-} = useHybridStatus()
+} = useSystemAndRecordingStatus()
 
 // Keep useStreamers for delete operations
 const { deleteStreamer } = useStreamers()
