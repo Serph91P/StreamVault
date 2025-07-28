@@ -5,10 +5,11 @@ Extracted from unified_image_service.py God Class
 Handles downloading, caching, and serving of category/game images.
 """
 
+import asyncio
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Category
@@ -26,6 +27,7 @@ class CategoryImageService:
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
         self._category_cache: Dict[str, str] = {}
+        self._background_tasks: Set[asyncio.Task] = set()
         self.categories_dir = None
         self._load_existing_cache()
     
@@ -191,14 +193,18 @@ class CategoryImageService:
                 category = db.query(Category).filter(Category.name == category_name).first()
                 if category and category.box_art_url:
                     # Start async download in background (fire and forget)
-                    import asyncio
                     try:
                         # Create background task for downloading
                         loop = asyncio.get_event_loop()
-                        loop.create_task(self._download_category_image_background(category_name, category.box_art_url))
-                    except RuntimeError:
-                        # No event loop running, skip background download
-                        pass
+                        task = loop.create_task(self._download_category_image_background(category_name, category.box_art_url))
+                        self._background_tasks.add(task)
+                        task.add_done_callback(lambda t: self._background_tasks.discard(t))
+                    except RuntimeError as e:
+                        # Check if the error is due to no current event loop
+                        if "There is no current event loop in thread" in str(e):
+                            logger.warning("No event loop running, skipping background download.")
+                        else:
+                            raise
                     
                     # Return the original Twitch URL so frontend can display it
                     # while background download happens
@@ -350,5 +356,10 @@ class CategoryImageService:
         return cleaned_count
 
     async def close(self):
-        """Close the download service"""
+        """Close the download service and wait for background tasks"""
+        # Wait for all background tasks to complete
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
+        
         await self.download_service.close()
