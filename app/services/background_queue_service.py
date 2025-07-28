@@ -31,7 +31,12 @@ class BackgroundQueueService:
         
         # Legacy properties for compatibility
         self.max_workers = max_workers
-        self.task_queue = self.queue_manager.task_queue
+        # Handle both streamer isolation and shared queue modes
+        if hasattr(self.queue_manager, 'task_queue'):
+            self.task_queue = self.queue_manager.task_queue
+        else:
+            # For streamer isolation mode, create a compatibility property
+            self.task_queue = None
         self.active_tasks = self.queue_manager.progress_tracker.active_tasks
         self.completed_tasks = self.queue_manager.progress_tracker.completed_tasks
         self.external_tasks = self.queue_manager.progress_tracker.external_tasks
@@ -209,7 +214,12 @@ class BackgroundQueueService:
     @property
     def queue_size(self) -> int:
         """Get current queue size"""
-        return self.task_queue.qsize()
+        if self.task_queue:
+            return self.task_queue.qsize()
+        else:
+            # For streamer isolation mode, sum all streamer queues
+            stats = self.queue_manager.get_queue_statistics()
+            return stats.get('queue_size', 0)
 
     @property
     def active_worker_count(self) -> int:
