@@ -6,6 +6,7 @@ import secrets
 import logging
 from typing import Optional
 from app.schemas.auth import UserCreate, UserResponse
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("streamvault")
 
@@ -14,6 +15,7 @@ ph = PasswordHasher()
 class AuthService:
     def __init__(self, db: DBSession):
         self.db = db
+        self.session_timeout_hours = 24  # 24 hour session timeout for production
 
     async def admin_exists(self) -> bool:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
@@ -47,4 +49,48 @@ class AuthService:
         return token
 
     async def validate_session(self, token: str) -> bool:
-        return bool(self.db.query(Session).filter_by(token=token).first())
+        """Validate session with automatic cleanup of expired sessions"""
+        try:
+            session = self.db.query(Session).filter_by(token=token).first()
+            if not session:
+                return False
+                
+            # Check if session is expired (production fix for multi-user auth issues)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            if session.created_at < cutoff_time:
+                # Session is expired, delete it immediately
+                self.db.delete(session)
+                self.db.commit()
+                logger.debug(f"Removed expired session for token {token[:10]}...")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating session: {e}")
+            return False
+    
+    async def cleanup_expired_sessions(self) -> int:
+        """Clean up expired sessions (can be called periodically)"""
+        try:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            
+            expired_sessions = self.db.query(Session).filter(
+                Session.created_at < cutoff_time
+            ).all()
+            
+            expired_count = len(expired_sessions)
+            
+            if expired_count > 0:
+                for session in expired_sessions:
+                    self.db.delete(session)
+                
+                self.db.commit()
+                logger.info(f"Cleaned up {expired_count} expired sessions")
+                
+            return expired_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up expired sessions: {e}")
+            self.db.rollback()
+            return 0
