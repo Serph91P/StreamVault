@@ -22,8 +22,8 @@ class BackgroundQueueManager:
         self.queue_service = background_queue_service
         self.task_handlers = post_processing_task_handlers
     
-    async def initialize(self):
-        """Initialize the background queue service with task handlers"""
+    async def initialize(self, enable_streamer_isolation: bool = True):
+        """Initialize the background queue service with task handlers and production fixes"""
         if self.is_initialized:
             logger.debug("Background queue already initialized, skipping...")
             return
@@ -33,7 +33,14 @@ class BackgroundQueueManager:
             self.is_initialized = True
             return
         
-        logger.info("Initializing background queue service...")
+        logger.info(f"Initializing background queue service with production fixes (isolation: {enable_streamer_isolation})...")
+        
+        # Configure queue service with production fixes
+        if hasattr(self.queue_service, 'queue_manager'):
+            # Set streamer isolation on the queue manager
+            self.queue_service.queue_manager.enable_streamer_isolation = enable_streamer_isolation
+            if enable_streamer_isolation:
+                logger.info("✅ Enabled streamer isolation for production concurrency fix")
         
         # Register task handlers
         self.queue_service.register_task_handler(
@@ -77,7 +84,7 @@ class BackgroundQueueManager:
         await self.queue_service.start()
         
         self.is_initialized = True
-        logger.info("Background queue service initialized successfully")
+        logger.info("✅ Background queue service initialized successfully with production fixes")
     
     async def shutdown(self):
         """Shutdown the background queue service"""
@@ -107,9 +114,9 @@ class BackgroundQueueManager:
 background_queue_manager = BackgroundQueueManager()
 
 # Convenience functions
-async def initialize_background_queue():
-    """Initialize the background queue service"""
-    await background_queue_manager.initialize()
+async def initialize_background_queue(enable_streamer_isolation: bool = True):
+    """Initialize the background queue service with production fixes"""
+    await background_queue_manager.initialize(enable_streamer_isolation=enable_streamer_isolation)
 
 async def shutdown_background_queue():
     """Shutdown the background queue service"""
