@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed, ref, watch } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
 // Use hybrid status system for comprehensive real-time updates
 const {
@@ -12,7 +12,7 @@ const {
   error,
   fetchAllStatus,
   lastUpdate
-} = useHybridStatus()
+} = useSystemAndRecordingStatus()
 
 // Computed properties derived from hybrid status
 const totalStreamers = computed(() => {

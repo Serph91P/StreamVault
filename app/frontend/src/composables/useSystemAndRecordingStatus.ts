@@ -1,13 +1,15 @@
 /**
- * Hybrid Status Composable
+ * Recording & System Status Composable
  * 
- * Provides current system status using both WebSocket (for live updates) 
- * and REST API (for guaranteed current state).
+ * Provides current system status, active recordings, and streamer data
+ * using both WebSocket (for live updates) and REST API (for guaranteed current state).
  * 
  * This ensures the frontend always has current status, even if:
  * - WebSocket connection is lost
  * - User opens the frontend while offline
  * - Network connectivity issues occur
+ * 
+ * Note: Background Queue data is handled separately by useBackgroundQueue.ts
  */
 
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
@@ -20,13 +22,6 @@ interface SystemStatus {
   active_recordings: number
   total_streamers: number
   live_streamers: number
-  timestamp: string
-}
-
-interface BackgroundQueueStatus {
-  stats: any
-  active_tasks: any[]
-  recent_tasks: any[]
   timestamp: string
 }
 
@@ -80,11 +75,10 @@ interface NotificationStatus {
   timestamp: string
 }
 
-export function useHybridStatus() {
+export function useSystemAndRecordingStatus() {
   // State
   const systemStatus = ref<SystemStatus | null>(null)
   const activeRecordings = ref<ActiveRecording[]>([])
-  const backgroundQueue = ref<BackgroundQueueStatus | null>(null)
   const streamersStatus = ref<StreamerStatus[]>([])
   const streamsStatus = ref<StreamStatus[]>([])
   const notificationsStatus = ref<NotificationStatus | null>(null)
@@ -144,30 +138,6 @@ export function useHybridStatus() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
       console.error('Failed to fetch active recordings:', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
-  
-  const fetchBackgroundQueue = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/background-queue${cacheParam}`)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      backgroundQueue.value = data
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch background queue status:', err)
     } finally {
       isLoading.value = false
     }
@@ -250,7 +220,6 @@ export function useHybridStatus() {
     await Promise.all([
       fetchSystemStatus(useCache),
       fetchActiveRecordings(useCache),
-      fetchBackgroundQueue(useCache),
       fetchStreamersStatus(useCache),
       fetchStreamsStatus(useCache),
       fetchNotificationsStatus(useCache)
@@ -374,16 +343,6 @@ export function useHybridStatus() {
         }
         break
         
-      case 'background_queue_update':
-        if (message.data) {
-          backgroundQueue.value = {
-            ...message.data,
-            timestamp: new Date().toISOString()
-          }
-          lastUpdate.value = new Date()
-        }
-        break
-        
       case 'notification_event':
         // Add to recent notifications
         if (message.data && notificationsStatus.value) {
@@ -468,7 +427,6 @@ export function useHybridStatus() {
     // State
     systemStatus: readonly(systemStatus),
     activeRecordings: readonly(activeRecordings),
-    backgroundQueue: readonly(backgroundQueue),
     streamersStatus: readonly(streamersStatus),
     streamsStatus: readonly(streamsStatus),
     notificationsStatus: readonly(notificationsStatus),
@@ -484,7 +442,6 @@ export function useHybridStatus() {
     // Methods
     fetchSystemStatus,
     fetchActiveRecordings,
-    fetchBackgroundQueue,
     fetchStreamersStatus,
     fetchStreamsStatus,
     fetchNotificationsStatus,

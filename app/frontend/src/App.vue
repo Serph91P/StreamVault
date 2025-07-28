@@ -132,10 +132,10 @@ import '@/styles/main.scss'
 import { ref, onMounted, watch, provide } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
 // Provide hybrid status globally
-const hybridStatus = useHybridStatus()
+const hybridStatus = useSystemAndRecordingStatus()
 provide('hybridStatus', hybridStatus)
 
 // Initialize hybrid status system
