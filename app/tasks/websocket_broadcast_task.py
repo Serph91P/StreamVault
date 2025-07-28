@@ -56,6 +56,7 @@ class WebSocketBroadcastTask:
         try:
             recording_update_counter = 0
             queue_update_counter = 0
+            cleanup_counter = 0
             
             while self.is_running:
                 try:
@@ -67,8 +68,13 @@ class WebSocketBroadcastTask:
                     if queue_update_counter % 6 == 0:
                         await self._broadcast_background_queue_status()
                     
+                    # Auto-cleanup stuck tasks every 5 minutes (30 cycles of 10 seconds)
+                    if cleanup_counter % 30 == 0 and cleanup_counter > 0:
+                        await self._auto_cleanup_stuck_tasks()
+                    
                     recording_update_counter += 1
                     queue_update_counter += 1
+                    cleanup_counter += 1
                     
                     # Wait 10 seconds before next cycle (only counters change)
                     await asyncio.sleep(10)
@@ -205,6 +211,33 @@ class WebSocketBroadcastTask:
             logger.warning(f"Background queue service not available: {e}")
         except Exception as e:
             logger.error(f"Error broadcasting background queue status: {e}")
+
+    async def _auto_cleanup_stuck_tasks(self):
+        """Automatically cleanup stuck recording and orphaned recovery tasks"""
+        try:
+            from app.services.background_queue_cleanup_service import get_cleanup_service
+            
+            logger.info("🧹 AUTO_CLEANUP: Starting automatic cleanup of stuck tasks")
+            
+            cleanup_service = get_cleanup_service()
+            
+            # Only cleanup stuck recordings and orphaned recovery tasks
+            recording_result = await cleanup_service.cleanup_stuck_recording_tasks()
+            orphaned_result = await cleanup_service.stop_continuous_orphaned_recovery()
+            
+            total_fixed = recording_result.get('cleaned', 0) + orphaned_result.get('stopped', 0)
+            
+            if total_fixed > 0:
+                logger.info(f"🧹 AUTO_CLEANUP: Fixed {total_fixed} stuck tasks automatically")
+                
+                # Broadcast an immediate update after cleanup
+                await self._broadcast_background_queue_status()
+                await self._broadcast_active_recordings()
+            else:
+                logger.debug("🧹 AUTO_CLEANUP: No stuck tasks found")
+                
+        except Exception as e:
+            logger.error(f"Error in auto cleanup: {e}")
     
     def _calculate_duration(self, start_time: datetime) -> int:
         """Calculate recording duration in seconds"""
