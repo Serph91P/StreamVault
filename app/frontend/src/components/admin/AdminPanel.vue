@@ -125,6 +125,17 @@
       <BackgroundQueueMonitor />
     </div>
 
+    <!-- Background Queue Management & Cleanup -->
+    <div class="background-queue-admin-section">
+      <div class="section-header">
+        <h2>🔧 Background Queue Management</h2>
+        <p class="section-description">
+          Behebung von Background Queue Problemen: Stuck Recording Jobs, Continuous Orphaned Recovery, Unknown Task Names
+        </p>
+      </div>
+      <BackgroundQueueAdmin />
+    </div>
+
     <!-- Test Suite -->
     <div class="test-suite-section">
       <div class="section-header">
@@ -499,6 +510,7 @@
 import { ref, computed, onMounted } from 'vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
+import BackgroundQueueAdmin from './BackgroundQueueAdmin.vue'
 
 // Reactive data
 const healthStatus = ref<any>(null)

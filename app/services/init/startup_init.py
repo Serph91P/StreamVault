@@ -1,10 +1,75 @@
 """
 Startup initialization for background services
 """
+
+import asyncio
 import logging
 from app.services.init.background_queue_init import initialize_background_queue, shutdown_background_queue
 
 logger = logging.getLogger("streamvault")
+
+async def initialize_background_queue_with_fixes():
+    """Initialize background queue with production concurrency and auth fixes"""
+    try:
+        logger.info("Initializing background queue with production fixes...")
+        
+        # Check if we're in production environment (multiple streamers)
+        import os
+        enable_isolation = os.getenv('STREAMVAULT_ENABLE_STREAMER_ISOLATION', 'true').lower() == 'true'
+        
+        # Initialize with enhanced queue manager
+        from app.services.init.background_queue_init import initialize_background_queue
+        await initialize_background_queue(enable_streamer_isolation=enable_isolation)
+        
+        logger.info(f"✅ Background queue initialized with streamer isolation: {enable_isolation}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize background queue with fixes: {e}")
+        raise
+
+async def start_session_cleanup_service():
+    """Start session cleanup service for production authentication reliability"""
+    try:
+        logger.info("Starting session cleanup service...")
+        
+        # Run initial cleanup
+        from app.database import SessionLocal
+        from app.services.core.auth_service import AuthService
+        
+        db = SessionLocal()
+        try:
+            auth_service = AuthService(db)
+            cleaned_count = await auth_service.cleanup_expired_sessions()
+            logger.info(f"✅ Session cleanup service started, cleaned {cleaned_count} expired sessions")
+        finally:
+            db.close()
+            
+        # Schedule periodic cleanup (every 6 hours)
+        async def periodic_session_cleanup():
+            while True:
+                try:
+                    await asyncio.sleep(6 * 3600)  # 6 hours
+                    
+                    db = SessionLocal()
+                    try:
+                        auth_service = AuthService(db)
+                        cleaned_count = await auth_service.cleanup_expired_sessions()
+                        if cleaned_count > 0:
+                            logger.info(f"Periodic session cleanup: removed {cleaned_count} expired sessions")
+                    finally:
+                        db.close()
+                        
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Error in periodic session cleanup: {e}")
+        
+        # Start cleanup task
+        asyncio.create_task(periodic_session_cleanup())
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to start session cleanup service: {e}")
+        logger.warning("⚠️ Session cleanup disabled, may cause auth issues in production")
 
 async def initialize_vapid_keys():
     """Initialize VAPID keys for push notifications at startup"""
@@ -27,15 +92,15 @@ async def initialize_vapid_keys():
         logger.warning("Push notifications will be disabled for this session")
 
 async def initialize_background_services():
-    """Initialize all background services at startup"""
+    """Initialize all background services at startup with production fixes"""
     try:
-        logger.info("Initializing background services...")
+        logger.info("Initializing background services with production fixes...")
         
         # Initialize VAPID keys for push notifications
         await initialize_vapid_keys()
         
-        # Initialize background queue
-        await initialize_background_queue()
+        # Initialize background queue with production fixes
+        await initialize_background_queue_with_fixes()
         
         # Initialize image sync service for automatic image downloads
         await initialize_image_sync_service()
@@ -48,6 +113,9 @@ async def initialize_background_services():
         
         # Start automatic recording database fix service
         await start_recording_auto_fix_service()
+        
+        # Start session cleanup service for production auth reliability
+        await start_session_cleanup_service()
         
         logger.info("Background services initialized successfully")
         

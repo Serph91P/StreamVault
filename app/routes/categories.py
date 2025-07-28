@@ -143,11 +143,20 @@ async def get_favorite_categories(
 
 @router.get("/image/{category_name}")
 async def get_category_image(category_name: str):
-    """Get the URL for a category image - with caching to reduce database load"""
+    """Get the URL for a category image - downloads immediately if not cached"""
     try:
-        # Use cached URL if available to reduce database queries
-        image_url = unified_image_service.get_category_image_url(category_name)
-        return {"category_name": category_name, "image_url": image_url}
+        # First check if already cached
+        cached_url = unified_image_service.get_cached_category_image(category_name)
+        if cached_url:
+            return {"category_name": category_name, "image_url": cached_url}
+        
+        # Not cached, try to download it immediately
+        downloaded_url = await unified_image_service.download_category_image(category_name)
+        if downloaded_url:
+            return {"category_name": category_name, "image_url": downloaded_url}
+        
+        # Download failed, return None for icon fallback
+        return {"category_name": category_name, "image_url": None}
     except Exception as e:
         logger.error(f"Error getting category image for {category_name}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get category image")

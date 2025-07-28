@@ -403,16 +403,19 @@ class RecordingLifecycleManager:
             # Remove from active recordings
             self.state_manager.remove_active_recording(recording_id)
             
-            # Complete external task in background queue
+            # Complete external task in background queue - CRITICAL FIX for stuck recordings
             try:
                 if background_queue_service:
-                    background_queue_service.complete_external_task(
-                        f"recording_{recording_id}",
-                        success=True
-                    )
-                    logger.debug(f"Marked recording {recording_id} as completed in background queue")
+                    task_id = f"recording_{recording_id}"
+                    background_queue_service.complete_external_task(task_id, success=True)
+                    
+                    # Also remove from external tasks to prevent UI showing as stuck
+                    if hasattr(background_queue_service, 'progress_tracker'):
+                        background_queue_service.progress_tracker.remove_external_task(task_id)
+                    
+                    logger.info(f"✅ EXTERNAL_TASK_COMPLETED: recording_{recording_id} marked as completed and removed")
             except Exception as e:
-                logger.warning(f"Failed to complete external task for recording {recording_id}: {e}")
+                logger.error(f"❌ EXTERNAL_TASK_ERROR: Failed to complete external task for recording {recording_id}: {e}")
             
             logger.info(f"Recording {recording_id} completed successfully")
             
@@ -427,16 +430,19 @@ class RecordingLifecycleManager:
             # Update database
             await self.database_service.mark_recording_failed(recording_id, error_message)
             
-            # Mark external task as failed in background queue
+            # Mark external task as failed in background queue - CRITICAL FIX for stuck recordings
             try:
                 if background_queue_service:
-                    background_queue_service.complete_external_task(
-                        f"recording_{recording_id}",
-                        success=False
-                    )
-                    logger.debug(f"Marked recording {recording_id} as failed in background queue")
+                    task_id = f"recording_{recording_id}"
+                    background_queue_service.complete_external_task(task_id, success=False)
+                    
+                    # Also remove from external tasks to prevent UI showing as stuck
+                    if hasattr(background_queue_service, 'progress_tracker'):
+                        background_queue_service.progress_tracker.remove_external_task(task_id)
+                    
+                    logger.info(f"❌ EXTERNAL_TASK_FAILED: recording_{recording_id} marked as failed and removed")
             except Exception as e:
-                logger.warning(f"Failed to mark external task as failed for recording {recording_id}: {e}")
+                logger.error(f"❌ EXTERNAL_TASK_ERROR: Failed to mark external task as failed for recording {recording_id}: {e}")
             
             # Send error notification
             if self.websocket_service:

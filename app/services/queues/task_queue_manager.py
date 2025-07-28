@@ -10,6 +10,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+from collections import defaultdict
+from pathlib import Path
 from .task_progress_tracker import QueueTask, TaskStatus, TaskPriority, TaskProgressTracker
 from .worker_manager import WorkerManager
 from app.services.processing.task_dependency_manager import TaskDependencyManager, Task, TaskStatus as DepTaskStatus
@@ -18,13 +20,25 @@ logger = logging.getLogger("streamvault")
 
 
 class TaskQueueManager:
-    """Core queue management and task orchestration"""
+    """Core queue management and task orchestration with production concurrency fixes"""
     
     # Constants
     DEFAULT_STREAMER_NAME_FORMAT = "streamer_{stream_id}"
     
-    def __init__(self, max_workers: int = 3, websocket_manager=None):
-        self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+    def __init__(self, max_workers: int = 3, websocket_manager=None, enable_streamer_isolation: bool = True):
+        self.enable_streamer_isolation = enable_streamer_isolation
+        
+        if enable_streamer_isolation:
+            # Production fix: Use streamer-isolated queues to prevent concurrency issues
+            self.streamer_queues: Dict[str, asyncio.PriorityQueue] = defaultdict(lambda: asyncio.PriorityQueue())
+            self.streamer_workers: Dict[str, list] = defaultdict(list)
+            self.max_workers_per_streamer = 1  # One worker per streamer for isolation
+            logger.info("TaskQueueManager initialized with streamer isolation for production")
+        else:
+            # Original single shared queue
+            self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+            logger.info("TaskQueueManager initialized with shared queue")
+            
         self._is_running = False  # Use private attribute for internal state
         
         # Initialize components with queue manager reference
@@ -49,8 +63,12 @@ class TaskQueueManager:
             
         self._is_running = True
         
-        # Start worker manager
-        await self.worker_manager.start(self.task_queue)
+        if self.enable_streamer_isolation:
+            # Start isolated workers per streamer (production fix)
+            logger.info("Starting TaskQueueManager with streamer isolation")
+        else:
+            # Start shared worker manager (original)
+            await self.worker_manager.start(self.task_queue)
         
         # Start dependency worker
         self.dependency_worker = asyncio.create_task(self._dependency_worker())
@@ -75,10 +93,24 @@ class TaskQueueManager:
         if self.stats_worker:
             self.stats_worker.cancel()
         
-        # Stop worker manager
-        await self.worker_manager.stop()
+        if self.enable_streamer_isolation:
+            # Stop all streamer workers
+            stop_tasks = []
+            for streamer_name, workers in self.streamer_workers.items():
+                for worker in workers:
+                    worker.cancel()
+                    stop_tasks.append(worker)
+            
+            if stop_tasks:
+                await asyncio.gather(*stop_tasks, return_exceptions=True)
+                
+            self.streamer_workers.clear()
+            self.streamer_queues.clear()
+        else:
+            # Stop shared worker manager
+            await self.worker_manager.stop()
         
-        # Wait for workers to finish
+        # Wait for dependency and stats workers to finish
         workers_to_wait = []
         if self.dependency_worker:
             workers_to_wait.append(self.dependency_worker)
@@ -107,7 +139,7 @@ class TaskQueueManager:
         priority: TaskPriority = TaskPriority.NORMAL,
         max_retries: int = 3
     ) -> str:
-        """Enqueue a new background task"""
+        """Enqueue a new background task with optional streamer isolation"""
         task_id = str(uuid.uuid4())
         
         task = QueueTask(
@@ -123,12 +155,127 @@ class TaskQueueManager:
         # Add to progress tracker
         self.progress_tracker.add_task(task)
         
-        # Put task in queue (priority queue uses negative value for higher priority)
-        priority_value = -priority.value
-        await self.task_queue.put((priority_value, task))
-        
-        logger.info(f"Enqueued task {task_id} ({task_type}) with priority {priority.name}")
+        if self.enable_streamer_isolation:
+            # Production fix: Route task to streamer-specific queue
+            streamer_name = self._extract_streamer_name(payload)
+            await self._enqueue_to_streamer_queue(task, streamer_name)
+            logger.info(f"Enqueued task {task_id} ({task_type}) for streamer {streamer_name} with priority {priority.name}")
+        else:
+            # Original shared queue behavior
+            priority_value = -priority.value
+            await self.task_queue.put((priority_value, task))
+            logger.info(f"Enqueued task {task_id} ({task_type}) with priority {priority.name}")
+            
         return task_id
+
+    def _extract_streamer_name(self, payload: Dict[str, Any]) -> str:
+        """Extract streamer name from task payload for isolation"""
+        # Try different possible keys for streamer name
+        streamer_name = payload.get('streamer_name')
+        if streamer_name:
+            return str(streamer_name)
+            
+        # Try to derive from stream_id or recording path
+        stream_id = payload.get('stream_id')
+        if stream_id:
+            # Look for streamer name in recording path patterns
+            ts_file_path = payload.get('ts_file_path', '')
+            output_dir = payload.get('output_dir', '')
+            
+            # Try to extract from paths
+            for path_str in [ts_file_path, output_dir]:
+                if path_str:
+                    path = Path(path_str)
+                    # Look for streamer name in path components
+                    for part in path.parts:
+                        if not part.startswith(('recordings', 'temp', '/')):
+                            return str(part)
+        
+        # Fallback to stream_id based name
+        if stream_id:
+            return f"streamer_{stream_id}"
+        
+        # Ultimate fallback
+        return "unknown_streamer"
+
+    async def _enqueue_to_streamer_queue(self, task: QueueTask, streamer_name: str):
+        """Enqueue task to streamer-specific queue and ensure worker exists"""
+        # Get or create streamer queue
+        streamer_queue = self.streamer_queues[streamer_name]
+        
+        # Ensure worker exists for this streamer
+        if streamer_name not in self.streamer_workers or not self.streamer_workers[streamer_name]:
+            await self._create_streamer_worker(streamer_name, streamer_queue)
+        
+        # Enqueue task
+        priority_value = -task.priority.value
+        await streamer_queue.put((priority_value, task))
+
+    async def _create_streamer_worker(self, streamer_name: str, streamer_queue: asyncio.PriorityQueue):
+        """Create isolated worker for a specific streamer"""
+        worker_name = f"streamer-{streamer_name}-worker"
+        
+        async def isolated_worker():
+            """Isolated worker for a specific streamer"""
+            logger.info(f"Started isolated worker for streamer: {streamer_name}")
+            
+            while self._is_running:
+                try:
+                    # Get next task from this streamer's queue
+                    try:
+                        priority, task = await asyncio.wait_for(
+                            streamer_queue.get(),
+                            timeout=1.0
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+                    
+                    logger.debug(f"Streamer {streamer_name} worker processing task {task.id} ({task.task_type})")
+                    
+                    # Update task status to running
+                    if self.progress_tracker:
+                        self.progress_tracker.update_task_status(task.id, TaskStatus.RUNNING)
+                    
+                    try:
+                        # Execute the task using worker manager's task execution logic
+                        await self.worker_manager._execute_task(task, worker_name)
+                        
+                        # Mark task as completed
+                        if self.progress_tracker:
+                            self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
+                            self.progress_tracker.update_task_progress(task.id, 100.0)
+                        
+                        # Notify completion callback
+                        await self.mark_task_completed(task.id, success=True)
+                        
+                        logger.info(f"Streamer {streamer_name} worker completed task {task.id}")
+                        
+                    except Exception as e:
+                        error_msg = f"Task execution failed: {str(e)}"
+                        logger.error(f"Streamer {streamer_name} worker task {task.id} failed: {error_msg}")
+                        
+                        # Handle task failure using worker manager's failure logic
+                        await self.worker_manager._handle_task_failure(task, error_msg, worker_name)
+                        await self.mark_task_completed(task.id, success=False)
+                    
+                    finally:
+                        # Mark task as done in the queue
+                        streamer_queue.task_done()
+                        
+                except asyncio.CancelledError:
+                    logger.info(f"Isolated worker for streamer {streamer_name} cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"Streamer {streamer_name} worker unexpected error: {e}")
+                    await asyncio.sleep(1)
+                    
+            logger.info(f"Isolated worker for streamer {streamer_name} stopped")
+        
+        # Create and start the worker
+        worker_task = asyncio.create_task(isolated_worker())
+        self.streamer_workers[streamer_name].append(worker_task)
+        
+        logger.info(f"Created isolated worker for streamer: {streamer_name}")
 
     async def enqueue_task_with_dependencies(
         self,
@@ -186,9 +333,13 @@ class TaskQueueManager:
                         # Mark dependency task as running
                         await self.dependency_manager.mark_task_running(dep_task.id)
                         
-                        # Enqueue the actual task
-                        priority_value = -queue_task.priority.value
-                        await self.task_queue.put((priority_value, queue_task))
+                        # Enqueue the actual task with proper routing
+                        if self.enable_streamer_isolation:
+                            streamer_name = self._extract_streamer_name(queue_task.payload)
+                            await self._enqueue_to_streamer_queue(queue_task, streamer_name)
+                        else:
+                            priority_value = -queue_task.priority.value
+                            await self.task_queue.put((priority_value, queue_task))
                         
                         logger.debug(f"Dependency worker enqueued ready task {dep_task.id}")
                 
@@ -261,18 +412,53 @@ class TaskQueueManager:
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
         base_stats = self.progress_tracker.get_statistics()
-        worker_stats = self.worker_manager.get_worker_status()
         
-        return {
-            **base_stats,
-            'queue_size': self.task_queue.qsize(),
-            'workers': {
-                'total': self.worker_manager.max_workers,
-                'active': self.worker_manager.get_worker_count(),
-                'status': worker_stats
-            },
-            'registered_handlers': self.worker_manager.get_registered_handlers()
-        }
+        if self.enable_streamer_isolation:
+            # Streamer-isolated statistics
+            streamer_stats = {}
+            total_queue_size = 0
+            total_workers = 0
+            
+            for streamer_name, queue in self.streamer_queues.items():
+                queue_size = queue.qsize()
+                worker_count = len(self.streamer_workers.get(streamer_name, []))
+                
+                streamer_stats[streamer_name] = {
+                    'queue_size': queue_size,
+                    'active_workers': worker_count,
+                    'max_workers': self.max_workers_per_streamer
+                }
+                
+                total_queue_size += queue_size
+                total_workers += worker_count
+            
+            return {
+                **base_stats,
+                'queue_size': total_queue_size,
+                'workers': {
+                    'total': total_workers,
+                    'max_per_streamer': self.max_workers_per_streamer,
+                    'streamers': len(self.streamer_queues),
+                    'isolation_enabled': True
+                },
+                'streamers': streamer_stats,
+                'registered_handlers': self.worker_manager.get_registered_handlers()
+            }
+        else:
+            # Original shared queue statistics
+            worker_stats = self.worker_manager.get_worker_status()
+            
+            return {
+                **base_stats,
+                'queue_size': self.task_queue.qsize(),
+                'workers': {
+                    'total': self.worker_manager.max_workers,
+                    'active': self.worker_manager.get_worker_count(),
+                    'status': worker_stats,
+                    'isolation_enabled': False
+                },
+                'registered_handlers': self.worker_manager.get_registered_handlers()
+            }
 
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""

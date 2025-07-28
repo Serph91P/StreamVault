@@ -12,6 +12,23 @@ from pydantic import BaseModel
 # Import test service locally to avoid initialization issues
 # from app.services.test_service import test_service  # REMOVED
 
+# Constants for background queue management
+RECORDING_TASK_PREFIX = 'recording_'
+MAX_PROGRESS = 100
+ORPHANED_RECOVERY_TASK_TYPE = 'orphaned_recovery_check'
+UNKNOWN_TASK_TYPES = ['unknown', '']
+
+# Background queue service - lazy import to avoid circular dependencies
+_background_queue_service = None
+
+def get_background_queue_service():
+    """Get background queue service with lazy loading"""
+    global _background_queue_service
+    if _background_queue_service is None:
+        from app.services.background_queue_service import background_queue_service
+        _background_queue_service = background_queue_service
+    return _background_queue_service
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["admin"]
@@ -1052,3 +1069,219 @@ async def cleanup_process_orphaned_recordings(
     except Exception as e:
         logger.error(f"Error cleaning process-orphaned recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Process orphaned cleanup failed: {str(e)}")
+
+
+# ===== BACKGROUND QUEUE CLEANUP ENDPOINTS =====
+
+class BackgroundQueueStatusResponse(BaseModel):
+    total_external_tasks: int
+    total_active_tasks: int
+    stuck_recordings: int
+    continuous_orphaned: int
+    unknown_tasks: int
+    total_issues: int
+    stuck_recording_tasks: List[str] = []
+    orphaned_recovery_tasks: List[str] = []
+    unknown_task_names: List[str] = []
+
+class BackgroundQueueCleanupResponse(BaseModel):
+    success: bool
+    message: str
+    stuck_recordings_fixed: int = 0
+    orphaned_recovery_stopped: int = 0
+    task_names_fixed: int = 0
+    total_issues_fixed: int = 0
+    errors: List[str] = []
+
+@router.get("/background-queue/status", response_model=BackgroundQueueStatusResponse)
+async def get_background_queue_status():
+    """
+    🔍 Display Background Queue Status
+    Shows the current status of the Background Queue and detected issues
+    """
+    try:
+        background_queue_service = get_background_queue_service()
+        
+        # Use proper API methods instead of getattr when available
+        external_tasks = getattr(background_queue_service, 'external_tasks', {})
+        active_tasks = getattr(background_queue_service, 'active_tasks', {})
+        
+        # Problem detection
+        stuck_recordings = []
+        continuous_orphaned = []
+        unknown_tasks = []
+        
+        # Check external tasks for stuck recordings using constants
+        for task_id, task in external_tasks.items():
+            if task_id.startswith(RECORDING_TASK_PREFIX) and task.task_type == 'recording':
+                if task.progress >= MAX_PROGRESS and task.status.value == 'running':
+                    stuck_recordings.append(task_id)
+            
+            if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
+                unknown_tasks.append(task_id)
+        
+        # Check active tasks using constants
+        for task_id, task in active_tasks.items():
+            if task.task_type == ORPHANED_RECOVERY_TASK_TYPE:
+                continuous_orphaned.append(task_id)
+            
+            if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
+                unknown_tasks.append(task_id)
+        
+        total_issues = len(stuck_recordings) + len(continuous_orphaned) + len(unknown_tasks)
+        
+        logger.info(f"📊 Background Queue Status: {total_issues} issues detected")
+        
+        return BackgroundQueueStatusResponse(
+            total_external_tasks=len(external_tasks),
+            total_active_tasks=len(active_tasks),
+            stuck_recordings=len(stuck_recordings),
+            continuous_orphaned=len(continuous_orphaned),
+            unknown_tasks=len(unknown_tasks),
+            total_issues=total_issues,
+            stuck_recording_tasks=stuck_recordings[:10],  # Limit for UI
+            orphaned_recovery_tasks=continuous_orphaned,
+            unknown_task_names=unknown_tasks[:10]  # Limit for UI
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting background queue status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+@router.post("/background-queue/cleanup/all", response_model=BackgroundQueueCleanupResponse)
+async def fix_all_background_queue_issues():
+    """
+    🧹 Fix All Background Queue Issues
+    Automatically fixes all detected issues:
+    - Stuck recording jobs
+    - Continuous orphaned recovery
+    - Unknown task names
+    """
+    try:
+        from app.services.background_queue_cleanup_service import get_cleanup_service
+        
+        logger.info("🧹 ADMIN_CLEANUP_ALL: Starting comprehensive background queue cleanup")
+        
+        cleanup_service = get_cleanup_service()
+        results = await cleanup_service.comprehensive_cleanup()
+        
+        # Extract results
+        stuck_fixed = results.get('stuck_recordings', {}).get('cleaned', 0)
+        orphaned_stopped = results.get('orphaned_recovery', {}).get('stopped', 0)
+        names_fixed = results.get('task_names', {}).get('fixed', 0)
+        total_fixed = results.get('summary', {}).get('total_issues_fixed', 0)
+        
+        # Collect errors
+        all_errors = []
+        for key in ['stuck_recordings', 'orphaned_recovery', 'task_names']:
+            if key in results and 'errors' in results[key]:
+                all_errors.extend(results[key]['errors'])
+        
+        logger.info(f"🧹 ADMIN_CLEANUP_ALL: Fixed {total_fixed} total issues")
+        
+        return BackgroundQueueCleanupResponse(
+            success=True,
+            message=f"Background Queue cleanup completed: {total_fixed} issues fixed",
+            stuck_recordings_fixed=stuck_fixed,
+            orphaned_recovery_stopped=orphaned_stopped,
+            task_names_fixed=names_fixed,
+            total_issues_fixed=total_fixed,
+            errors=all_errors
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in comprehensive background queue cleanup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+@router.post("/background-queue/cleanup/stuck-recordings", response_model=BackgroundQueueCleanupResponse)
+async def fix_stuck_recordings():
+    """
+    🔧 Fix Only Stuck Recording Jobs
+    Fixes only recording jobs that are stuck at 100%
+    """
+    try:
+        from app.services.background_queue_cleanup_service import get_cleanup_service
+        
+        logger.info("🔧 ADMIN_CLEANUP_STUCK: Fixing stuck recording tasks")
+        
+        cleanup_service = get_cleanup_service()
+        result = await cleanup_service.cleanup_stuck_recording_tasks()
+        
+        fixed_count = result.get('cleaned', 0)
+        errors = result.get('errors', [])
+        
+        logger.info(f"🔧 ADMIN_CLEANUP_STUCK: Fixed {fixed_count} stuck recordings")
+        
+        return BackgroundQueueCleanupResponse(
+            success=True,
+            message=f"{fixed_count} stuck recording jobs fixed",
+            stuck_recordings_fixed=fixed_count,
+            total_issues_fixed=fixed_count,
+            errors=errors
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fixing stuck recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stuck recordings cleanup failed: {str(e)}")
+
+@router.post("/background-queue/cleanup/orphaned-recovery", response_model=BackgroundQueueCleanupResponse)
+async def stop_orphaned_recovery():
+    """
+    🛑 Stop Continuous Orphaned Recovery
+    Stops continuous orphaned recovery checks
+    """
+    try:
+        from app.services.background_queue_cleanup_service import get_cleanup_service
+        
+        logger.info("🛑 ADMIN_STOP_ORPHANED: Stopping continuous orphaned recovery")
+        
+        cleanup_service = get_cleanup_service()
+        result = await cleanup_service.stop_continuous_orphaned_recovery()
+        
+        stopped_count = result.get('stopped', 0)
+        errors = result.get('errors', [])
+        
+        logger.info(f"🛑 ADMIN_STOP_ORPHANED: Stopped {stopped_count} orphaned recovery checks")
+        
+        return BackgroundQueueCleanupResponse(
+            success=True,
+            message=f"{stopped_count} continuous orphaned recovery checks stopped",
+            orphaned_recovery_stopped=stopped_count,
+            total_issues_fixed=stopped_count,
+            errors=errors
+        )
+        
+    except Exception as e:
+        logger.error(f"Error stopping orphaned recovery: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Orphaned recovery stop failed: {str(e)}")
+
+@router.post("/background-queue/cleanup/task-names", response_model=BackgroundQueueCleanupResponse)
+async def fix_unknown_task_names():
+    """
+    🏷️ Fix Unknown Task Names
+    Fixes tasks that are displayed as "Unknown"
+    """
+    try:
+        from app.services.background_queue_cleanup_service import get_cleanup_service
+        
+        logger.info("🏷️ ADMIN_FIX_NAMES: Fixing unknown task names")
+        
+        cleanup_service = get_cleanup_service()
+        result = await cleanup_service.fix_unknown_task_names()
+        
+        fixed_count = result.get('fixed', 0)
+        errors = result.get('errors', [])
+        
+        logger.info(f"🏷️ ADMIN_FIX_NAMES: Fixed {fixed_count} unknown task names")
+        
+        return BackgroundQueueCleanupResponse(
+            success=True,
+            message=f"{fixed_count} unknown task names fixed",
+            task_names_fixed=fixed_count,
+            total_issues_fixed=fixed_count,
+            errors=errors
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fixing unknown task names: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Task names fix failed: {str(e)}")

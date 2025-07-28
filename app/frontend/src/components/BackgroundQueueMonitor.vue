@@ -54,15 +54,19 @@
           <div class="task-list">
             <div v-for="task in activeTasks" :key="task.id" class="task-item">
               <div class="task-header">
-                <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
-                <span class="task-streamer">{{ task.payload?.streamer_name || 'Unknown' }}</span>
+                <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
+                <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
               
               <div class="task-progress">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: `${task.progress}%` }"></div>
+                <div v-if="task.task_type === 'recording'" class="recording-indicator">
+                  <div class="pulse-indicator"></div>
+                  <span class="recording-text">Recording Live</span>
                 </div>
-                <span class="progress-text">{{ Math.round(task.progress) }}%</span>
+                <div v-else class="progress-bar">
+                  <div class="progress-fill" :style="{ width: `${task.progress}%` }"></div>
+                  <span class="progress-text">{{ Math.round(task.progress) }}%</span>
+                </div>
               </div>
               
               <div class="task-status">
@@ -81,8 +85,8 @@
           <div class="task-list">
             <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item">
               <div class="task-header">
-                <span class="task-type">{{ formatTaskType(task.task_type) }}</span>
-                <span class="task-streamer">{{ task.payload?.streamer_name || 'Unknown' }}</span>
+                <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
+                <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
               
               <div class="task-status">
@@ -174,7 +178,7 @@ const togglePanel = () => {
   }
 }
 
-const formatTaskType = (taskType: string) => {
+const formatTaskType = (taskType: string, task?: any) => {
   const types: Record<string, string> = {
     'video_conversion': 'Video Conversion',
     'metadata_generation': 'Metadata',
@@ -195,9 +199,25 @@ const formatTaskType = (taskType: string) => {
     'database_update': 'Database Update',
     'notification_send': 'Send Notification',
     'image_refresh': 'Image Refresh',
-    'image_migration': 'Image Migration'
+    'image_migration': 'Image Migration',
+    'orphaned_recovery_check': 'Orphaned Recovery Check'
   }
-  return types[taskType] || taskType
+  
+  // If task type is empty/undefined, try to get it from task structure
+  if (!taskType && task) {
+    taskType = task.task_type || task.type || 'unknown'
+  }
+  
+  return types[taskType] || (taskType ? taskType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown Task')
+}
+
+const getStreamerName = (task: any) => {
+  // Try multiple possible field names for streamer name
+  return task.payload?.streamer_name || 
+         task.streamer_name || 
+         task.payload?.username ||
+         task.username ||
+         'Unknown'
 }
 
 const getStatusClass = (status: string) => {
@@ -589,6 +609,30 @@ const formatTime = (timestamp?: string) => {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.recording-text {
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 /* Responsive Design */
