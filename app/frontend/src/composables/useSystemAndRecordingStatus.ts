@@ -255,6 +255,61 @@ export function useSystemAndRecordingStatus() {
         }
         break
         
+      case 'channel.update':
+        // Handle Twitch channel updates (title, category, language changes)
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            if (message.data.title) {
+              streamersStatus.value[streamerIndex].current_title = message.data.title
+            }
+            if (message.data.category_name) {
+              streamersStatus.value[streamerIndex].current_category = message.data.category_name
+            }
+            if (message.data.language) {
+              (streamersStatus.value[streamerIndex] as any).language = message.data.language
+            }
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            console.log(`🔄 Updated streamer ${message.data.streamer_name} from WebSocket channel.update`)
+          }
+        }
+        break
+        
+      case 'stream.online':
+        // Handle Twitch stream going live
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            streamersStatus.value[streamerIndex].is_live = true
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            console.log(`🔴 Streamer ${message.data.streamer_name} went LIVE via WebSocket`)
+          }
+        }
+        break
+        
+      case 'stream.offline':
+        // Handle Twitch stream going offline
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            streamersStatus.value[streamerIndex].is_live = false
+            streamersStatus.value[streamerIndex].current_title = null
+            streamersStatus.value[streamerIndex].current_category = null
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            console.log(`⚫ Streamer ${message.data.streamer_name} went OFFLINE via WebSocket`)
+          }
+        }
+        break
+        
       case 'streamer_online':
         // Update specific streamer status
         if (message.data && message.data.streamer_id) {
