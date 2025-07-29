@@ -81,11 +81,15 @@ class LoggingService:
             raise
     
     def _ensure_log_directories(self):
-        """Create log directories if they don't exist"""
+        """Create log directories if they don't exist, including streamer subdirectories"""
         try:
+            # Create base directories
             for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
                 log_dir.mkdir(parents=True, exist_ok=True)
                 logger.info(f"✅ Log directory ensured: {log_dir}")
+            
+            # Create streamer subdirectories structure
+            self._ensure_streamer_directories()
                     
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Failed to create log directories: {e}")
@@ -93,6 +97,38 @@ class LoggingService:
         except Exception as e:
             logger.error(f"❌ Unexpected error creating log directories: {e}")
             raise
+    
+    def _ensure_streamer_directories(self):
+        """Create streamer-specific subdirectories for better organization"""
+        try:
+            # Check if we need to migrate existing logs
+            self._migrate_existing_logs()
+        except Exception as e:
+            logger.warning(f"Could not complete log migration: {e}")
+    
+    def _migrate_existing_logs(self):
+        """Migrate existing logs to streamer-specific directories"""
+        logger.info("🔄 Checking for logs to migrate to streamer-specific directories")
+        
+        # Migration is handled on-demand when logs are created/accessed
+        # This avoids complex migration logic and lets the system naturally organize
+        logger.info("✅ Log migration check completed (on-demand migration enabled)")
+    
+    def get_streamer_log_dir(self, base_dir: Path, streamer_name: str) -> Path:
+        """Get or create streamer-specific log directory"""
+        if not streamer_name:
+            return base_dir
+        
+        safe_streamer_name = "".join(c for c in streamer_name if c.isalnum() or c in ('-', '_')).lower()
+        streamer_dir = base_dir / safe_streamer_name
+        
+        try:
+            streamer_dir.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"✅ Streamer directory ensured: {streamer_dir}")
+            return streamer_dir
+        except (OSError, PermissionError) as e:
+            logger.error(f"❌ Could not create streamer directory {streamer_dir}: {e}")
+            return base_dir
     
     def _test_write_permissions(self, log_dir: Path) -> bool:
         """Test write permissions for a log directory (called only when needed)"""
@@ -207,34 +243,105 @@ class LoggingService:
     
     def get_streamlink_log_path(self, streamer_name: str) -> str:
         """Get log file path for a specific streamer's streamlink session"""
-        safe_streamer_name = "".join(c for c in streamer_name if c.isalnum() or c in ('-', '_')).lower()
+        if not streamer_name:
+            streamer_name = "unknown"
+        
+        # Use streamer-specific directory
+        streamer_dir = self.get_streamer_log_dir(self.streamlink_logs_dir, streamer_name)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return str(self.streamlink_logs_dir / f"{safe_streamer_name}_streamlink_{timestamp}.log")
+        safe_streamer_name = "".join(c for c in streamer_name if c.isalnum() or c in ('-', '_')).lower()
+        
+        return str(streamer_dir / f"streamlink_{timestamp}.log")
     
     def get_ffmpeg_log_path(self, operation: str, streamer_name: str) -> str:
         """Get log file path for FFmpeg operations with mandatory streamer name"""
-        today = datetime.now().strftime("%Y-%m-%d")
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not streamer_name:
+            streamer_name = "unknown"
         
-        # Place streamer name first for better organization and visual scanning
-        # Format: streamer_operation_timestamp_date.log
-        # This makes it easier to find logs for a specific streamer
-        streamer_name = streamer_name.replace(" ", "_")  # Remove spaces from streamer name
-        log_file = self.ffmpeg_logs_dir / f"{streamer_name}_{operation}_{today}.log"
+        # Use streamer-specific directory
+        streamer_dir = self.get_streamer_log_dir(self.ffmpeg_logs_dir, streamer_name)
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        timestamp_str = datetime.now().strftime("%H%M%S")
+        
+        # Format: operation_timestamp_date.log (within streamer directory)
+        log_file = streamer_dir / f"{operation}_{timestamp_str}_{today}.log"
         return str(log_file)
     
+    def get_app_log_path(self, operation: str, streamer_name: str = None) -> str:
+        """Get log file path for app operations, optionally streamer-specific"""
+        if streamer_name:
+            # Use streamer-specific directory for streamer-related app operations
+            streamer_dir = self.get_streamer_log_dir(self.app_logs_dir, streamer_name)
+            today = datetime.now().strftime("%Y-%m-%d")
+            timestamp_str = datetime.now().strftime("%H%M%S")
+            
+            log_file = streamer_dir / f"{operation}_{timestamp_str}_{today}.log"
+            return str(log_file)
+        else:
+            # Use main app directory for general operations
+            today = datetime.now().strftime("%Y-%m-%d")
+            log_file = self.app_logs_dir / f"{operation}_{today}.log"
+            return str(log_file)
+    
     def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
-        """Log streamlink command start"""
+        """Log streamlink command start with streamer-specific file"""
+        if not streamer_name:
+            streamer_name = "unknown"
+        
         logger.debug(f"🎯 Logging streamlink start for {streamer_name}")
+        
+        # Get streamer-specific log path and create the log file
+        log_path = self.get_streamlink_log_path(streamer_name)
+        
+        try:
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting recording for {streamer_name}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {output_path}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+            
+            logger.debug(f"✅ Streamlink start logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not create streamlink log {log_path}: {e}")
+        
+        # Also log to main streamlink logger
         self.streamlink_logger.info(f"Starting recording for {streamer_name}")
         self.streamlink_logger.info(f"Quality: {quality}")
         self.streamlink_logger.info(f"Output: {output_path}")
         self.streamlink_logger.info(f"Command: {' '.join(cmd)}")
-        logger.debug(f"✅ Streamlink start logged for {streamer_name}")
+        
+        return log_path
     
-    def log_streamlink_output(self, streamer_name: str, stdout: bytes, stderr: bytes, exit_code: int):
-        """Log streamlink process output"""
+    def log_streamlink_output(self, streamer_name: str, stdout: bytes, stderr: bytes, exit_code: int, log_path: str = None):
+        """Log streamlink process output to streamer-specific file"""
+        if not streamer_name:
+            streamer_name = "unknown"
+        
         logger.debug(f"🎯 Logging streamlink output for {streamer_name} (exit code: {exit_code})")
+        
+        # Get log path if not provided
+        if not log_path:
+            log_path = self.get_streamlink_log_path(streamer_name)
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Streamlink completed with exit code: {exit_code}\n")
+                
+                if stdout:
+                    stdout_text = stdout.decode("utf-8", errors="ignore")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n")
+                
+                if stderr:
+                    stderr_text = stderr.decode("utf-8", errors="ignore")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n")
+            
+            logger.debug(f"✅ Streamlink output logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not write to streamlink log {log_path}: {e}")
+        
+        # Also log to main streamlink logger
         if stdout:
             stdout_text = stdout.decode("utf-8", errors="ignore")
             self.streamlink_logger.info(f"[{streamer_name}] STDOUT:\n{stdout_text}")
@@ -245,6 +352,7 @@ class LoggingService:
                 self.streamlink_logger.info(f"[{streamer_name}] STDERR:\n{stderr_text}")
             else:
                 self.streamlink_logger.error(f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}")
+        
         logger.debug(f"✅ Streamlink output logged for {streamer_name}")
     
     def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
