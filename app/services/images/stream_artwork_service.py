@@ -8,7 +8,7 @@ Handles downloading, caching, and serving of stream artwork and thumbnails.
 import logging
 from pathlib import Path
 from typing import Dict, Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.database import SessionLocal
 from app.models import Stream, Streamer
 from .image_download_service import ImageDownloadService
@@ -104,8 +104,16 @@ class StreamArtworkService:
                 cached_path = await self.download_stream_artwork(stream_id, stream.streamer_id, thumbnail_url)
                 
                 if cached_path:
-                    # Update database
-                    stream.thumbnail_url = cached_path
+                    # Ensure stream has metadata
+                    if not stream.stream_metadata:
+                        from app.models import StreamMetadata
+                        metadata = StreamMetadata(stream_id=stream_id)
+                        db.add(metadata)
+                        db.flush()  # Get the ID
+                        stream.stream_metadata = metadata
+                    
+                    # Update metadata with cached path
+                    stream.stream_metadata.thumbnail_url = cached_path
                     db.commit()
                     logger.info(f"Updated stream artwork for stream {stream_id}")
                     return True
@@ -121,21 +129,27 @@ class StreamArtworkService:
         
         try:
             with SessionLocal() as db:
-                query = db.query(Stream)
+                # Load streams with their metadata
+                query = db.query(Stream).options(selectinload(Stream.stream_metadata))
                 if stream_ids:
                     query = query.filter(Stream.id.in_(stream_ids))
                 
                 streams = query.all()
                 
                 for stream in streams:
-                    if stream.thumbnail_url and stream.thumbnail_url.startswith('http'):
+                    # Check if stream has metadata with thumbnail_url
+                    thumbnail_url = None
+                    if stream.stream_metadata and stream.stream_metadata.thumbnail_url:
+                        thumbnail_url = stream.stream_metadata.thumbnail_url
+                    
+                    if thumbnail_url and thumbnail_url.startswith('http'):
                         # This is a Twitch URL, download and cache it
                         cached_path = await self.download_stream_artwork(
-                            stream.id, stream.streamer_id, stream.thumbnail_url
+                            stream.id, stream.streamer_id, thumbnail_url
                         )
                         if cached_path:
                             # Update to use cached path
-                            stream.thumbnail_url = cached_path
+                            stream.stream_metadata.thumbnail_url = cached_path
                             stats["downloaded"] += 1
                         else:
                             stats["failed"] += 1
