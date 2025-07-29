@@ -233,6 +233,7 @@ class StreamMetadata(Base):
     chapters_vtt_path = Column(String)
     chapters_srt_path = Column(String)
     chapters_ffmpeg_path = Column(String)
+    chapters_xml_path = Column(String)  # XML chapters for Emby/Jellyfin
     
     # Stream info stats
     avg_viewers = Column(Integer)
