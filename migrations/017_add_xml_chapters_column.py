@@ -16,7 +16,6 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
-from .utils.database_utils import get_database_type
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,13 +46,11 @@ def run_migration():
         
         logger.info("🔄 Adding chapters_xml_path column...")
         
-        # Use shared utility for reliable database type detection
-        database_type = get_database_type(engine)
-        
-        if database_type == 'postgresql':
-            # PostgreSQL syntax
-            session.execute(text("""
-                ALTER TABLE stream_metadata 
+        # PostgreSQL syntax (StreamVault only supports PostgreSQL)
+        session.execute(text("""
+            ALTER TABLE stream_metadata 
+            ADD COLUMN chapters_xml_path TEXT
+        """)) 
                 ADD COLUMN chapters_xml_path VARCHAR
             """))
         elif database_type == 'sqlite':
