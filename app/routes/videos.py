@@ -1119,8 +1119,8 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
             chapters = [{
                 "id": 1,
                 "title": stream.title or f"Stream {stream_id}",
-                "start_time": 0,
-                "end_time": 0
+                "start": 0,
+                "end": 0
             }]
             logger.info(f"🎬 CHAPTER_DEFAULT: Created default chapter")
         
