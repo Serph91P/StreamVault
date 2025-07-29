@@ -1402,7 +1402,7 @@ onMounted(async () => {
 
 .category-image-wrapper {
   flex-shrink: 0;
-  width: 40px;
+  width: 30px;
   height: 40px;
   border-radius: 4px;
   overflow: hidden;
