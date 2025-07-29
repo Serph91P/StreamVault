@@ -431,13 +431,7 @@ export function useSystemAndRecordingStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
-<<<<<<< HEAD
       logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
-=======
-      if (process.env.NODE_ENV === 'development') {
-        console.debug('🔍 [useSystemAndRecordingStatus] Received WebSocket message:', latestMessage)
-      }
->>>>>>> d109921a00a8e031e2203d1200aeb343c0845021
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
