@@ -29,7 +29,7 @@ def run_migration():
             raise ValueError("DATABASE_URL not configured")
         
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL, echo=False)
+        engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
         
@@ -46,11 +46,27 @@ def run_migration():
         
         logger.info("🔄 Adding use_global_cleanup_policy column...")
         
-        # Use direct SQL for maximum compatibility
-        session.execute(text("""
-            ALTER TABLE streamer_recording_settings 
-            ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
-        """))
+        # Use database-agnostic approach
+        database_url = settings.DATABASE_URL.lower()
+        
+        if 'postgresql' in database_url:
+            # PostgreSQL syntax
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
+            """))
+        elif 'sqlite' in database_url:
+            # SQLite syntax (SQLite uses INTEGER for boolean, 1 for TRUE)
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy INTEGER NOT NULL DEFAULT 1
+            """))
+        else:
+            # Generic fallback
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
+            """))
         
         session.commit()
         
