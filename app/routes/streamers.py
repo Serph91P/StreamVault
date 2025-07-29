@@ -62,7 +62,7 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
                 ]
                 
                 for suffix in companion_suffixes:
-                    companion = base_path.with_suffix(suffix)
+                    companion = Path(str(base_path) + suffix)
                     if await async_file.path_exists(companion):
                         await async_file.path_unlink(companion)
                         deleted_files.append(str(companion))
