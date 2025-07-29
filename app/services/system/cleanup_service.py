@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Tuple, Any, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func
 
-from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSettings, FavoriteCategory
+from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSettings, FavoriteCategory, StreamMetadata
 from app.database import SessionLocal
 from app.services.recording.config_manager import ConfigManager
 from app.schemas.recording import CleanupPolicyType
@@ -403,46 +403,56 @@ class CleanupService:
         deleted_paths = []
         
         for stream in streams_to_delete:
-            if stream.recording_path and os.path.exists(stream.recording_path):
-                try:
-                    # Delete the recording file
-                    os.remove(stream.recording_path)
-                    deleted_paths.append(stream.recording_path)
-                    
-                    # Also delete related files (thumbnails, metadata, chapters, etc.)
-                    base_path = os.path.splitext(stream.recording_path)[0]
-                    related_patterns = [
-                        f"{base_path}-thumb.jpg",           # Thumbnail
-                        f"{base_path}.info.json",           # JSON metadata  
-                        f"{base_path}.json",                # Alternative JSON metadata
-                        f"{base_path}.srt",                 # Subtitle files
-                        f"{base_path}.vtt",                 # WebVTT files
-                        f"{base_path}.xml",                 # XML metadata
-                        f"{base_path}-ffmpeg-chapters.txt", # FFmpeg chapter files
-                        f"{base_path}-chapters.txt",        # Alternative chapter markers
-                        f"{base_path}-chapters.vtt",        # WebVTT chapters
-                        f"{base_path}-chapters.srt",        # SRT chapters
-                        f"{base_path}.nfo",                 # NFO metadata
-                        f"{base_path}_thumbnail.jpg",       # Alternative thumbnail naming
+            try:
+                # Get all metadata files from database first
+                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+                files_to_delete = []
+                
+                # Add main recording file
+                if stream.recording_path and os.path.exists(stream.recording_path):
+                    files_to_delete.append(stream.recording_path)
+                
+                # Add all metadata files from database
+                if metadata:
+                    metadata_files = [
+                        metadata.thumbnail_path,
+                        metadata.nfo_path, 
+                        metadata.json_path,
+                        metadata.chat_path,
+                        metadata.chat_srt_path,
+                        metadata.chapters_path,
+                        metadata.chapters_vtt_path,
+                        metadata.chapters_srt_path,
+                        metadata.chapters_ffmpeg_path,
+                        metadata.chapters_xml_path  # Include XML chapters
                     ]
                     
-                    for related_file in related_patterns:
-                        if os.path.exists(related_file):
-                            os.remove(related_file)
-                            deleted_paths.append(related_file)
-                            logger.info(f"Deleted related file: {related_file}")
-                    
-                    # Update the stream record to remove the recording path
-                    stream.recording_path = None
-                    db.add(stream)
-                    
-                    deleted_count += 1
-                    logger.info(f"Deleted recording: {stream.recording_path}")
-                    
-                        # Store the directory path before setting recording_path to None
-                    directory = os.path.dirname(stream.recording_path) if stream.recording_path else None
-                    
-                    # Check if the directory is now empty, and if so, delete it
+                    # Add existing metadata files to deletion list
+                    for file_path in metadata_files:
+                        if file_path and os.path.exists(file_path):
+                            files_to_delete.append(file_path)
+                
+                # Delete all collected files
+                for file_path in files_to_delete:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        deleted_paths.append(file_path)
+                        logger.info(f"Deleted file: {file_path}")
+                
+                # Delete metadata record from database
+                if metadata:
+                    db.delete(metadata)
+                
+                # Update the stream record to remove the recording path
+                stream.recording_path = None
+                db.add(stream)
+                
+                deleted_count += 1
+                logger.info(f"Deleted recording and metadata for stream {stream.id}")
+                
+                # Check if the directory is now empty, and if so, delete it
+                if stream.recording_path:
+                    directory = os.path.dirname(stream.recording_path)
                     if directory and os.path.exists(directory):
                         # Check if directory only contains empty subfolders
                         remaining_files = []
@@ -452,8 +462,9 @@ class CleanupService:
                         if not remaining_files:
                             shutil.rmtree(directory)
                             logger.info(f"Removed empty directory: {directory}")
-                except Exception as e:
-                    logger.error(f"Error deleting recording {stream.recording_path}: {e}")
+                            
+            except Exception as e:
+                logger.error(f"Error deleting stream {stream.id}: {e}")
         
         # Commit changes to the database
         db.commit()
