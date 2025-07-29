@@ -431,7 +431,10 @@ export function useSystemAndRecordingStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
-      logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
+      // Only log in development mode to avoid performance impact
+      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+        logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
+      }
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
