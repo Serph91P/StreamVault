@@ -1,5 +1,6 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWebSocket } from './useWebSocket'
+import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 interface Task {
   id: string
