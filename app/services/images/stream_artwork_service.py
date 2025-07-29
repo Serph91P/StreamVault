@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from sqlalchemy.orm import Session, selectinload
 from app.database import SessionLocal
-from app.models import Stream, Streamer
+from app.models import Stream, Streamer, StreamMetadata
 from .image_download_service import ImageDownloadService
 
 logger = logging.getLogger("streamvault")
@@ -106,10 +106,8 @@ class StreamArtworkService:
                 if cached_path:
                     # Ensure stream has metadata
                     if not stream.stream_metadata:
-                        from app.models import StreamMetadata
                         metadata = StreamMetadata(stream_id=stream_id)
                         db.add(metadata)
-                        db.flush()  # Get the ID
                         stream.stream_metadata = metadata
                     
                     # Update metadata with cached path
