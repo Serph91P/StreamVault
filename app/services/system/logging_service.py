@@ -275,7 +275,7 @@ class LoggingService:
             # Use streamer-specific directory for streamer-related app operations
             streamer_dir = self.get_streamer_log_dir(self.app_logs_dir, streamer_name)
             today = datetime.now().strftime("%Y-%m-%d")
-            timestamp_str = datetime.now().strftime("%H%M%S")
+            timestamp_str = datetime.now().strftime("%H%M%S%f")
             
             log_file = streamer_dir / f"{operation}_{timestamp_str}_{today}.log"
             return str(log_file)
