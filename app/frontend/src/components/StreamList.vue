@@ -451,7 +451,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { recordingApi } from '@/services/api'
 import type { Stream } from '@/types/streams'
@@ -500,7 +500,7 @@ const streamerId = computed(() => props.streamerId || route.params.id as string 
 const streamerName = computed(() => props.streamerName || route.query.name as string)
 
 const { streams, isLoading, fetchStreams } = useStreams()
-const { activeRecordings } = useHybridStatus()
+const { activeRecordings } = useSystemAndRecordingStatus()
 const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
 
 // UI State
@@ -1402,7 +1402,7 @@ onMounted(async () => {
 
 .category-image-wrapper {
   flex-shrink: 0;
-  width: 40px;
+  width: 30px;
   height: 40px;
   border-radius: 4px;
   overflow: hidden;

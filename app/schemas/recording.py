@@ -45,6 +45,7 @@ class StreamerRecordingSettingsSchema(BaseModel):
     custom_filename: Optional[str] = None
     max_streams: Optional[int] = None
     cleanup_policy: Optional[CleanupPolicySchema] = None
+    use_global_cleanup_policy: bool = True  # Use global cleanup policy or streamer-specific
 
     class Config:
         from_attributes = True

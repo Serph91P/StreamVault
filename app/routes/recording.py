@@ -599,7 +599,11 @@ async def get_storage_usage(streamer_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
-async def update_streamer_cleanup_policy(streamer_id: int, policy: CleanupPolicySchema, db: Session = Depends(get_db)):
+async def update_streamer_cleanup_policy(
+    streamer_id: int, 
+    request_data: Dict, 
+    db: Session = Depends(get_db)
+):
     """Update cleanup policy for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -616,9 +620,21 @@ async def update_streamer_cleanup_policy(streamer_id: int, policy: CleanupPolicy
             streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
             db.add(streamer_settings)
         
-        # Convert policy to JSON string and store it
-        import json
-        streamer_settings.cleanup_policy = json.dumps(policy.dict())
+        # Handle the use_global_cleanup_policy flag
+        use_global = request_data.get('use_global_cleanup_policy', False)
+        streamer_settings.use_global_cleanup_policy = use_global
+        
+        if use_global:
+            # Clear custom policy when using global
+            streamer_settings.cleanup_policy = None
+        else:
+            # Set custom policy
+            cleanup_policy = request_data.get('cleanup_policy')
+            if cleanup_policy:
+                import json
+                # Validate policy using schema
+                policy_schema = CleanupPolicySchema.parse_obj(cleanup_policy)
+                streamer_settings.cleanup_policy = json.dumps(policy_schema.dict())
         
         db.commit()
         

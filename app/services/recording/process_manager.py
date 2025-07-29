@@ -175,18 +175,17 @@ class ProcessManager:
             
             # Log to structured logging service
             if self.logging_service:
-                self.logging_service.log_streamlink_start(
+                # The logging service now automatically creates streamer-specific directories
+                streamlink_log_path = self.logging_service.log_streamlink_start(
                     streamer_name=streamer_name,
                     quality=quality,
                     output_path=segment_path,
                     cmd=cmd
                 )
                 
-                # Create streamlink log file for this streamer
-                streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
-                logger.info(f"Streamlink logs for {streamer_name} will be written to: {streamlink_log_path}")
+                logger.info(f"📂 Streamlink logs for {streamer_name} written to: {streamlink_log_path}")
                 
-                # Initialize the log file using proper logging
+                # Create additional streamer logger for direct output
                 streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
                 
                 # Remove any existing FileHandler instances for this logger to prevent memory leaks
@@ -195,7 +194,7 @@ class ProcessManager:
                         streamer_logger.removeHandler(handler)
                         handler.close()
                 
-                # Add a new FileHandler
+                # Add a new FileHandler pointing to the streamer-specific log
                 file_handler = logging.FileHandler(streamlink_log_path, mode='a', encoding='utf-8')
                 file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
                 streamer_logger.addHandler(file_handler)
@@ -231,7 +230,8 @@ class ProcessManager:
                         streamer_name=streamer_name,
                         stdout=stdout,
                         stderr=stderr,
-                        exit_code=process.returncode
+                        exit_code=process.returncode,
+                        log_path=streamlink_log_path  # Pass the log path from start
                     )
                     
                     # Also append to the streamer-specific log file using proper logging
@@ -419,11 +419,14 @@ class ProcessManager:
                                 if stream:
                                     streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                                     if streamer:
+                                        # Get the log path for this streamer to append output
+                                        log_path = self.logging_service.get_streamlink_log_path(streamer.username)
                                         self.logging_service.log_streamlink_output(
                                             streamer_name=streamer.username,
                                             stdout=stdout,
                                             stderr=stderr,
-                                            exit_code=process.returncode or 0
+                                            exit_code=process.returncode or 0,
+                                            log_path=log_path
                                         )
                     except Exception as e:
                         logger.warning(f"Could not log streamlink output to structured logging: {e}")

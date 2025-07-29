@@ -46,9 +46,9 @@
           </div>
         </div>
         <div class="streamer-content">
-          <p v-if="streamer.current_title"><strong>Title:</strong> {{ streamer.current_title || '-' }}</p>
-          <p v-if="streamer.current_category"><strong>Category:</strong> {{ streamer.current_category || '-' }}</p>
-          <p><strong>Language:</strong> {{ (streamer as any).language || '-' }}</p>
+          <p><strong>Title:</strong> {{ streamer.current_title || streamer.last_title || '-' }}</p>
+          <p><strong>Category:</strong> {{ streamer.current_category || streamer.last_category || '-' }}</p>
+          <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
           <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_seen || undefined) }}</p>
         </div>
         <div class="streamer-footer">
@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRouter } from 'vue-router'
 import type { Ref } from 'vue'
@@ -118,7 +118,7 @@ const {
   error,
   fetchStreamersStatus,
   isOnline: connectionStatus
-} = useHybridStatus()
+} = useSystemAndRecordingStatus()
 
 // Keep useStreamers for delete operations
 const { deleteStreamer } = useStreamers()

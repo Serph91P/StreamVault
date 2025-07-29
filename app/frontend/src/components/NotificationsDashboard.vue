@@ -164,7 +164,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useHybridStatus } from '@/composables/useHybridStatus'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
 // Icons
 const RefreshIcon = { 
@@ -193,7 +193,7 @@ const {
   isLoading,
   error,
   fetchNotificationsStatus
-} = useHybridStatus()
+} = useSystemAndRecordingStatus()
 
 // Local state
 const eventTypeFilter = ref('all')

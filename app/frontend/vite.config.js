@@ -82,7 +82,9 @@ export default defineConfig({
             }
         },
         // Default minification is esbuild, which is faster for development
-        minify: true
+        minify: true,
+        // Force empty output directory to prevent build errors
+        emptyOutDir: true
     },
     // Development optimization
     server: {

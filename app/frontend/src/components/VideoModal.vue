@@ -123,7 +123,7 @@ const currentChapter = ref(-1)
 
 const videoUrl = computed(() => {
   // Use the stream ID based endpoint
-  return `/api/videos/stream/${props.video.id}`
+  return `/api/videos/${props.video.id}/stream`
 })
 
 const closeModal = () => {
@@ -237,7 +237,7 @@ const fallbackShare = (url) => {
     
   const shareUrl = url || (sessionToken ? 
     `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}` :
-    `${window.location.origin}/api/videos/stream/${props.video.id}`)
+    `${window.location.origin}/api/videos/${props.video.id}/stream`)
     
   navigator.clipboard.writeText(shareUrl).then(() => {
     alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')

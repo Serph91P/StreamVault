@@ -1,17 +1,20 @@
 /**
- * Hybrid Status Composable
+ * Recording & System Status Composable
  * 
- * Provides current system status using both WebSocket (for live updates) 
- * and REST API (for guaranteed current state).
+ * Provides current system status, active recordings, and streamer data
+ * using both WebSocket (for live updates) and REST API (for guaranteed current state).
  * 
  * This ensures the frontend always has current status, even if:
  * - WebSocket connection is lost
  * - User opens the frontend while offline
  * - Network connectivity issues occur
+ * 
+ * Note: Background Queue data is handled separately by useBackgroundQueue.ts
  */
 
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
 import { useWebSocket } from './useWebSocket'
+import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 // Configuration constants
 const TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
@@ -20,13 +23,6 @@ interface SystemStatus {
   active_recordings: number
   total_streamers: number
   live_streamers: number
-  timestamp: string
-}
-
-interface BackgroundQueueStatus {
-  stats: any
-  active_tasks: any[]
-  recent_tasks: any[]
   timestamp: string
 }
 
@@ -55,6 +51,10 @@ interface StreamerStatus {
   last_seen: string | null
   current_title: string | null
   current_category: string | null
+  // Add missing properties for WebSocket data
+  language?: string
+  last_title?: string
+  last_category?: string
 }
 
 interface StreamStatus {
@@ -80,11 +80,10 @@ interface NotificationStatus {
   timestamp: string
 }
 
-export function useHybridStatus() {
+export function useSystemAndRecordingStatus() {
   // State
   const systemStatus = ref<SystemStatus | null>(null)
   const activeRecordings = ref<ActiveRecording[]>([])
-  const backgroundQueue = ref<BackgroundQueueStatus | null>(null)
   const streamersStatus = ref<StreamerStatus[]>([])
   const streamsStatus = ref<StreamStatus[]>([])
   const notificationsStatus = ref<NotificationStatus | null>(null)
@@ -119,7 +118,7 @@ export function useHybridStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch system status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch system status', err)
     } finally {
       isLoading.value = false
     }
@@ -143,31 +142,7 @@ export function useHybridStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch active recordings:', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
-  
-  const fetchBackgroundQueue = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/background-queue${cacheParam}`)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      backgroundQueue.value = data
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch background queue status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch active recordings', err)
     } finally {
       isLoading.value = false
     }
@@ -191,7 +166,7 @@ export function useHybridStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch streamers status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch streamers status', err)
     } finally {
       isLoading.value = false
     }
@@ -215,7 +190,7 @@ export function useHybridStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch streams status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch streams status', err)
     } finally {
       isLoading.value = false
     }
@@ -239,7 +214,7 @@ export function useHybridStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch notifications status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch notifications status', err)
     } finally {
       isLoading.value = false
     }
@@ -250,7 +225,6 @@ export function useHybridStatus() {
     await Promise.all([
       fetchSystemStatus(useCache),
       fetchActiveRecordings(useCache),
-      fetchBackgroundQueue(useCache),
       fetchStreamersStatus(useCache),
       fetchStreamsStatus(useCache),
       fetchNotificationsStatus(useCache)
@@ -264,6 +238,11 @@ export function useHybridStatus() {
   
   // WebSocket message processing
   const processWebSocketMessage = (message: any) => {
+    // Only log in development mode
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+      logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
+    }
+    
     switch (message.type) {
       case 'active_recordings_update':
         if (Array.isArray(message.data)) {
@@ -283,6 +262,61 @@ export function useHybridStatus() {
         if (Array.isArray(message.data)) {
           streamsStatus.value = message.data
           lastUpdate.value = new Date()
+        }
+        break
+        
+      case 'channel.update':
+        // Handle Twitch channel updates (title, category, language changes)
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            if (message.data.title) {
+              streamersStatus.value[streamerIndex].current_title = message.data.title
+            }
+            if (message.data.category_name) {
+              streamersStatus.value[streamerIndex].current_category = message.data.category_name
+            }
+            if (message.data.language) {
+              streamersStatus.value[streamerIndex].language = message.data.language
+            }
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            logDebug('useSystemAndRecordingStatus', `Updated streamer ${message.data.streamer_name} from WebSocket channel.update`)
+          }
+        }
+        break
+        
+      case 'stream.online':
+        // Handle Twitch stream going live
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            streamersStatus.value[streamerIndex].is_live = true
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went LIVE via WebSocket`)
+          }
+        }
+        break
+        
+      case 'stream.offline':
+        // Handle Twitch stream going offline
+        if (message.data && message.data.streamer_name) {
+          const streamerIndex = streamersStatus.value.findIndex(
+            s => s.name === message.data.streamer_name || s.name === message.data.username
+          )
+          if (streamerIndex !== -1) {
+            streamersStatus.value[streamerIndex].is_live = false
+            streamersStatus.value[streamerIndex].current_title = null
+            streamersStatus.value[streamerIndex].current_category = null
+            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went OFFLINE via WebSocket`)
+          }
         }
         break
         
@@ -374,16 +408,6 @@ export function useHybridStatus() {
         }
         break
         
-      case 'background_queue_update':
-        if (message.data) {
-          backgroundQueue.value = {
-            ...message.data,
-            timestamp: new Date().toISOString()
-          }
-          lastUpdate.value = new Date()
-        }
-        break
-        
       case 'notification_event':
         // Add to recent notifications
         if (message.data && notificationsStatus.value) {
@@ -410,6 +434,10 @@ export function useHybridStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
+      // Only log in development mode to avoid performance impact
+      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+        logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
+      }
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
@@ -468,7 +496,6 @@ export function useHybridStatus() {
     // State
     systemStatus: readonly(systemStatus),
     activeRecordings: readonly(activeRecordings),
-    backgroundQueue: readonly(backgroundQueue),
     streamersStatus: readonly(streamersStatus),
     streamsStatus: readonly(streamsStatus),
     notificationsStatus: readonly(notificationsStatus),
@@ -484,7 +511,6 @@ export function useHybridStatus() {
     // Methods
     fetchSystemStatus,
     fetchActiveRecordings,
-    fetchBackgroundQueue,
     fetchStreamersStatus,
     fetchStreamsStatus,
     fetchNotificationsStatus,

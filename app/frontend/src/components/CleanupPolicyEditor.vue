@@ -4,54 +4,70 @@
       <h4 class="card-title">{{ title }}</h4>
       
       <form @submit.prevent="savePolicy">
-        <!-- Policy Type Selection -->
-        <div class="form-group">
-          <label>Cleanup Policy:</label>
-          <div class="form-row">
-            <select v-model="policy.type" class="form-control">
-              <option v-for="type in policyTypes" :key="type.value" :value="type.value">
-                {{ type.label }}
+        <!-- Use Global Settings Toggle (only for streamers) -->
+        <div v-if="!isGlobal" class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="useGlobalPolicy" @change="onGlobalPolicyToggle" />
+            Use Global Cleanup Policy
+          </label>
+          <div class="help-text">
+            When enabled, this streamer will use the global cleanup policy settings. 
+            Disable to set custom cleanup policy for this streamer.
+          </div>
+        </div>
+
+        <!-- Policy Configuration (disabled if using global) -->
+        <div :class="{ 'disabled-section': !isGlobal && useGlobalPolicy }">
+          <!-- Policy Type Selection -->
+          <div class="form-group">
+            <label>Cleanup Policy:</label>
+            <div class="form-row">
+              <select v-model="policy.type" class="form-control" :disabled="!isGlobal && useGlobalPolicy">
+                <option v-for="type in policyTypes" :key="type.value" :value="type.value">
+                  {{ type.label }}
+                </option>
+              </select>
+              <div class="help-text">{{ policyHint }}</div>
+            </div>
+          </div>
+
+          <!-- Threshold Setting -->
+          <div v-if="policy.type !== 'custom'" class="form-group">
+            <div class="form-row">
+              <label>{{ thresholdLabel }}:</label>
+              <input 
+                type="number" 
+                v-model.number="policy.threshold"
+                min="1" 
+                class="form-control" 
+                :disabled="!isGlobal && useGlobalPolicy"
+                required 
+              />
+              <div class="help-text">{{ thresholdHint }}</div>
+            </div>
+          </div>
+
+          <!-- Preservation Options -->
+          <div class="form-group">
+            <label>Preservation Options:</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="policy.preserve_favorites" :disabled="!isGlobal && useGlobalPolicy" />
+                Preserve favorites
+              </label>
+            </div>
+          </div>
+
+          <!-- Preserve Specific Categories -->
+          <div v-if="showPreserveCategories" class="form-group">
+            <label>Preserve Categories:</label>
+            <select v-model="policy.preserve_categories" class="form-control" multiple :disabled="!isGlobal && useGlobalPolicy">
+              <option v-for="category in availableCategories" :key="category.id" :value="category.name">
+                {{ category.name }}
               </option>
             </select>
-            <div class="help-text">{{ policyHint }}</div>
+            <div class="help-text">Hold Ctrl/Cmd to select multiple categories</div>
           </div>
-        </div>
-
-        <!-- Threshold Setting -->
-        <div v-if="policy.type !== 'custom'" class="form-group">
-          <div class="form-row">
-            <label>{{ thresholdLabel }}:</label>
-            <input 
-              type="number" 
-              v-model.number="policy.threshold"
-              min="1" 
-              class="form-control" 
-              required 
-            />
-            <div class="help-text">{{ thresholdHint }}</div>
-          </div>
-        </div>
-
-        <!-- Preservation Options -->
-        <div class="form-group">
-          <label>Preservation Options:</label>
-          <div class="checkbox-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="policy.preserve_favorites" />
-              Preserve favorites
-            </label>
-          </div>
-        </div>
-
-        <!-- Preserve Specific Categories -->
-        <div v-if="showPreserveCategories" class="form-group">
-          <label>Preserve Categories:</label>
-          <select v-model="policy.preserve_categories" class="form-control" multiple>
-            <option v-for="category in availableCategories" :key="category.id" :value="category.name">
-              {{ category.name }}
-            </option>
-          </select>
-          <div class="help-text">Hold Ctrl/Cmd to select multiple categories</div>
         </div>
 
         <!-- Form Actions -->
@@ -185,6 +201,7 @@ const showSnackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
 const showCleanupResults = ref(false);
+const useGlobalPolicy = ref(true); // Use global cleanup policy by default
 const cleanupResults = ref<CleanupResults>({
   message: '',
   deleted_count: 0,
@@ -285,8 +302,21 @@ async function loadPolicy() {
       const streamerSettings = recordingSettings.streamerSettings.value.find(
         (s: any) => s.streamer_id === props.streamerId
       );
-      if (streamerSettings?.cleanup_policy) {
-        policy.value = ensureCompletePolicy(streamerSettings.cleanup_policy);
+      if (streamerSettings) {
+        // Set the global policy toggle based on streamer settings
+        useGlobalPolicy.value = streamerSettings.use_global_cleanup_policy !== false;
+        
+        // Load policy only if not using global settings
+        if (!useGlobalPolicy.value && streamerSettings.cleanup_policy) {
+          policy.value = ensureCompletePolicy(streamerSettings.cleanup_policy);
+        } else {
+          // Load global policy as preview when using global settings
+          await loadGlobalPolicyAsPreview();
+        }
+      } else {
+        // No streamer settings yet, default to global
+        useGlobalPolicy.value = true;
+        await loadGlobalPolicyAsPreview();
       }
     }
     
@@ -318,6 +348,36 @@ async function loadStorageStats() {
   }
 }
 
+async function loadGlobalPolicyAsPreview() {
+  try {
+    if (!recordingSettings.settings.value) {
+      await recordingSettings.fetchSettings();
+    }
+    
+    if (recordingSettings.settings.value?.cleanup_policy) {
+      const globalPolicy = recordingSettings.settings.value.cleanup_policy;
+      policy.value = ensureCompletePolicy(globalPolicy);
+    }
+  } catch (error) {
+    console.error('Error loading global policy preview:', error);
+  }
+}
+
+function onGlobalPolicyToggle() {
+  if (useGlobalPolicy.value) {
+    // When switching to global, load global policy as preview
+    loadGlobalPolicyAsPreview();
+  } else {
+    // When switching to custom, reset to default policy
+    policy.value = {
+      type: CleanupPolicyType.COUNT,
+      threshold: 10,
+      preserve_favorites: true,
+      preserve_categories: []
+    };
+  }
+}
+
 async function savePolicy() {
   try {
     isSaving.value = true;
@@ -329,8 +389,12 @@ async function savePolicy() {
       // Save global cleanup policy
       await recordingSettings.updateCleanupPolicy(completePolicy);
     } else if (props.streamerId) {
-      // Save streamer-specific cleanup policy
-      await recordingSettings.updateStreamerCleanupPolicy(props.streamerId, completePolicy);
+      // Save streamer-specific cleanup policy with global flag
+      await recordingSettings.updateStreamerCleanupPolicy(
+        props.streamerId, 
+        completePolicy, 
+        useGlobalPolicy.value
+      );
     }
     
     showSuccess('Cleanup policy saved successfully');
@@ -762,5 +826,21 @@ select.form-control option {
 
 .deleted-files-list li:last-child {
   border-bottom: none;
+}
+
+/* Disabled section styles */
+.disabled-section {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.disabled-section .form-control:disabled,
+.disabled-section input:disabled,
+.disabled-section select:disabled {
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-secondary, #adadb8);
+  border-color: var(--border-color, #303034);
+  cursor: not-allowed;
 }
 </style>
