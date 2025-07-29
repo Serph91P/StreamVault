@@ -37,13 +37,14 @@ class CleanupService:
             StreamerRecordingSettings.streamer_id == streamer_id
         ).first()
         
-        if streamer_settings and streamer_settings.cleanup_policy:
+        # If streamer has settings and explicitly wants to use custom policy
+        if streamer_settings and not streamer_settings.use_global_cleanup_policy and streamer_settings.cleanup_policy:
             policy = CleanupService._parse_cleanup_policy(streamer_settings.cleanup_policy)
             if policy:
                 logger.debug(f"Using streamer-specific cleanup policy for streamer {streamer_id}")
                 return policy
         
-        # Fall back to global settings
+        # Use global settings (default behavior)
         global_settings = db.query(RecordingSettings).first()
         if global_settings and global_settings.cleanup_policy:
             policy = CleanupService._parse_cleanup_policy(global_settings.cleanup_policy)
@@ -51,11 +52,12 @@ class CleanupService:
                 logger.debug(f"Using global cleanup policy for streamer {streamer_id}")
                 return policy
                 
-        # If no policy is set, fall back to the max_streams setting
+        # If no policy is set anywhere, fall back to the max_streams setting
         config_manager = ConfigManager()
         max_streams = config_manager.get_max_streams(streamer_id)
         
         # Return default policy
+        logger.debug(f"Using default cleanup policy for streamer {streamer_id}")
         return {
             "type": CleanupPolicyType.COUNT.value,
             "threshold": max_streams if max_streams > 0 else 10,
