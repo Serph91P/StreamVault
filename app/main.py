@@ -145,6 +145,37 @@ async def lifespan(app: FastAPI):
             background_queue_init = BackgroundQueueManager()
             await background_queue_init.initialize()
             logger.info("Background queue service initialized successfully")
+            
+            # Start automatic background queue cleanup
+            async def scheduled_background_queue_cleanup():
+                while True:
+                    try:
+                        await asyncio.sleep(300)  # Wait 5 minutes between cleanup runs
+                        
+                        from app.services.background_queue_cleanup_service import get_cleanup_service
+                        cleanup_service = get_cleanup_service()
+                        
+                        # Run comprehensive cleanup
+                        result = await cleanup_service.comprehensive_cleanup()
+                        
+                        # Only log if issues were found and fixed
+                        total_fixed = sum([
+                            result.get('stuck_recordings', {}).get('cleaned', 0),
+                            result.get('orphaned_recovery', {}).get('stopped', 0),
+                            result.get('task_names', {}).get('fixed', 0)
+                        ])
+                        
+                        if total_fixed > 0:
+                            logger.info(f"🧹 AUTO_CLEANUP: Fixed {total_fixed} background queue issues automatically")
+                            
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        logger.debug(f"Error in background queue auto-cleanup: {e}")
+            
+            asyncio.create_task(scheduled_background_queue_cleanup())
+            logger.info("✅ Background queue auto-cleanup service started")
+            
         except Exception as e:
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
