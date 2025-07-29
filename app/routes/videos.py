@@ -16,43 +16,60 @@ from app.utils.streamer_cache import get_valid_streamers
 
 logger = logging.getLogger("streamvault")
 
+# Constants for chapter generation
+CHAPTER_INTERVAL_SECONDS = 600  # 10 minutes in seconds
+
 def parse_vtt_chapters(vtt_content: str) -> list:
-    """Parse WebVTT chapter format"""
+    """Parse WebVTT chapter format - improved version matching working streamers implementation"""
     chapters = []
-    chapter_blocks = re.split(r'\n\n+', vtt_content.strip())
     
-    for block in chapter_blocks:
-        if 'WEBVTT' in block or not block.strip():
+    # Split into cues by looking for timestamp lines
+    lines = vtt_content.split('\n')
+    current_chapter = None
+    
+    for line in lines:
+        line = line.strip()
+        
+        # Skip empty lines and WebVTT header
+        if not line or line == 'WEBVTT':
             continue
+        
+        # Look for timestamp lines (format: 00:00:00.000 --> 00:00:00.000)
+        timestamp_match = re.match(r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})', line)
+        if timestamp_match:
+            if current_chapter:
+                chapters.append(current_chapter)
             
-        lines = block.strip().split('\n')
-        if len(lines) >= 2:
-            # First line might be a chapter identifier, or it might be the timestamp
-            if '-->' in lines[0]:
-                timestamp_line = lines[0]
-                title_line = lines[1] if len(lines) > 1 else "Chapter"
-            elif len(lines) > 1 and '-->' in lines[1]:
-                timestamp_line = lines[1]
-                title_line = lines[2] if len(lines) > 2 else lines[0]
+            start_time = timestamp_match.group(1)
+            
+            # Convert timestamp to seconds for consistency
+            time_parts = start_time.split(':')
+            if len(time_parts) == 3:
+                hours, minutes, seconds = time_parts
+                total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
             else:
+                logger.warning(f"Invalid timestamp format encountered: {start_time}")
                 continue
-                
-            # Parse timestamp "00:00:00.000 --> 00:10:00.000"
-            if '-->' in timestamp_line:
-                start_time, _ = timestamp_line.split('-->')
-                start_time = start_time.strip()
-                
-                # Convert timestamp to seconds
-                time_parts = start_time.split(':')
-                if len(time_parts) == 3:
-                    hours, minutes, seconds = time_parts
-                    total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
-                    
-                    chapters.append({
-                        'id': len(chapters) + 1,
-                        'start': total_seconds,
-                        'title': title_line.strip()
-                    })
+            
+            current_chapter = {
+                "id": len(chapters) + 1,
+                "start": total_seconds,
+                "start_time": start_time,
+                "title": "",
+                "type": "chapter"
+            }
+        # Skip lines that are not relevant to chapter titles (e.g., WebVTT metadata or cue types)
+        elif current_chapter and line and not any(line.startswith(prefix) for prefix in ['NOTE', 'STYLE', 'REGION', 'COMMENT']):
+            # This is the chapter title
+            if not current_chapter["title"]:
+                current_chapter["title"] = line
+            else:
+                # Multi-line title
+                current_chapter["title"] += " " + line
+    
+    # Add the last chapter
+    if current_chapter:
+        chapters.append(current_chapter)
     
     return chapters
 
@@ -657,6 +674,100 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         logger.error(f"Error streaming video {stream_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@router.get("/videos/{stream_id}/chapters")
+async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Get chapters for a video from metadata files"""
+    try:
+        logger.info(f"🎬 CHAPTER_REQUEST: Getting chapters for stream {stream_id}")
+        
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            logger.warning(f"🎬 CHAPTER_AUTH_FAIL: No session token for stream {stream_id}")
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            logger.warning(f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}")
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        logger.info(f"🎬 CHAPTER_AUTH_OK: Authentication successful for stream {stream_id}")
+        
+        # Get stream from database
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            logger.warning(f"🎬 CHAPTER_STREAM_NOT_FOUND: Stream {stream_id} not found")
+            raise HTTPException(status_code=404, detail="Stream not found")
+        
+        logger.info(f"🎬 CHAPTER_STREAM_FOUND: Stream {stream_id} - {stream.title}")
+        
+        # Get metadata for this stream
+        from app.models import StreamMetadata
+        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        
+        chapters = []
+        
+        # Try to load chapters from VTT file first (best for web)
+        if metadata and metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
+            try:
+                with open(metadata.chapters_vtt_path, 'r', encoding='utf-8') as f:
+                    vtt_content = f.read()
+                    chapters = parse_vtt_chapters(vtt_content)
+                    logger.info(f"🎬 CHAPTER_VTT_LOADED: Loaded {len(chapters)} chapters from VTT file")
+            except Exception as e:
+                logger.warning(f"🎬 CHAPTER_VTT_FAIL: Failed to load VTT chapters: {e}")
+        
+        # Fallback to FFmpeg chapters format if VTT not available
+        if not chapters and metadata and metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists():
+            try:
+                with open(metadata.chapters_ffmpeg_path, 'r', encoding='utf-8') as f:
+                    ffmpeg_content = f.read()
+                    chapters = parse_ffmpeg_chapters(ffmpeg_content)
+                    logger.info(f"🎬 CHAPTER_FFMPEG_LOADED: Loaded {len(chapters)} chapters from FFmpeg file")
+            except Exception as e:
+                logger.warning(f"🎬 CHAPTER_FFMPEG_FAIL: Failed to load FFmpeg chapters: {e}")
+        
+        # If no chapters found, create some sample ones for testing if duration exists
+        if not chapters and stream.started_at and stream.ended_at:
+            duration = (stream.ended_at - stream.started_at).total_seconds()
+            if duration > 60:  # Only create chapters for streams longer than 1 minute
+                # Create chapters every 10 minutes for longer streams
+                chapter_interval = min(CHAPTER_INTERVAL_SECONDS, duration / 4)  # Max 4 chapters or every 10 minutes
+                current_time = 0
+                chapter_num = 1
+                
+                while current_time < duration and chapter_num <= 10:  # Max 10 chapters
+                    chapters.append({
+                        "id": chapter_num,
+                        "title": f"Chapter {chapter_num}",
+                        "start": current_time,
+                        "end": min(current_time + chapter_interval, duration)
+                    })
+                    current_time += chapter_interval
+                    chapter_num += 1
+                logger.info(f"🎬 CHAPTER_GENERATED: Generated {len(chapters)} sample chapters")
+        
+        # If still no chapters, create a single default chapter
+        if not chapters:
+            chapters = [{
+                "id": 1,
+                "title": stream.title or f"Stream {stream_id}",
+                "start": 0,
+                "end": 0
+            }]
+            logger.info(f"🎬 CHAPTER_DEFAULT: Created default chapter")
+        
+        logger.info(f"🎬 CHAPTER_SUCCESS: Returning {len(chapters)} chapters for stream {stream_id}")
+        return chapters
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"🎬 CHAPTER_ERROR: Error getting chapters for stream {stream_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @router.get("/videos/{streamer_name}/{filename}")
 async def stream_video(streamer_name: str, filename: str, request: Request, db: Session = Depends(get_db)):
     """Stream a video file with range request support - CodeQL-safe implementation"""
@@ -1037,100 +1148,6 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
         raise
     except Exception as e:
         logger.error(f"Error in stream_video_by_filename: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@router.get("/videos/{stream_id}/chapters")
-async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get chapters for a video from metadata files"""
-    try:
-        logger.info(f"🎬 CHAPTER_REQUEST: Getting chapters for stream {stream_id}")
-        
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
-            logger.warning(f"🎬 CHAPTER_AUTH_FAIL: No session token for stream {stream_id}")
-            raise HTTPException(status_code=401, detail="Authentication required")
-        
-        # Validate session
-        from app.services.core.auth_service import AuthService
-        auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
-            logger.warning(f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}")
-            raise HTTPException(status_code=401, detail="Invalid session")
-        
-        logger.info(f"🎬 CHAPTER_AUTH_OK: Authentication successful for stream {stream_id}")
-        
-        # Get stream from database
-        stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream:
-            logger.warning(f"🎬 CHAPTER_STREAM_NOT_FOUND: Stream {stream_id} not found")
-            raise HTTPException(status_code=404, detail="Stream not found")
-        
-        logger.info(f"🎬 CHAPTER_STREAM_FOUND: Stream {stream_id} - {stream.title}")
-        
-        # Get metadata for this stream
-        from app.models import StreamMetadata
-        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-        
-        chapters = []
-        
-        # Try to load chapters from VTT file first (best for web)
-        if metadata and metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
-            try:
-                with open(metadata.chapters_vtt_path, 'r', encoding='utf-8') as f:
-                    vtt_content = f.read()
-                    chapters = parse_vtt_chapters(vtt_content)
-                    logger.info(f"🎬 CHAPTER_VTT_LOADED: Loaded {len(chapters)} chapters from VTT file")
-            except Exception as e:
-                logger.warning(f"🎬 CHAPTER_VTT_FAIL: Failed to load VTT chapters: {e}")
-        
-        # Fallback to FFmpeg chapters format if VTT not available
-        if not chapters and metadata and metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists():
-            try:
-                with open(metadata.chapters_ffmpeg_path, 'r', encoding='utf-8') as f:
-                    ffmpeg_content = f.read()
-                    chapters = parse_ffmpeg_chapters(ffmpeg_content)
-                    logger.info(f"🎬 CHAPTER_FFMPEG_LOADED: Loaded {len(chapters)} chapters from FFmpeg file")
-            except Exception as e:
-                logger.warning(f"🎬 CHAPTER_FFMPEG_FAIL: Failed to load FFmpeg chapters: {e}")
-        
-        # If no chapters found, create some sample ones for testing if duration exists
-        if not chapters and stream.started_at and stream.ended_at:
-            duration = (stream.ended_at - stream.started_at).total_seconds()
-            if duration > 60:  # Only create chapters for streams longer than 1 minute
-                # Create chapters every 10 minutes for longer streams
-                chapter_interval = min(600, duration / 4)  # Max 4 chapters or every 10 minutes
-                current_time = 0
-                chapter_num = 1
-                
-                while current_time < duration and chapter_num <= 10:  # Max 10 chapters
-                    chapters.append({
-                        "id": chapter_num,
-                        "title": f"Chapter {chapter_num}",
-                        "start": current_time,
-                        "end": min(current_time + chapter_interval, duration)
-                    })
-                    current_time += chapter_interval
-                    chapter_num += 1
-                logger.info(f"🎬 CHAPTER_GENERATED: Generated {len(chapters)} sample chapters")
-        
-        # If still no chapters, create a single default chapter
-        if not chapters:
-            chapters = [{
-                "id": 1,
-                "title": stream.title or f"Stream {stream_id}",
-                "start": 0,
-                "end": 0
-            }]
-            logger.info(f"🎬 CHAPTER_DEFAULT: Created default chapter")
-        
-        logger.info(f"🎬 CHAPTER_SUCCESS: Returning {len(chapters)} chapters for stream {stream_id}")
-        return chapters
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🎬 CHAPTER_ERROR: Error getting chapters for stream {stream_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/test/{stream_id}")
