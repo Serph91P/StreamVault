@@ -16,6 +16,9 @@ from app.utils.streamer_cache import get_valid_streamers
 
 logger = logging.getLogger("streamvault")
 
+# Constants for chapter generation
+CHAPTER_INTERVAL_SECONDS = 600  # 10 minutes in seconds
+
 def parse_vtt_chapters(vtt_content: str) -> list:
     """Parse WebVTT chapter format - improved version matching working streamers implementation"""
     chapters = []
@@ -45,7 +48,8 @@ def parse_vtt_chapters(vtt_content: str) -> list:
                 hours, minutes, seconds = time_parts
                 total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
             else:
-                total_seconds = 0
+                logger.warning(f"Invalid timestamp format encountered: {start_time}")
+                continue
             
             current_chapter = {
                 "id": len(chapters) + 1,
@@ -54,7 +58,8 @@ def parse_vtt_chapters(vtt_content: str) -> list:
                 "title": "",
                 "type": "chapter"
             }
-        elif current_chapter and line and not line.startswith('NOTE'):
+        # Skip lines that are not relevant to chapter titles (e.g., WebVTT metadata or cue types)
+        elif current_chapter and line and not any(line.startswith(prefix) for prefix in ['NOTE', 'STYLE', 'REGION', 'COMMENT']):
             # This is the chapter title
             if not current_chapter["title"]:
                 current_chapter["title"] = line
@@ -729,7 +734,7 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
             duration = (stream.ended_at - stream.started_at).total_seconds()
             if duration > 60:  # Only create chapters for streams longer than 1 minute
                 # Create chapters every 10 minutes for longer streams
-                chapter_interval = min(600, duration / 4)  # Max 4 chapters or every 10 minutes
+                chapter_interval = min(CHAPTER_INTERVAL_SECONDS, duration / 4)  # Max 4 chapters or every 10 minutes
                 current_time = 0
                 chapter_num = 1
                 
