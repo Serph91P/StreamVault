@@ -127,7 +127,7 @@ def get_video_thumbnail_url(stream_id: int, recording_path: str) -> Optional[str
         for thumbnail_path in thumbnail_candidates:
             if thumbnail_path.exists() and thumbnail_path.is_file():
                 # Return relative URL for API access
-                return f"/api/videos/thumbnail/{stream_id}"
+                return f"/api/videos/{stream_id}/thumbnail"
         
         return None
     except Exception as e:
@@ -378,7 +378,7 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         # Don't expose internal error details to users
         return {"error": "Internal error occurred", "success": False}
 
-@router.get("/videos/thumbnail/{stream_id}")
+@router.get("/videos/{stream_id}/thumbnail")
 async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Serve video thumbnail image"""
     try:
@@ -542,7 +542,7 @@ async def stream_video_public(stream_id: int, token: str = Query(...), request: 
         logger.error(f"Error streaming public video {stream_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.get("/videos/stream/{stream_id}")
+@router.get("/videos/{stream_id}/stream")
 async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Stream a video file by stream ID with range request support"""
     try:
