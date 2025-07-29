@@ -237,6 +237,8 @@ export function useSystemAndRecordingStatus() {
   
   // WebSocket message processing
   const processWebSocketMessage = (message: any) => {
+    console.log('🔄 [useSystemAndRecordingStatus] Processing message type:', message.type, 'with data:', message.data)
+    
     switch (message.type) {
       case 'active_recordings_update':
         if (Array.isArray(message.data)) {
@@ -428,6 +430,7 @@ export function useSystemAndRecordingStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
+      console.log('🔍 [useSystemAndRecordingStatus] Received WebSocket message:', latestMessage)
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
