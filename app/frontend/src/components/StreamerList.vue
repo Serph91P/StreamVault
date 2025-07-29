@@ -46,9 +46,9 @@
           </div>
         </div>
         <div class="streamer-content">
-          <p><strong>Title:</strong> {{ streamer.current_title || (streamer as any).last_title || '-' }}</p>
-          <p><strong>Category:</strong> {{ streamer.current_category || (streamer as any).last_category || '-' }}</p>
-          <p><strong>Language:</strong> {{ (streamer as any).language || '-' }}</p>
+          <p><strong>Title:</strong> {{ streamer.current_title || streamer.last_title || '-' }}</p>
+          <p><strong>Category:</strong> {{ streamer.current_category || streamer.last_category || '-' }}</p>
+          <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
           <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_seen || undefined) }}</p>
         </div>
         <div class="streamer-footer">
