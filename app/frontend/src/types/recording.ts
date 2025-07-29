@@ -17,6 +17,7 @@ export interface StreamerRecordingSettings {
   profile_image_url?: string;
   max_streams?: number; // Maximum number of streams to keep for this streamer
   cleanup_policy?: CleanupPolicy; // New property for streamer-specific cleanup policy
+  use_global_cleanup_policy?: boolean; // Use global cleanup policy or streamer-specific (default: true)
 }
 
 // New type for advanced cleanup policies
