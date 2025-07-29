@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
+import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 interface WebSocketMessage {
   type: string
@@ -25,15 +26,15 @@ class WebSocketManager {
   private constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     this.wsUrl = `${wsProtocol}//${window.location.host}/ws`
-    console.log('🔧 WebSocketManager singleton created with URL:', this.wsUrl)
+    logDebug('WebSocketManager', `Singleton created with URL: ${this.wsUrl}`)
   }
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
       WebSocketManager.instance = new WebSocketManager()
-      console.log('🏗️ WebSocketManager singleton instance created')
+      logDebug('WebSocketManager', 'Singleton instance created')
     } else {
-      console.log('♻️ WebSocketManager singleton instance reused')
+      logDebug('WebSocketManager', 'Singleton instance reused')
     }
     return WebSocketManager.instance
   }
@@ -78,7 +79,7 @@ class WebSocketManager {
     this.ws = new WebSocket(this.wsUrl)
 
     this.ws.onopen = () => {
-      console.log('✅ WebSocket connected successfully')
+      logWebSocket('WebSocketManager', 'connected', 'WebSocket connected successfully')
       this.connectionStatus.value = 'connected'
       this.reconnectAttempts = 0
       
