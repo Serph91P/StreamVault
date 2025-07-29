@@ -1,30 +1,74 @@
-"""Add use_global_cleanup_policy flag to streamer settings
-
-Revision ID: 016_add_use_global_cleanup_policy
-Revises: 015_add_default_settings
-Create Date: 2025-07-29
-
+#!/usr/bin/env python
 """
-from alembic import op
-import sqlalchemy as sa
+Migration 016: Add use_global_cleanup_policy flag to streamer settings
+Adds a flag to control whether streamers use global cleanup policy or custom settings
+"""
+import os
+import sys
+import logging
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import DatabaseError, OperationalError
 
-# revision identifiers
-revision = '016_add_use_global_cleanup_policy'
-down_revision = '015_add_default_settings'
-branch_labels = None
-depends_on = None
+# Add parent directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
-def upgrade():
+from app.config.settings import settings
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def run_migration():
     """Add use_global_cleanup_policy flag to streamer_recording_settings"""
-    
-    # Add the new column with default True (use global settings by default)
-    op.add_column('streamer_recording_settings', 
-                  sa.Column('use_global_cleanup_policy', sa.Boolean(), 
-                           nullable=False, server_default=sa.true()))
-    
-    print("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
+    session = None
+    try:
+        # Validate DATABASE_URL
+        if not settings.DATABASE_URL:
+            raise ValueError("DATABASE_URL not configured")
+            
+        logger.info("Creating database engine...")
+        engine = create_engine(settings.DATABASE_URL)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        logger.info("Adding use_global_cleanup_policy column to streamer_recording_settings...")
+        
+        # Check if column already exists
+        check_column_sql = text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'streamer_recording_settings' 
+            AND column_name = 'use_global_cleanup_policy'
+        """)
+        
+        result = session.execute(check_column_sql).fetchone()
+        
+        if result:
+            logger.info("✅ Column use_global_cleanup_policy already exists, skipping")
+            return True
+        
+        # Add the new column with default True (use global settings by default)
+        add_column_sql = text("""
+            ALTER TABLE streamer_recording_settings 
+            ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT true
+        """)
+        
+        session.execute(add_column_sql)
+        session.commit()
+        
+        logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
+        return True
+        
+    except Exception as e:
+        if session:
+            session.rollback()
+        logger.error(f"❌ Migration failed: {e}")
+        raise
+    finally:
+        if session:
+            session.close()
 
-def downgrade():
-    """Remove use_global_cleanup_policy flag"""
-    op.drop_column('streamer_recording_settings', 'use_global_cleanup_policy')
-    print("❌ Removed use_global_cleanup_policy column from streamer_recording_settings")
+if __name__ == "__main__":
+    run_migration()
