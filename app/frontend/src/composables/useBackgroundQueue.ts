@@ -1,5 +1,6 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWebSocket } from './useWebSocket'
+import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 interface Task {
   id: string
@@ -58,7 +59,7 @@ export function useBackgroundQueue() {
 
   // Only keep one API method for manual refresh when WebSocket fails
   const forceRefreshFromAPI = async () => {
-    console.log('🔄 FORCE REFRESH: Using API as fallback (WebSocket might be down)')
+    logDebug('useBackgroundQueue', 'FORCE REFRESH: Using API as fallback (WebSocket might be down)')
     isLoading.value = true
     
     try {
@@ -83,9 +84,9 @@ export function useBackgroundQueue() {
         recentTasks.value = Array.isArray(tasks) ? tasks : []
       }
       
-      console.log('✅ FORCE REFRESH: API data loaded as fallback')
+      logDebug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
     } catch (error) {
-      console.error('❌ FORCE REFRESH: API fallback failed:', error)
+      logError('useBackgroundQueue', 'FORCE REFRESH: API fallback failed', error)
     } finally {
       isLoading.value = false
     }
@@ -97,11 +98,11 @@ export function useBackgroundQueue() {
         method: 'POST'
       })
       if (response.ok) {
-        console.log('✅ Stream tasks cancelled - waiting for WebSocket update')
+        logDebug('useBackgroundQueue', 'Stream tasks cancelled - waiting for WebSocket update')
         // Don't manually refresh - let WebSocket handle the update
       }
     } catch (error) {
-      console.error('Failed to cancel stream tasks:', error)
+      logError('useBackgroundQueue', 'Failed to cancel stream tasks', error)
     }
   }
 
@@ -110,33 +111,33 @@ export function useBackgroundQueue() {
     if (newMessages.length === 0) return
     
     const latestMessage = newMessages[newMessages.length - 1]
-    console.log('📨 WebSocket message received:', latestMessage.type)
+    logWebSocket('useBackgroundQueue', 'received', `WebSocket message: ${latestMessage.type}`)
     
     // Handle queue-related WebSocket messages
     if (latestMessage.type === 'background_queue_update') {
       // PRIORITY: WebSocket data overwrites everything
-      console.log('🔄 WebSocket: Updating background queue from WebSocket data')
+      logDebug('useBackgroundQueue', 'Updating background queue from WebSocket data')
       
       if (latestMessage.data.stats) {
         Object.assign(queueStats.value, latestMessage.data.stats)
-        console.log('📊 WebSocket: Updated queue stats')
+        logDebug('useBackgroundQueue', 'Updated queue stats')
       }
       if (Array.isArray(latestMessage.data.active_tasks)) {
         activeTasks.value = latestMessage.data.active_tasks
-        console.log(`� WebSocket: Set ${latestMessage.data.active_tasks.length} active tasks`)
+        logDebug('useBackgroundQueue', `Set ${latestMessage.data.active_tasks.length} active tasks`)
       }
       if (Array.isArray(latestMessage.data.recent_tasks)) {
         recentTasks.value = latestMessage.data.recent_tasks
-        console.log(`� WebSocket: Set ${latestMessage.data.recent_tasks.length} recent tasks`)
+        logDebug('useBackgroundQueue', `Set ${latestMessage.data.recent_tasks.length} recent tasks`)
       }
       
     } else if (latestMessage.type === 'queue_stats_update') {
       Object.assign(queueStats.value, latestMessage.data)
-      console.log('� WebSocket: Updated queue stats only')
+      logDebug('useBackgroundQueue', 'Updated queue stats only')
       
     } else if (latestMessage.type === 'task_status_update') {
       const taskData = latestMessage.data
-      console.log(`🔄 WebSocket: Task status update for ${taskData.id}: ${taskData.status}`)
+      logDebug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
       
       // Update or add task in activeTasks
       const existingIndex = activeTasks.value.findIndex(t => t.id === taskData.id)
@@ -159,7 +160,7 @@ export function useBackgroundQueue() {
       
     } else if (latestMessage.type === 'task_progress_update') {
       const { task_id, progress } = latestMessage.data
-      console.log(`📈 WebSocket: Progress update for ${task_id}: ${progress}%`)
+      logDebug('useBackgroundQueue', `Progress update for ${task_id}: ${progress}%`)
       
       // Update progress for the specific task
       const task = activeTasks.value.find(t => t.id === task_id)
@@ -172,11 +173,11 @@ export function useBackgroundQueue() {
   // Lifecycle
   onMounted(async () => {
     // WEBSOCKET-ONLY: No initial API calls - wait for WebSocket data
-    console.log('🔌 Background Queue: Waiting for WebSocket data (no API calls)')
+    logDebug('useBackgroundQueue', 'Background Queue: Waiting for WebSocket data (no API calls)')
     
     // If WebSocket is not connected yet, use fallback once
     if (connectionStatus.value !== 'connected') {
-      console.log('🔄 WebSocket not connected yet - using API fallback for initial load')
+      logDebug('useBackgroundQueue', 'WebSocket not connected yet - using API fallback for initial load')
       await forceRefreshFromAPI()
     }
   })

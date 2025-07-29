@@ -343,17 +343,23 @@ export function useRecordingSettings() {
 
   const updateStreamerCleanupPolicy = async (
     streamerId: number, 
-    policy: CleanupPolicy
+    policy: CleanupPolicy,
+    useGlobal: boolean = false
   ): Promise<boolean> => {
     try {
       isLoading.value = true;
+      
+      const requestBody = {
+        cleanup_policy: useGlobal ? null : policy,
+        use_global_cleanup_policy: useGlobal
+      };
       
       const response = await fetch(`/api/recording/streamers/${streamerId}/cleanup-policy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(policy)
+        body: JSON.stringify(requestBody)
       });
       
       if (!response.ok) {
