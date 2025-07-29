@@ -6,7 +6,7 @@ Adds a flag to control whether streamers use global cleanup policy or custom set
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, text, MetaData, Table, Column, Boolean, inspect
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError, OperationalError
 
@@ -24,16 +24,16 @@ def run_migration():
     """Add use_global_cleanup_policy flag to streamer_recording_settings"""
     session = None
     try:
-        # Validate DATABASE_URL more thoroughly
-        if not settings.DATABASE_URL or not settings.DATABASE_URL.strip():
-            raise ValueError("DATABASE_URL is not configured or is empty/whitespace-only")
-            
-        logger.info("Creating database engine...")
+        # Validate DATABASE_URL
+        if not settings.DATABASE_URL:
+            raise ValueError("DATABASE_URL not configured")
+        
+        # Connect to the database
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
         
-        logger.info("Checking if use_global_cleanup_policy column exists...")
+        logger.info("🔄 Adding use_global_cleanup_policy column to streamer_recording_settings...")
         
         # Use SQLAlchemy's introspection for database-agnostic column checking
         inspector = inspect(engine)
@@ -44,20 +44,34 @@ def run_migration():
             logger.info("✅ Column use_global_cleanup_policy already exists, skipping")
             return True
         
-        logger.info("Adding use_global_cleanup_policy column...")
+        logger.info("🔄 Adding use_global_cleanup_policy column...")
         
-        # Use SQLAlchemy's DDL operations for database-agnostic column addition
-        metadata = MetaData()
-        streamer_table = Table('streamer_recording_settings', metadata, autoload_with=engine)
+        # Use database-agnostic approach
+        database_url = settings.DATABASE_URL.lower()
         
-        new_column = Column('use_global_cleanup_policy', Boolean, nullable=False, server_default='true')
+        if 'postgresql' in database_url:
+            # PostgreSQL syntax
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
+            """))
+        elif 'sqlite' in database_url:
+            # SQLite syntax (SQLite uses INTEGER for boolean, 1 for TRUE)
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy INTEGER NOT NULL DEFAULT 1
+            """))
+        else:
+            # Generic fallback
+            session.execute(text("""
+                ALTER TABLE streamer_recording_settings 
+                ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
+            """))
         
-        # Use DDL to add the column
-        from sqlalchemy.schema import AddColumn
-        add_column_ddl = AddColumn(streamer_table, new_column)
-        engine.execute(add_column_ddl)
+        session.commit()
         
         logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
+        logger.info("✅ Migration 016 completed successfully")
         return True
         
     except (DatabaseError, OperationalError) as e:
@@ -68,7 +82,7 @@ def run_migration():
     except Exception as e:
         if session:
             session.rollback()
-        logger.error(f"❌ Unexpected error during migration: {e}")
+        logger.error(f"❌ Migration 016 failed: {e}")
         raise
     finally:
         if session:
