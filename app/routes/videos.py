@@ -1107,8 +1107,8 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
                     chapters.append({
                         "id": chapter_num,
                         "title": f"Chapter {chapter_num}",
-                        "start_time": current_time,
-                        "end_time": min(current_time + chapter_interval, duration)
+                        "start": current_time,
+                        "end": min(current_time + chapter_interval, duration)
                     })
                     current_time += chapter_interval
                     chapter_num += 1
