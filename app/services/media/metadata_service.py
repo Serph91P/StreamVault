@@ -992,6 +992,7 @@ class MetadataService:
                     metadata.chapters_vtt_path = str(vtt_path)
                     metadata.chapters_srt_path = str(srt_path)
                     metadata.chapters_ffmpeg_path = str(ffmpeg_chapters_path)
+                    metadata.chapters_xml_path = str(xml_chapters_path)  # Save XML path
                     db.commit()
                 
                 logger.info(f"Generated all chapter formats for stream {stream_id}")
