@@ -31,8 +31,10 @@ async def get_recent_streams(limit: int = 10) -> List[Stream]:
     async with async_session() as session:
         try:
             # Get recent completed streams (those with recording_path or ended_at)
+            # Also load the stream_metadata relationship for thumbnail_url access
             result = await session.execute(
                 select(Stream)
+                .options(selectinload(Stream.stream_metadata))
                 .filter(
                     (Stream.ended_at.isnot(None)) | 
                     (Stream.recording_path.isnot(None))
