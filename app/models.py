@@ -203,6 +203,7 @@ class StreamerRecordingSettings(Base):
     custom_filename = Column(String, nullable=True)
     max_streams = Column(Integer, nullable=True)  # Per-streamer override for max recordings
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
+    use_global_cleanup_policy = Column(Boolean, default=True)  # Use global cleanup policy or streamer-specific
     
     streamer = relationship("Streamer", back_populates="recording_settings")
 
