@@ -430,7 +430,9 @@ export function useSystemAndRecordingStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
-      console.log('🔍 [useSystemAndRecordingStatus] Received WebSocket message:', latestMessage)
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('🔍 [useSystemAndRecordingStatus] Received WebSocket message:', latestMessage)
+      }
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
