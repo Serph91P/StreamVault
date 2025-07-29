@@ -183,9 +183,11 @@ class BackgroundQueueCleanupService:
             
             # Check active tasks for orphaned recovery checks
             active_tasks = getattr(self.background_queue_service, 'active_tasks', {})
+            external_tasks = getattr(self.background_queue_service, 'external_tasks', {})
             
-            logger.info(f"🛑 ORPHANED_CLEANUP_START: Found {len(active_tasks)} active tasks to check")
+            logger.info(f"🛑 ORPHANED_CLEANUP_START: Found {len(active_tasks)} active tasks and {len(external_tasks)} external tasks to check")
             
+            # Process active tasks
             for task_id, task in list(active_tasks.items()):
                 try:
                     # Check if it's an orphaned recovery task
@@ -242,6 +244,52 @@ class BackgroundQueueCleanupService:
                     error_msg = f"Failed to stop orphaned task {task_id}: {str(e)}"
                     errors.append(error_msg)
                     logger.error(f"❌ ORPHANED_CLEANUP_ERROR: {error_msg}")
+            
+            # Process external tasks (these are often the stuck ones in UI)
+            for task_id, task in list(external_tasks.items()):
+                try:
+                    # Check if it's an orphaned recovery task
+                    is_orphaned_task = (
+                        (hasattr(task, 'task_type') and task.task_type == 'orphaned_recovery_check') or
+                        'orphaned' in task_id.lower() or
+                        (hasattr(task, 'task_name') and 'orphaned' in str(task.task_name).lower())
+                    )
+                    
+                    if is_orphaned_task:
+                        task_status = getattr(task, 'status', 'unknown')
+                        if hasattr(task_status, 'value'):
+                            status_value = task_status.value
+                        else:
+                            status_value = str(task_status).lower()
+                        
+                        if status_value in ['pending', 'running']:
+                            logger.info(f"🛑 STOPPING_EXTERNAL_ORPHANED_TASK: {task_id} (status: {status_value})")
+                            
+                            # Complete external task
+                            if hasattr(self.background_queue_service, 'complete_external_task'):
+                                self.background_queue_service.complete_external_task(task_id, success=True)
+                                logger.info(f"🛑 EXTERNAL_TASK_COMPLETED: {task_id} marked as completed")
+                            
+                            # Remove from external_tasks directly
+                            if task_id in external_tasks:
+                                del external_tasks[task_id]
+                                logger.info(f"🛑 EXTERNAL_REMOVED: Directly removed {task_id} from external_tasks")
+                            
+                            # Remove from progress tracking
+                            if hasattr(self.background_queue_service, 'progress_tracker'):
+                                try:
+                                    self.background_queue_service.progress_tracker.remove_external_task(task_id)
+                                    logger.info(f"🛑 TRACKING_REMOVED: Removed {task_id} from progress tracker")
+                                except Exception as e:
+                                    logger.warning(f"Could not remove from progress tracker: {e}")
+                            
+                            stopped_count += 1
+                            logger.info(f"🛑 STOPPED_EXTERNAL_ORPHANED_CHECK: Processed external orphaned recovery task {task_id}")
+                
+                except Exception as e:
+                    error_msg = f"Failed to stop external orphaned task {task_id}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(f"❌ EXTERNAL_ORPHANED_CLEANUP_ERROR: {error_msg}")
             
             logger.info(f"🛑 ORPHANED_CLEANUP_COMPLETE: Stopped {stopped_count} orphaned recovery tasks")
             
