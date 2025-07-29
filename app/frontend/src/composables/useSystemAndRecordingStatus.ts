@@ -14,6 +14,7 @@
 
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
 import { useWebSocket } from './useWebSocket'
+import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 // Configuration constants
 const TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
@@ -117,7 +118,7 @@ export function useSystemAndRecordingStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch system status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch system status', err)
     } finally {
       isLoading.value = false
     }
@@ -141,7 +142,7 @@ export function useSystemAndRecordingStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch active recordings:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch active recordings', err)
     } finally {
       isLoading.value = false
     }
@@ -165,7 +166,7 @@ export function useSystemAndRecordingStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch streamers status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch streamers status', err)
     } finally {
       isLoading.value = false
     }
@@ -189,7 +190,7 @@ export function useSystemAndRecordingStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch streams status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch streams status', err)
     } finally {
       isLoading.value = false
     }
@@ -213,7 +214,7 @@ export function useSystemAndRecordingStatus() {
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Failed to fetch notifications status:', err)
+      logError('useSystemAndRecordingStatus', 'Failed to fetch notifications status', err)
     } finally {
       isLoading.value = false
     }
@@ -237,7 +238,7 @@ export function useSystemAndRecordingStatus() {
   
   // WebSocket message processing
   const processWebSocketMessage = (message: any) => {
-    console.log('🔄 [useSystemAndRecordingStatus] Processing message type:', message.type, 'with data:', message.data)
+    logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
     
     switch (message.type) {
       case 'active_recordings_update':
@@ -275,11 +276,11 @@ export function useSystemAndRecordingStatus() {
               streamersStatus.value[streamerIndex].current_category = message.data.category_name
             }
             if (message.data.language) {
-              (streamersStatus.value[streamerIndex] as any).language = message.data.language
+              streamersStatus.value[streamerIndex].language = message.data.language
             }
             streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
             lastUpdate.value = new Date()
-            console.log(`🔄 Updated streamer ${message.data.streamer_name} from WebSocket channel.update`)
+            logDebug('useSystemAndRecordingStatus', `Updated streamer ${message.data.streamer_name} from WebSocket channel.update`)
           }
         }
         break
@@ -294,7 +295,7 @@ export function useSystemAndRecordingStatus() {
             streamersStatus.value[streamerIndex].is_live = true
             streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
             lastUpdate.value = new Date()
-            console.log(`🔴 Streamer ${message.data.streamer_name} went LIVE via WebSocket`)
+            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went LIVE via WebSocket`)
           }
         }
         break
@@ -311,7 +312,7 @@ export function useSystemAndRecordingStatus() {
             streamersStatus.value[streamerIndex].current_category = null
             streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
             lastUpdate.value = new Date()
-            console.log(`⚫ Streamer ${message.data.streamer_name} went OFFLINE via WebSocket`)
+            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went OFFLINE via WebSocket`)
           }
         }
         break
@@ -430,7 +431,7 @@ export function useSystemAndRecordingStatus() {
   watch(messages, (newMessages) => {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
-      console.log('🔍 [useSystemAndRecordingStatus] Received WebSocket message:', latestMessage)
+      logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
       processWebSocketMessage(latestMessage)
     }
   }, { deep: true })
