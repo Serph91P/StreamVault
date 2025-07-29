@@ -24,16 +24,16 @@ def run_migration():
     """Add use_global_cleanup_policy flag to streamer_recording_settings"""
     session = None
     try:
-        # Validate DATABASE_URL more thoroughly
-        if not settings.DATABASE_URL or not settings.DATABASE_URL.strip():
-            raise ValueError("DATABASE_URL is not configured or is empty/whitespace-only")
-            
-        logger.info("Creating database engine...")
-        engine = create_engine(settings.DATABASE_URL)
+        # Validate DATABASE_URL
+        if not settings.DATABASE_URL:
+            raise ValueError("DATABASE_URL not configured")
+        
+        # Connect to the database
+        engine = create_engine(settings.DATABASE_URL, echo=False)
         Session = sessionmaker(bind=engine)
         session = Session()
         
-        logger.info("Checking if use_global_cleanup_policy column exists...")
+        logger.info("🔄 Adding use_global_cleanup_policy column to streamer_recording_settings...")
         
         # Use SQLAlchemy's introspection for database-agnostic column checking
         inspector = inspect(engine)
@@ -44,18 +44,18 @@ def run_migration():
             logger.info("✅ Column use_global_cleanup_policy already exists, skipping")
             return True
         
-        logger.info("Adding use_global_cleanup_policy column...")
+        logger.info("🔄 Adding use_global_cleanup_policy column...")
         
         # Use direct SQL for maximum compatibility
-        add_column_sql = text("""
+        session.execute(text("""
             ALTER TABLE streamer_recording_settings 
             ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
-        """)
+        """))
         
-        session.execute(add_column_sql)
         session.commit()
         
         logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
+        logger.info("✅ Migration 016 completed successfully")
         return True
         
     except (DatabaseError, OperationalError) as e:
@@ -66,7 +66,7 @@ def run_migration():
     except Exception as e:
         if session:
             session.rollback()
-        logger.error(f"❌ Unexpected error during migration: {e}")
+        logger.error(f"❌ Migration 016 failed: {e}")
         raise
     finally:
         if session:
