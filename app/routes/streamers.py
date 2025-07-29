@@ -13,6 +13,7 @@ from app.schemas.streams import StreamList, StreamResponse
 from sqlalchemy.orm import Session
 import logging
 import asyncio
+import os
 from pathlib import Path
 import json
 import re
@@ -36,9 +37,33 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
                 
                 # Also try to delete companion files (like .vtt alongside .mp4, etc.)
                 base_path = path_obj.with_suffix('')
-                for ext in ['.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt']:
+                
+                # Extended list of all possible metadata file extensions
+                companion_extensions = [
+                    '.vtt', '.srt', '.jpg', '.png', '.nfo', '.json', '.xml', '.txt',
+                    '.info.json'  # Specific for streamlink metadata
+                ]
+                
+                for ext in companion_extensions:
                     companion = base_path.with_suffix(ext)
                     if await async_file.path_exists(companion) and companion != path_obj:
+                        await async_file.path_unlink(companion)
+                        deleted_files.append(str(companion))
+                        logger.info(f"Deleted companion file: {companion}")
+                
+                # Also check for files with specific suffixes (like -ffmpeg-chapters.txt)
+                companion_suffixes = [
+                    '-thumb.jpg',
+                    '-ffmpeg-chapters.txt',
+                    '-chapters.txt',
+                    '-chapters.vtt',
+                    '-chapters.srt',
+                    '_thumbnail.jpg'
+                ]
+                
+                for suffix in companion_suffixes:
+                    companion = base_path.with_suffix(suffix)
+                    if await async_file.path_exists(companion):
                         await async_file.path_unlink(companion)
                         deleted_files.append(str(companion))
                         logger.info(f"Deleted companion file: {companion}")
@@ -555,7 +580,7 @@ async def delete_stream(
             for attr in [
                 'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
                 'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
-                'chapters_srt_path', 'chapters_ffmpeg_path'
+                'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
             ]:
                 path = getattr(metadata, attr, None)
                 if path:
@@ -571,6 +596,32 @@ async def delete_stream(
                 files_to_delete.append(recording.path)
             # Delete recording record
             db.delete(recording)
+        
+        # Also check stream.recording_path and add all related files
+        if stream.recording_path:
+            files_to_delete.append(stream.recording_path)
+            
+            # Add all possible related files based on the recording path
+            base_path = os.path.splitext(stream.recording_path)[0]
+            related_files = [
+                f"{base_path}-thumb.jpg",           # Thumbnail
+                f"{base_path}.info.json",           # JSON metadata  
+                f"{base_path}.json",                # Alternative JSON metadata
+                f"{base_path}.srt",                 # Subtitle files
+                f"{base_path}.vtt",                 # WebVTT files
+                f"{base_path}.xml",                 # XML metadata
+                f"{base_path}-ffmpeg-chapters.txt", # FFmpeg chapter files
+                f"{base_path}-chapters.txt",        # Alternative chapter markers
+                f"{base_path}-chapters.vtt",        # WebVTT chapters
+                f"{base_path}-chapters.srt",        # SRT chapters
+                f"{base_path}.nfo",                 # NFO metadata
+                f"{base_path}_thumbnail.jpg",       # Alternative thumbnail naming
+            ]
+            
+            # Add all related files that exist
+            for related_file in related_files:
+                if os.path.exists(related_file):
+                    files_to_delete.append(related_file)
         
         # Delete all stream events
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
@@ -852,7 +903,7 @@ async def delete_all_streams(
                 for attr in [
                     'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
                     'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
-                    'chapters_srt_path', 'chapters_ffmpeg_path'
+                    'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
                 ]:
                     path = getattr(metadata, attr, None)
                     if path:
