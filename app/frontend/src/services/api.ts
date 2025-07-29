@@ -231,12 +231,12 @@ export const videoApi = {
 
   // Stream video
   streamVideo: (videoId: number) => 
-    apiClient.get(`/api/videos/stream/${videoId}`),
+    apiClient.get(`/api/videos/${videoId}/stream`),
 
   // Get video stream URL (returns string for direct use in video src attribute)
   // Note: This method returns a string URL, not a Promise like other methods
   getVideoStreamUrl: (videoId: number): string => 
-    `/api/videos/stream/${videoId}`,
+    `/api/videos/${videoId}/stream`,
 
   // Get video metadata
   getMetadata: (videoId: number) => 
