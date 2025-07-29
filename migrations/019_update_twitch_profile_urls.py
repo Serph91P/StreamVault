@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Migration 018: Update Twitch Profile URLs
+Migration 019: Update Twitch Profile URLs
 Updates outdated numeric Twitch profile URLs to use current UUID-based format
 and clears invalid cached profile images to force re-download
 """
