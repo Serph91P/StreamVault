@@ -18,6 +18,7 @@ logger = logging.getLogger("streamvault")
 
 # Constants for chapter generation
 CHAPTER_INTERVAL_SECONDS = 600  # 10 minutes in seconds
+MAX_CHAPTERS = 20  # Maximum number of chapters to prevent too many for very long streams
 
 def parse_vtt_chapters(vtt_content: str) -> list:
     """Parse WebVTT chapter format - improved version matching working streamers implementation"""
@@ -733,12 +734,12 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
         if not chapters and stream.started_at and stream.ended_at:
             duration = (stream.ended_at - stream.started_at).total_seconds()
             if duration > 60:  # Only create chapters for streams longer than 1 minute
-                # Create chapters every 10 minutes for longer streams
-                chapter_interval = min(CHAPTER_INTERVAL_SECONDS, duration / 4)  # Max 4 chapters or every 10 minutes
+                # Create chapters every 10 minutes
+                chapter_interval = CHAPTER_INTERVAL_SECONDS  # Fixed 10-minute intervals
                 current_time = 0
                 chapter_num = 1
                 
-                while current_time < duration and chapter_num <= 10:  # Max 10 chapters
+                while current_time < duration and chapter_num <= MAX_CHAPTERS:
                     chapters.append({
                         "id": chapter_num,
                         "title": f"Chapter {chapter_num}",

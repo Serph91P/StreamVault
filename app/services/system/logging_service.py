@@ -285,8 +285,13 @@ class LoggingService:
             log_file = self.app_logs_dir / f"{operation}_{today}.log"
             return str(log_file)
     
-    def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]):
-        """Log streamlink command start with streamer-specific file"""
+    def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]) -> str:
+        """
+        Log streamlink command start with streamer-specific file
+        
+        Returns:
+            str: Path to the log file created
+        """
         if not streamer_name:
             streamer_name = "unknown"
         

@@ -46,13 +46,11 @@ def run_migration():
         
         logger.info("🔄 Adding chapters_xml_path column...")
         
-        # Use SQLAlchemy's engine dialect for reliable database type detection
-        database_type = engine.dialect.name
-        
-        if database_type == 'postgresql':
-            # PostgreSQL syntax
-            session.execute(text("""
-                ALTER TABLE stream_metadata 
+        # PostgreSQL syntax (StreamVault only supports PostgreSQL)
+        session.execute(text("""
+            ALTER TABLE stream_metadata 
+            ADD COLUMN chapters_xml_path TEXT
+        """)) 
                 ADD COLUMN chapters_xml_path VARCHAR
             """))
         elif database_type == 'sqlite':
