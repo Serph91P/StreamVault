@@ -409,22 +409,28 @@ class CleanupService:
                     os.remove(stream.recording_path)
                     deleted_paths.append(stream.recording_path)
                     
-                    # Also delete related files (thumbnails, etc.)
+                    # Also delete related files (thumbnails, metadata, chapters, etc.)
                     base_path = os.path.splitext(stream.recording_path)[0]
                     related_patterns = [
-                        f"{base_path}_thumbnail.jpg",  # Thumbnail
-                        f"{base_path}.nfo",           # NFO metadata
-                        f"{base_path}.json",          # JSON metadata
-                        f"{base_path}.srt",           # Subtitle
-                        f"{base_path}-chapters.txt",  # Chapter markers
-                        f"{base_path}-chapters.vtt",  # WebVTT chapters
-                        f"{base_path}-chapters.srt",  # SRT chapters
+                        f"{base_path}-thumb.jpg",           # Thumbnail
+                        f"{base_path}.info.json",           # JSON metadata  
+                        f"{base_path}.json",                # Alternative JSON metadata
+                        f"{base_path}.srt",                 # Subtitle files
+                        f"{base_path}.vtt",                 # WebVTT files
+                        f"{base_path}.xml",                 # XML metadata
+                        f"{base_path}-ffmpeg-chapters.txt", # FFmpeg chapter files
+                        f"{base_path}-chapters.txt",        # Alternative chapter markers
+                        f"{base_path}-chapters.vtt",        # WebVTT chapters
+                        f"{base_path}-chapters.srt",        # SRT chapters
+                        f"{base_path}.nfo",                 # NFO metadata
+                        f"{base_path}_thumbnail.jpg",       # Alternative thumbnail naming
                     ]
                     
                     for related_file in related_patterns:
                         if os.path.exists(related_file):
                             os.remove(related_file)
-                            logger.debug(f"Deleted related file: {related_file}")
+                            deleted_paths.append(related_file)
+                            logger.info(f"Deleted related file: {related_file}")
                     
                     # Update the stream record to remove the recording path
                     stream.recording_path = None
