@@ -6,7 +6,7 @@ Adds a flag to control whether streamers use global cleanup policy or custom set
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, text, MetaData, Table, Column, Boolean, inspect
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError, OperationalError
 
@@ -46,16 +46,14 @@ def run_migration():
         
         logger.info("Adding use_global_cleanup_policy column...")
         
-        # Use SQLAlchemy's DDL operations for database-agnostic column addition
-        metadata = MetaData()
-        streamer_table = Table('streamer_recording_settings', metadata, autoload_with=engine)
+        # Use direct SQL for maximum compatibility
+        add_column_sql = text("""
+            ALTER TABLE streamer_recording_settings 
+            ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
+        """)
         
-        new_column = Column('use_global_cleanup_policy', Boolean, nullable=False, server_default='true')
-        
-        # Use DDL to add the column
-        from sqlalchemy.schema import AddColumn
-        add_column_ddl = AddColumn(streamer_table, new_column)
-        engine.execute(add_column_ddl)
+        session.execute(add_column_sql)
+        session.commit()
         
         logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
         return True
