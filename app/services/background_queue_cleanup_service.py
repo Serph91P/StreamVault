@@ -132,6 +132,31 @@ class BackgroundQueueCleanupService:
                                     task.completed_at = datetime.now(timezone.utc)
                                     logger.info(f"✅ TIMESTAMP_SET: {task_id} completed_at timestamp set")
                             
+                            # For tasks running too long (likely Streamlink didn't signal completion)
+                            elif task_age and task_age > 0.5:  # 30 minutes
+                                logger.info(f"🧹 STREAMLINK_LIKELY_DONE: {task_id} - Streamlink probably finished but didn't signal completion")
+                                
+                                # Mark as completed since Streamlink often doesn't signal completion properly
+                                if hasattr(self.background_queue_service, 'complete_external_task'):
+                                    self.background_queue_service.complete_external_task(task_id, success=True)
+                                    logger.info(f"✅ STREAMLINK_COMPLETED: {task_id} marked as completed (Streamlink timeout)")
+                                
+                                # Update task status
+                                if hasattr(task, 'status'):
+                                    try:
+                                        if hasattr(task.status, 'value'):
+                                            task.status.value = 'completed'
+                                        else:
+                                            task.status = 'completed'
+                                        logger.info(f"✅ STREAMLINK_STATUS_UPDATED: {task_id} status updated to completed")
+                                    except Exception as e:
+                                        logger.warning(f"Could not update Streamlink task status: {e}")
+                                
+                                # Set completed timestamp
+                                if not hasattr(task, 'completed_at') or not task.completed_at:
+                                    task.completed_at = datetime.now(timezone.utc)
+                                    logger.info(f"✅ STREAMLINK_TIMESTAMP_SET: {task_id} completed_at timestamp set")
+                            
                             else:
                                 # For tasks running too long, remove them as they're likely stuck
                                 logger.info(f"🧹 REMOVING_STUCK_TASK: {task_id} running too long, removing")
