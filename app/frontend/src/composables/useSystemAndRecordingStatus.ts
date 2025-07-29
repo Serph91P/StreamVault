@@ -238,7 +238,10 @@ export function useSystemAndRecordingStatus() {
   
   // WebSocket message processing
   const processWebSocketMessage = (message: any) => {
-    logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
+    // Only log in development mode
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+      logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
+    }
     
     switch (message.type) {
       case 'active_recordings_update':
