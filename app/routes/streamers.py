@@ -787,7 +787,7 @@ async def get_stream_chapters(
                 video_path = Path(stream.recording_path)
                 if video_path.exists():
                     # Use the stream ID for direct video streaming
-                    video_url = f"/api/videos/stream/{stream.id}"
+                    video_url = f"/api/videos/{stream.id}/stream"
                 else:
                     logger.warning(f"Video file not found: {video_path}")
             except Exception as e:
