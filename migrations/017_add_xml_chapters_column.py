@@ -46,16 +46,16 @@ def run_migration():
         
         logger.info("🔄 Adding chapters_xml_path column...")
         
-        # Use database-agnostic approach
-        database_url = settings.DATABASE_URL.lower()
+        # Use SQLAlchemy's engine dialect for reliable database type detection
+        database_type = engine.dialect.name
         
-        if 'postgresql' in database_url:
+        if database_type == 'postgresql':
             # PostgreSQL syntax
             session.execute(text("""
                 ALTER TABLE stream_metadata 
                 ADD COLUMN chapters_xml_path VARCHAR
             """))
-        elif 'sqlite' in database_url:
+        elif database_type == 'sqlite':
             # SQLite syntax
             session.execute(text("""
                 ALTER TABLE stream_metadata 
