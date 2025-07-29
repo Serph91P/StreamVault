@@ -188,7 +188,12 @@ class ImageRefreshService:
                     # Check if cached file exists
                     expected_path = self.media_dir / "artwork" / f"streamer_{stream.streamer_id}" / f"stream_{stream.id}.jpg"
                     
-                    if not expected_path.exists() and stream.thumbnail_url:
+                    # Check if stream has metadata with thumbnail_url
+                    thumbnail_url = None
+                    if stream.stream_metadata and stream.stream_metadata.thumbnail_url:
+                        thumbnail_url = stream.stream_metadata.thumbnail_url
+                    
+                    if not expected_path.exists() and thumbnail_url:
                         logger.info(f"Stream artwork missing for stream {stream.id}, re-downloading...")
                         task = self._download_stream_artwork(stream)
                         batch_tasks.append(task)
@@ -213,10 +218,19 @@ class ImageRefreshService:
     async def _download_stream_artwork(self, stream: Stream) -> bool:
         """Download stream artwork for a single stream"""
         try:
+            # Get thumbnail URL from stream metadata
+            thumbnail_url = None
+            if stream.stream_metadata and stream.stream_metadata.thumbnail_url:
+                thumbnail_url = stream.stream_metadata.thumbnail_url
+            
+            if not thumbnail_url:
+                logger.warning(f"No thumbnail URL found for stream {stream.id}")
+                return False
+            
             cached_path = await unified_image_service.download_stream_artwork(
                 stream.id, 
                 stream.streamer_id,
-                stream.thumbnail_url
+                thumbnail_url
             )
             if cached_path:
                 logger.info(f"Successfully refreshed stream artwork for stream {stream.id}")
