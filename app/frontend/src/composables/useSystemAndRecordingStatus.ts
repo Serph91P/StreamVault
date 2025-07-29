@@ -50,6 +50,10 @@ interface StreamerStatus {
   last_seen: string | null
   current_title: string | null
   current_category: string | null
+  // Add missing properties for WebSocket data
+  language?: string
+  last_title?: string
+  last_category?: string
 }
 
 interface StreamStatus {
