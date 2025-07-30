@@ -96,51 +96,51 @@ const apiClient = new ApiClient()
 export const recordingApi = {
   // Start recording for a specific streamer
   startRecording: (streamerId: number) => 
-    apiClient.post(`/api/recordings/start`, { streamer_id: streamerId }),
+    apiClient.post(`/api/recording/start/${streamerId}`),
 
   // Stop recording for a specific streamer
   stopRecording: (streamerId: number) => 
-    apiClient.post(`/api/recordings/stop`, { streamer_id: streamerId }),
+    apiClient.post(`/api/recording/stop/${streamerId}`),
 
   // Get all active recordings
   getActiveRecordings: () => 
-    apiClient.get('/api/recordings/active'),
+    apiClient.get('/api/recording/active'),
 
   // Get recording settings
   getSettings: () => 
-    apiClient.get('/api/recording-settings'),
+    apiClient.get('/api/recording/settings'),
 
   // Update recording settings
   updateSettings: (settings: any) => 
-    apiClient.put('/api/recording-settings', settings),
+    apiClient.put('/api/recording/settings', settings),
 
   // Get streamer-specific recording settings
   getStreamerSettings: (streamerId: number) => 
-    apiClient.get(`/api/streamers/${streamerId}/recording-settings`),
+    apiClient.get(`/api/recording/streamers/${streamerId}`),
 
   // Update streamer-specific recording settings
   updateStreamerSettings: (streamerId: number, settings: any) => 
-    apiClient.put(`/api/streamers/${streamerId}/recording-settings`, settings),
+    apiClient.put(`/api/recording/streamers/${streamerId}`, settings),
 
   // Force start recording (bypasses normal checks)
   forceStartRecording: (streamerId: number) => 
-    apiClient.post(`/api/recordings/force-start`, { streamer_id: streamerId }),
+    apiClient.post(`/api/recording/force-start/${streamerId}`),
 
   // Force stop recording
   forceStopRecording: (recordingId: number) => 
-    apiClient.post(`/api/recordings/force-stop`, { recording_id: recordingId }),
+    apiClient.post(`/api/recording/force-stop/${recordingId}`),
 
   // Get recording status for a specific recording
   getRecordingStatus: (recordingId: number) => 
-    apiClient.get(`/api/recordings/${recordingId}/status`),
+    apiClient.get(`/api/recording/status/${recordingId}`),
 
   // Delete a recording
   deleteRecording: (recordingId: number) => 
-    apiClient.delete(`/api/recordings/${recordingId}`),
+    apiClient.delete(`/api/recording/${recordingId}`),
 
   // Get recording history
   getRecordingHistory: (params: Record<string, any> = {}) => 
-    apiClient.get('/api/recordings/history', params),
+    apiClient.get('/api/recording/history', params),
 
   // Check if streamer is live
   checkStreamerLiveStatus: (streamerId: number) => 
@@ -153,29 +153,58 @@ export const streamersApi = {
   getAll: () => 
     apiClient.get('/api/streamers'),
 
-  // Get a specific streamer
+  // Get a specific streamer  
   get: (streamerId: number) => 
-    apiClient.get(`/api/streamers/${streamerId}`),
+    apiClient.get(`/api/streamers/streamer/${streamerId}`),
 
-  // Add a new streamer
-  add: (streamerData: any) => 
-    apiClient.post('/api/streamers', streamerData),
-
-  // Update a streamer
-  update: (streamerId: number, streamerData: any) => 
-    apiClient.put(`/api/streamers/${streamerId}`, streamerData),
+  // Add a new streamer by username
+  add: (username: string) => 
+    apiClient.post(`/api/streamers/${username}`),
 
   // Delete a streamer
   delete: (streamerId: number) => 
     apiClient.delete(`/api/streamers/${streamerId}`),
 
+  // Validate streamer username
+  validate: (username: string) => 
+    apiClient.get(`/api/streamers/validate/${username}`),
+
   // Get streamer's streams
   getStreams: (streamerId: number, params: Record<string, any> = {}) => 
     apiClient.get(`/api/streamers/${streamerId}/streams`, params),
 
+  // Delete all streams for a streamer
+  deleteAllStreams: (streamerId: number) => 
+    apiClient.delete(`/api/streamers/${streamerId}/streams`),
+
+  // Delete specific stream for a streamer
+  deleteStream: (streamerId: number, streamId: number) => 
+    apiClient.delete(`/api/streamers/${streamerId}/streams/${streamId}`),
+
   // Get stream chapters for a streamer
   getStreamChapters: (streamerId: number, streamId: number) => 
     apiClient.get(`/api/streamers/${streamerId}/streams/${streamId}/chapters`),
+
+  // Check if streamer is live
+  checkLiveStatus: (streamerId: number) => 
+    apiClient.get(`/api/streamers/${streamerId}/live-status`),
+
+  // Get debug live status for all streamers
+  getDebugLiveStatus: () => 
+    apiClient.get('/api/streamers/debug-live-status'),
+
+  // Subscription management
+  getSubscriptions: () => 
+    apiClient.get('/api/streamers/subscriptions'),
+
+  deleteSubscriptions: () => 
+    apiClient.delete('/api/streamers/subscriptions'),
+
+  deleteSubscription: (subscriptionId: string) => 
+    apiClient.delete(`/api/streamers/subscriptions/${subscriptionId}`),
+
+  resubscribeAll: () => 
+    apiClient.post('/api/streamers/resubscribe-all'),
 }
 
 // Alternative export name for backwards compatibility
@@ -183,72 +212,237 @@ export const streamerApi = streamersApi
 
 // Streams API endpoints
 export const streamsApi = {
-  // Get all streams
-  getAll: (params: Record<string, any> = {}) => 
-    apiClient.get('/api/streams', params),
-
-  // Get a specific stream
-  get: (streamId: number) => 
-    apiClient.get(`/api/streams/${streamId}`),
-
   // Delete a stream
   delete: (streamId: number) => 
     apiClient.delete(`/api/streams/${streamId}`),
 
-  // Delete all streams for a streamer
-  deleteAllForStreamer: (streamerId: number) => 
-    apiClient.delete(`/api/streamers/${streamerId}/streams`),
+  // Check recordings for streams (batch operation)
+  checkRecordings: (streamIds: number[]) => 
+    apiClient.post('/api/streams/check-recordings', { stream_ids: streamIds }),
 }
 
 // System API endpoints
 export const systemApi = {
   // Get system status
   getStatus: () => 
-    apiClient.get('/api/status'),
+    apiClient.get('/api/status/system'),
 
-  // Get system logs
-  getLogs: (params: Record<string, any> = {}) => 
-    apiClient.get('/api/system/logs', params),
+  // Get health status
+  getHealth: () => 
+    apiClient.get('/api/status/health'),
 
-  // Get system settings
-  getSettings: () => 
-    apiClient.get('/api/system/settings'),
+  // Get all streamers status
+  getStreamersStatus: () => 
+    apiClient.get('/api/status/streamers'),
 
-  // Update system settings
-  updateSettings: (settings: any) => 
-    apiClient.put('/api/system/settings', settings),
+  // Get all streams status
+  getStreamsStatus: () => 
+    apiClient.get('/api/status/streams'),
+
+  // Get active recordings status
+  getActiveRecordingsStatus: () => 
+    apiClient.get('/api/status/active-recordings'),
+
+  // Get background queue status
+  getBackgroundQueueStatus: () => 
+    apiClient.get('/api/status/background-queue'),
+
+  // Get notifications status
+  getNotificationsStatus: () => 
+    apiClient.get('/api/status/notifications'),
+}
+
+// Settings API endpoints
+export const settingsApi = {
+  // Get global settings
+  getGlobalSettings: () => 
+    apiClient.get('/api/settings'),
+
+  // Update global settings
+  updateGlobalSettings: (settings: any) => 
+    apiClient.post('/api/settings', settings),
+
+  // Get streamer notification settings
+  getStreamerSettings: () => 
+    apiClient.get('/api/settings/streamer'),
+
+  // Update streamer notification settings
+  updateStreamerSettings: (streamerId: number, settings: any) => 
+    apiClient.post(`/api/settings/streamer/${streamerId}`, settings),
+
+  // Get streamers (for settings)
+  getStreamers: () => 
+    apiClient.get('/api/settings/streamers'),
+
+  // Test notification
+  testNotification: (data: any) => 
+    apiClient.post('/api/settings/test-notification', data),
+
+  // Test WebSocket notification
+  testWebSocketNotification: (data: any) => 
+    apiClient.post('/api/settings/test-websocket-notification', data),
+}
+
+// Background Queue API endpoints
+export const backgroundQueueApi = {
+  // Get queue statistics
+  getStats: () => 
+    apiClient.get('/api/background-queue/stats'),
+
+  // Get active tasks
+  getActiveTasks: () => 
+    apiClient.get('/api/background-queue/active-tasks'),
+
+  // Get recent tasks
+  getRecentTasks: () => 
+    apiClient.get('/api/background-queue/recent-tasks'),
+
+  // Get specific task
+  getTask: (taskId: string) => 
+    apiClient.get(`/api/background-queue/tasks/${taskId}`),
+
+  // Enqueue generic task
+  enqueueTask: (taskData: any) => 
+    apiClient.post('/api/background-queue/tasks/enqueue', taskData),
+
+  // Enqueue metadata generation task
+  enqueueMetadataGeneration: (streamId: number) => 
+    apiClient.post('/api/background-queue/tasks/metadata-generation', { stream_id: streamId }),
+
+  // Enqueue thumbnail generation task
+  enqueueThumbnailGeneration: (streamId: number) => 
+    apiClient.post('/api/background-queue/tasks/thumbnail-generation', { stream_id: streamId }),
+
+  // Enqueue file cleanup task
+  enqueueFileCleanup: (streamerId: number) => 
+    apiClient.post('/api/background-queue/tasks/file-cleanup', { streamer_id: streamerId }),
+
+  // Get queue health
+  getHealth: () => 
+    apiClient.get('/api/background-queue/health'),
+}
+
+// Authentication API endpoints
+export const authApi = {
+  // Get Twitch auth URL
+  getAuthUrl: () => 
+    apiClient.get('/api/auth/auth-url'),
+
+  // Handle auth callback
+  handleCallback: (code: string, state: string) => 
+    apiClient.get(`/api/auth/callback?code=${code}&state=${state}`),
+
+  // Get followed channels
+  getFollowedChannels: () => 
+    apiClient.get('/api/auth/followed-channels'),
+
+  // Import streamers from followed channels
+  importStreamers: (streamerIds: number[]) => 
+    apiClient.post('/api/auth/import-streamers', { streamer_ids: streamerIds }),
+
+  // Get callback URL
+  getCallbackUrl: () => 
+    apiClient.get('/api/auth/callback-url'),
+}
+
+// Images API endpoints
+export const imagesApi = {
+  // Streamer profile images
+  getStreamerImage: (streamerId: number) => 
+    apiClient.get(`/api/images/streamer/${streamerId}`),
+
+  downloadStreamerImage: (streamerId: number) => 
+    apiClient.post(`/api/images/streamer/${streamerId}/download`),
+
+  // Category images
+  getCategoryImage: (categoryName: string) => 
+    apiClient.get(`/api/images/category/${categoryName}`),
+
+  downloadCategoryImage: (categoryName: string) => 
+    apiClient.post(`/api/images/category/${categoryName}/download`),
+
+  // Image management
+  getStats: () => 
+    apiClient.get('/api/images/stats'),
+
+  syncImages: () => 
+    apiClient.post('/api/images/sync'),
+
+  cleanupImages: () => 
+    apiClient.post('/api/images/cleanup'),
+
+  checkMissingImages: () => 
+    apiClient.post('/api/images/sync/check-missing'),
+
+  getSyncQueueStatus: () => 
+    apiClient.get('/api/images/sync/queue-status'),
+
+  // Get available streamers/categories for images
+  getStreamers: () => 
+    apiClient.get('/api/images/streamers'),
+
+  getCategories: () => 
+    apiClient.get('/api/images/categories'),
 }
 
 // Video API endpoints
 export const videoApi = {
-  // Get video information
-  getVideo: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}`),
-
-  // Get video chapters
-  getChapters: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}/chapters`),
-
-  // Stream video
-  streamVideo: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}/stream`),
-
-  // Get video stream URL (returns string for direct use in video src attribute)
-  // Note: This method returns a string URL, not a Promise like other methods
-  getVideoStreamUrl: (videoId: number): string => 
-    `/api/videos/${videoId}/stream`,
-
-  // Get video metadata
-  getMetadata: (videoId: number) => 
-    apiClient.get(`/api/videos/${videoId}/metadata`),
-
-  // Delete video
-  deleteVideo: (videoId: number) => 
-    apiClient.delete(`/api/videos/${videoId}`),
-
   // Get all videos
   getAll: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),
+
+  // Get videos for specific streamer by ID
+  getByStreamerId: (streamerId: number) => 
+    apiClient.get(`/api/videos/streamer/${streamerId}`),
+
+  // Get videos for specific streamer by name
+  getByStreamerName: (streamerName: string) => 
+    apiClient.get(`/api/videos/${streamerName}`),
+
+  // Get specific video by streamer name and filename
+  getByStreamerAndFilename: (streamerName: string, filename: string) => 
+    apiClient.get(`/api/videos/${streamerName}/${filename}`),
+
+  // Get video by filename
+  getByFilename: (filename: string) => 
+    apiClient.get(`/api/videos/stream_by_filename/${filename}`),
+
+  // Get video stream URL (returns string for direct use in video src attribute)
+  getVideoStreamUrl: (streamId: number): string => 
+    `/api/videos/${streamId}/stream`,
+
+  // Stream video
+  streamVideo: (streamId: number) => 
+    apiClient.get(`/api/videos/${streamId}/stream`),
+
+  // Get video chapters
+  getChapters: (streamId: number) => 
+    apiClient.get(`/api/videos/${streamId}/chapters`),
+
+  // Get video thumbnail
+  getThumbnail: (streamId: number) => 
+    apiClient.get(`/api/videos/${streamId}/thumbnail`),
+
+  // Get public video (shared)
+  getPublicVideo: (streamId: number) => 
+    apiClient.get(`/api/videos/public/${streamId}`),
+
+  // Create share token for video
+  createShareToken: (streamId: number, data: any) => 
+    apiClient.post(`/api/videos/${streamId}/share-token`, data),
+
+  // Debug endpoints
+  getDebugInfo: (streamId: number) => 
+    apiClient.get(`/api/videos/debug/${streamId}`),
+
+  getTestVideo: (streamId: number) => 
+    apiClient.get(`/api/videos/test/${streamId}`),
+
+  getDebugDatabase: () => 
+    apiClient.get('/api/debug/videos-database'),
+
+  getDebugRecordingsDirectory: () => 
+    apiClient.get('/api/debug/recordings-directory'),
 }
 
 // Export the main API client as default
