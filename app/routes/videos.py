@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 import os
 import urllib.parse
 from typing import List, Optional
@@ -378,6 +378,42 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.error(f"DEBUG: Exception: {e}")
         # Don't expose internal error details to users
         return {"error": "Internal error occurred", "success": False}
+
+@router.post("/videos/{stream_id}/share-token")
+async def generate_share_token(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Generate a share token for external video access (VLC, etc.)"""
+    try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        from app.services.core.auth_service import AuthService
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Check if stream exists
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        # For now, we'll use the session token as the share token
+        # In a more sophisticated implementation, you might generate a temporary token
+        share_url = f"{request.base_url}api/videos/public/{stream_id}?token={session_token}"
+        
+        return JSONResponse(content={
+            "success": True,
+            "share_url": share_url,
+            "expires_in": "24 hours"
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating share token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate share token")
 
 @router.get("/videos/{stream_id}/thumbnail")
 async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
