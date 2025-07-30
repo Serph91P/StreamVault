@@ -7,10 +7,28 @@
             <i class="fas fa-arrow-left"></i>
             Back to Streamers
           </router-link>
+          <div class="header-info" v-if="streamerName">
+            <h1>{{ streamerName }}</h1>
+            <p class="header-subtitle">Stream History & Recording Management</p>
+          </div>
         </div>
-        <div class="header-info" v-if="streamerName">
-          <h1>{{ streamerName }}</h1>
-          <p class="header-subtitle">Stream History & Recording Management</p>
+        
+        <!-- Add Force Recording Button here as well -->
+        <div class="header-actions">
+          <button 
+            @click="forceStartRecording(Number(streamerId))" 
+            class="btn btn-success"
+            :disabled="forceRecordingStreamerId === Number(streamerId)"
+            title="Force Start Recording - Checks if streamer is currently live and starts recording automatically"
+            aria-label="Force start recording for this streamer - validates live status via API and begins recording if online"
+          >
+            <span v-if="forceRecordingStreamerId === Number(streamerId)">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking & Starting...
+            </span>
+            <span v-else>
+              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record Streamer
+            </span>
+          </button>
         </div>
       </div>
       
@@ -25,9 +43,14 @@
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import StreamList from '@/components/StreamList.vue'
+import { useForceRecording } from '@/composables/useForceRecording'
 
 const route = useRoute()
 const streamerName = computed(() => route.query.name as string)
+const streamerId = computed(() => route.params.id as string)
+
+// Use Force Recording Composable
+const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 </script>
 
 <style scoped>
@@ -46,6 +69,7 @@ const streamerName = computed(() => route.query.name as string)
 
 .page-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 20px;
   margin-bottom: 24px;
@@ -54,7 +78,59 @@ const streamerName = computed(() => route.query.name as string)
 }
 
 .header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
   flex-shrink: 0;
+}
+
+/* Header Actions Styling */
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.header-actions .btn {
+  font-weight: 600;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header-actions .btn-success {
+  background: #22c55e;
+  color: white;
+  border-color: #16a34a;
+}
+
+.header-actions .btn-success:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #15803d;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .back-button {
