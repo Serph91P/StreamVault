@@ -11,7 +11,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, String, Integer, DateTime, Index
 from app.database import SessionLocal, Base
-from app.models import Base
 
 logger = logging.getLogger("streamvault")
 
@@ -145,15 +144,6 @@ def get_tokens_for_stream(stream_id: int) -> list:
         except Exception as e:
             logger.error(f"Error getting tokens for stream {stream_id}: {e}")
             return []
-
-def get_all_tokens(db: Session) -> list:
-    """Get all share tokens (for admin purposes)"""
-    try:
-        tokens = db.query(ShareTokenModel).order_by(ShareTokenModel.created_at.desc()).all()
-        return tokens
-    except Exception as e:
-        logger.error(f"Error getting all tokens: {e}")
-        return []
 
 def get_all_tokens(db: Session) -> list:
     """Get all share tokens (for admin purposes)"""
