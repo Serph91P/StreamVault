@@ -8,6 +8,38 @@
     
     <!-- Empty State -->
     <div v-else-if="streams.length === 0" class="empty-state">
+      <!-- Header for empty state -->
+      <div v-if="!hideHeader" class="page-header" style="margin-bottom: 20px;">
+        <div class="header-left">
+          <button @click="handleBack" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Streamers
+          </button>
+          <div class="header-info">
+            <h1>{{ streamerName || 'Recent Streams' }}</h1>
+            <p class="stream-count">No streams yet</p>
+          </div>
+        </div>
+        
+        <div class="header-actions">
+          <button 
+            @click="forceStartRecording(Number(streamerId))" 
+            class="btn btn-success"
+            :disabled="forceRecordingStreamerId === Number(streamerId)"
+            title="Force Start Recording - Checks if streamer is currently live and starts recording automatically"
+            aria-label="Force start recording for this streamer - validates live status via API and begins recording if online"
+            :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
+          >
+            <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking & Starting...
+            </span>
+            <span v-else>
+              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record Streamer
+            </span>
+          </button>
+        </div>
+      </div>
+      
       <div class="empty-icon">🎬</div>
       <h3>No Streams Found</h3>
       <p>This streamer hasn't streamed yet or all streams have been deleted.</p>
