@@ -412,19 +412,18 @@ class CleanupService:
                 if stream.recording_path and os.path.exists(stream.recording_path):
                     files_to_delete.append(stream.recording_path)
                 
-                # Add all metadata files from database
+                # Add all metadata files from database (only actually generated files)
                 if metadata:
                     metadata_files = [
                         metadata.thumbnail_path,
-                        metadata.nfo_path, 
                         metadata.json_path,
-                        metadata.chat_path,
-                        metadata.chat_srt_path,
-                        metadata.chapters_path,
+                        metadata.nfo_path,
+                        metadata.tvshow_nfo_path,
+                        metadata.season_nfo_path,
                         metadata.chapters_vtt_path,
                         metadata.chapters_srt_path,
                         metadata.chapters_ffmpeg_path,
-                        metadata.chapters_xml_path  # Include XML chapters
+                        metadata.chapters_xml_path
                     ]
                     
                     # Add existing metadata files to deletion list
