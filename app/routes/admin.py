@@ -1285,3 +1285,103 @@ async def fix_unknown_task_names():
     except Exception as e:
         logger.error(f"Error fixing unknown task names: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Task names fix failed: {str(e)}")
+
+# Share Token Management Endpoints
+@router.get("/share-tokens/stats")
+async def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Get statistics about share tokens
+    """
+    try:
+        from app.utils.token_store import get_all_tokens, cleanup_expired_tokens
+        
+        # Get all active tokens
+        all_tokens = get_all_tokens(db)
+        
+        # Count active vs expired
+        from datetime import datetime
+        now = datetime.utcnow()
+        active_tokens = [t for t in all_tokens if t.expires_at > now]
+        expired_tokens = [t for t in all_tokens if t.expires_at <= now]
+        
+        return {
+            "success": True,
+            "data": {
+                "total_tokens": len(all_tokens),
+                "active_tokens": len(active_tokens),
+                "expired_tokens": len(expired_tokens),
+                "tokens": [
+                    {
+                        "id": token.id,
+                        "stream_id": token.stream_id,
+                        "created_at": token.created_at.isoformat(),
+                        "expires_at": token.expires_at.isoformat(),
+                        "is_expired": token.expires_at <= now
+                    }
+                    for token in all_tokens
+                ]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting share token stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get share token stats: {str(e)}")
+
+@router.post("/share-tokens/cleanup")
+async def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Clean up expired share tokens
+    """
+    try:
+        from app.utils.token_store import cleanup_expired_tokens
+        
+        cleaned_count = cleanup_expired_tokens(db)
+        
+        logger.info(f"Admin cleanup: Removed {cleaned_count} expired share tokens")
+        
+        return {
+            "success": True,
+            "message": f"Cleaned up {cleaned_count} expired share tokens",
+            "data": {
+                "cleaned_count": cleaned_count
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up share tokens: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup share tokens: {str(e)}")
+
+@router.delete("/share-tokens/{token_id}")
+async def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Delete a specific share token
+    """
+    try:
+        from app.utils.token_store import ShareTokenModel
+        
+        # Find the token
+        token = db.query(ShareTokenModel).filter(ShareTokenModel.id == token_id).first()
+        
+        if not token:
+            raise HTTPException(status_code=404, detail="Share token not found")
+        
+        # Delete the token
+        db.delete(token)
+        db.commit()
+        
+        logger.info(f"Admin action: Deleted share token {token_id} for stream {token.stream_id}")
+        
+        return {
+            "success": True,
+            "message": f"Share token {token_id} deleted successfully",
+            "data": {
+                "token_id": token_id,
+                "stream_id": token.stream_id
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting share token {token_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete share token: {str(e)}")
