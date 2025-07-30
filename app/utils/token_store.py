@@ -17,16 +17,12 @@ logger = logging.getLogger("streamvault")
 class ShareTokenModel(Base):
     """Database model for share tokens"""
     __tablename__ = "share_tokens"
-    __table_args__ = (
-        Index('idx_share_tokens_token', 'token'),  # For fast token lookup
-        Index('idx_share_tokens_expires', 'expires_at'),  # For cleanup queries
-        {'extend_existing': True}
-    )
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    token = Column(String, unique=True, nullable=False, index=True)
+    token = Column(String, unique=True, nullable=False)
     stream_id = Column(Integer, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> None:
