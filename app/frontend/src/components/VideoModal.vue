@@ -196,54 +196,79 @@ const downloadVideo = () => {
 }
 
 const shareVideo = async () => {
-  // Get session token for public URL
-  const sessionToken = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('session='))
-    ?.split('=')[1]
-  
-  if (!sessionToken) {
-    alert('Unable to generate share link: No active session')
-    return
-  }
-  
-  // Create a direct video stream URL with token that works in VLC and other media players
-  const directVideoUrl = `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}`
-  
-  const shareData = {
-    title: props.video.title,
-    text: `Check out this video from ${props.video.streamer_name}! Open in VLC or any media player.`,
-    url: directVideoUrl
-  }
-  
-  if (navigator.share) {
-    try {
-      await navigator.share(shareData)
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        fallbackShare(directVideoUrl)
+  try {
+    // Use the new API endpoint to generate a share token
+    const response = await fetch(`/api/videos/${props.video.id}/share-token`, {
+      method: 'POST',
+      credentials: 'include', // Include session cookie in request
+      headers: {
+        'Content-Type': 'application/json'
       }
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      alert(`Unable to generate share link: ${errorData.detail || 'Authentication required'}`)
+      return
     }
-  } else {
-    fallbackShare(directVideoUrl)
+    
+    const data = await response.json()
+    const directVideoUrl = data.share_url
+    
+    const shareData = {
+      title: props.video.title,
+      text: `Check out this video from ${props.video.streamer_name}! Open in VLC or any media player.`,
+      url: directVideoUrl
+    }
+    
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData)
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          fallbackShare(directVideoUrl)
+        }
+      }
+    } else {
+      fallbackShare(directVideoUrl)
+    }
+  } catch (error) {
+    console.error('Error generating share link:', error)
+    alert('Unable to generate share link: Network error')
   }
 }
 
-const fallbackShare = (url) => {
-  const sessionToken = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('session='))
-    ?.split('=')[1]
+const fallbackShare = async (url) => {
+  try {
+    // If no URL provided, try to generate one via API
+    if (!url) {
+      const response = await fetch(`/api/videos/${props.video.id}/share-token`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        url = data.share_url
+      } else {
+        // Fallback to regular stream URL
+        url = `${window.location.origin}/api/videos/${props.video.id}/stream`
+      }
+    }
     
-  const shareUrl = url || (sessionToken ? 
-    `${window.location.origin}/api/videos/public/${props.video.id}?token=${sessionToken}` :
-    `${window.location.origin}/api/videos/${props.video.id}/stream`)
-    
-  navigator.clipboard.writeText(shareUrl).then(() => {
-    alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')
-  }).catch(() => {
-    alert(`Direct video link: ${shareUrl}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
-  })
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')
+    }).catch(() => {
+      alert(`Direct video link: ${url}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
+    })
+  } catch (error) {
+    console.error('Error in fallback share:', error)
+    const fallbackUrl = `${window.location.origin}/api/videos/${props.video.id}/stream`
+    alert(`Direct video link: ${fallbackUrl}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
+  }
 }
 
 const formatDate = (dateString) => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Migration 017: Add chapters_xml_path column to stream_metadata
+Migration 021: Add chapters_xml_path column to stream_metadata
 Adds a column to store XML chapter file paths for Emby/Jellyfin compatibility
 """
 import os
@@ -85,7 +85,7 @@ def run_migration():
         else:
             logger.info("✅ All metadata path columns already exist")
             
-        logger.info("✅ Migration 017 completed successfully")
+        logger.info("✅ Migration 021 completed successfully: Added chapters_xml_path and related columns")
         return True
         
     except (DatabaseError, OperationalError) as e:
@@ -96,7 +96,7 @@ def run_migration():
     except Exception as e:
         if session:
             session.rollback()
-        logger.error(f"❌ Migration 017 failed: {e}")
+        logger.error(f"❌ Migration 021 failed: {e}")
         raise
     finally:
         if session:

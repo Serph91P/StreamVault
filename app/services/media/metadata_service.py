@@ -382,6 +382,8 @@ class MetadataService:
             # Update metadata in database
             metadata.nfo_path = str(episode_nfo_path)
             metadata.tvshow_nfo_path = str(tvshow_nfo_path)
+            # Save season NFO path too for proper cleanup
+            metadata.season_nfo_path = str(season_nfo_path)
             
             # Create additional symlinks/copies for specific media servers
             await self._create_media_server_specific_files(
@@ -992,7 +994,13 @@ class MetadataService:
                     metadata.chapters_vtt_path = str(vtt_path)
                     metadata.chapters_srt_path = str(srt_path)
                     metadata.chapters_ffmpeg_path = str(ffmpeg_chapters_path)
-                    metadata.chapters_xml_path = str(xml_chapters_path)  # Save XML path
+                    
+                    # Try to save XML path - gracefully handle if column doesn't exist
+                    try:
+                        metadata.chapters_xml_path = str(xml_chapters_path)
+                    except Exception as e:
+                        logger.warning(f"Could not save chapters_xml_path (migration may be pending): {e}")
+                    
                     db.commit()
                 
                 logger.info(f"Generated all chapter formats for stream {stream_id}")

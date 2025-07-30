@@ -107,6 +107,9 @@ class StreamEvent(Base):
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
+    # Relationship to Stream
+    stream = relationship("Stream", backref="stream_events")
+    
 class User(Base):
     __tablename__ = "users"
     __table_args__ = {'extend_existing': True}
@@ -223,13 +226,10 @@ class StreamMetadata(Base):
     # Metadata files
     nfo_path = Column(String)
     json_path = Column(String)
+    tvshow_nfo_path = Column(String)  # TVShow NFO file for media servers
+    season_nfo_path = Column(String)  # Season NFO file for media servers
     
-    # Chat logs
-    chat_path = Column(String)
-    chat_srt_path = Column(String)
-    
-    # Kapitelmarker
-    chapters_path = Column(String)
+    # Kapitelmarker (all generated formats)
     chapters_vtt_path = Column(String)
     chapters_srt_path = Column(String)
     chapters_ffmpeg_path = Column(String)

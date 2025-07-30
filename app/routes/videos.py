@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 import os
 import urllib.parse
 from typing import List, Optional
@@ -8,15 +8,20 @@ from pathlib import Path
 import mimetypes
 import re
 from datetime import datetime
+from secrets import token_urlsafe
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
 from app.utils.streamer_cache import get_valid_streamers
+from app.utils.token_store import store_share_token, validate_share_token, cleanup_expired_tokens
+from app.services.core.auth_service import AuthService
 
 logger = logging.getLogger("streamvault")
 
-# Constants for chapter generation
+# Constants for share tokens and chapters
+TOKEN_EXPIRATION_HOURS = 24  # Share token expiration time
+TOKEN_EXPIRATION_SECONDS = TOKEN_EXPIRATION_HOURS * 60 * 60  # Convert to seconds
 CHAPTER_INTERVAL_SECONDS = 600  # 10 minutes in seconds
 MAX_CHAPTERS = 20  # Maximum number of chapters to prevent too many for very long streams
 
@@ -174,7 +179,6 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     # Validate session
-    from app.services.core.auth_service import AuthService
     auth_service = AuthService(db)
     if not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -327,7 +331,6 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         session_valid = await auth_service.validate_session(session_token)
         logger.info(f"DEBUG: Session validation result: {session_valid}")
@@ -379,6 +382,49 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
         # Don't expose internal error details to users
         return {"error": "Internal error occurred", "success": False}
 
+@router.post("/videos/{stream_id}/share-token")
+async def generate_share_token(stream_id: int, request: Request, db: Session = Depends(get_db)):
+    """Generate a secure temporary share token for external video access (VLC, etc.)"""
+    try:
+        # Check authentication via session cookie
+        session_token = request.cookies.get("session")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Validate session
+        auth_service = AuthService(db)
+        if not await auth_service.validate_session(session_token):
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        # Check if stream exists
+        stream = db.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream or not stream.recording_path:
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        # Generate a secure temporary share token
+        share_token = token_urlsafe(32)  # Generate a secure random token
+        
+        # Store the share token with expiration
+        store_share_token(share_token, stream_id, TOKEN_EXPIRATION_SECONDS)
+        
+        # Clean up any expired tokens while we're here
+        cleanup_expired_tokens()
+        
+        # Create the share URL with the temporary token
+        share_url = f"{request.base_url}api/videos/public/{stream_id}?token={share_token}"
+        
+        return JSONResponse(content={
+            "success": True,
+            "share_url": share_url,
+            "expires_in": f"{TOKEN_EXPIRATION_HOURS} hours"
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating share token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate share token")
+
 @router.get("/videos/{stream_id}/thumbnail")
 async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Serve video thumbnail image"""
@@ -389,7 +435,6 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -437,14 +482,13 @@ async def stream_video_public(stream_id: int, token: str = Query(...), request: 
     try:
         logger.info(f"Public video stream request for stream_id: {stream_id} with token: {token[:20]}...")
         
-        # Validate token (simple implementation - in production use JWT or similar)
-        # For now, we'll accept the session token as URL parameter
-        from app.services.core.auth_service import AuthService
-        auth_service = AuthService(db)
-        
-        # Try to validate the token as a session token
-        if not await auth_service.validate_session(token):
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        # Validate the share token
+        token_stream_id = validate_share_token(token)
+        if not token_stream_id or token_stream_id != stream_id:
+            # Also try validating as a session token for backward compatibility
+            auth_service = AuthService(db)
+            if not await auth_service.validate_session(token):
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
         
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -561,7 +605,6 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         
         # Validate session
         try:
-            from app.services.core.auth_service import AuthService
             auth_service = AuthService(db)
             session_valid = await auth_service.validate_session(session_token)
             logger.info(f"Session validation result: {session_valid}")
@@ -688,7 +731,6 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             logger.warning(f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}")
@@ -779,7 +821,6 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -897,7 +938,6 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -971,7 +1011,6 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
         raise HTTPException(status_code=401, detail="Authentication required")
     
     # Validate session
-    from app.services.core.auth_service import AuthService
     auth_service = AuthService(db)
     if not await auth_service.validate_session(session_token):
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -1044,7 +1083,6 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
-        from app.services.core.auth_service import AuthService
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
             raise HTTPException(status_code=401, detail="Invalid session")
@@ -1163,7 +1201,6 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
         
         if session_token:
             # Test session validation
-            from app.services.core.auth_service import AuthService
             auth_service = AuthService(db)
             session_valid = await auth_service.validate_session(session_token)
             logger.info(f"Session valid: {session_valid}")

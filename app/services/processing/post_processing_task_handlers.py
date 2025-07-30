@@ -71,39 +71,57 @@ class PostProcessingTaskHandlers:
                 progress_callback(20.0)
             
             # Generate metadata using metadata service
-            success = await self.metadata_service.generate_metadata_for_stream(
-                stream_id=stream_id,
-                base_path=output_dir,
-                base_filename=base_filename
-            )
+            try:
+                success = await self.metadata_service.generate_metadata_for_stream(
+                    stream_id=stream_id,
+                    base_path=output_dir,
+                    base_filename=base_filename
+                )
+                
+                if not success:
+                    log_with_context(
+                        logger, 'warning',
+                        f"Metadata generation returned False for stream {stream_id} - continuing with post-processing",
+                        task_id=payload.get('task_id'),
+                        stream_id=stream_id,
+                        operation='metadata_generation_warning'
+                    )
+                else:
+                    log_with_context(
+                        logger, 'info',
+                        f"Metadata generation completed successfully for stream {stream_id}",
+                        task_id=payload.get('task_id'),
+                        stream_id=stream_id,
+                        operation='metadata_generation_complete'
+                    )
+            except Exception as metadata_error:
+                log_with_context(
+                    logger, 'warning',
+                    f"Metadata generation failed for stream {stream_id}: {metadata_error} - continuing with post-processing",
+                    task_id=payload.get('task_id'),
+                    stream_id=stream_id,
+                    error=str(metadata_error),
+                    operation='metadata_generation_error_continue'
+                )
             
             if progress_callback:
                 progress_callback(90.0)
             
-            if not success:
-                raise Exception("Metadata generation returned False - check metadata service logs for details")
-                
             if progress_callback:
                 progress_callback(100.0)
                 
-            log_with_context(
-                logger, 'info',
-                f"Metadata generation completed for stream {stream_id}",
-                task_id=payload.get('task_id'),
-                stream_id=stream_id,
-                operation='metadata_generation_complete'
-            )
-            
         except Exception as e:
+            # Log any unexpected errors in the metadata generation task
             log_with_context(
                 logger, 'error',
-                f"Metadata generation failed for stream {stream_id}: {e}",
+                f"Unexpected error in metadata generation task for stream {stream_id}: {e}",
                 task_id=payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
-                operation='metadata_generation_error'
+                operation='metadata_generation_unexpected_error'
             )
-            raise
+            # Don't raise - metadata generation failures shouldn't stop post-processing
+            # The specific metadata errors are already handled in the try-catch above
     
     async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
