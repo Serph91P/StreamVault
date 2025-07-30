@@ -4,7 +4,14 @@
       {{ error }}
       
       <!-- Callback URL guidance for redirect_mismatch error -->
-      <div v-if="error.includes('redirect_mismatch')" class="callback-url-hint">
+      <div v-if="error.includes('redirect_mismatch')" casync function loadFollowedChannels(token: string): Promise<void> {
+  try {
+    loading.value = true
+    loadingMessage.value = 'Loading channels you follow...'
+    
+    const data = await authApi.getFollowedChannels()
+    
+    channels.value = data.data || []k-url-hint">
         <p><strong>Important:</strong> The Redirect URI in your Twitch Developer Dashboard must match the callback URL of your StreamVault installation.</p>
         <p v-if="callbackUrl" class="callback-url">
           Configure this URL in your Twitch Developer Dashboard:<br>
@@ -146,6 +153,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { authApi } from '@/services/api'
 
 interface Channel {
   id: string
@@ -235,8 +243,7 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const response = await fetch('/api/twitch/auth-url')
-    const data = await response.json()
+    const data = await authApi.getAuthUrl()
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -273,19 +280,9 @@ async function importSelected(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Importing selected streamers...'
     
-    const response = await fetch('/api/twitch/import-streamers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(selectedStreamers.value)
-    })
+    const streamerIds = selectedStreamers.value.map(s => s.id)
+    const results = await authApi.importStreamers(streamerIds)
     
-    if (!response.ok) {
-      throw new Error('Failed to import streamers')
-    }
-    
-    const results = await response.json()
     importResults.value = results
     
     // Emit an event if the import was successful
