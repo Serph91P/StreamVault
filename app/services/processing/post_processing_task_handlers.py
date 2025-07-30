@@ -111,26 +111,17 @@ class PostProcessingTaskHandlers:
                 progress_callback(100.0)
                 
         except Exception as e:
-            # Only fail the entire task for non-metadata errors
-            if "metadata" not in str(e).lower():
-                log_with_context(
-                    logger, 'error',
-                    f"Metadata generation task failed for stream {stream_id}: {e}",
-                    task_id=payload.get('task_id'),
-                    stream_id=stream_id,
-                    error=str(e),
-                    operation='metadata_generation_error'
-                )
-                raise
-            else:
-                # Metadata errors are already logged above, don't re-raise
-                log_with_context(
-                    logger, 'warning',
-                    f"Metadata generation completed with errors for stream {stream_id}",
-                    task_id=payload.get('task_id'),
-                    stream_id=stream_id,
-                    operation='metadata_generation_partial_success'
-                )
+            # Log any unexpected errors in the metadata generation task
+            log_with_context(
+                logger, 'error',
+                f"Unexpected error in metadata generation task for stream {stream_id}: {e}",
+                task_id=payload.get('task_id'),
+                stream_id=stream_id,
+                error=str(e),
+                operation='metadata_generation_unexpected_error'
+            )
+            # Don't raise - metadata generation failures shouldn't stop post-processing
+            # The specific metadata errors are already handled in the try-catch above
     
     async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
