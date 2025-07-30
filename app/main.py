@@ -201,20 +201,24 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start recording cleanup service: {e}")
         
-        # Start image sync service
-        try:
-            await image_sync_service.start_sync_worker()
-            logger.info("Image sync service started")
-        except Exception as e:
-            logger.error(f"Error starting image sync service: {e}", exc_info=True)
-            
-        # Start background queue service
+        # Wait a moment for migrations to fully complete before starting services
+        await asyncio.sleep(1)
+        
+        # Start background services AFTER migrations are guaranteed to be complete
         try:
             from app.services.init.startup_init import initialize_background_services
             await initialize_background_services()
-            logger.info("Background queue service started")
+            logger.info("✅ Background services initialized successfully")
         except Exception as e:
-            logger.error(f"Error starting background queue service: {e}", exc_info=True)
+            logger.error(f"❌ Error starting background services: {e}", exc_info=True)
+            logger.warning("⚠️ Application will continue but background processing may be limited")
+            
+        # Start image sync service
+        try:
+            await image_sync_service.start_sync_worker()
+            logger.info("✅ Image sync service started")
+        except Exception as e:
+            logger.error(f"❌ Error starting image sync service: {e}", exc_info=True)
         
         # Start WebSocket broadcast task for real-time updates
         try:
