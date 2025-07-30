@@ -85,7 +85,7 @@ def run_migration():
         else:
             logger.info("✅ All metadata path columns already exist")
             
-        logger.info("✅ Migration 021 completed successfully")
+        logger.info("✅ Migration 021 completed successfully: Added chapters_xml_path and related columns")
         return True
         
     except (DatabaseError, OperationalError) as e:
