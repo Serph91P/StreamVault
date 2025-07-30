@@ -265,7 +265,7 @@ async function importSelected(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Importing selected streamers...'
     
-    const streamerIds = selectedStreamers.value.map(s => parseInt(s.id))
+    const streamerIds = selectedStreamers.value.map(s => Number(s.id))
     const results = await authApi.importStreamers(streamerIds)
     
     importResults.value = results
