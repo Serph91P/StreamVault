@@ -727,14 +727,9 @@ const deleteAllStreams = async () => {
   try {
     deletingAllStreams.value = true
     
-    const response = await fetch(`/api/streamers/${streamerId.value}/streams`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
+    const response = await streamersApi.deleteAllStreams(streamerId.value)
     
-    if (!response.ok) {
-      throw new Error(`Failed to delete streams: ${response.statusText}`)
-    }
+    console.log('All streams deleted successfully:', response)
     
     // Clear local state
     streams.value = []
