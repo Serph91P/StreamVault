@@ -23,7 +23,7 @@
         
         <div class="header-actions">
           <button 
-            @click="forceStartRecording(Number(streamerId))" 
+            @click="forceStartRecordingWithLocalUpdate(Number(streamerId))" 
             class="btn btn-success"
             :disabled="forceRecordingStreamerId === Number(streamerId)"
             title="Force Start Recording - Checks if streamer is currently live and starts recording automatically"
@@ -62,7 +62,7 @@
         
         <div class="header-actions">
           <button 
-            @click="forceStartRecording(Number(streamerId))" 
+            @click="forceStartRecordingWithLocalUpdate(Number(streamerId))" 
             class="btn btn-success"
             :disabled="forceRecordingStreamerId === Number(streamerId)"
             title="Force Start Recording - Checks if streamer is currently live and starts recording automatically"
@@ -468,7 +468,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
-import { recordingApi } from '@/services/api'
+import { useForceRecording } from '@/composables/useForceRecording'
 import type { Stream } from '@/types/streams'
 
 // Extend the base Stream interface with additional properties
@@ -517,6 +517,7 @@ const streamerName = computed(() => props.streamerName || route.query.name as st
 const { streams, isLoading, fetchStreams } = useStreams()
 const { activeRecordings } = useSystemAndRecordingStatus()
 const { getCategoryImage, preloadCategoryImages } = useCategoryImages()
+const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
 // UI State
 const expandedStreams = ref<Set<number>>(new Set())
@@ -525,11 +526,21 @@ const deletingAllStreams = ref(false)
 const showDeleteModal = ref(false)
 const showDeleteAllModal = ref(false)
 const streamToDelete = ref<ExtendedStream | null>(null)
-const forceRecordingStreamerId = ref<number | null>(null)
 const stoppingRecordingStreamerId = ref<number | null>(null)
 
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})
+
+// Wrapper for force start recording with local state update
+const forceStartRecordingWithLocalUpdate = async (streamerId: number) => {
+  await forceStartRecording(streamerId, (streamerId: number) => {
+    // Update local recording state immediately
+    const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
+    if (activeStream) {
+      localRecordingState.value[activeStream.id] = true
+    }
+  })
+}
 
 // Computed Properties
 const sortedStreams = computed(() => {
@@ -751,57 +762,6 @@ const cancelDelete = () => {
 
 const cancelDeleteAll = () => {
   showDeleteAllModal.value = false
-}
-
-// Force Recording Method
-const forceStartRecording = async (streamerId: number) => {
-  try {
-    forceRecordingStreamerId.value = streamerId
-    
-    // First check if streamer is really live via Twitch API
-    let isLive = false
-    let apiCheckFailed = false
-    
-    try {
-      const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
-      isLive = checkResponse?.data?.is_live || false
-    } catch (apiError) {
-      // If API check fails, mark as failed but don't assume the stream is live
-      // This prevents unnecessary recording attempts on definitely offline streams
-      apiCheckFailed = true
-      console.warn('Live status check failed, API may be temporarily unavailable:', apiError)
-    }
-    
-    if (apiCheckFailed) {
-      // When API check fails, let backend handle validation entirely
-      // Don't make assumptions about live status
-      console.warn('Cannot verify live status due to API failure, proceeding with backend validation')
-    } else if (!isLive) {
-      // Show user-friendly message but still proceed (backend will validate)
-      console.warn('Streamer appears to be offline according to API, but continuing with force recording attempt')
-      // Note: Backend will still validate and send appropriate notifications
-    }
-    
-    const response = await recordingApi.forceStartRecording(streamerId)
-    
-    if (response?.data?.status === 'success') {
-      // Update local recording state immediately
-      const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
-      if (activeStream) {
-        localRecordingState.value[activeStream.id] = true
-      }
-      
-      // Success feedback will be sent via WebSocket from backend
-    }
-  } catch (error: any) {
-    console.error('Error force starting recording:', error)
-    
-    // Let the backend handle error notifications via WebSocket
-    // Error messages will be sent as toast notifications
-    // Don't show additional UI errors here to avoid double notifications
-  } finally {
-    forceRecordingStreamerId.value = null
-  }
 }
 
 // Force Stop Recording Method
