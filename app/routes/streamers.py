@@ -576,11 +576,10 @@ async def delete_stream(
         files_to_delete = []
         
         if metadata:
-            # Collect all metadata files that need to be deleted
+            # Collect all metadata files that need to be deleted (only actually generated files)
             for attr in [
-                'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
-                'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
-                'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
+                'thumbnail_path', 'json_path', 'nfo_path', 'tvshow_nfo_path', 'season_nfo_path',
+                'chapters_vtt_path', 'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
             ]:
                 path = getattr(metadata, attr, None)
                 if path:
@@ -899,11 +898,10 @@ async def delete_all_streams(
             metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
             
             if metadata:
-                # Collect all metadata files that need to be deleted
+                # Collect all metadata files that need to be deleted (only actually generated files)
                 for attr in [
-                    'thumbnail_path', 'nfo_path', 'json_path', 'chat_path', 
-                    'chat_srt_path', 'chapters_path', 'chapters_vtt_path', 
-                    'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
+                    'thumbnail_path', 'json_path', 'nfo_path', 'tvshow_nfo_path', 'season_nfo_path',
+                    'chapters_vtt_path', 'chapters_srt_path', 'chapters_ffmpeg_path', 'chapters_xml_path'
                 ]:
                     path = getattr(metadata, attr, None)
                     if path:
