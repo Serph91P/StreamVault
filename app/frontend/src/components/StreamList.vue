@@ -33,15 +33,15 @@
             @click="forceStartRecording(Number(streamerId))" 
             class="btn btn-success"
             :disabled="forceRecordingStreamerId === Number(streamerId)"
-            title="Force Start Recording for this Streamer"
-            aria-label="Force start recording for current streamer - checks if streamer is live and starts recording immediately"
+            title="Force Start Recording - Checks if streamer is currently live and starts recording automatically"
+            aria-label="Force start recording for this streamer - validates live status via API and begins recording if online"
             :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
           >
             <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
-              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking & Starting...
             </span>
             <span v-else>
-              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record
+              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record Streamer
             </span>
           </button>
           
@@ -130,23 +130,6 @@
                   :aria-label="`Watch recorded video of ${stream.title || 'Untitled Stream'}`"
                 >
                   <i class="fas fa-play" aria-hidden="true"></i> Watch Video
-                </button>
-                
-                <!-- Force Start Recording Button - ALWAYS AVAILABLE -->
-                <button 
-                  @click="forceStartRecording(stream.streamer_id)" 
-                  class="btn btn-success action-btn"
-                  :disabled="forceRecordingStreamerId === stream.streamer_id || (!stream.ended_at && isStreamBeingRecorded(stream))"
-                  :title="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Already Recording' : 'Force Start Recording (checks if really live)'"
-                  :aria-label="!stream.ended_at && isStreamBeingRecorded(stream) ? 'Recording already in progress for this stream' : `Force start recording for ${stream.title || 'Untitled Stream'} - validates if streamer is live first`"
-                  :aria-describedby="forceRecordingStreamerId === stream.streamer_id ? `force-recording-status-${stream.id}` : undefined"
-                >
-                  <span v-if="forceRecordingStreamerId === stream.streamer_id" :id="`force-recording-status-${stream.id}`">
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Starting...
-                  </span>
-                  <span v-else>
-                    <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Recording
-                  </span>
                 </button>
                 
                 <!-- Stop Recording Button (for active recordings) -->
