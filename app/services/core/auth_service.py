@@ -94,3 +94,18 @@ class AuthService:
             logger.error(f"Error cleaning up expired sessions: {e}")
             self.db.rollback()
             return 0
+
+    async def delete_session(self, token: str) -> bool:
+        """Delete a specific session token"""
+        try:
+            session = self.db.query(Session).filter_by(token=token).first()
+            if session:
+                self.db.delete(session)
+                self.db.commit()
+                logger.debug(f"Deleted session for token {token[:10]}...")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting session: {e}")
+            self.db.rollback()
+            return False
