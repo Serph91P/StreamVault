@@ -287,7 +287,7 @@ const loadChapters = async () => {
       return
     }
     
-    const response = await streamersApi.getStreamChapters(props.video.streamer_id, props.video.id)
+    const response = await streamersApi.getStreamChapters(parseInt(props.video.streamer_id), parseInt(props.video.id))
     chapters.value = response.chapters || []
   } catch (error) {
     console.error('Failed to load chapters:', error)
