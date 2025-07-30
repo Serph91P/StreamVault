@@ -102,7 +102,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { streamerApi } from '@/services/api'
+import { streamersApi } from '@/services/api'
 
 const props = defineProps({
   video: {
@@ -313,7 +313,7 @@ const loadChapters = async () => {
       return
     }
     
-    const response = await streamerApi.getStreamChapters(props.video.streamer_id, props.video.id)
+    const response = await streamersApi.getStreamChapters(props.video.streamer_id, props.video.id)
     chapters.value = response.chapters || []
   } catch (error) {
     console.error('Failed to load chapters:', error)
