@@ -703,7 +703,7 @@ const deleteStream = async () => {
   try {
     deletingStreamId.value = streamToDelete.value.id
     
-    const response = await streamsApi.delete(streamToDelete.value.id)
+    const response = await streamsApi.delete(parseInt(streamToDelete.value.id))
     
     console.log('Stream deleted successfully:', response)
     
@@ -727,7 +727,7 @@ const deleteAllStreams = async () => {
   try {
     deletingAllStreams.value = true
     
-    const response = await streamersApi.deleteAllStreams(streamerId.value)
+    const response = await streamersApi.deleteAllStreams(parseInt(streamerId.value))
     
     console.log('All streams deleted successfully:', response)
     
@@ -786,7 +786,7 @@ const forceStopRecording = async (stream: Stream) => {
 // Lifecycle
 onMounted(async () => {
   if (streamerId.value) {
-    await fetchStreams(streamerId.value)
+    await fetchStreams(parseInt(streamerId.value))
     
     // Preload category images
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
