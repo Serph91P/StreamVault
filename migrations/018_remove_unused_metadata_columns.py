@@ -40,17 +40,29 @@ def run_migration():
         columns = inspector.get_columns('stream_metadata')
         column_names = [col['name'] for col in columns]
         
-        # List of unused columns to remove
+        # List of unused columns to remove (hardcoded whitelist for security)
         unused_columns = ['chat_path', 'chat_srt_path', 'chapters_path']
+        
+        # Security: Validate column names against whitelist before SQL execution
+        allowed_columns = {'chat_path', 'chat_srt_path', 'chapters_path'}
         
         columns_removed = 0
         for column_name in unused_columns:
+            # Security check: only allow whitelisted column names
+            if column_name not in allowed_columns:
+                logger.error(f"❌ Column {column_name} not in allowed whitelist - skipping for security")
+                continue
+                
             if column_name in column_names:
                 logger.info(f"🔄 Removing unused column {column_name}...")
-                session.execute(text(f"""
-                    ALTER TABLE stream_metadata 
-                    DROP COLUMN IF EXISTS {column_name}
-                """))
+                # Use whitelisted column name directly (no user input)
+                if column_name == 'chat_path':
+                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_path"))
+                elif column_name == 'chat_srt_path':
+                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_srt_path"))
+                elif column_name == 'chapters_path':
+                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chapters_path"))
+                
                 columns_removed += 1
                 logger.info(f"✅ Removed unused column {column_name} from stream_metadata")
             else:
