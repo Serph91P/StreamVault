@@ -74,7 +74,7 @@ def run_migration():
         else:
             logger.info("✅ All unused columns already removed")
             
-        logger.info("✅ Migration 020 completed successfully")
+        logger.info("✅ Migration 020 completed successfully: Removed unused metadata columns")
         return True
         
     except (DatabaseError, OperationalError) as e:
