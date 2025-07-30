@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Migration 020: Remove unused metadata columns
+Migration 018: Remove unused metadata columns
 Removes chat_path, chat_srt_path, and chapters_path columns as they are never used
 """
 import os
@@ -74,7 +74,7 @@ def run_migration():
         else:
             logger.info("✅ All unused columns already removed")
             
-        logger.info("✅ Migration 020 completed successfully: Removed unused metadata columns")
+        logger.info("✅ Migration 018 completed successfully")
         return True
         
     except (DatabaseError, OperationalError) as e:
@@ -85,7 +85,7 @@ def run_migration():
     except Exception as e:
         if session:
             session.rollback()
-        logger.error(f"❌ Migration 020 failed: {e}")
+        logger.error(f"❌ Migration 018 failed: {e}")
         raise
     finally:
         if session:
