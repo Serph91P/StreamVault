@@ -4,14 +4,7 @@
       {{ error }}
       
       <!-- Callback URL guidance for redirect_mismatch error -->
-      <div v-if="error.includes('redirect_mismatch')" casync function loadFollowedChannels(token: string): Promise<void> {
-  try {
-    loading.value = true
-    loadingMessage.value = 'Loading channels you follow...'
-    
-    const data = await authApi.getFollowedChannels()
-    
-    channels.value = data.data || []k-url-hint">
+      <div v-if="error.includes('redirect_mismatch')" class="callback-url-hint">
         <p><strong>Important:</strong> The Redirect URI in your Twitch Developer Dashboard must match the callback URL of your StreamVault installation.</p>
         <p v-if="callbackUrl" class="callback-url">
           Configure this URL in your Twitch Developer Dashboard:<br>
@@ -205,11 +198,8 @@ const filteredChannels = computed(() => {
 // Methods
 async function fetchCallbackUrl() {
   try {
-    const response = await fetch('/api/twitch/callback-url')
-    if (response.ok) {
-      const data = await response.json()
-      callbackUrl.value = data.url
-    }
+    const data = await authApi.getCallbackUrl()
+    callbackUrl.value = data.url
   } catch (err) {
     console.error('Failed to fetch callback URL:', err)
     // We don't set an error as this is not critical
@@ -257,13 +247,8 @@ async function loadFollowedChannels(token: string): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
     
-    const response = await fetch(`/api/twitch/followed-channels?access_token=${token}`)
+    const data = await authApi.getFollowedChannels()
     
-    if (!response.ok) {
-      throw new Error('Failed to load followed channels')
-    }
-    
-    const data = await response.json()
     channels.value = data.channels || []
   } catch (err: any) {
     error.value = err.message || 'Failed to load followed channels'
