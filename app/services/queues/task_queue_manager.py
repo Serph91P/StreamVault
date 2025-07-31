@@ -261,6 +261,10 @@ class TaskQueueManager:
                         
                         await self.mark_task_completed(task.id, success=False)
                         
+                    finally:
+                        # Always mark task as done in the queue to prevent hanging
+                        streamer_queue.task_done()
+                        
                 except Exception as e:
                     logger.error(f"❌ Error in isolated worker for streamer {streamer_name}: {e}", exc_info=True)
                     await asyncio.sleep(1)
