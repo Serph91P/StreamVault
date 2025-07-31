@@ -24,7 +24,8 @@ class ProfileImageService:
         self.download_service = download_service or ImageDownloadService()
         self._profile_cache: Dict[str, str] = {}
         self.profiles_dir = None
-        self._load_existing_cache()
+        self._cache_loaded = False
+        # Don't load cache immediately during initialization - defer until first use
     
     def _ensure_profiles_dir(self):
         """Ensure profiles directory exists"""
@@ -65,6 +66,31 @@ class ProfileImageService:
         else:
             return None  # File doesn't match expected patterns
     
+    def _ensure_cache_loaded(self):
+        """Ensure cache is loaded, but only if database is available"""
+        if self._cache_loaded:
+            return
+            
+        try:
+            # Test if database is ready by attempting a simple query
+            from app.database import SessionLocal
+            with SessionLocal() as db:
+                # Try a simple query to check if streamers table exists
+                # Use text() for raw SQL to avoid table reflection issues
+                from sqlalchemy import text
+                db.execute(text("SELECT 1 FROM streamers LIMIT 1")).fetchone()
+            
+            # Database is ready, load cache
+            self._load_existing_cache()
+            self._cache_loaded = True
+        except Exception as e:
+            # Database not ready yet, skip cache loading for now
+            logger.debug(f"Database not ready for profile image cache loading: {e}")
+            # Set a flag to indicate we tried but failed, so we don't spam logs
+            if not hasattr(self, '_cache_load_attempted'):
+                logger.info("Profile image cache loading deferred until database is ready")
+                self._cache_load_attempted = True
+
     def _load_existing_cache(self):
         """Load information about already cached profile images"""
         try:
@@ -77,10 +103,17 @@ class ProfileImageService:
                         continue  # Skip files that don't match expected patterns
                     
                     # Convert to internal streamer ID for cache key
-                    internal_id = self._get_internal_id_for_extracted_id(extracted_id)
-                    if internal_id:
+                    # Only try database lookup if streamers table exists
+                    try:
+                        internal_id = self._get_internal_id_for_extracted_id(extracted_id)
+                        if internal_id:
+                            relative_path = f"/data/images/profiles/{image_file.name}"
+                            self._profile_cache[str(internal_id)] = relative_path
+                    except Exception as db_error:
+                        # Database not ready, use extracted_id as fallback key
+                        logger.debug(f"Using extracted ID {extracted_id} as cache key due to DB error: {db_error}")
                         relative_path = f"/data/images/profiles/{image_file.name}"
-                        self._profile_cache[str(internal_id)] = relative_path
+                        self._profile_cache[str(extracted_id)] = relative_path
             
             logger.info(f"Loaded profile image cache: {len(self._profile_cache)} profiles")
         except Exception as e:
@@ -131,6 +164,7 @@ class ProfileImageService:
             return None
             
         # Check if already cached
+        self._ensure_cache_loaded()
         streamer_id_str = str(streamer_id)
         if streamer_id_str in self._profile_cache:
             return self._profile_cache[streamer_id_str]
@@ -165,6 +199,7 @@ class ProfileImageService:
 
     def get_cached_profile_image(self, streamer_id: int) -> Optional[str]:
         """Get cached profile image path for a streamer"""
+        self._ensure_cache_loaded()
         return self._profile_cache.get(str(streamer_id))
 
     async def update_streamer_profile_image(self, streamer_id: int, profile_image_url: str) -> bool:
@@ -219,6 +254,7 @@ class ProfileImageService:
 
     def get_profile_cache_stats(self) -> Dict[str, int]:
         """Get statistics about profile image cache"""
+        self._ensure_cache_loaded()
         return {
             "cached_profiles": len(self._profile_cache),
             "failed_downloads": len([url for url in self.download_service._failed_downloads if 'profile' in url])
