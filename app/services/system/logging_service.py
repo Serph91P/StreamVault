@@ -211,20 +211,20 @@ class LoggingService:
         self.streamlink_logger.addHandler(streamlink_handler)
         self.streamlink_logger.setLevel(logging.DEBUG)
         
-        # FFmpeg logger (now streamer-specific, so this is for general/fallback messages only)
+        # FFmpeg logger (only for system-level FFmpeg messages without streamer context)
         self.ffmpeg_logger = logging.getLogger("streamvault.ffmpeg")
         ffmpeg_handler = TimedRotatingFileHandler(
             self.ffmpeg_logs_dir / "ffmpeg_system.log",
             when="midnight",
             interval=1,
-            backupCount=30,
+            backupCount=7,  # Reduced from 30 days since streamer-specific logs are primary
             encoding="utf-8"
         )
         ffmpeg_handler.setFormatter(
             logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
         )
         self.ffmpeg_logger.addHandler(ffmpeg_handler)
-        self.ffmpeg_logger.setLevel(logging.DEBUG)
+        self.ffmpeg_logger.setLevel(logging.INFO)  # Changed to INFO to reduce noise
         
         # Recording logger for recording activities
         self.recording_logger = logging.getLogger("streamvault.recording")
@@ -611,6 +611,71 @@ class LoggingService:
         """Log configuration changes"""
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
         self.recording_logger.info(f"[CONFIG_CHANGE] {target}: {setting} changed from '{old_value}' to '{new_value}'")
+
+    def log_recording_activity_to_file(self, activity_type: str, streamer_name: str, details: str = "", level: str = "info"):
+        """Log recording activity to streamer-specific file"""
+        if not streamer_name:
+            streamer_name = "unknown"
+        
+        # Get streamer-specific log path
+        log_path = self.get_app_log_path("recording", streamer_name)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Format the log message
+        log_message = f"[{timestamp}] [{activity_type.upper()}] {details}\n"
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(log_message)
+            logger.debug(f"✅ Recording activity logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not write recording activity log {log_path}: {e}")
+
+    def log_post_processing_activity(self, operation: str, streamer_name: str, input_file: str, output_file: str = "", 
+                                   success: bool = True, duration: float = 0, details: str = ""):
+        """Log post-processing activities (remux, thumbnail generation, etc.) to streamer-specific files"""
+        if not streamer_name:
+            streamer_name = "unknown"
+        
+        # Get streamer-specific log path for post-processing
+        log_path = self.get_app_log_path(f"postprocessing", streamer_name)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Build detailed log message
+        status = "SUCCESS" if success else "FAILED"
+        log_message = f"[{timestamp}] [{operation.upper()}] {status}\n"
+        log_message += f"  Input: {input_file}\n"
+        if output_file:
+            log_message += f"  Output: {output_file}\n"
+        if duration > 0:
+            log_message += f"  Duration: {duration:.2f}s\n"
+        if details:
+            log_message += f"  Details: {details}\n"
+        log_message += "\n"
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(log_message)
+            logger.debug(f"✅ Post-processing activity logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not write post-processing log {log_path}: {e}")
+
+    def log_stream_event_to_file(self, event_type: str, streamer_name: str, details: str = ""):
+        """Log stream events (online/offline) to streamer-specific files"""
+        if not streamer_name:
+            streamer_name = "unknown"
+        
+        log_path = self.get_app_log_path("events", streamer_name)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        log_message = f"[{timestamp}] [STREAM_{event_type.upper()}] {details}\n"
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(log_message)
+            logger.debug(f"✅ Stream event logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not write stream event log {log_path}: {e}")
 
 # Global logging service instance (no permission testing for better startup performance)
 logging_service = LoggingService(test_permissions=False)
