@@ -102,7 +102,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { streamerApi } from '@/services/api'
+import { streamersApi, videoApi } from '@/services/api'
 
 const props = defineProps({
   video: {
@@ -198,22 +198,9 @@ const downloadVideo = () => {
 const shareVideo = async () => {
   try {
     // Use the new API endpoint to generate a share token
-    const response = await fetch(`/api/videos/${props.video.id}/share-token`, {
-      method: 'POST',
-      credentials: 'include', // Include session cookie in request
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
+    const response = await videoApi.createShareToken(props.video.id, {})
     
-    if (!response.ok) {
-      const errorData = await response.json()
-      alert(`Unable to generate share link: ${errorData.detail || 'Authentication required'}`)
-      return
-    }
-    
-    const data = await response.json()
-    const directVideoUrl = data.share_url
+    const directVideoUrl = response.data.share_url
     
     const shareData = {
       title: props.video.title,
@@ -242,21 +229,8 @@ const fallbackShare = async (url) => {
   try {
     // If no URL provided, try to generate one via API
     if (!url) {
-      const response = await fetch(`/api/videos/${props.video.id}/share-token`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        url = data.share_url
-      } else {
-        // Fallback to regular stream URL
-        url = `${window.location.origin}/api/videos/${props.video.id}/stream`
-      }
+      const response = await videoApi.createShareToken(props.video.id, {})
+      url = response.data.share_url
     }
     
     navigator.clipboard.writeText(url).then(() => {
@@ -313,7 +287,7 @@ const loadChapters = async () => {
       return
     }
     
-    const response = await streamerApi.getStreamChapters(props.video.streamer_id, props.video.id)
+    const response = await streamersApi.getStreamChapters(Number(props.video.streamer_id), Number(props.video.id))
     chapters.value = response.chapters || []
   } catch (error) {
     console.error('Failed to load chapters:', error)

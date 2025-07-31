@@ -26,8 +26,12 @@ class BackgroundQueueService:
     """Backward compatibility wrapper for the refactored queue services"""
     
     def __init__(self, max_workers: int = 3, websocket_manager=None):
-        # Initialize the refactored queue manager
-        self.queue_manager = TaskQueueManager(max_workers, websocket_manager)
+        # Initialize the refactored queue manager with streamer isolation enabled for production
+        self.queue_manager = TaskQueueManager(
+            max_workers=max_workers, 
+            websocket_manager=websocket_manager,
+            enable_streamer_isolation=True  # Enable concurrent streaming by default
+        )
         
         # Legacy properties for compatibility
         self.max_workers = max_workers

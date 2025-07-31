@@ -469,6 +469,7 @@ import { useStreams } from '@/composables/useStreams'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { useForceRecording } from '@/composables/useForceRecording'
+import { recordingApi, streamsApi, streamersApi } from '@/services/api'
 import type { Stream } from '@/types/streams'
 
 // Extend the base Stream interface with additional properties
@@ -702,14 +703,9 @@ const deleteStream = async () => {
   try {
     deletingStreamId.value = streamToDelete.value.id
     
-    const response = await fetch(`/api/streams/${streamToDelete.value.id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
+    const response = await streamsApi.delete(Number(streamToDelete.value.id))
     
-    if (!response.ok) {
-      throw new Error(`Failed to delete stream: ${response.statusText}`)
-    }
+    console.log('Stream deleted successfully:', response)
     
     // Remove from local state
     const index = streams.value.findIndex(s => s.id === streamToDelete.value!.id)
@@ -731,14 +727,9 @@ const deleteAllStreams = async () => {
   try {
     deletingAllStreams.value = true
     
-    const response = await fetch(`/api/streamers/${streamerId.value}/streams`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
+    const response = await streamersApi.deleteAllStreams(Number(streamerId.value))
     
-    if (!response.ok) {
-      throw new Error(`Failed to delete streams: ${response.statusText}`)
-    }
+    console.log('All streams deleted successfully:', response)
     
     // Clear local state
     streams.value = []
@@ -772,29 +763,15 @@ const forceStopRecording = async (stream: Stream) => {
   stoppingRecordingStreamerId.value = streamerId
   
   try {
-    const response = await fetch(`/api/recordings/force-stop`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify({ streamer_id: streamerId })
-    })
+    // Use streamerId to stop recording (API handles finding the active recording)
+    const response = await recordingApi.forceStopRecording(streamerId)
     
-    if (response.ok) {
-      const result = await response.json()
-      console.log('Force stop recording successful:', result)
+    console.log('Force stop recording successful:', response)
+    
+    // Update local state immediately
+    localRecordingState.value[stream.id] = false
       
-      // Update local state immediately
-      localRecordingState.value[stream.id] = false
-      
-      // Success notification will be sent via WebSocket from backend
-    } else {
-      const errorData = await response.json()
-      console.error('Force stop recording failed:', errorData)
-      
-      // Error notification will be sent via WebSocket from backend
-    }
+    // Success notification will be sent via WebSocket from backend
   } catch (error) {
     console.error('Error force stopping recording:', error)
     
@@ -808,7 +785,7 @@ const forceStopRecording = async (stream: Stream) => {
 // Lifecycle
 onMounted(async () => {
   if (streamerId.value) {
-    await fetchStreams(streamerId.value)
+    await fetchStreams(Number(streamerId.value))
     
     // Preload category images
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]

@@ -32,8 +32,9 @@ class TaskQueueManager:
             # Production fix: Use streamer-isolated queues to prevent concurrency issues
             self.streamer_queues: Dict[str, asyncio.PriorityQueue] = defaultdict(lambda: asyncio.PriorityQueue())
             self.streamer_workers: Dict[str, list] = defaultdict(list)
-            self.max_workers_per_streamer = 1  # One worker per streamer for isolation
-            logger.info("TaskQueueManager initialized with streamer isolation for production")
+            self.max_workers_per_streamer = 2  # Allow 2 workers per streamer for recording + post-processing
+            self.global_max_streamers = 10  # Maximum number of concurrent streamers
+            logger.info("TaskQueueManager initialized with streamer isolation for production - max 2 workers per streamer")
         else:
             # Original single shared queue
             self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
@@ -217,7 +218,7 @@ class TaskQueueManager:
         
         async def isolated_worker():
             """Isolated worker for a specific streamer"""
-            logger.info(f"Started isolated worker for streamer: {streamer_name}")
+            logger.info(f"🎯 Started isolated worker for streamer: {streamer_name}")
             
             while self._is_running:
                 try:
@@ -230,7 +231,7 @@ class TaskQueueManager:
                     except asyncio.TimeoutError:
                         continue
                     
-                    logger.debug(f"Streamer {streamer_name} worker processing task {task.id} ({task.task_type})")
+                    logger.info(f"🔄 Streamer {streamer_name} worker processing task {task.id} ({task.task_type})")
                     
                     # Update task status to running
                     if self.progress_tracker:
@@ -238,44 +239,46 @@ class TaskQueueManager:
                     
                     try:
                         # Execute the task using worker manager's task execution logic
-                        await self.worker_manager._execute_task(task, worker_name)
+                        success = await self.worker_manager._execute_task(task, worker_name)
                         
                         # Mark task as completed
                         if self.progress_tracker:
-                            self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
+                            status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
+                            self.progress_tracker.update_task_status(task.id, status)
                             self.progress_tracker.update_task_progress(task.id, 100.0)
                         
                         # Notify completion callback
-                        await self.mark_task_completed(task.id, success=True)
+                        await self.mark_task_completed(task.id, success=success)
                         
-                        logger.info(f"Streamer {streamer_name} worker completed task {task.id}")
+                        logger.info(f"✅ Streamer {streamer_name} completed task {task.id} - success: {success}")
                         
                     except Exception as e:
-                        error_msg = f"Task execution failed: {str(e)}"
-                        logger.error(f"Streamer {streamer_name} worker task {task.id} failed: {error_msg}")
+                        logger.error(f"❌ Error executing task {task.id} for streamer {streamer_name}: {e}", exc_info=True)
                         
-                        # Handle task failure using worker manager's failure logic
-                        await self.worker_manager._handle_task_failure(task, error_msg, worker_name)
+                        # Mark task as failed
+                        if self.progress_tracker:
+                            self.progress_tracker.update_task_status(task.id, TaskStatus.FAILED)
+                        
                         await self.mark_task_completed(task.id, success=False)
-                    
+                        
                     finally:
-                        # Mark task as done in the queue
+                        # Always mark task as done in the queue to prevent hanging
                         streamer_queue.task_done()
                         
-                except asyncio.CancelledError:
-                    logger.info(f"Isolated worker for streamer {streamer_name} cancelled")
-                    break
                 except Exception as e:
-                    logger.error(f"Streamer {streamer_name} worker unexpected error: {e}")
+                    logger.error(f"❌ Error in isolated worker for streamer {streamer_name}: {e}", exc_info=True)
                     await asyncio.sleep(1)
-                    
-            logger.info(f"Isolated worker for streamer {streamer_name} stopped")
+            
+            logger.info(f"🛑 Stopped isolated worker for streamer: {streamer_name}")
         
-        # Create and start the worker
-        worker_task = asyncio.create_task(isolated_worker())
-        self.streamer_workers[streamer_name].append(worker_task)
-        
-        logger.info(f"Created isolated worker for streamer: {streamer_name}")
+        # Create and start the worker (limit to max_workers_per_streamer)
+        current_worker_count = len(self.streamer_workers[streamer_name])
+        if current_worker_count < self.max_workers_per_streamer:
+            worker_task = asyncio.create_task(isolated_worker())
+            self.streamer_workers[streamer_name].append(worker_task)
+            logger.info(f"🎯 Created isolated worker for streamer: {streamer_name} (worker {current_worker_count + 1}/{self.max_workers_per_streamer})")
+        else:
+            logger.warning(f"⚠️ Maximum workers reached for streamer {streamer_name} ({self.max_workers_per_streamer})")
 
     async def enqueue_task_with_dependencies(
         self,

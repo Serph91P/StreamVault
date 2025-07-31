@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { recordingApi } from '@/services/api'
+import { recordingApi, streamersApi } from '@/services/api'
 
 export function useForceRecording() {
   // Force Recording State
@@ -15,7 +15,7 @@ export function useForceRecording() {
       let apiCheckFailed = false
       
       try {
-        const checkResponse = await recordingApi.checkStreamerLiveStatus(streamerId)
+        const checkResponse = await streamersApi.checkLiveStatus(streamerId)
         isLive = checkResponse?.data?.is_live || false
       } catch (apiError) {
         // If API check fails, mark as failed but don't assume the stream is live

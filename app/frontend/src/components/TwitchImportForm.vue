@@ -146,6 +146,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { authApi } from '@/services/api'
 
 interface Channel {
   id: string
@@ -197,11 +198,9 @@ const filteredChannels = computed(() => {
 // Methods
 async function fetchCallbackUrl() {
   try {
-    const response = await fetch('/api/twitch/callback-url')
-    if (response.ok) {
-      const data = await response.json()
-      callbackUrl.value = data.url
-    }
+    const response = await authApi.getCallbackUrl()
+    const data = response.data
+    callbackUrl.value = data.url
   } catch (err) {
     console.error('Failed to fetch callback URL:', err)
     // We don't set an error as this is not critical
@@ -235,8 +234,8 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const response = await fetch('/api/twitch/auth-url')
-    const data = await response.json()
+    const response = await authApi.getAuthUrl()
+    const data = response.data
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -250,13 +249,9 @@ async function loadFollowedChannels(token: string): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
     
-    const response = await fetch(`/api/twitch/followed-channels?access_token=${token}`)
+    const response = await authApi.getFollowedChannels()
+    const data = response.data
     
-    if (!response.ok) {
-      throw new Error('Failed to load followed channels')
-    }
-    
-    const data = await response.json()
     channels.value = data.channels || []
   } catch (err: any) {
     error.value = err.message || 'Failed to load followed channels'
@@ -273,19 +268,10 @@ async function importSelected(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Importing selected streamers...'
     
-    const response = await fetch('/api/twitch/import-streamers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(selectedStreamers.value)
-    })
+    const streamerIds = selectedStreamers.value.map(s => Number(s.id))
+    const response = await authApi.importStreamers(streamerIds)
+    const results = response.data
     
-    if (!response.ok) {
-      throw new Error('Failed to import streamers')
-    }
-    
-    const results = await response.json()
     importResults.value = results
     
     // Emit an event if the import was successful
