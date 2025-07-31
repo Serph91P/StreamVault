@@ -701,8 +701,8 @@ class RecordingLifecycleManager:
                 
             output_path = first_segment.parent.parent / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
             
-            # Validate output path doesn't contain dangerous characters
-            if any(char in str(output_path) for char in [';', '|', '&', '`', '$', '(', ')']):
+            # Validate output path doesn't contain dangerous shell characters
+            if any(char in str(output_path) for char in [';', '|', '&', '`', '$']):
                 logger.error(f"🎬 UNSAFE_OUTPUT_PATH: {output_path}")
                 return None
             
