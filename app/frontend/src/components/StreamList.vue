@@ -763,8 +763,7 @@ const forceStopRecording = async (stream: Stream) => {
   stoppingRecordingStreamerId.value = streamerId
   
   try {
-    // Note: We need to get the recording ID from the stream somehow
-    // For now, using streamerId as a fallback until we have proper recording ID
+    // Use streamerId to stop recording (API handles finding the active recording)
     const response = await recordingApi.forceStopRecording(streamerId)
     
     console.log('Force stop recording successful:', response)
