@@ -410,8 +410,11 @@ async def generate_share_token(stream_id: int, request: Request, db: Session = D
         # Clean up any expired tokens while we're here
         cleanup_expired_tokens()
         
-        # Create the share URL with the temporary token
-        share_url = f"{request.base_url}api/videos/public/{stream_id}?token={share_token}"
+        # Create the share URL using BASE_URL from settings (ensures correct HTTPS URL)
+        from app.config.settings import get_settings
+        settings = get_settings()
+        base_url = settings.BASE_URL.rstrip('/')
+        share_url = f"{base_url}/api/videos/public/{stream_id}?token={share_token}"
         
         return JSONResponse(content={
             "success": True,
