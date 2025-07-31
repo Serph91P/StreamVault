@@ -245,7 +245,7 @@ class EventHandlerRegistry:
                             "title": streamer.title,
                             "category_name": streamer.category_name,
                             "language": streamer.language,
-                            "profile_image_url": streamer.profile_image_url,
+                            "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
                             "twitch_login": data["broadcaster_user_login"],
                             "is_live": True
                         }
@@ -304,7 +304,7 @@ class EventHandlerRegistry:
                             "streamer_id": streamer.id,
                             "stream_id": stream.id if stream else None,
                             "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            "profile_image_url": streamer.profile_image_url,
+                            "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
                             "twitch_login": data['broadcaster_user_login'],
                             "is_live": False
                         }
@@ -400,7 +400,7 @@ class EventHandlerRegistry:
                             "title": data.get("title"),
                             "category_name": data.get("category_name"),
                             "language": data.get("language"),
-                            "profile_image_url": streamer.profile_image_url,
+                            "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
                             "twitch_login": data["broadcaster_user_login"],
                             "is_live": streamer.is_live
                         }
@@ -478,7 +478,7 @@ class EventHandlerRegistry:
                                             "title": data.get("title"),
                                             "category_name": category_name,
                                             "language": data.get("language"),
-                                            "profile_image_url": streamer.profile_image_url,
+                                            "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
                                             "twitch_login": data['broadcaster_user_login']
                                         }
                                     )
