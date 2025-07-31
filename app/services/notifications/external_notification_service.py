@@ -108,17 +108,38 @@ class ExternalNotificationService:
                 # Get cached profile image path using unified image service
                 cached_profile_image = unified_image_service.get_cached_profile_image(streamer.id)
                 
-                # For notifications, prefer the original HTTP URL over cached local path
-                # Apprise needs HTTP URLs for avatar_url parameters
+                # For notifications, prefer HTTP URLs for external services like Apprise
+                # But first check if we have a local cached image to convert to HTTP URL
+                profile_image_url = ""
+                
+                # Priority 1: If details has HTTP URL, use it
                 if details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
-                    # Use the original Twitch URL if available in details
                     profile_image_url = details["profile_image_url"]
+                    logger.debug(f"Using profile URL from details: {profile_image_url}")
+                
+                # Priority 2: If streamer has HTTP URL, use it  
                 elif streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
-                    # Use the database URL if it's still a HTTP URL
                     profile_image_url = streamer.profile_image_url
-                else:
-                    # Fallback: no image for external notifications if only local cache available
-                    profile_image_url = ""
+                    logger.debug(f"Using profile URL from streamer: {profile_image_url}")
+                
+                # Priority 3: If we have a local cached path, convert to BASE_URL
+                elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/profiles/'):
+                    # Convert local path to public URL using BASE_URL from settings
+                    base_url = settings.notification_url or settings.BASE_URL
+                    if base_url:
+                        # Remove /data from the path and make it publicly accessible
+                        public_path = streamer.profile_image_url.replace('/data/', '/')
+                        profile_image_url = f"{base_url.rstrip('/')}{public_path}"
+                        logger.debug(f"Converted local cache to public URL: {profile_image_url}")
+                
+                # Priority 4: Fallback to original URL if available
+                elif streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
+                    profile_image_url = streamer.original_profile_image_url
+                    logger.debug(f"Using original profile URL as fallback: {profile_image_url}")
+                
+                # If no suitable URL found, leave empty
+                if not profile_image_url:
+                    logger.debug(f"No suitable profile image URL found for streamer {streamer_name}, notifications will have no avatar")
                 
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
