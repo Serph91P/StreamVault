@@ -200,7 +200,7 @@ const shareVideo = async () => {
     // Use the new API endpoint to generate a share token
     const response = await videoApi.createShareToken(props.video.id, {})
     
-    const directVideoUrl = response.share_url
+    const directVideoUrl = response.data.share_url
     
     const shareData = {
       title: props.video.title,
@@ -230,7 +230,7 @@ const fallbackShare = async (url) => {
     // If no URL provided, try to generate one via API
     if (!url) {
       const response = await videoApi.createShareToken(props.video.id, {})
-      url = response.share_url
+      url = response.data.share_url
     }
     
     navigator.clipboard.writeText(url).then(() => {
