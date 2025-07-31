@@ -198,7 +198,8 @@ const filteredChannels = computed(() => {
 // Methods
 async function fetchCallbackUrl() {
   try {
-    const data = await authApi.getCallbackUrl()
+    const response = await authApi.getCallbackUrl()
+    const data = response.data
     callbackUrl.value = data.url
   } catch (err) {
     console.error('Failed to fetch callback URL:', err)
@@ -233,7 +234,8 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const data = await authApi.getAuthUrl()
+    const response = await authApi.getAuthUrl()
+    const data = response.data
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -247,7 +249,8 @@ async function loadFollowedChannels(token: string): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
     
-    const data = await authApi.getFollowedChannels()
+    const response = await authApi.getFollowedChannels()
+    const data = response.data
     
     channels.value = data.channels || []
   } catch (err: any) {
@@ -266,7 +269,8 @@ async function importSelected(): Promise<void> {
     loadingMessage.value = 'Importing selected streamers...'
     
     const streamerIds = selectedStreamers.value.map(s => Number(s.id))
-    const results = await authApi.importStreamers(streamerIds)
+    const response = await authApi.importStreamers(streamerIds)
+    const results = response.data
     
     importResults.value = results
     
