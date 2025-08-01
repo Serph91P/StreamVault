@@ -130,7 +130,7 @@
       <div class="section-header">
         <h2>🔧 Background Queue Management</h2>
         <p class="section-description">
-          Behebung von Background Queue Problemen: Stuck Recording Jobs, Continuous Orphaned Recovery, Unknown Task Names
+          Fix Background Queue Problems: Stuck Recording Jobs, Continuous Orphaned Recovery, Unknown Task Names
         </p>
       </div>
       <BackgroundQueueAdmin />
@@ -141,7 +141,7 @@
       <div class="section-header">
         <h2>🔄 Post-Processing Management</h2>
         <p class="section-description">
-          Manuelles Starten von Post-Processing für fehlgeschlagene Aufnahmen und Bereinigung von orphaned Dateien
+          Manual Post-Processing for Failed Recordings and Cleanup of Orphaned Files
         </p>
       </div>
       <PostProcessingManagement />
@@ -1371,7 +1371,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1386,6 +1386,8 @@ onMounted(() => {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 
 .modal-header {
@@ -1394,6 +1396,7 @@ onMounted(() => {
   align-items: center;
   padding: 20px;
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-background-soft);
 }
 
 .close-btn {
@@ -1401,7 +1404,7 @@ onMounted(() => {
   border: none;
   font-size: 1.2em;
   cursor: pointer;
-  color: #6c757d;
+  color: var(--color-text-light);
 }
 
 .modal-body {
@@ -1422,8 +1425,10 @@ onMounted(() => {
 .log-controls select,
 .log-controls input {
   padding: 5px 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .logs-content {
@@ -1518,12 +1523,13 @@ onMounted(() => {
 }
 
 .modal {
-  background: white;
+  background: var(--color-background);
   border-radius: 12px;
   max-width: 90vw;
   max-height: 90vh;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--color-border);
 }
 
 .videos-debug-modal {
@@ -1535,12 +1541,13 @@ onMounted(() => {
 }
 
 .modal-header {
-  background: linear-gradient(145deg, #1f2937, #374151);
-  color: white;
+  background: var(--color-background-soft);
+  color: var(--color-text);
   padding: 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modal-header h3 {
@@ -1552,7 +1559,7 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  color: white;
+  color: var(--color-text);
   font-size: 20px;
   cursor: pointer;
   padding: 5px;
@@ -1561,7 +1568,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-background-mute);
 }
 
 .modal-body {
@@ -1571,7 +1578,7 @@ onMounted(() => {
 }
 
 .debug-content {
-  color: #1f2937;
+  color: var(--color-text);
 }
 
 .debug-section {
@@ -1579,11 +1586,11 @@ onMounted(() => {
 }
 
 .debug-section h4 {
-  color: #1d4ed8;
+  color: var(--color-heading);
   margin-bottom: 15px;
   font-size: 18px;
   font-weight: 600;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--color-border);
   padding-bottom: 8px;
 }
 
@@ -1595,33 +1602,33 @@ onMounted(() => {
 }
 
 .stat {
-  background: #f8fafc;
+  background: var(--color-background-mute);
   padding: 15px;
   border-radius: 8px;
   text-align: center;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .stat .count {
   display: block;
   font-size: 24px;
   font-weight: 700;
-  color: #1d4ed8;
+  color: var(--color-heading);
   margin-bottom: 5px;
 }
 
 .stat .label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-light);
   text-transform: uppercase;
   font-weight: 500;
 }
 
 .debug-table {
-  background: white;
+  background: var(--color-background);
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .debug-table table {
@@ -1630,23 +1637,24 @@ onMounted(() => {
 }
 
 .debug-table th {
-  background: #f8fafc;
+  background: var(--color-background-soft);
   padding: 12px;
   text-align: left;
   font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e2e8f0;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
   font-size: 14px;
 }
 
 .debug-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--color-border-light);
   font-size: 13px;
+  color: var(--color-text);
 }
 
 .debug-table tr:hover {
-  background: #f8fafc;
+  background: var(--color-background-soft);
 }
 
 .path-cell {
@@ -1675,28 +1683,28 @@ onMounted(() => {
 .streamer-section {
   margin-bottom: 20px;
   padding: 15px;
-  background: #f8fafc;
+  background: var(--color-background-soft);
   border-radius: 8px;
-  border-left: 4px solid #1d4ed8;
+  border-left: 4px solid var(--color-heading);
 }
 
 .streamer-section h5 {
   margin: 0 0 15px 0;
-  color: #1d4ed8;
+  color: var(--color-heading);
   font-weight: 600;
 }
 
 .season-section {
   margin-bottom: 15px;
   padding: 12px;
-  background: white;
+  background: var(--color-background);
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .season-section h6 {
   margin: 0 0 10px 0;
-  color: #374151;
+  color: var(--color-text);
   font-weight: 500;
   font-size: 14px;
 }
@@ -1711,7 +1719,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #f8fafc;
+  background: var(--color-background-mute);
   border-radius: 4px;
   font-size: 12px;
 }
@@ -1719,17 +1727,17 @@ onMounted(() => {
 .file-name {
   flex: 1;
   font-family: 'Courier New', monospace;
-  color: #374151;
+  color: var(--color-text);
 }
 
 .file-size {
-  color: #6b7280;
+  color: var(--color-text-light);
   margin-right: 10px;
 }
 
 .file-ext {
-  background: #e2e8f0;
-  color: #374151;
+  background: var(--color-background-soft);
+  color: var(--color-text);
   padding: 2px 6px;
   border-radius: 3px;
   font-weight: 500;
@@ -1748,7 +1756,7 @@ onMounted(() => {
 }
 
 .more-files {
-  color: #6b7280;
+  color: var(--color-text-light);
   font-style: italic;
   text-align: center;
   padding: 8px;
@@ -1763,14 +1771,14 @@ onMounted(() => {
 .text-green { color: #059669; font-weight: 600; }
 .text-yellow { color: #f1c40f; }
 .text-red { color: #dc2626; font-weight: 600; }
-.text-gray { color: #6b7280; }
+.text-gray { color: var(--color-text-light); }
 
 .error {
-  background: #fef2f2;
+  background: rgba(220, 38, 38, 0.1);
   color: #dc2626;
   padding: 15px;
   border-radius: 8px;
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(220, 38, 38, 0.3);
   font-weight: 500;
 }
 </style>
