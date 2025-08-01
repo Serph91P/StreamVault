@@ -25,8 +25,8 @@ class RecordingLogger:
         
         # Log to dedicated streamer recording file
         logging_service.log_recording_activity_to_file(
-            streamer_name,
             "RECORDING_START",
+            streamer_name,
             f"[SESSION:{self.session_id}] Started recording: Quality={quality}, Path={output_path}"
         )
     
@@ -37,8 +37,8 @@ class RecordingLogger:
         
         # Log to dedicated streamer recording file
         logging_service.log_recording_activity_to_file(
-            streamer_name,
             "RECORDING_STOP",
+            streamer_name,
             f"[SESSION:{self.session_id}] Stopped recording: Duration={duration}s, Reason={reason}, Path={output_path}"
         )
     
@@ -62,8 +62,8 @@ class RecordingLogger:
             if len(path_parts) >= 3 and path_parts[1] == 'recordings':
                 streamer_name = path_parts[2]
                 logging_service.log_post_processing_activity(
-                    streamer_name,
                     f"{operation}_{status}",
+                    streamer_name,
                     f"[SESSION:{self.session_id}] {operation}: {file_path} - {status} {details}"
                 )
         except Exception:
@@ -87,8 +87,8 @@ class RecordingLogger:
             event_details += f" - Title: '{title}', Category: '{category}'"
             
         logging_service.log_stream_event_to_file(
-            streamer_name,
             status,
+            streamer_name,
             event_details
         )
     
