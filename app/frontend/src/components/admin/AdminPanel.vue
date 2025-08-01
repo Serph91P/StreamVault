@@ -136,6 +136,17 @@
       <BackgroundQueueAdmin />
     </div>
 
+    <!-- Post-Processing Management -->
+    <div class="post-processing-admin-section">
+      <div class="section-header">
+        <h2>🔄 Post-Processing Management</h2>
+        <p class="section-description">
+          Manuelles Starten von Post-Processing für fehlgeschlagene Aufnahmen und Bereinigung von orphaned Dateien
+        </p>
+      </div>
+      <PostProcessingManagement />
+    </div>
+
     <!-- Test Suite -->
     <div class="test-suite-section">
       <div class="section-header">
@@ -511,6 +522,7 @@ import { ref, computed, onMounted } from 'vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 import BackgroundQueueAdmin from './BackgroundQueueAdmin.vue'
+import PostProcessingManagement from './PostProcessingManagement.vue'
 
 // Reactive data
 const healthStatus = ref<any>(null)
