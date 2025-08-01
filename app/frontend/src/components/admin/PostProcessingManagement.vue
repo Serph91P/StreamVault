@@ -419,26 +419,26 @@ onMounted(() => {
 
 .section-header h3 {
   margin: 0 0 10px 0;
-  color: #333;
+  color: var(--color-heading);
 }
 
 .section-header p {
   margin: 0;
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .card {
-  background: white;
-  border: 1px solid #ddd;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .card-header {
   padding: 15px 20px;
-  border-bottom: 1px solid #eee;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background-mute);
   border-radius: 8px 8px 0 0;
   display: flex;
   justify-content: space-between;
@@ -447,7 +447,7 @@ onMounted(() => {
 
 .card-header h4 {
   margin: 0;
-  color: #333;
+  color: var(--color-text);
 }
 
 .card-body {
@@ -464,26 +464,27 @@ onMounted(() => {
 .stat-item {
   text-align: center;
   padding: 15px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   border-radius: 6px;
+  border: 1px solid var(--color-border);
 }
 
 .stat-value {
   font-size: 2em;
   font-weight: bold;
-  color: #007bff;
+  color: var(--color-heading);
   margin-bottom: 5px;
 }
 
 .stat-label {
   font-size: 0.9em;
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .streamer-breakdown {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--color-border);
 }
 
 .streamer-list {
@@ -498,17 +499,19 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   border-radius: 4px;
+  border: 1px solid var(--color-border);
 }
 
 .streamer-name {
   font-weight: 500;
+  color: var(--color-text);
 }
 
 .streamer-stats {
   font-size: 0.9em;
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .action-buttons {
@@ -523,7 +526,7 @@ onMounted(() => {
   gap: 20px;
   align-items: center;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--color-border);
 }
 
 .settings-row label {
@@ -531,13 +534,16 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-weight: 500;
+  color: var(--color-text);
 }
 
 .form-input {
   padding: 6px 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   width: 80px;
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .btn {
@@ -581,7 +587,7 @@ onMounted(() => {
   gap: 10px;
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .recordings-list {
@@ -598,14 +604,15 @@ onMounted(() => {
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
+  background: var(--color-background);
 }
 
 .recording-checkbox:hover {
-  background: #f8f9fa;
+  background: var(--color-background-soft);
   border-color: #007bff;
 }
 
@@ -631,13 +638,13 @@ onMounted(() => {
 
 .streamer-name {
   font-weight: 500;
-  color: #333;
+  color: var(--color-text);
 }
 
 .file-size {
   font-size: 0.9em;
-  color: #666;
-  background: #f8f9fa;
+  color: var(--color-text-light);
+  background: var(--color-background-mute);
   padding: 2px 6px;
   border-radius: 3px;
 }
@@ -647,20 +654,20 @@ onMounted(() => {
 }
 
 .stream-title {
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 4px;
   font-weight: 500;
 }
 
 .file-path {
-  color: #666;
+  color: var(--color-text-light);
   font-family: monospace;
   margin-bottom: 4px;
   word-break: break-all;
 }
 
 .recording-meta {
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .text-success { color: #28a745 !important; }
@@ -678,20 +685,20 @@ onMounted(() => {
 }
 
 .result-message.success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background: rgba(40, 167, 69, 0.1);
+  color: #28a745;
+  border: 1px solid rgba(40, 167, 69, 0.3);
 }
 
 .result-message.error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
 .result-stats {
   font-size: 0.9em;
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .errors-list {
@@ -719,17 +726,18 @@ onMounted(() => {
   gap: 15px;
   align-items: center;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--color-background-mute);
   border-radius: 4px;
+  border: 1px solid var(--color-border);
 }
 
 .detail-id {
   font-weight: bold;
-  color: #007bff;
+  color: var(--color-heading);
 }
 
 .detail-streamer {
-  color: #333;
+  color: var(--color-text);
 }
 
 .detail-status.success {
@@ -748,13 +756,13 @@ onMounted(() => {
 .loading {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--color-text-light);
 }
 
 .no-data {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--color-text-light);
   font-style: italic;
 }
 
