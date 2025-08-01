@@ -1413,6 +1413,7 @@ onMounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  color: var(--color-text);
 }
 
 .log-controls {
@@ -1434,11 +1435,12 @@ onMounted(() => {
 .logs-content {
   flex: 1;
   overflow-y: auto;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: var(--color-background-mute);
+  color: var(--color-text);
   padding: 15px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
+  border: 1px solid var(--color-border);
 }
 
 .logs-content pre {
@@ -1554,6 +1556,7 @@ onMounted(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: var(--color-text);
 }
 
 .close-btn {
@@ -1586,7 +1589,7 @@ onMounted(() => {
 }
 
 .debug-section h4 {
-  color: var(--color-heading);
+  color: var(--color-text);
   margin-bottom: 15px;
   font-size: 18px;
   font-weight: 600;
@@ -1613,7 +1616,7 @@ onMounted(() => {
   display: block;
   font-size: 24px;
   font-weight: 700;
-  color: var(--color-heading);
+  color: var(--color-text);
   margin-bottom: 5px;
 }
 
@@ -1685,12 +1688,12 @@ onMounted(() => {
   padding: 15px;
   background: var(--color-background-soft);
   border-radius: 8px;
-  border-left: 4px solid var(--color-heading);
+  border-left: 4px solid var(--color-text);
 }
 
 .streamer-section h5 {
   margin: 0 0 15px 0;
-  color: var(--color-heading);
+  color: var(--color-text);
   font-weight: 600;
 }
 
