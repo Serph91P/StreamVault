@@ -5,9 +5,13 @@ Admin endpoints for manual post-processing management
 from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, List, Optional
 import logging
+import os
 from pydantic import BaseModel
 
 logger = logging.getLogger("streamvault.admin.post_processing")
+
+# Get recordings directory from environment or use default
+RECORDINGS_ROOT = os.environ.get("RECORDING_DIRECTORY", "/srv/recordings")
 
 router = APIRouter(prefix="/post-processing", tags=["admin", "post-processing"])
 
@@ -299,28 +303,33 @@ async def enqueue_manual_post_processing(
         
         logger.info(f"⚡ ADMIN_MANUAL_ENQUEUE: recording_id={recording_id}, file={ts_file_path}")
         
+        # Validate and secure the file path
+        normalized_path = os.path.normpath(os.path.join(RECORDINGS_ROOT, ts_file_path))
+        if not normalized_path.startswith(RECORDINGS_ROOT):
+            raise HTTPException(status_code=400, detail="Invalid file path: outside allowed directory")
+        
         # Validate file exists
-        if not Path(ts_file_path).exists():
+        if not Path(normalized_path).exists():
             raise HTTPException(status_code=400, detail=f"File not found: {ts_file_path}")
         
         # Check if MP4 already exists (unless forced)
-        mp4_path = ts_file_path.replace('.ts', '.mp4')
+        mp4_path = normalized_path.replace('.ts', '.mp4')
         if Path(mp4_path).exists() and not force:
             raise HTTPException(status_code=400, detail=f"MP4 already exists: {mp4_path}. Use force=true to override.")
         
         # Prepare parameters
-        output_dir = os.path.dirname(ts_file_path)
+        output_dir = os.path.dirname(normalized_path)
         started_at = datetime.now().isoformat()
         
-        # Use stream_id from parameter or derive from recording_id
+        # Validate stream_id is provided
         if stream_id is None:
-            stream_id = recording_id  # Fallback
+            raise HTTPException(status_code=400, detail="stream_id is required and cannot be derived from recording_id")
         
         # Enqueue post-processing
         task_ids = await enqueue_recording_post_processing(
             stream_id=stream_id,
             recording_id=recording_id,
-            ts_file_path=ts_file_path,
+            ts_file_path=normalized_path,
             output_dir=output_dir,
             streamer_name=streamer_name,
             started_at=started_at,
