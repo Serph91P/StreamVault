@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger("streamvault.admin.post_processing")
 
-router = APIRouter(prefix="/api/admin/post-processing", tags=["admin", "post-processing"])
+router = APIRouter(prefix="/post-processing", tags=["admin", "post-processing"])
 
 class PostProcessingRetryRequest(BaseModel):
     recording_ids: List[int]
