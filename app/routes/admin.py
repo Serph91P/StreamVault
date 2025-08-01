@@ -34,6 +34,10 @@ router = APIRouter(
     tags=["admin"]
 )
 
+# Include post-processing management routes
+from app.routes.admin_post_processing import router as post_processing_router
+router.include_router(post_processing_router)
+
 logger = logging.getLogger("streamvault")
 
 class TestRequest(BaseModel):
