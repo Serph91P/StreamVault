@@ -22,11 +22,25 @@ class RecordingLogger:
         """Log the start of a recording session"""
         self.logger.info(f"[SESSION:{self.session_id}] RECORDING_START - Streamer: {streamer_name} (ID: {streamer_id})")
         self.logger.info(f"[SESSION:{self.session_id}] Quality: {quality}, Output: {output_path}")
+        
+        # Log to dedicated streamer recording file
+        logging_service.log_recording_activity_to_file(
+            "RECORDING_START",
+            streamer_name,
+            f"[SESSION:{self.session_id}] Started recording: Quality={quality}, Path={output_path}"
+        )
     
     def log_recording_stop(self, streamer_id: int, streamer_name: str, duration: int, output_path: str, reason: str = "manual"):
         """Log the stop of a recording session"""
         self.logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Duration: {duration}s, Reason: {reason}")
         self.logger.info(f"[SESSION:{self.session_id}] Output: {output_path}")
+        
+        # Log to dedicated streamer recording file
+        logging_service.log_recording_activity_to_file(
+            "RECORDING_STOP",
+            streamer_name,
+            f"[SESSION:{self.session_id}] Stopped recording: Duration={duration}s, Reason={reason}, Path={output_path}"
+        )
     
     def log_recording_error(self, streamer_id: int, streamer_name: str, error: str):
         """Log recording errors"""
@@ -40,6 +54,20 @@ class RecordingLogger:
         """Log file operations (remux, conversion, etc.)"""
         status = "SUCCESS" if success else "FAILED"
         self.logger.info(f"[SESSION:{self.session_id}] FILE_OP - {operation}: {file_path} - {status} {details}")
+        
+        # Extract streamer name from file path if possible
+        try:
+            # Assuming path structure like /recordings/streamer_name/...
+            path_parts = file_path.split('/')
+            if len(path_parts) >= 3 and path_parts[1] == 'recordings':
+                streamer_name = path_parts[2]
+                logging_service.log_post_processing_activity(
+                    f"{operation}_{status}",
+                    streamer_name,
+                    f"[SESSION:{self.session_id}] {operation}: {file_path} - {status} {details}"
+                )
+        except Exception:
+            pass  # If we can't extract streamer name, skip dedicated logging
     
     def log_stream_detection(self, streamer_name: str, is_live: bool, stream_info: Optional[dict] = None):
         """Log stream detection and status"""
@@ -50,6 +78,19 @@ class RecordingLogger:
             category = stream_info.get('category_name', 'Unknown')
             self.logger.info(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'")
             recording_logger.debug(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}")
+        
+        # Log stream events to dedicated streamer file
+        event_details = f"[SESSION:{self.session_id}] Stream {status}"
+        if stream_info and is_live:
+            title = stream_info.get('title', 'Unknown')
+            category = stream_info.get('category_name', 'Unknown')
+            event_details += f" - Title: '{title}', Category: '{category}'"
+            
+        logging_service.log_stream_event_to_file(
+            status,
+            streamer_name,
+            event_details
+        )
     
     def log_configuration_change(self, setting: str, old_value: Any, new_value: Any, streamer_id: Optional[int] = None):
         """Log configuration changes"""

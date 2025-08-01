@@ -18,6 +18,7 @@ from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingS
 from app.config.settings import settings
 from app.services.system.logging_service import logging_service
 from app.services.media.artwork_service import artwork_service
+from app.utils.file_utils import sanitize_filename
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
@@ -192,7 +193,7 @@ class MetadataService:
         """Creates NFO file for Kodi/Plex/Emby with relative image paths."""
         try:
             # Use hidden .media directory to avoid Emby/Jellyfin creating seasons from image folders
-            safe_username = self._sanitize_filename(streamer.username)
+            safe_username = sanitize_filename(streamer.username)
             
             # Artwork paths in hidden .media directory (relative to recordings root)
             poster_path = f".media/artwork/{safe_username}/poster.jpg"
