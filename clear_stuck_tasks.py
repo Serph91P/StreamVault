@@ -133,7 +133,7 @@ async def main():
         if success:
             logger.info("✅ Emergency cleanup completed successfully!")
             logger.info("🎯 Post-processing should now resume normally")
-            logger.info("📹 maxim's recording will continue uninterrupted")
+            logger.info("📹 Recording and processing will continue uninterrupted")
         else:
             logger.error("❌ Emergency cleanup failed")
             return 1
