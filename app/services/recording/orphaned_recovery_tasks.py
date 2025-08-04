@@ -30,6 +30,23 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
         
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK_START: max_age={max_age_hours}h, reason={trigger_reason}")
         
+        # PRODUCTION FIX: Check if too many orphaned checks are already running
+        from app.services.background_queue_service import get_background_queue_service
+        queue_service = get_background_queue_service()
+        if queue_service:
+            active_tasks = queue_service.get_active_tasks()
+            orphaned_check_count = sum(1 for task in active_tasks.values() 
+                                     if task.task_type == 'orphaned_recovery_check')
+            
+            if orphaned_check_count > 3:  # Limit to max 3 concurrent orphaned checks
+                logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_SKIP: Too many orphaned checks running ({orphaned_check_count}), skipping this one")
+                return {
+                    "success": True,
+                    "orphaned_found": 0,
+                    "recovery_triggered": 0,
+                    "message": f"Skipped - too many orphaned checks running ({orphaned_check_count})"
+                }
+        
         # Import the orphaned recovery service
         from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
         
@@ -49,11 +66,26 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
         
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK: Found {stats['total_orphaned']} orphaned recordings")
         
-        # Trigger recovery for orphaned recordings
-        result = await recovery_service.scan_and_recover_orphaned_recordings(
-            max_age_hours=max_age_hours,
-            dry_run=False
-        )
+        # PRODUCTION FIX: Add timeout for orphaned recovery to prevent hanging
+        import asyncio
+        try:
+            # Trigger recovery for orphaned recordings with timeout
+            result = await asyncio.wait_for(
+                recovery_service.scan_and_recover_orphaned_recordings(
+                    max_age_hours=max_age_hours,
+                    dry_run=False
+                ),
+                timeout=120.0  # 2 minutes timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_TIMEOUT: Recovery check timed out after 2 minutes")
+            return {
+                "success": False,
+                "orphaned_found": stats.get("total_orphaned", 0),
+                "recovery_triggered": 0,
+                "message": "Orphaned recovery check timed out",
+                "error": "timeout"
+            }
         
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK_COMPLETE: {result['recovery_triggered']} recoveries triggered")
         
