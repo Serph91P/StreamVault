@@ -41,6 +41,7 @@ async def clear_stuck_tasks():
         # Count different task types
         task_counts = {}
         orphaned_tasks = []
+        other_pending_tasks = []
         
         for task_id, task in active_tasks.items():
             task_type = task.task_type
@@ -48,9 +49,14 @@ async def clear_stuck_tasks():
             
             if task_type == 'orphaned_recovery_check':
                 orphaned_tasks.append(task_id)
+            elif hasattr(task, 'status') and str(task.status).lower() == 'pending':
+                # Check if it's a stuck post-processing task
+                if task_type in ['mp4_remux', 'thumbnail_generation', 'cleanup_task']:
+                    other_pending_tasks.append((task_id, task_type))
         
         logger.info(f"📊 Task breakdown: {task_counts}")
         logger.info(f"🧹 Found {len(orphaned_tasks)} stuck orphaned recovery tasks")
+        logger.info(f"🧹 Found {len(other_pending_tasks)} stuck post-processing tasks")
         
         # Clear stuck orphaned recovery tasks
         cleared_count = 0
@@ -61,19 +67,33 @@ async def clear_stuck_tasks():
                 cleared_count += 1
                 logger.info(f"✅ Cleared stuck orphaned task: {task_id}")
             except Exception as e:
-                logger.warning(f"⚠️ Failed to clear task {task_id}: {e}")
+                logger.warning(f"⚠️ Failed to clear orphaned task {task_id}: {e}")
+        
+        # Clear stuck post-processing tasks (reset to pending so they can be picked up)
+        reset_count = 0
+        for task_id, task_type in other_pending_tasks:
+            try:
+                # Reset task to pending so it can be processed
+                task = queue_service.get_task(task_id)
+                if task:
+                    queue_service.update_task_status(task_id, 'pending')
+                    logger.info(f"🔄 Reset stuck {task_type} task: {task_id}")
+                    reset_count += 1
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to reset task {task_id}: {e}")
         
         # Also clear any old completed tasks
         queue_service.cleanup_old_tasks(max_age_hours=1)
         
-        logger.info(f"🧹 CLEANUP_COMPLETE: Cleared {cleared_count} stuck orphaned tasks")
+        logger.info(f"🧹 CLEANUP_COMPLETE: Cleared {cleared_count} orphaned tasks, reset {reset_count} post-processing tasks")
         
         # Show final statistics
         remaining_active = queue_service.get_active_tasks()
         logger.info(f"📊 Remaining active tasks: {len(remaining_active)}")
         
         for task_id, task in remaining_active.items():
-            logger.info(f"  - {task.task_type} ({task_id}): {task.status}")
+            status = getattr(task, 'status', 'unknown')
+            logger.info(f"  - {task.task_type} ({task_id[:8]}...): {status}")
         
         return True
         
@@ -83,21 +103,29 @@ async def clear_stuck_tasks():
 
 
 async def main():
-    """Main function"""
-    logger.info("🧹 Starting emergency cleanup of stuck tasks...")
+    """Main function - Clear stuck tasks without restarting the system"""
+    logger.info("🧹 Starting emergency cleanup of stuck tasks (live system repair)...")
     
-    # Initialize the application components
+    # Try to connect to the running background queue service
     try:
-        from app.dependencies import get_database
-        from app.services.background_queue_service import initialize_background_queue
+        import os
+        import sys
         
-        # Initialize database
-        db = next(get_database())
-        logger.info("✅ Database initialized")
+        # Set environment to match the running application
+        os.environ.setdefault('STREAMVAULT_ENV', 'production')
         
-        # Initialize background queue service
-        await initialize_background_queue()
-        logger.info("✅ Background queue service initialized")
+        # Import without initializing a new instance
+        from app.services.background_queue_service import get_background_queue_service
+        
+        # Try to get the existing service instance
+        queue_service = get_background_queue_service()
+        
+        if not queue_service:
+            logger.error("❌ No running background queue service found")
+            logger.info("💡 The application needs to be running for this script to work")
+            return 1
+        
+        logger.info("✅ Connected to running background queue service")
         
         # Clear stuck tasks
         success = await clear_stuck_tasks()
@@ -105,12 +133,18 @@ async def main():
         if success:
             logger.info("✅ Emergency cleanup completed successfully!")
             logger.info("🎯 Post-processing should now resume normally")
+            logger.info("📹 maxim's recording will continue uninterrupted")
         else:
             logger.error("❌ Emergency cleanup failed")
             return 1
             
+    except ImportError as e:
+        logger.error(f"❌ Could not import background queue service: {e}")
+        logger.info("💡 Make sure the StreamVault application is running")
+        return 1
     except Exception as e:
-        logger.error(f"❌ Failed to initialize application: {e}", exc_info=True)
+        logger.error(f"❌ Failed to connect to running system: {e}", exc_info=True)
+        logger.info("💡 The application may not be running or there may be a configuration issue")
         return 1
     
     return 0
