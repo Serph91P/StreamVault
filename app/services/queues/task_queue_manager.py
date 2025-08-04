@@ -32,9 +32,9 @@ class TaskQueueManager:
             # Production fix: Use streamer-isolated queues to prevent concurrency issues
             self.streamer_queues: Dict[str, asyncio.PriorityQueue] = defaultdict(lambda: asyncio.PriorityQueue())
             self.streamer_workers: Dict[str, list] = defaultdict(list)
-            self.max_workers_per_streamer = 2  # Allow 2 workers per streamer for recording + post-processing
-            self.global_max_streamers = 10  # Maximum number of concurrent streamers
-            logger.info("TaskQueueManager initialized with streamer isolation for production - max 2 workers per streamer")
+            self.max_workers_per_streamer = 4  # Increased: Allow 4 workers per streamer for better concurrency
+            self.global_max_streamers = 15  # Increased: Support more concurrent streamers
+            logger.info("TaskQueueManager initialized with streamer isolation for production - max 4 workers per streamer, 15 max streamers")
         else:
             # Original single shared queue
             self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
@@ -141,6 +141,17 @@ class TaskQueueManager:
         max_retries: int = 3
     ) -> str:
         """Enqueue a new background task with optional streamer isolation"""
+        
+        # PRODUCTION FIX: Limit orphaned recovery check tasks to prevent queue flooding
+        if task_type == 'orphaned_recovery_check':
+            active_orphaned_count = sum(1 for task in self.progress_tracker.get_active_tasks().values() 
+                                      if task.task_type == 'orphaned_recovery_check')
+            
+            if active_orphaned_count >= 3:  # Limit to max 3 concurrent orphaned checks
+                logger.warning(f"🔍 ORPHANED_RECOVERY_LIMIT: Skipping new orphaned check - already {active_orphaned_count} running")
+                # Return a dummy task ID but don't actually enqueue
+                return f"skipped_orphaned_{uuid.uuid4()}"
+        
         task_id = str(uuid.uuid4())
         
         task = QueueTask(
@@ -346,8 +357,8 @@ class TaskQueueManager:
                         
                         logger.debug(f"Dependency worker enqueued ready task {dep_task.id}")
                 
-                # Brief pause before checking again
-                await asyncio.sleep(0.5)
+                # Brief pause before checking again - faster for multiple streams
+                await asyncio.sleep(0.1)  # Reduced from 0.5s to 0.1s for better concurrency
                 
             except asyncio.CancelledError:
                 logger.info("Dependency worker cancelled")
