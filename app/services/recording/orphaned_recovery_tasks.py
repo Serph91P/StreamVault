@@ -9,6 +9,10 @@ on a time-based schedule.
 import logging
 from typing import Dict, Any
 
+# Configuration constants
+ORPHANED_RECOVERY_TIMEOUT_SECONDS = 120  # 2 minutes timeout for recovery operations
+MAX_CONCURRENT_ORPHANED_CHECKS = 3  # Maximum concurrent orphaned recovery checks
+
 logger = logging.getLogger("streamvault")
 
 
@@ -38,7 +42,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
             orphaned_check_count = sum(1 for task in active_tasks.values() 
                                      if task.task_type == 'orphaned_recovery_check')
             
-            if orphaned_check_count > 3:  # Limit to max 3 concurrent orphaned checks
+            if orphaned_check_count > MAX_CONCURRENT_ORPHANED_CHECKS:  # Limit to max 3 concurrent orphaned checks
                 logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_SKIP: Too many orphaned checks running ({orphaned_check_count}), skipping this one")
                 return {
                     "success": True,
@@ -75,7 +79,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
                     max_age_hours=max_age_hours,
                     dry_run=False
                 ),
-                timeout=120.0  # 2 minutes timeout
+                timeout=ORPHANED_RECOVERY_TIMEOUT_SECONDS  # 2 minutes timeout
             )
         except asyncio.TimeoutError:
             logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_TIMEOUT: Recovery check timed out after 2 minutes")
