@@ -7,6 +7,7 @@ when multiple streams are running simultaneously.
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 
@@ -20,10 +21,10 @@ class AutomaticQueueRecoveryService:
         self.is_running = False
         self.recovery_task: Optional[asyncio.Task] = None
         
-        # Recovery thresholds - more aggressive for production
-        self.stuck_task_threshold_minutes = 5  # Consider tasks stuck after 5 minutes
-        self.orphaned_check_threshold_minutes = 2  # Stop orphaned checks after 2 minutes
-        self.recovery_interval_seconds = 30  # Check every 30 seconds
+        # Recovery thresholds - configurable via environment variables
+        self.stuck_task_threshold_minutes = int(os.environ.get("STUCK_TASK_THRESHOLD_MINUTES", "5"))  # Consider tasks stuck after 5 minutes
+        self.orphaned_check_threshold_minutes = int(os.environ.get("ORPHANED_CHECK_THRESHOLD_MINUTES", "2"))  # Stop orphaned checks after 2 minutes
+        self.recovery_interval_seconds = int(os.environ.get("RECOVERY_INTERVAL_SECONDS", "30"))  # Check every 30 seconds
         
         # Statistics
         self.recovery_stats = {
@@ -308,7 +309,12 @@ def get_recovery_service():
     global _recovery_service
     
     if _recovery_service is None:
-        from app.services.background_queue_service import background_queue_service
-        _recovery_service = AutomaticQueueRecoveryService(background_queue_service)
+        try:
+            from app.services.background_queue_service import background_queue_service
+            _recovery_service = AutomaticQueueRecoveryService(background_queue_service)
+        except Exception as e:
+            logger.error(f"Failed to import background_queue_service: {e}")
+            # Create service without background queue dependency for graceful degradation
+            _recovery_service = AutomaticQueueRecoveryService(None)
     
     return _recovery_service
