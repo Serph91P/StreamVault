@@ -668,8 +668,11 @@ class ProcessManager:
         """Gracefully terminate a process (handles segmented recordings)"""
         async with self.lock:
             if process_id not in self.active_processes:
-                return False
-
+                # PRODUCTION FIX: Process not found should be considered success
+                # (it's already terminated or never existed)
+                logger.info(f"Process {process_id} not found in active processes - assuming already terminated")
+                return True  # Changed from False to True
+            
             process = self.active_processes.pop(process_id)
             
             # Handle segmented recording cleanup
