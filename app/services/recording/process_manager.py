@@ -665,14 +665,27 @@ class ProcessManager:
                     break
 
     async def terminate_process(self, process_id: str, timeout: int = 10) -> bool:
-        """Gracefully terminate a process (handles segmented recordings)"""
+        """
+        Gracefully terminate a process (handles segmented recordings)
+        
+        Returns:
+            bool: True if process was terminated or already terminated, False if termination failed
+            
+        Note: Process not found is considered SUCCESS because:
+        - Process may have already terminated naturally (common with Streamlink)
+        - Recording data is intact and should not be marked as failed
+        - This prevents false negatives in recording status
+        """
         async with self.lock:
             if process_id not in self.active_processes:
-                return False
+                # PRODUCTION FIX: Process not found should be considered success
+                # This is NOT a breaking change - it fixes a logic bug where
+                # recordings were incorrectly marked as "failed" when the process
+                # had already terminated naturally (which is normal behavior)
+                logger.info(f"Process {process_id} not found in active processes - assuming already terminated")
+                return True  # Process already terminated = success, not failure
 
-            process = self.active_processes.pop(process_id)
-            
-            # Handle segmented recording cleanup
+            process = self.active_processes.pop(process_id)            # Handle segmented recording cleanup
             if process_id in self.long_stream_processes:
                 segment_info = self.long_stream_processes[process_id]
                 if segment_info['monitor_task']:

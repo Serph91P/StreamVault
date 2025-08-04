@@ -83,6 +83,15 @@ class BackgroundQueueManager:
         # Start the queue service
         await self.queue_service.start()
         
+        # Start automatic recovery service for production reliability
+        try:
+            from app.services.automatic_queue_recovery_service import get_recovery_service
+            recovery_service = get_recovery_service()
+            await recovery_service.start()
+            logger.info("✅ Automatic queue recovery service started for production reliability")
+        except Exception as e:
+            logger.error(f"Failed to start automatic recovery service: {e}")
+        
         self.is_initialized = True
         logger.info("✅ Background queue service initialized successfully with production fixes")
     
@@ -92,6 +101,15 @@ class BackgroundQueueManager:
             return
         
         logger.info("Shutting down background queue service...")
+        
+        # Stop automatic recovery service first
+        try:
+            from app.services.automatic_queue_recovery_service import get_recovery_service
+            recovery_service = get_recovery_service()
+            await recovery_service.stop()
+            logger.info("✅ Automatic queue recovery service stopped")
+        except Exception as e:
+            logger.error(f"Error stopping automatic recovery service: {e}")
         
         # Stop the queue service
         await self.queue_service.stop()
