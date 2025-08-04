@@ -147,6 +147,21 @@ async def recover_orphaned_recordings():
     try:
         logger.info("Starting orphaned recordings recovery scan...")
         
+        # PRODUCTION FIX: Check if too many orphaned checks are already running
+        try:
+            from app.services.background_queue_service import get_background_queue_service
+            queue_service = get_background_queue_service()
+            if queue_service:
+                active_tasks = queue_service.get_active_tasks()
+                orphaned_check_count = sum(1 for task in active_tasks.values() 
+                                         if task.task_type == 'orphaned_recovery_check')
+                
+                if orphaned_check_count > 0:
+                    logger.info(f"🔍 STARTUP_ORPHANED_SKIP: {orphaned_check_count} orphaned checks already running, skipping startup recovery")
+                    return
+        except Exception as e:
+            logger.debug(f"Could not check active tasks: {e}")
+        
         from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
         
         # Get orphaned recovery service
@@ -158,16 +173,28 @@ async def recover_orphaned_recordings():
         if stats.get("total_orphaned", 0) > 0:
             logger.info(f"Found {stats['total_orphaned']} orphaned recordings ({stats['total_size_gb']} GB)")
             
-            # Trigger recovery for orphaned recordings
-            result = await recovery_service.scan_and_recover_orphaned_recordings(
-                max_age_hours=48,  # Only process recordings from last 48 hours
-                dry_run=False
-            )
+            # PRODUCTION FIX: Limit startup recovery to prevent queue flooding
+            if stats["total_orphaned"] > 10:
+                logger.warning(f"🔍 STARTUP_ORPHANED_LIMIT: Too many orphaned recordings ({stats['total_orphaned']}), limiting to background processing")
+                return
             
-            if result["recovery_triggered"] > 0:
-                logger.info(f"Triggered post-processing for {result['recovery_triggered']} orphaned recordings")
-            else:
-                logger.info("No orphaned recordings required processing")
+            # Trigger recovery for orphaned recordings with timeout
+            import asyncio
+            try:
+                result = await asyncio.wait_for(
+                    recovery_service.scan_and_recover_orphaned_recordings(
+                        max_age_hours=48,  # Only process recordings from last 48 hours
+                        dry_run=False
+                    ),
+                    timeout=60.0  # 1 minute timeout for startup
+                )
+                
+                if result["recovery_triggered"] > 0:
+                    logger.info(f"Triggered post-processing for {result['recovery_triggered']} orphaned recordings")
+                else:
+                    logger.info("No orphaned recordings required processing")
+            except asyncio.TimeoutError:
+                logger.warning("🔍 STARTUP_ORPHANED_TIMEOUT: Orphaned recovery timed out at startup, will retry in background")
         else:
             logger.info("No orphaned recordings found")
         
