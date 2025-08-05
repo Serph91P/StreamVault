@@ -111,6 +111,9 @@ async def initialize_background_services():
         # Recover orphaned recordings (unfinished post-processing jobs)
         await recover_orphaned_recordings()
         
+        # Initialize failed recording recovery service
+        await initialize_failed_recording_recovery()
+        
         # Start automatic recording database fix service
         await start_recording_auto_fix_service()
         
@@ -200,6 +203,23 @@ async def recover_orphaned_recordings():
         
     except Exception as e:
         logger.error(f"Failed to recover orphaned recordings: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
+
+async def initialize_failed_recording_recovery():
+    """Initialize automatic failed recording recovery service"""
+    try:
+        logger.info("🔧 Initializing failed recording recovery service...")
+        
+        from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
+        
+        # Start the failed recording recovery service
+        recovery_service = await get_failed_recovery_service()
+        
+        logger.info("🔧 Failed recording recovery service initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize failed recording recovery service: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
 
 
