@@ -36,6 +36,10 @@ class RecoveryStats:
 class UnifiedRecoveryService:
     """Unified service for all recording recovery operations"""
     
+    # Configuration constants
+    DATABASE_CLEANUP_DAYS = 7  # Days after which orphaned DB records are cleaned up
+    ACTIVE_RECORDING_CHECK_HOURS = 1  # Hours to consider recent recordings as potentially active
+    
     def __init__(self):
         self.recordings_base_path = Path("/recordings")
         self.is_running = False
@@ -131,6 +135,9 @@ class UnifiedRecoveryService:
             # Get currently active recordings to avoid processing them
             active_recording_paths = await self._get_active_recording_paths()
             
+            # Collect all potential orphaned recordings first, then batch DB queries
+            potential_orphans = []
+            
             for streamer_dir in self.recordings_base_path.iterdir():
                 if not streamer_dir.is_dir():
                     continue
@@ -169,13 +176,7 @@ class UnifiedRecoveryService:
                                 # This is orphaned - has segments but no final files
                                 total_size = sum(f.stat().st_size for f in segment_files)
                                 
-                                # Try to find recording in database
-                                recording_id = await self._find_recording_by_path(str(expected_ts))
-                                
-                                logger.info(f"🔍 FOUND_ORPHANED: streamer={streamer_dir.name}, recording_id={recording_id}, size={total_size/(1024**3):.1f}GB")
-                                
-                                orphaned.append({
-                                    'recording_id': recording_id,
+                                potential_orphans.append({
                                     'streamer_name': streamer_dir.name,
                                     'segments_dir': item,
                                     'expected_ts_path': expected_ts,
@@ -184,6 +185,21 @@ class UnifiedRecoveryService:
                                     'size_gb': total_size / (1024**3),
                                     'segment_time': segment_time
                                 })
+            
+            # Batch query all recording IDs at once
+            if potential_orphans:
+                expected_paths = [str(orphan['expected_ts_path']) for orphan in potential_orphans]
+                recording_map = await self._batch_find_recordings_by_paths(expected_paths)
+                
+                # Now combine the data
+                for orphan_data in potential_orphans:
+                    expected_ts_str = str(orphan_data['expected_ts_path'])
+                    recording_id = recording_map.get(expected_ts_str)
+                    
+                    logger.info(f"🔍 FOUND_ORPHANED: streamer={orphan_data['streamer_name']}, recording_id={recording_id}, size={orphan_data['size_gb']:.1f}GB")
+                    
+                    orphan_data['recording_id'] = recording_id
+                    orphaned.append(orphan_data)
                                 
         except Exception as e:
             logger.error(f"Error scanning orphaned segments: {e}")
@@ -269,11 +285,8 @@ class UnifiedRecoveryService:
                 f"Starting concatenation for orphaned recording {recording_id}: {segments_dir.name}"
             )
             
-            # Use the existing concatenation system
-            from app.services.recording.recording_lifecycle_manager import RecordingLifecycleManager
-            lifecycle_manager = RecordingLifecycleManager()
-            
-            result = await lifecycle_manager._concatenate_segments(segments_dir, expected_ts_path)
+            # Use shared utility for segment concatenation
+            result = await self._concatenate_segments_util(segments_dir, expected_ts_path)
             
             if result and result.exists():
                 logger.info(f"✅ CONCATENATION_SUCCESS: {expected_ts_path}")
@@ -379,6 +392,29 @@ class UnifiedRecoveryService:
         except Exception:
             return None
     
+    async def _batch_find_recordings_by_paths(self, file_paths: List[str]) -> Dict[str, Optional[int]]:
+        """Batch find recording IDs by file paths for improved performance"""
+        result = {}
+        try:
+            with SessionLocal() as db:
+                # Query all recordings with matching paths in one go
+                recordings = db.query(Recording).filter(Recording.path.in_(file_paths)).all()
+                
+                # Create a mapping of path -> recording_id
+                path_to_id = {r.path: r.id for r in recordings}
+                
+                # Fill result dict with all requested paths
+                for path in file_paths:
+                    result[path] = path_to_id.get(path)
+                    
+        except Exception as e:
+            logger.error(f"Error in batch recording lookup: {e}")
+            # Fallback to empty results
+            for path in file_paths:
+                result[path] = None
+                
+        return result
+    
     async def _update_recording_after_concatenation(self, recording_id: int, file_path: str):
         """Update recording in database after successful concatenation"""
         try:
@@ -433,7 +469,7 @@ class UnifiedRecoveryService:
         try:
             with SessionLocal() as db:
                 # Remove any recordings that have no associated files and are very old
-                cutoff = datetime.now() - timedelta(days=7)
+                cutoff = datetime.now() - timedelta(days=self.DATABASE_CLEANUP_DAYS)
                 
                 orphaned_db_records = db.query(Recording).filter(
                     Recording.status == 'recording',
@@ -451,22 +487,83 @@ class UnifiedRecoveryService:
         except Exception as e:
             logger.error(f"❌ Error in final database cleanup: {e}")
     
+    async def _concatenate_segments_util(self, segments_dir: Path, output_path: Path) -> Optional[Path]:
+        """Utility method to concatenate segments using ffmpeg"""
+        try:
+            import subprocess
+            
+            # Get all segment files in order
+            segment_files = sorted(segments_dir.glob('*.ts'), key=lambda x: x.name)
+            if not segment_files:
+                logger.error(f"No segment files found in {segments_dir}")
+                return None
+            
+            # Create concat list file
+            concat_file = segments_dir / 'concat_list.txt'
+            with open(concat_file, 'w') as f:
+                for segment in segment_files:
+                    f.write(f"file '{segment.absolute()}'\n")
+            
+            # Run ffmpeg concatenation
+            cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', str(concat_file),
+                '-c', 'copy',
+                '-avoid_negative_ts', 'make_zero',
+                str(output_path)
+            ]
+            
+            logger.info(f"Running concatenation: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=3600  # 1 hour timeout
+            )
+            
+            # Clean up concat file
+            if concat_file.exists():
+                concat_file.unlink()
+            
+            if result.returncode == 0 and output_path.exists():
+                logger.info(f"✅ Concatenation successful: {output_path}")
+                return output_path
+            else:
+                logger.error(f"❌ FFmpeg concatenation failed: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error in segment concatenation: {e}")
+            return None
+    
     async def _get_active_recording_paths(self) -> set:
         """Get paths of currently active recordings to avoid processing them"""
         active_paths = set()
         try:
-            # Get active recordings from the recording service
-            from app.services.recording.recording_service import RecordingService
-            recording_service = RecordingService()
-            
-            active_recordings = recording_service.get_active_recordings()
-            for recording_data in active_recordings.values():
-                if 'file_path' in recording_data and recording_data['file_path']:
-                    active_paths.add(recording_data['file_path'])
-                    
+            # Get active recordings from the recording service with robust error handling
+            try:
+                from app.services.recording.recording_service import RecordingService
+                recording_service = RecordingService()
+                
+                active_recordings = recording_service.get_active_recordings()
+                for recording_data in active_recordings.values():
+                    if 'file_path' in recording_data and recording_data['file_path']:
+                        active_paths.add(recording_data['file_path'])
+                        
+                logger.debug(f"Retrieved {len(active_recordings)} active recordings from RecordingService")
+                        
+            except Exception as e:
+                logger.error(f"❌ CRITICAL: Failed to get active recordings from RecordingService: {e}")
+                # This is a critical error - we cannot safely proceed without knowing active recordings
+                # Raise the exception to abort the recovery process
+                raise RuntimeError(f"Cannot safely perform recovery without active recording information: {e}")
+                        
             # Also check database for recordings with status 'recording' that are very recent
             with SessionLocal() as db:
-                recent_cutoff = datetime.now() - timedelta(hours=1)  # Only very recent ones
+                recent_cutoff = datetime.now() - timedelta(hours=self.ACTIVE_RECORDING_CHECK_HOURS)
                 active_db_recordings = db.query(Recording).filter(
                     Recording.status == 'recording',
                     Recording.start_time >= recent_cutoff
@@ -479,9 +576,13 @@ class UnifiedRecoveryService:
             logger.info(f"🔍 ACTIVE_RECORDINGS_CHECK: Found {len(active_paths)} active recording paths")
             return active_paths
             
+        except RuntimeError:
+            # Re-raise critical errors
+            raise
         except Exception as e:
-            logger.error(f"Error getting active recording paths: {e}")
-            return set()
+            logger.error(f"❌ CRITICAL: Error getting active recording paths: {e}")
+            # For any other database errors, we also cannot safely proceed
+            raise RuntimeError(f"Cannot safely perform recovery due to database error: {e}")
 
 # Singleton instance
 _unified_recovery_service = None
