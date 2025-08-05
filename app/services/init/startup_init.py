@@ -108,14 +108,8 @@ async def initialize_background_services():
         # Recover active recordings from persistence
         await recover_active_recordings()
         
-        # Initialize failed recording recovery service BEFORE orphaned recovery
-        await initialize_failed_recording_recovery()
-        
-        # Recover orphaned recordings (unfinished post-processing jobs)
-        await recover_orphaned_recordings()
-        
-        # Start automatic recording database fix service
-        await start_recording_auto_fix_service()
+        # UNIFIED RECOVERY: Replace multiple overlapping services with one robust system
+        await unified_recovery_scan()
         
         # Start session cleanup service for production auth reliability
         await start_session_cleanup_service()
@@ -125,6 +119,34 @@ async def initialize_background_services():
     except Exception as e:
         logger.error(f"Failed to initialize background services: {e}", exc_info=True)
         raise
+
+async def unified_recovery_scan():
+    """Unified recovery scan replacing multiple overlapping services"""
+    try:
+        logger.info("🔄 Starting unified recovery scan...")
+        
+        from app.services.recording.unified_recovery_service import get_unified_recovery_service
+        
+        # Get the unified recovery service
+        recovery_service = await get_unified_recovery_service()
+        
+        # Run comprehensive recovery scan
+        stats = await recovery_service.comprehensive_recovery_scan(
+            max_age_hours=72,  # Process recordings from last 3 days
+            dry_run=False
+        )
+        
+        logger.info(f"🔄 Unified recovery completed: "
+                   f"orphaned_segments={stats.orphaned_segments}, "
+                   f"failed_post_processing={stats.failed_post_processing}, "
+                   f"recovered={stats.recovered_recordings}, "
+                   f"triggered_pp={stats.triggered_post_processing}, "
+                   f"size={stats.total_size_gb:.1f}GB")
+        
+    except Exception as e:
+        logger.error(f"❌ Unified recovery scan failed: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
 
 async def recover_active_recordings():
     """Recover active recordings from persistent state"""
@@ -144,84 +166,6 @@ async def recover_active_recordings():
     except Exception as e:
         logger.error(f"Failed to recover active recordings: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
-
-async def recover_orphaned_recordings():
-    """Recover orphaned .ts files that need post-processing"""
-    try:
-        logger.info("Starting orphaned recordings recovery scan...")
-        
-        # PRODUCTION FIX: Check if too many orphaned checks are already running
-        try:
-            from app.services.background_queue_service import get_background_queue_service
-            queue_service = get_background_queue_service()
-            if queue_service:
-                active_tasks = queue_service.get_active_tasks()
-                orphaned_check_count = sum(1 for task in active_tasks.values() 
-                                         if task.task_type == 'orphaned_recovery_check')
-                
-                if orphaned_check_count > 0:
-                    logger.info(f"🔍 STARTUP_ORPHANED_SKIP: {orphaned_check_count} orphaned checks already running, skipping startup recovery")
-                    return
-        except Exception as e:
-            logger.debug(f"Could not check active tasks: {e}")
-        
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
-        
-        # Get orphaned recovery service
-        recovery_service = await get_orphaned_recovery_service()
-        
-        # First get statistics
-        stats = await recovery_service.get_orphaned_statistics(max_age_hours=48)
-        
-        if stats.get("total_orphaned", 0) > 0:
-            logger.info(f"Found {stats['total_orphaned']} orphaned recordings ({stats['total_size_gb']} GB)")
-            
-            # PRODUCTION FIX: Limit startup recovery to prevent queue flooding
-            if stats["total_orphaned"] > 10:
-                logger.warning(f"🔍 STARTUP_ORPHANED_LIMIT: Too many orphaned recordings ({stats['total_orphaned']}), limiting to background processing")
-                return
-            
-            # Trigger recovery for orphaned recordings with timeout
-            import asyncio
-            try:
-                result = await asyncio.wait_for(
-                    recovery_service.scan_and_recover_orphaned_recordings(
-                        max_age_hours=48,  # Only process recordings from last 48 hours
-                        dry_run=False
-                    ),
-                    timeout=60.0  # 1 minute timeout for startup
-                )
-                
-                if result["recovery_triggered"] > 0:
-                    logger.info(f"Triggered post-processing for {result['recovery_triggered']} orphaned recordings")
-                else:
-                    logger.info("No orphaned recordings required processing")
-            except asyncio.TimeoutError:
-                logger.warning("🔍 STARTUP_ORPHANED_TIMEOUT: Orphaned recovery timed out at startup, will retry in background")
-        else:
-            logger.info("No orphaned recordings found")
-        
-    except Exception as e:
-        logger.error(f"Failed to recover orphaned recordings: {e}", exc_info=True)
-        # Don't raise - this is not critical for startup
-
-
-async def initialize_failed_recording_recovery():
-    """Initialize automatic failed recording recovery service"""
-    try:
-        logger.info("🔧 Initializing failed recording recovery service...")
-        
-        from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
-        
-        # Start the failed recording recovery service
-        recovery_service = await get_failed_recovery_service()
-        
-        logger.info("🔧 Failed recording recovery service initialized successfully")
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize failed recording recovery service: {e}", exc_info=True)
-        # Don't raise - this is not critical for startup
-
 
 async def initialize_image_sync_service():
     """Initialize automatic image sync service"""
@@ -249,33 +193,10 @@ async def initialize_image_sync_service():
         logger.error(f"Failed to initialize image sync service: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
 
-async def start_recording_auto_fix_service():
-    """Start automatic recording database fix service"""
-    try:
-        logger.info("Starting automatic recording database fix service...")
-        
-        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
-        
-        # Start the auto-fix service
-        await recording_auto_fix_service.start()
-        
-        logger.info("Recording auto-fix service started successfully")
-        
-    except Exception as e:
-        logger.error(f"Failed to start recording auto-fix service: {e}", exc_info=True)
-        # Don't raise - this is not critical for startup
-
 async def shutdown_background_services():
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
-        
-        # Shutdown recording auto-fix service
-        try:
-            from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
-            await recording_auto_fix_service.stop()
-        except Exception as e:
-            logger.error(f"Error shutting down recording auto-fix service: {e}")
         
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service
