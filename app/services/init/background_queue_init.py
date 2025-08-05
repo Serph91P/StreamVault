@@ -80,6 +80,13 @@ class BackgroundQueueManager:
             handle_orphaned_recovery_check
         )
         
+        # Register segment concatenation handler
+        from app.services.recording.segment_concatenation_task import handle_segment_concatenation
+        self.queue_service.register_task_handler(
+            'segment_concatenation',
+            handle_segment_concatenation
+        )
+        
         # Start the queue service
         await self.queue_service.start()
         
