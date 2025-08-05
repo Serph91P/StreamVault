@@ -422,7 +422,10 @@ class OrphanedRecoveryService:
                     # Check if recording is currently active (being processed)
                     is_active = recording.status in ['recording', 'post_processing', 'processing']
                     
-                    if not mp4_exists_file and not mp4_exists_db and not is_active:
+                    # CRITICAL: Don't clean segments from failed recordings - they might be recoverable
+                    is_failed_and_recoverable = recording.status == 'failed'
+                    
+                    if not mp4_exists_file and not mp4_exists_db and not is_active and not is_failed_and_recoverable:
                         # This segment directory is orphaned
                         logger.info(f"🗑️  Found orphaned segment directory: {segments_dir}")
                         

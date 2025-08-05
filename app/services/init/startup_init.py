@@ -108,11 +108,11 @@ async def initialize_background_services():
         # Recover active recordings from persistence
         await recover_active_recordings()
         
+        # Initialize failed recording recovery service BEFORE orphaned recovery
+        await initialize_failed_recording_recovery()
+        
         # Recover orphaned recordings (unfinished post-processing jobs)
         await recover_orphaned_recordings()
-        
-        # Initialize failed recording recovery service
-        await initialize_failed_recording_recovery()
         
         # Start automatic recording database fix service
         await start_recording_auto_fix_service()
