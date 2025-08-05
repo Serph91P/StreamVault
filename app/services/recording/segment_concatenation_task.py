@@ -8,12 +8,12 @@ that were split into multiple parts.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Callable
 
 logger = logging.getLogger("streamvault")
 
 
-async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callback=None) -> Dict[str, Any]:
+async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callback: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
     """
     Handle segment concatenation task
     
@@ -24,7 +24,10 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
             - output_path: str - Output path for concatenated file
             - streamer_name: str - Streamer name
             - stream_id: int - Stream ID
-        progress_callback: Optional callback for progress updates
+        progress_callback: Optional[Callable[[float], None]]
+            A callback function for progress updates. The callback should accept a single argument:
+                - progress (float): A value between 0.0 and 1.0 indicating the percentage of completion.
+            The callback will be called periodically during the concatenation process to report progress.
     
     Returns:
         Dict with concatenation result
