@@ -5,6 +5,7 @@ Tool to recover failed recordings after segment files were accidentally cleaned.
 """
 
 import asyncio
+import traceback
 from pathlib import Path
 from app.database import SessionLocal
 from app.models import Recording, Stream, Streamer
@@ -61,12 +62,15 @@ async def emergency_recovery_check():
                             print(f"   🔧 Attempting recovery for recording {recording.id}...")
                             result = await recovery_service.recover_specific_recording(recording.id)
                             
-                            if result["success"]:
-                                print(f"   ✅ Recovery triggered successfully!")
-                                print(f"   📁 Segments found: {result['segments_found']}")
-                                print(f"   📂 Segments dir: {result['segments_dir']}")
+                            if isinstance(result, dict) and "success" in result:
+                                if result["success"]:
+                                    print(f"   ✅ Recovery triggered successfully!")
+                                    print(f"   📁 Segments found: {result.get('segments_found', 'N/A')}")
+                                    print(f"   📂 Segments dir: {result.get('segments_dir', 'N/A')}")
+                                else:
+                                    print(f"   ❌ Recovery failed: {result.get('error', 'Unknown error')}")
                             else:
-                                print(f"   ❌ Recovery failed: {result['error']}")
+                                print(f"   ❌ Unexpected result structure from recovery service: {result}")
                         else:
                             print("   ❌ No segment files found")
                     else:
@@ -103,7 +107,6 @@ async def emergency_recovery_check():
             
     except Exception as e:
         print(f"❌ Error during emergency recovery: {e}")
-        import traceback
         traceback.print_exc()
 
 
