@@ -166,7 +166,8 @@ class RecordingLifecycleManager:
             # Even if process termination failed, streamlink may have finished correctly
             if reason == "automatic":
                 logger.info(f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, success={success}")
-                await self._trigger_post_processing(recording_id)
+                # PRODUCTION FIX: Run post-processing asynchronously to avoid blocking the stream offline handler
+                asyncio.create_task(self._trigger_post_processing_async(recording_id))
             
             return success
             
@@ -526,6 +527,20 @@ class RecordingLifecycleManager:
             logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
             return fallback_path
 
+    async def _trigger_post_processing_async(self, recording_id: int):
+        """Trigger post-processing asynchronously to avoid blocking the stream offline handler"""
+        try:
+            logger.info(f"🎬 POST_PROCESSING_ASYNC_START: recording_id={recording_id}")
+            
+            # Add a small delay to ensure the stream offline handler completes first
+            await asyncio.sleep(0.1)
+            
+            # Call the synchronous post-processing method
+            await self._trigger_post_processing(recording_id)
+            
+        except Exception as e:
+            logger.error(f"Error in async post-processing for recording {recording_id}: {e}", exc_info=True)
+
     async def _trigger_post_processing(self, recording_id: int):
         """Trigger post-processing for a completed recording"""
         try:
@@ -567,18 +582,12 @@ class RecordingLifecycleManager:
                 if segment_files:
                     logger.info(f"🎬 FOUND_SEGMENTS: {len(segment_files)} segments")
                     
-                    # Concatenate all segments into a single file using FFmpeg
-                    concatenated_path = await self._concatenate_segments(segment_files, recording_id)
+                    # PRODUCTION FIX: Queue segment concatenation as background task instead of blocking
+                    logger.info(f"🎬 QUEUING_SEGMENT_CONCATENATION: {len(segment_files)} files for recording {recording_id}")
                     
-                    if concatenated_path:
-                        recording_path = str(concatenated_path)
-                        # Update the recording path in database
-                        await self.database_service.update_recording_path(recording_id, recording_path)
-                        logger.info(f"🎬 SEGMENTS_CONCATENATED: {recording_path}")
-                    else:
-                        logger.error(f"🎬 CONCATENATION_FAILED: Using first segment as fallback")
-                        recording_path = str(segment_files[0])
-                        await self.database_service.update_recording_path(recording_id, recording_path)
+                    # Queue segment concatenation task first
+                    await self._queue_segment_concatenation_task(recording_id, segment_files, recording_path, streamer_data)
+                    return  # Exit here - post-processing will continue after concatenation
                 else:
                     logger.warning(f"🎬 NO_SEGMENTS_FOUND: {segments_dir}")
                     return
@@ -682,6 +691,32 @@ class RecordingLifecycleManager:
             
         except Exception as e:
             logger.error(f"Error triggering post-processing for recording {recording_id}: {e}", exc_info=True)
+
+    async def _queue_segment_concatenation_task(self, recording_id: int, segment_files: list, recording_path: str, streamer_data):
+        """Queue segment concatenation as a background task to avoid blocking the stream offline handler"""
+        try:
+            from app.services.queues.task_progress_tracker import TaskPriority
+            
+            # Create concatenation task payload
+            concat_payload = {
+                'recording_id': recording_id,
+                'segment_files': [str(f) for f in segment_files],
+                'output_path': recording_path,
+                'streamer_name': streamer_data.username,
+                'stream_id': recording_id,  # Use recording_id as fallback for stream_id
+            }
+            
+            # Enqueue segment concatenation task with high priority
+            concat_task_id = await background_queue_service.enqueue_task(
+                task_type='segment_concatenation',
+                payload=concat_payload,
+                priority=TaskPriority.HIGH  # High priority for immediate processing
+            )
+            
+            logger.info(f"🎬 SEGMENT_CONCATENATION_QUEUED: task_id={concat_task_id}, recording_id={recording_id}")
+            
+        except Exception as e:
+            logger.error(f"Error queuing segment concatenation for recording {recording_id}: {e}", exc_info=True)
 
     async def _concatenate_segments(self, segment_files: list, recording_id: int) -> Optional[Path]:
         """Concatenate multiple .ts segments into a single file using FFmpeg"""
