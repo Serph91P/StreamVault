@@ -217,7 +217,7 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
         }
         
         # Queue post-processing chain
-        task_ids = await background_queue_service.enqueue_recording_post_processing(post_processing_payload)
+        task_ids = await background_queue_service.enqueue_recording_post_processing(**post_processing_payload)
         
         logger.info(f"🎬 POST_PROCESSING_QUEUED: recording_id={recording_id}, tasks={len(task_ids)}")
         
