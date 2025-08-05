@@ -716,6 +716,10 @@ app.include_router(status.router, prefix="/api")  # Status API routes - independ
 from app.api import orphaned_recovery_endpoints
 app.include_router(orphaned_recovery_endpoints.router)
 
+# Failed recording recovery routes
+from app.api import failed_recovery_endpoints
+app.include_router(failed_recovery_endpoints.router)
+
 # Push notification routes
 from app.routes import push as push_router
 app.include_router(push_router.router)
