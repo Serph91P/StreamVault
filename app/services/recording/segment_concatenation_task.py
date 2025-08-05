@@ -13,7 +13,7 @@ from typing import Dict, Any
 logger = logging.getLogger("streamvault")
 
 
-async def handle_segment_concatenation(task_data: Dict[str, Any]) -> Dict[str, Any]:
+async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callback=None) -> Dict[str, Any]:
     """
     Handle segment concatenation task
     
@@ -24,6 +24,7 @@ async def handle_segment_concatenation(task_data: Dict[str, Any]) -> Dict[str, A
             - output_path: str - Output path for concatenated file
             - streamer_name: str - Streamer name
             - stream_id: int - Stream ID
+        progress_callback: Optional callback for progress updates
     
     Returns:
         Dict with concatenation result
