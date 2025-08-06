@@ -102,13 +102,13 @@ recovery_state = AutomatedRecoveryState()
 
 async def run_comprehensive_recovery() -> Dict[str, Any]:
     """
-    Führt umfassende Recovery mit allen existierenden Services aus
+    Runs comprehensive recovery with all existing services
     
-    Nutzt:
-    1. Simple Recovery - zuverlässige metadata_generation Tasks (OHNE Dependencies)
-    2. Unified Recovery - für komplette Analyse (falls Dependency-Chains funktionieren)
-    3. Orphaned Recovery - für orphaned segments
-    4. Failed Recovery - für fehlgeschlagene Post-Processing
+    Uses:
+    1. Simple Recovery - reliable metadata_generation tasks (WITHOUT dependencies)
+    2. Unified Recovery - for complete analysis (if dependency chains work)
+    3. Orphaned Recovery - for orphaned segments
+    4. Failed Recovery - for failed post-processing
     """
     await recovery_state.increment_total_runs()
     now = datetime.now(timezone.utc)
@@ -125,7 +125,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     }
     
     try:
-        # 1. Simple Recovery (zuverlässig - Single Tasks ohne Dependencies)
+        # 1. Simple Recovery (reliable - single tasks without dependencies)
         logger.info("🔧 Starting simple reliable recovery...")
         try:
             from ..services.simple_recovery_service import run_simple_reliable_recovery
@@ -137,7 +137,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.error(f"❌ Simple recovery failed: {e}")
             results["simple_recovery"] = {"success": False, "error": str(e)}
         
-        # 2. Unified Recovery (umfassendste Analyse - falls Dependencies funktionieren)
+        # 2. Unified Recovery (most comprehensive analysis - if dependencies work)
         logger.info("🔧 Starting unified recovery...")
         try:
             from ..services.recording.unified_recovery_service import get_unified_recovery_service
@@ -160,7 +160,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.error(f"❌ Unified recovery failed: {e}")
             results["unified_recovery"] = {"success": False, "error": str(e)}
         
-        # 3. Orphaned Recovery (zusätzlich für orphaned segments)
+        # 3. Orphaned Recovery (additional for orphaned segments)
         logger.info("🔧 Starting orphaned recovery...")
         try:
             from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
@@ -180,7 +180,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.error(f"❌ Orphaned recovery failed: {e}")
             results["orphaned_recovery"] = {"success": False, "error": str(e)}
         
-        # 4. Failed Recovery (spezifisch für fehlgeschlagene Post-Processing)  
+        # 4. Failed Recovery (specific for failed post-processing)  
         logger.info("🔧 Starting failed recovery...")
         try:
             from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
@@ -331,8 +331,8 @@ async def run_manual_recovery():
 @router.post("/run-simple")
 async def run_simple_recovery():
     """
-    Führt einmalig zuverlässige Simple Recovery aus (nur metadata_generation ohne Dependencies).
-    Dies umgeht das Dependency-Chain Problem und ist die zuverlässigste Recovery-Methode.
+    Runs simple reliable recovery once (only metadata_generation without dependencies).
+    This bypasses the dependency chain problem and is the most reliable recovery method.
     """
     try:
         await recovery_state.increment_total_runs()
