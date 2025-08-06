@@ -12,6 +12,7 @@ Replaces multiple overlapping services with one unified approach.
 
 import asyncio
 import logging
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any

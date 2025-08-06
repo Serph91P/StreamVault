@@ -712,13 +712,9 @@ app.include_router(background_queue.router, prefix="/api")  # Background queue r
 app.include_router(streams.router)  # Stream management routes
 app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
 
-# Orphaned recovery routes
-from app.api import orphaned_recovery_endpoints
-app.include_router(orphaned_recovery_endpoints.router)
-
-# Failed recording recovery routes
-from app.api import failed_recovery_endpoints
-app.include_router(failed_recovery_endpoints.router)
+# Unified recovery routes (replaces old orphaned + failed recovery)
+from app.api import unified_recovery_endpoints
+app.include_router(unified_recovery_endpoints.router)
 
 # Push notification routes
 from app.routes import push as push_router
