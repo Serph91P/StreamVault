@@ -144,13 +144,6 @@ class TaskProgressTracker:
             
             logger.debug(f"Task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
             
-            # Call progress callback if registered
-            if task_id in self.progress_callbacks:
-                try:
-                    self.progress_callbacks[task_id](task.progress)
-                except Exception as e:
-                    logger.warning(f"Progress callback failed for task {task_id}: {e}")
-            
             # Send WebSocket update (throttled to avoid spam)
             if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
                 self._create_background_task(self._send_task_update(task))
