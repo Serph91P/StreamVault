@@ -1,8 +1,19 @@
 """
 Simple Recovery Service
 
-Creates simple metadata_generation tasks without dependencies,
-as these work reliably compared to complex dependency chains.
+Creates simple metadata_generation tasks without depende    from ..services.init.background_queue_init import get_background_queue_service
+    from ..database import SessionLocal
+    from ..models import Recording, Stream, Streamer
+    from ..services.queues.task_progress_tracker import TaskPriority
+    
+    recovery_count = 0
+    
+    try:
+        queue_service = get_background_queue_service()
+        
+        # Find all recordings without MP4 file
+        db = SessionLocal()
+        try:hese work reliably compared to complex dependency chains.
 """
 
 import logging
@@ -142,6 +153,9 @@ async def create_simple_recovery_tasks() -> int:
                 except Exception as e:
                     logger.error(f"❌ Failed to create recovery task for recording {recording.id}: {e}")
                     continue
+                    
+        finally:
+            db.close()
                     
     except Exception as e:
         logger.error(f"❌ Failed to create simple recovery tasks: {e}")
