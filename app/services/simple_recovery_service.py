@@ -44,8 +44,8 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         logger.info(f"🔍 Found {failed_count} failed post-processing recordings")
         
         if failed_count > 0:
-            # Create simple metadata_generation tasks for each failed recording
-            recovery_triggered = await create_simple_recovery_tasks()
+            # Use the scan results from unified recovery to create simple tasks
+            recovery_triggered = await create_simple_recovery_tasks(unified_service)
             
             results["simple_recovery"] = {
                 "success": True,
@@ -79,30 +79,40 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         return results
 
 
-async def create_simple_recovery_tasks() -> int:
+async def create_simple_recovery_tasks(unified_service) -> int:
     """
     Creates simple metadata_generation tasks for failed recordings.
     
+    Args:
+        unified_service: The unified recovery service instance
+        
     Returns:
         Number of tasks created.
     """
     from ..services.init.background_queue_init import get_background_queue_service
-    from ..database import SessionLocal
-    from ..models import Recording, Stream, Streamer
     from ..services.queues.task_progress_tracker import TaskPriority
+    from ..database import SessionLocal
+    from ..models import Recording
     
     recovery_count = 0
     
     try:
         queue_service = get_background_queue_service()
         
-        # Find all recordings without MP4 file
+        # Run another scan to get the detailed results
+        scan_results = await unified_service.comprehensive_recovery_scan(
+            max_age_hours=72,
+            dry_run=True
+        )
+        
+        # The scan doesn't return individual recordings, so we need to find them ourselves
+        # But we'll do it safely without complex joins
         db = SessionLocal()
         try:
-            # SQL Query to find recordings where TS exists but MP4 is missing
-            recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+            # Get all recordings that have a path but completed
+            recordings = db.query(Recording).filter(
                 Recording.path.isnot(None),
-                Stream.ended_at.isnot(None)  # Only completed streams
+                Recording.status == 'completed'
             ).all()
             
             for recording in recordings:
@@ -121,11 +131,13 @@ async def create_simple_recovery_tasks() -> int:
                         continue  # MP4 already exists
                         
                     # MP4 missing - create metadata_generation task
+                    recording_path = Path(recording.path)
                     payload = {
                         'recording_id': recording.id,
                         'stream_id': recording.stream_id,
-                        'streamer_name': recording.stream.streamer.username,
                         'recording_path': str(recording.path),
+                        'base_filename': recording_path.stem,  # Filename without extension
+                        'output_dir': str(recording_path.parent),  # Directory where the file is
                         'simple_recovery': True,
                         'recovery_timestamp': datetime.now(timezone.utc).isoformat()
                     }
@@ -138,7 +150,7 @@ async def create_simple_recovery_tasks() -> int:
                     )
                     
                     recovery_count += 1
-                    logger.info(f"✅ Created simple recovery task {task_id} for recording {recording.id} ({recording.stream.streamer.username})")
+                    logger.info(f"✅ Created simple recovery task {task_id} for recording {recording.id}")
                     
                 except Exception as e:
                     logger.error(f"❌ Failed to create recovery task for recording {recording.id}: {e}")
