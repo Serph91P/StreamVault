@@ -354,19 +354,30 @@ class UnifiedRecoveryService:
                 logger.warning(f"⚠️ Cannot trigger post-processing without recording_id for {ts_file_path}")
                 return False
                 
-            # Use the existing post-processing system
-            from app.services.recording.post_processing_coordinator import PostProcessingCoordinator
+            # Get recording data from database to get stream_id and other info
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                if not recording:
+                    logger.error(f"❌ Recording {recording_id} not found in database")
+                    return False
+                
+                # Get required parameters
+                stream_id = recording.stream_id
+                output_dir = Path(ts_file_path).parent
+                started_at = recording.start_time.isoformat() if recording.start_time else datetime.now().isoformat()
             
-            coordinator = PostProcessingCoordinator()
+            # Use the background queue system directly
+            from app.services.init.background_queue_init import enqueue_recording_post_processing
             
-            # Create recording data for post-processing
-            recording_data = {
-                'recording_id': recording_id,
-                'streamer_name': streamer_name,
-                'file_path': ts_file_path
-            }
-            
-            success = await coordinator.enqueue_post_processing(recording_id, ts_file_path, recording_data)
+            success = await enqueue_recording_post_processing(
+                stream_id=stream_id,
+                recording_id=recording_id,
+                ts_file_path=ts_file_path,
+                output_dir=str(output_dir),
+                streamer_name=streamer_name,
+                started_at=started_at,
+                cleanup_ts_file=True
+            )
             
             if success:
                 logger.info(f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_id}")
