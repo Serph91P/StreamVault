@@ -1,8 +1,8 @@
 """
 Simple Recovery Service
 
-Creates simple metadata_generation tasks without dependencies,
-as these work reliably compared to complex dependency chains.
+Creates simple metadata_generation tasks without dependencies.
+These work reliably compared to complex dependency chains.
 """
 
 import logging
@@ -30,21 +30,21 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
     try:
         logger.info("🔧 Starting simple reliable recovery...")
         
-        # Finde fehlgeschlagene Recordings mit Unified Recovery Service
+        # Find failed recordings with Unified Recovery Service
         from ..services.recording.unified_recovery_service import get_unified_recovery_service
         unified_service = await get_unified_recovery_service()
         
-        # Führe nur Scan aus (dry_run=True) um fehlgeschlagene Recordings zu finden
+        # Run only scan (dry_run=True) to find failed recordings
         unified_stats = await unified_service.comprehensive_recovery_scan(
             max_age_hours=72, 
-            dry_run=True  # Nur scannen, nicht die komplexen Chains erstellen
+            dry_run=True  # Only scan, don't create complex chains
         )
         
         failed_count = unified_stats.failed_post_processing
         logger.info(f"🔍 Found {failed_count} failed post-processing recordings")
         
         if failed_count > 0:
-            # Erstelle einfache metadata_generation Tasks für jedes fehlgeschlagene Recording
+            # Create simple metadata_generation tasks for each failed recording
             recovery_triggered = await create_simple_recovery_tasks()
             
             results["simple_recovery"] = {
@@ -87,7 +87,7 @@ async def create_simple_recovery_tasks() -> int:
         Number of tasks created.
     """
     from ..services.init.background_queue_init import get_background_queue_service
-    from ..database import get_db_session
+    from ..database import SessionLocal
     from ..models import Recording, Stream, Streamer
     from ..services.queues.task_progress_tracker import TaskPriority
     
@@ -96,8 +96,9 @@ async def create_simple_recovery_tasks() -> int:
     try:
         queue_service = get_background_queue_service()
         
-        # Finde alle Recordings ohne MP4-Datei
-        with get_db_session() as db:
+        # Find all recordings without MP4 file
+        db = SessionLocal()
+        try:
             # SQL Query to find recordings where TS exists but MP4 is missing
             recordings = db.query(Recording).join(Stream).join(Streamer).filter(
                 Recording.recording_path.isnot(None),
@@ -142,6 +143,9 @@ async def create_simple_recovery_tasks() -> int:
                 except Exception as e:
                     logger.error(f"❌ Failed to create recovery task for recording {recording.id}: {e}")
                     continue
+                    
+        finally:
+            db.close()
                     
     except Exception as e:
         logger.error(f"❌ Failed to create simple recovery tasks: {e}")
