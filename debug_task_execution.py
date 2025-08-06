@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """
-Debug script to investigate task execution pipeline
+Debug script to investigate task executio        # Get queue service
+        logger.info("🔧 Getting background queue service...")
+        queue_service = get_background_queue_service()
+        
+        # Check initial queue state
+        initial_stats = await queue_service.get_queue_stats()
+        logger.info(f"📊 Initial queue stats: {initial_stats}")
+        
+        # Now manually trigger post-processing for this recording
+        logger.info(f"🚀 Manually triggering post-processing for recording {test_recording.id}...")
 Traces the complete flow from recovery task creation to handler execution
 This script should be run INSIDE the Docker container
 """
