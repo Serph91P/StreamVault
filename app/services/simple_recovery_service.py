@@ -97,7 +97,7 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
     """
     from ..services.init.background_queue_init import enqueue_recording_post_processing
     from ..database import SessionLocal
-    from ..models import Recording, Stream, Stream
+    from ..models import Recording, Stream
     
     recovery_count = 0
     
