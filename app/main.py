@@ -180,6 +180,39 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
         
+        # Start automated recovery service for failed recordings
+        try:
+            logger.info("🔧 Starting automated recovery service...")
+            
+            async def startup_recovery_check():
+                """One-time recovery check at startup for failed recordings"""
+                # Wait 2 minutes after startup for system stability
+                await asyncio.sleep(120)
+                
+                try:
+                    logger.info("🔄 Running startup recovery scan...")
+                    
+                    # Use reliable Simple Recovery
+                    from app.services.simple_recovery_service import run_simple_reliable_recovery
+                    result = await run_simple_reliable_recovery()
+                    
+                    recoveries = result.get('total_recoveries', 0)
+                    if recoveries > 0:
+                        logger.info(f"✅ STARTUP_RECOVERY: {recoveries} recovery tasks created automatically")
+                    else:
+                        logger.info("ℹ️ STARTUP_RECOVERY: No failed recordings found")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error in startup recovery: {e}")
+            
+            # Start one-time startup recovery check
+            asyncio.create_task(startup_recovery_check())
+            logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start startup recovery check: {e}")
+            logger.warning("⚠️ Failed recordings will not be automatically recovered")
+        
         # Start recording cleanup service
         try:
             from app.services.system.cleanup_service import CleanupService
