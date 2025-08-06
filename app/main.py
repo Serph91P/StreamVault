@@ -180,44 +180,37 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
         
-        # Start automated recovery service für gefailte Recordings
+        # Start automated recovery service for failed recordings
         try:
             logger.info("🔧 Starting automated recovery service...")
             
-            async def automated_recovery_loop():
-                """Automatisierte Recovery für gefailte Recordings alle 10 Minuten"""
-                # Warte 2 Minuten nach Startup für System-Stabilität
+            async def startup_recovery_check():
+                """One-time recovery check at startup for failed recordings"""
+                # Wait 2 minutes after startup for system stability
                 await asyncio.sleep(120)
                 
-                while True:
-                    try:
-                        logger.info("🔄 Running automated recovery scan...")
+                try:
+                    logger.info("🔄 Running startup recovery scan...")
+                    
+                    # Use reliable Simple Recovery
+                    from app.services.simple_recovery_service import run_simple_reliable_recovery
+                    result = await run_simple_reliable_recovery()
+                    
+                    recoveries = result.get('total_recoveries', 0)
+                    if recoveries > 0:
+                        logger.info(f"✅ STARTUP_RECOVERY: {recoveries} recovery tasks created automatically")
+                    else:
+                        logger.info("ℹ️ STARTUP_RECOVERY: No failed recordings found")
                         
-                        # Verwende die zuverlässige Simple Recovery
-                        from app.services.simple_recovery_service import run_simple_reliable_recovery
-                        result = await run_simple_reliable_recovery()
-                        
-                        recoveries = result.get('total_recoveries', 0)
-                        if recoveries > 0:
-                            logger.info(f"✅ AUTO_RECOVERY: {recoveries} recovery tasks created automatically")
-                        else:
-                            logger.debug("ℹ️ AUTO_RECOVERY: No failed recordings found")
-                            
-                    except asyncio.CancelledError:
-                        logger.info("🛑 Automated recovery cancelled")
-                        break
-                    except Exception as e:
-                        logger.error(f"❌ Error in automated recovery: {e}")
-                        
-                    # Alle 10 Minuten wiederholen
-                    await asyncio.sleep(600)
+                except Exception as e:
+                    logger.error(f"❌ Error in startup recovery: {e}")
             
-            # Starte Automated Recovery als Background Task
-            asyncio.create_task(automated_recovery_loop())
-            logger.info("✅ Automated recovery service started (10 minute intervals)")
+            # Start one-time startup recovery check
+            asyncio.create_task(startup_recovery_check())
+            logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
             
         except Exception as e:
-            logger.error(f"❌ Failed to start automated recovery service: {e}")
+            logger.error(f"❌ Failed to start startup recovery check: {e}")
             logger.warning("⚠️ Failed recordings will not be automatically recovered")
         
         # Start recording cleanup service
