@@ -6,9 +6,12 @@ These work reliably compared to complex dependency chains.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TYPE_CHECKING
 from datetime import datetime, timezone
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from ..services.recording.unified_recovery_service import UnifiedRecoveryService
 
 logger = logging.getLogger("streamvault")
 
@@ -79,7 +82,7 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         return results
 
 
-async def create_simple_recovery_tasks(unified_service) -> int:
+async def create_simple_recovery_tasks(unified_service: "UnifiedRecoveryService") -> int:
     """
     Creates simple metadata_generation tasks for failed recordings.
     
@@ -98,12 +101,6 @@ async def create_simple_recovery_tasks(unified_service) -> int:
     
     try:
         queue_service = get_background_queue_service()
-        
-        # Run another scan to get the detailed results
-        scan_results = await unified_service.comprehensive_recovery_scan(
-            max_age_hours=72,
-            dry_run=True
-        )
         
         # The scan doesn't return individual recordings, so we need to find them ourselves
         # But we'll do it safely without complex joins
@@ -131,7 +128,6 @@ async def create_simple_recovery_tasks(unified_service) -> int:
                         continue  # MP4 already exists
                         
                     # MP4 missing - create metadata_generation task
-                    recording_path = Path(recording.path)
                     payload = {
                         'recording_id': recording.id,
                         'stream_id': recording.stream_id,
@@ -141,6 +137,9 @@ async def create_simple_recovery_tasks(unified_service) -> int:
                         'simple_recovery': True,
                         'recovery_timestamp': datetime.now(timezone.utc).isoformat()
                     }
+                    
+                    # Debug log the payload
+                    logger.info(f"🔍 Creating task with payload: {payload}")
                     
                     # Enqueue simple task (WITHOUT dependencies)
                     task_id = await queue_service.enqueue_task(
