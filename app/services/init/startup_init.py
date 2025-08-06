@@ -143,24 +143,25 @@ async def verify_queue_readiness() -> bool:
                 # Get the queue manager directly
                 queue_manager = get_task_queue_manager()
                 
-                if queue_manager and queue_manager.is_running:
+                if not queue_manager:
+                    logger.debug(f"⚠️ Queue manager not found on attempt {attempt + 1}")
+                elif not queue_manager.is_running:
+                    logger.debug(f"⚠️ Queue manager not running on attempt {attempt + 1}")
+                else:
                     # Check if we have at least one queue and it's active
                     status = queue_manager.get_status()
                     if status and 'queues' in status and len(status['queues']) > 0:
                         logger.info(f"✅ Queue readiness verified on attempt {attempt + 1} - Direct access to queue manager")
                         return True
                     else:
-                        logger.debug(f"⚠️ Queue manager exists but no active queues on attempt {attempt + 1}")
-                else:
-                    logger.debug(f"⚠️ Queue manager not ready on attempt {attempt + 1}")
-                    
-                if attempt < max_attempts - 1:
-                    await asyncio.sleep(2)  # Wait before retry
+                        logger.debug(f"⚠️ Queue manager running but no active queues on attempt {attempt + 1}")
                     
             except Exception as e:
                 logger.debug(f"⚠️ Queue readiness check failed on attempt {attempt + 1}: {e}")
-                if attempt < max_attempts - 1:
-                    await asyncio.sleep(2)  # Wait before retry
+            
+            # Always wait before retry (except on last attempt)
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(2)  # Wait before retry
         
         logger.warning(f"⚠️ Queue readiness verification failed after {max_attempts} attempts")
         return False
