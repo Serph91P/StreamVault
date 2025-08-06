@@ -180,6 +180,46 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
         
+        # Start automated recovery service für gefailte Recordings
+        try:
+            logger.info("🔧 Starting automated recovery service...")
+            
+            async def automated_recovery_loop():
+                """Automatisierte Recovery für gefailte Recordings alle 10 Minuten"""
+                # Warte 2 Minuten nach Startup für System-Stabilität
+                await asyncio.sleep(120)
+                
+                while True:
+                    try:
+                        logger.info("🔄 Running automated recovery scan...")
+                        
+                        # Verwende die zuverlässige Simple Recovery
+                        from app.services.simple_recovery_service import run_simple_reliable_recovery
+                        result = await run_simple_reliable_recovery()
+                        
+                        recoveries = result.get('total_recoveries', 0)
+                        if recoveries > 0:
+                            logger.info(f"✅ AUTO_RECOVERY: {recoveries} recovery tasks created automatically")
+                        else:
+                            logger.debug("ℹ️ AUTO_RECOVERY: No failed recordings found")
+                            
+                    except asyncio.CancelledError:
+                        logger.info("🛑 Automated recovery cancelled")
+                        break
+                    except Exception as e:
+                        logger.error(f"❌ Error in automated recovery: {e}")
+                        
+                    # Alle 10 Minuten wiederholen
+                    await asyncio.sleep(600)
+            
+            # Starte Automated Recovery als Background Task
+            asyncio.create_task(automated_recovery_loop())
+            logger.info("✅ Automated recovery service started (10 minute intervals)")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start automated recovery service: {e}")
+            logger.warning("⚠️ Failed recordings will not be automatically recovered")
+        
         # Start recording cleanup service
         try:
             from app.services.system.cleanup_service import CleanupService
