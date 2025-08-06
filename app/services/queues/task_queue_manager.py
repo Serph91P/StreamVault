@@ -67,6 +67,8 @@ class TaskQueueManager:
         if self.enable_streamer_isolation:
             # Start isolated workers per streamer (production fix)
             logger.info("Starting TaskQueueManager with streamer isolation")
+            # Note: Individual streamer workers are created on-demand when tasks are enqueued
+            # The dependency worker will handle task routing to appropriate streamer queues
         else:
             # Start shared worker manager (original)
             await self.worker_manager.start(self.task_queue)
@@ -592,9 +594,23 @@ class TaskQueueManager:
             cleanup_ts_file=cleanup_ts_file
         )
         
-        # Add tasks to dependency manager
+        # Add tasks to dependency manager AND progress tracker
         for task in tasks:
             await self.dependency_manager.add_task(task)
+            
+            # CRITICAL FIX: Also create queue task and add to progress tracker
+            queue_task = QueueTask(
+                id=task.id,
+                task_type=task.type,
+                priority=TaskPriority.NORMAL,
+                payload=task.payload,
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(timezone.utc),
+                max_retries=3
+            )
+            
+            # Add to progress tracker so tasks show up in statistics
+            self.progress_tracker.add_task(queue_task)
         
         logger.info(f"Enqueued {len(tasks)} post-processing tasks for recording {recording_id}")
         
