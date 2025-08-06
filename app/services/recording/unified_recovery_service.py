@@ -70,27 +70,6 @@ class UnifiedRecoveryService:
         try:
             logger.info(f"🔍 UNIFIED_RECOVERY_START: max_age={max_age_hours}h, dry_run={dry_run}")
             
-            # CRITICAL: First check if background queue service is running
-            if not dry_run:
-                queue_status = await self._check_queue_status_via_api()
-                if queue_status is None:
-                    logger.error("❌ CRITICAL: Background queue service not responsive!")
-                    logger.error("❌ Cannot safely perform recovery without working queue service")
-                    
-                    # Attempt to restart queue
-                    restart_success = await self._attempt_queue_restart()
-                    if not restart_success:
-                        logger.error("❌ ABORTING RECOVERY: Queue service cannot be started")
-                        return stats
-                    
-                    # Re-check after restart
-                    queue_status = await self._check_queue_status_via_api()
-                    if queue_status is None:
-                        logger.error("❌ ABORTING RECOVERY: Queue service still not responsive after restart")
-                        return stats
-                
-                logger.info("✅ QUEUE_SERVICE_VERIFIED: Background queue is responsive")
-            
             # Step 1: Database consistency check and fix
             await self._fix_database_inconsistencies(stats, dry_run)
             
@@ -129,11 +108,7 @@ class UnifiedRecoveryService:
                 except Exception as e:
                     logger.error(f"❌ Failed to retry post-processing for {recording_info.get('recording_id')}: {e}", exc_info=True)
             
-            # Step 5: Final queue verification (if we triggered any tasks)
-            if not dry_run and stats.triggered_post_processing > 0:
-                await self._final_queue_verification(stats)
-            
-            # Step 6: Final database cleanup
+            # Step 5: Final database cleanup
             if not dry_run:
                 await self._final_database_cleanup(stats)
             
@@ -440,14 +415,15 @@ class UnifiedRecoveryService:
                 logger.error(f"❌ Cannot write to output directory {output_dir}: {e}")
                 return False
             
-            # CRITICAL: Check if background queue service is actually running
-            success = await self._verify_and_enqueue_post_processing(
+            # Use the background queue system directly
+            success = await enqueue_recording_post_processing(
                 stream_id=stream_id,
                 recording_id=recording_id,
                 ts_file_path=ts_file_path,
                 output_dir=str(output_dir),
                 streamer_name=streamer_name,
-                started_at=started_at
+                started_at=started_at,
+                cleanup_ts_file=True
             )
             
             if success:
@@ -474,150 +450,6 @@ class UnifiedRecoveryService:
                 return recording.id if recording else None
         except Exception:
             return None
-    
-    async def _verify_and_enqueue_post_processing(self, stream_id: int, recording_id: int, ts_file_path: str, 
-                                                   output_dir: str, streamer_name: str, started_at: str) -> bool:
-        """
-        Verify that queue service is running and enqueue task with verification
-        
-        This method ensures that:
-        1. The background queue service is actually running
-        2. The task is successfully enqueued
-        3. The task appears in the queue status
-        4. If queue is not responsive, attempts to restart it
-        """
-        try:
-            logger.info(f"🔍 VERIFYING_QUEUE_SERVICE: recording_id={recording_id}")
-            
-            # First attempt: Try to enqueue normally
-            initial_success = await enqueue_recording_post_processing(
-                stream_id=stream_id,
-                recording_id=recording_id,
-                ts_file_path=ts_file_path,
-                output_dir=output_dir,
-                streamer_name=streamer_name,
-                started_at=started_at,
-                cleanup_ts_file=True
-            )
-            
-            if not initial_success:
-                logger.warning(f"⚠️ INITIAL_ENQUEUE_FAILED: recording_id={recording_id}")
-                return False
-            
-            # Wait a moment for task to be registered
-            await asyncio.sleep(2)
-            
-            # Verify the task actually exists in the queue
-            queue_status = await self._check_queue_status_via_api()
-            
-            if queue_status is None:
-                logger.error(f"❌ QUEUE_NOT_RESPONSIVE: recording_id={recording_id}")
-                
-                # Attempt to restart queue service
-                restart_success = await self._attempt_queue_restart()
-                if restart_success:
-                    # Retry enqueuing after restart
-                    logger.info(f"🔄 RETRY_AFTER_RESTART: recording_id={recording_id}")
-                    retry_success = await enqueue_recording_post_processing(
-                        stream_id=stream_id,
-                        recording_id=recording_id,
-                        ts_file_path=ts_file_path,
-                        output_dir=output_dir,
-                        streamer_name=streamer_name,
-                        started_at=started_at,
-                        cleanup_ts_file=True
-                    )
-                    return retry_success
-                else:
-                    logger.error(f"❌ QUEUE_RESTART_FAILED: recording_id={recording_id}")
-                    return False
-            
-            # Check if our specific task is in the queue
-            task_found = False
-            if queue_status and 'queues' in queue_status:
-                for queue_name, queue_info in queue_status['queues'].items():
-                    if 'tasks' in queue_info:
-                        for task in queue_info['tasks']:
-                            # Check if this task matches our recording
-                            if (isinstance(task, dict) and 
-                                task.get('recording_id') == recording_id):
-                                task_found = True
-                                logger.info(f"✅ TASK_VERIFIED_IN_QUEUE: recording_id={recording_id}, queue={queue_name}")
-                                break
-                    if task_found:
-                        break
-            
-            if not task_found:
-                logger.warning(f"⚠️ TASK_NOT_FOUND_IN_QUEUE: recording_id={recording_id}, but enqueue returned success")
-                # Still return True since enqueue reported success
-                # This might be a timing issue where task started processing immediately
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error in queue verification: {e}", exc_info=True)
-            return False
-    
-    async def _check_queue_status_via_api(self) -> Optional[dict]:
-        """Check queue status via internal API call"""
-        try:
-            # Import here to avoid circular imports
-            import aiohttp
-            
-            # Try to connect to the FastAPI app's queue endpoint
-            api_urls = [
-                "http://localhost:8000/api/admin/background-queue/status",
-                "http://127.0.0.1:8000/api/admin/background-queue/status"
-            ]
-            
-            for url in api_urls:
-                try:
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-                        async with session.get(url) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                logger.debug(f"✅ QUEUE_API_CONNECTED: {url}")
-                                return data
-                            else:
-                                logger.debug(f"⚠️ Queue API returned status {response.status}: {url}")
-                except aiohttp.ClientError as e:
-                    logger.debug(f"⚠️ Could not connect to queue API: {url} - {e}")
-                    continue
-            
-            logger.warning("⚠️ QUEUE_API_NOT_ACCESSIBLE: All endpoints failed")
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error checking queue status: {e}")
-            return None
-    
-    async def _attempt_queue_restart(self) -> bool:
-        """Attempt to restart the background queue service"""
-        try:
-            logger.info("🔄 ATTEMPTING_QUEUE_RESTART")
-            
-            # Try to restart the queue service through the background queue system
-            try:
-                from app.services.init.background_queue_init import restart_background_queue
-                
-                success = await restart_background_queue()
-                if success:
-                    logger.info("✅ QUEUE_RESTART_SUCCESS")
-                    # Wait for service to stabilize
-                    await asyncio.sleep(5)
-                    return True
-                else:
-                    logger.error("❌ QUEUE_RESTART_FAILED")
-                    return False
-                    
-            except ImportError:
-                # If restart function doesn't exist, try alternative approach
-                logger.warning("⚠️ Queue restart function not available, attempting alternative")
-                return False
-                
-        except Exception as e:
-            logger.error(f"❌ Error attempting queue restart: {e}")
-            return False
     
     async def _batch_find_recordings_by_paths(self, file_paths: List[str]) -> Dict[str, Optional[int]]:
         """Batch find recording IDs by file paths for improved performance"""
@@ -690,44 +522,6 @@ class UnifiedRecoveryService:
                     
         except Exception as e:
             logger.error(f"❌ Error fixing database inconsistencies: {e}")
-    
-    async def _final_queue_verification(self, stats: RecoveryStats):
-        """Final verification that triggered tasks are actually in the queue"""
-        try:
-            logger.info(f"🔍 FINAL_QUEUE_VERIFICATION: Checking {stats.triggered_post_processing} triggered tasks")
-            
-            # Wait a moment for all tasks to be registered
-            await asyncio.sleep(3)
-            
-            queue_status = await self._check_queue_status_via_api()
-            if queue_status is None:
-                logger.error("❌ QUEUE_VERIFICATION_FAILED: Queue not responsive")
-                return
-            
-            # Count total tasks in all queues
-            total_tasks = 0
-            active_tasks = 0
-            
-            if 'queues' in queue_status:
-                for queue_name, queue_info in queue_status['queues'].items():
-                    if 'tasks' in queue_info:
-                        queue_task_count = len(queue_info['tasks'])
-                        total_tasks += queue_task_count
-                        logger.info(f"📊 QUEUE_STATUS: {queue_name} has {queue_task_count} tasks")
-                    
-                    if 'active_workers' in queue_info:
-                        active_tasks += queue_info['active_workers']
-            
-            logger.info(f"📊 FINAL_QUEUE_STATUS: {total_tasks} total tasks, {active_tasks} active workers")
-            
-            if total_tasks == 0 and stats.triggered_post_processing > 0:
-                logger.warning(f"⚠️ QUEUE_VERIFICATION_WARNING: Triggered {stats.triggered_post_processing} tasks but queue appears empty")
-                logger.warning("⚠️ Tasks may have been processed immediately or queue service might have issues")
-            else:
-                logger.info(f"✅ QUEUE_VERIFICATION_OK: Queue has {total_tasks} tasks")
-                
-        except Exception as e:
-            logger.error(f"❌ Error in final queue verification: {e}")
     
     async def _final_database_cleanup(self, stats: RecoveryStats):
         """Final database cleanup after recovery"""
