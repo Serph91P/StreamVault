@@ -1,23 +1,24 @@
 """
 Simple Recovery Service
 
-Erstellt einfache metadata_generation Tasks ohne Dependencies,
-da diese zuverlässig funktionieren im Gegensatz zu komplexen Dependency-Chains.
+Creates simple metadata_generation tasks without dependencies,
+as these work reliably compared to complex dependency chains.
 """
 
 import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger("streamvault")
 
 
 async def run_simple_reliable_recovery() -> Dict[str, Any]:
     """
-    Führt einfache, zuverlässige Recovery durch
+    Performs simple, reliable recovery.
     
-    Verwendet nur Single metadata_generation Tasks ohne Dependencies,
-    da diese im Gegensatz zu komplexen Chains zuverlässig funktionieren.
+    Uses only single metadata_generation tasks without dependencies,
+    as these are more reliable than complex chains.
     """
     results = {
         "start_time": datetime.now(timezone.utc).isoformat(),
@@ -80,10 +81,10 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
 
 async def create_simple_recovery_tasks() -> int:
     """
-    Erstellt einfache metadata_generation Tasks für fehlgeschlagene Recordings
+    Creates simple metadata_generation tasks for failed recordings.
     
     Returns:
-        Anzahl der erstellten Tasks
+        Number of tasks created.
     """
     from ..services.init.background_queue_init import get_background_queue_service
     from ..database import get_db_session
@@ -97,10 +98,10 @@ async def create_simple_recovery_tasks() -> int:
         
         # Finde alle Recordings ohne MP4-Datei
         with get_db_session() as db:
-            # SQL Query um Recordings zu finden wo TS existiert aber MP4 fehlt
+            # SQL Query to find recordings where TS exists but MP4 is missing
             recordings = db.query(Recording).join(Stream).join(Streamer).filter(
                 Recording.recording_path.isnot(None),
-                Stream.is_active == False  # Nur inaktive Streams
+                ~Stream.is_active  # Only inactive streams
             ).all()
             
             for recording in recordings:
@@ -108,20 +109,17 @@ async def create_simple_recovery_tasks() -> int:
                     if not recording.recording_path:
                         continue
                         
-                    # Prüfe ob TS existiert aber MP4 fehlt
-                    import os
-                    from pathlib import Path
-                    
+                    # Check if TS exists but MP4 is missing
                     recording_path = Path(recording.recording_path)
                     if not recording_path.exists():
                         continue
                         
-                    # Prüfe MP4
+                    # Check MP4
                     mp4_path = recording_path.parent / f"{recording_path.stem}.mp4"
                     if mp4_path.exists():
-                        continue  # MP4 existiert bereits
+                        continue  # MP4 already exists
                         
-                    # MP4 fehlt - erstelle metadata_generation Task
+                    # MP4 missing - create metadata_generation task
                     payload = {
                         'recording_id': recording.id,
                         'stream_id': recording.stream_id,
@@ -131,11 +129,11 @@ async def create_simple_recovery_tasks() -> int:
                         'recovery_timestamp': datetime.now(timezone.utc).isoformat()
                     }
                     
-                    # Enqueue einfachen Task (OHNE Dependencies)
+                    # Enqueue simple task (WITHOUT dependencies)
                     task_id = await queue_service.enqueue_task(
                         task_type='metadata_generation',
                         payload=payload,
-                        priority=TaskPriority.LOW  # Niedrige Priorität für Recovery
+                        priority=TaskPriority.LOW  # Low priority for recovery
                     )
                     
                     recovery_count += 1
