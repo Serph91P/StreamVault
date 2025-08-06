@@ -47,14 +47,14 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         logger.info(f"🔍 Found {failed_count} failed post-processing recordings")
         
         if failed_count > 0:
-            # Use the scan results from unified recovery to create simple tasks
-            recovery_triggered = await create_simple_recovery_tasks(unified_service)
+            # Use the scan results to create full post-processing chains
+            recovery_triggered = await create_full_recovery_chains(unified_service)
             
             results["simple_recovery"] = {
                 "success": True,
                 "failed_found": failed_count,
                 "recovery_triggered": recovery_triggered,
-                "method": "simple_metadata_generation"
+                "method": "full_post_processing_chains"
             }
             results["total_recoveries"] = recovery_triggered
             
@@ -64,14 +64,14 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
                 "success": True,
                 "failed_found": 0,
                 "recovery_triggered": 0,
-                "method": "simple_metadata_generation"
+                "method": "full_post_processing_chains"
             }
             logger.info("ℹ️ No failed recordings found")
         
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
         
-        logger.info(f"🎉 Simple recovery completed: {results['total_recoveries']} tasks created")
+        logger.info(f"🎉 Simple recovery completed: {results['total_recoveries']} full post-processing chains created")
         return results
         
     except Exception as e:
@@ -82,26 +82,26 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         return results
 
 
-async def create_simple_recovery_tasks(unified_service: "UnifiedRecoveryService") -> int:
+async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService") -> int:
     """
-    Creates simple metadata_generation tasks for failed recordings.
+    Creates full post-processing chains for failed recordings.
+    
+    Uses the proper enqueue_recording_post_processing to trigger complete chains
+    with mp4_remux, chapters_generation, etc. - not just metadata.
     
     Args:
         unified_service: The unified recovery service instance
         
     Returns:
-        Number of tasks created.
+        Number of post-processing chains created.
     """
-    from ..services.init.background_queue_init import get_background_queue_service
-    from ..services.queues.task_progress_tracker import TaskPriority
+    from ..services.init.background_queue_init import enqueue_recording_post_processing
     from ..database import SessionLocal
-    from ..models import Recording
+    from ..models import Recording, Stream
     
     recovery_count = 0
     
     try:
-        queue_service = get_background_queue_service()
-        
         # The scan doesn't return individual recordings, so we need to find them ourselves
         # But we'll do it safely without complex joins
         db = SessionLocal()
@@ -127,38 +127,50 @@ async def create_simple_recovery_tasks(unified_service: "UnifiedRecoveryService"
                     if mp4_path.exists():
                         continue  # MP4 already exists
                         
-                    # MP4 missing - create metadata_generation task
-                    payload = {
-                        'recording_id': recording.id,
-                        'stream_id': recording.stream_id,
-                        'recording_path': str(recording.path),
-                        'base_filename': recording_path.stem,  # Filename without extension
-                        'output_dir': str(recording_path.parent),  # Directory where the file is
-                        'simple_recovery': True,
-                        'recovery_timestamp': datetime.now(timezone.utc).isoformat()
-                    }
+                    # Get stream information for full post-processing
+                    stream = db.query(Stream).filter(Stream.id == recording.stream_id).first()
+                    if not stream:
+                        logger.warning(f"⚠️ Stream {recording.stream_id} not found for recording {recording.id}")
+                        continue
+                        
+                    # Get streamer name
+                    streamer_name = stream.streamer.username if stream.streamer else f"stream_{stream.id}"
                     
-                    # Debug log the payload
-                    logger.info(f"🔍 Creating task with payload: {payload}")
+                    # Validate that we have the required start_time
+                    if not recording.start_time:
+                        logger.warning(f"⚠️ Recording {recording.id} has no start_time; cannot trigger post-processing")
+                        continue
+                        
+                    started_at = recording.start_time.isoformat()
+                    output_dir = str(recording_path.parent)
                     
-                    # Enqueue simple task (WITHOUT dependencies)
-                    task_id = await queue_service.enqueue_task(
-                        task_type='metadata_generation',
-                        payload=payload,
-                        priority=TaskPriority.LOW  # Low priority for recovery
+                    logger.info(f"🔍 Creating full post-processing chain for recording {recording.id}: {recording.path}")
+                    
+                    # Trigger full post-processing chain (NOT just metadata!)
+                    success = await enqueue_recording_post_processing(
+                        stream_id=recording.stream_id,
+                        recording_id=recording.id,
+                        ts_file_path=str(recording.path),
+                        output_dir=output_dir,
+                        streamer_name=streamer_name,
+                        started_at=started_at,
+                        cleanup_ts_file=True  # Clean up TS after successful MP4 creation
                     )
                     
-                    recovery_count += 1
-                    logger.info(f"✅ Created simple recovery task {task_id} for recording {recording.id}")
+                    if success:
+                        recovery_count += 1
+                        logger.info(f"✅ Created full post-processing chain for recording {recording.id}")
+                    else:
+                        logger.warning(f"⚠️ Failed to create post-processing chain for recording {recording.id}")
                     
                 except Exception as e:
-                    logger.error(f"❌ Failed to create recovery task for recording {recording.id}: {e}")
+                    logger.error(f"❌ Failed to create recovery chain for recording {recording.id}: {e}")
                     continue
                     
         finally:
             db.close()
                     
     except Exception as e:
-        logger.error(f"❌ Failed to create simple recovery tasks: {e}")
+        logger.error(f"❌ Failed to create full recovery chains: {e}")
         
     return recovery_count
