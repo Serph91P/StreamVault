@@ -134,22 +134,29 @@ async def initialize_background_services():
 async def verify_queue_readiness() -> bool:
     """Verify that the background queue is fully ready to accept tasks"""
     try:
-        # Import here to avoid circular imports
-        import aiohttp
+        # Direct access to the queue manager instead of HTTP API call
+        from app.services.init.background_queue_init import get_task_queue_manager
         
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get("http://localhost:8000/api/admin/background-queue/status") as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            # Check if we have queue data and workers
-                            if data and 'queues' in data:
-                                logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
-                                return True
-                        else:
-                            logger.debug(f"⚠️ Queue API returned status {response.status} on attempt {attempt + 1}")
+                # Get the queue manager directly
+                queue_manager = get_task_queue_manager()
+                
+                if queue_manager and queue_manager.is_running:
+                    # Check if we have at least one queue and it's active
+                    status = queue_manager.get_status()
+                    if status and 'queues' in status and len(status['queues']) > 0:
+                        logger.info(f"✅ Queue readiness verified on attempt {attempt + 1} - Direct access to queue manager")
+                        return True
+                    else:
+                        logger.debug(f"⚠️ Queue manager exists but no active queues on attempt {attempt + 1}")
+                else:
+                    logger.debug(f"⚠️ Queue manager not ready on attempt {attempt + 1}")
+                    
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(2)  # Wait before retry
+                    
             except Exception as e:
                 logger.debug(f"⚠️ Queue readiness check failed on attempt {attempt + 1}: {e}")
                 if attempt < max_attempts - 1:
