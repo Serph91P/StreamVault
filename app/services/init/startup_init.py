@@ -140,22 +140,22 @@ async def verify_queue_readiness() -> bool:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # Get the background queue service and access its queue manager
+                # Get the background queue service and check its status
                 queue_service = get_background_queue_service()
                 
                 if not queue_service:
                     logger.debug(f"⚠️ Queue service not found on attempt {attempt + 1}")
                 elif not queue_service.is_running:
                     logger.debug(f"⚠️ Queue service not running on attempt {attempt + 1}")
-                elif not hasattr(queue_service, 'queue_manager') or not queue_service.queue_manager:
+                elif not queue_service.has_queue_manager():
                     logger.debug(f"⚠️ Queue manager not available on attempt {attempt + 1}")
-                elif not queue_service.queue_manager.is_running:
+                elif not queue_service.is_queue_manager_running():
                     logger.debug(f"⚠️ Queue manager not running on attempt {attempt + 1}")
                 else:
-                    # Check if we have at least one queue and it's active
-                    status = queue_service.queue_manager.get_status()
+                    # Check if we have at least one queue and it's active using proper abstraction
+                    status = queue_service.get_queue_status()
                     if status and 'queues' in status and len(status['queues']) > 0:
-                        logger.info(f"✅ Queue readiness verified on attempt {attempt + 1} - Direct access to queue manager")
+                        logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
                         return True
                     else:
                         logger.debug(f"⚠️ Queue manager running but no active queues on attempt {attempt + 1}")
