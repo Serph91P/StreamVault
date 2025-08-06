@@ -123,9 +123,16 @@ jobs:
       working-directory: app/frontend
       run: |
         npm ci  # Faster than npm install for CI
+        # Clean any existing dist directory to prevent ENOTEMPTY errors
+        rm -rf dist || true
         # Update browserslist database to fix warning
         npx update-browserslist-db@latest
-        npm run build
+        # Build with error handling
+        npm run build || {
+          echo "Build failed, retrying after cleaning node_modules cache..."
+          rm -rf node_modules/.cache || true
+          npm run build
+        }
         mkdir -p ../../dist
         cp -r dist/* ../../dist/
         
