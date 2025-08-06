@@ -209,6 +209,24 @@ class BackgroundQueueService:
         """Check if handler is registered for task type"""
         return self.queue_manager.has_handler(task_type)
     
+    def has_queue_manager(self) -> bool:
+        """Check if queue manager is available"""
+        return hasattr(self, 'queue_manager') and self.queue_manager is not None
+    
+    def is_queue_manager_running(self) -> bool:
+        """Check if the queue manager is running"""
+        return self.has_queue_manager() and self.queue_manager.is_running
+    
+    def get_queue_status(self) -> Optional[Dict[str, Any]]:
+        """Get queue status with proper abstraction"""
+        if not self.has_queue_manager():
+            return None
+        try:
+            return self.queue_manager.get_status()
+        except Exception as e:
+            logger.error(f"Error getting queue status: {e}")
+            return None
+    
     async def enqueue_recording_post_processing(self, **kwargs):
         """Enqueue a complete post-processing chain for a recording"""
         return await self.queue_manager.enqueue_recording_post_processing(**kwargs)

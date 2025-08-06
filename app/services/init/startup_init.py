@@ -134,24 +134,28 @@ async def initialize_background_services():
 async def verify_queue_readiness() -> bool:
     """Verify that the background queue is fully ready to accept tasks"""
     try:
-        # Direct access to the queue manager instead of HTTP API call
-        from app.services.init.background_queue_init import get_task_queue_manager
+        # Direct access to the queue manager through background queue service
+        from app.services.init.background_queue_init import get_background_queue_service
         
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # Get the queue manager directly
-                queue_manager = get_task_queue_manager()
+                # Get the background queue service and check its status
+                queue_service = get_background_queue_service()
                 
-                if not queue_manager:
-                    logger.debug(f"⚠️ Queue manager not found on attempt {attempt + 1}")
-                elif not queue_manager.is_running:
+                if not queue_service:
+                    logger.debug(f"⚠️ Queue service not found on attempt {attempt + 1}")
+                elif not queue_service.is_running:
+                    logger.debug(f"⚠️ Queue service not running on attempt {attempt + 1}")
+                elif not queue_service.has_queue_manager():
+                    logger.debug(f"⚠️ Queue manager not available on attempt {attempt + 1}")
+                elif not queue_service.is_queue_manager_running():
                     logger.debug(f"⚠️ Queue manager not running on attempt {attempt + 1}")
                 else:
-                    # Check if we have at least one queue and it's active
-                    status = queue_manager.get_status()
+                    # Check if we have at least one queue and it's active using proper abstraction
+                    status = queue_service.get_queue_status()
                     if status and 'queues' in status and len(status['queues']) > 0:
-                        logger.info(f"✅ Queue readiness verified on attempt {attempt + 1} - Direct access to queue manager")
+                        logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
                         return True
                     else:
                         logger.debug(f"⚠️ Queue manager running but no active queues on attempt {attempt + 1}")
