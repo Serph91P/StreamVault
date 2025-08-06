@@ -1,5 +1,5 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
-FROM python:3.13.3-alpine as base
+FROM python:3.13.3-alpine AS base
 
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
@@ -30,17 +30,14 @@ RUN apk update && apk upgrade && \
     && rm -rf /var/cache/apk/*
 
 # Stage for Python dependencies (cached separately)
-FROM base as python-deps
+FROM base AS python-deps
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir --upgrade -r requirements.txt \
     && pip install --no-cache-dir --upgrade streamlink==7.4.0
 
 # Stage for frontend (only rebuilt when frontend changes)
-FROM base as frontend-builder
-
-# Stage for frontend (only rebuilt when frontend changes)
-FROM base as frontend-builder
+FROM base AS frontend-builder
 WORKDIR /app/frontend
 COPY app/frontend/package*.json ./
 
@@ -77,10 +74,7 @@ RUN if [ "$BUILD_ENV" = "production" ]; then \
     fi
 
 # Final stage - combine everything
-FROM python-deps as final
-
-# Final stage - combine everything
-FROM python-deps as final
+FROM python-deps AS final
 
 # Copy built frontend from frontend stage
 COPY --from=frontend-builder /app/frontend/dist /app/app/frontend/dist

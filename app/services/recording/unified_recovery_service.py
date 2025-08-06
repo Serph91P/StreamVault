@@ -25,6 +25,9 @@ from app.services.init.background_queue_init import enqueue_recording_post_proce
 
 logger = logging.getLogger("streamvault")
 
+# Constants for file validation
+MIN_TS_FILE_SIZE_BYTES = 1024  # Minimum valid TS file size (1KB)
+
 @dataclass
 class RecoveryStats:
     orphaned_segments: int = 0
@@ -98,9 +101,12 @@ class UnifiedRecoveryService:
                         success = await self._retry_post_processing(recording_info)
                         if success:
                             stats.triggered_post_processing += 1
+                            logger.info(f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_info.get('recording_id')}")
+                        else:
+                            logger.warning(f"⚠️ POST_PROCESSING_TRIGGER_FAILED: recording_id={recording_info.get('recording_id')}")
                     
                 except Exception as e:
-                    logger.error(f"❌ Failed to retry post-processing for {recording_info.get('recording_id')}: {e}")
+                    logger.error(f"❌ Failed to retry post-processing for {recording_info.get('recording_id')}: {e}", exc_info=True)
             
             # Step 5: Final database cleanup
             if not dry_run:
@@ -263,6 +269,8 @@ class UnifiedRecoveryService:
                                 'type': 'needs_concatenation',
                                 'streamer_name': recording.stream.streamer.username
                             })
+                        else:
+                            logger.debug(f"🔍 SKIP_UNRECOVERABLE: recording_id={recording.id}, no TS file and no segments found")
                             
         except Exception as e:
             logger.error(f"Error scanning failed post-processing: {e}")
@@ -339,7 +347,12 @@ class UnifiedRecoveryService:
                     'streamer_name': streamer_name
                 })
                 return result
-            
+
+            # Check if the TS file actually exists before triggering post-processing
+            if not ts_path.exists():
+                logger.warning(f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file no longer exists: {ts_path}")
+                return False
+
             # Otherwise just trigger post-processing
             return await self._trigger_post_processing(recording_id, str(ts_path), streamer_name)
             
@@ -353,6 +366,18 @@ class UnifiedRecoveryService:
             # Skip if no recording_id
             if recording_id is None:
                 logger.warning(f"⚠️ Cannot trigger post-processing without recording_id for {ts_file_path}")
+                return False
+
+            # CRITICAL: Check if TS file exists before proceeding
+            ts_path = Path(ts_file_path)
+            if not ts_path.exists():
+                logger.warning(f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file does not exist: {ts_file_path}")
+                return False
+
+            # Check file size to ensure it's not empty/corrupted
+            file_size = ts_path.stat().st_size
+            if file_size < MIN_TS_FILE_SIZE_BYTES:  # Less than 1KB
+                logger.warning(f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file too small ({file_size} bytes): {ts_file_path}")
                 return False
                 
             # Get recording data from database to get stream_id and other info
@@ -372,6 +397,23 @@ class UnifiedRecoveryService:
                 else:
                     logger.warning(f"⚠️ Recording {recording_id} has no start_time; cannot trigger post-processing accurately.")
                     return False
+
+            logger.info(f"🔄 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, file_size={file_size/1024/1024:.1f}MB")
+            
+            # Additional validation: ensure output directory exists and is writable
+            output_dir = Path(ts_file_path).parent
+            if not output_dir.exists():
+                logger.error(f"❌ Output directory does not exist: {output_dir}")
+                return False
+            
+            # Test if we can write to the output directory
+            try:
+                test_file = output_dir / f"test_write_{recording_id}.tmp"
+                test_file.touch()
+                test_file.unlink()
+            except Exception as e:
+                logger.error(f"❌ Cannot write to output directory {output_dir}: {e}")
+                return False
             
             # Use the background queue system directly
             success = await enqueue_recording_post_processing(
@@ -397,7 +439,7 @@ class UnifiedRecoveryService:
             return success
             
         except Exception as e:
-            logger.error(f"❌ Error triggering post-processing: {e}")
+            logger.error(f"❌ Error triggering post-processing: {e}", exc_info=True)
             return False
     
     async def _find_recording_by_path(self, file_path: str) -> Optional[int]:
