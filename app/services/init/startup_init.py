@@ -155,17 +155,17 @@ async def verify_queue_readiness() -> bool:
                     # Check if we have at least one queue and it's active using proper abstraction
                     status = queue_service.get_queue_status()
                     if status:
-                        # Check for streamer isolation mode (has 'streamers' field) or shared mode (has queue_size > 0)
-                        has_active_queues = (
-                            ('streamers' in status and len(status['streamers']) > 0) or
-                            ('queue_size' in status and status['queue_size'] >= 0) or
+                        # Check for streamer isolation mode (has 'streamers' field) or shared mode (has queue_size field) or active workers
+                        has_queue_system = (
+                            ('streamers' in status and isinstance(status['streamers'], dict)) or
+                            ('queue_size' in status and isinstance(status['queue_size'], int) and status['queue_size'] >= 0) or
                             ('workers' in status and status['workers'].get('total', 0) > 0)
                         )
-                        if has_active_queues:
+                        if has_queue_system:
                             logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
                             return True
                         else:
-                            logger.debug(f"⚠️ Queue manager running but no active queues on attempt {attempt + 1}: {status}")
+                            logger.debug(f"⚠️ Queue manager running but no queue system detected on attempt {attempt + 1}: {status}")
                     else:
                         logger.debug(f"⚠️ Queue manager running but status unavailable on attempt {attempt + 1}")
                     
