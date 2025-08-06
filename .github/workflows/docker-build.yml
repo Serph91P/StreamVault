@@ -100,29 +100,29 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # Frontend caching optimization
+    # Setup Node.js with caching
     - name: Setup Node.js with caching
-      if: needs.check_changes.outputs.frontend_changed == 'true'
-      uses: actions/setup-node@v4  # Updated to latest
+      uses: actions/setup-node@v4
       with:
         node-version: 'lts/*'
         cache: 'npm'
         cache-dependency-path: 'app/frontend/package-lock.json'
         
     - name: Cache frontend build
-      if: needs.check_changes.outputs.frontend_changed == 'true'
-      uses: actions/cache@v4  # Updated to latest
+      uses: actions/cache@v4
       with:
-        path: app/frontend/dist
-        key: frontend-build-${{ hashFiles('app/frontend/**') }}
+        path: |
+          app/frontend/dist
+          app/frontend/node_modules
+        key: frontend-build-${{ hashFiles('app/frontend/**', '!app/frontend/node_modules/**', '!app/frontend/dist/**') }}
         restore-keys: |
           frontend-build-
         
-    - name: Build Frontend
+    - name: Build Frontend (if changed)
       if: needs.check_changes.outputs.frontend_changed == 'true'
       working-directory: app/frontend
       run: |
-        npm ci  # Faster than npm install for CI
+        npm ci --prefer-offline
         # Clean any existing dist directory to prevent ENOTEMPTY errors
         rm -rf dist || true
         # Update browserslist database to fix warning
@@ -133,12 +133,19 @@ jobs:
           rm -rf node_modules/.cache || true
           npm run build
         }
-        mkdir -p ../../dist
-        cp -r dist/* ../../dist/
         
-    - name: Use cached frontend build
+    - name: Restore cached frontend build (if unchanged)
       if: needs.check_changes.outputs.frontend_changed != 'true'
-      run: echo "Frontend unchanged, using cached build"
+      run: |
+        if [ ! -d "app/frontend/dist" ]; then
+          echo "❌ No cached frontend build found, building anyway..."
+          cd app/frontend
+          npm ci --prefer-offline
+          npx update-browserslist-db@latest
+          npm run build
+        else
+          echo "✅ Using cached frontend build"
+        fi
     
     # Docker optimization
     - name: Set up Docker Buildx
@@ -179,12 +186,12 @@ jobs:
           org.opencontainers.image.vendor=StreamVault
           org.opencontainers.image.version=v${{ needs.version.outputs.new_version }}
           
-    - name: Build and push Docker image (secure)
-      uses: docker/build-push-action@v5  # Updated to latest
+    - name: Build and push Docker image (optimized caching)
+      uses: docker/build-push-action@v5
       with:
         context: .
         file: docker/Dockerfile
-        platforms: linux/amd64  # AMD64 only for now
+        platforms: linux/amd64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -192,8 +199,12 @@ jobs:
           VERSION=v${{ needs.version.outputs.new_version }}
           BRANCH=${{ needs.version.outputs.branch }}
           BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-        cache-from: type=gha  # GitHub Actions cache
-        cache-to: type=gha,mode=max
+          FRONTEND_CHANGED=${{ needs.check_changes.outputs.frontend_changed }}
+          BACKEND_CHANGED=${{ needs.check_changes.outputs.backend_changed }}
+        cache-from: |
+          type=gha,scope=build-${{ github.ref_name }}
+          type=gha,scope=build-main
+        cache-to: type=gha,mode=max,scope=build-${{ github.ref_name }}
         
     # Enhanced security scanning
     - name: Run Trivy vulnerability scanner on secure image
