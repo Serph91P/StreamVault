@@ -105,9 +105,10 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     Führt umfassende Recovery mit allen existierenden Services aus
     
     Nutzt:
-    1. Unified Recovery - für komplette Analyse
-    2. Orphaned Recovery - für orphaned segments
-    3. Failed Recovery - für fehlgeschlagene Post-Processing
+    1. Simple Recovery - zuverlässige metadata_generation Tasks (OHNE Dependencies)
+    2. Unified Recovery - für komplette Analyse (falls Dependency-Chains funktionieren)
+    3. Orphaned Recovery - für orphaned segments
+    4. Failed Recovery - für fehlgeschlagene Post-Processing
     """
     await recovery_state.increment_total_runs()
     now = datetime.now(timezone.utc)
@@ -115,6 +116,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     
     results = {
         "start_time": now.isoformat(),
+        "simple_recovery": None,
         "unified_recovery": None,
         "orphaned_recovery": None, 
         "failed_recovery": None,
@@ -123,7 +125,19 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     }
     
     try:
-        # 1. Unified Recovery (umfassendste Analyse)
+        # 1. Simple Recovery (zuverlässig - Single Tasks ohne Dependencies)
+        logger.info("🔧 Starting simple reliable recovery...")
+        try:
+            from ..services.simple_recovery_service import run_simple_reliable_recovery
+            simple_result = await run_simple_reliable_recovery()
+            results["simple_recovery"] = simple_result.get("simple_recovery", {})
+            results["total_recoveries"] += simple_result.get("total_recoveries", 0)
+            logger.info(f"✅ Simple recovery: {simple_result.get('total_recoveries', 0)} tasks created")
+        except Exception as e:
+            logger.error(f"❌ Simple recovery failed: {e}")
+            results["simple_recovery"] = {"success": False, "error": str(e)}
+        
+        # 2. Unified Recovery (umfassendste Analyse - falls Dependencies funktionieren)
         logger.info("🔧 Starting unified recovery...")
         try:
             from ..services.recording.unified_recovery_service import get_unified_recovery_service
@@ -146,7 +160,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.error(f"❌ Unified recovery failed: {e}")
             results["unified_recovery"] = {"success": False, "error": str(e)}
         
-        # 2. Orphaned Recovery (zusätzlich für orphaned segments)
+        # 3. Orphaned Recovery (zusätzlich für orphaned segments)
         logger.info("🔧 Starting orphaned recovery...")
         try:
             from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
@@ -166,7 +180,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.error(f"❌ Orphaned recovery failed: {e}")
             results["orphaned_recovery"] = {"success": False, "error": str(e)}
         
-        # 3. Failed Recovery (spezifisch für fehlgeschlagene Post-Processing)  
+        # 4. Failed Recovery (spezifisch für fehlgeschlagene Post-Processing)  
         logger.info("🔧 Starting failed recovery...")
         try:
             from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
@@ -314,6 +328,31 @@ async def run_manual_recovery():
         raise HTTPException(status_code=500, detail=f"Recovery failed: {str(e)}")
 
 
+@router.post("/run-simple")
+async def run_simple_recovery():
+    """
+    Führt einmalig zuverlässige Simple Recovery aus (nur metadata_generation ohne Dependencies).
+    Dies umgeht das Dependency-Chain Problem und ist die zuverlässigste Recovery-Methode.
+    """
+    try:
+        await recovery_state.increment_total_runs()
+        now = datetime.now(timezone.utc)
+        await recovery_state.set_last_run(now)
+        
+        logger.info("🔧 Starting manual simple reliable recovery...")
+        from ..services.simple_recovery_service import run_simple_reliable_recovery
+        result = await run_simple_reliable_recovery()
+        
+        await recovery_state.increment_successful_runs()
+        logger.info(f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created")
+        return result
+        
+    except Exception as e:
+        await recovery_state.increment_failed_runs(str(e))
+        logger.error(f"❌ Simple recovery failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Simple recovery failed: {str(e)}")
+
+
 @router.get("/status")
 async def get_recovery_status():
     """Gibt Status der automatisierten Recovery zurück"""
@@ -328,7 +367,9 @@ async def get_recovery_status():
             "interval_minutes": interval // 60,
             "last_run": last_run.isoformat() if last_run else None,
             "statistics": stats,
-            "services": ["unified_recovery", "orphaned_recovery", "failed_recovery"]
+            "services": ["simple_recovery", "unified_recovery", "orphaned_recovery", "failed_recovery"],
+            "primary_service": "simple_recovery",
+            "description": "Simple recovery runs first as it's most reliable (no dependency chains)"
         }
     }
 
