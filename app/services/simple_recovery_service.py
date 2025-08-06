@@ -102,7 +102,7 @@ async def create_simple_recovery_tasks() -> int:
             # SQL Query to find recordings where TS exists but MP4 is missing
             recordings = db.query(Recording).join(Stream).join(Streamer).filter(
                 Recording.path.isnot(None),
-                ~Stream.is_active  # Only inactive streams
+                Stream.ended_at.isnot(None)  # Only completed streams
             ).all()
             
             for recording in recordings:
@@ -138,7 +138,7 @@ async def create_simple_recovery_tasks() -> int:
                     )
                     
                     recovery_count += 1
-                    logger.info(f"✅ Created simple recovery task {task_id} for recording {recording.id} ({recording.stream.streamer.name})")
+                    logger.info(f"✅ Created simple recovery task {task_id} for recording {recording.id} ({recording.stream.streamer.username})")
                     
                 except Exception as e:
                     logger.error(f"❌ Failed to create recovery task for recording {recording.id}: {e}")
