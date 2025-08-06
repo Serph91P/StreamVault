@@ -102,14 +102,25 @@ async def initialize_background_services():
         # Initialize background queue with production fixes
         await initialize_background_queue_with_fixes()
         
+        # CRITICAL: Wait for queue workers to be fully ready before recovery
+        logger.info("⏳ Waiting for background queue workers to be fully ready...")
+        await asyncio.sleep(5)  # Give queue workers time to start
+        
+        # Verify queue is responsive before proceeding
+        queue_ready = await verify_queue_readiness()
+        if not queue_ready:
+            logger.warning("⚠️ Background queue not ready - skipping unified recovery for now")
+            # Don't run recovery immediately, let it run later via API
+        else:
+            logger.info("✅ Background queue verified ready - proceeding with recovery")
+            # UNIFIED RECOVERY: Only run after queue is fully ready
+            await unified_recovery_scan()
+        
         # Initialize image sync service for automatic image downloads
         await initialize_image_sync_service()
         
         # Recover active recordings from persistence
         await recover_active_recordings()
-        
-        # UNIFIED RECOVERY: Replace multiple overlapping services with one robust system
-        await unified_recovery_scan()
         
         # Start session cleanup service for production auth reliability
         await start_session_cleanup_service()
@@ -119,6 +130,37 @@ async def initialize_background_services():
     except Exception as e:
         logger.error(f"Failed to initialize background services: {e}", exc_info=True)
         raise
+
+async def verify_queue_readiness() -> bool:
+    """Verify that the background queue is fully ready to accept tasks"""
+    try:
+        # Import here to avoid circular imports
+        import aiohttp
+        
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get("http://localhost:8000/api/admin/background-queue/status") as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            # Check if we have queue data and workers
+                            if data and 'queues' in data:
+                                logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
+                                return True
+                        else:
+                            logger.debug(f"⚠️ Queue API returned status {response.status} on attempt {attempt + 1}")
+            except Exception as e:
+                logger.debug(f"⚠️ Queue readiness check failed on attempt {attempt + 1}: {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(2)  # Wait before retry
+        
+        logger.warning(f"⚠️ Queue readiness verification failed after {max_attempts} attempts")
+        return False
+        
+    except Exception as e:
+        logger.error(f"❌ Error verifying queue readiness: {e}")
+        return False
 
 async def unified_recovery_scan():
     """Unified recovery scan replacing multiple overlapping services"""

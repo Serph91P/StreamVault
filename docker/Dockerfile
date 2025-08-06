@@ -84,9 +84,6 @@ WORKDIR /app
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 
-# Copy debug scripts for troubleshooting (production containers)
-COPY debug_task_execution.py ./debug_task_execution.py
-
 # Create directories with correct permissions
 RUN mkdir -p /recordings && \
     mkdir -p /app/migrations && \
