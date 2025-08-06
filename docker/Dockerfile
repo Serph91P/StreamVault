@@ -1,5 +1,5 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
-FROM python:3.13.3-alpine
+FROM python:3.13.3-alpine as base
 
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
@@ -8,9 +8,6 @@ RUN addgroup -g 1000 appuser && \
     chown -R appuser:appuser /app
 
 WORKDIR /app
-
-# Copy only what's needed for dependencies first
-COPY requirements.txt ./
 
 # Install system dependencies with security updates
 RUN apk update && apk upgrade && \
@@ -32,33 +29,61 @@ RUN apk update && apk upgrade && \
     bash \
     && rm -rf /var/cache/apk/*
 
-# Install Python packages with latest versions
+# Stage for Python dependencies (cached separately)
+FROM base as python-deps
+COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir --upgrade -r requirements.txt \
     && pip install --no-cache-dir --upgrade streamlink==7.4.0
 
-# Setup frontend dependencies
+# Stage for frontend (only rebuilt when frontend changes)
+FROM base as frontend-builder
+
+# Stage for frontend (only rebuilt when frontend changes)
+FROM base as frontend-builder
 WORKDIR /app/frontend
 COPY app/frontend/package*.json ./
 
-# Update npm to latest version and install dependencies with security fixes
-RUN npm install -g npm@latest && \
-    npm ci --prefer-offline --no-audit && \
-    npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"
+# Only install npm dependencies if dist doesn't exist (for local builds)
+RUN if [ ! -d "../frontend/dist" ]; then \
+        echo "No pre-built frontend found, setting up npm..." && \
+        npm install -g npm@latest && \
+        npm ci --prefer-offline --no-audit && \
+        npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"; \
+    else \
+        echo "Pre-built frontend detected, skipping npm setup"; \
+    fi
 
 # Copy frontend sources
 COPY app/frontend/ ./
 
-# Build frontend only if not in development mode
+# Build frontend only if not already built and not in development mode
 ARG BUILD_ENV=production
 RUN if [ "$BUILD_ENV" = "production" ]; then \
-        echo "Building frontend in production mode..." && \
-        npm run build && \
-        mkdir -p /app/app/frontend && \
-        cp -r dist /app/app/frontend/; \
+        if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then \
+            echo "✅ Using pre-built frontend from CI/CD pipeline"; \
+        else \
+            echo "Building frontend in production mode..." && \
+            rm -rf dist || true && \
+            npm run build || { \
+                echo "Build failed, cleaning cache and retrying..." && \
+                rm -rf node_modules/.cache || true && \
+                npm run build; \
+            }; \
+        fi \
     else \
-        echo "Skipping frontend build in development mode..."; \
+        echo "Skipping frontend build in development mode..." && \
+        mkdir -p dist; \
     fi
+
+# Final stage - combine everything
+FROM python-deps as final
+
+# Final stage - combine everything
+FROM python-deps as final
+
+# Copy built frontend from frontend stage
+COPY --from=frontend-builder /app/frontend/dist /app/app/frontend/dist
 
 # Back to main directory and copy only necessary app files
 WORKDIR /app

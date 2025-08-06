@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from app.database import SessionLocal
 from app.models import Recording, Stream, Streamer
 from app.services.system.logging_service import logging_service
+from app.services.init.background_queue_init import enqueue_recording_post_processing
 
 logger = logging.getLogger("streamvault")
 
@@ -354,19 +355,34 @@ class UnifiedRecoveryService:
                 logger.warning(f"⚠️ Cannot trigger post-processing without recording_id for {ts_file_path}")
                 return False
                 
-            # Use the existing post-processing system
-            from app.services.recording.post_processing_coordinator import PostProcessingCoordinator
+            # Get recording data from database to get stream_id and other info
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                if not recording:
+                    logger.error(f"❌ Recording {recording_id} not found in database")
+                    return False
+                
+                # Get required parameters
+                stream_id = recording.stream_id
+                output_dir = Path(ts_file_path).parent
+                
+                # Validate that we have the required start_time
+                if recording.start_time:
+                    started_at = recording.start_time.isoformat()
+                else:
+                    logger.warning(f"⚠️ Recording {recording_id} has no start_time; cannot trigger post-processing accurately.")
+                    return False
             
-            coordinator = PostProcessingCoordinator()
-            
-            # Create recording data for post-processing
-            recording_data = {
-                'recording_id': recording_id,
-                'streamer_name': streamer_name,
-                'file_path': ts_file_path
-            }
-            
-            success = await coordinator.enqueue_post_processing(recording_id, ts_file_path, recording_data)
+            # Use the background queue system directly
+            success = await enqueue_recording_post_processing(
+                stream_id=stream_id,
+                recording_id=recording_id,
+                ts_file_path=ts_file_path,
+                output_dir=str(output_dir),
+                streamer_name=streamer_name,
+                started_at=started_at,
+                cleanup_ts_file=True
+            )
             
             if success:
                 logger.info(f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_id}")
