@@ -101,17 +101,17 @@ async def create_simple_recovery_tasks() -> int:
         try:
             # SQL Query to find recordings where TS exists but MP4 is missing
             recordings = db.query(Recording).join(Stream).join(Streamer).filter(
-                Recording.recording_path.isnot(None),
+                Recording.path.isnot(None),
                 ~Stream.is_active  # Only inactive streams
             ).all()
             
             for recording in recordings:
                 try:
-                    if not recording.recording_path:
+                    if not recording.path:
                         continue
                         
                     # Check if TS exists but MP4 is missing
-                    recording_path = Path(recording.recording_path)
+                    recording_path = Path(recording.path)
                     if not recording_path.exists():
                         continue
                         
@@ -124,8 +124,8 @@ async def create_simple_recovery_tasks() -> int:
                     payload = {
                         'recording_id': recording.id,
                         'stream_id': recording.stream_id,
-                        'streamer_name': recording.stream.streamer.name,
-                        'recording_path': str(recording.recording_path),
+                        'streamer_name': recording.stream.streamer.username,
+                        'recording_path': str(recording.path),
                         'simple_recovery': True,
                         'recovery_timestamp': datetime.now(timezone.utc).isoformat()
                     }
