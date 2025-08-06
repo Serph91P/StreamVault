@@ -86,6 +86,8 @@ COPY migrations/ ./migrations/
 
 # Copy debug scripts for troubleshooting (production containers)
 COPY debug_task_execution.py ./debug_task_execution.py
+COPY start_queue_debug.py ./start_queue_debug.py
+COPY check_queue_api.py ./check_queue_api.py
 
 # Create directories with correct permissions
 RUN mkdir -p /recordings && \
