@@ -53,7 +53,12 @@ COPY app/frontend/ ./
 ARG BUILD_ENV=production
 RUN if [ "$BUILD_ENV" = "production" ]; then \
         echo "Building frontend in production mode..." && \
-        npm run build && \
+        rm -rf dist || true && \
+        npm run build || { \
+            echo "Build failed, cleaning cache and retrying..." && \
+            rm -rf node_modules/.cache || true && \
+            npm run build; \
+        } && \
         mkdir -p /app/app/frontend && \
         cp -r dist /app/app/frontend/; \
     else \
