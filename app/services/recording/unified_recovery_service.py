@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from app.database import SessionLocal
 from app.models import Recording, Stream, Streamer
 from app.services.system.logging_service import logging_service
+from app.services.init.background_queue_init import enqueue_recording_post_processing
 
 logger = logging.getLogger("streamvault")
 
@@ -364,11 +365,15 @@ class UnifiedRecoveryService:
                 # Get required parameters
                 stream_id = recording.stream_id
                 output_dir = Path(ts_file_path).parent
-                started_at = recording.start_time.isoformat() if recording.start_time else datetime.now().isoformat()
+                
+                # Validate that we have the required start_time
+                if recording.start_time:
+                    started_at = recording.start_time.isoformat()
+                else:
+                    logger.warning(f"⚠️ Recording {recording_id} has no start_time; cannot trigger post-processing accurately.")
+                    return False
             
             # Use the background queue system directly
-            from app.services.init.background_queue_init import enqueue_recording_post_processing
-            
             success = await enqueue_recording_post_processing(
                 stream_id=stream_id,
                 recording_id=recording_id,
