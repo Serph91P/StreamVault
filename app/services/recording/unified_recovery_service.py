@@ -25,6 +25,9 @@ from app.services.init.background_queue_init import enqueue_recording_post_proce
 
 logger = logging.getLogger("streamvault")
 
+# Constants for file validation
+MIN_TS_FILE_SIZE_BYTES = 1024  # Minimum valid TS file size (1KB)
+
 @dataclass
 class RecoveryStats:
     orphaned_segments: int = 0
@@ -373,7 +376,7 @@ class UnifiedRecoveryService:
 
             # Check file size to ensure it's not empty/corrupted
             file_size = ts_path.stat().st_size
-            if file_size < 1024:  # Less than 1KB
+            if file_size < MIN_TS_FILE_SIZE_BYTES:  # Less than 1KB
                 logger.warning(f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file too small ({file_size} bytes): {ts_file_path}")
                 return False
                 
