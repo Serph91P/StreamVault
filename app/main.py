@@ -716,6 +716,10 @@ app.include_router(status.router, prefix="/api")  # Status API routes - independ
 from app.api import unified_recovery_endpoints
 app.include_router(unified_recovery_endpoints.router)
 
+# Automated recovery routes
+from app.api import automated_recovery_endpoints
+app.include_router(automated_recovery_endpoints.router)
+
 # Push notification routes
 from app.routes import push as push_router
 app.include_router(push_router.router)
