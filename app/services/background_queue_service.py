@@ -222,7 +222,7 @@ class BackgroundQueueService:
         if not self.has_queue_manager():
             return None
         try:
-            return self.queue_manager.get_status()
+            return self.queue_manager.get_queue_statistics()
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
             return None
