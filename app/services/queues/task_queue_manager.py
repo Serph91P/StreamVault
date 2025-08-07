@@ -8,19 +8,7 @@ Handles task enqueueing, dependency management, and queue coordination.
 import asyncio
 import logging
 import uuid
-from                    try:
-                        # Execute the task using the worker manager
-                        await self.worker_manager._execute_task(task, worker_name)
-                        
-                        # Mark task as completed successfully
-                        if self.progress_tracker:
-                            self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
-                            self.progress_tracker.update_task_progress(task.id, 100.0)
-                        
-                        # Notify completion callback
-                        await self.mark_task_completed(task.id, success=True)
-                        
-                        logger.info(f"✅ Streamer {streamer_name} completed task {task.id} - success: True")rt datetime, timezone
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from collections import defaultdict
 from pathlib import Path
