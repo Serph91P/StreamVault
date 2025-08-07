@@ -107,12 +107,12 @@ class ProfileImageService:
                     try:
                         internal_id = self._get_internal_id_for_extracted_id(extracted_id)
                         if internal_id:
-                            relative_path = f"/data/images/profiles/{image_file.name}"
+                            relative_path = f"/recordings/.media/profiles/{image_file.name}"
                             self._profile_cache[str(internal_id)] = relative_path
                     except Exception as db_error:
                         # Database not ready, use extracted_id as fallback key
                         logger.debug(f"Using extracted ID {extracted_id} as cache key due to DB error: {db_error}")
-                        relative_path = f"/data/images/profiles/{image_file.name}"
+                        relative_path = f"/recordings/.media/profiles/{image_file.name}"
                         self._profile_cache[str(extracted_id)] = relative_path
             
             logger.info(f"Loaded profile image cache: {len(self._profile_cache)} profiles")
@@ -183,7 +183,7 @@ class ProfileImageService:
             
             success = await self.download_service.download_image(profile_image_url, file_path)
             if success:
-                relative_path = f"/data/images/profiles/{filename}"
+                relative_path = f"/recordings/.media/profiles/{filename}"
                 self._profile_cache[streamer_id_str] = relative_path
                 logger.info(f"Successfully cached profile image for streamer {streamer_id}")
                 return relative_path

@@ -89,6 +89,9 @@ class TaskProgressTracker:
         # Progress update callbacks
         self.progress_callbacks: Dict[str, Callable] = {}
         
+        # Recursion protection for progress updates
+        self._updating_progress: set = set()
+        
         # Async task management for proper cleanup
         self.background_tasks: set = set()
 
@@ -137,18 +140,31 @@ class TaskProgressTracker:
 
     def update_task_progress(self, task_id: str, progress: float):
         """Update task progress"""
-        if task_id in self.active_tasks:
-            task = self.active_tasks[task_id]
-            old_progress = task.progress
-            task.progress = max(0.0, min(100.0, progress))
+        # Add recursion protection
+        if hasattr(self, '_updating_progress') and task_id in self._updating_progress:
+            logger.warning(f"Recursion detected in update_task_progress for task {task_id}, skipping")
+            return
             
-            logger.debug(f"Task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
-            
-            # Send WebSocket update (throttled to avoid spam)
-            if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
-                self._create_background_task(self._send_task_update(task))
-                # Also send dedicated progress update for responsive UI
-                self._create_background_task(self._send_progress_update(task_id, task.progress))
+        if not hasattr(self, '_updating_progress'):
+            self._updating_progress = set()
+        
+        self._updating_progress.add(task_id)
+        
+        try:
+            if task_id in self.active_tasks:
+                task = self.active_tasks[task_id]
+                old_progress = task.progress
+                task.progress = max(0.0, min(100.0, progress))
+                
+                logger.debug(f"Task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
+                
+                # Send WebSocket update (throttled to avoid spam)
+                if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
+                    self._create_background_task(self._send_task_update(task))
+                    # Also send dedicated progress update for responsive UI
+                    self._create_background_task(self._send_progress_update(task_id, task.progress))
+        finally:
+            self._updating_progress.discard(task_id)
 
     def register_progress_callback(self, task_id: str, callback: Callable[[float], None]):
         """Register a progress callback for a task"""
@@ -376,4 +392,5 @@ class TaskProgressTracker:
         self.completed_tasks.clear()
         self.external_tasks.clear()
         self.progress_callbacks.clear()
+        self._updating_progress.clear()
         logger.debug("All tasks cleared from tracker")
