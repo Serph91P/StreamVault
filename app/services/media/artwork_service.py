@@ -215,8 +215,16 @@ class ArtworkService:
                 logger.debug(f"Image already exists: {target_path}")
                 return True
             
-            # Check if URL is actually a local file path
-            if Path(url).is_absolute():
+            # Check if URL is actually a local file path (cross-platform detection)
+            # Handle Unix paths, Windows paths, and UNC paths
+            is_local_path = (
+                url.startswith('/') or  # Unix absolute path
+                (len(url) >= 3 and url[1] == ':' and url[2] == '\\') or  # Windows C:\ style
+                url.startswith('\\\\') or  # UNC path \\server\share
+                Path(url).is_absolute()  # Fallback for other formats
+            )
+            
+            if is_local_path:
                 # This is a local file path, not a URL
                 logger.debug(f"Detected local file path instead of URL: {url}")
                 source_path = Path(url)
