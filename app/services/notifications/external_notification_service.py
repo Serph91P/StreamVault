@@ -128,7 +128,7 @@ class ExternalNotificationService:
                     base_url = settings.notification_url or settings.BASE_URL
                     if base_url:
                         # Remove /recordings from the path and make it publicly accessible
-                        public_path = streamer.profile_image_url.replace('/data/', '/')
+                        public_path = streamer.profile_image_url.replace('/recordings', '')
                         profile_image_url = f"{base_url.rstrip('/')}{public_path}"
                         logger.debug(f"Converted local cache to public URL: {profile_image_url}")
                 
