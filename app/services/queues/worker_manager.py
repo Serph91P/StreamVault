@@ -100,17 +100,16 @@ class WorkerManager:
                     # Execute the task
                     success = await self._execute_task(task, worker_name)
                     
-                    # Mark task as completed
+                    # Mark task as completed successfully
                     if self.progress_tracker:
-                        status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
-                        self.progress_tracker.update_task_status(task.id, status)
+                        self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
                         self.progress_tracker.update_task_progress(task.id, 100.0)
                     
                     # Notify completion callback (for dependency management)
                     if self.completion_callback:
-                        await self.completion_callback(task.id, success=success)
+                        await self.completion_callback(task.id, success=True)
                     
-                    logger.info(f"Worker {worker_name} completed task {task.id} - success: {success}")
+                    logger.info(f"Worker {worker_name} completed task {task.id} - success: True")
                     
                 except Exception as e:
                     error_msg = f"Task execution failed: {str(e)}"
@@ -176,9 +175,10 @@ class WorkerManager:
             # If we reach here, the task executed successfully
             return True
                     
-        except Exception:
-            # Task execution failed
-            return False
+        except Exception as e:
+            # Task execution failed - log and re-raise for proper error handling
+            logger.error(f"Exception occurred while executing task {task.id}: {e}")
+            raise
             
         finally:
             # Clean up progress callback
