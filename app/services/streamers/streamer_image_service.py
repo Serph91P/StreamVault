@@ -100,7 +100,7 @@ class StreamerImageService:
 
     def is_cached_image(self, image_url: str) -> bool:
         """Check if an image URL is a cached local path"""
-        return image_url and image_url.startswith('/data/images/profiles/')
+        return image_url and image_url.startswith('/recordings/.media/profiles/')
 
     def get_original_url_from_cached(self, cached_path: str) -> Optional[str]:
         """Extract original URL info from cached path (limited functionality)"""
