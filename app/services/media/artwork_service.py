@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -204,7 +205,7 @@ class ArtworkService:
             logger.error(f"Error creating season.nfo: {e}", exc_info=True)
     
     async def _download_image(self, url: str, target_path: Path) -> bool:
-        """Download an image from a URL to a target path
+        """Download an image from a URL or copy from local path to a target path
         
         Returns:
             bool: True on success, False on error
@@ -214,7 +215,22 @@ class ArtworkService:
                 logger.debug(f"Image already exists: {target_path}")
                 return True
             
-            # Use unified_image_service for download
+            # Check if URL is actually a local file path
+            if Path(url).is_absolute():
+                # This is a local file path, not a URL
+                logger.debug(f"Detected local file path instead of URL: {url}")
+                source_path = Path(url)
+                if source_path.exists():
+                    # Copy the local file
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source_path, target_path)
+                    logger.debug(f"Copied local image: {source_path} -> {target_path}")
+                    return True
+                else:
+                    logger.warning(f"Local image file does not exist: {source_path}")
+                    return False
+            
+            # URL is a proper HTTP/HTTPS URL - download it
             session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
