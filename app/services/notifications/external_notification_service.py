@@ -123,11 +123,11 @@ class ExternalNotificationService:
                     logger.debug(f"Using profile URL from streamer: {profile_image_url}")
                 
                 # Priority 3: If we have a local cached path, convert to BASE_URL
-                elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/profiles/'):
+                elif streamer.profile_image_url and streamer.profile_image_url.startswith('/recordings/.media/profiles/'):
                     # Convert local path to public URL using BASE_URL from settings
                     base_url = settings.notification_url or settings.BASE_URL
                     if base_url:
-                        # Remove /data from the path and make it publicly accessible
+                        # Remove /recordings from the path and make it publicly accessible
                         public_path = streamer.profile_image_url.replace('/data/', '/')
                         profile_image_url = f"{base_url.rstrip('/')}{public_path}"
                         logger.debug(f"Converted local cache to public URL: {profile_image_url}")
