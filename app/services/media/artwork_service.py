@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -215,14 +216,13 @@ class ArtworkService:
                 return True
             
             # Check if URL is actually a local file path
-            if url.startswith('/') or url.startswith('\\') or (len(url) > 2 and url[1] == ':'):
+            if Path(url).is_absolute():
                 # This is a local file path, not a URL
                 logger.debug(f"Detected local file path instead of URL: {url}")
                 source_path = Path(url)
                 if source_path.exists():
                     # Copy the local file
                     target_path.parent.mkdir(parents=True, exist_ok=True)
-                    import shutil
                     shutil.copy2(source_path, target_path)
                     logger.debug(f"Copied local image: {source_path} -> {target_path}")
                     return True
