@@ -18,6 +18,9 @@ from app.services.processing.task_dependency_manager import TaskDependencyManage
 
 logger = logging.getLogger("streamvault")
 
+# Configuration constants
+DEFAULT_MAX_RETRIES = 3
+
 
 class TaskQueueManager:
     """Core queue management and task orchestration with production concurrency fixes"""
@@ -594,25 +597,29 @@ class TaskQueueManager:
             cleanup_ts_file=cleanup_ts_file
         )
         
-        # Add tasks to dependency manager AND progress tracker
+        # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:
             await self.dependency_manager.add_task(task)
-            
-            # CRITICAL FIX: Also create queue task and add to progress tracker
-            queue_task = QueueTask(
-                id=task.id,
-                task_type=task.type,
-                priority=TaskPriority.NORMAL,
-                payload=task.payload,
-                status=TaskStatus.PENDING,
-                created_at=datetime.now(timezone.utc),
-                max_retries=3
-            )
-            
-            # Add to progress tracker so tasks show up in statistics
+
+            # Create corresponding queue task for progress tracking and statistics
+            # This is necessary because dependency manager uses different task objects
+            # than the progress tracker requires for monitoring
+            queue_task = self._create_queue_task_from_dependency_task(task)
             self.progress_tracker.add_task(queue_task)
         
         logger.info(f"Enqueued {len(tasks)} post-processing tasks for recording {recording_id}")
         
         # Return task IDs for tracking
         return [task.id for task in tasks]
+
+    def _create_queue_task_from_dependency_task(self, task: Task) -> QueueTask:
+        """Create a QueueTask from a dependency Task for progress tracking"""
+        return QueueTask(
+            id=task.id,
+            task_type=task.type,
+            priority=TaskPriority.NORMAL,
+            payload=task.payload,
+            status=TaskStatus.PENDING,
+            created_at=datetime.now(timezone.utc),
+            max_retries=DEFAULT_MAX_RETRIES
+        )
