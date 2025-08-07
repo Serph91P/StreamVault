@@ -98,18 +98,19 @@ class WorkerManager:
                 
                 try:
                     # Execute the task
-                    await self._execute_task(task, worker_name)
+                    success = await self._execute_task(task, worker_name)
                     
                     # Mark task as completed
                     if self.progress_tracker:
-                        self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
+                        status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
+                        self.progress_tracker.update_task_status(task.id, status)
                         self.progress_tracker.update_task_progress(task.id, 100.0)
                     
                     # Notify completion callback (for dependency management)
                     if self.completion_callback:
-                        await self.completion_callback(task.id, success=True)
+                        await self.completion_callback(task.id, success=success)
                     
-                    logger.info(f"Worker {worker_name} completed task {task.id}")
+                    logger.info(f"Worker {worker_name} completed task {task.id} - success: {success}")
                     
                 except Exception as e:
                     error_msg = f"Task execution failed: {str(e)}"
@@ -136,8 +137,8 @@ class WorkerManager:
                 
         logger.info(f"Worker {worker_name} stopped")
 
-    async def _execute_task(self, task: QueueTask, worker_name: str):
-        """Execute a single task"""
+    async def _execute_task(self, task: QueueTask, worker_name: str) -> bool:
+        """Execute a single task and return success status"""
         task_type = task.task_type
         
         if task_type not in self.task_handlers:
@@ -171,7 +172,14 @@ class WorkerManager:
                     await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload
                     )
+            
+            # If we reach here, the task executed successfully
+            return True
                     
+        except Exception:
+            # Task execution failed
+            return False
+            
         finally:
             # Clean up progress callback
             if self.progress_tracker and progress_callback:
