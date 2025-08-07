@@ -98,9 +98,9 @@ class WorkerManager:
                 
                 try:
                     # Execute the task
-                    await self._execute_task(task, worker_name)
+                    success = await self._execute_task(task, worker_name)
                     
-                    # Mark task as completed
+                    # Mark task as completed successfully
                     if self.progress_tracker:
                         self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
                         self.progress_tracker.update_task_progress(task.id, 100.0)
@@ -109,7 +109,7 @@ class WorkerManager:
                     if self.completion_callback:
                         await self.completion_callback(task.id, success=True)
                     
-                    logger.info(f"Worker {worker_name} completed task {task.id}")
+                    logger.info(f"Worker {worker_name} completed task {task.id} - success: True")
                     
                 except Exception as e:
                     error_msg = f"Task execution failed: {str(e)}"
@@ -136,8 +136,8 @@ class WorkerManager:
                 
         logger.info(f"Worker {worker_name} stopped")
 
-    async def _execute_task(self, task: QueueTask, worker_name: str):
-        """Execute a single task"""
+    async def _execute_task(self, task: QueueTask, worker_name: str) -> bool:
+        """Execute a single task and return success status"""
         task_type = task.task_type
         
         if task_type not in self.task_handlers:
@@ -171,7 +171,15 @@ class WorkerManager:
                     await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload
                     )
+            
+            # If we reach here, the task executed successfully
+            return True
                     
+        except Exception as e:
+            # Task execution failed - log and re-raise for proper error handling
+            logger.error(f"Exception occurred while executing task {task.id}: {e}")
+            raise
+            
         finally:
             # Clean up progress callback
             if self.progress_tracker and progress_callback:
