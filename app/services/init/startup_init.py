@@ -11,6 +11,12 @@ logger = logging.getLogger("streamvault")
 async def initialize_background_queue_with_fixes():
     """Initialize background queue with production concurrency and auth fixes"""
     try:
+        # Check if already initialized to prevent double initialization
+        from app.services.init.background_queue_init import background_queue_manager
+        if background_queue_manager.is_initialized:
+            logger.info("✅ Background queue already initialized, skipping duplicate initialization")
+            return
+            
         logger.info("Initializing background queue with production fixes...")
         
         # Check if we're in production environment (multiple streamers)
