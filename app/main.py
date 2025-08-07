@@ -139,75 +139,24 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
         
-        # Initialize background queue service
+        # Initialize background queue service (will be done later in initialize_background_services)
         try:
-            from app.services.init.background_queue_init import BackgroundQueueManager
-            background_queue_init = BackgroundQueueManager()
-            await background_queue_init.initialize()
-            logger.info("Background queue service initialized successfully")
+            logger.info("Background queue initialization deferred to initialize_background_services()")
             
-            # Start automatic background queue cleanup
-            async def scheduled_background_queue_cleanup():
-                while True:
-                    try:
-                        await asyncio.sleep(300)  # Wait 5 minutes between cleanup runs
-                        
-                        from app.services.background_queue_cleanup_service import get_cleanup_service
-                        cleanup_service = get_cleanup_service()
-                        
-                        # Run comprehensive cleanup
-                        result = await cleanup_service.comprehensive_cleanup()
-                        
-                        # Only log if issues were found and fixed
-                        total_fixed = sum([
-                            result.get('stuck_recordings', {}).get('cleaned', 0),
-                            result.get('orphaned_recovery', {}).get('stopped', 0),
-                            result.get('task_names', {}).get('fixed', 0)
-                        ])
-                        
-                        if total_fixed > 0:
-                            logger.info(f"🧹 AUTO_CLEANUP: Fixed {total_fixed} background queue issues automatically")
-                            
-                    except asyncio.CancelledError:
-                        break
-                    except Exception as e:
-                        logger.debug(f"Error in background queue auto-cleanup: {e}")
-            
-            asyncio.create_task(scheduled_background_queue_cleanup())
-            logger.info("✅ Background queue auto-cleanup service started")
+            # Background queue cleanup will be handled by initialize_background_services()
+            logger.info("✅ Background queue auto-cleanup will be initialized later")
             
         except Exception as e:
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
         
-        # Start automated recovery service for failed recordings
+        # Automated recovery service will be handled by initialize_background_services()
         try:
-            logger.info("🔧 Starting automated recovery service...")
-            
-            async def startup_recovery_check():
-                """One-time recovery check at startup for failed recordings"""
-                # Wait 2 minutes after startup for system stability
-                await asyncio.sleep(120)
-                
-                try:
-                    logger.info("🔄 Running startup recovery scan...")
-                    
-                    # Use reliable Simple Recovery
-                    from app.services.simple_recovery_service import run_simple_reliable_recovery
-                    result = await run_simple_reliable_recovery()
+            logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
                     
                     recoveries = result.get('total_recoveries', 0)
                     if recoveries > 0:
                         logger.info(f"✅ STARTUP_RECOVERY: {recoveries} recovery tasks created automatically")
-                    else:
-                        logger.info("ℹ️ STARTUP_RECOVERY: No failed recordings found")
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error in startup recovery: {e}")
-            
-            # Start one-time startup recovery check
-            asyncio.create_task(startup_recovery_check())
-            logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
             
         except Exception as e:
             logger.error(f"❌ Failed to start startup recovery check: {e}")
