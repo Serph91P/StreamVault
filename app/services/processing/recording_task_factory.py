@@ -141,12 +141,22 @@ class RecordingTaskFactory:
         
         # 6. Cleanup Task (depends on MP4 validation, only if cleanup_ts_file is True)
         if cleanup_ts_file:
+            # Prepare files to remove: .ts file and potential segments directory
+            files_to_remove = [ts_file_path]
+            
+            # Check if there's a corresponding segments directory that should be cleaned up
+            ts_path = Path(ts_file_path)
+            segments_dir = ts_path.parent / f"{ts_path.stem}_segments"
+            if segments_dir.exists() and segments_dir.is_dir():
+                files_to_remove.append(str(segments_dir))
+                logger.debug(f"Added segments directory to cleanup: {segments_dir}")
+            
             cleanup_task = Task(
                 id=cleanup_task_id,
                 type='cleanup',
                 payload={
                     **common_payload,
-                    'files_to_remove': [ts_file_path],
+                    'files_to_remove': files_to_remove,
                     'mp4_path': mp4_path,
                     'intelligent_cleanup': True,
                     'max_wait_time': 300  # 5 minutes max wait for processes
