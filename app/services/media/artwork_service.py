@@ -228,6 +228,14 @@ class ArtworkService:
                 # This is a local file path, not a URL
                 logger.debug(f"Detected local file path instead of URL: {url}")
                 source_path = Path(url)
+                
+                # Handle legacy path migration: /data/images/profiles/ -> /recordings/.media/profiles/
+                if url.startswith('/data/images/profiles/'):
+                    # Map old path to new structure
+                    filename = url.split('/')[-1]  # Extract just the filename
+                    source_path = self.recordings_dir / ".media" / "profiles" / filename
+                    logger.debug(f"Mapped legacy path {url} to {source_path}")
+                
                 if source_path.exists():
                     # Copy the local file
                     target_path.parent.mkdir(parents=True, exist_ok=True)
