@@ -219,7 +219,7 @@ class ArtworkService:
             # Handle Unix paths, Windows paths, and UNC paths
             is_local_path = (
                 url.startswith('/') or  # Unix absolute path
-                (len(url) >= 3 and url[1:3] == ':\\') or  # Windows C:\ style
+                (len(url) >= 3 and url[1] == ':' and url[2] == '\\') or  # Windows C:\ style
                 url.startswith('\\\\') or  # UNC path \\server\share
                 Path(url).is_absolute()  # Fallback for other formats
             )
