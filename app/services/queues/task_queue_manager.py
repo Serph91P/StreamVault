@@ -18,6 +18,9 @@ from app.services.processing.task_dependency_manager import TaskDependencyManage
 
 logger = logging.getLogger("streamvault")
 
+# Configuration constants
+DEFAULT_MAX_RETRIES = 3
+
 
 class TaskQueueManager:
     """Core queue management and task orchestration with production concurrency fixes"""
@@ -67,6 +70,8 @@ class TaskQueueManager:
         if self.enable_streamer_isolation:
             # Start isolated workers per streamer (production fix)
             logger.info("Starting TaskQueueManager with streamer isolation")
+            # Note: Individual streamer workers are created on-demand when tasks are enqueued
+            # The dependency worker will handle task routing to appropriate streamer queues
         else:
             # Start shared worker manager (original)
             await self.worker_manager.start(self.task_queue)
@@ -592,11 +597,29 @@ class TaskQueueManager:
             cleanup_ts_file=cleanup_ts_file
         )
         
-        # Add tasks to dependency manager
+        # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:
             await self.dependency_manager.add_task(task)
+
+            # Create corresponding queue task for progress tracking and statistics
+            # This is necessary because dependency manager uses different task objects
+            # than the progress tracker requires for monitoring
+            queue_task = self._create_queue_task_from_dependency_task(task)
+            self.progress_tracker.add_task(queue_task)
         
         logger.info(f"Enqueued {len(tasks)} post-processing tasks for recording {recording_id}")
         
         # Return task IDs for tracking
         return [task.id for task in tasks]
+
+    def _create_queue_task_from_dependency_task(self, task: Task) -> QueueTask:
+        """Create a QueueTask from a dependency Task for progress tracking"""
+        return QueueTask(
+            id=task.id,
+            task_type=task.type,
+            priority=TaskPriority.NORMAL,
+            payload=task.payload,
+            status=TaskStatus.PENDING,
+            created_at=datetime.now(timezone.utc),
+            max_retries=DEFAULT_MAX_RETRIES
+        )

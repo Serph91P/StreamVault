@@ -28,11 +28,6 @@ class BackgroundQueueManager:
             logger.debug("Background queue already initialized, skipping...")
             return
         
-        if self.queue_service.is_running:
-            logger.info("Background queue service is already running")
-            self.is_initialized = True
-            return
-        
         logger.info(f"Initializing background queue service with production fixes (isolation: {enable_streamer_isolation})...")
         
         # Configure queue service with production fixes
@@ -41,6 +36,9 @@ class BackgroundQueueManager:
             self.queue_service.queue_manager.enable_streamer_isolation = enable_streamer_isolation
             if enable_streamer_isolation:
                 logger.info("✅ Enabled streamer isolation for production concurrency fix")
+        
+        # Always register task handlers, regardless of service state
+        logger.info("Registering task handlers...")
         
         # Register task handlers
         self.queue_service.register_task_handler(
@@ -87,8 +85,14 @@ class BackgroundQueueManager:
             handle_segment_concatenation
         )
         
-        # Start the queue service
-        await self.queue_service.start()
+        logger.info("✅ All 8 task handlers registered successfully")
+        
+        # Start the queue service if not already running
+        if not self.queue_service.is_running:
+            await self.queue_service.start()
+            logger.info("✅ Started background queue service")
+        else:
+            logger.info("✅ Background queue service already running with handlers registered")
         
         # Start automatic recovery service for production reliability
         try:
