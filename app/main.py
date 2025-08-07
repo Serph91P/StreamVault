@@ -153,10 +153,6 @@ async def lifespan(app: FastAPI):
         # Automated recovery service will be handled by initialize_background_services()
         try:
             logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
-                    
-                    recoveries = result.get('total_recoveries', 0)
-                    if recoveries > 0:
-                        logger.info(f"✅ STARTUP_RECOVERY: {recoveries} recovery tasks created automatically")
             
         except Exception as e:
             logger.error(f"❌ Failed to start startup recovery check: {e}")
