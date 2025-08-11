@@ -410,7 +410,11 @@ class TaskQueueManager:
             # Diagnostic: find tasks that depend on this one and log their statuses
             dependents = [t.id for t in self.dependency_manager.tasks.values() if task_id in t.dependencies]
             if dependents:
-                statuses = {d: self.dependency_manager.get_task_status(d).value for d in dependents if self.dependency_manager.get_task_status(d)}
+                statuses = {}
+                for d in dependents:
+                    status = self.dependency_manager.get_task_status(d)
+                    if status:
+                        statuses[d] = status.value
                 logger.info(
                     "🔗 TASK_COMPLETION_PROPAGATION: %s success=%s dependents=%s statuses=%s",
                     task_id,
