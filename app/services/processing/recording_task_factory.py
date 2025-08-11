@@ -147,7 +147,8 @@ class RecordingTaskFactory:
             # Check if there's a corresponding segments directory that should be cleaned up
             ts_path = Path(ts_file_path)
             segments_dir = ts_path.parent / f"{ts_path.stem}_segments"
-            if segments_dir.exists() and segments_dir.is_dir():
+            # is_dir() already returns False if the path does not exist
+            if segments_dir.is_dir():
                 files_to_remove.append(str(segments_dir))
                 logger.debug(f"Added segments directory to cleanup: {segments_dir}")
             
