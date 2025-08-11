@@ -161,15 +161,42 @@ class AutomaticQueueRecoveryService:
         else:
             status_value = str(task_status).lower()
         
-        # Recovery conditions:
-        # 1. Task at 100% but still running for more than threshold
-        # 2. Task running for more than threshold without progress updates
-        if (hasattr(task, 'progress') and task.progress >= 100 and 
-            status_value == 'running' and task_age_minutes > self.stuck_task_threshold_minutes):
+        # Heartbeat / last progress update support (added for safer recovery decisions)
+        last_progress_update = getattr(task, 'last_progress_update', None)
+        last_progress_minutes = None
+        if last_progress_update:
+            try:
+                if last_progress_update.tzinfo is None:
+                    last_progress_update = last_progress_update.replace(tzinfo=timezone.utc)
+                last_progress_minutes = (now - last_progress_update).total_seconds() / 60
+            except Exception:
+                last_progress_minutes = None
+
+        # Heuristic: consider a task "inactive" only if no heartbeat for > stuck_task_threshold_minutes
+        no_recent_heartbeat = (
+            last_progress_minutes is None or
+            last_progress_minutes > self.stuck_task_threshold_minutes
+        )
+
+        # Extra safeguard: if progress is <100 and we still receive heartbeats (last update fresh), don't recover
+        if last_progress_minutes is not None and last_progress_minutes <= self.stuck_task_threshold_minutes and task.progress < 100:
+            return False
+
+        # Recovery conditions (revised):
+        # 1. Task at 100% but still RUNNING and age > threshold (likely missed completion event)
+        if (
+            hasattr(task, 'progress') and task.progress >= 100 and
+            status_value == 'running' and
+            task_age_minutes > self.stuck_task_threshold_minutes
+        ):
             return True
-            
-        if (status_value in ['running', 'pending'] and 
-            task_age_minutes > self.stuck_task_threshold_minutes * 2):  # Double threshold for general stuck tasks
+
+        # 2. Task RUNNING/PENDING for > 2 * threshold with no recent heartbeat
+        if (
+            status_value in ['running', 'pending'] and
+            task_age_minutes > self.stuck_task_threshold_minutes * 2 and
+            no_recent_heartbeat
+        ):
             return True
         
         return False

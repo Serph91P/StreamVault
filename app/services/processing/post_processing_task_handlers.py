@@ -471,6 +471,7 @@ class PostProcessingTaskHandlers:
             for file_path in files_to_remove:
                 if os.path.exists(file_path):
                     try:
+                        logger.debug(f"🧹 CLEANUP_ATTEMPT: path={file_path} type={'dir' if os.path.isdir(file_path) else 'file'} intelligent={intelligent_cleanup and not is_deletion_cleanup}")
                         # Check if it's a directory
                         if os.path.isdir(file_path):
                             # Remove directory and all its contents
@@ -493,6 +494,8 @@ class PostProcessingTaskHandlers:
                                 removed_files.append(file_path)
                     except Exception as e:
                         logger.warning(f"Failed to remove {file_path}: {e}")
+                else:
+                    logger.debug(f"🧹 CLEANUP_SKIP_MISSING: path={file_path}")
             
             log_with_context(
                 logger, 'info',

@@ -344,7 +344,12 @@ class TaskQueueManager:
             try:
                 # Get ready tasks from dependency manager
                 ready_tasks = await self.dependency_manager.get_ready_tasks()
-                
+                if ready_tasks:
+                    logger.debug(
+                        "🧩 DEP_WORKER_READY: count=%d tasks=%s",
+                        len(ready_tasks),
+                        ",".join([t.id for t in ready_tasks])
+                    )
                 for dep_task in ready_tasks:
                     # Find corresponding queue task
                     queue_task = self.progress_tracker.get_task(dep_task.id)
@@ -402,7 +407,23 @@ class TaskQueueManager:
                 await self.dependency_manager.mark_task_completed(task_id)
             else:
                 await self.dependency_manager.mark_task_failed(task_id, "Task execution failed")
-            logger.debug(f"Task {task_id} marked as {'completed' if success else 'failed'} in dependency manager")
+            # Diagnostic: find tasks that depend on this one and log their statuses
+            dependents = [t.id for t in self.dependency_manager.tasks.values() if task_id in t.dependencies]
+            if dependents:
+                statuses = {}
+                for d in dependents:
+                    status = self.dependency_manager.get_task_status(d)
+                    if status:
+                        statuses[d] = status.value
+                logger.info(
+                    "🔗 TASK_COMPLETION_PROPAGATION: %s success=%s dependents=%s statuses=%s",
+                    task_id,
+                    success,
+                    ",".join(dependents),
+                    statuses
+                )
+            else:
+                logger.info("🔗 TASK_COMPLETION_NO_DEPENDENTS: %s success=%s", task_id, success)
         except Exception as e:
             logger.warning(f"Failed to update task {task_id} in dependency manager: {e}")
 

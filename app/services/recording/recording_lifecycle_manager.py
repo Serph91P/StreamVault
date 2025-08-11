@@ -914,6 +914,7 @@ class RecordingLifecycleManager:
                             f"recording_{recording_id}",
                             progress_percent
                         )
+                        logger.debug(f"HEARTBEAT recording_{recording_id} progress={progress_percent}")
                 except Exception as e:
                     logger.debug(f"Failed to update external task progress: {e}")
                 

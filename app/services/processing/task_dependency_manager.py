@@ -76,7 +76,15 @@ class TaskDependencyManager:
         # Check if all dependencies are completed
         if all(dep_id in self.completed_tasks for dep_id in task.dependencies):
             task.status = TaskStatus.READY
-            logger.info(f"Task {task_id} is now ready to execute")
+            # Diagnostic: log detailed dependency satisfaction
+            if task.dependencies:
+                logger.info(
+                    "🧩 TASK_READY: %s (deps satisfied: %s)",
+                    task_id,
+                    ",".join(sorted(task.dependencies))
+                )
+            else:
+                logger.info("🧩 TASK_READY_NO_DEPS: %s", task_id)
         else:
             # Check if any dependency failed
             failed_deps = [dep_id for dep_id in task.dependencies if dep_id in self.failed_tasks]
