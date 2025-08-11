@@ -42,6 +42,9 @@ class QueueTask:
     retry_count: int = 0
     max_retries: int = 3
     progress: float = 0.0
+    # Timestamp of the last progress update (heartbeat). Used to distinguish
+    # genuinely stalled tasks from long‑running tasks that still emit heartbeats.
+    last_progress_update: Optional[datetime] = None
     
     def __lt__(self, other):
         """Enable comparison for PriorityQueue"""
@@ -248,7 +251,8 @@ class TaskProgressTracker:
             payload=payload,
             status=TaskStatus.RUNNING,
             created_at=datetime.now(timezone.utc),
-            started_at=datetime.now(timezone.utc)
+            started_at=datetime.now(timezone.utc),
+            last_progress_update=datetime.now(timezone.utc)
         )
         self.external_tasks[task_id] = task
         logger.debug(f"External task {task_id} ({task_type}) added to tracking")
@@ -259,6 +263,8 @@ class TaskProgressTracker:
             task = self.external_tasks[task_id]
             old_progress = task.progress
             task.progress = max(0.0, min(100.0, progress))
+            # Heartbeat timestamp (even if percentage stays constant)
+            task.last_progress_update = datetime.now(timezone.utc)
             
             logger.debug(f"External task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
             
