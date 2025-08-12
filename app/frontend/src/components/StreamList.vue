@@ -1535,6 +1535,7 @@ onMounted(async () => {
   z-index: 1000;
 }
 
+
 .modal {
   background: var(--background-card);
   border: 1px solid var(--border-color);
@@ -1542,8 +1543,10 @@ onMounted(async () => {
   max-width: 500px;
   width: 90%;
   max-height: 90vh;
-  overflow: auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* let body scroll, keep header/actions fixed */
 }
 
 .modal-header {
@@ -1576,6 +1579,7 @@ onMounted(async () => {
 .modal-body {
   padding: 20px;
   color: var(--text-primary);
+  overflow: auto; /* scroll within body if needed */
 }
 
 .stream-preview {
@@ -1593,10 +1597,13 @@ onMounted(async () => {
 
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center; /* center the confirm/cancel buttons */
   gap: 12px;
   padding: 20px;
   border-top: 1px solid var(--border-color);
+  position: sticky; /* keep actions visible */
+  bottom: 0;
+  background: var(--background-card);
 }
 
 /* Responsive Design */
