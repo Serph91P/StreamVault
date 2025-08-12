@@ -11,7 +11,7 @@
       
       <div class="queue-info">
         <span class="queue-label">Jobs</span>
-        <span class="queue-count">{{ queueStats.active_tasks }}</span>
+  <span class="queue-count">{{ combinedActiveTasks.length }}</span>
       </div>
       
       <!-- Progress Bar -->
@@ -49,10 +49,10 @@
         </div>
 
         <!-- Active Tasks -->
-        <div v-if="hasActiveTasks" class="active-tasks-section">
+    <div v-if="hasActiveTasks" class="active-tasks-section">
           <h4>Active Tasks</h4>
           <div class="task-list">
-            <div v-for="task in activeTasks" :key="task.id" class="task-item">
+      <div v-for="task in combinedActiveTasks" :key="task.id" class="task-item">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -115,6 +115,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
+import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
 // Use WebSocket-only background queue
 const {
@@ -127,25 +128,65 @@ const {
   cancelStreamTasks
 } = useBackgroundQueue()
 
+// Also track active recordings (they may not appear as queue tasks)
+const { activeRecordings } = useSystemAndRecordingStatus()
+
 // UI State
 const showPanel = ref(false)
 
 // Additional computed properties
-const hasActiveTasks = computed(() => activeTasks.value.length > 0)
+// Merge active queue tasks with live recordings into a unified list for display
+const combinedActiveTasks = computed(() => {
+  // Use a map to avoid duplicates and prefer queue-provided tasks when available
+  const map = new Map<string, any>()
+  // Seed with tasks coming from the queue/websocket (already includes external recording tasks)
+  for (const t of activeTasks.value) {
+    map.set(String(t.id), t)
+  }
+  // Merge in active recordings only if they are missing from the queue feed
+  for (const rec of activeRecordings.value) {
+    const queueId = `recording_${rec.id}`
+    // Check if a recording task already exists by id or by recording_id in payload
+    const existsById = map.has(queueId) || map.has(`recording-${rec.id}`)
+    const existsByPayload = Array.from(map.values()).some(
+      (t: any) => t.task_type === 'recording' && (t.payload?.recording_id === rec.id || t.recording_id === rec.id)
+    )
+    if (!existsById && !existsByPayload) {
+      map.set(queueId, {
+        id: queueId,
+        task_type: 'recording',
+        status: 'running',
+        progress: 0,
+        created_at: rec.started_at,
+        started_at: rec.started_at,
+        payload: {
+          streamer_name: rec.streamer_name,
+          stream_id: rec.stream_id,
+          recording_id: rec.id
+        }
+      } as any)
+    }
+  }
+  return Array.from(map.values())
+})
+
+const hasActiveTasks = computed(() => combinedActiveTasks.value.length > 0)
 const isConnected = computed(() => connectionStatus.value === 'connected')
 
 const totalProgress = computed(() => {
   if (!hasActiveTasks.value) return 0
   
-  const totalProgress = activeTasks.value.reduce((sum, task) => sum + (task.progress || 0), 0)
-  return Math.round(totalProgress / activeTasks.value.length)
+  const valid = combinedActiveTasks.value.filter(t => typeof t.progress === 'number')
+  if (valid.length === 0) return 0
+  const total = valid.reduce((sum, task) => sum + (task.progress || 0), 0)
+  return Math.round(total / valid.length)
 })
 
 const statusIconClass = computed(() => {
   if (isLoading.value) return 'status-loading'
   if (!isConnected.value) return 'status-error'
   if (queueStats.value.failed_tasks > 0) return 'status-error'
-  if (queueStats.value.active_tasks > 0) return 'status-active'
+  if (hasActiveTasks.value) return 'status-active'
   return 'status-idle'
 })
 
@@ -167,6 +208,8 @@ const formatTaskType = (taskType: string, task?: any) => {
     'mp4_validation': 'MP4 Validation',
     'thumbnail_generation': 'Thumbnail',
     'cleanup': 'Cleanup',
+  'file_cleanup': 'Cleanup',
+  'segment_concatenation': 'Segment Concatenation',
     'recording': 'Recording Stream',
     'migration': 'Database Migration',
     'image_download': 'Image Download',

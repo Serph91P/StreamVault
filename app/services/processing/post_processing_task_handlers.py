@@ -5,6 +5,7 @@ Implements the actual task execution logic for different post-processing operati
 import asyncio
 import logging
 import os
+import copy
 from pathlib import Path
 from typing import Dict, Any
 
@@ -34,29 +35,55 @@ class PostProcessingTaskHandlers:
     
     async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
-        stream_id = payload['stream_id']
-        base_filename = payload['base_filename']
-        output_dir = payload['output_dir']
-        
+        # Deep copy payload to avoid accidental mutation across tasks
+        local_payload = copy.deepcopy(payload)
+
+        stream_id = local_payload['stream_id']
+        base_filename = local_payload['base_filename']
+        output_dir = local_payload['output_dir']
+
         log_with_context(
             logger, 'info',
             f"Starting metadata generation for stream {stream_id}",
-            task_id=payload.get('task_id'),
+            task_id=local_payload.get('task_id'),
             stream_id=stream_id,
             operation='metadata_generation_start'
         )
-        
+
         try:
             # Update progress
             if progress_callback:
                 progress_callback(10.0)
-            
+
             # Verify input parameters
             if not stream_id or not base_filename or not output_dir:
                 raise ValueError(f"Missing required parameters: stream_id={stream_id}, base_filename={base_filename}, output_dir={output_dir}")
-            
+
+            # Normalize base filename (strip common extensions if provided)
+            if base_filename.lower().endswith(('.mp4', '.ts', '.mkv')):
+                base_filename = Path(base_filename).stem
+
+            # If possible, correct output_dir and base_filename from the authoritative recording_path
+            try:
+                with SessionLocal() as db:
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream and getattr(stream, 'recording_path', None):
+                        rec_path = Path(stream.recording_path)
+                        if rec_path.exists():
+                            rec_dir = str(rec_path.parent)
+                            rec_stem = rec_path.stem
+                            if rec_dir != output_dir or rec_stem != base_filename:
+                                logger.warning(
+                                    "[METADATA_DIR_CORRECTION] Provided output/base did not match recording_path; correcting. "
+                                    f"stream_id={stream_id}, provided_dir={output_dir}, provided_name={base_filename}, "
+                                    f"recording_dir={rec_dir}, recording_name={rec_stem}"
+                                )
+                                output_dir = rec_dir
+                                base_filename = rec_stem
+            except Exception as corr_err:
+                logger.debug(f"Could not correct metadata generation paths from recording_path: {corr_err}")
+
             # Check if output directory exists
-            from pathlib import Path
             output_path = Path(output_dir)
             if not output_path.exists():
                 log_with_context(
@@ -66,10 +93,10 @@ class PostProcessingTaskHandlers:
                     operation='metadata_generation_dir_create'
                 )
                 output_path.mkdir(parents=True, exist_ok=True)
-            
+
             if progress_callback:
                 progress_callback(20.0)
-            
+
             # Generate metadata using metadata service
             try:
                 success = await self.metadata_service.generate_metadata_for_stream(
@@ -77,12 +104,12 @@ class PostProcessingTaskHandlers:
                     base_path=output_dir,
                     base_filename=base_filename
                 )
-                
+
                 if not success:
                     log_with_context(
                         logger, 'warning',
                         f"Metadata generation returned False for stream {stream_id} - continuing with post-processing",
-                        task_id=payload.get('task_id'),
+                        task_id=local_payload.get('task_id'),
                         stream_id=stream_id,
                         operation='metadata_generation_warning'
                     )
@@ -90,7 +117,7 @@ class PostProcessingTaskHandlers:
                     log_with_context(
                         logger, 'info',
                         f"Metadata generation completed successfully for stream {stream_id}",
-                        task_id=payload.get('task_id'),
+                        task_id=local_payload.get('task_id'),
                         stream_id=stream_id,
                         operation='metadata_generation_complete'
                     )
@@ -98,24 +125,24 @@ class PostProcessingTaskHandlers:
                 log_with_context(
                     logger, 'warning',
                     f"Metadata generation failed for stream {stream_id}: {metadata_error} - continuing with post-processing",
-                    task_id=payload.get('task_id'),
+                    task_id=local_payload.get('task_id'),
                     stream_id=stream_id,
                     error=str(metadata_error),
                     operation='metadata_generation_error_continue'
                 )
-            
+
             if progress_callback:
                 progress_callback(90.0)
-            
+
             if progress_callback:
                 progress_callback(100.0)
-                
+
         except Exception as e:
             # Log any unexpected errors in the metadata generation task
             log_with_context(
                 logger, 'error',
                 f"Unexpected error in metadata generation task for stream {stream_id}: {e}",
-                task_id=payload.get('task_id'),
+                task_id=local_payload.get('task_id'),
                 stream_id=stream_id,
                 error=str(e),
                 operation='metadata_generation_unexpected_error'

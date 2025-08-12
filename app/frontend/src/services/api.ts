@@ -173,9 +173,9 @@ export const streamersApi = {
   getStreams: (streamerId: number, params: Record<string, any> = {}) => 
     apiClient.get(`/api/streamers/${streamerId}/streams`, params),
 
-  // Delete all streams for a streamer
-  deleteAllStreams: (streamerId: number) => 
-    apiClient.delete(`/api/streamers/${streamerId}/streams`),
+  // Delete all streams for a streamer (skips currently recording by default)
+  deleteAllStreams: (streamerId: number, opts: { excludeActive?: boolean } = {}) => 
+    apiClient.delete(`/api/streamers/${streamerId}/streams${opts.excludeActive !== false ? '?exclude_active=true' : ''}`),
 
   // Delete specific stream for a streamer
   deleteStream: (streamerId: number, streamId: number) => 

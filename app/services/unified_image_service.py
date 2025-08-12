@@ -98,7 +98,7 @@ class UnifiedImageService:
         """Get cached profile image path"""
         return self.profile_service.get_cached_profile_image(streamer_id)
 
-    def get_profile_image_url(self, streamer_id: int, original_url: str = None) -> Optional[str]:
+    def get_profile_image_url(self, streamer_id: int, original_url: Optional[str] = None) -> Optional[str]:
         """Get profile image URL for a streamer (legacy compatibility method)"""
         # First try to get cached image
         cached_url = self.profile_service.get_cached_profile_image(streamer_id)
@@ -118,7 +118,7 @@ class UnifiedImageService:
 
     # Category Image Methods (delegate to CategoryImageService)
     
-    async def download_category_image(self, category_name: str, box_art_url: str = None) -> Optional[str]:
+    async def download_category_image(self, category_name: str, box_art_url: Optional[str] = None) -> Optional[str]:
         """Download and cache a category's box art image"""
         # If no box_art_url provided, try to get it from database
         if not box_art_url:
@@ -132,6 +132,9 @@ class UnifiedImageService:
                     logger.warning(f"No box_art_url found for category: {category_name}")
                     return None
         
+        # Type guard to satisfy type checker and ensure valid URL
+        if not box_art_url or not isinstance(box_art_url, str):
+            return None
         return await self.category_service.download_category_image(category_name, box_art_url)
 
     def get_cached_category_image(self, category_name: str) -> Optional[str]:
@@ -168,8 +171,10 @@ class UnifiedImageService:
         """Update a stream's artwork"""
         return await self.artwork_service.update_stream_artwork(stream_id, thumbnail_url)
 
-    async def sync_stream_artwork(self, stream_ids: List[int] = None) -> Dict[str, int]:
+    async def sync_stream_artwork(self, stream_ids: Optional[List[int]] = None) -> Dict[str, int]:
         """Sync stream artwork"""
+        if stream_ids is None:
+            return await self.artwork_service.sync_stream_artwork()
         return await self.artwork_service.sync_stream_artwork(stream_ids)
 
     async def bulk_download_artwork(self, artwork_data: List[Dict]) -> Dict[str, int]:
@@ -219,7 +224,7 @@ class UnifiedImageService:
 
     # Legacy bulk methods for compatibility
     
-    async def bulk_download_from_db(self) -> Dict[str, int]:
+    async def bulk_download_from_db(self) -> Dict[str, Dict[str, int]]:
         """Legacy method - bulk download all images from database"""
         profile_stats = await self.sync_all_profile_images()
         category_stats = await self.sync_all_category_images()
