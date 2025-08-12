@@ -861,6 +861,7 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
 @router.delete("/{streamer_id}/streams")
 async def delete_all_streams(
     streamer_id: int,
+    exclude_active: bool = True,
     db: Session = Depends(get_db)
 ):
     """Delete all streams and all associated metadata files for a streamer"""
@@ -872,6 +873,39 @@ async def delete_all_streams(
         
         # Get all streams for this streamer
         streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
+        
+        # Identify streams that are currently being recorded (active recording state)
+        skipped_active_stream_ids: list[int] = []
+        active_stream_ids: set[int] = set()
+        if exclude_active:
+            try:
+                from datetime import datetime, timedelta
+                # Join to ensure we only consider this streamer's states
+                active_states = (
+                    db.query(ActiveRecordingState)
+                    .join(Stream, ActiveRecordingState.stream_id == Stream.id)
+                    .filter(Stream.streamer_id == streamer_id)
+                    .all()
+                )
+                now_map = {}
+                for state in active_states:
+                    # Determine staleness (5 minutes default)
+                    lh = state.last_heartbeat
+                    if lh is None:
+                        # Treat entries without heartbeat as active to be safe
+                        active_stream_ids.add(state.stream_id)
+                        continue
+                    if lh.tzinfo not in now_map:
+                        # Cache now() per tzinfo to avoid repeated calls
+                        now_map[lh.tzinfo] = datetime.now(lh.tzinfo) if lh.tzinfo else datetime.utcnow()
+                    now = now_map[lh.tzinfo]
+                    age_seconds = (now - lh).total_seconds()
+                    if age_seconds <= 300 and state.status in ("active", "stopping"):
+                        active_stream_ids.add(state.stream_id)
+                skipped_active_stream_ids = [s.id for s in streams if s.id in active_stream_ids]
+            except Exception as _e:
+                # If any issue occurs determining active states, default to not skipping
+                logger.warning(f"Failed to determine active recording states for streamer {streamer_id}: {_e}")
         
         # Also handle orphaned recordings with null stream_id for this streamer
         orphaned_recordings = db.query(Recording).filter(
@@ -892,6 +926,9 @@ async def delete_all_streams(
         deleted_stream_ids = []
         
         for stream in streams:
+            # Skip streams that are currently recording if requested
+            if exclude_active and stream.id in active_stream_ids:
+                continue
             deleted_stream_ids.append(stream.id)
             
             # Get metadata for this stream
@@ -942,9 +979,13 @@ async def delete_all_streams(
         
         return {
             "success": True, 
-            "message": f"All {len(deleted_stream_ids)} streams for streamer {streamer_id} deleted successfully",
+            "message": (
+                f"Deleted {len(deleted_stream_ids)} streams for streamer {streamer_id}"
+                + (f", skipped {len(skipped_active_stream_ids)} active recording(s)" if exclude_active and skipped_active_stream_ids else "")
+            ),
             "deleted_streams": len(deleted_stream_ids),
             "deleted_stream_ids": deleted_stream_ids,
+            "skipped_active_stream_ids": skipped_active_stream_ids,
             "deleted_files": deleted_files,
             "deleted_files_count": deleted_count
         }
