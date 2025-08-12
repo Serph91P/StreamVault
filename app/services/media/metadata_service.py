@@ -57,7 +57,26 @@ class MetadataService:
                     logger.error(f"Streamer {stream.streamer_id} not found")
                     return False
                 
+                # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches
                 base_path_obj = Path(base_path)
+                try:
+                    if getattr(stream, "recording_path", None):
+                        rec_path = Path(stream.recording_path)
+                        if rec_path.exists():
+                            rec_dir = rec_path.parent
+                            rec_stem = rec_path.stem
+                            # If provided output dir or filename don't match the recorded file, correct them
+                            if rec_dir != base_path_obj or rec_stem != base_filename:
+                                logger.warning(
+                                    "Metadata path mismatch detected; correcting to recording path. "
+                                    f"stream_id={stream_id}, provided_dir={base_path_obj}, provided_name={base_filename}, "
+                                    f"recording_dir={rec_dir}, recording_name={rec_stem}"
+                                )
+                                base_path_obj = rec_dir
+                                base_filename = rec_stem
+                except Exception as e:
+                    # Never fail metadata generation due to path correction logic
+                    logger.debug(f"Could not validate/correct metadata base path from recording_path: {e}")
                 
                 # Get or create metadata
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
@@ -73,7 +92,7 @@ class MetadataService:
                     # NFO for media servers
                     self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename, metadata),
                     # All chapter formats
-                    self.ensure_all_chapter_formats(stream_id, base_path_obj / f"{base_filename}.mp4", db),
+                    self.ensure_all_chapter_formats(stream_id, str(base_path_obj / f"{base_filename}.mp4"), db),
                     # Media server specific files (poster.jpg, etc.)
                     self._create_media_server_specific_files(stream, base_path_obj)
                 ]
