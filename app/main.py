@@ -498,9 +498,14 @@ class _AdaptiveLimiter:
         return (120, 2.0)
 
     def _key(self, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> str:
-        if auth_header and auth_header.startswith("Bearer "):
+        if (
+            auth_header
+            and auth_header.startswith("Bearer ")
+            and len(auth_header) > 7
+        ):
             token = auth_header[7:].strip()
-            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+            # Use a longer digest segment to reduce collision risk
+            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
             return f"auth:{digest}"
         return f"ip:{client_ip}"
 
@@ -544,7 +549,9 @@ class _AdaptiveLimiter:
 
             # Still no tokens
             needed = 1.0 - bucket.tokens
-            retry_after = max(1, int(needed / bucket.refill_per_sec)) if bucket.refill_per_sec > 0 else 1
+            # Ensure refill_per_sec is never zero to avoid permanent lockout
+            effective_refill = bucket.refill_per_sec if bucket.refill_per_sec > 0 else 0.1
+            retry_after = max(1, int(needed / effective_refill))
             return False, retry_after, max(0, int(bucket.tokens)), capacity
 
 _limiter = _AdaptiveLimiter()
@@ -555,7 +562,7 @@ async def rate_limit_middleware(request: Request, call_next):
     if (request.url.path in ["/health", "/favicon.ico"] or 
         request.url.path.startswith("/assets/") or
         request.url.path.startswith("/api/images/") or  # Skip for image API calls
-    request.url.path.startswith("/recordings/.media/") or  # Skip for cached image files
+        request.url.path.startswith("/recordings/.media/") or  # Skip for cached image files
         request.url.path.startswith("/api/sync/") or    # Skip for sync API calls
         request.url.path.startswith("/data/")):
         return await call_next(request)
