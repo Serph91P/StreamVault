@@ -157,16 +157,39 @@ def get_background_queue_service():
 
 # For backward compatibility
 async def enqueue_recording_post_processing(
-    stream_id: int,
-    recording_id: int,
-    ts_file_path: str,
-    output_dir: str,
-    streamer_name: str,
-    started_at: str,
+    stream_id,
+    recording_id: int = None,
+    ts_file_path: str = None,
+    output_dir: str = None,
+    streamer_name: str = None,
+    started_at: str = None,
     cleanup_ts_file: bool = True
 ):
-    """Enqueue a complete post-processing chain for a recording"""
+    """Enqueue a complete post-processing chain for a recording.
+
+    Backward-compatible wrapper: accepts either a payload dict as first arg
+    or the original individual parameters.
+    """
     queue_service = get_background_queue_service()
+
+    # Backward compatibility: support being called with a single payload dict
+    if isinstance(stream_id, dict) and recording_id is None:
+        payload = stream_id
+        try:
+            return await queue_service.enqueue_recording_post_processing(
+                stream_id=payload.get('stream_id'),
+                recording_id=payload.get('recording_id'),
+                ts_file_path=payload.get('ts_file_path'),
+                output_dir=payload.get('output_dir'),
+                streamer_name=payload.get('streamer_name'),
+                started_at=payload.get('started_at'),
+                cleanup_ts_file=payload.get('cleanup_ts_file', True)
+            )
+        except Exception:
+            # Fall through to raise with clearer context below
+            pass
+
+    # Original interface
     return await queue_service.enqueue_recording_post_processing(
         stream_id=stream_id,
         recording_id=recording_id,
