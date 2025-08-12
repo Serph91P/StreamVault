@@ -875,7 +875,8 @@ async def delete_all_streams(
         streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
         
         # Identify streams that are currently being recorded (active recording state)
-        skipped_active_stream_ids: list[int] = []
+        # Use typing.List for compatibility across Python versions
+        skipped_active_stream_ids: List[int] = []
         active_stream_ids: set[int] = set()
         if exclude_active:
             try:
@@ -903,15 +904,15 @@ async def delete_all_streams(
                     if age_seconds <= 300 and state.status in ("active", "stopping"):
                         active_stream_ids.add(state.stream_id)
                 skipped_active_stream_ids = [s.id for s in streams if s.id in active_stream_ids]
-            except Exception as _e:
+            except Exception as e:
                 # If any issue occurs determining active states, default to not skipping
-                logger.warning(f"Failed to determine active recording states for streamer {streamer_id}: {_e}")
-        
+                logger.warning(f"Failed to determine active recording states for streamer {streamer_id}: {e}")
+
         # Also handle orphaned recordings with null stream_id for this streamer
         orphaned_recordings = db.query(Recording).filter(
             Recording.stream_id.is_(None)
         ).all()
-        
+
         if not streams and not orphaned_recordings:
             return {
                 "success": True,
