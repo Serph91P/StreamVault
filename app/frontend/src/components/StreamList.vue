@@ -438,7 +438,7 @@
         </div>
         <div class="modal-body">
           <p>Delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
-          <p class="warning">⚠️ This will permanently delete all stream records and files. This action cannot be undone!</p>
+          <p class="warning">⚠️ Active recordings will be skipped to avoid data loss. All other stream records and files will be permanently deleted.</p>
         </div>
         <div class="modal-actions">
           <button 
@@ -727,7 +727,7 @@ const deleteAllStreams = async () => {
   try {
     deletingAllStreams.value = true
     
-    const response = await streamersApi.deleteAllStreams(Number(streamerId.value))
+  const response = await streamersApi.deleteAllStreams(Number(streamerId.value), { excludeActive: true })
     
     console.log('All streams deleted successfully:', response)
     
