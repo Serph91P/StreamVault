@@ -156,13 +156,15 @@ def get_background_queue_service():
     return background_queue_manager.get_queue_service()
 
 # For backward compatibility
+from typing import Any, Optional
+
 async def enqueue_recording_post_processing(
-    stream_id,
-    recording_id: int = None,
-    ts_file_path: str = None,
-    output_dir: str = None,
-    streamer_name: str = None,
-    started_at: str = None,
+    stream_id: Any,
+    recording_id: Optional[int] = None,
+    ts_file_path: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    streamer_name: Optional[str] = None,
+    started_at: Optional[str] = None,
     cleanup_ts_file: bool = True
 ):
     """Enqueue a complete post-processing chain for a recording.
@@ -185,8 +187,9 @@ async def enqueue_recording_post_processing(
                 started_at=payload.get('started_at'),
                 cleanup_ts_file=payload.get('cleanup_ts_file', True)
             )
-        except Exception:
-            # Fall through to raise with clearer context below
+        except Exception as e:
+            # Log and fall through to raise with clearer context below
+            logger.error(f"Error in dict-based enqueue_recording_post_processing: {e}", exc_info=True)
             pass
 
     # Original interface
@@ -210,14 +213,29 @@ async def enqueue_metadata_generation(
 ):
     """Enqueue metadata generation for an existing MP4 file"""
     queue_service = get_background_queue_service()
-    return await queue_service.enqueue_metadata_generation(
-        stream_id=stream_id,
-        recording_id=recording_id,
-        mp4_file_path=mp4_file_path,
-        output_dir=output_dir,
-        streamer_name=streamer_name,
-        started_at=started_at
-    )
+    try:
+        from app.services.processing.recording_task_factory import RecordingTaskFactory
+
+        # Build metadata-only task chain (metadata + chapters + thumbnail)
+        tasks = RecordingTaskFactory.create_metadata_only_chain(
+            stream_id=stream_id,
+            recording_id=recording_id,
+            mp4_file_path=mp4_file_path,
+            output_dir=output_dir,
+            streamer_name=streamer_name,
+            started_at=started_at
+        )
+
+        # Register tasks in dependency manager and progress tracker
+        for task in tasks:
+            await queue_service.queue_manager.dependency_manager.add_task(task)
+            queue_task = queue_service.queue_manager._create_queue_task_from_dependency_task(task)
+            queue_service.queue_manager.progress_tracker.add_task(queue_task)
+
+        return [task.id for task in tasks]
+    except Exception as e:
+        logger.error(f"Failed to enqueue metadata generation chain: {e}", exc_info=True)
+        raise
 
 async def enqueue_thumbnail_generation(
     stream_id: int,
@@ -229,24 +247,71 @@ async def enqueue_thumbnail_generation(
 ):
     """Enqueue thumbnail generation"""
     queue_service = get_background_queue_service()
-    return await queue_service.enqueue_thumbnail_generation(
-        stream_id=stream_id,
-        recording_id=recording_id,
-        mp4_file_path=mp4_file_path,
-        output_dir=output_dir,
-        streamer_name=streamer_name,
-        started_at=started_at
-    )
+    try:
+        from app.services.processing.recording_task_factory import RecordingTaskFactory
+
+        task = RecordingTaskFactory.create_thumbnail_only_task(
+            stream_id=stream_id,
+            recording_id=recording_id,
+            mp4_file_path=mp4_file_path,
+            output_dir=output_dir,
+            streamer_name=streamer_name,
+            started_at=started_at
+        )
+
+        await queue_service.queue_manager.dependency_manager.add_task(task)
+        queue_task = queue_service.queue_manager._create_queue_task_from_dependency_task(task)
+        queue_service.queue_manager.progress_tracker.add_task(queue_task)
+
+        return task.id
+    except Exception as e:
+        logger.error(f"Failed to enqueue thumbnail generation task: {e}", exc_info=True)
+        raise
 
 async def get_stream_task_status(stream_id: int):
     """Get the status of all tasks for a stream"""
     queue_service = get_background_queue_service()
-    return await queue_service.get_stream_task_status(stream_id)
+    # Aggregate tasks for the stream across active, completed, and external
+    stream_tasks = {"active": [], "completed": [], "external": []}
+
+    for task in queue_service.active_tasks.values():
+        if task.payload.get('stream_id') == stream_id:
+            stream_tasks["active"].append(task.to_dict())
+
+    for task in queue_service.completed_tasks.values():
+        if task.payload.get('stream_id') == stream_id:
+            stream_tasks["completed"].append(task.to_dict())
+
+    for task in queue_service.external_tasks.values():
+        if task.payload.get('stream_id') == stream_id:
+            stream_tasks["external"].append(task.to_dict())
+
+    return stream_tasks
 
 async def cancel_stream_tasks(stream_id: int):
     """Cancel all tasks for a stream"""
     queue_service = get_background_queue_service()
-    return await queue_service.cancel_stream_tasks(stream_id)
+    cancelled_count = 0
+
+    # Cancel internal active tasks
+    tasks_to_cancel = [tid for tid, t in queue_service.active_tasks.items() if t.payload.get('stream_id') == stream_id]
+    for task_id in tasks_to_cancel:
+        try:
+            await queue_service.queue_manager.mark_task_completed(task_id, success=False)
+            cancelled_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to cancel task {task_id}: {e}")
+
+    # Mark external tasks as completed (failed)
+    external_to_cancel = [tid for tid, t in queue_service.external_tasks.items() if t.payload.get('stream_id') == stream_id and t.status.value in ['running', 'pending']]
+    for task_id in external_to_cancel:
+        try:
+            queue_service.complete_external_task(task_id, success=False)
+            cancelled_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to cancel external task {task_id}: {e}")
+
+    return {"success": True, "cancelled_count": cancelled_count, "stream_id": stream_id}
 
 # Set backward compatibility alias
 BackgroundQueueInit = BackgroundQueueManager
