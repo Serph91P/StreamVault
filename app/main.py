@@ -451,67 +451,147 @@ async def add_request_id(request: Request, call_next):
     
     return response
 
-# Rate limiting middleware (basic implementation)
-from collections import defaultdict
-from datetime import datetime, timedelta
+# Adaptive rate limiting middleware (token-bucket with soft-wait)
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 import time
+import hashlib
+import os
+import asyncio
 
-request_counts = defaultdict(list)
-RATE_LIMIT_REQUESTS = 100  # requests
-RATE_LIMIT_WINDOW = 60  # seconds
+@dataclass
+class _TokenBucket:
+    capacity: int
+    refill_per_sec: float
+    tokens: float
+    last_refill: float
+    lock: asyncio.Lock
+
+    def refill(self) -> None:
+        now = time.time()
+        if now > self.last_refill:
+            delta = now - self.last_refill
+            self.tokens = min(self.capacity, self.tokens + delta * self.refill_per_sec)
+            self.last_refill = now
+
+class _AdaptiveLimiter:
+    def __init__(self) -> None:
+        self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in ("false", "0", "no")
+        self.default_capacity = int(os.getenv("RATE_LIMIT_CAPACITY", "300"))
+        self.default_refill = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "5"))
+        self.max_wait_ms = int(os.getenv("RATE_LIMIT_MAX_WAIT_MS", "500"))
+        self._buckets: Dict[str, _TokenBucket] = {}
+        self._lock = asyncio.Lock()
+
+    def _route_params(self, path: str, method: str) -> Tuple[int, float]:
+        # Allow higher throughput for safe, read-only endpoints
+        method = method.upper()
+        if method == "GET":
+            if (path.startswith("/api/background-queue/") or
+                path.startswith("/api/streamers") or
+                path.startswith("/api/status") or
+                path.startswith("/api/streams")):
+                return (800, 20.0)
+            # Default GET budget
+            return (500, 10.0)
+        # Mutations: stricter by default
+        return (120, 2.0)
+
+    def _key(self, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> str:
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+            return f"auth:{digest}"
+        return f"ip:{client_ip}"
+
+    async def _get_bucket(self, key: str, capacity: int, refill: float) -> _TokenBucket:
+        async with self._lock:
+            bucket = self._buckets.get(key)
+            if bucket is None:
+                bucket = _TokenBucket(capacity, refill, float(capacity), time.time(), asyncio.Lock())
+                self._buckets[key] = bucket
+            else:
+                bucket.capacity = capacity
+                bucket.refill_per_sec = refill
+            return bucket
+
+    async def acquire(self, *, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> Tuple[bool, int, int, int]:
+        """Attempt to consume a token.
+        Returns (allowed, retry_after_seconds, remaining_tokens, capacity)
+        """
+        if not self.enabled:
+            cap = self.default_capacity
+            return True, 0, cap, cap
+
+        capacity, refill = self._route_params(path, method)
+        key = self._key(path, method, client_ip, auth_header)
+        bucket = await self._get_bucket(key, capacity, refill)
+
+        async with bucket.lock:
+            bucket.refill()
+            if bucket.tokens >= 1.0:
+                bucket.tokens -= 1.0
+                return True, 0, max(0, int(bucket.tokens)), capacity
+
+            # Soft wait to reduce spiky 429s
+            deadline = time.time() + (self.max_wait_ms / 1000.0)
+            while time.time() < deadline:
+                await asyncio.sleep(0.05)
+                bucket.refill()
+                if bucket.tokens >= 1.0:
+                    bucket.tokens -= 1.0
+                    return True, 0, max(0, int(bucket.tokens)), capacity
+
+            # Still no tokens
+            needed = 1.0 - bucket.tokens
+            retry_after = max(1, int(needed / bucket.refill_per_sec)) if bucket.refill_per_sec > 0 else 1
+            return False, retry_after, max(0, int(bucket.tokens)), capacity
+
+_limiter = _AdaptiveLimiter()
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     # Skip rate limiting for health checks, static files, and internal API calls
     if (request.url.path in ["/health", "/favicon.ico"] or 
         request.url.path.startswith("/assets/") or
-        request.url.path.startswith("/api/images/") or  # Skip rate limiting for image API calls
-        request.url.path.startswith("/api/sync/") or    # Skip rate limiting for sync API calls
-        request.url.path.startswith("/data/")):         # Skip rate limiting for data files
+        request.url.path.startswith("/api/images/") or  # Skip for image API calls
+    request.url.path.startswith("/recordings/.media/") or  # Skip for cached image files
+        request.url.path.startswith("/api/sync/") or    # Skip for sync API calls
+        request.url.path.startswith("/data/")):
         return await call_next(request)
-    
-    # Get client IP
+
+    # Get client IP (respect reverse proxy)
     client_ip = request.client.host
     if request.headers.get("X-Forwarded-For"):
         client_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
-    
-    # Skip rate limiting for localhost (internal services)
+
+    # Skip for localhost/internal
     if client_ip in ["127.0.0.1", "localhost", "::1"]:
         return await call_next(request)
-    
-    current_time = time.time()
-    
-    # Clean old requests
-    request_counts[client_ip] = [
-        req_time for req_time in request_counts[client_ip]
-        if req_time > current_time - RATE_LIMIT_WINDOW
-    ]
-    
-    # Check rate limit
-    if len(request_counts[client_ip]) >= RATE_LIMIT_REQUESTS:
-        logger.warning(f"Rate limit exceeded for {client_ip}")
+
+    allowed, retry_after, remaining, capacity = await _limiter.acquire(
+        path=request.url.path,
+        method=request.method,
+        client_ip=client_ip,
+        auth_header=request.headers.get("Authorization")
+    )
+
+    if not allowed:
+        logger.warning(f"Rate limit: 429 path={request.url.path} ip={client_ip} retry_after={retry_after}s")
         return Response(
             content="Rate limit exceeded",
             status_code=429,
             headers={
-                "Retry-After": str(RATE_LIMIT_WINDOW),
-                "X-RateLimit-Limit": str(RATE_LIMIT_REQUESTS),
-                "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(int(current_time + RATE_LIMIT_WINDOW))
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(capacity),
+                "X-RateLimit-Remaining": str(remaining),
             }
         )
-    
-    # Add current request
-    request_counts[client_ip].append(current_time)
-    
-    # Process request
+
     response = await call_next(request)
-    
-    # Add rate limit headers
-    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
-    response.headers["X-RateLimit-Remaining"] = str(RATE_LIMIT_REQUESTS - len(request_counts[client_ip]))
-    response.headers["X-RateLimit-Reset"] = str(int(current_time + RATE_LIMIT_WINDOW))
-    
+    # Expose dynamic headers for clients
+    response.headers["X-RateLimit-Limit"] = str(capacity)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
     return response
 
 # WebSocket endpoint
@@ -777,6 +857,9 @@ images_dir.mkdir(parents=True, exist_ok=True)
 # Mount the images directory under both /data/images and /api/media for compatibility
 app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
 app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
+# Backward-compatibility mount: many services store absolute-like paths starting with
+# "/recordings/.media/..." in the database. Expose the same path prefix from the API
+app.mount("/recordings/.media", StaticFiles(directory=str(images_dir)), name="images-compat")
 
 # PWA Files serving - these must be at root level
 @app.get("/manifest.json")
@@ -854,23 +937,7 @@ async def serve_pwa_helper():
             continue
     return Response(status_code=404)
 
-@app.get("/registerSW.js")
-async def serve_register_sw():
-    from app.utils.file_paths import get_pwa_file_paths
-    for path in get_pwa_file_paths("registerSW.js"):
-        try:
-            return FileResponse(
-                path, 
-                media_type="application/javascript",
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0"
-                }
-            )
-        except:
-            continue
-    return Response(status_code=404)
+# (Removed duplicate /registerSW.js endpoint; single secured version is defined later)
 
 @app.get("/workbox-{filename:path}")
 async def serve_workbox_files(filename: str):
