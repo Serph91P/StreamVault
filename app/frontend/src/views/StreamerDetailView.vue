@@ -245,9 +245,14 @@ const deleteAll = async () => {
   border-radius: var(--border-radius);
   max-width: 500px;
   width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.modal-header, .modal-actions { padding: 16px; display: flex; justify-content: space-between; align-items: center; }
-.modal-body { padding: 0 16px 16px; }
+.modal-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+.modal-actions { padding: 16px; display: flex; justify-content: center; align-items: center; gap: 12px; border-top: 1px solid var(--border-color); position: sticky; bottom: 0; background: var(--background-card); }
+.modal-body { padding: 16px; overflow: auto; }
 .warning { color: var(--danger-color); }
 .close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
 
