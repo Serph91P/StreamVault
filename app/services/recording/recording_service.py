@@ -127,10 +127,15 @@ class RecordingService:
 
     # Shutdown methods (delegate to orchestrator)
 
-    async def graceful_shutdown(self) -> None:
-        """Gracefully shutdown all recording operations"""
+    async def graceful_shutdown(self, timeout: int | None = None) -> None:
+        """Gracefully shutdown all recording operations
+        
+        Args:
+            timeout: Optional timeout hint (seconds) for underlying process termination.
+        """
         self._is_shutting_down = True
-        await self.orchestrator.graceful_shutdown()
+        # Propagate optional timeout to orchestrator (ignored by components that don't use it)
+        await self.orchestrator.graceful_shutdown(timeout=timeout)
 
     def is_shutting_down(self) -> bool:
         """Check if shutting down"""
