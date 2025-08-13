@@ -838,8 +838,12 @@ class RecordingLifecycleManager:
 
     # Shutdown methods
     
-    async def graceful_shutdown(self) -> None:
-        """Gracefully shutdown the lifecycle manager"""
+    async def graceful_shutdown(self, timeout: int | None = None) -> None:
+        """Gracefully shutdown the lifecycle manager
+        
+        Args:
+            timeout: Optional timeout hint (seconds) for terminating recording processes.
+        """
         logger.info("Starting graceful shutdown of recording lifecycle manager")
         
         self._is_shutting_down = True
@@ -854,6 +858,13 @@ class RecordingLifecycleManager:
         cancelled_tasks = self.state_manager.cancel_all_tasks()
         if cancelled_tasks:
             logger.info(f"Cancelled {len(cancelled_tasks)} monitoring tasks")
+        
+        # Also request ProcessManager to gracefully shutdown subprocesses if available
+        try:
+            if self.process_manager and hasattr(self.process_manager, 'graceful_shutdown'):
+                await self.process_manager.graceful_shutdown(timeout=timeout or 15)
+        except Exception as e:
+            logger.warning(f"ProcessManager graceful shutdown encountered an error: {e}")
         
         logger.info("Recording lifecycle manager shutdown complete")
 
