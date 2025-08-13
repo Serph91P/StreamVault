@@ -213,12 +213,16 @@ class RecordingOrchestrator:
 
     # Shutdown methods
 
-    async def graceful_shutdown(self) -> None:
-        """Gracefully shutdown all recording operations"""
+    async def graceful_shutdown(self, timeout: int | None = None) -> None:
+        """Gracefully shutdown all recording operations
+        
+        Args:
+            timeout: Optional timeout hint (seconds) for terminating subprocesses.
+        """
         logger.info("Starting graceful shutdown of recording orchestrator")
         
         # Shutdown lifecycle manager (handles active recordings)
-        await self.lifecycle_manager.graceful_shutdown()
+        await self.lifecycle_manager.graceful_shutdown(timeout=timeout)
         
         # Save state to persistence
         await self.state_manager.save_state_to_persistence()
