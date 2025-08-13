@@ -294,11 +294,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error stopping image sync service: {e}")
     
-    # Stop recording auto-fix service
+    # Stop recording auto-fix service (optional component; ignore if not present)
     try:
-        from app.services.recording.recording_auto_fix_service import recording_auto_fix_service
-        await recording_auto_fix_service.stop()
-        logger.info("✅ Recording auto-fix service stopped")
+        try:
+            from app.services.recording.recording_auto_fix_service import recording_auto_fix_service  # type: ignore
+        except ModuleNotFoundError:
+            recording_auto_fix_service = None  # type: ignore
+        if recording_auto_fix_service and hasattr(recording_auto_fix_service, 'stop'):
+            await recording_auto_fix_service.stop()
+            logger.info("✅ Recording auto-fix service stopped")
+        else:
+            logger.debug("Recording auto-fix service not available; skipping")
     except Exception as e:
         logger.error(f"❌ Error stopping recording auto-fix service: {e}")
     
