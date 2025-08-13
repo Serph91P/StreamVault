@@ -71,16 +71,41 @@ class ImageRefreshService:
             async for batch in batch_process_items(streamers, batch_size=10, max_concurrent=3):
                 batch_tasks = []
                 for streamer in batch:
-                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
-                        # Check if cached file exists (try both old and new naming)
-                        expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.twitch_id}.jpg"
-                        expected_path_old_internal = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
-                        expected_path_old_streamer = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
-                        
-                        if not expected_path_new.exists() and not expected_path_old_internal.exists() and not expected_path_old_streamer.exists():
-                            logger.info(f"Profile image missing for streamer {streamer.id} (Twitch ID: {streamer.twitch_id}), re-downloading...")
-                            task = self._download_profile_image(streamer)
-                            batch_tasks.append(task)
+                    # Check if cached file exists (try both old and new naming)
+                    expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.twitch_id}.jpg"
+                    expected_path_old_internal = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
+                    expected_path_old_streamer = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
+
+                    is_missing_locally = (
+                        not expected_path_new.exists()
+                        and not expected_path_old_internal.exists()
+                        and not expected_path_old_streamer.exists()
+                    )
+
+                    if not is_missing_locally:
+                        continue
+
+                    # Determine a valid HTTP source URL to (re)download from
+                    source_url: Optional[str] = None
+                    if streamer.profile_image_url and isinstance(streamer.profile_image_url, str) and streamer.profile_image_url.startswith('http'):
+                        source_url = streamer.profile_image_url
+                    elif getattr(streamer, 'original_profile_image_url', None) and streamer.original_profile_image_url.startswith('http'):
+                        source_url = streamer.original_profile_image_url
+                    else:
+                        # Construct a Twitch CDN URL using twitch_id when available
+                        if streamer.twitch_id and str(streamer.twitch_id).replace('-', '').replace('_', '').isalnum():
+                            source_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{streamer.twitch_id}-profile_image-300x300.png"
+
+                    if source_url:
+                        logger.info(
+                            f"Profile image missing for streamer {streamer.id} (twitch_id={streamer.twitch_id}); re-downloading from source"
+                        )
+                        task = self._download_profile_image(streamer, source_url=source_url)
+                        batch_tasks.append(task)
+                    else:
+                        logger.debug(
+                            f"Skipping profile refresh for streamer {streamer.id}: no valid source URL available"
+                        )
                 
                 # Process batch concurrently
                 if batch_tasks:
@@ -99,13 +124,16 @@ class ImageRefreshService:
             
         return stats
     
-    async def _download_profile_image(self, streamer: Streamer) -> bool:
+    async def _download_profile_image(self, streamer: Streamer, *, source_url: Optional[str] = None) -> bool:
         """Download profile image for a single streamer"""
         try:
-            cached_path = await unified_image_service.download_profile_image(
-                streamer.id, 
-                streamer.profile_image_url
-            )
+            # Prefer provided source_url; fall back to current DB value
+            url_to_use = source_url or streamer.profile_image_url
+            if not url_to_use or not isinstance(url_to_use, str) or not url_to_use.startswith('http'):
+                logger.debug(f"No valid source URL to download profile image for streamer {streamer.id}")
+                return False
+
+            cached_path = await unified_image_service.download_profile_image(streamer.id, url_to_use)
             if cached_path:
                 # Update database with cached path using proper session
                 from app.utils.async_db_utils import get_async_session
