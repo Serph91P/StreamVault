@@ -230,19 +230,34 @@ class MetadataService:
             # 1. tvshow.nfo - for show/season data (uses streamer image)
             # 2. episode.nfo - for the specific stream episode (uses stream thumbnail)
             
-            # Paths for NFO files - alle im Streamer-Ordner!
+            # Episode NFO always next to the recording file
             episode_nfo_path = base_path / f"{base_filename}.nfo"
-            
-            # Determine streamer directory (one or two levels up)
-            is_in_season_dir = "season" in base_path.name.lower() or f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower()
-            if is_in_season_dir:
-                streamer_dir = base_path.parent.parent
-            else:
+
+            # Work out if we're inside a season folder (e.g., "Season ..." or "SYYYYMM")
+            season_hint = False
+            try:
+                season_hint = (
+                    "season" in base_path.name.lower() or
+                    (stream.started_at is not None and f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower())
+                )
+            except Exception:
+                # Be defensive; if anything goes wrong, assume not in a season dir
+                season_hint = False
+
+            # Streamer directory logic:
+            # - If we're in a season folder, the streamer directory is the parent of the season folder (base_path.parent)
+            # - If we're not in a season folder, base_path itself is the streamer directory
+            if season_hint:
                 streamer_dir = base_path.parent
-            
-            # Show-level NFO goes into streamer directory, not parent
+                season_dir = base_path
+            else:
+                streamer_dir = base_path
+                season_dir = None
+
+            # Show-level NFO must live inside the individual streamer's folder
             tvshow_nfo_path = streamer_dir / "tvshow.nfo"
-            season_nfo_path = streamer_dir / "season.nfo"
+            # Season NFO belongs into the season folder (when present)
+            season_nfo_path = (season_dir / "season.nfo") if season_dir else None
                     
             # 1. Generate Show/Season NFO
             show_root = ET.Element("tvshow")
@@ -292,7 +307,7 @@ class MetadataService:
             show_tree.write(str(tvshow_nfo_path), encoding="utf-8", xml_declaration=True)
             
             # Create season NFO if in season directory
-            if is_in_season_dir:
+            if season_dir is not None and season_nfo_path is not None:
                 season_root = ET.Element("season")
                 
                 if stream.started_at:
@@ -402,8 +417,12 @@ class MetadataService:
             # Update metadata in database
             metadata.nfo_path = str(episode_nfo_path)
             metadata.tvshow_nfo_path = str(tvshow_nfo_path)
-            # Save season NFO path too for proper cleanup
-            metadata.season_nfo_path = str(season_nfo_path)
+            # Save season NFO path too for proper cleanup (only if created)
+            try:
+                metadata.season_nfo_path = str(season_nfo_path) if season_nfo_path else None
+            except Exception:
+                # Column may not exist in older schemas; ignore gracefully
+                pass
             
             # Create additional symlinks/copies for specific media servers
             await self._create_media_server_specific_files(
