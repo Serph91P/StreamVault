@@ -37,6 +37,64 @@ class MetadataService:
         """Schließt die HTTP-Session."""
         if self.session and not self.session.closed:
             await self.session.close()
+
+    def _relative_artwork_path(self, nfo_dir: Path, safe_username: str, filename: str) -> Optional[str]:
+        """Compute a relative path from an NFO directory to the artwork under recordings/.media/artwork/<user>/filename.
+
+        This walks up from nfo_dir until it finds a ".media" directory sibling (the common recordings root pattern),
+        then returns a relative path from nfo_dir to that artwork file. If not found, returns a default 
+        relative path that should still work when scanners treat paths as relative to the library root.
+        """
+        try:
+            nfo_dir = Path(nfo_dir)
+            current = nfo_dir
+            recordings_root = None
+
+            # Walk up looking for a sibling .media directory
+            for _ in range(6):  # limit to a reasonable depth
+                candidate = current / ".media"
+                if candidate.exists() and candidate.is_dir():
+                    recordings_root = current
+                    break
+                # Also check parent sibling
+                candidate_parent = current.parent / ".media"
+                if candidate_parent.exists() and candidate_parent.is_dir():
+                    recordings_root = current.parent
+                    break
+                current = current.parent
+                if current == current.parent:
+                    break
+
+            # Build the absolute path to the artwork
+            artwork_rel_under_root = Path(".media") / "artwork" / safe_username / filename
+            if recordings_root:
+                target = recordings_root / artwork_rel_under_root
+                # Return a path relative to the NFO directory
+                try:
+                    rel = os.path.relpath(target, start=nfo_dir)
+                    return rel.replace("\\", "/")  # NFO prefers forward slashes
+                except Exception:
+                    pass
+
+            # Fallback to generic relative path (works if scanners interpret relative to library root)
+            return str(artwork_rel_under_root).replace("\\", "/")
+        except Exception:
+            return f".media/artwork/{safe_username}/{filename}"
+
+    def _find_recordings_root(self, start_dir: Path) -> Optional[Path]:
+        """Find the recordings root directory (one that contains a .media folder)."""
+        try:
+            current = Path(start_dir)
+            for _ in range(8):
+                if (current / ".media").is_dir():
+                    return current
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
+        except Exception:
+            pass
+        return None
     
     async def generate_metadata_for_stream(
         self, 
@@ -276,16 +334,20 @@ class MetadataService:
                 # Save artwork to .media directory (avoids Emby creating seasons from folders)
                 await artwork_service.save_streamer_artwork(streamer)
                 
-                # Relative paths to .media directory from streamer directory
+                # Compute relative paths from tvshow.nfo location to artwork under recordings/.media
+                poster_rel = self._relative_artwork_path(streamer_dir, safe_username, "poster.jpg")
+                banner_rel = self._relative_artwork_path(streamer_dir, safe_username, "banner.jpg")
+                fanart_rel = self._relative_artwork_path(streamer_dir, safe_username, "fanart.jpg")
+
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
-                poster_element.text = f".media/artwork/{safe_username}/poster.jpg"
+                poster_element.text = poster_rel
                 
                 banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
-                banner_element.text = f".media/artwork/{safe_username}/banner.jpg"
+                banner_element.text = banner_rel
                 
                 # Fanart (background image)
                 fanart = ET.SubElement(show_root, "fanart")
-                ET.SubElement(fanart, "thumb").text = f".media/artwork/{safe_username}/fanart.jpg"
+                ET.SubElement(fanart, "thumb").text = fanart_rel
                 
             # Genre/Category
             if streamer.category_name:
@@ -297,8 +359,9 @@ class MetadataService:
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
             if streamer.profile_image_url:
-                # Actor image from .media directory
-                ET.SubElement(actor, "thumb").text = f".media/artwork/{safe_username}/poster.jpg"
+                # Actor image from .media directory with proper relative path
+                actor_thumb_rel = self._relative_artwork_path(streamer_dir, safe_username, "poster.jpg")
+                ET.SubElement(actor, "thumb").text = actor_thumb_rel
                 
             ET.SubElement(actor, "role").text = "Streamer"
             
@@ -319,7 +382,11 @@ class MetadataService:
                 
                 # Season poster from .media directory
                 if streamer.profile_image_url:
-                    ET.SubElement(season_root, "thumb").text = f".media/artwork/{safe_username}/poster.jpg"
+                    season_poster_rel = self._relative_artwork_path(season_dir, safe_username, "season.jpg")
+                    # Fallback to poster.jpg if season-specific image is not present
+                    if season_poster_rel is None:
+                        season_poster_rel = self._relative_artwork_path(season_dir, safe_username, "poster.jpg")
+                    ET.SubElement(season_root, "thumb").text = season_poster_rel or f".media/artwork/{safe_username}/poster.jpg"
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
@@ -596,7 +663,7 @@ class MetadataService:
             # Get base filename without extension
             base_filename = base_path.stem if isinstance(base_path, Path) else Path(base_path).stem
             
-            # Falls kein Thumbnail übergeben wurde, versuche es aus den Metadaten zu holen
+            # Falls kein Thumbnail übergeben wurde, versuche es aus den Metadaten oder dem Artwork-Cache zu holen
             if not episode_thumb_path or not os.path.exists(episode_thumb_path):
                 try:
                     logger.debug(f"No thumb path provided, trying to find from metadata")
@@ -607,6 +674,32 @@ class MetadataService:
                             logger.debug(f"Found thumbnail from metadata: {episode_thumb_path}")
                 except Exception as e:
                     logger.error(f"Error getting thumbnail from metadata: {e}", exc_info=True)
+
+                # Fallback: copy poster from global artwork cache to local folder
+                if (not episode_thumb_path) or (episode_thumb_path and not os.path.exists(episode_thumb_path)):
+                    try:
+                        with SessionLocal() as s:
+                            streamer = s.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if streamer:
+                            safe_username = sanitize_filename(streamer.username)
+                            recordings_root = self._find_recordings_root(base_path)
+                            if recordings_root:
+                                global_poster = recordings_root / ".media" / "artwork" / safe_username / "poster.jpg"
+                                if global_poster.exists():
+                                    import shutil
+                                    local_poster = base_path / "poster.jpg"
+                                    if not local_poster.exists():
+                                        shutil.copy2(global_poster, local_poster)
+                                        episode_thumb_path = str(local_poster)
+                                        logger.debug(f"Copied global poster to local folder: {local_poster}")
+                                    # If season dir, also create season-poster.jpg
+                                    if "season" in base_path.name.lower() or "s20" in base_path.name.lower():
+                                        season_poster = base_path / "season-poster.jpg"
+                                        if not season_poster.exists():
+                                            shutil.copy2(global_poster, season_poster)
+                                            logger.debug(f"Created season poster from global cache: {season_poster}")
+                    except Exception as e:
+                        logger.warning(f"Could not copy poster from artwork cache: {e}")
             
             # Create thumbnail and metadata files specific to each media server
             if episode_thumb_path and os.path.exists(episode_thumb_path):
@@ -626,12 +719,14 @@ class MetadataService:
                         shutil.copy2(episode_thumb_path, plex_thumb)
                         logger.debug(f"Created standard thumb: {plex_thumb}")
                     
-                    # Create season-poster.jpg in parent if it's a season directory
-                    if "season" in str(base_path).lower() or "s20" in str(base_path).lower():
-                        season_poster = base_path.parent / "season-poster.jpg"
-                        if not season_poster.exists() and os.path.exists(episode_thumb_path):
-                            shutil.copy2(episode_thumb_path, season_poster)
-                            logger.debug(f"Created season poster: {season_poster}")
+                    # Create season poster(s) in the season directory if we're inside one
+                    if "season" in base_path.name.lower() or "s20" in base_path.name.lower():
+                        season_poster1 = base_path / "season-poster.jpg"
+                        season_poster2 = base_path / "poster.jpg"
+                        for sp in [season_poster1, season_poster2]:
+                            if not sp.exists() and os.path.exists(episode_thumb_path):
+                                shutil.copy2(episode_thumb_path, sp)
+                                logger.debug(f"Created season image: {sp}")
                 
                 # Kodi specific files
                 if "kodi" in filename_preset or True:  # Always create Kodi files
