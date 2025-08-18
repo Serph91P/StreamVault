@@ -901,20 +901,65 @@ async def serve_manifest_webmanifest():
             continue
     return Response(status_code=404)
 
-@app.get("/sw.js")
-async def service_worker():
-    for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
+@app.get("/pwa/push-sw.js")
+async def serve_push_sw_helper():
+    """Serve the custom push handler for the service worker from the public dir"""
+    for path in ["app/frontend/public/push-sw.js", "/app/app/frontend/public/push-sw.js"]:
         try:
             return FileResponse(
                 path,
                 media_type="application/javascript",
                 headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Service-Worker-Allowed": "/",
-                    "Pragma": "no-cache",
-                    "Expires": "0"
+                    "Cache-Control": "public, max-age=3600"
                 }
             )
+        except:
+            continue
+    return Response(status_code=404)
+
+@app.get("/sw.js")
+async def service_worker():
+    for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
+        try:
+            # Read and append import for custom push handlers if not present
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    sw_code = f.read()
+                # Only inject once and only if our public file exists
+                inject_marker = "// streamvault-push-import"
+                push_import = "\n".join([
+                    "", 
+                    inject_marker,
+                    "try {",
+                    "  importScripts('/pwa/push-sw.js');",
+                    "} catch (e) { /* ignore */ }",
+                    inject_marker,
+                    ""
+                ])
+                if inject_marker not in sw_code:
+                    sw_code = sw_code + push_import
+                return Response(
+                    content=sw_code,
+                    media_type="application/javascript",
+                    headers={
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Service-Worker-Allowed": "/",
+                        "Pragma": "no-cache",
+                        "Expires": "0"
+                    }
+                )
+            except Exception:
+                # Fallback to raw file serving
+                return FileResponse(
+                    path,
+                    media_type="application/javascript",
+                    headers={
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Service-Worker-Allowed": "/",
+                        "Pragma": "no-cache",
+                        "Expires": "0"
+                    }
+                )
         except:
             continue
     return Response(status_code=404)
