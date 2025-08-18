@@ -29,9 +29,25 @@ class AuthMiddleware:
             "/auth/setup", 
             "/auth/check",
             "/auth/logout",
+            "/auth/keepalive",
             "/eventsub",
             "/static/",
-            "/assets/"
+            "/assets/",
+            "/registerSW.js",
+            "/sw.js",
+            "/pwa",
+            "/pwa-helper.js",
+            "/workbox-",
+            "/manifest.json",
+            "/manifest.webmanifest",
+            "/favicon",
+            "/android-icon-",
+            "/apple-icon",
+            "/ms-icon-",
+            "/recordings/.media/",
+            "/api/media/",
+            "/data/images/",
+            "/data/"
         ]
 
         if any(request.url.path.startswith(path) for path in public_paths):

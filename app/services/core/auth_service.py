@@ -69,6 +69,31 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error validating session: {e}")
             return False
+
+    async def refresh_session(self, token: str) -> bool:
+        """Refresh a valid session by updating its created_at to now (sliding expiration)."""
+        try:
+            session = self.db.query(Session).filter_by(token=token).first()
+            if not session:
+                return False
+
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            if session.created_at < cutoff_time:
+                # Expired - remove and reject
+                self.db.delete(session)
+                self.db.commit()
+                logger.debug("Tried to refresh expired session; deleted")
+                return False
+
+            # Refresh timestamp to extend session
+            session.created_at = datetime.now(timezone.utc)
+            self.db.add(session)
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error refreshing session: {e}")
+            self.db.rollback()
+            return False
     
     async def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions (can be called periodically)"""
