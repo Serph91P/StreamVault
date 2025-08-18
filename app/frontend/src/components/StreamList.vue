@@ -328,6 +328,30 @@
                 </div>
               </div>
 
+              <!-- Chapters Section -->
+              <div class="details-section">
+                <h4 class="section-title">
+                  <i class="fas fa-list-ol"></i> Chapter Timeline
+                </h4>
+                <div v-if="getChaptersState(stream.id).isLoading" class="chapters-loading">
+                  <i class="fas fa-spinner fa-spin"></i> Loading chapters...
+                </div>
+                <div v-else-if="getChaptersState(stream.id).error" class="chapters-error">
+                  <i class="fas fa-exclamation-triangle"></i> {{ getChaptersState(stream.id).error }}
+                </div>
+                <div v-else>
+                  <div v-if="getChaptersState(stream.id).chapters.length === 0" class="no-chapters">
+                    <i class="fas fa-info-circle"></i> No chapters available
+                  </div>
+                  <ul v-else class="chapters-list">
+                    <li v-for="(ch, idx) in getChaptersState(stream.id).chapters" :key="idx" class="chapter-item">
+                      <span class="chapter-time">{{ formatChapterStart(ch.start_time, stream.started_at) }}</span>
+                      <span class="chapter-title">{{ ch.title || 'Chapter' }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
               <!-- Recording Status Section -->
               <div class="details-section">
                 <h4 class="section-title">
@@ -532,6 +556,34 @@ const stoppingRecordingStreamerId = ref<number | null>(null)
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})
 
+// Chapters state per stream
+type Chapter = { start_time: string; title?: string; type?: string }
+type ChapterState = { isLoading: boolean; error: string | null; chapters: Chapter[] }
+const chaptersByStreamId = ref<Record<number, ChapterState>>({})
+
+const getChaptersState = (streamId: number): ChapterState => {
+  if (!chaptersByStreamId.value[streamId]) {
+    chaptersByStreamId.value[streamId] = { isLoading: false, error: null, chapters: [] }
+  }
+  return chaptersByStreamId.value[streamId]
+}
+
+const loadChapters = async (s: Stream) => {
+  const state = getChaptersState(s.id)
+  if (state.isLoading || state.chapters.length > 0) return
+  state.isLoading = true
+  state.error = null
+  try {
+    const res = await streamersApi.getStreamChapters(Number(s.streamer_id), Number(s.id))
+    const arr = Array.isArray(res?.chapters) ? res.chapters : []
+    state.chapters = arr
+  } catch (e: any) {
+    state.error = 'Failed to load chapters'
+  } finally {
+    state.isLoading = false
+  }
+}
+
 // Wrapper for force start recording with local state update
 const forceStartRecordingWithLocalUpdate = async (streamerId: number) => {
   await forceStartRecording(streamerId, (streamerId: number) => {
@@ -660,6 +712,8 @@ const toggleDetails = (streamId: number) => {
     expandedStreams.value.delete(streamId)
   } else {
     expandedStreams.value.add(streamId)
+  const s = streams.value.find(s => s.id === streamId)
+  if (s) loadChapters(s)
   }
 }
 
@@ -721,6 +775,36 @@ const deleteStream = async () => {
   } finally {
     deletingStreamId.value = null
   }
+}
+
+// Helper: format chapter start to HH:MM:SS
+const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`)
+const formatHMS = (totalSeconds: number) => {
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = Math.floor(totalSeconds % 60)
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`
+}
+
+const formatChapterStart = (start: string, streamStart: string | null): string => {
+  // If already HH:MM:SS.mmm, show HH:MM:SS
+  const vttMatch = start.match(/^\d{2}:\d{2}:\d{2}\.\d{3}$/)
+  if (vttMatch) {
+    const [hh, mm, ssMs] = start.split(':')
+    const ss = Math.floor(parseFloat(ssMs))
+    return `${hh}:${mm}:${pad2(ss)}`
+  }
+  // Otherwise assume ISO and compute offset from stream start
+  if (streamStart) {
+    const abs = new Date(start).getTime()
+    const base = new Date(streamStart).getTime()
+    if (!isNaN(abs) && !isNaN(base)) {
+      const diffSec = Math.max(0, Math.floor((abs - base) / 1000))
+      return formatHMS(diffSec)
+    }
+  }
+  // Fallback
+  return start
 }
 
 const deleteAllStreams = async () => {
@@ -1415,6 +1499,45 @@ onMounted(async () => {
   gap: 8px;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+/* Chapters Section */
+.chapters-loading,
+.chapters-error,
+.no-chapters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.chapters-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chapter-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.chapter-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: var(--primary-color);
+  min-width: 70px;
+}
+
+.chapter-title {
+  color: var(--text-primary);
 }
 
 /* Recording Status Details */
