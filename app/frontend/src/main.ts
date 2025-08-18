@@ -54,3 +54,50 @@ window.addEventListener('appinstalled', () => {
   console.log('PWA was installed')
   deferredPrompt = null
 })
+
+// Lightweight session keepalive: ping backend periodically to refresh cookie session
+// Runs only when page is visible to reduce battery impact
+const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function keepaliveOnce() {
+  try {
+    await fetch('/auth/keepalive', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+  } catch (e) {
+    // silent
+  }
+}
+
+let keepaliveTimer: number | null = null
+function startKeepalive() {
+  if (keepaliveTimer !== null) return
+  keepaliveTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      keepaliveOnce()
+    }
+  }, KEEPALIVE_INTERVAL_MS)
+}
+
+function stopKeepalive() {
+  if (keepaliveTimer !== null) {
+    window.clearInterval(keepaliveTimer)
+    keepaliveTimer = null
+  }
+}
+
+// Start on load and toggle with visibility
+startKeepalive()
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    keepaliveOnce()
+  }
+})
+
+// Optional: stop on unload
+window.addEventListener('beforeunload', () => {
+  stopKeepalive()
+})
