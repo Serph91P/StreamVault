@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue'
+import router from '@/router'
 
 interface PWAInstallPrompt {
   prompt(): Promise<void>
@@ -121,7 +122,8 @@ export function usePWA() {
         console.log('🔔 Creating new push subscription...')
         subscription = await registration.value.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey)
+          // Cast to BufferSource to satisfy TS lib.dom variations across environments
+          applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource
         })
         console.log('🔔 New subscription created:', subscription)
       }
@@ -372,6 +374,19 @@ export function usePWA() {
       
       // You can emit events here or use router to navigate
       // router.push(url)
+    } else if (event.data.type === 'navigate' && event.data.url) {
+      try {
+        const url = new URL(event.data.url, location.origin)
+        // Navigate within SPA if same origin
+        if (url.origin === location.origin) {
+          router.push(url.pathname + url.search + url.hash)
+        } else {
+          // Fallback open
+          window.location.href = event.data.url
+        }
+      } catch (e) {
+        console.error('Failed to navigate from SW message:', e)
+      }
     }
   }
 
