@@ -5,6 +5,8 @@ import asyncio
 import logging
 import tempfile
 import copy  # Add missing import for copy module
+import re
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
@@ -291,13 +293,10 @@ class MetadataService:
             # Episode NFO always next to the recording file
             episode_nfo_path = base_path / f"{base_filename}.nfo"
 
-            # Work out if we're inside a season folder (e.g., "Season ..." or "SYYYYMM")
+            # Work out if we're inside a season folder using a flexible regex (e.g., "Season 01" or "S202401")
             season_hint = False
             try:
-                season_hint = (
-                    "season" in base_path.name.lower() or
-                    (stream.started_at is not None and f"s{stream.started_at.strftime('%Y%m')}" in base_path.name.lower())
-                )
+                season_hint = bool(re.search(r"(season\s*\d+|s\d+)", base_path.name, re.IGNORECASE))
             except Exception:
                 # Be defensive; if anything goes wrong, assume not in a season dir
                 season_hint = False
@@ -541,7 +540,6 @@ class MetadataService:
                 
                 # Ensure poster.jpg exists as well
                 if not poster_path.exists():
-                    import shutil
                     shutil.copy2(thumb_path, poster_path)
                 
                 return str(thumb_path)
@@ -549,7 +547,6 @@ class MetadataService:
             # Determine thumbnail source
             if local_thumbnail and os.path.exists(local_thumbnail):
                 # Copy existing local thumbnail
-                import shutil
                 shutil.copy2(local_thumbnail, thumb_path)
                 shutil.copy2(local_thumbnail, poster_path)
                 logger.debug(f"Copied local thumbnail for stream {stream_id} to {thumb_path}")
@@ -560,7 +557,6 @@ class MetadataService:
                 success = await self._download_image(thumbnail_url, thumb_path)
                 if success:
                     # Also save as poster.jpg
-                    import shutil
                     shutil.copy2(thumb_path, poster_path)
                     logger.debug(f"Downloaded thumbnail for stream {stream_id} to {thumb_path}")
                     return str(thumb_path)
@@ -573,7 +569,6 @@ class MetadataService:
                 
                 if extracted_thumb and os.path.exists(extracted_thumb):
                     # Copy to standard formats
-                    import shutil
                     shutil.copy2(extracted_thumb, thumb_path)
                     shutil.copy2(extracted_thumb, poster_path)
                     logger.debug(f"Extracted thumbnail for stream {stream_id} to {thumb_path}")
@@ -596,7 +591,6 @@ class MetadataService:
             if not url.startswith(('http://', 'https://')):
                 local_path = Path(url)
                 if local_path.exists():
-                    import shutil
                     os.makedirs(os.path.dirname(target_path), exist_ok=True)
                     shutil.copy2(local_path, target_path)
                     return True
@@ -686,14 +680,13 @@ class MetadataService:
                             if recordings_root:
                                 global_poster = recordings_root / ".media" / "artwork" / safe_username / "poster.jpg"
                                 if global_poster.exists():
-                                    import shutil
                                     local_poster = base_path / "poster.jpg"
                                     if not local_poster.exists():
                                         shutil.copy2(global_poster, local_poster)
                                         episode_thumb_path = str(local_poster)
                                         logger.debug(f"Copied global poster to local folder: {local_poster}")
                                     # If season dir, also create season-poster.jpg
-                                    if "season" in base_path.name.lower() or "s20" in base_path.name.lower():
+                                    if re.search(r"(season\s*\d+|s\d+)", base_path.name, re.IGNORECASE):
                                         season_poster = base_path / "season-poster.jpg"
                                         if not season_poster.exists():
                                             shutil.copy2(global_poster, season_poster)
@@ -703,7 +696,6 @@ class MetadataService:
             
             # Create thumbnail and metadata files specific to each media server
             if episode_thumb_path and os.path.exists(episode_thumb_path):
-                import shutil
                 
                 # Plex specific files - always create these for maximum compatibility
                 if "plex" in filename_preset or True:  # Always create Plex files
@@ -720,7 +712,7 @@ class MetadataService:
                         logger.debug(f"Created standard thumb: {plex_thumb}")
                     
                     # Create season poster(s) in the season directory if we're inside one
-                    if "season" in base_path.name.lower() or "s20" in base_path.name.lower():
+                    if re.search(r"(season\s*\d+|s\d+)", base_path.name, re.IGNORECASE):
                         season_poster1 = base_path / "season-poster.jpg"
                         season_poster2 = base_path / "poster.jpg"
                         for sp in [season_poster1, season_poster2]:
@@ -1107,7 +1099,6 @@ class MetadataService:
                 # 2. Exakte Dateinamen-Kopie für Plex
                 exact_vtt_path = mp4_path_obj.with_suffix('.vtt')
                 if exact_vtt_path != vtt_path:
-                    import shutil
                     shutil.copy2(vtt_path, exact_vtt_path)
                 
                 # 3. SRT-Kapitel (für Kodi/einige Player)
@@ -1764,7 +1755,6 @@ class MetadataService:
                     
                     if success and os.path.exists(temp_output):
                         # Replace original file with the metadata-embedded version
-                        import shutil
                         shutil.move(temp_output, mp4_path)
                         logger.info(f"Successfully embedded metadata using FFmpeg for stream {stream_id}")
                         logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] FFmpeg metadata embedding successful: {mp4_path}")
@@ -2079,7 +2069,6 @@ class MetadataService:
                 # 2. Create standard WebVTT file with exact filename for maximum compatibility
                 vtt_path = f"{base_path}.vtt"
                 if os.path.exists(f"{base_path}.vtt") and not os.path.samefile(f"{base_path}.vtt", vtt_path):
-                    import shutil
                     shutil.copy2(f"{base_path}.vtt", vtt_path)
                     
                 logger.info(f"Created additional chapter files for media server compatibility")
