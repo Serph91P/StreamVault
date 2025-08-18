@@ -154,3 +154,24 @@ async def logout(
         response = JSONResponse(content={"message": "Logout completed", "success": True})
         response.delete_cookie(key="session")
         return response
+
+@router.post("/keepalive")
+async def keepalive(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Refresh the current session to implement sliding expiration."""
+    try:
+        session_token = request.cookies.get("session")
+        if not session_token:
+            return JSONResponse(content={"ok": False, "reason": "no_session"}, status_code=401)
+
+        refreshed = await auth_service.refresh_session(session_token)
+        if not refreshed:
+            return JSONResponse(content={"ok": False, "reason": "invalid_or_expired"}, status_code=401)
+
+        # Optionally update cookie to extend browser-side expiration if we use max-age in the future
+        return JSONResponse(content={"ok": True})
+    except Exception as e:
+        logger.error(f"Keepalive error: {e}")
+        return JSONResponse(content={"ok": False}, status_code=500)
