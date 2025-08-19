@@ -588,7 +588,7 @@ const loadChapters = async (s: Stream) => {
 const forceStartRecordingWithLocalUpdate = async (streamerId: number) => {
   await forceStartRecording(streamerId, (streamerId: number) => {
     // Update local recording state immediately
-    const activeStream = streams.value.find(s => s.streamer_id === streamerId && !s.ended_at)
+  const activeStream = streams.value.find((s: Stream) => s.streamer_id === streamerId && !s.ended_at)
     if (activeStream) {
       localRecordingState.value[activeStream.id] = true
     }
@@ -612,23 +612,28 @@ const sortedStreams = computed(() => {
 // Check if a specific stream is being recorded
 const isStreamBeingRecorded = (stream: Stream): boolean => {
   if (!stream || stream.ended_at) return false
-  
+
   const streamId = Number(stream.id)
   const streamerId = Number(stream.streamer_id)
-  
+
   // Check local WebSocket state first
   if (localRecordingState.value[streamId] !== undefined) {
     return localRecordingState.value[streamId]
   }
-  
+
   // Check active recordings
   if (!activeRecordings.value || !Array.isArray(activeRecordings.value)) {
     return false
   }
-  
+
+  // Prefer exact stream_id match when available, otherwise fall back to streamer_id
   return activeRecordings.value.some((rec: any) => {
-    const recordingStreamId = Number(rec.streamer_id)
-    return recordingStreamId === streamerId && !stream.ended_at
+    const recStreamId = rec.stream_id != null ? Number(rec.stream_id) : null
+    if (recStreamId != null && !Number.isNaN(recStreamId)) {
+      return recStreamId === streamId
+    }
+    const recStreamerId = Number(rec.streamer_id)
+    return recStreamerId === streamerId
   })
 }
 
@@ -712,8 +717,8 @@ const toggleDetails = (streamId: number) => {
     expandedStreams.value.delete(streamId)
   } else {
     expandedStreams.value.add(streamId)
-  const s = streams.value.find(s => s.id === streamId)
-  if (s) loadChapters(s)
+  const s = streams.value.find((s: Stream) => s.id === streamId)
+    if (s) loadChapters(s)
   }
 }
 
@@ -762,7 +767,7 @@ const deleteStream = async () => {
     console.log('Stream deleted successfully:', response)
     
     // Remove from local state
-    const index = streams.value.findIndex(s => s.id === streamToDelete.value!.id)
+  const index = streams.value.findIndex((s: Stream) => s.id === streamToDelete.value!.id)
     if (index > -1) {
       streams.value.splice(index, 1)
     }
@@ -847,8 +852,8 @@ const forceStopRecording = async (stream: Stream) => {
   stoppingRecordingStreamerId.value = streamerId
   
   try {
-    // Use streamerId to stop recording (API handles finding the active recording)
-    const response = await recordingApi.forceStopRecording(streamerId)
+  // Use streamerId to stop recording (API handles finding the active recording)
+  const response = await recordingApi.stopRecording(streamerId)
     
     console.log('Force stop recording successful:', response)
     
@@ -872,6 +877,22 @@ onMounted(async () => {
     await fetchStreams(Number(streamerId.value))
     
     // Preload category images
+    const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
+    await preloadCategoryImages(categories)
+  }
+})
+
+// Refetch streams when the route/prop streamerId changes to avoid stale/mismatched lists
+watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined) => {
+  if (newVal && newVal !== oldVal) {
+    // Reset local UI state tied to previous streamer
+    expandedStreams.value = new Set()
+    chaptersByStreamId.value = {}
+    localRecordingState.value = {}
+
+    await fetchStreams(Number(newVal))
+
+    // Preload category images for the new set
     const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
     await preloadCategoryImages(categories)
   }
