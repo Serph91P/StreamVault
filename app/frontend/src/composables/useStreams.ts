@@ -27,7 +27,10 @@ export function useStreams() {
       }
       
       const data = await response.json()
-      streams.value = data.streams
+      // Safety net: only keep streams that belong to the requested streamer
+      streams.value = Array.isArray(data.streams)
+        ? data.streams.filter((s: Stream) => Number(s.streamer_id) === Number(streamerId))
+        : []
       streamerInfo.value = data.streamer
       
     } catch (err) {
