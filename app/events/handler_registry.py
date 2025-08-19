@@ -358,14 +358,29 @@ class EventHandlerRegistry:
                 streamer = db.query(Streamer).filter(
                     Streamer.twitch_id == data["broadcaster_user_id"]
                 ).first()
-            
+                
                 if streamer:
                     logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
+                    # Resolve category name: prefer payload, else use category_id lookup
+                    incoming_category_name = data.get("category_name")
+                    category_id = data.get("category_id")
+                    effective_category_name = incoming_category_name
+                    if not effective_category_name and category_id:
+                        try:
+                            from app.services.streamer_service import StreamerService
+                            streamer_service = StreamerService(db=db, websocket_manager=self.manager, event_registry=self)
+                            game_data = await streamer_service.get_game_data(category_id)
+                            if game_data and game_data.get("name"):
+                                effective_category_name = game_data.get("name")
+                                logger.debug(f"Resolved category name via category_id {category_id}: {effective_category_name}")
+                        except Exception as e:
+                            logger.debug(f"Failed to resolve category name for id {category_id}: {e}")
+
                     streamer.title = data.get("title")
-                    streamer.category_name = data.get("category_name")
+                    streamer.category_name = effective_category_name
                     streamer.language = data.get("language")
                     streamer.last_updated = datetime.now(timezone.utc)
-                
+                    
                     db.commit()
                     logger.debug(f"Updated streamer info in database: {streamer.title}")
 
@@ -375,43 +390,43 @@ class EventHandlerRegistry:
                         .order_by(Stream.started_at.desc())\
                         .first()
                 
-                    if stream:
-                        stream_event = StreamEvent(
-                            stream_id=stream.id,
-                            event_type="channel.update",
-                            title=data.get("title"),
-                            category_name=data.get("category_name"),
-                            language=data.get("language"),
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        db.add(stream_event)
-                        db.commit()
-                    else:
-                        logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
-                
-                    # Send notification via notification_service - settings check handled internally
-                    logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
-                    notification_result = await self.notification_service.send_stream_notification(
-                        streamer_name=streamer.username,
-                        event_type="update",
-                        details={
-                            "streamer_id": streamer.id,
-                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            "title": data.get("title"),
-                            "category_name": data.get("category_name"),
-                            "language": data.get("language"),
-                            "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
-                            "twitch_login": data["broadcaster_user_login"],
-                            "is_live": streamer.is_live
-                        }
+                if stream:
+                    stream_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="channel.update",
+                        title=data.get("title"),
+                        category_name=effective_category_name,
+                        language=data.get("language"),
+                        timestamp=datetime.now(timezone.utc)
                     )
-                    logger.debug(f"Notification result: {notification_result}")
+                    db.add(stream_event)
+                    db.commit()
+                else:
+                    logger.info(f"Streamer {streamer.username} is offline, storing update for future use")
                 
-                    logger.debug("Notifications sent successfully")
-                    category_name = data.get("category_name")
-                    category_id = data.get("category_id")
-                    
-                    if category_name and category_id:
+                # Send notification via notification_service - settings check handled internally
+                logger.debug(f"Attempting to send notification for {streamer.username}, event_type=update")
+                notification_result = await self.notification_service.send_stream_notification(
+                    streamer_name=streamer.username,
+                    event_type="update",
+                    details={
+                        "streamer_id": streamer.id,
+                        "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                        "title": data.get("title"),
+                        "category_name": effective_category_name,
+                        "language": data.get("language"),
+                        "profile_image_url": streamer.profile_image_url,  # Use current profile image (cached if available)
+                        "twitch_login": data["broadcaster_user_login"],
+                        "is_live": streamer.is_live
+                    }
+                )
+                logger.debug(f"Notification result: {notification_result}")
+                
+                logger.debug("Notifications sent successfully")
+                category_name = effective_category_name
+                category_id = data.get("category_id")
+
+                if category_name and category_id:
                         from app.services.streamer_service import StreamerService
                         
                         category = db.query(Category).filter(Category.twitch_id == category_id).first()
@@ -428,7 +443,7 @@ class EventHandlerRegistry:
                             # Create category with HTTP URL initially
                             category = Category(
                                 twitch_id=category_id,
-                                name=category_name,
+                                name=category_name or (game_data.get("name") if game_data else None),
                                 box_art_url=game_data.get("box_art_url") if game_data else None
                             )
                             db.add(category)
