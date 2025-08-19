@@ -464,16 +464,23 @@ class RecordingLifecycleManager:
             logger.info(f"🎬 GENERATE_PATH: streamer_id={streamer_id}, stream_id={stream_id}")
             
             # Get streamer and stream info for filename generation
-            streamer = await self.database_service.get_streamer_by_id(streamer_id)
             stream = await self.database_service.get_stream_by_id(stream_id)
+            # Always derive streamer from the stream to avoid mismatches
+            if not stream:
+                logger.error(f"🎬 NO_STREAM: stream_id={stream_id}")
+                raise Exception(f"Stream {stream_id} not found")
+
+            # If a mismatched streamer_id was provided, log and correct it
+            if stream.streamer_id != streamer_id:
+                logger.warning(
+                    f"🎬 STREAMER_MISMATCH: provided_streamer_id={streamer_id} does not match stream.streamer_id={stream.streamer_id} for stream_id={stream_id}; using authoritative value from stream"
+                )
+
+            streamer = await self.database_service.get_streamer_by_id(stream.streamer_id)
             
             if not streamer:
                 logger.error(f"🎬 NO_STREAMER: streamer_id={streamer_id}")
                 raise Exception(f"Streamer {streamer_id} not found")
-            
-            if not stream:
-                logger.error(f"🎬 NO_STREAM: stream_id={stream_id}")
-                raise Exception(f"Stream {stream_id} not found")
             
             # Create stream_data dictionary for generate_filename
             stream_data = {

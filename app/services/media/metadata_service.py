@@ -145,58 +145,53 @@ class MetadataService:
                     db.add(metadata)
                     db.commit()
                 
-                # Create all metadata files in parallel
-                tasks = [
-                    # JSON metadata
-                    self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename, metadata),
-                    # NFO for media servers
-                    self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename, metadata),
-                    # All chapter formats
-                    self.ensure_all_chapter_formats(stream_id, str(base_path_obj / f"{base_filename}.mp4"), db),
-                    # Media server specific files (poster.jpg, etc.)
-                    self._create_media_server_specific_files(stream, base_path_obj)
-                ]
+                # Run tasks sequentially to avoid DB/file write races under concurrency
+                success = True
                 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                logger.info(f"All metadata generation tasks completed for stream {stream_id}")
-                
-                # Count successes and log errors
-                full_successes = 0
-                partial_successes = 0
-                
-                for i, result in enumerate(results):
-                    task_names = ["JSON metadata", "NFO file", "Chapter formats", "Media server files"]
-                    if isinstance(result, Exception):
-                        logger.error(f"{task_names[i]} failed: {result}", exc_info=True)
-                        # Don't fail completely for individual task failures
-                    elif result is True:
-                        full_successes += 1
-                        logger.debug(f"{task_names[i]} completed successfully")
-                    elif result is None or result is False:
-                        logger.warning(f"{task_names[i]} returned {result} - may indicate partial failure")
-                        partial_successes += 1
-                    else:
-                        logger.warning(f"{task_names[i]} returned unexpected result: {result}")
-                
-                # Return True if at least one task fully succeeded
-                success = full_successes > 0 or (full_successes == 0 and partial_successes > 0)
-                
-                if success:
-                    total_attempts = full_successes + partial_successes
-                    logger.info(f"Generated metadata for stream {stream_id}: {full_successes} full successes, {partial_successes} partial successes out of {len(tasks)} tasks")
-                    
-                    # Always commit if we have any successes to save partial progress
-                    try:
-                        db.commit()
-                        logger.debug(f"Committed metadata changes for stream {stream_id}")
-                    except Exception as commit_error:
-                        logger.error(f"Failed to commit metadata changes for stream {stream_id}: {commit_error}")
-                        db.rollback()
-                        return False
-                else:
-                    logger.error(f"All metadata generation tasks failed for stream {stream_id}")
-                
+                # 1) JSON metadata
+                try:
+                    ok = await self.generate_json_metadata(db, stream, streamer, base_path_obj, base_filename, metadata)
+                    if not ok:
+                        success = False
+                except Exception as e:
+                    logger.error(f"JSON metadata generation failed: {e}", exc_info=True)
+                    success = False
+
+                # 2) NFO files
+                try:
+                    ok = await self.generate_nfo_file(db, stream, streamer, base_path_obj, base_filename, metadata)
+                    if not ok:
+                        success = False
+                except Exception as e:
+                    logger.error(f"NFO generation failed: {e}", exc_info=True)
+                    success = False
+
+                # 3) Chapters
+                try:
+                    ok = await self.ensure_all_chapter_formats(stream_id, str(base_path_obj / f"{base_filename}.mp4"), db)
+                    if not ok:
+                        success = False
+                except Exception as e:
+                    logger.error(f"Chapter generation failed: {e}", exc_info=True)
+                    success = False
+
+                # 4) Media server files
+                try:
+                    ok = await self._create_media_server_specific_files(stream, base_path_obj, base_filename=base_filename)
+                    if not ok:
+                        success = False
+                except Exception as e:
+                    logger.error(f"Media server file creation failed: {e}", exc_info=True)
+                    success = False
+
+                # Finalize
+                try:
+                    db.commit()
+                except Exception as commit_error:
+                    logger.error(f"Failed to commit metadata changes for stream {stream_id}: {commit_error}")
+                    db.rollback()
+                    return False
+
                 return success
             
         except Exception as e:
@@ -394,6 +389,19 @@ class MetadataService:
             # 2. Generate Episode NFO
             episode_root = ET.Element("episodedetails")
             
+            # Unique identifiers to bind this episode to the precise stream
+            try:
+                uid = ET.SubElement(episode_root, "uniqueid")
+                uid.set("type", "streamvault")
+                uid.set("default", "true")
+                uid.text = str(stream.id)
+                if stream.twitch_stream_id:
+                    uid2 = ET.SubElement(episode_root, "uniqueid")
+                    uid2.set("type", "twitch_stream_id")
+                    uid2.text = str(stream.twitch_stream_id)
+            except Exception:
+                pass
+            
             # Episode title and number
             ET.SubElement(episode_root, "title").text = stream.title or f"{streamer.username} Stream"
             
@@ -495,7 +503,8 @@ class MetadataService:
                 stream=stream, 
                 base_path=base_path, 
                 episode_thumb_path=episode_thumb_path if episode_thumb_path else None,
-                db=db
+                db=db,
+                base_filename=base_filename
             )
             
             logger.debug(f"Generated NFO files for stream {stream.id}: {episode_nfo_path} and {tvshow_nfo_path}")
@@ -627,7 +636,9 @@ class MetadataService:
         stream: Stream,
         base_path: Path,
         episode_thumb_path: Optional[str] = None,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
+        base_filename: Optional[str] = None,
+        streamer: Optional[Streamer] = None,
     ) -> bool:
         """Creates additional files and symlinks for specific media servers
         
@@ -654,8 +665,26 @@ class MetadataService:
             # List of common media servers
             media_servers = ["plex", "emby", "jellyfin", "kodi"]
             
-            # Get base filename without extension
-            base_filename = base_path.stem if isinstance(base_path, Path) else Path(base_path).stem
+            # Resolve exact target directory and base filename from the actual recording path when available
+            target_dir = base_path
+            resolved_base_filename = base_filename
+            try:
+                if getattr(stream, "recording_path", None):
+                    rec_path = Path(stream.recording_path)
+                    if rec_path.exists():
+                        target_dir = rec_path.parent
+                        if not resolved_base_filename:
+                            resolved_base_filename = rec_path.stem
+            except Exception:
+                pass
+            if not resolved_base_filename:
+                # Fallback to provided base_filename arg or last-resort: infer from files in dir
+                try:
+                    # Try to pick the first mp4 file in the directory
+                    found = next((p.stem for p in target_dir.glob("*.mp4")), None)
+                    resolved_base_filename = found or "unknown"
+                except Exception:
+                    resolved_base_filename = "unknown"
             
             # Falls kein Thumbnail übergeben wurde, versuche es aus den Metadaten oder dem Artwork-Cache zu holen
             if not episode_thumb_path or not os.path.exists(episode_thumb_path):
@@ -672,22 +701,24 @@ class MetadataService:
                 # Fallback: copy poster from global artwork cache to local folder
                 if (not episode_thumb_path) or (episode_thumb_path and not os.path.exists(episode_thumb_path)):
                     try:
-                        with SessionLocal() as s:
-                            streamer = s.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                        if streamer:
-                            safe_username = sanitize_filename(streamer.username)
-                            recordings_root = self._find_recordings_root(base_path)
+                        eff_streamer = streamer
+                        if eff_streamer is None:
+                            with SessionLocal() as s:
+                                eff_streamer = s.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if eff_streamer:
+                            safe_username = sanitize_filename(eff_streamer.username)
+                            recordings_root = self._find_recordings_root(target_dir)
                             if recordings_root:
                                 global_poster = recordings_root / ".media" / "artwork" / safe_username / "poster.jpg"
                                 if global_poster.exists():
-                                    local_poster = base_path / "poster.jpg"
+                                    local_poster = target_dir / "poster.jpg"
                                     if not local_poster.exists():
                                         shutil.copy2(global_poster, local_poster)
                                         episode_thumb_path = str(local_poster)
                                         logger.debug(f"Copied global poster to local folder: {local_poster}")
                                     # If season dir, also create season-poster.jpg
-                                    if re.search(r"(season\s*\d+|s\d+)", base_path.name, re.IGNORECASE):
-                                        season_poster = base_path / "season-poster.jpg"
+                                    if re.search(r"(season\s*\d+|s\d+)", target_dir.name, re.IGNORECASE):
+                                        season_poster = target_dir / "season-poster.jpg"
                                         if not season_poster.exists():
                                             shutil.copy2(global_poster, season_poster)
                                             logger.debug(f"Created season poster from global cache: {season_poster}")
@@ -700,21 +731,21 @@ class MetadataService:
                 # Plex specific files - always create these for maximum compatibility
                 if "plex" in filename_preset or True:  # Always create Plex files
                     # Plex prefers poster.jpg in the same directory
-                    plex_poster = base_path / "poster.jpg"
+                    plex_poster = target_dir / "poster.jpg"
                     if not plex_poster.exists():
                         shutil.copy2(episode_thumb_path, plex_poster)
                         logger.debug(f"Created Plex poster: {plex_poster}")
                     
                     # Stelle sicher, dass das Standard-Thumbnail existiert
-                    plex_thumb = base_path / f"{base_filename}-thumb.jpg"
+                    plex_thumb = target_dir / f"{resolved_base_filename}-thumb.jpg"
                     if not plex_thumb.exists():
                         shutil.copy2(episode_thumb_path, plex_thumb)
                         logger.debug(f"Created standard thumb: {plex_thumb}")
                     
                     # Create season poster(s) in the season directory if we're inside one
-                    if re.search(r"(season\s*\d+|s\d+)", base_path.name, re.IGNORECASE):
-                        season_poster1 = base_path / "season-poster.jpg"
-                        season_poster2 = base_path / "poster.jpg"
+                    if re.search(r"(season\s*\d+|s\d+)", target_dir.name, re.IGNORECASE):
+                        season_poster1 = target_dir / "season-poster.jpg"
+                        season_poster2 = target_dir / "poster.jpg"
                         for sp in [season_poster1, season_poster2]:
                             if not sp.exists() and os.path.exists(episode_thumb_path):
                                 shutil.copy2(episode_thumb_path, sp)
@@ -723,7 +754,7 @@ class MetadataService:
                 # Kodi specific files
                 if "kodi" in filename_preset or True:  # Always create Kodi files
                     # Kodi uses .tbn extension for thumbnails
-                    kodi_tbn = base_path / f"{base_filename}.tbn"
+                    kodi_tbn = target_dir / f"{resolved_base_filename}.tbn"
                     if not kodi_tbn.exists():
                         shutil.copy2(episode_thumb_path, kodi_tbn)
                         logger.debug(f"Created Kodi thumbnail: {kodi_tbn}")
@@ -731,7 +762,7 @@ class MetadataService:
                 # Emby/Jellyfin specific files
                 if any(server in filename_preset for server in ["emby", "jellyfin"]) or True:
                     # Emby/Jellyfin also like poster.jpg
-                    poster_jpg = base_path / "poster.jpg"
+                    poster_jpg = target_dir / "poster.jpg"
                     if not poster_jpg.exists():
                         shutil.copy2(episode_thumb_path, poster_jpg)
                         logger.debug(f"Created Emby poster: {poster_jpg}")
@@ -759,14 +790,31 @@ class MetadataService:
                 plex_name = plex_name.replace('/', '-').replace('\\', '-').replace(':', '-')
                 
                 # Create symlinks for video and nfo files with Plex naming
-                video_files = list(base_path.parent.glob(f"{base_filename}.mp4"))
-                nfo_files = list(base_path.parent.glob(f"{base_filename}.nfo"))
-                
-                if video_files:
+                video_src = None
+                nfo_src = None
+                try:
+                    # Prefer exact recording path
+                    if getattr(stream, "recording_path", None):
+                        rp = Path(stream.recording_path)
+                        if rp.exists():
+                            video_src = rp
+                            nfo_candidate = rp.with_suffix(".nfo")
+                            if nfo_candidate.exists():
+                                nfo_src = nfo_candidate
+                    if video_src is None:
+                        # Fallback: derive from target_dir + resolved_base_filename
+                        candidate = target_dir / f"{resolved_base_filename}.mp4"
+                        if candidate.exists():
+                            video_src = candidate
+                        nfo_candidate = target_dir / f"{resolved_base_filename}.nfo"
+                        if nfo_candidate.exists():
+                            nfo_src = nfo_candidate
+                except Exception:
+                    pass
+
+                if video_src and video_src.exists():
                     try:
-                        # Create symlink or copy for video
-                        video_src = video_files[0]
-                        video_dest = base_path.parent / f"{plex_name}.mp4"
+                        video_dest = target_dir / f"{plex_name}.mp4"
                         
                         if not video_dest.exists():
                             if os.name == 'nt':  # Windows
@@ -782,11 +830,9 @@ class MetadataService:
                     except Exception as e:
                         logger.warning(f"Error creating Plex video symlink: {e}")
                 
-                if nfo_files:
+                if nfo_src and nfo_src.exists():
                     try:
-                        # Create symlink or copy for NFO
-                        nfo_src = nfo_files[0]
-                        nfo_dest = base_path.parent / f"{plex_name}.nfo"
+                        nfo_dest = target_dir / f"{plex_name}.nfo"
                         
                         if not nfo_dest.exists():
                             if os.name == 'nt':  # Windows
@@ -1430,20 +1476,11 @@ class MetadataService:
                 if stream.started_at:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
                 
-                # Sortierte Events, um Duplikate zu eliminieren
-                sorted_events = sorted(events, key=lambda x: x.timestamp)
-                filtered_events = []
+                # Sort events by timestamp and include ALL events (no dedup) to ensure correctness
+                filtered_events = sorted(events, key=lambda x: x.timestamp)
                 
-                # Entferne Events mit gleicher Kategorie in Folge
-                last_category = None
-                for event in sorted_events:
-                    if event.category_name != last_category:
-                        filtered_events.append(event)
-                        last_category = event.category_name
-                
-                # Wenn wir keine Events haben, füge ein Standard-Kapitel hinzu
+                # If we have no events, create a default one covering the whole stream
                 if not filtered_events and stream.category_name:
-                    # Create a dummy event for the entire stream
                     dummy_event = type('Event', (), {
                         'timestamp': stream.started_at,
                         'title': stream.title,

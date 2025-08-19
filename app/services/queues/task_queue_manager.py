@@ -187,32 +187,66 @@ class TaskQueueManager:
 
     def _extract_streamer_name(self, payload: Dict[str, Any]) -> str:
         """Extract streamer name from task payload for isolation"""
-        # Try different possible keys for streamer name
+        # 1) Explicit name wins
         streamer_name = payload.get('streamer_name')
         if streamer_name:
             return str(streamer_name)
-            
-        # Try to derive from stream_id or recording path
+
+        # 2) Resolve by stream_id via DB (authoritative)
         stream_id = payload.get('stream_id')
-        if stream_id:
-            # Look for streamer name in recording path patterns
-            ts_file_path = payload.get('ts_file_path', '')
-            output_dir = payload.get('output_dir', '')
-            
-            # Try to extract from paths
-            for path_str in [ts_file_path, output_dir]:
-                if path_str:
-                    path = Path(path_str)
-                    # Look for streamer name in path components
-                    for part in path.parts:
-                        if not part.startswith(('recordings', 'temp', '/')):
-                            return str(part)
-        
-        # Fallback to stream_id based name
-        if stream_id:
+        if stream_id is not None:
+            try:
+                # Lazy import to avoid circular deps
+                from app.database import SessionLocal
+                from app.models import Stream, Streamer
+                with SessionLocal() as db:
+                    stream = db.query(Stream).filter(Stream.id == int(stream_id)).first()
+                    if stream:
+                        st = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if st and st.username:
+                            return str(st.username)
+            except Exception as e:
+                logger.debug(f"Streamer lookup by stream_id failed: {e}")
+
+        # 3) Try to derive from provided paths (Windows-safe)
+        def _candidate_from_path(path_str: str) -> Optional[str]:
+            if not path_str:
+                return None
+            try:
+                p = Path(path_str)
+                # Heuristic: expect structure .../recordings/<streamer>/Season ...
+                parts = list(p.parts)
+                # Normalize typical top-level folder names
+                lowered = [s.lower() for s in parts]
+                if 'recordings' in lowered:
+                    idx = lowered.index('recordings')
+                    if idx + 1 < len(parts):
+                        return str(parts[idx + 1])
+                # Fallback: first non-empty folder name that isn't a drive or season
+                for part in parts:
+                    norm = part.strip().strip('\\/')
+                    if not norm:
+                        continue
+                    # Skip drive letters like 'C:\'
+                    if len(norm) == 2 and norm.endswith(':'):
+                        continue
+                    if norm.lower().startswith('season '):
+                        continue
+                    if norm.lower() in ('recordings', 'temp', 'tmp', 'segments'):
+                        continue
+                    return str(norm)
+            except Exception:
+                return None
+            return None
+
+        for key in ('ts_file_path', 'output_dir', 'mp4_path'):
+            name = _candidate_from_path(payload.get(key, ''))
+            if name:
+                return name
+
+        # 4) Fallbacks
+        if stream_id is not None:
             return f"streamer_{stream_id}"
-        
-        # Ultimate fallback
         return "unknown_streamer"
 
     async def _enqueue_to_streamer_queue(self, task: QueueTask, streamer_name: str):
