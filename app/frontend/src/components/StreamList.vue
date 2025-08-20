@@ -264,64 +264,37 @@
                   <i class="fas fa-tags"></i> Categories
                 </h4>
                 <div class="categories-container">
-                  <!-- Current/Main Category -->
-                  <div v-if="stream.category_name" class="category-item main-category">
-                    <div class="category-image-wrapper">
-                      <template v-if="getCategoryImageSrc(stream.category_name).startsWith('icon:')">
-                        <div class="category-icon-small">
-                          <i :class="`fas ${getCategoryImageSrc(stream.category_name).replace('icon:', '')}`"></i>
-                        </div>
-                      </template>
-                      <template v-else>
-                        <img 
-                          :src="getCategoryImageSrc(stream.category_name)"
-                          :alt="stream.category_name" 
-                          @error="handleImageError($event, stream.category_name)"
-                          loading="lazy"
-                          class="category-image-small"
-                        />
-                      </template>
-                    </div>
-                    <div class="category-info">
-                      <span class="category-name">{{ stream.category_name }}</span>
-                      <span class="category-type">Main Category</span>
-                    </div>
-                  </div>
-                  
-                  <!-- Additional Categories (if available from database) -->
-                  <div v-if="(stream as ExtendedStream).categories && (stream as ExtendedStream).categories!.length > 1" class="additional-categories">
-                    <div 
-                      v-for="category in (stream as ExtendedStream).categories!.slice(1)" 
-                      :key="category.name"
+          <template v-if="getCategoryHistory(stream).length > 0">
+                    <div
+                      v-for="(cat, idx) in getCategoryHistory(stream)"
+                      :key="`${cat.timestamp}-${idx}`"
                       class="category-item"
                     >
                       <div class="category-image-wrapper">
-                        <template v-if="getCategoryImageSrc(category.name).startsWith('icon:')">
+                        <template v-if="getCategoryImageSrc(cat.name).startsWith('icon:')">
                           <div class="category-icon-small">
-                            <i :class="`fas ${getCategoryImageSrc(category.name).replace('icon:', '')}`"></i>
+                            <i :class="`fas ${getCategoryImageSrc(cat.name).replace('icon:', '')}`"></i>
                           </div>
                         </template>
                         <template v-else>
-                          <img 
-                            :src="getCategoryImageSrc(category.name)"
-                            :alt="category.name" 
-                            @error="handleImageError($event, category.name)"
+                          <img
+                            :src="getCategoryImageSrc(cat.name)"
+                            :alt="cat.name"
+                            @error="handleImageError($event, cat.name)"
                             loading="lazy"
                             class="category-image-small"
                           />
                         </template>
                       </div>
                       <div class="category-info">
-                        <span class="category-name">{{ category.name }}</span>
-                        <span v-if="category.duration" class="category-duration">
-                          {{ formatDuration(category.duration) }}
+                        <span class="category-name">{{ cat.name }}</span>
+                        <span v-if="cat.duration" class="category-duration">
+                          {{ formatDuration(cat.duration) }}
                         </span>
                       </div>
                     </div>
-                  </div>
-                  
-                  <!-- Fallback if no categories -->
-                  <div v-if="!stream.category_name" class="no-categories">
+                  </template>
+                  <div v-else class="no-categories">
                     <i class="fas fa-question-circle"></i>
                     <span>No category information available</span>
                   </div>
@@ -667,6 +640,56 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
 }
 
+// Extract all unique categories from a list of streams (main + events)
+const extractCategoriesFromStreams = (list: Stream[]): string[] => {
+  const set = new Set<string>()
+  list.forEach((s: any) => {
+    if (s?.category_name) set.add(s.category_name)
+    const evs = (s?.events || []) as Array<{ category_name?: string | null }>
+    evs.forEach(e => { if (e?.category_name) set.add(e.category_name) })
+  })
+  return Array.from(set)
+}
+
+// Build a category history list from stream events with durations
+type CategoryHistoryItem = { name: string; timestamp?: string; duration?: number }
+const getCategoryHistory = (s: Stream): CategoryHistoryItem[] => {
+  const events = ((s as any).events || []) as Array<{ event_type?: string; category_name?: string | null; timestamp?: string | null }>
+  const relevant = events
+    .filter(e => !!e && (e.event_type === 'channel.update' || e.event_type === 'stream.online') && e.category_name)
+    .sort((a, b) => {
+      const at = a.timestamp ? new Date(a.timestamp).getTime() : 0
+      const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0
+      return at - bt
+    })
+
+  if (relevant.length === 0) {
+    return s.category_name ? [{ name: s.category_name }] : []
+  }
+
+  // Deduplicate consecutive same categories
+  const items: CategoryHistoryItem[] = []
+  for (const ev of relevant) {
+    const name = ev.category_name as string
+    if (items.length === 0 || items[items.length - 1].name !== name) {
+      items.push({ name, timestamp: ev.timestamp || undefined })
+    }
+  }
+
+  // Compute durations between changes (ms)
+  for (let i = 0; i < items.length; i++) {
+    const curr = items[i]
+    const next = items[i + 1]
+    const startMs = curr.timestamp ? new Date(curr.timestamp).getTime() : (s.started_at ? new Date(s.started_at).getTime() : NaN)
+    const endMs = next?.timestamp ? new Date(next.timestamp!).getTime() : (s.ended_at ? new Date(s.ended_at).getTime() : Date.now())
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs >= startMs) {
+      curr.duration = endMs - startMs
+    }
+  }
+
+  return items
+}
+
 const formatDate = (dateString: string | null): string => {
   if (!dateString) return 'Unknown'
   const date = new Date(dateString)
@@ -876,9 +899,9 @@ onMounted(async () => {
   if (streamerId.value) {
     await fetchStreams(Number(streamerId.value))
     
-    // Preload category images
-    const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
-    await preloadCategoryImages(categories)
+  // Preload category images (main + from event history)
+  const categories = extractCategoriesFromStreams(streams.value as Stream[])
+  await preloadCategoryImages(categories)
   }
 })
 
@@ -892,9 +915,9 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
     await fetchStreams(Number(newVal))
 
-    // Preload category images for the new set
-    const categories = [...new Set(streams.value.map((s: any) => s.category_name).filter(Boolean))] as string[]
-    await preloadCategoryImages(categories)
+  // Preload category images for the new set (main + history)
+  const categories = extractCategoriesFromStreams(streams.value as Stream[])
+  await preloadCategoryImages(categories)
   }
 })
 </script>
