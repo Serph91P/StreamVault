@@ -402,18 +402,34 @@ class MetadataService:
             except Exception:
                 pass
             
-            # Episode title and number
-            ET.SubElement(episode_root, "title").text = stream.title or f"{streamer.username} Stream"
+            # Episode title: prefer the human title but, when base_filename contains a formatted prefix, use the full filename-like title for consistency
+            try:
+                display_title = stream.title or f"{streamer.username} Stream"
+                # If base_filename already follows "Streamer - SYYYYMME## - Title", reconstruct that as title for scanners
+                if base_filename and re.search(r"S\d{6}E\d{2}", base_filename):
+                    display_title = base_filename.split("/")[-1]  # Make sure it's just the name
+                    # Replace underscores with spaces for readability
+                    display_title = display_title.replace("_", " ")
+                ET.SubElement(episode_root, "title").text = display_title
+            except Exception:
+                ET.SubElement(episode_root, "title").text = stream.title or f"{streamer.username} Stream"
             
-            # Calculate episode number from date (e.g., day of month)
+            # Calculate season/episode. Prefer stored episode_number for month-based numbering; fallback to day-of-month.
             if stream.started_at:
                 ET.SubElement(episode_root, "aired").text = stream.started_at.strftime("%Y-%m-%d")
                 ET.SubElement(episode_root, "premiered").text = stream.started_at.strftime("%Y-%m-%d")
                 ET.SubElement(episode_root, "dateadded").text = stream.started_at.strftime("%Y-%m-%d %H:%M:%S")
                 
-                # Use year-month as season number and day as episode number
+                # Use year-month as season number (SYYYYMM)
                 season_num = stream.started_at.strftime("%Y%m")
-                episode_num = stream.started_at.strftime("%d")
+                # Prefer DB episode_number if set, else day-of-month
+                try:
+                    if getattr(stream, "episode_number", None):
+                        episode_num = f"{int(stream.episode_number):02d}"
+                    else:
+                        episode_num = stream.started_at.strftime("%d")
+                except Exception:
+                    episode_num = stream.started_at.strftime("%d")
                 
                 ET.SubElement(episode_root, "season").text = season_num
                 ET.SubElement(episode_root, "episode").text = episode_num
