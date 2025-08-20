@@ -7,6 +7,7 @@ that were split into multiple parts.
 
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 
@@ -73,13 +74,61 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
         output_file = Path(output_path)
         segment_dir = valid_segments[0].parent
         concat_list_path = segment_dir / "concat_list.txt"
+
+        # If there's only one segment, avoid ffmpeg concat and just move/copy it
+        if len(valid_segments) == 1:
+            single = valid_segments[0]
+            try:
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                if single.resolve() != output_file.resolve():
+                    # Prefer moving to avoid duplicate storage; fall back to copy
+                    try:
+                        single.replace(output_file)
+                    except Exception:
+                        shutil.copy2(single, output_file)
+                logger.info(f"🎬 SINGLE_SEGMENT_FASTPATH: wrote {output_file}")
+
+                # Update recording path in DB
+                try:
+                    from app.database import SessionLocal
+                    from app.models import Recording
+                    with SessionLocal() as db:
+                        recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                        if recording:
+                            recording.path = str(output_file)
+                            recording.status = "completed"
+                            db.commit()
+                except Exception as e:
+                    logger.warning(f"Could not update recording after single segment move: {e}")
+
+                # Queue post-processing tasks for the final file
+                await _queue_post_processing_tasks(recording_id, str(output_file), task_data)
+
+                # Clean up leftover segment dir if empty
+                await _cleanup_segment_files([single], segment_dir)
+
+                return {
+                    "success": True,
+                    "output_path": str(output_file),
+                    "segments_processed": 1,
+                    "file_size": output_file.stat().st_size,
+                    "recording_id": recording_id
+                }
+            except Exception as e:
+                logger.error(f"Error handling single segment fast-path: {e}", exc_info=True)
+                return {"success": False, "error": str(e), "recording_id": recording_id}
         
         try:
-            with open(concat_list_path, 'w') as f:
+            def _ffconcat_escape(p: str) -> str:
+                # Escape single quotes for ffconcat syntax: file '...'
+                return p.replace("'", "\\'")
+
+            with open(concat_list_path, 'w', encoding='utf-8') as f:
+                # Add header for concat demuxer
+                f.write("ffconcat version 1.0\n")
                 for segment in valid_segments:
-                    # Use relative paths for FFmpeg safety
                     relative_path = segment.relative_to(segment_dir)
-                    safe_name = str(relative_path).replace("'", "'\"'\"'")
+                    safe_name = _ffconcat_escape(str(relative_path))
                     f.write(f"file '{safe_name}'\n")
             
             logger.info(f"🎬 CONCAT_LIST_CREATED: {concat_list_path}")
@@ -164,7 +213,7 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
                             "recording_id": recording_id
                         }
                 else:
-                    stderr_text = stderr.decode('utf-8', errors='replace')[:500]
+                    stderr_text = stderr.decode('utf-8', errors='replace')[:4096]
                     logger.error(f"🎬 FFMPEG_CONCAT_FAILED: return_code={process.returncode}, stderr={stderr_text}")
                     return {
                         "success": False,
