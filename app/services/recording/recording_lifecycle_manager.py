@@ -10,7 +10,7 @@ import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
-from app.utils.path_utils import generate_filename
+from app.utils.path_utils import generate_filename, update_episode_number
 from app.services.api.twitch_api import twitch_api
 try:
     from app.utils.cache import app_cache
@@ -68,7 +68,13 @@ class RecordingLifecycleManager:
             
             # Check capacity
             if not self.state_manager.can_start_new_recording():
-                logger.warning("🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity")
+                # Provide richer capacity info for diagnostics
+                try:
+                    active = self.state_manager.get_active_recording_count()
+                    limit = self.state_manager.max_concurrent_recordings
+                    logger.warning(f"🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity ({active}/{limit})")
+                except Exception:
+                    logger.warning("🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity")
                 return None
             
             # Generate file path
@@ -501,6 +507,18 @@ class RecordingLifecycleManager:
                 stream_data=stream_data,
                 template=template
             )
+
+            # Try to persist the month-episode number we just used into the Stream
+            try:
+                # Extract E## from the generated filename pattern SYYYYMME##
+                import re
+                m = re.search(r"S(\d{6})E(\d{2})", filename)
+                if m:
+                    episode_num = int(m.group(2))
+                    # Persist on Stream for later consumers (NFO, APIs)
+                    await update_episode_number(stream.id, episode_num)
+            except Exception:
+                pass
             
             # Clean up filename and add .ts extension
             # Remove any existing video extensions from the filename (case-insensitive)
