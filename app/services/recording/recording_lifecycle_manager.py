@@ -8,6 +8,7 @@ Handles recording start, stop, monitoring, and lifecycle events.
 import logging
 import asyncio
 from typing import Dict, Any, Optional
+import re
 from datetime import datetime
 from pathlib import Path
 from app.utils.path_utils import generate_filename, update_episode_number
@@ -511,14 +512,13 @@ class RecordingLifecycleManager:
             # Try to persist the month-episode number we just used into the Stream
             try:
                 # Extract E## from the generated filename pattern SYYYYMME##
-                import re
                 m = re.search(r"S(\d{6})E(\d{2})", filename)
                 if m:
                     episode_num = int(m.group(2))
                     # Persist on Stream for later consumers (NFO, APIs)
                     await update_episode_number(stream.id, episode_num)
             except Exception:
-                pass
+                logger.exception("Failed to update episode number for stream %s", stream.id)
             
             # Clean up filename and add .ts extension
             # Remove any existing video extensions from the filename (case-insensitive)
