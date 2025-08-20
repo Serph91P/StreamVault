@@ -391,6 +391,17 @@ class EventHandlerRegistry:
                         .first()
                 
                 if stream:
+                    # Also update the active stream with the latest title/category/language
+                    try:
+                        if data.get("title"):
+                            stream.title = data.get("title")
+                        if effective_category_name:
+                            stream.category_name = effective_category_name
+                        if data.get("language"):
+                            stream.language = data.get("language")
+                    except Exception as e:
+                        logger.debug(f"Could not update active stream fields from channel.update: {e}")
+
                     stream_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="channel.update",
