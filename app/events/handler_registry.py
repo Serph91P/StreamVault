@@ -6,6 +6,7 @@ from typing import Dict, Callable, Awaitable, Any, Optional
 from datetime import datetime, timezone, timedelta
 
 from app.database import SessionLocal
+from sqlalchemy.exc import SQLAlchemyError
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
@@ -262,6 +263,8 @@ class EventHandlerRegistry:
                     else:
                         logger.info(f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer")
             
+        except SQLAlchemyError as e:
+            logger.error(f"Database error handling stream online event: {e}")
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
             
@@ -344,6 +347,8 @@ class EventHandlerRegistry:
                         stream_id_info = stream.id if stream else "None"
                         logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}")
             
+        except SQLAlchemyError as e:
+            logger.error(f"Database error handling stream offline event: {e}")
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
             
@@ -508,6 +513,8 @@ class EventHandlerRegistry:
                                             "twitch_login": data['broadcaster_user_login']
                                         }
                                     )
+        except SQLAlchemyError as e:
+            logger.error(f"Database error handling stream update event: {e}")
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
                         
