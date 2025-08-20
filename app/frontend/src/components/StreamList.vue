@@ -269,7 +269,6 @@
                       v-for="(cat, idx) in getCategoryHistory(stream)"
                       :key="`${cat.timestamp}-${idx}`"
                       class="category-item"
-            :class="{}"
                     >
                       <div class="category-image-wrapper">
                         <template v-if="getCategoryImageSrc(cat.name).startsWith('icon:')">
@@ -641,6 +640,17 @@ const handleImageError = (event: Event, categoryName: string) => {
   }
 }
 
+// Extract all unique categories from a list of streams (main + events)
+const extractCategoriesFromStreams = (list: Stream[]): string[] => {
+  const set = new Set<string>()
+  list.forEach((s: any) => {
+    if (s?.category_name) set.add(s.category_name)
+    const evs = (s?.events || []) as Array<{ category_name?: string | null }>
+    evs.forEach(e => { if (e?.category_name) set.add(e.category_name) })
+  })
+  return Array.from(set)
+}
+
 // Build a category history list from stream events with durations
 type CategoryHistoryItem = { name: string; timestamp?: string; duration?: number }
 const getCategoryHistory = (s: Stream): CategoryHistoryItem[] => {
@@ -889,14 +899,9 @@ onMounted(async () => {
   if (streamerId.value) {
     await fetchStreams(Number(streamerId.value))
     
-    // Preload category images (main + from event history)
-    const categories = new Set<string>()
-    streams.value.forEach((s: any) => {
-      if (s.category_name) categories.add(s.category_name)
-      const evs = (s.events || []) as Array<{ category_name?: string | null }>
-      evs.forEach(e => { if (e && e.category_name) categories.add(e.category_name) })
-    })
-    await preloadCategoryImages(Array.from(categories))
+  // Preload category images (main + from event history)
+  const categories = extractCategoriesFromStreams(streams.value as Stream[])
+  await preloadCategoryImages(categories)
   }
 })
 
@@ -910,14 +915,9 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
     await fetchStreams(Number(newVal))
 
-    // Preload category images for the new set (main + history)
-    const categories = new Set<string>()
-    streams.value.forEach((s: any) => {
-      if (s.category_name) categories.add(s.category_name)
-      const evs = (s.events || []) as Array<{ category_name?: string | null }>
-      evs.forEach(e => { if (e && e.category_name) categories.add(e.category_name) })
-    })
-    await preloadCategoryImages(Array.from(categories))
+  // Preload category images for the new set (main + history)
+  const categories = extractCategoriesFromStreams(streams.value as Stream[])
+  await preloadCategoryImages(categories)
   }
 })
 </script>
