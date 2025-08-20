@@ -112,6 +112,7 @@ class MetadataService:
                     logger.error(f"Stream {stream_id} not found")
                     return False
                 
+                # Fetch streamer
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
                     logger.error(f"Streamer {stream.streamer_id} not found")
@@ -877,43 +878,28 @@ class MetadataService:
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
         Uses FFmpeg for all video formats.
-        
-        Args:
-            video_path: Pfad zur Videodatei
-            stream_id: Optional, ID des Streams für Metadaten-Update
-            db: Optional, Datenbank-Session
-            
-        Returns:
-            Optional[str]: Pfad zum Thumbnail oder None bei Fehler
         """
-        video_path_obj = Path(video_path)
-        if not video_path_obj.exists():
-            logger.warning(f"Video file not found for thumbnail extraction: {video_path}")
-            return None
-        
         try:
-            thumbnail_path = video_path_obj.with_suffix('.jpg').with_stem(f"{video_path_obj.stem}_thumbnail")
-            
-            # Prüfen, ob das Thumbnail bereits existiert
+            video_path_obj = Path(video_path)
+            if not video_path_obj.exists():
+                logger.warning(f"Video file not found for thumbnail extraction: {video_path}")
+                return None
+
+            # Target thumbnail path (e.g., VideoName_thumbnail.jpg)
+            thumb_name = f"{video_path_obj.stem}_thumbnail.jpg"
+            thumbnail_path = video_path_obj.with_name(thumb_name)
+
+            # Reuse existing thumbnail if present
             if thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
                 logger.info(f"Using existing thumbnail at {thumbnail_path}")
-                
-                # Aktualisiere Metadaten, wenn noch nicht gesetzt
                 if stream_id and db:
                     metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                    if metadata and not metadata.thumbnail_path:
+                    if metadata and not getattr(metadata, 'thumbnail_path', None):
                         metadata.thumbnail_path = str(thumbnail_path)
                         db.commit()
-                
                 return str(thumbnail_path)
-            
-            # For all video files, use FFmpeg to extract thumbnails
-            logger.info(f"Using FFmpeg for thumbnail extraction from video file: {video_path}")
-            
-            # Use FFmpeg for all video files
-            logger.info(f"Using FFmpeg for thumbnail extraction: {video_path}")
-            
-            # Check if the file has video streams first
+
+            # Check if the file has a video stream first (skip audio-only)
             check_cmd = [
                 "ffprobe",
                 "-v", "error",
@@ -922,124 +908,91 @@ class MetadataService:
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 str(video_path_obj)
             ]
-            
             check_process = await asyncio.create_subprocess_exec(
                 *check_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
-            check_stdout, check_stderr = await check_process.communicate()
-            
-            # If no video stream detected, this is audio-only
+            check_stdout, _ = await check_process.communicate()
             if check_process.returncode != 0 or not check_stdout or "video" not in check_stdout.decode("utf-8", errors="ignore").lower():
                 logger.info(f"Audio-only file detected, skipping thumbnail extraction: {video_path}")
                 return None
-            
-            # FFmpeg-Befehl zum Extrahieren eines Frames nach 10 Sekunden (bessere Bildqualität)
+
+            # FFmpeg command to grab a frame at 10s for better quality
             cmd = [
                 "ffmpeg",
-                "-ss", "00:00:10",         # 10 Sekunden ins Video springen
+                "-ss", "00:00:10",
                 "-i", str(video_path_obj),
-                "-vframes", "1",           # Nur ein Frame
-                "-q:v", "2",               # Hohe Qualität
+                "-vframes", "1",
+                "-q:v", "2",
                 "-f", "image2",
-                "-y",                      # Überschreiben bestehender Dateien
+                "-y",
                 str(thumbnail_path)
             ]
-            
-            # Create a unique log file for this thumbnail extraction using the logging service
+
+            # Create a unique log file for this thumbnail extraction
             streamer_name = video_path_obj.stem.split('-')[0] if '-' in video_path_obj.stem else 'unknown'
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             ffmpeg_log_path = logging_service.get_ffmpeg_log_path(f"thumbnail_{timestamp}", streamer_name)
-            
-            # Ensure the log directory exists
             os.makedirs(os.path.dirname(ffmpeg_log_path), exist_ok=True)
-            
-            # Set up environment for FFmpeg log and redirect output to file only
+
+            # Set up environment and quiet logging
             env = os.environ.copy()
             env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
-            env["AV_LOG_FORCE_NOCOLOR"] = "1"  # Disable ANSI color in logs
-            env["AV_LOG_FORCE_STDERR"] = "0"   # Don't force stderr output
-            
-            # Add quiet logging level to prevent output to console/container logs
+            env["AV_LOG_FORCE_NOCOLOR"] = "1"
+            env["AV_LOG_FORCE_STDERR"] = "0"
             cmd.extend(["-loglevel", "quiet"])
-            
-            # Create temporary files for stdout and stderr
+
             import tempfile
             stdout_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stdout_", suffix=".log")
             stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stderr_", suffix=".log")
-            
             try:
-                # Start the process with output redirected to temp files
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=stdout_file.fileno(),
                     stderr=stderr_file.fileno(),
                     env=env
                 )
-                
-                # Close our file handles (subprocess still has them open)
                 stdout_file.close()
                 stderr_file.close()
-                
-                # Wait for process to complete
                 await process.wait()
-                
-                # Read output from temporary files
-                with open(stdout_file.name, 'r', errors='ignore') as f:
-                    stdout_str = f.read()
-                with open(stderr_file.name, 'r', errors='ignore') as f:
-                    stderr_str = f.read()
-                
-                # Append the output to the FFmpeg log file
-                with open(ffmpeg_log_path, 'a', errors='ignore') as f:
-                    f.write("\n\n--- STDOUT ---\n")
-                    f.write(stdout_str)
-                    f.write("\n\n--- STDERR ---\n")
-                    f.write(stderr_str)
-                
-                # Clean up temporary files
+
+                # Append temp outputs to the ffmpeg log
                 try:
-                    os.unlink(stdout_file.name)
-                    os.unlink(stderr_file.name)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary thumbnail stdout/stderr files: {e}")
+                    with open(stdout_file.name, 'r', errors='ignore') as f:
+                        stdout_str = f.read()
+                    with open(stderr_file.name, 'r', errors='ignore') as f:
+                        stderr_str = f.read()
+                    with open(ffmpeg_log_path, 'a', errors='ignore') as f:
+                        f.write("\n\n--- STDOUT ---\n")
+                        f.write(stdout_str)
+                        f.write("\n\n--- STDERR ---\n")
+                        f.write(stderr_str)
+                finally:
+                    try:
+                        os.unlink(stdout_file.name)
+                        os.unlink(stderr_file.name)
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temporary thumbnail stdout/stderr files: {e}")
             except Exception as e:
                 logger.error(f"Error during thumbnail extraction process: {e}", exc_info=True)
-                
-                # Clean up temp files if they exist
-                for temp_file in [stdout_file, stderr_file]:
-                    try:
-                        if temp_file and os.path.exists(temp_file.name):
-                            os.unlink(temp_file.name)
-                    except Exception:
-                        pass
-            
-            stdout, stderr = await process.communicate()
-            
-            # Prüfen, ob Thumbnail erstellt wurde
+
+            # Verify thumbnail
             if thumbnail_path.exists() and thumbnail_path.stat().st_size > 0:
                 logger.info(f"Successfully extracted thumbnail to {thumbnail_path}")
-                
-                # Metadata aktualisieren, wenn Stream-ID vorhanden
                 if stream_id and db:
                     metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                     if not metadata:
                         metadata = StreamMetadata(stream_id=stream_id)
                         db.add(metadata)
-                    
                     metadata.thumbnail_path = str(thumbnail_path)
                     db.commit()
-                
                 return str(thumbnail_path)
             else:
                 logger.warning(f"Thumbnail extraction failed or produced empty file: {thumbnail_path}")
-                if stderr:
-                    logger.debug(f"FFmpeg stderr: {stderr.decode('utf-8', errors='ignore')}")
+            
         except Exception as e:
             logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
-        
         return None
     
     async def get_stream_thumbnail_url(self, username: str, width: int = 1280, height: int = 720) -> str:
