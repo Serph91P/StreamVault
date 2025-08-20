@@ -7,6 +7,7 @@ that were split into multiple parts.
 
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 
@@ -84,7 +85,6 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
                     try:
                         single.replace(output_file)
                     except Exception:
-                        import shutil
                         shutil.copy2(single, output_file)
                 logger.info(f"🎬 SINGLE_SEGMENT_FASTPATH: wrote {output_file}")
 
