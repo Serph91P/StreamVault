@@ -97,6 +97,18 @@ class MetadataService:
         except Exception:
             pass
         return None
+
+    def _is_within(self, child: Path, parent: Path) -> bool:
+        """Return True if 'child' path is the same as or contained within 'parent'.
+
+        Resolves symlinks and normalizes paths. Returns False on error.
+        """
+        try:
+            child_res = Path(child).resolve()
+            parent_res = Path(parent).resolve()
+            return parent_res == child_res or parent_res in child_res.parents
+        except Exception:
+            return False
     
     async def generate_metadata_for_stream(
         self, 
@@ -138,6 +150,33 @@ class MetadataService:
                 except Exception as e:
                     # Never fail metadata generation due to path correction logic
                     logger.debug(f"Could not validate/correct metadata base path from recording_path: {e}")
+
+                # Enforce that base_path belongs to the correct streamer folder; if not, rebase using recordings root
+                try:
+                    recordings_root = self._find_recordings_root(base_path_obj)
+                    expected_streamer_dir = None
+                    if recordings_root and streamer and getattr(streamer, 'username', None):
+                        expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
+                        if expected_streamer_dir.exists():
+                            # If current base_path is not under expected streamer dir, try to correct
+                            if not self._is_within(base_path_obj, expected_streamer_dir):
+                                logger.warning(
+                                    f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
+                                )
+                                # Prefer recording_path if available
+                                if getattr(stream, 'recording_path', None):
+                                    rp = Path(stream.recording_path)
+                                    if rp.exists() and self._is_within(rp, expected_streamer_dir):
+                                        base_path_obj = rp.parent
+                                        base_filename = rp.stem
+                                else:
+                                    # Fallback to computed Season folder
+                                    season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
+                                    season_dir.mkdir(parents=True, exist_ok=True)
+                                    base_path_obj = season_dir
+                                    # keep base_filename as-is
+                except Exception as e:
+                    logger.debug(f"Could not enforce streamer directory for metadata paths: {e}")
                 
                 # Get or create metadata
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
@@ -178,7 +217,13 @@ class MetadataService:
 
                 # 4) Media server files
                 try:
-                    ok = await self._create_media_server_specific_files(stream, base_path_obj, base_filename=base_filename)
+                    ok = await self._create_media_server_specific_files(
+                        stream,
+                        base_path_obj,
+                        base_filename=base_filename,
+                        streamer=streamer,
+                        db=db,
+                    )
                     if not ok:
                         success = False
                 except Exception as e:
@@ -306,6 +351,27 @@ class MetadataService:
             else:
                 streamer_dir = base_path
                 season_dir = None
+
+            # Validate streamer_dir points to the actual streamer folder; if not, adjust using recordings root
+            try:
+                recordings_root = self._find_recordings_root(streamer_dir)
+                if recordings_root:
+                    expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
+                    if expected_streamer_dir.exists():
+                        if not self._is_within(streamer_dir, expected_streamer_dir):
+                            logger.warning(
+                                f"Streamer dir mismatch for NFOs: {streamer_dir} -> {expected_streamer_dir}"
+                            )
+                            streamer_dir = expected_streamer_dir
+                            if season_dir is not None:
+                                # Recompute season_dir under corrected streamer_dir
+                                try:
+                                    season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
+                                    season_dir.mkdir(parents=True, exist_ok=True)
+                                except Exception:
+                                    pass
+            except Exception:
+                pass
 
             # Show-level NFO must live inside the individual streamer's folder
             tvshow_nfo_path = streamer_dir / "tvshow.nfo"
@@ -521,7 +587,8 @@ class MetadataService:
                 base_path=base_path, 
                 episode_thumb_path=episode_thumb_path if episode_thumb_path else None,
                 db=db,
-                base_filename=base_filename
+                base_filename=base_filename,
+                streamer=streamer,
             )
             
             logger.debug(f"Generated NFO files for stream {stream.id}: {episode_nfo_path} and {tvshow_nfo_path}")
@@ -790,13 +857,27 @@ class MetadataService:
             # For example, Plex sometimes requires SXXEXX format in the filename
             if "plex" in filename_preset and stream.started_at:
                 season_num = stream.started_at.strftime("%Y%m")
-                episode_num = stream.started_at.strftime("%d")
+                # Use monthly episode numbering when available (fallback to day-of-month)
+                try:
+                    if getattr(stream, "episode_number", None):
+                        episode_num = f"{int(stream.episode_number):02d}"
+                    else:
+                        episode_num = stream.started_at.strftime("%d")
+                except Exception:
+                    episode_num = stream.started_at.strftime("%d")
                 
+                # Resolve streamer name safely; prefer provided streamer object from caller when available
                 streamer_name = ""
-                with SessionLocal() as session:
-                    streamer = session.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                    if streamer:
+                try:
+                    if streamer and getattr(streamer, "username", None):
                         streamer_name = streamer.username
+                    else:
+                        with SessionLocal() as session:
+                            s_obj = session.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                            if s_obj:
+                                streamer_name = s_obj.username
+                except Exception:
+                    pass
                 
                 # Plex pattern: ShowName - SXXEXX - EpisodeTitle
                 plex_name = f"{streamer_name} - S{season_num}E{episode_num}"
@@ -806,6 +887,31 @@ class MetadataService:
                 # Clean the filename
                 plex_name = plex_name.replace('/', '-').replace('\\', '-').replace(':', '-')
                 
+                # Determine the streamer folder name from target_dir
+                try:
+                    target_streamer_dir = target_dir.parent if re.search(r"(season\s*\d+|s\d+)", target_dir.name, re.IGNORECASE) else target_dir
+                    target_streamer_name = target_streamer_dir.name
+                    if sanitize_filename(streamer_name) != sanitize_filename(target_streamer_name):
+                        logger.warning(
+                            f"Refusing to create Plex links for streamer '{streamer_name}' inside folder '{target_streamer_name}'"
+                        )
+                        return True  # Skip creating links to avoid cross-stream pollution
+                except Exception:
+                    pass
+
+                # Extra safety: ensure target_dir lies within the recordings root for this streamer
+                try:
+                    recordings_root = self._find_recordings_root(target_dir)
+                    if recordings_root and streamer_name:
+                        expected_streamer_dir = recordings_root / sanitize_filename(streamer_name)
+                        if expected_streamer_dir.exists() and not self._is_within(target_streamer_dir, expected_streamer_dir):
+                            logger.warning(
+                                f"Target dir {target_streamer_dir} is not within expected streamer dir {expected_streamer_dir}; skipping Plex link creation"
+                            )
+                            return True
+                except Exception:
+                    pass
+
                 # Create symlinks for video and nfo files with Plex naming
                 video_src = None
                 nfo_src = None
@@ -829,7 +935,8 @@ class MetadataService:
                 except Exception:
                     pass
 
-                if video_src and video_src.exists():
+                # Safety: ensure we are writing inside the same streamer directory to avoid cross-stream links
+                if video_src and video_src.exists() and self._is_within(video_src, target_dir):
                     try:
                         video_dest = target_dir / f"{plex_name}.mp4"
                         
@@ -847,7 +954,7 @@ class MetadataService:
                     except Exception as e:
                         logger.warning(f"Error creating Plex video symlink: {e}")
                 
-                if nfo_src and nfo_src.exists():
+                if nfo_src and nfo_src.exists() and self._is_within(nfo_src, target_dir):
                     try:
                         nfo_dest = target_dir / f"{plex_name}.nfo"
                         
