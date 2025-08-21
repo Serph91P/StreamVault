@@ -97,6 +97,18 @@ class MetadataService:
         except Exception:
             pass
         return None
+
+    def _is_within(self, child: Path, parent: Path) -> bool:
+        """Return True if 'child' path is the same as or contained within 'parent'.
+
+        Resolves symlinks and normalizes paths. Returns False on error.
+        """
+        try:
+            child_res = Path(child).resolve()
+            parent_res = Path(parent).resolve()
+            return parent_res == child_res or parent_res in child_res.parents
+        except Exception:
+            return False
     
     async def generate_metadata_for_stream(
         self, 
@@ -147,16 +159,14 @@ class MetadataService:
                         expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
                         if expected_streamer_dir.exists():
                             # If current base_path is not under expected streamer dir, try to correct
-                            bp_res = base_path_obj.resolve()
-                            exp_res = expected_streamer_dir.resolve()
-                            if exp_res not in bp_res.parents and bp_res != exp_res:
+                            if not self._is_within(base_path_obj, expected_streamer_dir):
                                 logger.warning(
                                     f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
                                 )
                                 # Prefer recording_path if available
                                 if getattr(stream, 'recording_path', None):
                                     rp = Path(stream.recording_path)
-                                    if rp.exists() and exp_res in rp.resolve().parents:
+                                    if rp.exists() and self._is_within(rp, expected_streamer_dir):
                                         base_path_obj = rp.parent
                                         base_filename = rp.stem
                                 else:
@@ -348,9 +358,7 @@ class MetadataService:
                 if recordings_root:
                     expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
                     if expected_streamer_dir.exists():
-                        s_res = streamer_dir.resolve()
-                        e_res = expected_streamer_dir.resolve()
-                        if e_res not in s_res.parents and s_res != e_res:
+                        if not self._is_within(streamer_dir, expected_streamer_dir):
                             logger.warning(
                                 f"Streamer dir mismatch for NFOs: {streamer_dir} -> {expected_streamer_dir}"
                             )
@@ -891,6 +899,19 @@ class MetadataService:
                 except Exception:
                     pass
 
+                # Extra safety: ensure target_dir lies within the recordings root for this streamer
+                try:
+                    recordings_root = self._find_recordings_root(target_dir)
+                    if recordings_root and streamer_name:
+                        expected_streamer_dir = recordings_root / sanitize_filename(streamer_name)
+                        if expected_streamer_dir.exists() and not self._is_within(target_streamer_dir, expected_streamer_dir):
+                            logger.warning(
+                                f"Target dir {target_streamer_dir} is not within expected streamer dir {expected_streamer_dir}; skipping Plex link creation"
+                            )
+                            return True
+                except Exception:
+                    pass
+
                 # Create symlinks for video and nfo files with Plex naming
                 video_src = None
                 nfo_src = None
@@ -915,13 +936,7 @@ class MetadataService:
                     pass
 
                 # Safety: ensure we are writing inside the same streamer directory to avoid cross-stream links
-                def _is_within(p: Path, root: Path) -> bool:
-                    try:
-                        return root.resolve() in p.resolve().parents or p.resolve() == root.resolve()
-                    except Exception:
-                        return True
-
-                if video_src and video_src.exists() and _is_within(video_src, target_dir):
+                if video_src and video_src.exists() and self._is_within(video_src, target_dir):
                     try:
                         video_dest = target_dir / f"{plex_name}.mp4"
                         
@@ -939,7 +954,7 @@ class MetadataService:
                     except Exception as e:
                         logger.warning(f"Error creating Plex video symlink: {e}")
                 
-                if nfo_src and nfo_src.exists() and _is_within(nfo_src, target_dir):
+                if nfo_src and nfo_src.exists() and self._is_within(nfo_src, target_dir):
                     try:
                         nfo_dest = target_dir / f"{plex_name}.nfo"
                         
