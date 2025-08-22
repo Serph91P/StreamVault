@@ -76,6 +76,7 @@
         <!-- Share Link Box -->
         <div v-if="shareLink" class="share-link-box">
           <input
+            ref="shareLinkInput"
             class="share-link-input"
             :value="shareLink"
             readonly
@@ -83,9 +84,10 @@
             @click="$event.target.select()"
           />
           <button class="copy-btn" @click="copyShareLink" :disabled="shareCopied">
-            {{ shareCopied ? '✔ Kopiert' : 'Copy' }}
+            {{ shareCopied ? '✔ Copied' : 'Copy' }}
           </button>
-          <span v-if="shareCopied" class="copied-hint">Link kopiert – in VLC: Medien → Netzwerkstream öffnen</span>
+          <span v-if="shareCopied" class="copied-hint">Link copied – In VLC: Media → Open Network Stream</span>
+          <span v-else-if="copyError" class="copy-error-hint">Could not copy automatically – select the field and press {{ copyShortcut }}</span>
         </div>
         
         <!-- Chapter Navigation -->
@@ -137,6 +139,13 @@ const showChapters = ref(false)
 const currentChapter = ref(-1)
 const shareLink = ref('')
 const shareCopied = ref(false)
+const copyError = ref(false)
+const shareLinkInput = ref(null)
+const copyShortcut = computed(() => {
+  // Basic platform detection for shortcut hint
+  const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+  return isMac ? 'Cmd+C' : 'Ctrl+C'
+})
 
 const videoUrl = computed(() => {
   // Use the stream ID based endpoint
@@ -256,7 +265,15 @@ const copyShareLink = async () => {
     shareCopied.value = true
     setTimeout(() => (shareCopied.value = false), 4000)
   } catch (e) {
-    // ignore
+    copyError.value = true
+    // Attempt to select the input so user can press Ctrl+C
+    requestAnimationFrame(() => {
+      if (shareLinkInput.value) {
+        shareLinkInput.value.focus()
+        shareLinkInput.value.select()
+      }
+    })
+    setTimeout(() => (copyError.value = false), 5000)
   }
 }
 
