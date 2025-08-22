@@ -72,6 +72,21 @@
             </button>
           </div>
         </div>
+
+        <!-- Share Link Box -->
+        <div v-if="shareLink" class="share-link-box">
+          <input
+            class="share-link-input"
+            :value="shareLink"
+            readonly
+            @focus="$event.target.select()"
+            @click="$event.target.select()"
+          />
+          <button class="copy-btn" @click="copyShareLink" :disabled="shareCopied">
+            {{ shareCopied ? '✔ Kopiert' : 'Copy' }}
+          </button>
+          <span v-if="shareCopied" class="copied-hint">Link kopiert – in VLC: Medien → Netzwerkstream öffnen</span>
+        </div>
         
         <!-- Chapter Navigation -->
         <div v-if="chapters.length > 0 && showChapters" class="chapters-panel">
@@ -120,6 +135,8 @@ const errorMessage = ref('')
 const chapters = ref([])
 const showChapters = ref(false)
 const currentChapter = ref(-1)
+const shareLink = ref('')
+const shareCopied = ref(false)
 
 const videoUrl = computed(() => {
   // Use the stream ID based endpoint
@@ -199,29 +216,17 @@ const shareVideo = async () => {
   try {
     // Use the new API endpoint to generate a share token
     const response = await videoApi.createShareToken(props.video.id, {})
-    
-    const directVideoUrl = response.data.share_url
-    
-    const shareData = {
-      title: props.video.title,
-      text: `Check out this video from ${props.video.streamer_name}! Open in VLC or any media player.`,
-      url: directVideoUrl
+    // apiClient returns parsed JSON directly (not Axios style), but be defensive
+    const directVideoUrl = response?.share_url || response?.data?.share_url
+    if (!directVideoUrl) {
+      console.error('Share token response missing share_url field:', response)
+      throw new Error('share_url_missing')
     }
-    
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData)
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          fallbackShare(directVideoUrl)
-        }
-      }
-    } else {
-      fallbackShare(directVideoUrl)
-    }
+  // Just show the link; user must click the Copy button explicitly
+  shareLink.value = directVideoUrl
+  shareCopied.value = false
   } catch (error) {
     console.error('Error generating share link:', error)
-    alert('Unable to generate share link: Network error')
   }
 }
 
@@ -230,18 +235,28 @@ const fallbackShare = async (url) => {
     // If no URL provided, try to generate one via API
     if (!url) {
       const response = await videoApi.createShareToken(props.video.id, {})
-      url = response.data.share_url
+      url = response?.share_url || response?.data?.share_url
     }
-    
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Direct video link copied!\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste the link\nOther players: Use "Open Network Stream" or similar option')
-    }).catch(() => {
-      alert(`Direct video link: ${url}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
-    })
+    if (!url) throw new Error('share_url_missing')
+  // Only set link; no auto copy
+  shareLink.value = url
+  shareCopied.value = false
   } catch (error) {
     console.error('Error in fallback share:', error)
     const fallbackUrl = `${window.location.origin}/api/videos/${props.video.id}/stream`
-    alert(`Direct video link: ${fallbackUrl}\n\nVLC: Press Ctrl+N (or Cmd+N on Mac) and paste this link\nOther players: Use "Open Network Stream" or similar option`)
+  shareLink.value = fallbackUrl
+  shareCopied.value = false
+  }
+}
+
+const copyShareLink = async () => {
+  if (!shareLink.value) return
+  try {
+    await navigator.clipboard.writeText(shareLink.value)
+    shareCopied.value = true
+    setTimeout(() => (shareCopied.value = false), 4000)
+  } catch (e) {
+    // ignore
   }
 }
 
