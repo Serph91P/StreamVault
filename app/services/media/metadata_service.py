@@ -109,6 +109,15 @@ class MetadataService:
             return parent_res == child_res or parent_res in child_res.parents
         except Exception:
             return False
+
+    # Public wrappers (avoid external use of private helpers elsewhere)
+    def find_recordings_root(self, start_dir: Path) -> Optional[Path]:  # noqa: D401
+        """Public wrapper for locating recordings root (directory containing .media)."""
+        return self._find_recordings_root(start_dir)
+
+    def is_within(self, child: Path, parent: Path) -> bool:  # noqa: D401
+        """Public wrapper for safe path containment check."""
+        return self._is_within(child, parent)
     
     async def generate_metadata_for_stream(
         self, 

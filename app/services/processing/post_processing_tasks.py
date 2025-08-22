@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer
-from app.services.media.metadata_service import MetadataService
+from app.services.media.metadata_service import MetadataService, metadata_service
 from app.services.media.thumbnail_service import ThumbnailService
 from app.services.queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.utils.structured_logging import log_with_context
@@ -35,6 +35,45 @@ class PostProcessingTasks:
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
+
+    def _normalize_metadata_args(self, stream: Stream, streamer: Stream, base_path: str, base_filename: str) -> tuple[str, str]:
+        """Ensure metadata paths point into the correct streamer/season directory (no cross-stream bleed)."""
+        try:
+            from app.utils.file_utils import sanitize_filename
+            base_path_obj = Path(base_path)
+            # Prefer actual recording path if present & exists
+            rp_attr = getattr(stream, "recording_path", None)
+            if rp_attr:
+                rp = Path(rp_attr)
+                if rp.exists():
+                    base_path_obj = rp.parent
+                    base_filename = rp.stem
+            rec_root = metadata_service.find_recordings_root(base_path_obj)  # public wrapper
+            if rec_root and getattr(streamer, 'username', None):
+                expected_streamer_dir = rec_root / sanitize_filename(streamer.username)
+                if expected_streamer_dir.exists() and not metadata_service.is_within(base_path_obj, expected_streamer_dir):
+                    # Construct deterministic season dir (fallback when started_at missing)
+                    if stream.started_at:
+                        season_name = f"Season {stream.started_at.strftime('%Y-%m')}"
+                    else:
+                        season_name = f"Season {datetime.now(timezone.utc).strftime('%Y-%m')}_unknown"
+                    season_dir = expected_streamer_dir / season_name
+                    season_dir.mkdir(parents=True, exist_ok=True)
+                    logger.warning(
+                        f"[BG_REBASE] Rebased metadata path {base_path_obj} -> {season_dir} (stream {stream.id})"
+                    )
+                    base_path_obj = season_dir
+            return str(base_path_obj), base_filename
+        except Exception as e:
+            logger.debug(f"Metadata arg normalization failed, using originals: {e}")
+            return base_path, base_filename
+
+    def _fetch_stream_and_streamer(self, stream_id: int) -> tuple[Optional[Stream], Optional[Streamer]]:
+        """Small helper to fetch stream and streamer (single place)."""
+        with SessionLocal() as db:
+            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first() if stream else None
+            return stream, streamer
         
     async def handle_video_conversion(self, task: QueueTask):
         """Convert .ts file to .mp4 with metadata and chapters"""
@@ -61,14 +100,11 @@ class PostProcessingTasks:
                 raise FileNotFoundError(f"Input file not found: {ts_file_path}")
                 
             # Get stream and streamer info
-            with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if not stream:
-                    raise ValueError(f"Stream {stream_id} not found")
-                    
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                if not streamer:
-                    raise ValueError(f"Streamer {stream.streamer_id} not found")
+            stream, streamer = self._fetch_stream_and_streamer(stream_id)
+            if not stream:
+                raise ValueError(f"Stream {stream_id} not found")
+            if not streamer:
+                raise ValueError(f"Streamer for stream {stream_id} not found")
             
             # Update progress
             task.progress = 20.0
@@ -84,10 +120,12 @@ class PostProcessingTasks:
             task.progress = 60.0
             
             # Step 2: Generate metadata files
+            # Normalize args using current DB data (stream, streamer re-fetched for safety)
+            norm_base_path, norm_base_filename = self._normalize_metadata_args(stream, streamer, str(output_dir), base_filename)
             await self.metadata_service.generate_metadata_for_stream(
                 stream_id=stream_id,
-                base_path=str(output_dir),
-                base_filename=base_filename
+                base_path=norm_base_path,
+                base_filename=norm_base_filename
             )
             
             # Update progress
@@ -176,10 +214,13 @@ class PostProcessingTasks:
             task.progress = 10.0
             
             # Generate all metadata files
+            # Fetch stream/streamer for normalization
+            stream, streamer = self._fetch_stream_and_streamer(stream_id)
+            norm_base_path, norm_base_filename = self._normalize_metadata_args(stream, streamer, base_path, base_filename) if (stream and streamer) else (base_path, base_filename)
             success = await self.metadata_service.generate_metadata_for_stream(
                 stream_id=stream_id,
-                base_path=base_path,
-                base_filename=base_filename
+                base_path=norm_base_path,
+                base_filename=norm_base_filename
             )
             
             if not success:
