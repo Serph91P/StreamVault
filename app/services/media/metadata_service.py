@@ -403,21 +403,44 @@ class MetadataService:
             if streamer.profile_image_url:
                 # Save artwork to .media directory (avoids Emby creating seasons from folders)
                 await artwork_service.save_streamer_artwork(streamer)
-                
-                # Compute relative paths from tvshow.nfo location to artwork under recordings/.media
-                poster_rel = self._relative_artwork_path(streamer_dir, safe_username, "poster.jpg")
-                banner_rel = self._relative_artwork_path(streamer_dir, safe_username, "banner.jpg")
-                fanart_rel = self._relative_artwork_path(streamer_dir, safe_username, "fanart.jpg")
+                # Ensure local copies (some servers block ../ traversals or outside-library references)
+                try:
+                    recordings_root = self._find_recordings_root(streamer_dir) or streamer_dir.parent
+                    central_art = recordings_root / ".media" / "artwork" / safe_username
+                    local_targets = {
+                        "poster.jpg": None,
+                        "banner.jpg": None,
+                        "fanart.jpg": None,
+                    }
+                    for fname in list(local_targets.keys()):
+                        src = central_art / fname
+                        dst = streamer_dir / fname
+                        if src.exists() and not dst.exists():
+                            try:
+                                shutil.copy2(src, dst)
+                                logger.debug(f"Copied artwork {src} -> {dst}")
+                            except Exception as ce:
+                                logger.warning(f"Failed to copy artwork {src} -> {dst}: {ce}")
+                    # Season-level local artwork
+                    if season_dir:
+                        season_src = central_art / "season.jpg"
+                        season_dst = season_dir / "poster.jpg"
+                        if season_src.exists() and not season_dst.exists():
+                            try:
+                                shutil.copy2(season_src, season_dst)
+                                logger.debug(f"Copied season artwork {season_src} -> {season_dst}")
+                            except Exception as ce:
+                                logger.warning(f"Failed to copy season artwork: {ce}")
+                except Exception as e_copy:
+                    logger.debug(f"Local artwork copy step failed (non-fatal): {e_copy}")
 
+                # Prefer simple local filenames for maximum compatibility
                 poster_element = ET.SubElement(show_root, "thumb", aspect="poster")
-                poster_element.text = poster_rel
-                
+                poster_element.text = "poster.jpg"
                 banner_element = ET.SubElement(show_root, "thumb", aspect="banner")
-                banner_element.text = banner_rel
-                
-                # Fanart (background image)
+                banner_element.text = "banner.jpg"
                 fanart = ET.SubElement(show_root, "fanart")
-                ET.SubElement(fanart, "thumb").text = fanart_rel
+                ET.SubElement(fanart, "thumb").text = "fanart.jpg"
                 
             # Genre/Category
             if streamer.category_name:
@@ -452,11 +475,18 @@ class MetadataService:
                 
                 # Season poster from .media directory
                 if streamer.profile_image_url:
-                    season_poster_rel = self._relative_artwork_path(season_dir, safe_username, "season.jpg")
-                    # Fallback to poster.jpg if season-specific image is not present
-                    if season_poster_rel is None:
-                        season_poster_rel = self._relative_artwork_path(season_dir, safe_username, "poster.jpg")
-                    ET.SubElement(season_root, "thumb").text = season_poster_rel or f".media/artwork/{safe_username}/poster.jpg"
+                    # Ensure a local poster exists (already attempted above)
+                    local_season_poster = season_dir / "poster.jpg"
+                    if not local_season_poster.exists():
+                        # fallback: copy global poster
+                        try:
+                            recordings_root = self._find_recordings_root(season_dir) or season_dir.parent
+                            central_art = recordings_root / ".media" / "artwork" / safe_username / "poster.jpg"
+                            if central_art.exists():
+                                shutil.copy2(central_art, local_season_poster)
+                        except Exception:
+                            pass
+                    ET.SubElement(season_root, "thumb").text = "poster.jpg"
                     
                 # Write XML
                 season_tree = ET.ElementTree(season_root)
