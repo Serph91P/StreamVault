@@ -407,12 +407,12 @@ class MetadataService:
                 try:
                     recordings_root = self._find_recordings_root(streamer_dir) or streamer_dir.parent
                     central_art = recordings_root / ".media" / "artwork" / safe_username
-                    local_targets = {
-                        "poster.jpg": None,
-                        "banner.jpg": None,
-                        "fanart.jpg": None,
-                    }
-                    for fname in list(local_targets.keys()):
+                    local_targets = [
+                        "poster.jpg",
+                        "banner.jpg",
+                        "fanart.jpg",
+                    ]
+                    for fname in local_targets:
                         src = central_art / fname
                         dst = streamer_dir / fname
                         if src.exists() and not dst.exists():
@@ -484,8 +484,8 @@ class MetadataService:
                             central_art = recordings_root / ".media" / "artwork" / safe_username / "poster.jpg"
                             if central_art.exists():
                                 shutil.copy2(central_art, local_season_poster)
-                        except Exception:
-                            pass
+                        except Exception as ce_season:
+                            logger.exception("Failed to copy central season poster to local season directory: %s", ce_season)
                     ET.SubElement(season_root, "thumb").text = "poster.jpg"
                     
                 # Write XML
