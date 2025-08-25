@@ -39,12 +39,16 @@ async def setup_admin(
     
     response = JSONResponse(content={"message": "Admin account created", "success": True})
     settings = get_settings()
+    # FIX: Cookie-Pfad explizit auf Root setzen + max_age, damit es für alle Routen (/api/..., /videos, PWA) gesendet wird.
+    # Vorheriger Zustand: Standard-Pfad "/auth" -> Cookie wurde bei anderen Pfaden nicht mitgesendet -> ständiges Ausloggen.
     response.set_cookie(
-        key="session", 
-        value=token, 
-        httponly=True, 
+        key="session",
+        value=token,
+        httponly=True,
         secure=settings.USE_SECURE_COOKIES,  # Auto-configured for reverse proxy
-        samesite="lax"
+        samesite="lax",
+        path="/",
+        max_age=60 * 60 * 24,  # Entspricht 24h (AuthService.session_timeout_hours)
     )
     return response
 
@@ -68,12 +72,15 @@ async def login(
         response = JSONResponse(content={"message": "Login successful", "success": True})
         # Set secure based on configuration, httponly=True for XSS protection
         settings = get_settings()
+        # Siehe Kommentar oben: Pfad & max_age setzen
         response.set_cookie(
-            key="session", 
-            value=token, 
-            httponly=True, 
-            secure=settings.USE_SECURE_COOKIES,  # Auto-configured for reverse proxy
-            samesite="lax"  # Allow cross-site requests for reverse proxy
+            key="session",
+            value=token,
+            httponly=True,
+            secure=settings.USE_SECURE_COOKIES,
+            samesite="lax",
+            path="/",
+            max_age=60 * 60 * 24,
         )
         logger.info(f"Successful login for user: {request.username}")
         return response
@@ -145,14 +152,14 @@ async def logout(
         if session_token:
             await auth_service.delete_session(session_token)
             logger.info("User logged out successfully")
-        
+
         response = JSONResponse(content={"message": "Logout successful", "success": True})
-        response.delete_cookie(key="session")
+        response.delete_cookie(key="session", path="/")
         return response
     except Exception as e:
         logger.error(f"Logout error: {e}")
         response = JSONResponse(content={"message": "Logout completed", "success": True})
-        response.delete_cookie(key="session")
+        response.delete_cookie(key="session", path="/")
         return response
 
 @router.post("/keepalive")
