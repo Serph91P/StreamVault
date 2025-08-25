@@ -29,6 +29,11 @@ class ApiClient {
       ...options,
     }
 
+    // Ensure cookies (session) are always sent with API requests (fix für fehlende Persistenz)
+    if (!('credentials' in config)) {
+      ;(config as any).credentials = 'include'
+    }
+
     if (config.body && typeof config.body === 'object') {
       config.body = JSON.stringify(config.body)
     }
