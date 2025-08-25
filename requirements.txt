@@ -3,33 +3,32 @@ fastapi==0.116.1
 uvicorn[standard]==0.35.0
 
 # Database dependencies
-SQLAlchemy[postgresql]==2.0.36
-psycopg==3.2.3
-psycopg-binary==3.2.3
-psycopg-pool==3.2.4
-alembic==1.13.1
-greenlet==3.2.3
+SQLAlchemy[postgresql]==2.0.43
+psycopg[binary]==3.2.9
+psycopg-pool==3.2.6
+alembic==1.16.4
+greenlet==3.2.4
 
 # Security dependencies - updated to latest secure versions
-python-dotenv==1.0.1
-argon2-cffi==23.1.0
-cryptography==45.0.4
+python-dotenv==1.1.1
+argon2-cffi==25.1.0
+cryptography==45.0.6
 
 # API and data handling
 python-multipart==0.0.20
-pydantic-settings==2.6.1
-aiohttp==3.12.14
+pydantic-settings==2.10.1
+aiohttp==3.12.15
 aiofiles==24.1.0
 
 # Image processing
 pillow==11.3.0
 
 # Notifications
-apprise==1.9.3
+apprise==1.9.4
 py-vapid==1.9.2
 
 # System monitoring - using version compatible with safety
-psutil==6.1.1
+psutil==7.0.0
 
 # Additional security packages
 safety==3.6.0
