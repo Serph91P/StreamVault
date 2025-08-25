@@ -98,6 +98,70 @@ class MetadataService:
             pass
         return None
 
+    def _ensure_local_artwork(self, streamer_dir: Path, season_dir: Optional[Path], safe_username: str) -> None:
+        """Ensure local copies of key artwork files exist next to NFOs.
+
+        Rationale:
+        Some media servers (or certain library / scanner configurations) refuse to follow relative paths
+        that traverse outside the immediate show/season folder structure (e.g. paths that effectively
+        point to a shared central artwork directory). By placing lightweight copies of the core artwork
+        files (poster, fanart, banner) alongside the generated NFO files we maximize compatibility while
+        still keeping the canonical originals inside recordings/.media/artwork/<user>/.
+
+        This helper looks for a central artwork directory using _find_recordings_root. If not found it
+        cautiously falls back to the parent directory only when that parent actually contains a .media
+        folder. Missing artwork is non-fatal; problems are logged at debug level to avoid noise.
+        """
+        try:
+            streamer_dir = Path(streamer_dir)
+            root = self._find_recordings_root(streamer_dir)
+            if not root:
+                parent = streamer_dir.parent
+                if parent != streamer_dir and (parent / ".media").is_dir():
+                    root = parent
+
+            if not root:
+                logger.debug("No recordings root with .media found for %s; skipping local artwork copies", safe_username)
+                return
+
+            central_artwork_dir = root / ".media" / "artwork" / safe_username
+            if not central_artwork_dir.is_dir():
+                logger.debug("Central artwork directory missing for %s: %s", safe_username, central_artwork_dir)
+                return
+
+            # Files we want to ensure locally for the show directory
+            desired_files = [
+                ("poster.jpg", streamer_dir / "poster.jpg"),
+                ("fanart.jpg", streamer_dir / "fanart.jpg"),
+                ("banner.jpg", streamer_dir / "banner.jpg"),
+            ]
+
+            for filename, target_path in desired_files:
+                source_path = central_artwork_dir / filename
+                if source_path.is_file():
+                    if not target_path.exists():
+                        try:
+                            shutil.copy2(source_path, target_path)
+                        except Exception as ce_copy:
+                            logger.debug("Failed to copy %s to %s: %s", source_path, target_path, ce_copy)
+                else:
+                    logger.debug("Expected central artwork file missing: %s", source_path)
+
+            # Season specific: only ensure a poster (others are optional / inherited)
+            if season_dir is not None:
+                season_dir = Path(season_dir)
+                season_poster = season_dir / "poster.jpg"
+                if not season_poster.exists():
+                    source_poster = central_artwork_dir / "poster.jpg"
+                    if source_poster.is_file():
+                        try:
+                            shutil.copy2(source_poster, season_poster)
+                        except Exception as ce_season:
+                            logger.debug("Failed to copy poster for season dir %s: %s", season_dir, ce_season)
+        except Exception as e_artwork_helper:
+            # Swallow all exceptions to keep metadata generation resilient
+            logger.debug("_ensure_local_artwork encountered an error for %s: %s", safe_username, e_artwork_helper)
+
     def _is_within(self, child: Path, parent: Path) -> bool:
         """Return True if 'child' path is the same as or contained within 'parent'.
 
@@ -405,32 +469,7 @@ class MetadataService:
                 await artwork_service.save_streamer_artwork(streamer)
                 # Ensure local copies (some servers block ../ traversals or outside-library references)
                 try:
-                    recordings_root = self._find_recordings_root(streamer_dir) or streamer_dir.parent
-                    central_art = recordings_root / ".media" / "artwork" / safe_username
-                    local_targets = [
-                        "poster.jpg",
-                        "banner.jpg",
-                        "fanart.jpg",
-                    ]
-                    for fname in local_targets:
-                        src = central_art / fname
-                        dst = streamer_dir / fname
-                        if src.exists() and not dst.exists():
-                            try:
-                                shutil.copy2(src, dst)
-                                logger.debug(f"Copied artwork {src} -> {dst}")
-                            except Exception as ce:
-                                logger.warning(f"Failed to copy artwork {src} -> {dst}: {ce}")
-                    # Season-level local artwork
-                    if season_dir:
-                        season_src = central_art / "season.jpg"
-                        season_dst = season_dir / "poster.jpg"
-                        if season_src.exists() and not season_dst.exists():
-                            try:
-                                shutil.copy2(season_src, season_dst)
-                                logger.debug(f"Copied season artwork {season_src} -> {season_dst}")
-                            except Exception as ce:
-                                logger.warning(f"Failed to copy season artwork: {ce}")
+                    self._ensure_local_artwork(streamer_dir=streamer_dir, season_dir=season_dir, safe_username=safe_username)
                 except Exception as e_copy:
                     logger.debug(f"Local artwork copy step failed (non-fatal): {e_copy}")
 
