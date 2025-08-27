@@ -135,38 +135,57 @@ const { activeRecordings } = useSystemAndRecordingStatus()
 const showPanel = ref(false)
 
 // Additional computed properties
-// Merge active queue tasks with live recordings into a unified list for display
+// Helper to decide if a task should be treated as "active" in the UI
+function isTaskActive(task: any): boolean {
+  const activeStatuses = ['running', 'pending', 'retrying']
+  if (activeStatuses.includes(task.status)) return true
+  return false
+}
+
+// Merge active queue tasks with live recordings into a unified list for display (only truly active ones)
 const combinedActiveTasks = computed(() => {
+  // Kein zeitbasiertes Auto-Pruning (24h+ Streams sollen sichtbar bleiben)
+
   // Use a map to avoid duplicates and prefer queue-provided tasks when available
   const map = new Map<string, any>()
-  // Seed with tasks coming from the queue/websocket (already includes external recording tasks)
+
+  // 1. Add queue tasks
   for (const t of activeTasks.value) {
+    // Filter out tasks that report completed/failed/etc. but are still in activeTasks because backend hasn't pruned
+    if (!isTaskActive(t)) continue
     map.set(String(t.id), t)
   }
-  // Merge in active recordings only if they are missing from the queue feed
+
+  // 2. Merge synthetic recording tasks for currently active recordings (exclude ones that seem finished/stale)
   for (const rec of activeRecordings.value) {
     const queueId = `recording_${rec.id}`
-    // Check if a recording task already exists by id or by recording_id in payload
+
+  // If recording status indicates completion (and we don't have explicit ended_at), treat as not active
+  if (rec.status === 'completed' || rec.status === 'failed') continue
+
+
+    // Avoid duplicates if queue already provides a recording task for this recording
     const existsById = map.has(queueId) || map.has(`recording-${rec.id}`)
     const existsByPayload = Array.from(map.values()).some(
       (t: any) => t.task_type === 'recording' && (t.payload?.recording_id === rec.id || t.recording_id === rec.id)
     )
-    if (!existsById && !existsByPayload) {
-      map.set(queueId, {
-        id: queueId,
-        task_type: 'recording',
-        status: 'running',
-        progress: 0,
-        created_at: rec.started_at,
-        started_at: rec.started_at,
-        payload: {
-          streamer_name: rec.streamer_name,
-          stream_id: rec.stream_id,
-          recording_id: rec.id
-        }
-      } as any)
-    }
+    if (existsById || existsByPayload) continue
+
+    map.set(queueId, {
+      id: queueId,
+      task_type: 'recording',
+      status: 'running',
+      progress: 0,
+      created_at: rec.started_at,
+      started_at: rec.started_at,
+      payload: {
+        streamer_name: rec.streamer_name,
+        stream_id: rec.stream_id,
+        recording_id: rec.id
+      }
+    } as any)
   }
+
   return Array.from(map.values())
 })
 
