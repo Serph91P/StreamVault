@@ -63,6 +63,20 @@ class RecordingLifecycleManager:
         try:
             logger.info(f"🎬 LIFECYCLE_START: stream_id={stream_id}, streamer_id={streamer_id}")
             
+            # SECURITY FIX: Always derive the correct streamer_id from the stream to prevent mismatches
+            stream = await self.database_service.get_stream_by_id(stream_id)
+            if not stream:
+                logger.error(f"🎬 NO_STREAM: stream_id={stream_id}")
+                return None
+            
+            # Use authoritative streamer_id from the stream, not the parameter
+            authoritative_streamer_id = stream.streamer_id
+            if authoritative_streamer_id != streamer_id:
+                logger.warning(f"🚨 PARAMETER_MISMATCH_CORRECTED: Provided streamer_id={streamer_id} != stream.streamer_id={authoritative_streamer_id}. Using authoritative value.")
+            
+            # Use the authoritative streamer_id from here on
+            streamer_id = authoritative_streamer_id
+            
             if self._is_shutting_down:
                 logger.warning("🎬 SHUTDOWN_BLOCK: Cannot start recording during shutdown")
                 return None
@@ -479,9 +493,10 @@ class RecordingLifecycleManager:
 
             # If a mismatched streamer_id was provided, log and correct it
             if stream.streamer_id != streamer_id:
-                logger.warning(
-                    f"🎬 STREAMER_MISMATCH: provided_streamer_id={streamer_id} does not match stream.streamer_id={stream.streamer_id} for stream_id={stream_id}; using authoritative value from stream"
+                logger.error(
+                    f"🚨 CRITICAL_STREAMER_MISMATCH: provided_streamer_id={streamer_id} does not match stream.streamer_id={stream.streamer_id} for stream_id={stream_id}; using authoritative value from stream"
                 )
+                logger.error(f"🚨 This indicates a serious bug in the event handling or stream creation logic!")
 
             streamer = await self.database_service.get_streamer_by_id(stream.streamer_id)
             

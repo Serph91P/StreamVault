@@ -155,6 +155,9 @@ class ProcessManager:
                     raise Exception(f"Streamer {stream.streamer_id} not found")
                 
                 streamer_name = streamer.username
+                
+                # Debug logging to track potential mismatches
+                logger.info(f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}")
             
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
