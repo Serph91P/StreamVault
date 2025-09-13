@@ -144,7 +144,7 @@ function isTaskActive(task: any): boolean {
 
 // Merge active queue tasks with live recordings into a unified list for display (only truly active ones)
 const combinedActiveTasks = computed(() => {
-  // Kein zeitbasiertes Auto-Pruning (24h+ Streams sollen sichtbar bleiben)
+  // No time-based auto-pruning (24h+ streams should remain visible)
 
   // Use a map to avoid duplicates and prefer queue-provided tasks when available
   const map = new Map<string, any>()
@@ -160,8 +160,8 @@ const combinedActiveTasks = computed(() => {
   for (const rec of activeRecordings.value) {
     const queueId = `recording_${rec.id}`
 
-  // If recording status indicates completion (and we don't have explicit ended_at), treat as not active
-  if (rec.status === 'completed' || rec.status === 'failed') continue
+    // If recording status indicates completion (and we don't have explicit ended_at), treat as not active
+    if (rec.status === 'completed' || rec.status === 'failed') continue
 
 
     // Avoid duplicates if queue already provides a recording task for this recording
