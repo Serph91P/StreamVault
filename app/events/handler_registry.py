@@ -207,6 +207,9 @@ class EventHandlerRegistry:
                     db.add(stream)
                     db.flush()
                     
+                    # Debugging: Check that the stream was created correctly
+                    logger.info(f"🔍 STREAM_CREATED: stream_id={stream.id}, streamer_id={stream.streamer_id}, streamer_username={streamer.username}")
+                    
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
@@ -259,6 +262,10 @@ class EventHandlerRegistry:
                         logger.info(f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})")
                         streamer_id = streamer.id
                         stream_id = stream.id
+                        
+                        # Additional debugging for mismatch tracking
+                        logger.info(f"🔍 RECORDING_START_PARAMS: stream_id={stream_id}, streamer_id={streamer_id}, stream.streamer_id={stream.streamer_id}")
+                        
                         await self.recording_service.start_recording(stream_id, streamer_id, force_mode=False)  # Normal EventSub recordings use standard settings
                     else:
                         logger.info(f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer")
