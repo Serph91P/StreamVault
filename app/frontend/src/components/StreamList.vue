@@ -731,8 +731,19 @@ const formatDuration = (durationMs: number): string => {
 }
 
 const hasRecording = (stream: Stream): boolean => {
-  // Simple check: if stream has recording_path, assume it has recording
-  return Boolean(stream.recording_path && stream.recording_path.trim() !== '')
+  // Check if we have recording_path set
+  if (stream.recording_path && stream.recording_path.trim() !== '') {
+    return true
+  }
+  
+  // Fallback: Check if we have recordings array with files
+  const extendedStream = stream as ExtendedStream
+  if (extendedStream.recordings && extendedStream.recordings.length > 0) {
+    return true
+  }
+  
+  // No recording found
+  return false
 }
 // UI Actions
 const toggleDetails = (streamId: number) => {
