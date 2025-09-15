@@ -60,13 +60,26 @@ export function useStreams() {
     }
   }
 
+  /**
+   * Refresh streams when a recording becomes available (post-processing completed)
+   */
+  const handleRecordingAvailable = (event: CustomEvent) => {
+    console.log('Recording available, refreshing streams...', event.detail)
+    if (currentStreamerId.value) {
+      // Refresh immediately since this is the final state
+      fetchStreams(currentStreamerId.value)
+    }
+  }
+
   // Listen for recording completion events
   onMounted(() => {
     window.addEventListener('recording_completed', handleRecordingCompleted as EventListener)
+    window.addEventListener('recording_available', handleRecordingAvailable as EventListener)
   })
 
   onUnmounted(() => {
     window.removeEventListener('recording_completed', handleRecordingCompleted as EventListener)
+    window.removeEventListener('recording_available', handleRecordingAvailable as EventListener)
   })
 
   return {
