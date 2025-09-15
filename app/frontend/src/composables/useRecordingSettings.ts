@@ -91,6 +91,21 @@ export function useRecordingSettings() {
             }
           }));
         }
+      } else if (latestMessage.type === 'recording_available') {
+        
+        // Recording is now available (post-processing completed, recording_path updated)
+        // Trigger stream refresh to update the UI with the new recording path
+        if (latestMessage.data?.stream_id) {
+          window.dispatchEvent(new CustomEvent('recording_available', {
+            detail: {
+              stream_id: latestMessage.data.stream_id,
+              recording_path: latestMessage.data.recording_path,
+              streamer_id: latestMessage.data?.streamer_id,
+              streamer_name: latestMessage.data?.streamer_name,
+              title: latestMessage.data?.title
+            }
+          }));
+        }
       }
     }
   }, { deep: true });
