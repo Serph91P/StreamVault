@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Dict, Any
 
 from app.database import SessionLocal
-from app.models import Stream, Recording, StreamMetadata
+from app.models import Stream, Recording, StreamMetadata, Streamer
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
+from app.services.websocket_manager import websocket_manager
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
 
@@ -306,9 +307,6 @@ class PostProcessingTaskHandlers:
                     
                     # Send WebSocket notification that recording is now available
                     try:
-                        from app.services.websocket_manager import websocket_manager
-                        from app.models import Streamer
-                        
                         # Get streamer info for the notification
                         streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                         if streamer and websocket_manager:
@@ -328,13 +326,10 @@ class PostProcessingTaskHandlers:
                             
                             # Run async notification in the event loop
                             try:
-                                loop = asyncio.get_event_loop()
-                                if loop.is_running():
-                                    asyncio.create_task(send_notification())
-                                else:
-                                    loop.run_until_complete(send_notification())
+                                loop = asyncio.get_running_loop()
+                                asyncio.create_task(send_notification())
                             except RuntimeError:
-                                # No event loop running, create new one
+                                # No running event loop, so create one
                                 asyncio.run(send_notification())
                                 
                     except Exception as e:
