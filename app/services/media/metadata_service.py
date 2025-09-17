@@ -235,7 +235,6 @@ class MetadataService:
                             if not self._is_within(base_path_obj, expected_streamer_dir):
                                 # CRITICAL FIX: Before rebasing, validate that the output_dir actually contains wrong streamer content
                                 # This prevents cross-contamination when the wrong streamer context is passed
-                                from pathlib import Path
                                 output_dir_str = str(output_dir) if output_dir else ""
                                 base_path_str = str(base_path_obj)
                                 
