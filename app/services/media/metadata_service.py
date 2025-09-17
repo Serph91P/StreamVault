@@ -233,21 +233,38 @@ class MetadataService:
                         if expected_streamer_dir.exists():
                             # If current base_path is not under expected streamer dir, try to correct
                             if not self._is_within(base_path_obj, expected_streamer_dir):
-                                logger.warning(
-                                    f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
-                                )
-                                # Prefer recording_path if available
-                                if getattr(stream, 'recording_path', None):
-                                    rp = Path(stream.recording_path)
-                                    if rp.exists() and self._is_within(rp, expected_streamer_dir):
-                                        base_path_obj = rp.parent
-                                        base_filename = rp.stem
-                                else:
-                                    # Fallback to computed Season folder
-                                    season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
-                                    season_dir.mkdir(parents=True, exist_ok=True)
-                                    base_path_obj = season_dir
-                                    # keep base_filename as-is
+                                # CRITICAL FIX: Before rebasing, validate that the output_dir actually contains wrong streamer content
+                                # This prevents cross-contamination when the wrong streamer context is passed
+                                output_dir_str = str(output_dir) if output_dir else ""
+                                base_path_str = str(base_path_obj)
+                                
+                                # Check if the current path actually belongs to a different streamer
+                                path_contains_different_streamer = False
+                                if output_dir_str and streamer.username.lower() not in output_dir_str.lower():
+                                    # The output_dir doesn't contain current streamer name, this might be cross-contamination
+                                    logger.error(
+                                        f"CRITICAL: Stream belongs to {streamer.username} but output_dir is {output_dir}. "
+                                        f"This indicates wrong stream-to-recording mapping. Refusing to rebase to prevent cross-contamination."
+                                    )
+                                    # Instead of rebasing, keep the original path and log the error for investigation
+                                    path_contains_different_streamer = True
+                                
+                                if not path_contains_different_streamer:
+                                    logger.warning(
+                                        f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
+                                    )
+                                    # Prefer recording_path if available
+                                    if getattr(stream, 'recording_path', None):
+                                        rp = Path(stream.recording_path)
+                                        if rp.exists() and self._is_within(rp, expected_streamer_dir):
+                                            base_path_obj = rp.parent
+                                            base_filename = rp.stem
+                                    else:
+                                        # Fallback to computed Season folder
+                                        season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
+                                        season_dir.mkdir(parents=True, exist_ok=True)
+                                        base_path_obj = season_dir
+                                        # keep base_filename as-is
                 except Exception as e:
                     logger.debug(f"Could not enforce streamer directory for metadata paths: {e}")
                 

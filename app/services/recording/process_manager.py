@@ -571,12 +571,40 @@ class ProcessManager:
             if recording_service and recording_service.orchestrator:
                 # If recording_id is not provided, try to find it by stream_id
                 if not recording_id:
-                    # Look for active recording for this stream
+                    # Look for active recording for this specific stream with path validation
                     recordings = await recording_service.orchestrator.database_service.get_recordings_by_status("recording")
+                    candidate_recording_id = None
+                    
+                    # First pass: try to find recording that matches both stream_id and path proximity
                     for recording in recordings:
                         if recording.stream_id == stream_id:
-                            recording_id = recording.id
-                            break
+                            # Validate this recording actually belongs to the correct stream by checking the output path
+                            try:
+                                # Get stream data to verify streamer
+                                stream_data = await recording_service.orchestrator.database_service.get_stream_by_id(recording.stream_id)
+                                if stream_data:
+                                    streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
+                                    if streamer_data:
+                                        # Check if output_path contains the correct streamer name
+                                        output_path_obj = Path(output_path)
+                                        if streamer_data.username.lower() in str(output_path_obj).lower():
+                                            candidate_recording_id = recording.id
+                                            logger.info(f"Found matching recording {recording.id} for stream {stream_id} with path validation")
+                                            break
+                                        else:
+                                            logger.warning(f"Recording {recording.id} belongs to stream {stream_id} but path {output_path} doesn't match streamer {streamer_data.username}")
+                            except Exception as e:
+                                logger.warning(f"Error validating recording {recording.id}: {e}")
+                    
+                    # If no validated candidate found, fall back to first match (with warning)
+                    if not candidate_recording_id:
+                        logger.warning(f"No path-validated recording found for stream {stream_id}, falling back to first match")
+                        for recording in recordings:
+                            if recording.stream_id == stream_id:
+                                candidate_recording_id = recording.id
+                                break
+                    
+                    recording_id = candidate_recording_id
                 
                 if recording_id:
                     # Get recording data using correct recording_id

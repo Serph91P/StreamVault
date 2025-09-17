@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Dict, Any
 
 from app.database import SessionLocal
-from app.models import Stream, Recording, StreamMetadata
+from app.models import Stream, Recording, StreamMetadata, Streamer
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
+from app.services.websocket_manager import websocket_manager
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
 
@@ -303,6 +304,36 @@ class PostProcessingTaskHandlers:
                     stream.recording_path = mp4_output_path
                     db.commit()
                     logger.info(f"Updated Stream.recording_path for stream {stream_id}: {old_path} -> {mp4_output_path}")
+                    
+                    # Send WebSocket notification that recording is now available
+                    try:
+                        # Get streamer info for the notification
+                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if streamer and websocket_manager:
+                            # Send recording available notification
+                            import asyncio
+                            async def send_notification():
+                                await websocket_manager.send_message_to_all({
+                                    "type": "recording_available",
+                                    "data": {
+                                        "stream_id": stream_id,
+                                        "streamer_id": stream.streamer_id,
+                                        "streamer_name": streamer.username,
+                                        "recording_path": mp4_output_path,
+                                        "title": stream.title
+                                    }
+                                })
+                            
+                            # Run async notification in the event loop
+                            try:
+                                loop = asyncio.get_running_loop()
+                                asyncio.create_task(send_notification())
+                            except RuntimeError:
+                                # No running event loop, so create one
+                                asyncio.run(send_notification())
+                                
+                    except Exception as e:
+                        logger.warning(f"Failed to send recording_available WebSocket notification: {e}")
                 else:
                     logger.warning(f"Stream {stream_id} not found for recording_path update")
                 
