@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import sys
 import json
 from datetime import datetime
@@ -38,7 +39,7 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 def setup_logging():
-    """Setup logging with structured file outputs"""
+    """Setup logging with daily rotating files"""
     logger = logging.getLogger('streamvault')
     logger.setLevel(settings.LOG_LEVEL)
 
@@ -62,10 +63,21 @@ def setup_logging():
     app_logs_dir = logs_dir / "app"
     app_logs_dir.mkdir(parents=True, exist_ok=True)
     
-    # File handler for persistent logs in the app directory
-    file_handler = logging.FileHandler(app_logs_dir / 'streamvault.log')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    # Daily rotating file handler instead of simple file handler
+    rotating_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=app_logs_dir / 'streamvault.log',
+        when='midnight',
+        interval=1,
+        backupCount=30,  # Keep 30 days of logs
+        encoding='utf-8',
+        utc=True
+    )
+    rotating_handler.setFormatter(formatter)
+    
+    # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
+    rotating_handler.suffix = '%Y-%m-%d'
+    
+    logger.addHandler(rotating_handler)
 
     # Initialize the structured logging service
     try:
