@@ -586,7 +586,6 @@ class ProcessManager:
                                     streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(stream_data.streamer_id)
                                     if streamer_data:
                                         # Check if output_path contains the correct streamer name
-                                        from pathlib import Path
                                         output_path_obj = Path(output_path)
                                         if streamer_data.username.lower() in str(output_path_obj).lower():
                                             candidate_recording_id = recording.id
