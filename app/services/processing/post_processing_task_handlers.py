@@ -13,7 +13,7 @@ from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
-from app.services.websocket_manager import websocket_manager
+from app.services.communication.websocket_manager import websocket_manager
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
 
