@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from typing import Optional
 import json
 import warnings
+from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -318,3 +320,47 @@ class ActiveRecordingState(Base):
             return True
         age = (datetime.now(self.last_heartbeat.tzinfo) - self.last_heartbeat).total_seconds()
         return age > max_age_seconds
+
+
+class RecordingProcessingState(Base):
+    """
+    Persistent per-recording post-processing status.
+    Tracks which steps have completed so pipelines can resume idempotently.
+    """
+    __tablename__ = "recording_processing_state"
+    __table_args__ = (
+        Index('ix_rps_recording_id', 'recording_id', unique=True),
+        Index('ix_rps_stream_id', 'stream_id'),
+        Index('ix_rps_updated_at', 'updated_at'),
+        {'extend_existing': True}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recording_id = Column(Integer, ForeignKey('recordings.id', ondelete='CASCADE'), nullable=False, unique=True)
+    stream_id = Column(Integer, ForeignKey('streams.id', ondelete='CASCADE'), nullable=False, index=True)
+    streamer_id = Column(Integer, ForeignKey('streamers.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    # Step statuses: 'pending' | 'running' | 'completed' | 'failed'
+    metadata_status = Column(String(20), default='pending', nullable=False)
+    chapters_status = Column(String(20), default='pending', nullable=False)
+    mp4_remux_status = Column(String(20), default='pending', nullable=False)
+    mp4_validation_status = Column(String(20), default='pending', nullable=False)
+    thumbnail_status = Column(String(20), default='pending', nullable=False)
+    cleanup_status = Column(String(20), default='pending', nullable=False)
+
+    last_error = Column(Text, nullable=True)
+
+    # Store created task IDs for debugging/inspection
+    task_ids_json = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def set_task_ids(self, task_ids: dict):
+        self.task_ids_json = json.dumps(task_ids) if task_ids else None
+
+    def get_task_ids(self):
+        try:
+            return json.loads(self.task_ids_json) if self.task_ids_json else {}
+        except Exception:
+            return {}
