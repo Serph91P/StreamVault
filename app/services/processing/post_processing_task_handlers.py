@@ -55,10 +55,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = local_payload.get('recording_id')
                 if rec_id:
-                    state = self._get_or_create_state(db, rec_id, stream_id)
-                    if state:
-                        state.metadata_status = 'running'
-                        db.commit()
+                    self._set_status(db, rec_id, stream_id, 'metadata_generation', 'running')
         except Exception as e:
             logger.debug(f"metadata_generation: failed to mark running state: {e}")
 
@@ -148,10 +145,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.metadata_status = 'completed'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'metadata_generation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata status: {persist_err}")
 
@@ -178,11 +172,7 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.metadata_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'metadata_generation', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata failed status: {persist_err}")
     
@@ -202,10 +192,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    state = self._get_or_create_state(db, rec_id, stream_id)
-                    if state:
-                        state.chapters_status = 'running'
-                        db.commit()
+                    self._set_status(db, rec_id, stream_id, 'chapters_generation', 'running')
         except Exception as e:
             logger.debug(f"chapters_generation: failed to mark running: {e}")
         
@@ -233,10 +220,7 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.chapters_status = 'completed'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'chapters_generation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters status: {persist_err}")
             
@@ -255,11 +239,7 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.chapters_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'chapters_generation', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
@@ -285,10 +265,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    state = self._get_or_create_state(db, rec_id, stream_id)
-                    if state:
-                        state.mp4_remux_status = 'running'
-                        db.commit()
+                    self._set_status(db, rec_id, stream_id, 'mp4_remux', 'running')
         except Exception as e:
             logger.debug(f"mp4_remux: failed to mark running: {e}")
         
@@ -430,10 +407,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.mp4_remux_status = 'completed'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'mp4_remux', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_remux status: {persist_err}")
             
@@ -450,11 +424,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.mp4_remux_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'mp4_remux', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_remux failed status: {persist_err}")
             raise
@@ -477,10 +447,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    state = self._get_or_create_state(db, rec_id, stream_id)
-                    if state:
-                        state.thumbnail_status = 'running'
-                        db.commit()
+                    self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'running')
         except Exception as e:
             logger.debug(f"thumbnail_generation: failed to mark running: {e}")
         
@@ -507,10 +474,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.thumbnail_status = 'completed'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist thumbnail status: {persist_err}")
             
@@ -527,11 +491,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.thumbnail_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist thumbnail failed status: {persist_err}")
             raise
@@ -556,10 +516,7 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    state = self._get_or_create_state(db, rec_id, stream_id)
-                    if state:
-                        state.mp4_validation_status = 'running'
-                        db.commit()
+                    self._set_status(db, rec_id, stream_id, 'mp4_validation', 'running')
         except Exception as e:
             logger.debug(f"mp4_validation: failed to mark running: {e}")
         
@@ -604,10 +561,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.mp4_validation_status = 'completed'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'mp4_validation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_validation status: {persist_err}")
             
@@ -624,11 +578,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.mp4_validation_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'mp4_validation', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_validation failed status: {persist_err}")
             raise
@@ -684,10 +634,7 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = self._get_or_create_state(db, rec_id, stream_id)
-                        if state:
-                            state.cleanup_status = 'running'
-                            db.commit()
+                        self._set_status(db, rec_id, stream_id, 'cleanup', 'running')
         except Exception as e:
             logger.debug(f"cleanup: failed to mark running: {e}")
         
@@ -746,10 +693,7 @@ class PostProcessingTaskHandlers:
                     with SessionLocal() as db:
                         rec_id = payload.get('recording_id')
                         if rec_id:
-                            state = self._get_or_create_state(db, rec_id, stream_id)
-                            if state:
-                                state.cleanup_status = 'completed'
-                                db.commit()
+                            self._set_status(db, rec_id, stream_id, 'cleanup', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist cleanup status: {persist_err}")
             
@@ -778,11 +722,7 @@ class PostProcessingTaskHandlers:
                     with SessionLocal() as db:
                         rec_id = payload.get('recording_id')
                         if rec_id:
-                            state = self._get_or_create_state(db, rec_id, stream_id)
-                            if state:
-                                state.cleanup_status = 'failed'
-                                state.last_error = str(e)
-                                db.commit()
+                            self._set_status(db, rec_id, stream_id, 'cleanup', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist cleanup failed status: {persist_err}")
             raise
@@ -838,6 +778,37 @@ class PostProcessingTaskHandlers:
         except Exception as e:
             logger.debug(f"_get_or_create_state failed: {e}")
             return None
+
+    def _set_status(self, db, recording_id: int, stream_id: int, step: str, status: str, last_error: str | None = None):
+        """Set a specific step status with minimal duplication.
+        step can be one of: metadata_generation|metadata, chapters_generation|chapters, mp4_remux,
+        mp4_validation, thumbnail_generation|thumbnail, cleanup
+        """
+        try:
+            state = self._get_or_create_state(db, recording_id, stream_id)
+            if not state:
+                return
+            step_map = {
+                'metadata_generation': 'metadata_status',
+                'metadata': 'metadata_status',
+                'chapters_generation': 'chapters_status',
+                'chapters': 'chapters_status',
+                'mp4_remux': 'mp4_remux_status',
+                'mp4_validation': 'mp4_validation_status',
+                'thumbnail_generation': 'thumbnail_status',
+                'thumbnail': 'thumbnail_status',
+                'cleanup': 'cleanup_status',
+            }
+            attr = step_map.get(step)
+            if not attr:
+                logger.debug(f"_set_status: unknown step '{step}' for recording {recording_id}")
+                return
+            setattr(state, attr, status)
+            if last_error is not None:
+                state.last_error = last_error
+            db.commit()
+        except Exception as e:
+            logger.debug(f"_set_status failed for recording {recording_id}, step {step}: {e}")
 
 # Global instance
 post_processing_task_handlers = PostProcessingTaskHandlers()
