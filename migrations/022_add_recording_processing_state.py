@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS recording_processing_state (
 CREATE UNIQUE INDEX IF NOT EXISTS ix_rps_recording_id ON recording_processing_state(recording_id);
 CREATE INDEX IF NOT EXISTS ix_rps_stream_id ON recording_processing_state(stream_id);
 CREATE INDEX IF NOT EXISTS ix_rps_updated_at ON recording_processing_state(updated_at);
+
+-- Ensure updated_at is maintained at DB level
+DROP TRIGGER IF EXISTS update_recording_processing_state_updated_at ON recording_processing_state;
+CREATE TRIGGER update_recording_processing_state_updated_at
+    BEFORE UPDATE ON recording_processing_state
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 """
 
 SQL_DROP = """
