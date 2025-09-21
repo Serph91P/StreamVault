@@ -55,15 +55,12 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = local_payload.get('recording_id')
                 if rec_id:
-                    stream = db.query(Stream).get(stream_id)
-                    state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                    if not state:
-                        state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(state)
-                    state.metadata_status = 'running'
-                    db.commit()
-        except Exception:
-            pass
+                    state = self._get_or_create_state(db, rec_id, stream_id)
+                    if state:
+                        state.metadata_status = 'running'
+                        db.commit()
+        except Exception as e:
+            logger.debug(f"metadata_generation: failed to mark running state: {e}")
 
         try:
             # Update progress
@@ -149,19 +146,12 @@ class PostProcessingTaskHandlers:
             # Persist processing state
             try:
                 with SessionLocal() as db:
-                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
                     rec_id = payload.get('recording_id')
-                    if rec_id and stream:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            state = RecordingProcessingState(
-                                recording_id=rec_id,
-                                stream_id=stream_id,
-                                streamer_id=stream.streamer_id
-                            )
-                            db.add(state)
-                        state.metadata_status = 'completed'
-                        db.commit()
+                    if rec_id:
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.metadata_status = 'completed'
+                            db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata status: {persist_err}")
 
@@ -188,16 +178,13 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            # Create minimal record if missing
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=db.query(Stream).get(stream_id).streamer_id if db.query(Stream).get(stream_id) else 0)
-                            db.add(state)
-                        state.metadata_status = 'failed'
-                        state.last_error = str(e)
-                        db.commit()
-            except Exception:
-                pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.metadata_status = 'failed'
+                            state.last_error = str(e)
+                            db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist metadata failed status: {persist_err}")
     
     async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
@@ -215,15 +202,12 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    stream = db.query(Stream).get(stream_id)
-                    state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                    if not state:
-                        state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(state)
-                    state.chapters_status = 'running'
-                    db.commit()
-        except Exception:
-            pass
+                    state = self._get_or_create_state(db, rec_id, stream_id)
+                    if state:
+                        state.chapters_status = 'running'
+                        db.commit()
+        except Exception as e:
+            logger.debug(f"chapters_generation: failed to mark running: {e}")
         
         try:
             # Generate chapters using metadata service
@@ -249,13 +233,10 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.chapters_status = 'completed'
-                        db.commit()
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.chapters_status = 'completed'
+                            db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters status: {persist_err}")
             
@@ -274,16 +255,13 @@ class PostProcessingTaskHandlers:
                     rec_id = payload.get('recording_id')
                     stream_id = payload.get('stream_id')
                     if rec_id and stream_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.chapters_status = 'failed'
-                        state.last_error = str(e)
-                        db.commit()
-            except Exception:
-                pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.chapters_status = 'failed'
+                            state.last_error = str(e)
+                            db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
     
     async def handle_mp4_remux(self, payload, progress_callback=None):
@@ -307,15 +285,12 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    stream = db.query(Stream).get(stream_id)
-                    state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                    if not state:
-                        state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(state)
-                    state.mp4_remux_status = 'running'
-                    db.commit()
-        except Exception:
-            pass
+                    state = self._get_or_create_state(db, rec_id, stream_id)
+                    if state:
+                        state.mp4_remux_status = 'running'
+                        db.commit()
+        except Exception as e:
+            logger.debug(f"mp4_remux: failed to mark running: {e}")
         
         # Log to structured logging service
         if self.logging_service:
@@ -455,13 +430,10 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.mp4_remux_status = 'completed'
-                        db.commit()
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.mp4_remux_status = 'completed'
+                            db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_remux status: {persist_err}")
             
@@ -478,16 +450,13 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.mp4_remux_status = 'failed'
-                        state.last_error = str(e)
-                        db.commit()
-            except Exception:
-                pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.mp4_remux_status = 'failed'
+                            state.last_error = str(e)
+                            db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_remux failed status: {persist_err}")
             raise
     
     async def handle_thumbnail_generation(self, payload, progress_callback=None):
@@ -508,15 +477,12 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    stream = db.query(Stream).get(stream_id)
-                    state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                    if not state:
-                        state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(state)
-                    state.thumbnail_status = 'running'
-                    db.commit()
-        except Exception:
-            pass
+                    state = self._get_or_create_state(db, rec_id, stream_id)
+                    if state:
+                        state.thumbnail_status = 'running'
+                        db.commit()
+        except Exception as e:
+            logger.debug(f"thumbnail_generation: failed to mark running: {e}")
         
         try:
             # Generate unified thumbnail from MP4 (only creates -thumb.jpg format)
@@ -541,13 +507,10 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.thumbnail_status = 'completed'
-                        db.commit()
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.thumbnail_status = 'completed'
+                            db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist thumbnail status: {persist_err}")
             
@@ -564,16 +527,13 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.thumbnail_status = 'failed'
-                        state.last_error = str(e)
-                        db.commit()
-            except Exception:
-                pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.thumbnail_status = 'failed'
+                            state.last_error = str(e)
+                            db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist thumbnail failed status: {persist_err}")
             raise
     
     async def handle_mp4_validation(self, payload, progress_callback=None):
@@ -596,15 +556,12 @@ class PostProcessingTaskHandlers:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
                 if rec_id:
-                    stream = db.query(Stream).get(stream_id)
-                    state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                    if not state:
-                        state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(state)
-                    state.mp4_validation_status = 'running'
-                    db.commit()
-        except Exception:
-            pass
+                    state = self._get_or_create_state(db, rec_id, stream_id)
+                    if state:
+                        state.mp4_validation_status = 'running'
+                        db.commit()
+        except Exception as e:
+            logger.debug(f"mp4_validation: failed to mark running: {e}")
         
         try:
             # Check if MP4 exists
@@ -647,13 +604,10 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.mp4_validation_status = 'completed'
-                        db.commit()
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.mp4_validation_status = 'completed'
+                            db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_validation status: {persist_err}")
             
@@ -670,16 +624,13 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            stream = db.query(Stream).get(stream_id)
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.mp4_validation_status = 'failed'
-                        state.last_error = str(e)
-                        db.commit()
-            except Exception:
-                pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.mp4_validation_status = 'failed'
+                            state.last_error = str(e)
+                            db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_validation failed status: {persist_err}")
             raise
 
     async def handle_cleanup(self, payload, progress_callback=None):
@@ -733,15 +684,12 @@ class PostProcessingTaskHandlers:
                 with SessionLocal() as db:
                     rec_id = payload.get('recording_id')
                     if rec_id:
-                        stream = db.query(Stream).get(stream_id)
-                        state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                        if not state:
-                            state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                            db.add(state)
-                        state.cleanup_status = 'running'
-                        db.commit()
-        except Exception:
-            pass
+                        state = self._get_or_create_state(db, rec_id, stream_id)
+                        if state:
+                            state.cleanup_status = 'running'
+                            db.commit()
+        except Exception as e:
+            logger.debug(f"cleanup: failed to mark running: {e}")
         
         # Log to structured logging service
         if self.logging_service:
@@ -798,13 +746,10 @@ class PostProcessingTaskHandlers:
                     with SessionLocal() as db:
                         rec_id = payload.get('recording_id')
                         if rec_id:
-                            state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                            if not state:
-                                stream = db.query(Stream).get(stream_id)
-                                state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                                db.add(state)
-                            state.cleanup_status = 'completed'
-                            db.commit()
+                            state = self._get_or_create_state(db, rec_id, stream_id)
+                            if state:
+                                state.cleanup_status = 'completed'
+                                db.commit()
             except Exception as persist_err:
                 logger.debug(f"Could not persist cleanup status: {persist_err}")
             
@@ -833,16 +778,13 @@ class PostProcessingTaskHandlers:
                     with SessionLocal() as db:
                         rec_id = payload.get('recording_id')
                         if rec_id:
-                            state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
-                            if not state:
-                                stream = db.query(Stream).get(stream_id)
-                                state = RecordingProcessingState(recording_id=rec_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                                db.add(state)
-                            state.cleanup_status = 'failed'
-                            state.last_error = str(e)
-                            db.commit()
-            except Exception:
-                pass
+                            state = self._get_or_create_state(db, rec_id, stream_id)
+                            if state:
+                                state.cleanup_status = 'failed'
+                                state.last_error = str(e)
+                                db.commit()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist cleanup failed status: {persist_err}")
             raise
     
     async def _intelligent_ts_cleanup(self, ts_path: str, mp4_path: str, max_wait_time: int):
@@ -872,6 +814,30 @@ class PostProcessingTaskHandlers:
         """Clean up services"""
         await self.metadata_service.close()
         await self.thumbnail_service.close()
+
+    # --- Helpers ---
+    def _get_or_create_state(self, db, recording_id: int, stream_id: int):
+        """Fetch or create RecordingProcessingState safely.
+        Returns None if Stream is missing to avoid invalid FK values.
+        """
+        try:
+            state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+            if state:
+                return state
+            stream = db.query(Stream).get(stream_id)
+            if not stream:
+                logger.debug(f"_get_or_create_state: stream {stream_id} not found for recording {recording_id}")
+                return None
+            state = RecordingProcessingState(
+                recording_id=recording_id,
+                stream_id=stream_id,
+                streamer_id=stream.streamer_id
+            )
+            db.add(state)
+            return state
+        except Exception as e:
+            logger.debug(f"_get_or_create_state failed: {e}")
+            return None
 
 # Global instance
 post_processing_task_handlers = PostProcessingTaskHandlers()
