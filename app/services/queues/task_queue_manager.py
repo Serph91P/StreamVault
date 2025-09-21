@@ -407,8 +407,13 @@ class TaskQueueManager:
                                         logger.info(f"⏭️ Skipping already-completed task {dep_task.id} ({step}) for recording {rec_id}")
                                         await self.dependency_manager.mark_task_completed(dep_task.id)
                                         continue
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(
+                            "Exception while checking completed state for dep_task %s: %s",
+                            getattr(dep_task, 'id', None),
+                            e,
+                            exc_info=True,
+                        )
                     # Find corresponding queue task
                     queue_task = self.progress_tracker.get_task(dep_task.id)
                     if queue_task:
