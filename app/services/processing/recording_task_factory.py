@@ -61,14 +61,24 @@ class RecordingTaskFactory:
                         completed.add('cleanup')
                 else:
                     # Prime a state row so we can keep progress even if app restarts mid-chain
-                    # Use provided streamer_name to resolve streamer_id if possible
                     try:
                         stream = db.query(Stream).get(stream_id)
-                        st = RecordingProcessingState(recording_id=recording_id, stream_id=stream_id, streamer_id=stream.streamer_id if stream else 0)
-                        db.add(st)
-                        db.commit()
-                    except Exception:
-                        pass
+                        if stream:
+                            st = RecordingProcessingState(
+                                recording_id=recording_id,
+                                stream_id=stream_id,
+                                streamer_id=stream.streamer_id
+                            )
+                            db.add(st)
+                            db.commit()
+                        else:
+                            logger.debug(
+                                "Skip creating RecordingProcessingState: stream %s not found for recording %s",
+                                stream_id,
+                                recording_id,
+                            )
+                    except Exception as e:
+                        logger.debug(f"Could not prime processing state for recording {recording_id}: {e}")
         except Exception:
             pass
         
