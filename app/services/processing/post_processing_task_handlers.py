@@ -25,6 +25,8 @@ class PostProcessingTaskHandlers:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
+        # Debounce map: recording_id -> pending snapshot & task
+        self._broadcast_debounce = {}
         
         # Initialize logging service
         try:
@@ -807,8 +809,103 @@ class PostProcessingTaskHandlers:
             if last_error is not None:
                 state.last_error = last_error
             db.commit()
+            # Try to refresh updated_at set by DB trigger
+            try:
+                db.refresh(state)
+            except Exception:
+                pass
+            # Broadcast snapshot to clients
+            try:
+                snapshot = self._status_snapshot(state)
+                self._broadcast_processing_status(stream_id, snapshot)
+            except Exception as be:
+                logger.debug(f"_set_status broadcast failed for recording {recording_id}: {be}")
         except Exception as e:
             logger.debug(f"_set_status failed for recording {recording_id}, step {step}: {e}")
+
+    def _status_snapshot(self, state: RecordingProcessingState) -> Dict[str, Any]:
+        """Build a lightweight status snapshot for websocket updates."""
+        try:
+            updated_iso = None
+            try:
+                if getattr(state, 'updated_at', None):
+                    updated_iso = state.updated_at.isoformat()
+            except Exception:
+                updated_iso = None
+            return {
+                'type': 'recording_processing_status',
+                'data': {
+                    'recording_id': state.recording_id,
+                    'stream_id': state.stream_id,
+                    'streamer_id': state.streamer_id,
+                    'statuses': {
+                        'metadata': state.metadata_status,
+                        'chapters': state.chapters_status,
+                        'mp4_remux': state.mp4_remux_status,
+                        'mp4_validation': state.mp4_validation_status,
+                        'thumbnail': state.thumbnail_status,
+                        'cleanup': state.cleanup_status,
+                    },
+                    'last_error': state.last_error,
+                    'updated_at': updated_iso,
+                }
+            }
+        except Exception as e:
+            logger.debug(f"_status_snapshot failed: {e}")
+            return {
+                'type': 'recording_processing_status',
+                'data': {
+                    'recording_id': getattr(state, 'recording_id', None),
+                    'stream_id': getattr(state, 'stream_id', None),
+                    'streamer_id': getattr(state, 'streamer_id', None),
+                    'statuses': {},
+                    'last_error': getattr(state, 'last_error', None),
+                    'updated_at': None,
+                }
+            }
+
+    def _broadcast_processing_status(self, stream_id: int, snapshot: Dict[str, Any]) -> None:
+        """Best-effort broadcast with a short debounce per recording to reduce chatter."""
+        try:
+            if not websocket_manager:
+                return
+            rec_id = snapshot.get('data', {}).get('recording_id')
+            if rec_id is None:
+                # No debounce key; send immediately
+                async def send_once():
+                    await websocket_manager.send_message_to_all(snapshot)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.create_task(send_once())
+                except RuntimeError:
+                    pass
+                return
+            # Store/overwrite pending snapshot
+            self._broadcast_debounce[rec_id] = snapshot
+            async def delayed_send(recording_id: int):
+                # small delay to coalesce rapid updates
+                await asyncio.sleep(0.15)
+                snap = self._broadcast_debounce.get(recording_id)
+                if snap:
+                    try:
+                        await websocket_manager.send_message_to_all(snap)
+                    finally:
+                        # Clear after send
+                        self._broadcast_debounce.pop(recording_id, None)
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(delayed_send(rec_id))
+            except RuntimeError:
+                # No running loop; skip debounce
+                async def send_fallback():
+                    await websocket_manager.send_message_to_all(snapshot)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.create_task(send_fallback())
+                except RuntimeError:
+                    pass
+        except Exception as e:
+            logger.debug(f"_broadcast_processing_status failed for stream {stream_id}: {e}")
 
 # Global instance
 post_processing_task_handlers = PostProcessingTaskHandlers()
