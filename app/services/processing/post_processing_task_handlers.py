@@ -221,20 +221,12 @@ class PostProcessingTaskHandlers:
         )
         
         # Check if stream still exists before processing
+        exists, _ = self._check_stream_exists(stream_id, 'chapters_generation', payload.get('task_id'))
+        if not exists:
+            return {'status': 'skipped', 'reason': 'stream_deleted'}
+        
         try:
             with SessionLocal() as db:
-                from app.models import Stream
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if not stream:
-                    log_with_context(
-                        logger, 'warning',
-                        f"Stream {stream_id} not found, skipping chapters generation (likely deleted)",
-                        task_id=payload.get('task_id'),
-                        stream_id=stream_id,
-                        operation='chapters_generation_skip'
-                    )
-                    return {'status': 'skipped', 'reason': 'stream_deleted'}
-                
                 rec_id = payload.get('recording_id')
                 if rec_id:
                     self._set_status(db, rec_id, stream_id, 'chapters_generation', 'running')
@@ -567,17 +559,20 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             mp4_path=mp4_path,
             operation='mp4_validation_start'
+        log_with_context(
+            logger, 'info',
+            f"Starting MP4 validation for stream {stream_id}",
+            task_id=payload.get('task_id'),
+            stream_id=stream_id,
+            mp4_path=mp4_path,
+            operation='mp4_validation_start'
         )
         
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'mp4_validation', payload.get('task_id'))
         if not exists:
             return {'status': 'skipped', 'reason': 'stream_deleted'}
-            task_id=payload.get('task_id'),
-            stream_id=stream_id,
-            mp4_path=mp4_path,
-            operation='mp4_validation_start'
-        )
+        
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
