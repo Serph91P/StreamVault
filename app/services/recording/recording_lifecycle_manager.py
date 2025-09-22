@@ -7,7 +7,7 @@ Handles recording start, stop, monitoring, and lifecycle events.
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 import re
 from datetime import datetime
 from pathlib import Path
@@ -46,17 +46,20 @@ class RecordingLifecycleManager:
     # Supported video extensions for filename cleanup
     SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.ts', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm']
     
-    def __init__(self, config_manager=None, process_manager=None, 
+    def __init__(self, config_manager=None, process_manager=None,
                  database_service=None, websocket_service=None, state_manager=None):
         self.config_manager = config_manager
         self.process_manager = process_manager
         self.database_service = database_service
         self.websocket_service = websocket_service
         self.state_manager = state_manager
-        
+
         # Shutdown management
         self._shutdown_event = asyncio.Event()
         self._is_shutting_down = False
+
+        # Ensure post-processing only gets scheduled once per recording
+        self._postprocessing_scheduled = set()
 
     async def start_recording(self, stream_id: int, streamer_id: int, **kwargs) -> Optional[int]:
         """Start a new recording"""
@@ -187,8 +190,8 @@ class RecordingLifecycleManager:
             # Even if process termination failed, streamlink may have finished correctly
             if reason == "automatic":
                 logger.info(f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, success={success}")
-                # PRODUCTION FIX: Run post-processing asynchronously to avoid blocking the stream offline handler
-                asyncio.create_task(self._trigger_post_processing_async(recording_id))
+                # Schedule post-processing once (idempotent)
+                await self._schedule_post_processing_once(recording_id)
             
             return success
             
@@ -441,6 +444,13 @@ class RecordingLifecycleManager:
             
             logger.info(f"Recording {recording_id} completed successfully")
             
+            # Safety net: if offline event path didn't schedule post-processing, do it here.
+            # This avoids scenarios where EventSub misses the offline event.
+            try:
+                await self._schedule_post_processing_once(recording_id)
+            except Exception as sched_err:
+                logger.error(f"Failed to schedule post-processing from completion handler for recording {recording_id}: {sched_err}")
+            
         except Exception as e:
             logger.error(f"Error handling recording completion {recording_id}: {e}")
 
@@ -580,6 +590,18 @@ class RecordingLifecycleManager:
             
         except Exception as e:
             logger.error(f"Error in async post-processing for recording {recording_id}: {e}", exc_info=True)
+
+    async def _schedule_post_processing_once(self, recording_id: int):
+        """Schedule post-processing only once per recording (idempotent)."""
+        try:
+            if recording_id in self._postprocessing_scheduled:
+                logger.debug(f"POST_PROCESSING_ALREADY_SCHEDULED: recording_id={recording_id}")
+                return
+            # Mark as scheduled first to avoid races
+            self._postprocessing_scheduled.add(recording_id)
+            asyncio.create_task(self._trigger_post_processing_async(recording_id))
+        except Exception as e:
+            logger.error(f"Failed to schedule post-processing once for recording {recording_id}: {e}")
 
     async def _trigger_post_processing(self, recording_id: int):
         """Trigger post-processing for a completed recording"""

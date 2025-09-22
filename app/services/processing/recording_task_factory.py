@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from app.services.processing.task_dependency_manager import Task, TaskStatus
+from app.database import SessionLocal
+from app.models import RecordingProcessingState, Stream
 
 logger = logging.getLogger("streamvault")
 
@@ -39,6 +41,46 @@ class RecordingTaskFactory:
             List of tasks with proper dependencies
         """
         tasks = []
+        # Load persisted state to skip completed steps
+        completed = set()
+        try:
+            with SessionLocal() as db:
+                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+                if state:
+                    if state.metadata_status == 'completed':
+                        completed.add('metadata_generation')
+                    if state.chapters_status == 'completed':
+                        completed.add('chapters_generation')
+                    if state.mp4_remux_status == 'completed':
+                        completed.add('mp4_remux')
+                    if state.mp4_validation_status == 'completed':
+                        completed.add('mp4_validation')
+                    if state.thumbnail_status == 'completed':
+                        completed.add('thumbnail_generation')
+                    if state.cleanup_status == 'completed':
+                        completed.add('cleanup')
+                else:
+                    # Prime a state row so we can keep progress even if app restarts mid-chain
+                    try:
+                        stream = db.query(Stream).get(stream_id)
+                        if stream:
+                            st = RecordingProcessingState(
+                                recording_id=recording_id,
+                                stream_id=stream_id,
+                                streamer_id=stream.streamer_id
+                            )
+                            db.add(st)
+                            db.commit()
+                        else:
+                            logger.debug(
+                                "Skip creating RecordingProcessingState: stream %s not found for recording %s",
+                                stream_id,
+                                recording_id,
+                            )
+                    except Exception as e:
+                        logger.debug(f"Could not prime processing state for recording {recording_id}: {e}")
+        except Exception:
+            pass
         
         # Base task IDs
         base_id = f"stream_{stream_id}_recording_{recording_id}"
@@ -65,7 +107,8 @@ class RecordingTaskFactory:
         mp4_path = str(ts_path.with_suffix('.mp4'))
         
         # 1. Metadata Generation Task (no dependencies)
-        metadata_task = Task(
+        if 'metadata_generation' not in completed:
+            metadata_task = Task(
             id=metadata_task_id,
             type='metadata_generation',
             payload={
@@ -75,11 +118,12 @@ class RecordingTaskFactory:
             },
             dependencies=set(),
             priority=1  # High priority
-        )
-        tasks.append(metadata_task)
+            )
+            tasks.append(metadata_task)
         
         # 2. Chapters Generation Task (no dependencies)
-        chapters_task = Task(
+        if 'chapters_generation' not in completed:
+            chapters_task = Task(
             id=chapters_task_id,
             type='chapters_generation',
             payload={
@@ -87,13 +131,14 @@ class RecordingTaskFactory:
                 'mp4_path': mp4_path,
                 'base_filename': ts_path.stem
             },
-            dependencies=set(),
+            dependencies={metadata_task_id} if any(t.id == metadata_task_id for t in tasks) else set(),
             priority=1  # High priority
-        )
-        tasks.append(chapters_task)
+            )
+            tasks.append(chapters_task)
         
         # 3. MP4 Remux Task (depends on metadata and chapters)
-        mp4_remux_task = Task(
+        if 'mp4_remux' not in completed:
+            mp4_remux_task = Task(
             id=mp4_remux_task_id,
             type='mp4_remux',
             payload={
@@ -103,14 +148,15 @@ class RecordingTaskFactory:
                 'include_metadata': True,
                 'include_chapters': True
             },
-            dependencies={metadata_task_id, chapters_task_id},
+            dependencies={dep for dep in {metadata_task_id, chapters_task_id} if dep and dep in [t.id for t in tasks]},
             priority=2  # Medium priority
-        )
-        tasks.append(mp4_remux_task)
+            )
+            tasks.append(mp4_remux_task)
         
         # 4. MP4 Validation Task (depends on MP4 remux)
         mp4_validation_task_id = f"{base_id}_mp4_validation"
-        mp4_validation_task = Task(
+        if 'mp4_validation' not in completed:
+            mp4_validation_task = Task(
             id=mp4_validation_task_id,
             type='mp4_validation',
             payload={
@@ -120,13 +166,14 @@ class RecordingTaskFactory:
                 'validate_size_ratio': True,
                 'min_size_mb': 1  # Minimum 1MB
             },
-            dependencies={mp4_remux_task_id},
+            dependencies={mp4_remux_task_id} if any(t.id == mp4_remux_task_id for t in tasks) else set(),
             priority=2  # High priority - validation is critical
-        )
-        tasks.append(mp4_validation_task)
+            )
+            tasks.append(mp4_validation_task)
         
         # 5. Thumbnail Generation Task (depends on MP4 validation)
-        thumbnail_task = Task(
+        if 'thumbnail_generation' not in completed:
+            thumbnail_task = Task(
             id=thumbnail_task_id,
             type='thumbnail_generation',
             payload={
@@ -134,13 +181,13 @@ class RecordingTaskFactory:
                 'mp4_path': mp4_path,
                 'fallback_to_video_extraction': True
             },
-            dependencies={mp4_validation_task_id},
+            dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),
             priority=3  # Lower priority
-        )
-        tasks.append(thumbnail_task)
+            )
+            tasks.append(thumbnail_task)
         
         # 6. Cleanup Task (depends on MP4 validation, only if cleanup_ts_file is True)
-        if cleanup_ts_file:
+        if cleanup_ts_file and 'cleanup' not in completed:
             # Prepare files to remove: .ts file and potential segments directory
             files_to_remove = [ts_file_path]
             
@@ -162,7 +209,7 @@ class RecordingTaskFactory:
                     'intelligent_cleanup': True,
                     'max_wait_time': 300  # 5 minutes max wait for processes
                 },
-                dependencies={mp4_validation_task_id},  # Depends on validation, not thumbnail
+                dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),  # Depends on validation, not thumbnail
                 priority=4  # Lowest priority
             )
             tasks.append(cleanup_task)

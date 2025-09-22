@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from app.database import SessionLocal
-from app.models import Stream, Recording, StreamMetadata, Streamer
+from app.models import Stream, Recording, StreamMetadata, Streamer, RecordingProcessingState
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
 from app.services.communication.websocket_manager import websocket_manager
@@ -25,6 +25,8 @@ class PostProcessingTaskHandlers:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
+        # Debounce map: recording_id -> pending snapshot & task
+        self._broadcast_debounce = {}
         
         # Initialize logging service
         try:
@@ -50,6 +52,14 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='metadata_generation_start'
         )
+        # Mark running state (best-effort)
+        try:
+            with SessionLocal() as db:
+                rec_id = local_payload.get('recording_id')
+                if rec_id:
+                    self._set_status(db, rec_id, stream_id, 'metadata_generation', 'running')
+        except Exception as e:
+            logger.debug(f"metadata_generation: failed to mark running state: {e}")
 
         try:
             # Update progress
@@ -132,6 +142,15 @@ class PostProcessingTaskHandlers:
                     operation='metadata_generation_error_continue'
                 )
 
+            # Persist processing state
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'metadata_generation', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist metadata status: {persist_err}")
+
             if progress_callback:
                 progress_callback(90.0)
 
@@ -150,6 +169,14 @@ class PostProcessingTaskHandlers:
             )
             # Don't raise - metadata generation failures shouldn't stop post-processing
             # The specific metadata errors are already handled in the try-catch above
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    stream_id = payload.get('stream_id')
+                    if rec_id and stream_id:
+                        self._set_status(db, rec_id, stream_id, 'metadata_generation', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist metadata failed status: {persist_err}")
     
     async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
@@ -163,6 +190,13 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='chapters_generation_start'
         )
+        try:
+            with SessionLocal() as db:
+                rec_id = payload.get('recording_id')
+                if rec_id:
+                    self._set_status(db, rec_id, stream_id, 'chapters_generation', 'running')
+        except Exception as e:
+            logger.debug(f"chapters_generation: failed to mark running: {e}")
         
         try:
             # Generate chapters using metadata service
@@ -182,6 +216,15 @@ class PostProcessingTaskHandlers:
                 chapter_formats=list(chapter_info.keys()),
                 operation='chapters_generation_complete'
             )
+            # Persist
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    stream_id = payload.get('stream_id')
+                    if rec_id and stream_id:
+                        self._set_status(db, rec_id, stream_id, 'chapters_generation', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist chapters status: {persist_err}")
             
         except Exception as e:
             log_with_context(
@@ -192,6 +235,15 @@ class PostProcessingTaskHandlers:
                 error=str(e),
                 operation='chapters_generation_error'
             )
+            # Persist failure
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    stream_id = payload.get('stream_id')
+                    if rec_id and stream_id:
+                        self._set_status(db, rec_id, stream_id, 'chapters_generation', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
     
     async def handle_mp4_remux(self, payload, progress_callback=None):
@@ -211,6 +263,13 @@ class PostProcessingTaskHandlers:
             operation='mp4_remux_start',
             streamer_name=streamer_name
         )
+        try:
+            with SessionLocal() as db:
+                rec_id = payload.get('recording_id')
+                if rec_id:
+                    self._set_status(db, rec_id, stream_id, 'mp4_remux', 'running')
+        except Exception as e:
+            logger.debug(f"mp4_remux: failed to mark running: {e}")
         
         # Log to structured logging service
         if self.logging_service:
@@ -345,6 +404,14 @@ class PostProcessingTaskHandlers:
                 mp4_output_path=mp4_output_path,
                 operation='mp4_remux_complete'
             )
+            # Persist
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'mp4_remux', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_remux status: {persist_err}")
             
         except Exception as e:
             log_with_context(
@@ -355,6 +422,13 @@ class PostProcessingTaskHandlers:
                 error=str(e),
                 operation='mp4_remux_error'
             )
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'mp4_remux', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_remux failed status: {persist_err}")
             raise
     
     async def handle_thumbnail_generation(self, payload, progress_callback=None):
@@ -371,6 +445,13 @@ class PostProcessingTaskHandlers:
             mp4_path=mp4_path,
             operation='thumbnail_generation_start'
         )
+        try:
+            with SessionLocal() as db:
+                rec_id = payload.get('recording_id')
+                if rec_id:
+                    self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'running')
+        except Exception as e:
+            logger.debug(f"thumbnail_generation: failed to mark running: {e}")
         
         try:
             # Generate unified thumbnail from MP4 (only creates -thumb.jpg format)
@@ -390,6 +471,14 @@ class PostProcessingTaskHandlers:
                 thumbnail_path=thumbnail_path,
                 operation='thumbnail_generation_complete'
             )
+            # Persist
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist thumbnail status: {persist_err}")
             
         except Exception as e:
             log_with_context(
@@ -400,6 +489,13 @@ class PostProcessingTaskHandlers:
                 error=str(e),
                 operation='thumbnail_generation_error'
             )
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist thumbnail failed status: {persist_err}")
             raise
     
     async def handle_mp4_validation(self, payload, progress_callback=None):
@@ -418,6 +514,13 @@ class PostProcessingTaskHandlers:
             mp4_path=mp4_path,
             operation='mp4_validation_start'
         )
+        try:
+            with SessionLocal() as db:
+                rec_id = payload.get('recording_id')
+                if rec_id:
+                    self._set_status(db, rec_id, stream_id, 'mp4_validation', 'running')
+        except Exception as e:
+            logger.debug(f"mp4_validation: failed to mark running: {e}")
         
         try:
             # Check if MP4 exists
@@ -456,6 +559,13 @@ class PostProcessingTaskHandlers:
                 mp4_size=mp4_size,
                 operation='mp4_validation_complete'
             )
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'mp4_validation', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_validation status: {persist_err}")
             
         except Exception as e:
             log_with_context(
@@ -466,6 +576,13 @@ class PostProcessingTaskHandlers:
                 error=str(e),
                 operation='mp4_validation_error'
             )
+            try:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'mp4_validation', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist mp4_validation failed status: {persist_err}")
             raise
 
     async def handle_cleanup(self, payload, progress_callback=None):
@@ -514,6 +631,14 @@ class PostProcessingTaskHandlers:
             streamer_name=streamer_name,
             is_deletion_cleanup=is_deletion_cleanup
         )
+        try:
+            if not is_deletion_cleanup:
+                with SessionLocal() as db:
+                    rec_id = payload.get('recording_id')
+                    if rec_id:
+                        self._set_status(db, rec_id, stream_id, 'cleanup', 'running')
+        except Exception as e:
+            logger.debug(f"cleanup: failed to mark running: {e}")
         
         # Log to structured logging service
         if self.logging_service:
@@ -564,6 +689,15 @@ class PostProcessingTaskHandlers:
                 operation='cleanup_complete',
                 is_deletion_cleanup=is_deletion_cleanup
             )
+            # Persist
+            try:
+                if not is_deletion_cleanup:
+                    with SessionLocal() as db:
+                        rec_id = payload.get('recording_id')
+                        if rec_id:
+                            self._set_status(db, rec_id, stream_id, 'cleanup', 'completed')
+            except Exception as persist_err:
+                logger.debug(f"Could not persist cleanup status: {persist_err}")
             
             # Trigger database event for orphaned recovery after cleanup completion (only for post-processing)
             if not is_deletion_cleanup:
@@ -585,6 +719,14 @@ class PostProcessingTaskHandlers:
                 operation='cleanup_error',
                 is_deletion_cleanup=is_deletion_cleanup
             )
+            try:
+                if not is_deletion_cleanup:
+                    with SessionLocal() as db:
+                        rec_id = payload.get('recording_id')
+                        if rec_id:
+                            self._set_status(db, rec_id, stream_id, 'cleanup', 'failed', str(e))
+            except Exception as persist_err:
+                logger.debug(f"Could not persist cleanup failed status: {persist_err}")
             raise
     
     async def _intelligent_ts_cleanup(self, ts_path: str, mp4_path: str, max_wait_time: int):
@@ -614,6 +756,156 @@ class PostProcessingTaskHandlers:
         """Clean up services"""
         await self.metadata_service.close()
         await self.thumbnail_service.close()
+
+    # --- Helpers ---
+    def _get_or_create_state(self, db, recording_id: int, stream_id: int):
+        """Fetch or create RecordingProcessingState safely.
+        Returns None if Stream is missing to avoid invalid FK values.
+        """
+        try:
+            state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+            if state:
+                return state
+            stream = db.query(Stream).get(stream_id)
+            if not stream:
+                logger.debug(f"_get_or_create_state: stream {stream_id} not found for recording {recording_id}")
+                return None
+            state = RecordingProcessingState(
+                recording_id=recording_id,
+                stream_id=stream_id,
+                streamer_id=stream.streamer_id
+            )
+            db.add(state)
+            return state
+        except Exception as e:
+            logger.debug(f"_get_or_create_state failed: {e}")
+            return None
+
+    def _set_status(self, db, recording_id: int, stream_id: int, step: str, status: str, last_error: str | None = None):
+        """Set a specific step status with minimal duplication.
+        step can be one of: metadata_generation|metadata, chapters_generation|chapters, mp4_remux,
+        mp4_validation, thumbnail_generation|thumbnail, cleanup
+        """
+        try:
+            state = self._get_or_create_state(db, recording_id, stream_id)
+            if not state:
+                return
+            step_map = {
+                'metadata_generation': 'metadata_status',
+                'metadata': 'metadata_status',
+                'chapters_generation': 'chapters_status',
+                'chapters': 'chapters_status',
+                'mp4_remux': 'mp4_remux_status',
+                'mp4_validation': 'mp4_validation_status',
+                'thumbnail_generation': 'thumbnail_status',
+                'thumbnail': 'thumbnail_status',
+                'cleanup': 'cleanup_status',
+            }
+            attr = step_map.get(step)
+            if not attr:
+                logger.debug(f"_set_status: unknown step '{step}' for recording {recording_id}")
+                return
+            setattr(state, attr, status)
+            if last_error is not None:
+                state.last_error = last_error
+            db.commit()
+            # Try to refresh updated_at set by DB trigger
+            try:
+                db.refresh(state)
+            except Exception:
+                pass
+            # Broadcast snapshot to clients
+            try:
+                snapshot = self._status_snapshot(state)
+                self._broadcast_processing_status(stream_id, snapshot)
+            except Exception as be:
+                logger.debug(f"_set_status broadcast failed for recording {recording_id}: {be}")
+        except Exception as e:
+            logger.debug(f"_set_status failed for recording {recording_id}, step {step}: {e}")
+
+    def _status_snapshot(self, state: RecordingProcessingState) -> Dict[str, Any]:
+        """Build a lightweight status snapshot for websocket updates."""
+        try:
+            updated_iso = None
+            try:
+                if getattr(state, 'updated_at', None):
+                    updated_iso = state.updated_at.isoformat()
+            except Exception:
+                updated_iso = None
+            return {
+                'type': 'recording_processing_status',
+                'data': {
+                    'recording_id': state.recording_id,
+                    'stream_id': state.stream_id,
+                    'streamer_id': state.streamer_id,
+                    'statuses': {
+                        'metadata': state.metadata_status,
+                        'chapters': state.chapters_status,
+                        'mp4_remux': state.mp4_remux_status,
+                        'mp4_validation': state.mp4_validation_status,
+                        'thumbnail': state.thumbnail_status,
+                        'cleanup': state.cleanup_status,
+                    },
+                    'last_error': state.last_error,
+                    'updated_at': updated_iso,
+                }
+            }
+        except Exception as e:
+            logger.debug(f"_status_snapshot failed: {e}")
+            return {
+                'type': 'recording_processing_status',
+                'data': {
+                    'recording_id': getattr(state, 'recording_id', None),
+                    'stream_id': getattr(state, 'stream_id', None),
+                    'streamer_id': getattr(state, 'streamer_id', None),
+                    'statuses': {},
+                    'last_error': getattr(state, 'last_error', None),
+                    'updated_at': None,
+                }
+            }
+
+    def _broadcast_processing_status(self, stream_id: int, snapshot: Dict[str, Any]) -> None:
+        """Best-effort broadcast with a short debounce per recording to reduce chatter."""
+        try:
+            if not websocket_manager:
+                return
+            rec_id = snapshot.get('data', {}).get('recording_id')
+            if rec_id is None:
+                # No debounce key; send immediately
+                async def send_once():
+                    await websocket_manager.send_message_to_all(snapshot)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.create_task(send_once())
+                except RuntimeError:
+                    pass
+                return
+            # Store/overwrite pending snapshot
+            self._broadcast_debounce[rec_id] = snapshot
+            async def delayed_send(recording_id: int):
+                # small delay to coalesce rapid updates
+                await asyncio.sleep(0.15)
+                snap = self._broadcast_debounce.get(recording_id)
+                if snap:
+                    try:
+                        await websocket_manager.send_message_to_all(snap)
+                    finally:
+                        # Clear after send
+                        self._broadcast_debounce.pop(recording_id, None)
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(delayed_send(rec_id))
+            except RuntimeError:
+                # No running loop; skip debounce
+                async def send_fallback():
+                    await websocket_manager.send_message_to_all(snapshot)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.create_task(send_fallback())
+                except RuntimeError:
+                    pass
+        except Exception as e:
+            logger.debug(f"_broadcast_processing_status failed for stream {stream_id}: {e}")
 
 # Global instance
 post_processing_task_handlers = PostProcessingTaskHandlers()

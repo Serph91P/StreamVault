@@ -385,6 +385,35 @@ class TaskQueueManager:
                         ",".join([t.id for t in ready_tasks])
                     )
                 for dep_task in ready_tasks:
+                    # Skip tasks already completed in persistent state
+                    try:
+                        from app.database import SessionLocal
+                        from app.models import RecordingProcessingState
+                        with SessionLocal() as db:
+                            rec_id = dep_task.payload.get('recording_id')
+                            if rec_id:
+                                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
+                                if state:
+                                    step = dep_task.type
+                                    status_map = {
+                                        'metadata_generation': state.metadata_status,
+                                        'chapters_generation': state.chapters_status,
+                                        'mp4_remux': state.mp4_remux_status,
+                                        'mp4_validation': state.mp4_validation_status,
+                                        'thumbnail_generation': state.thumbnail_status,
+                                        'cleanup': state.cleanup_status,
+                                    }
+                                    if status_map.get(step) == 'completed':
+                                        logger.info(f"⏭️ Skipping already-completed task {dep_task.id} ({step}) for recording {rec_id}")
+                                        await self.dependency_manager.mark_task_completed(dep_task.id)
+                                        continue
+                    except Exception as e:
+                        logger.debug(
+                            "Exception while checking completed state for dep_task %s: %s",
+                            getattr(dep_task, 'id', None),
+                            e,
+                            exc_info=True,
+                        )
                     # Find corresponding queue task
                     queue_task = self.progress_tracker.get_task(dep_task.id)
                     if queue_task:
@@ -651,6 +680,17 @@ class TaskQueueManager:
             started_at=started_at,
             cleanup_ts_file=cleanup_ts_file
         )
+        # Persist created task IDs for the recording
+        try:
+            from app.database import SessionLocal
+            from app.models import RecordingProcessingState
+            with SessionLocal() as db:
+                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+                if state:
+                    state.set_task_ids({t.type: t.id for t in tasks})
+                    db.commit()
+        except Exception:
+            pass
         
         # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:
