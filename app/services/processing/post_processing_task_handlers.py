@@ -7,7 +7,7 @@ import logging
 import os
 import copy
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer, RecordingProcessingState
@@ -36,6 +36,29 @@ class PostProcessingTaskHandlers:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
     
+    def _check_stream_exists(self, stream_id: int, task_name: str, task_id: str = None) -> Tuple[bool, Optional[Stream]]:
+        """
+        Check if a stream still exists before processing.
+        Returns (exists, stream_obj) tuple.
+        If stream doesn't exist, logs a warning and returns (False, None).
+        """
+        try:
+            with SessionLocal() as db:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    log_with_context(
+                        logger, 'warning',
+                        f"Stream {stream_id} not found, skipping {task_name} (likely deleted during post-processing)",
+                        task_id=task_id,
+                        stream_id=stream_id,
+                        operation=f'{task_name}_skip'
+                    )
+                    return False, None
+                return True, stream
+        except Exception as e:
+            logger.error(f"Error checking stream existence for {task_name}: {e}")
+            return False, None
+    
     async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
         # Deep copy payload to avoid accidental mutation across tasks
@@ -52,6 +75,12 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='metadata_generation_start'
         )
+        
+        # Check if stream still exists before processing
+        exists, _ = self._check_stream_exists(stream_id, 'metadata_generation', local_payload.get('task_id'))
+        if not exists:
+            return {'status': 'skipped', 'reason': 'stream_deleted'}
+        
         # Mark running state (best-effort)
         try:
             with SessionLocal() as db:
@@ -190,8 +219,22 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='chapters_generation_start'
         )
+        
+        # Check if stream still exists before processing
         try:
             with SessionLocal() as db:
+                from app.models import Stream
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    log_with_context(
+                        logger, 'warning',
+                        f"Stream {stream_id} not found, skipping chapters generation (likely deleted)",
+                        task_id=payload.get('task_id'),
+                        stream_id=stream_id,
+                        operation='chapters_generation_skip'
+                    )
+                    return {'status': 'skipped', 'reason': 'stream_deleted'}
+                
                 rec_id = payload.get('recording_id')
                 if rec_id:
                     self._set_status(db, rec_id, stream_id, 'chapters_generation', 'running')
@@ -263,6 +306,12 @@ class PostProcessingTaskHandlers:
             operation='mp4_remux_start',
             streamer_name=streamer_name
         )
+        
+        # Check if stream still exists before processing
+        exists, _ = self._check_stream_exists(stream_id, 'mp4_remux', payload.get('task_id'))
+        if not exists:
+            return {'status': 'skipped', 'reason': 'stream_deleted'}
+        
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
@@ -445,6 +494,11 @@ class PostProcessingTaskHandlers:
             mp4_path=mp4_path,
             operation='thumbnail_generation_start'
         )
+        
+        # Check if stream still exists before processing
+        exists, _ = self._check_stream_exists(stream_id, 'thumbnail_generation', payload.get('task_id'))
+        if not exists:
+            return {'status': 'skipped', 'reason': 'stream_deleted'}
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
@@ -509,6 +563,16 @@ class PostProcessingTaskHandlers:
         log_with_context(
             logger, 'info',
             f"Starting MP4 validation for stream {stream_id}",
+            task_id=payload.get('task_id'),
+            stream_id=stream_id,
+            mp4_path=mp4_path,
+            operation='mp4_validation_start'
+        )
+        
+        # Check if stream still exists before processing
+        exists, _ = self._check_stream_exists(stream_id, 'mp4_validation', payload.get('task_id'))
+        if not exists:
+            return {'status': 'skipped', 'reason': 'stream_deleted'}
             task_id=payload.get('task_id'),
             stream_id=stream_id,
             mp4_path=mp4_path,
