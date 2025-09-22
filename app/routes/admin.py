@@ -1118,7 +1118,9 @@ async def get_background_queue_status():
         # Check external tasks for stuck recordings using constants
         for task_id, task in external_tasks.items():
             if task_id.startswith(RECORDING_TASK_PREFIX) and task.task_type == 'recording':
-                if task.progress >= MAX_PROGRESS and task.status.value == 'running':
+                # Handle both enum and string status values
+                status_value = task.status.value if hasattr(task.status, 'value') else str(task.status)
+                if task.progress >= MAX_PROGRESS and status_value == 'running':
                     stuck_recordings.append(task_id)
             
             if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
