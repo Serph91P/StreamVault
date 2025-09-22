@@ -287,7 +287,9 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
         # Clean up tasks older than 1 hour that are still pending
         tasks_to_cleanup = []
         for task_id, task in queue_service.active_tasks.items():
-            if task.status.value == 'pending':
+            # Handle both enum and string status values
+            status_value = task.status.value if hasattr(task.status, 'value') else str(task.status)
+            if status_value == 'pending':
                 # Make both timestamps timezone-aware for comparison
                 task_created = task.created_at
                 if task_created.tzinfo is None:
