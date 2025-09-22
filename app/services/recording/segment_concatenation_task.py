@@ -260,7 +260,8 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
         
         # Create post-processing payload
         post_processing_payload = {
-            'stream_id': task_data.get('stream_id', recording_id),
+            # Prefer explicit stream_id from task_data; do NOT fall back to recording_id
+            'stream_id': task_data.get('stream_id'),
             'recording_id': recording_id,
             'ts_file_path': ts_file_path,
             'output_dir': str(Path(ts_file_path).parent),
