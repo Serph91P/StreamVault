@@ -119,8 +119,9 @@ class BackgroundQueueCleanupService:
                                 # Update task status directly if it has status attribute
                                 if hasattr(task, 'status'):
                                     try:
-                                        if hasattr(task.status, 'value'):
-                                            task.status.value = 'completed'
+                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        if isinstance(task.status, TaskStatus):
+                                            task.status = TaskStatus.COMPLETED
                                         else:
                                             task.status = 'completed'
                                         logger.info(f"✅ STATUS_UPDATED: {task_id} status updated to completed")
@@ -144,8 +145,9 @@ class BackgroundQueueCleanupService:
                                 # Update task status
                                 if hasattr(task, 'status'):
                                     try:
-                                        if hasattr(task.status, 'value'):
-                                            task.status.value = 'completed'
+                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        if isinstance(task.status, TaskStatus):
+                                            task.status = TaskStatus.COMPLETED
                                         else:
                                             task.status = 'completed'
                                         logger.info(f"✅ STREAMLINK_STATUS_UPDATED: {task_id} status updated to completed")
@@ -242,8 +244,9 @@ class BackgroundQueueCleanupService:
                                 # Update task status directly
                                 if hasattr(task, 'status'):
                                     try:
-                                        if hasattr(task.status, 'value'):
-                                            task.status.value = 'completed'
+                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        if isinstance(task.status, TaskStatus):
+                                            task.status = TaskStatus.COMPLETED
                                         else:
                                             task.status = 'completed'
                                         logger.info(f"🛑 STATUS_UPDATED: {task_id} status updated to completed")

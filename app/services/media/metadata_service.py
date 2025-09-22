@@ -1277,7 +1277,7 @@ class MetadataService:
             try:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream with ID {stream_id} not found for chapter generation")
+                    logger.warning(f"Stream with ID {stream_id} not found for chapter generation (likely deleted during post-processing)")
                     return None
                 
                 # Stream-Events abrufen (Kategorie-Wechsel usw.)

@@ -250,8 +250,9 @@ class AutomaticQueueRecoveryService:
             # Update task status directly
             if hasattr(task, 'status'):
                 try:
-                    if hasattr(task.status, 'value'):
-                        task.status.value = 'completed'
+                    from app.services.processing.task_dependency_manager import TaskStatus
+                    if isinstance(task.status, TaskStatus):
+                        task.status = TaskStatus.COMPLETED
                     else:
                         task.status = 'completed'
                 except Exception as e:
@@ -294,8 +295,9 @@ class AutomaticQueueRecoveryService:
             # Update task status
             if hasattr(task, 'status'):
                 try:
-                    if hasattr(task.status, 'value'):
-                        task.status.value = 'completed'
+                    from app.services.processing.task_dependency_manager import TaskStatus
+                    if isinstance(task.status, TaskStatus):
+                        task.status = TaskStatus.COMPLETED
                     else:
                         task.status = 'completed'
                 except Exception as e:
