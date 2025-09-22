@@ -413,7 +413,7 @@ class PostProcessingTaskHandlers:
                             # Send recording available notification
                             import asyncio
                             async def send_notification():
-                                await websocket_manager.send_message_to_all({
+                                await websocket_manager.send_notification({
                                     "type": "recording_available",
                                     "data": {
                                         "stream_id": stream_id,
@@ -552,13 +552,6 @@ class PostProcessingTaskHandlers:
         validate_size_ratio = payload.get('validate_size_ratio', True)
         min_size_mb = payload.get('min_size_mb', 1)
         
-        log_with_context(
-            logger, 'info',
-            f"Starting MP4 validation for stream {stream_id}",
-            task_id=payload.get('task_id'),
-            stream_id=stream_id,
-            mp4_path=mp4_path,
-            operation='mp4_validation_start'
         log_with_context(
             logger, 'info',
             f"Starting MP4 validation for stream {stream_id}",
@@ -932,7 +925,7 @@ class PostProcessingTaskHandlers:
             if rec_id is None:
                 # No debounce key; send immediately
                 async def send_once():
-                    await websocket_manager.send_message_to_all(snapshot)
+                    await websocket_manager.send_notification(snapshot)
                 try:
                     loop = asyncio.get_running_loop()
                     asyncio.create_task(send_once())
@@ -947,7 +940,7 @@ class PostProcessingTaskHandlers:
                 snap = self._broadcast_debounce.get(recording_id)
                 if snap:
                     try:
-                        await websocket_manager.send_message_to_all(snap)
+                        await websocket_manager.send_notification(snap)
                     finally:
                         # Clear after send
                         self._broadcast_debounce.pop(recording_id, None)
@@ -957,7 +950,7 @@ class PostProcessingTaskHandlers:
             except RuntimeError:
                 # No running loop; skip debounce
                 async def send_fallback():
-                    await websocket_manager.send_message_to_all(snapshot)
+                    await websocket_manager.send_notification(snapshot)
                 try:
                     loop = asyncio.get_running_loop()
                     asyncio.create_task(send_fallback())
