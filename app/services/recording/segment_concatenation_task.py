@@ -258,9 +258,15 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
     try:
         from app.services.background_queue_service import background_queue_service
         
+        # Validate that stream_id is present
+        stream_id = task_data.get('stream_id')
+        if stream_id is None:
+            logger.error(f"stream_id is missing from task_data for recording {recording_id}, cannot queue post-processing")
+            return
+        
         # Create post-processing payload
         post_processing_payload = {
-            'stream_id': task_data.get('stream_id', recording_id),
+            'stream_id': stream_id,
             'recording_id': recording_id,
             'ts_file_path': ts_file_path,
             'output_dir': str(Path(ts_file_path).parent),

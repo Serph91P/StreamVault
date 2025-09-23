@@ -648,7 +648,7 @@ class RecordingLifecycleManager:
                     logger.info(f"🎬 QUEUING_SEGMENT_CONCATENATION: {len(segment_files)} files for recording {recording_id}")
                     
                     # Queue segment concatenation task first
-                    await self._queue_segment_concatenation_task(recording_id, segment_files, recording_path, streamer_data)
+                    await self._queue_segment_concatenation_task(recording_id, stream_data.id, segment_files, recording_path, streamer_data)
                     return  # Exit here - post-processing will continue after concatenation
                 else:
                     logger.warning(f"🎬 NO_SEGMENTS_FOUND: {segments_dir}")
@@ -754,7 +754,7 @@ class RecordingLifecycleManager:
         except Exception as e:
             logger.error(f"Error triggering post-processing for recording {recording_id}: {e}", exc_info=True)
 
-    async def _queue_segment_concatenation_task(self, recording_id: int, segment_files: list, recording_path: str, streamer_data):
+    async def _queue_segment_concatenation_task(self, recording_id: int, stream_id: int, segment_files: list, recording_path: str, streamer_data):
         """Queue segment concatenation as a background task to avoid blocking the stream offline handler"""
         try:
             from app.services.queues.task_progress_tracker import TaskPriority
@@ -765,7 +765,8 @@ class RecordingLifecycleManager:
                 'segment_files': [str(f) for f in segment_files],
                 'output_path': recording_path,
                 'streamer_name': streamer_data.username,
-                'stream_id': recording_id,  # Use recording_id as fallback for stream_id
+                # Real stream id to avoid mixing identifiers
+                'stream_id': stream_id,
             }
             
             # Enqueue segment concatenation task with high priority

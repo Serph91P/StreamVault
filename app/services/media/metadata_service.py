@@ -235,7 +235,7 @@ class MetadataService:
                             if not self._is_within(base_path_obj, expected_streamer_dir):
                                 # CRITICAL FIX: Before rebasing, validate that the output_dir actually contains wrong streamer content
                                 # This prevents cross-contamination when the wrong streamer context is passed
-                                output_dir_str = str(output_dir) if output_dir else ""
+                                output_dir_str = str(base_path_obj) if base_path_obj else ""
                                 base_path_str = str(base_path_obj)
                                 
                                 # Check if the current path actually belongs to a different streamer
@@ -243,7 +243,7 @@ class MetadataService:
                                 if output_dir_str and streamer.username.lower() not in output_dir_str.lower():
                                     # The output_dir doesn't contain current streamer name, this might be cross-contamination
                                     logger.error(
-                                        f"CRITICAL: Stream belongs to {streamer.username} but output_dir is {output_dir}. "
+                                        f"CRITICAL: Stream belongs to {streamer.username} but base_path is {base_path_obj}. "
                                         f"This indicates wrong stream-to-recording mapping. Refusing to rebase to prevent cross-contamination."
                                     )
                                     # Instead of rebasing, keep the original path and log the error for investigation
