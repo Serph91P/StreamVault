@@ -189,18 +189,25 @@ class MetadataService:
         base_path: str,
         base_filename: str
     ) -> bool:
-        """Generate all metadata files for a stream"""
+        """Generate all metadata files for a stream
+        
+        NOTE: This method works with ended streams (ended_at set) since it's called
+        during post-processing after the stream has gone offline. We explicitly query
+        by stream_id regardless of the stream's ended_at status.
+        """
         try:
             with SessionLocal() as db:
+                # Query stream by ID only - no filter on ended_at since we need to
+                # generate metadata for completed/ended streams during post-processing
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.error(f"Stream {stream_id} not found")
+                    logger.error(f"Stream {stream_id} not found in database (may have been deleted)")
                     return False
                 
                 # Fetch streamer
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
-                    logger.error(f"Streamer {stream.streamer_id} not found")
+                    logger.error(f"Streamer {stream.streamer_id} not found for stream {stream_id}")
                     return False
                 
                 # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches
