@@ -95,9 +95,9 @@ RUN mkdir -p /recordings && \
     chmod -R 775 /app/migrations && \
     chmod -R 775 /app/logs
 
-# Copy the entrypoint script
+# Copy the entrypoint script and fix line endings (handles Windows CRLF)
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Run final security update
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
