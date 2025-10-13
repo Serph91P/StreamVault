@@ -191,9 +191,15 @@ class MetadataService:
     ) -> bool:
         """Generate all metadata files for a stream
         
-        NOTE: This method works with ended streams (ended_at set) since it's called
-        during post-processing after the stream has gone offline. We explicitly query
-        by stream_id regardless of the stream's ended_at status.
+        NOTE: This method is invoked during post-processing and queries by stream_id
+        without filtering on ended_at, so it can operate whether or not ended_at is set.
+        
+        IMPORTANT: This method uses synchronous SQLAlchemy (SessionLocal) within an async context.
+        This is a known technical debt. The entire codebase uses sync SQLAlchemy, and converting
+        this single method to async would require cascading changes across many services.
+        In practice, metadata generation is I/O-bound (file writes) rather than DB-bound,
+        and runs in background worker threads, so event loop blocking is minimal.
+        Future refactoring should migrate to async SQLAlchemy (AsyncSession/AsyncEngine).
         """
         try:
             with SessionLocal() as db:
