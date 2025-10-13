@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
+from sqlalchemy.orm import joinedload
+
 from app.database import SessionLocal
 from app.models import Recording, Stream, Streamer
 from app.services.system.logging_service import logging_service
@@ -226,7 +228,9 @@ class UnifiedRecoveryService:
             
             with SessionLocal() as db:
                 # Find recordings that are completed but may have failed post-processing
-                recent_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+                recent_recordings = db.query(Recording).join(Stream).join(Streamer).options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                ).filter(
                     Recording.status.in_(['completed', 'stopped']),
                     Recording.start_time >= cutoff_time
                 ).all()
