@@ -10,10 +10,12 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List, Set
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Category
 from .image_download_service import ImageDownloadService
+from app.config.constants import CACHE_CONFIG
 
 logger = logging.getLogger("streamvault")
 
@@ -26,7 +28,11 @@ class CategoryImageService:
     
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
-        self._category_cache: Dict[str, str] = {}
+        # TTLCache for category images (prevents memory leaks with automatic expiration)
+        self._category_cache: TTLCache = TTLCache(
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, 
+            ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+        )
         self._background_tasks: Set[asyncio.Task] = set()
         self.categories_dir = None
         self._load_existing_cache()
@@ -58,8 +64,8 @@ class CategoryImageService:
             logger.info(f"Loaded category image cache: {len(self._category_cache)} categories")
         except Exception as e:
             logger.error(f"Error loading category image cache: {e}")
-            # Initialize empty cache if loading fails
-            self._category_cache = {}
+            # Cache is already initialized as TTLCache in __init__, just clear it
+            self._category_cache.clear()
 
     def _filename_to_category(self, filename: str) -> Optional[str]:
         """Convert filename back to category name"""
