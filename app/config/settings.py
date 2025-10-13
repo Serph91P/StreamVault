@@ -221,7 +221,7 @@ class Settings(BaseSettings):
         try:
             parsed = urlparse(self.BASE_URL)
             return parsed.hostname or "localhost"
-        except:
+        except (ValueError, AttributeError):
             return "localhost"
 
     def __init__(self, **kwargs):
