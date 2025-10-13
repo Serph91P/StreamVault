@@ -759,7 +759,10 @@ class RecordingLifecycleManager:
         try:
             from app.services.queues.task_progress_tracker import TaskPriority
             
-            # Create concatenation task payload
+            # Get stream data to include started_at timestamp
+            stream_data = await self.database_service.get_stream_by_id(stream_id)
+            
+            # Create concatenation task payload with all required fields for post-processing
             concat_payload = {
                 'recording_id': recording_id,
                 'segment_files': [str(f) for f in segment_files],
@@ -767,6 +770,8 @@ class RecordingLifecycleManager:
                 'streamer_name': streamer_data.username,
                 # Real stream id to avoid mixing identifiers
                 'stream_id': stream_id,
+                # Include started_at for post-processing tasks that need it
+                'started_at': stream_data.started_at.isoformat() if stream_data and stream_data.started_at else None,
             }
             
             # Enqueue segment concatenation task with high priority
@@ -776,7 +781,7 @@ class RecordingLifecycleManager:
                 priority=TaskPriority.HIGH  # High priority for immediate processing
             )
             
-            logger.info(f"🎬 SEGMENT_CONCATENATION_QUEUED: task_id={concat_task_id}, recording_id={recording_id}")
+            logger.info(f"🎬 SEGMENT_CONCATENATION_QUEUED: task_id={concat_task_id}, recording_id={recording_id}, stream_id={stream_id}")
             
         except Exception as e:
             logger.error(f"Error queuing segment concatenation for recording {recording_id}: {e}", exc_info=True)

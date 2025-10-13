@@ -347,12 +347,13 @@ class EventHandlerRegistry:
                             active_recording = None
                     
                     if active_recording:
-                        logger.info(f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}")
+                        stream_id_info = stream.id if stream else "None"
+                        logger.info(f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}, stream_id={stream_id_info}, streamer_id={streamer.id}")
                         # Automatic stop when stream goes offline
                         await self.recording_service.stop_recording(active_recording.id, reason="automatic")
                     else:
                         stream_id_info = stream.id if stream else "None"
-                        logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}")
+                        logger.warning(f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}, status_filter='recording'")
             
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream offline event: {e}")

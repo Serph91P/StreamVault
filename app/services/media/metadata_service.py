@@ -189,18 +189,31 @@ class MetadataService:
         base_path: str,
         base_filename: str
     ) -> bool:
-        """Generate all metadata files for a stream"""
+        """Generate all metadata files for a stream
+        
+        NOTE: This method is invoked during post-processing and queries by stream_id
+        without filtering on ended_at, so it can operate whether or not ended_at is set.
+        
+        IMPORTANT: This method uses synchronous SQLAlchemy (SessionLocal) within an async context.
+        This is a known technical debt. The entire codebase uses sync SQLAlchemy, and converting
+        this single method to async would require cascading changes across many services.
+        In practice, metadata generation is I/O-bound (file writes) rather than DB-bound,
+        and runs in background worker threads, so event loop blocking is minimal.
+        Future refactoring should migrate to async SQLAlchemy (AsyncSession/AsyncEngine).
+        """
         try:
             with SessionLocal() as db:
+                # Query stream by ID only - no filter on ended_at since we need to
+                # generate metadata for completed/ended streams during post-processing
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.error(f"Stream {stream_id} not found")
+                    logger.error(f"Stream {stream_id} not found in database (may have been deleted)")
                     return False
                 
                 # Fetch streamer
                 streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                 if not streamer:
-                    logger.error(f"Streamer {stream.streamer_id} not found")
+                    logger.error(f"Streamer {stream.streamer_id} not found for stream {stream_id}")
                     return False
                 
                 # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches

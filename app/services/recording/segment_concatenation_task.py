@@ -257,12 +257,34 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
     """Queue the standard post-processing tasks after concatenation"""
     try:
         from app.services.background_queue_service import background_queue_service
+        import asyncio
         
         # Validate that stream_id is present
         stream_id = task_data.get('stream_id')
         if stream_id is None:
-            logger.error(f"stream_id is missing from task_data for recording {recording_id}, cannot queue post-processing")
-            return
+            # Try to recover stream_id from recording in database
+            logger.warning(f"stream_id missing from task_data for recording {recording_id}, attempting recovery from database")
+            try:
+                # Run blocking DB query in thread pool to avoid stalling event loop
+                def _fetch_stream_id():
+                    from app.database import SessionLocal
+                    from app.models import Recording
+                    with SessionLocal() as db:
+                        recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                        if recording and recording.stream_id:
+                            return recording.stream_id
+                        return None
+                
+                loop = asyncio.get_event_loop()
+                stream_id = await loop.run_in_executor(None, _fetch_stream_id)
+                if stream_id:
+                    logger.info(f"Recovered stream_id={stream_id} from recording {recording_id}")
+                else:
+                    logger.error(f"Could not recover stream_id for recording {recording_id}, cannot queue post-processing")
+                    return
+            except Exception as e:
+                logger.error(f"Error recovering stream_id from database: {e}")
+                return
         
         # Create post-processing payload
         post_processing_payload = {
@@ -278,7 +300,7 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
         # Queue post-processing chain
         task_ids = await background_queue_service.enqueue_recording_post_processing(**post_processing_payload)
         
-        logger.info(f"🎬 POST_PROCESSING_QUEUED: recording_id={recording_id}, tasks={len(task_ids)}")
+        logger.info(f"🎬 POST_PROCESSING_QUEUED: recording_id={recording_id}, stream_id={stream_id}, tasks={len(task_ids)}")
         
     except Exception as e:
         logger.error(f"Error queuing post-processing tasks: {e}", exc_info=True)
