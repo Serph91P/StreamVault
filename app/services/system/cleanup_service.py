@@ -4,7 +4,7 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple, Any, Set
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func
 
 from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSettings, FavoriteCategory, StreamMetadata
