@@ -9,6 +9,8 @@ from typing import Dict, Optional, Any, List
 import importlib.util
 import os
 import sys
+from cachetools import TTLCache
+from app.config.constants import CACHE_CONFIG
 
 # Try to import notification utilities
 logger = logging.getLogger("streamvault")
@@ -37,7 +39,11 @@ class NotificationManager:
         """
         self.config_manager = config_manager
         self.notifications_enabled = self._get_notifications_enabled()
-        self.notification_debounce = {}  # Track notification times to prevent spam
+        # TTLCache automatically evicts old entries (prevents memory leaks)
+        self.notification_debounce = TTLCache(
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, 
+            ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL
+        )
     
     def _get_notifications_enabled(self) -> bool:
         """Check if notifications are enabled in config"""
