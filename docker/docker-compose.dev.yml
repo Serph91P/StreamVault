@@ -1,15 +1,15 @@
 services:
   app:
-    image: frequency2098/streamvault:develop
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: streamvault_dev
     user: "1000:1000"
     volumes:
-      # Mount the app directory but exclude the frontend dist directory
-      - ./app:/app/app
-      - ./requirements.txt:/app/requirements.txt
-      - ./entrypoint.sh:/app/entrypoint.sh
+      # Mount the app directory for live code updates
+      - ../app:/app/app
       - app_data:/app/data
-      - ./.env:/app/.env
+      - ../check_indexes.py:/app/check_indexes.py
     ports:
       - "7000:7000"
     environment:
@@ -29,6 +29,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - streamvault_network
 
   db:
     image: postgres:16-alpine
@@ -45,7 +47,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - streamvault_network
 
 volumes:
   db_data:
   app_data:
+
+networks:
+  streamvault_network:
+    driver: bridge
