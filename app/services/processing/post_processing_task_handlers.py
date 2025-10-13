@@ -8,6 +8,9 @@ import os
 import copy
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+from cachetools import TTLCache
+
+from sqlalchemy.orm import joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer, RecordingProcessingState
@@ -16,6 +19,7 @@ from app.services.media.thumbnail_service import ThumbnailService
 from app.services.communication.websocket_manager import websocket_manager
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
+from app.config.constants import CACHE_CONFIG
 
 logger = logging.getLogger("streamvault")
 
@@ -25,8 +29,11 @@ class PostProcessingTaskHandlers:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
-        # Debounce map: recording_id -> pending snapshot & task
-        self._broadcast_debounce = {}
+        # TTLCache for debouncing broadcasts (prevents memory leaks with automatic expiration)
+        self._broadcast_debounce = TTLCache(
+            maxsize=CACHE_CONFIG.SMALL_CACHE_SIZE, 
+            ttl=CACHE_CONFIG.BROADCAST_DEBOUNCE_TTL
+        )
         
         # Initialize logging service
         try:
@@ -397,7 +404,12 @@ class PostProcessingTaskHandlers:
                 
             # Update Stream.recording_path to the MP4 file
             with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                stream = (
+                    db.query(Stream)
+                    .options(joinedload(Stream.streamer))
+                    .filter(Stream.id == stream_id)
+                    .first()
+                )
                 if stream:
                     # Capture old path only for logging
                     old_path = stream.recording_path
@@ -407,8 +419,8 @@ class PostProcessingTaskHandlers:
                     
                     # Send WebSocket notification that recording is now available
                     try:
-                        # Get streamer info for the notification
-                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        # Get streamer info via relationship (already loaded)
+                        streamer = stream.streamer
                         if streamer and websocket_manager:
                             # Send recording available notification
                             import asyncio
