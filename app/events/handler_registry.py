@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Dict, Callable, Awaitable, Any, Optional
 from datetime import datetime, timezone, timedelta
+from cachetools import TTLCache
 
 from app.database import SessionLocal
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,6 +25,7 @@ from app.models import (
 )
 from app.config.settings import settings as app_settings
 from app.services.images.auto_image_sync_service import auto_image_sync_service
+from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger('streamvault')
 
@@ -41,8 +43,12 @@ class EventHandlerRegistry:
         self.notification_service = NotificationService(websocket_manager=connection_manager)
         self._access_token = None
         self.eventsub = None
-        self._processed_events = {}
-        self._event_cache_timeout = 60
+        # TTLCache for event deduplication (prevents memory leaks with automatic expiration)
+        self._processed_events = TTLCache(
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, 
+            ttl=CACHE_CONFIG.EVENT_DEDUPLICATION_TTL
+        )
+        self._event_cache_timeout = CACHE_CONFIG.EVENT_DEDUPLICATION_TTL
 
     async def get_access_token(self) -> str:
         if not self._access_token:
@@ -135,10 +141,10 @@ class EventHandlerRegistry:
                             for sub in data.get("data", []):
                                 if sub["id"] == subscription_id and sub["status"] == "enabled":
                                     return True
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
             except Exception as e:
                 logger.error(f"Error verifying subscription {subscription_id}: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
         return False
 
     def _is_duplicate_event(self, data: dict) -> bool:
@@ -156,21 +162,14 @@ class EventHandlerRegistry:
                 
             event_key = f"{broadcaster_id}:{event_type}"
             event_fingerprint = f"{message_id}:{event_key}"
-            now = datetime.now()
             
-            expired_keys = []
-            for key, timestamp in self._processed_events.items():
-                if (now - timestamp).total_seconds() > self._event_cache_timeout:
-                    expired_keys.append(key)
-            
-            for key in expired_keys:
-                del self._processed_events[key]
-            
+            # TTLCache automatically handles expiration - no manual cleanup needed!
             if event_fingerprint in self._processed_events:
                 logger.info(f"Ignoring duplicate event: {event_type} for broadcaster {broadcaster_id}")
                 return True
             
-            self._processed_events[event_fingerprint] = now
+            # Store with any value (TTL handles expiration automatically)
+            self._processed_events[event_fingerprint] = datetime.now()
             return False
             
         except Exception as e:
