@@ -8,6 +8,8 @@ import io
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.orm import joinedload
+
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, Streamer
 from app.services.unified_image_service import unified_image_service
@@ -30,15 +32,20 @@ class ThumbnailService:
     async def download_thumbnail(self, stream_id: int, output_dir: str):
         """Lädt das Stream-Thumbnail herunter und erstellt nur das korrekte Format"""
         with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in thumbnail_service")
                 return None
             
-            # Streamer über streamer_id laden (der Fehler war, dass wir stream.streamer verwendet haben)
-            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            # Streamer via relationship (already loaded)
+            streamer = stream.streamer
             if not streamer:
-                logger.warning(f"Streamer with ID {stream.streamer_id} not found in thumbnail_service")
+                logger.warning(f"Streamer not found for stream {stream_id} in thumbnail_service")
                 return None
             
             # Verwende das korrekte Format basierend auf der recording_path
@@ -231,15 +238,20 @@ class ThumbnailService:
     async def ensure_thumbnail(self, stream_id: int, output_dir: str):
         """Stellt sicher, dass ein Thumbnail existiert - versucht zuerst Twitch, dann Video-Extraktion"""
         with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in ensure_thumbnail")
                 return None
             
-            # Streamer über streamer_id laden (fix für den Fehler)
-            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            # Streamer via relationship (already loaded)
+            streamer = stream.streamer
             if not streamer:
-                logger.warning(f"Streamer with ID {stream.streamer_id} not found in ensure_thumbnail")
+                logger.warning(f"Streamer not found for stream {stream_id} in ensure_thumbnail")
                 return None
             
             # Verzeichnis erstellen
@@ -394,15 +406,20 @@ class ThumbnailService:
     async def ensure_thumbnail_with_fallback(self, stream_id: int, output_dir: str, video_path: str = None) -> str:
         """Stellt sicher, dass ein hochwertiges Thumbnail existiert - mit Video-Fallback bei Placeholder"""
         with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in ensure_thumbnail_with_fallback")
                 return None
             
-            # Streamer über streamer_id laden (fix für den Fehler)
-            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+            # Streamer via relationship (already loaded)
+            streamer = stream.streamer
             if not streamer:
-                logger.warning(f"Streamer with ID {stream.streamer_id} not found in ensure_thumbnail_with_fallback")
+                logger.warning(f"Streamer not found for stream {stream_id} in ensure_thumbnail_with_fallback")
                 return None
             
             # Verzeichnis erstellen
@@ -555,14 +572,19 @@ class ThumbnailService:
             Path to the generated thumbnail or None on failure
         """
         try:
-            # Get stream info from database
+            # Get stream info from database with eager loading
             with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                stream = (
+                    db.query(Stream)
+                    .options(joinedload(Stream.streamer))
+                    .filter(Stream.id == stream_id)
+                    .first()
+                )
                 if not stream:
                     logger.warning(f"Stream {stream_id} not found for thumbnail generation")
                     return None
                 
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                streamer = stream.streamer
                 if not streamer:
                     logger.warning(f"Streamer for stream {stream_id} not found for thumbnail generation")
                     return None
