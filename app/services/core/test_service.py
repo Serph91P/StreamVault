@@ -702,7 +702,8 @@ class StreamVaultTestService:
         """Clean up resources"""
         try:
             await self.metadata_service.close()
-        except:
+        except (AttributeError, Exception) as e:
+            logger.debug(f"Could not cleanup metadata service: {e}")
             pass
 
 # Global test service instance
