@@ -7,6 +7,8 @@ Self‑hosted autonomous livestream recorder & media library builder for Twitch 
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.3+-4FC08D.svg)](https://vuejs.org)
 [![Docker](https://img.shields.io/badge/Docker-Supported-2496ED.svg)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
+[![GitHub release](https://img.shields.io/github/v/release/Serph91P/StreamVault?include_prereleases)](https://github.com/Serph91P/StreamVault/releases)
 
 ## ✨ Key Features
 
