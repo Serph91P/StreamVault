@@ -39,13 +39,13 @@ jobs:
         uses: paulhatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
-          # Major bump: BREAKING CHANGE in commit
+          # Major bump: regex pattern matching commit messages containing BREAKING CHANGE, breaking:, or MAJOR
           major_pattern: "(BREAKING CHANGE|breaking:|MAJOR)"
-          # Minor bump: feat, feature, add (this is what you want to increment!)
+          # Minor bump: regex pattern matching commit messages containing feat:, feature:, add:, MINOR, refactor:, or perf:
           minor_pattern: "(feat:|feature:|add:|MINOR|refactor:|perf:)"
-          # Patch bump happens automatically for everything else (fix:, chore:, docs:)
+          # Patch bump: happens automatically for commit messages not matching the above patterns (e.g., fix:, chore:, docs:)
           version_format: "${major}.${minor}.${patch}"
-          bump_each_commit: false  # Changed to false: only bump once per push
+          bump_each_commit: false  # Set to false to bump version once per push
           search_commit_body: true
           user_format_type: "csv"
           debug: true
