@@ -36,29 +36,59 @@ jobs:
       
       - name: Determine version bump
         id: semver
-        uses: paulhatch/semantic-version@v5.4.0  # Updated to latest
+        uses: paulhatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
-          major_pattern: "(MAJOR|BREAKING CHANGE|breaking)"
-          minor_pattern: "(MINOR|feat|feature|add|new)"
+          # Major bump: BREAKING CHANGE in commit
+          major_pattern: "(BREAKING CHANGE|breaking:|MAJOR)"
+          # Minor bump: feat, feature, add (this is what you want to increment!)
+          minor_pattern: "(feat:|feature:|add:|MINOR|refactor:|perf:)"
+          # Patch bump happens automatically for everything else (fix:, chore:, docs:)
           version_format: "${major}.${minor}.${patch}"
-          bump_each_commit: true
+          bump_each_commit: false  # Changed to false: only bump once per push
           search_commit_body: true
-          # Enable debug for better visibility
+          user_format_type: "csv"
           debug: true
 
       - name: Set final version
         id: version
         run: |
-          if [ -n "${{ steps.semver.outputs.new_version }}" ]; then
-            echo "new_version=${{ steps.semver.outputs.new_version }}" >> $GITHUB_OUTPUT
+          echo "=== Version Detection ==="
+          echo "Version from semver: ${{ steps.semver.outputs.version }}"
+          echo "Major: ${{ steps.semver.outputs.major }}"
+          echo "Minor: ${{ steps.semver.outputs.minor }}"
+          echo "Patch: ${{ steps.semver.outputs.patch }}"
+          
+          if [ -n "${{ steps.semver.outputs.version }}" ]; then
+            NEW_VERSION="${{ steps.semver.outputs.version }}"
+            echo "✅ Using semantic version: $NEW_VERSION"
           else
-            # Simplified fallback
+            # Fallback: Get latest tag and bump patch
             LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+            echo "Latest tag: $LATEST_TAG"
             IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
-            NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((${VERSION_PARTS[2]:-0} + 1))"
-            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            
+            # Check commit message for bump type
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            echo "Commit message: $COMMIT_MSG"
+            
+            if echo "$COMMIT_MSG" | grep -qiE '(BREAKING CHANGE|breaking:|MAJOR)'; then
+              # Major bump: 1.0.0 -> 2.0.0
+              NEW_VERSION="$((${VERSION_PARTS[0]} + 1)).0.0"
+              echo "🚨 BREAKING CHANGE detected - Major bump to $NEW_VERSION"
+            elif echo "$COMMIT_MSG" | grep -qiE '(feat:|feature:|add:|refactor:|perf:|MINOR)'; then
+              # Minor bump: 1.0.0 -> 1.1.0
+              NEW_VERSION="${VERSION_PARTS[0]}.$((${VERSION_PARTS[1]} + 1)).0"
+              echo "✨ Feature detected - Minor bump to $NEW_VERSION"
+            else
+              # Patch bump: 1.0.0 -> 1.0.1
+              NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((${VERSION_PARTS[2]:-0} + 1))"
+              echo "🐛 Patch/fix - Patch bump to $NEW_VERSION"
+            fi
           fi
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "=== Final version: $NEW_VERSION ==="
 
       - name: Create version tag
         if: github.ref == 'refs/heads/main'
