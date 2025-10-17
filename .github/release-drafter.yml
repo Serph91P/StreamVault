@@ -1,0 +1,173 @@
+name-template: 'v$RESOLVED_VERSION 🎉'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '🚨 Breaking Changes'
+    labels:
+      - 'breaking'
+      - 'breaking-change'
+    collapse-after: 5
+    
+  - title: '✨ New Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+      - 'feat'
+    collapse-after: 10
+    
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+    collapse-after: 10
+    
+  - title: '📝 Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+    collapse-after: 5
+    
+  - title: '🔧 Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+      - 'dependencies'
+    collapse-after: 5
+    
+  - title: '🎨 Styling'
+    labels:
+      - 'style'
+    collapse-after: 5
+
+  - title: '⚡ Performance'
+    labels:
+      - 'performance'
+      - 'perf'
+    collapse-after: 5
+
+  - title: '♻️ Refactoring'
+    labels:
+      - 'refactor'
+    collapse-after: 5
+
+# Version resolution strategy
+version-resolver:
+  major:
+    labels:
+      - 'breaking'
+      - 'breaking-change'
+      - 'major'
+  minor:
+    labels:
+      - 'feature'
+      - 'enhancement'
+      - 'feat'
+      - 'minor'
+      - 'refactor'
+      - 'perf'
+  patch:
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+      - 'documentation'
+      - 'chore'
+      - 'style'
+  default: patch
+
+# Automatically categorize based on branch name and commit messages
+autolabeler:
+  - label: 'feature'
+    branch:
+      - '/^feat(ure)?[/-].+/'
+    title:
+      - '/^feat(\(.+\))?:.+/'
+      
+  - label: 'fix'
+    branch:
+      - '/^fix[/-].+/'
+      - '/^hotfix[/-].+/'
+    title:
+      - '/^fix(\(.+\))?:.+/'
+      
+  - label: 'documentation'
+    branch:
+      - '/^docs?[/-].+/'
+    title:
+      - '/^docs?(\(.+\))?:.+/'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+      
+  - label: 'chore'
+    branch:
+      - '/^chore[/-].+/'
+    title:
+      - '/^chore(\(.+\))?:.+/'
+      
+  - label: 'refactor'
+    title:
+      - '/^refactor(\(.+\))?:.+/'
+      
+  - label: 'perf'
+    title:
+      - '/^perf(\(.+\))?:.+/'
+      
+  - label: 'breaking'
+    title:
+      - '/^.+!:.+/'
+      - '/BREAKING CHANGE/'
+    body:
+      - '/BREAKING CHANGE/'
+
+# Template for release notes
+template: |
+  ## 🐳 StreamVault $RESOLVED_VERSION
+  
+  **Docker Images:**
+  - `frequency2098/streamvault:latest`
+  - `frequency2098/streamvault:v$RESOLVED_VERSION`
+  - `ghcr.io/$REPOSITORY:latest`
+  - `ghcr.io/$REPOSITORY:v$RESOLVED_VERSION`
+  
+  ### 🚀 Quick Update
+  ```bash
+  docker pull frequency2098/streamvault:latest
+  docker-compose pull && docker-compose up -d
+  ```
+  
+  ## What's Changed
+  
+  $CHANGES
+  
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+  
+  ---
+  
+  ### 📦 Installation
+  
+  ```yaml
+  services:
+    streamvault:
+      image: frequency2098/streamvault:v$RESOLVED_VERSION
+      # ... rest of your config
+  ```
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+# Exclude certain commits
+exclude-labels:
+  - 'skip-changelog'
+  - 'no-changelog'
+
+# Exclude contributors
+exclude-contributors:
+  - 'dependabot'
+
+replacers:
+  - search: '/\[BOT\]/g'
+    replace: ''
+  - search: '/\[bot\]/g'
+    replace: ''
