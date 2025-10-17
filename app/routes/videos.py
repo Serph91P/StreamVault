@@ -9,7 +9,7 @@ import mimetypes
 import re
 from datetime import datetime
 from secrets import token_urlsafe
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory

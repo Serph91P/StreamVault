@@ -12,7 +12,7 @@ def check_file(path, description):
         try:
             files = os.listdir(path)
             print(f"    📁 Contents: {files[:5]}{'...' if len(files) > 5 else ''}")
-        except:
+        except (OSError, PermissionError):
             pass
     return exists
 

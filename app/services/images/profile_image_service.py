@@ -9,10 +9,12 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List
-from sqlalchemy.orm import Session
+from cachetools import TTLCache
+from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal
 from app.models import Streamer
 from .image_download_service import ImageDownloadService
+from app.config.constants import CACHE_CONFIG
 
 logger = logging.getLogger("streamvault")
 
@@ -22,7 +24,11 @@ class ProfileImageService:
     
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
-        self._profile_cache: Dict[str, str] = {}
+        # TTLCache for profile images (prevents memory leaks with automatic expiration)
+        self._profile_cache: TTLCache = TTLCache(
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, 
+            ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+        )
         self.profiles_dir = None
         self._cache_loaded = False
         # Don't load cache immediately during initialization - defer until first use

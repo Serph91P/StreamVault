@@ -12,14 +12,17 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from collections import defaultdict
 from pathlib import Path
+from sqlalchemy.orm import joinedload
+
 from .task_progress_tracker import QueueTask, TaskStatus, TaskPriority, TaskProgressTracker
 from .worker_manager import WorkerManager
 from app.services.processing.task_dependency_manager import TaskDependencyManager, Task, TaskStatus as DepTaskStatus
+from app.config.constants import RETRY_CONFIG, ASYNC_DELAYS, TIMEOUTS
 
 logger = logging.getLogger("streamvault")
 
-# Configuration constants
-DEFAULT_MAX_RETRIES = 3
+# Configuration constants (kept for backward compatibility)
+DEFAULT_MAX_RETRIES = RETRY_CONFIG.DEFAULT_MAX_RETRIES
 
 
 class TaskQueueManager:
@@ -200,9 +203,14 @@ class TaskQueueManager:
                 from app.database import SessionLocal
                 from app.models import Stream, Streamer
                 with SessionLocal() as db:
-                    stream = db.query(Stream).filter(Stream.id == int(stream_id)).first()
+                    stream = (
+                        db.query(Stream)
+                        .options(joinedload(Stream.streamer))
+                        .filter(Stream.id == int(stream_id))
+                        .first()
+                    )
                     if stream:
-                        st = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        st = stream.streamer
                         if st and st.username:
                             return str(st.username)
             except Exception as e:
@@ -276,7 +284,7 @@ class TaskQueueManager:
                     try:
                         priority, task = await asyncio.wait_for(
                             streamer_queue.get(),
-                            timeout=1.0
+                            timeout=TIMEOUTS.QUEUE_GET_TIMEOUT
                         )
                     except asyncio.TimeoutError:
                         continue
@@ -317,7 +325,7 @@ class TaskQueueManager:
                         
                 except Exception as e:
                     logger.error(f"❌ Error in isolated worker for streamer {streamer_name}: {e}", exc_info=True)
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
             
             logger.info(f"🛑 Stopped isolated worker for streamer: {streamer_name}")
         
@@ -438,7 +446,7 @@ class TaskQueueManager:
                 break
             except Exception as e:
                 logger.error(f"Dependency worker error: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
                 
         logger.info("Dependency worker stopped")
 
@@ -451,15 +459,15 @@ class TaskQueueManager:
                 # Send queue statistics via WebSocket
                 await self.progress_tracker.send_queue_statistics()
                 
-                # Wait 10 seconds before next broadcast
-                await asyncio.sleep(10)
+                # Wait before next broadcast
+                await asyncio.sleep(ASYNC_DELAYS.LONG_RETRY_DELAY)
                 
             except asyncio.CancelledError:
                 logger.info("Stats broadcast worker cancelled")
                 break
             except Exception as e:
                 logger.warning(f"Stats broadcast worker error: {e}")
-                await asyncio.sleep(5)  # Wait shorter on error
+                await asyncio.sleep(ASYNC_DELAYS.QUEUE_ERROR_WAIT)
                 
         logger.info("Stats broadcast worker stopped")
 

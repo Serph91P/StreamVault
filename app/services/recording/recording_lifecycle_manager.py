@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Set
 import re
 from datetime import datetime
 from pathlib import Path
+from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
 from app.services.api.twitch_api import twitch_api
 try:
@@ -288,7 +289,7 @@ class RecordingLifecycleManager:
                 await self._update_recording_progress(recording_id)
                 
                 # Sleep before next check
-                await asyncio.sleep(10)  # Check every 10 seconds
+                await asyncio.sleep(ASYNC_DELAYS.RECORDING_MONITOR_INTERVAL)
                 
         except Exception as e:
             logger.error(f"Error in recording monitoring task {recording_id}: {e}")

@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
+from sqlalchemy.orm import joinedload
+
 from app.database import SessionLocal
 from app.models import Stream, Recording, StreamMetadata, Streamer
 from app.services.media.metadata_service import MetadataService, metadata_service
@@ -69,10 +71,15 @@ class PostProcessingTasks:
             return base_path, base_filename
 
     def _fetch_stream_and_streamer(self, stream_id: int) -> tuple[Optional[Stream], Optional[Streamer]]:
-        """Small helper to fetch stream and streamer (single place)."""
+        """Small helper to fetch stream and streamer with eager loading to avoid N+1 queries."""
         with SessionLocal() as db:
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first() if stream else None
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            streamer = stream.streamer if stream else None
             return stream, streamer
         
     async def handle_video_conversion(self, task: QueueTask):

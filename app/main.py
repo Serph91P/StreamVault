@@ -15,6 +15,7 @@ from app.routes import background_queue
 from app.routes import streams
 from app.routes import status
 from app.services.system.development_test_runner import run_development_tests
+from app.config.constants import TIMEOUTS, ASYNC_DELAYS
 import logging
 import hmac
 import hashlib
@@ -180,7 +181,7 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to start recording cleanup service: {e}")
         
         # Wait a moment for migrations to fully complete before starting services
-        await asyncio.sleep(1)
+        await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
         
         # Start background services AFTER migrations are guaranteed to be complete
         try:
@@ -229,7 +230,7 @@ async def lifespan(app: FastAPI):
     if recording_service:
         try:
             logger.info("🔄 Gracefully shutting down recording service...")
-            await recording_service.graceful_shutdown(timeout=30)
+            await recording_service.graceful_shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
             logger.info("✅ Recording service shutdown completed")
         except Exception as e:
             logger.error(f"❌ Error during recording service shutdown: {e}")
@@ -735,7 +736,7 @@ async def eventsub_callback(request: Request):
                 handler = event_registry.handlers.get(event_type)
                 if handler:
                     try:
-                        await asyncio.wait_for(handler(event_data), timeout=5.0)
+                        await asyncio.wait_for(handler(event_data), timeout=TIMEOUTS.EVENT_HANDLER_TIMEOUT)
                         logger.info(f"Event {event_type} handled successfully.")
                         return Response(status_code=204)
                     except asyncio.TimeoutError:
@@ -884,7 +885,7 @@ async def serve_manifest():
                 media_type="application/manifest+json",
                 headers={"Cache-Control": "public, max-age=86400"}
             )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -897,7 +898,7 @@ async def serve_manifest_webmanifest():
                 media_type="application/manifest+json",
                 headers={"Cache-Control": "public, max-age=86400"}
             )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -913,7 +914,7 @@ async def serve_push_sw_helper():
                     "Cache-Control": "public, max-age=3600"
                 }
             )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -948,8 +949,9 @@ async def service_worker():
                         "Expires": "0"
                     }
                 )
-            except Exception:
-                # Fallback to raw file serving
+            except (OSError, UnicodeDecodeError) as e:
+                # Fallback to raw file serving if reading fails
+                logger.debug(f"Could not read/modify service worker, serving raw: {e}")
                 return FileResponse(
                     path,
                     media_type="application/javascript",
@@ -960,7 +962,7 @@ async def service_worker():
                         "Expires": "0"
                     }
                 )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -973,7 +975,7 @@ async def serve_browserconfig():
                 media_type="application/xml",
                 headers={"Cache-Control": "public, max-age=86400"}
             )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -982,7 +984,7 @@ async def serve_pwa_test():
     for path in ["app/frontend/public/pwa-test.html", "/app/app/frontend/public/pwa-test.html"]:
         try:
             return FileResponse(path, media_type="text/html")
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -991,7 +993,7 @@ async def serve_pwa_helper():
     for path in ["app/frontend/public/pwa-helper.js", "/app/app/frontend/public/pwa-helper.js"]:
         try:
             return FileResponse(path, media_type="application/javascript")
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -1086,7 +1088,7 @@ async def serve_favicon():
                 media_type="image/x-icon",
                 headers={"Cache-Control": "public, max-age=86400"}
             )
-        except:
+        except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
 
@@ -1103,7 +1105,7 @@ async def serve_favicon_png():
                     media_type=media_type,
                     headers={"Cache-Control": "public, max-age=86400"}
                 )
-            except:
+            except (FileNotFoundError, PermissionError):
                 continue
     return Response(status_code=404)
 

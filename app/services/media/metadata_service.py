@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 
 import xml.etree.ElementTree as ET
 from sqlalchemy import extract
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
@@ -21,7 +21,6 @@ from app.config.settings import settings
 from app.services.system.logging_service import logging_service
 from app.services.media.artwork_service import artwork_service
 from app.utils.file_utils import sanitize_filename
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
 
@@ -75,12 +74,13 @@ class MetadataService:
                 try:
                     rel = os.path.relpath(target, start=nfo_dir)
                     return rel.replace("\\", "/")  # NFO prefers forward slashes
-                except Exception:
-                    pass
+                except (ValueError, OSError) as e:
+                    logger.debug(f"Could not compute relative path from {nfo_dir} to {target}: {e}")
 
             # Fallback to generic relative path (works if scanners interpret relative to library root)
             return str(artwork_rel_under_root).replace("\\", "/")
-        except Exception:
+        except (OSError, ValueError) as e:
+            logger.debug(f"Error computing artwork path for {safe_username}/{filename}: {e}")
             return f".media/artwork/{safe_username}/{filename}"
 
     def _find_recordings_root(self, start_dir: Path) -> Optional[Path]:
@@ -94,8 +94,8 @@ class MetadataService:
                 if parent == current:
                     break
                 current = parent
-        except Exception:
-            pass
+        except (OSError, RuntimeError) as e:
+            logger.debug(f"Error finding recordings root from {start_dir}: {e}")
         return None
 
     def _ensure_local_artwork(self, streamer_dir: Path, season_dir: Optional[Path], safe_username: str) -> None:
@@ -203,17 +203,25 @@ class MetadataService:
         """
         try:
             with SessionLocal() as db:
-                # Query stream by ID only - no filter on ended_at since we need to
-                # generate metadata for completed/ended streams during post-processing
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                # Query stream by ID with eager loading of related entities to avoid N+1 queries
+                # No filter on ended_at since we need to generate metadata for completed/ended streams during post-processing
+                stream = (
+                    db.query(Stream)
+                    .options(
+                        joinedload(Stream.streamer),
+                        joinedload(Stream.stream_metadata)
+                    )
+                    .filter(Stream.id == stream_id)
+                    .first()
+                )
                 if not stream:
                     logger.error(f"Stream {stream_id} not found in database (may have been deleted)")
                     return False
                 
-                # Fetch streamer
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                # Access streamer via relationship (already loaded)
+                streamer = stream.streamer
                 if not streamer:
-                    logger.error(f"Streamer {stream.streamer_id} not found for stream {stream_id}")
+                    logger.error(f"Streamer not found for stream {stream_id}")
                     return False
                 
                 # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches
@@ -471,10 +479,10 @@ class MetadataService:
                                 try:
                                     season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
                                     season_dir.mkdir(parents=True, exist_ok=True)
-                                except Exception:
-                                    pass
-            except Exception:
-                pass
+                                except (OSError, AttributeError) as e:
+                                    logger.debug(f"Could not create season directory: {e}")
+            except (OSError, AttributeError) as e:
+                logger.debug(f"Error enforcing streamer directory: {e}")
 
             # Show-level NFO must live inside the individual streamer's folder
             tvshow_nfo_path = streamer_dir / "tvshow.nfo"
@@ -574,8 +582,8 @@ class MetadataService:
                     uid2 = ET.SubElement(episode_root, "uniqueid")
                     uid2.set("type", "twitch_stream_id")
                     uid2.text = str(stream.twitch_stream_id)
-            except Exception:
-                pass
+            except (AttributeError, TypeError) as e:
+                logger.debug(f"Could not set unique IDs for stream {stream.id}: {e}")
             
             # Episode title: prefer the human title but, when base_filename contains a formatted prefix, use the full filename-like title for consistency
             try:
@@ -586,7 +594,8 @@ class MetadataService:
                     # Replace underscores with spaces for readability
                     display_title = display_title.replace("_", " ")
                 ET.SubElement(episode_root, "title").text = display_title
-            except Exception:
+            except (AttributeError, IndexError) as e:
+                logger.debug(f"Could not format episode title, using fallback: {e}")
                 ET.SubElement(episode_root, "title").text = stream.title or f"{streamer.username} Stream"
             
             # Calculate season/episode. Prefer stored episode_number for month-based numbering; fallback to day-of-month.
@@ -603,7 +612,8 @@ class MetadataService:
                         episode_num = f"{int(stream.episode_number):02d}"
                     else:
                         episode_num = stream.started_at.strftime("%d")
-                except Exception:
+                except (AttributeError, ValueError, TypeError) as e:
+                    logger.debug(f"Could not get episode_number, using day fallback: {e}")
                     episode_num = stream.started_at.strftime("%d")
                 
                 ET.SubElement(episode_root, "season").text = season_num
@@ -685,8 +695,9 @@ class MetadataService:
             # Save season NFO path too for proper cleanup (only if created)
             try:
                 metadata.season_nfo_path = str(season_nfo_path) if season_nfo_path else None
-            except Exception:
+            except AttributeError as e:
                 # Column may not exist in older schemas; ignore gracefully
+                logger.debug(f"season_nfo_path attribute not available: {e}")
                 pass
             
             # Create additional symlinks/copies for specific media servers
@@ -867,7 +878,8 @@ class MetadataService:
                         target_dir = rec_path.parent
                         if not resolved_base_filename:
                             resolved_base_filename = rec_path.stem
-            except Exception:
+            except (AttributeError, OSError) as e:
+                logger.debug(f"Could not resolve recording path: {e}")
                 pass
             if not resolved_base_filename:
                 # Fallback to provided base_filename arg or last-resort: infer from files in dir
@@ -875,7 +887,8 @@ class MetadataService:
                     # Try to pick the first mp4 file in the directory
                     found = next((p.stem for p in target_dir.glob("*.mp4")), None)
                     resolved_base_filename = found or "unknown"
-                except Exception:
+                except (OSError, StopIteration) as e:
+                    logger.debug(f"Could not infer base filename from directory: {e}")
                     resolved_base_filename = "unknown"
             
             # Falls kein Thumbnail übergeben wurde, versuche es aus den Metadaten oder dem Artwork-Cache zu holen
@@ -971,7 +984,8 @@ class MetadataService:
                         episode_num = f"{int(stream.episode_number):02d}"
                     else:
                         episode_num = stream.started_at.strftime("%d")
-                except Exception:
+                except (AttributeError, ValueError, TypeError) as e:
+                    logger.debug(f"Could not get episode number for Plex format: {e}")
                     episode_num = stream.started_at.strftime("%d")
                 
                 # Resolve streamer name safely; prefer provided streamer object from caller when available
@@ -984,7 +998,8 @@ class MetadataService:
                             s_obj = session.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                             if s_obj:
                                 streamer_name = s_obj.username
-                except Exception:
+                except (AttributeError, Exception) as e:
+                    logger.debug(f"Could not resolve streamer name: {e}")
                     pass
                 
                 # Plex pattern: ShowName - SXXEXX - EpisodeTitle
@@ -1004,7 +1019,8 @@ class MetadataService:
                             f"Refusing to create Plex links for streamer '{streamer_name}' inside folder '{target_streamer_name}'"
                         )
                         return True  # Skip creating links to avoid cross-stream pollution
-                except Exception:
+                except (AttributeError, OSError) as e:
+                    logger.debug(f"Could not validate streamer directory: {e}")
                     pass
 
                 # Extra safety: ensure target_dir lies within the recordings root for this streamer
@@ -1017,7 +1033,8 @@ class MetadataService:
                                 f"Target dir {target_streamer_dir} is not within expected streamer dir {expected_streamer_dir}; skipping Plex link creation"
                             )
                             return True
-                except Exception:
+                except (OSError, AttributeError) as e:
+                    logger.debug(f"Could not validate recordings root path: {e}")
                     pass
 
                 # Create symlinks for video and nfo files with Plex naming
@@ -1040,7 +1057,8 @@ class MetadataService:
                         nfo_candidate = target_dir / f"{resolved_base_filename}.nfo"
                         if nfo_candidate.exists():
                             nfo_src = nfo_candidate
-                except Exception:
+                except (AttributeError, OSError) as e:
+                    logger.debug(f"Could not find video/nfo source files: {e}")
                     pass
 
                 # Safety: ensure we are writing inside the same streamer directory to avoid cross-stream links
@@ -1052,12 +1070,14 @@ class MetadataService:
                             if os.name == 'nt':  # Windows
                                 try:
                                     os.link(video_src, video_dest)
-                                except:
+                                except (OSError, PermissionError) as e:
+                                    logger.debug(f"Hard link failed, copying instead: {e}")
                                     shutil.copy2(video_src, video_dest)
                             else:  # Linux/Mac
                                 try:
                                     os.symlink(video_src, video_dest)
-                                except:
+                                except (OSError, PermissionError) as e:
+                                    logger.debug(f"Symlink failed, copying instead: {e}")
                                     shutil.copy2(video_src, video_dest)
                     except Exception as e:
                         logger.warning(f"Error creating Plex video symlink: {e}")
@@ -1070,12 +1090,14 @@ class MetadataService:
                             if os.name == 'nt':  # Windows
                                 try:
                                     os.link(nfo_src, nfo_dest)
-                                except:
+                                except (OSError, PermissionError) as e:
+                                    logger.debug(f"Hard link failed for NFO, copying instead: {e}")
                                     shutil.copy2(nfo_src, nfo_dest)
                             else:  # Linux/Mac
                                 try:
                                     os.symlink(nfo_src, nfo_dest)
-                                except:
+                                except (OSError, PermissionError) as e:
+                                    logger.debug(f"Symlink failed for NFO, copying instead: {e}")
                                     shutil.copy2(nfo_src, nfo_dest)
                     except Exception as e:
                         logger.warning(f"Error creating Plex NFO symlink: {e}")
@@ -1647,12 +1669,17 @@ class MetadataService:
                 if stream.title:
                     f.write(f"title={stream.title}\n")
                 
-                # Streamer-Informationen abrufen (Stream hat nur streamer_id, nicht streamer)
+                # Streamer-Informationen via relationship (should be preloaded by caller with joinedload)
                 streamer_username = None
-                with SessionLocal() as db:
-                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                    if streamer:
-                        streamer_username = streamer.username
+                if hasattr(stream, 'streamer') and stream.streamer:
+                    # Use preloaded relationship if available
+                    streamer_username = stream.streamer.username
+                else:
+                    # Fallback to DB query if not preloaded (ensures backward compatibility)
+                    with SessionLocal() as db:
+                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if streamer:
+                            streamer_username = streamer.username
                 
                 if streamer_username:
                     f.write(f"artist={streamer_username}\n")
@@ -1948,19 +1975,27 @@ class MetadataService:
                 
             logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
             
-            # Get stream and streamer information
+            # Get stream and related data with eager loading to avoid N+1 queries
             with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                stream = (
+                    db.query(Stream)
+                    .options(
+                        joinedload(Stream.streamer),
+                        joinedload(Stream.stream_metadata)
+                    )
+                    .filter(Stream.id == stream_id)
+                    .first()
+                )
                 if not stream:
                     logger.error(f"Stream not found: {stream_id}")
                     return False
                     
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                streamer = stream.streamer
                 if not streamer:
-                    logger.error(f"Streamer not found: {stream.streamer_id}")
+                    logger.error(f"Streamer not found for stream: {stream_id}")
                     return False
                 
-                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                metadata = stream.stream_metadata
                 if not metadata:
                     logger.error(f"Metadata not found for stream: {stream_id}")
                     return False
@@ -2059,15 +2094,23 @@ class MetadataService:
                 logger.error(f"Error parsing validation result: {e}")
                 # Continue even if parsing fails as the ffprobe command succeeded
             
-            # Get stream and streamer information
+            # Get stream and related data with eager loading to avoid N+1 queries
             with SessionLocal() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                stream = (
+                    db.query(Stream)
+                    .options(
+                        joinedload(Stream.streamer),
+                        joinedload(Stream.stream_metadata)
+                    )
+                    .filter(Stream.id == stream_id)
+                    .first()
+                )
                 if not stream:
                     logger.error(f"Stream not found with ID {stream_id}")
                     return False
                 
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                streamer = stream.streamer
+                metadata = stream.stream_metadata
             
             # Check if the chapters file exists and is valid
             has_chapters = False

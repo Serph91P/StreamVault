@@ -33,3 +33,6 @@ psutil==6.1.0
 # Additional security packages
 safety==3.6.0
 bandit==1.8.6
+
+# Caching utilities
+cachetools==5.5.0

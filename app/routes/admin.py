@@ -5,7 +5,7 @@ import logging
 import platform
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
@@ -799,8 +799,8 @@ async def fix_recording_availability(
         }
         
         with SessionLocal() as db:
-            # Get streams to check
-            query = db.query(Stream)
+            # Get streams to check with eager loading of streamer to avoid N+1 queries
+            query = db.query(Stream).options(joinedload(Stream.streamer))
             if streamer_id:
                 query = query.filter(Stream.streamer_id == streamer_id)
             
@@ -824,9 +824,8 @@ async def fix_recording_availability(
                     # Look for .ts recording file in expected location
                     recordings_base = Path("/recordings")
                     if recordings_base.exists():
-                        # Get streamer info
-                        from app.models import Streamer
-                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        # Get streamer via relationship (already loaded)
+                        streamer = stream.streamer
                         if streamer:
                             streamer_dir = recordings_base / streamer.username
                             if streamer_dir.exists():
@@ -920,11 +919,18 @@ async def cleanup_orphaned_database_recordings(
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
         
         with SessionLocal() as db:
-            # Find recordings that are still "recording" but started too long ago
-            orphaned_recordings = db.query(Recording).filter(
-                Recording.status == "recording",
-                Recording.start_time < cutoff_time
-            ).all()
+            # Find recordings that are still "recording" but started too long ago with eager loading
+            orphaned_recordings = (
+                db.query(Recording)
+                .options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                )
+                .filter(
+                    Recording.status == "recording",
+                    Recording.start_time < cutoff_time
+                )
+                .all()
+            )
             
             for recording in orphaned_recordings:
                 results["checked"] += 1
@@ -938,7 +944,7 @@ async def cleanup_orphaned_database_recordings(
                 }
                 
                 try:
-                    # Get additional info
+                    # Get additional info via relationships (already loaded)
                     if recording.stream:
                         recording_result["streamer_id"] = recording.stream.streamer_id
                         if recording.stream.streamer:
@@ -1004,10 +1010,15 @@ async def cleanup_process_orphaned_recordings(
             recording_service = RecordingService()
             process_manager = recording_service.process_manager
             
-            # Find all recordings that are still marked as "recording"
-            recording_status_recordings = db.query(Recording).filter(
-                Recording.status == "recording"
-            ).all()
+            # Find all recordings that are still marked as "recording" with eager loading
+            recording_status_recordings = (
+                db.query(Recording)
+                .options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                )
+                .filter(Recording.status == "recording")
+                .all()
+            )
             
             for recording in recording_status_recordings:
                 results["checked"] += 1
@@ -1026,7 +1037,7 @@ async def cleanup_process_orphaned_recordings(
                 }
                 
                 try:
-                    # Get additional info
+                    # Get additional info via relationships (already loaded)
                     if recording.stream:
                         recording_result["streamer_id"] = recording.stream.streamer_id
                         if recording.stream.streamer:

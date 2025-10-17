@@ -23,6 +23,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Tuple, Callable, Awaitable
 from pathlib import Path
+from sqlalchemy.orm import joinedload
 
 # Import utilities
 from app.utils.streamlink_utils import get_streamlink_command, get_proxy_settings_from_db
@@ -145,19 +146,27 @@ class ProcessManager:
     ) -> Optional[asyncio.subprocess.Process]:
         """Start recording a single segment"""
         try:
-            # Get streamer info from database using streamer_id
-            from app.database import SessionLocal
-            from app.models import Streamer
+            # Get streamer info via relationship or database
+            streamer_name = None
+            if hasattr(stream, 'streamer') and stream.streamer:
+                # Use preloaded relationship if available (better performance)
+                streamer_name = stream.streamer.username
+            else:
+                # Fallback to DB query if not preloaded
+                from app.database import SessionLocal
+                from app.models import Streamer
+                
+                with SessionLocal() as db:
+                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                    if not streamer:
+                        raise Exception(f"Streamer {stream.streamer_id} not found")
+                    streamer_name = streamer.username
             
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                if not streamer:
-                    raise Exception(f"Streamer {stream.streamer_id} not found")
-                
-                streamer_name = streamer.username
-                
-                # Debug logging to track potential mismatches
-                logger.info(f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}")
+            if not streamer_name:
+                raise Exception(f"Could not resolve streamer name for stream {stream.id}")
+            
+            # Debug logging to track potential mismatches
+            logger.info(f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}")
             
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
@@ -415,12 +424,17 @@ class ProcessManager:
                         from app.models import Stream, Streamer
                         
                         with SessionLocal() as db:
-                            # Get stream from process_id in the segment info
+                            # Get stream from process_id in the segment info with eager loading
                             stream_id = process_id.split('_')[1] if process_id else None
                             if stream_id:
-                                stream = db.query(Stream).filter(Stream.id == int(stream_id)).first()
+                                stream = (
+                                    db.query(Stream)
+                                    .options(joinedload(Stream.streamer))
+                                    .filter(Stream.id == int(stream_id))
+                                    .first()
+                                )
                                 if stream:
-                                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                                    streamer = stream.streamer
                                     if streamer:
                                         # Get the log path for this streamer to append output
                                         log_path = self.logging_service.get_streamlink_log_path(streamer.username)

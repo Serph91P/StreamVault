@@ -84,7 +84,8 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
                     # Prefer moving to avoid duplicate storage; fall back to copy
                     try:
                         single.replace(output_file)
-                    except Exception:
+                    except (OSError, PermissionError) as e:
+                        logger.warning(f"Could not move segment {single} to {output_file}, copying instead: {e}")
                         shutil.copy2(single, output_file)
                 logger.info(f"🎬 SINGLE_SEGMENT_FASTPATH: wrote {output_file}")
 
@@ -228,8 +229,8 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
                     try:
                         process.kill()
                         await process.wait()
-                    except:
-                        pass
+                    except (ProcessLookupError, OSError) as e:
+                        logger.debug(f"Could not kill timed-out process: {e}")
                 return {
                     "success": False,
                     "error": "FFmpeg process timed out",
@@ -241,8 +242,8 @@ async def handle_segment_concatenation(task_data: Dict[str, Any], progress_callb
             if concat_list_path.exists():
                 try:
                     concat_list_path.unlink()
-                except:
-                    pass
+                except (OSError, PermissionError) as e:
+                    logger.debug(f"Could not remove concat list file {concat_list_path}: {e}")
         
     except Exception as e:
         logger.error(f"Error in segment concatenation: {e}", exc_info=True)
@@ -317,7 +318,7 @@ async def _cleanup_segment_files(segment_files: list, segment_dir: Path):
                 if segment_file.exists():
                     segment_file.unlink()
                     logger.debug(f"Removed segment: {segment_file}")
-            except Exception as e:
+            except (OSError, PermissionError) as e:
                 logger.warning(f"Could not remove segment {segment_file}: {e}")
         
         # Try to remove segment directory if empty
@@ -325,7 +326,7 @@ async def _cleanup_segment_files(segment_files: list, segment_dir: Path):
             if segment_dir.exists() and not any(segment_dir.iterdir()):
                 segment_dir.rmdir()
                 logger.info(f"🧹 REMOVED_EMPTY_SEGMENT_DIR: {segment_dir}")
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.debug(f"Could not remove segment directory {segment_dir}: {e}")
             
     except Exception as e:
