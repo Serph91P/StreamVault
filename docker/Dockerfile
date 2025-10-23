@@ -1,5 +1,5 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
-FROM python:3.14-alpine AS base
+FROM python:3.13.3-alpine AS base
 
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
