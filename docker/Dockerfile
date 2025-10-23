@@ -1,5 +1,5 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
-FROM python:3.13.3-alpine AS base
+FROM python:3.14-alpine AS base
 
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
@@ -34,7 +34,7 @@ FROM base AS python-deps
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir --upgrade -r requirements.txt \
-    && pip install --no-cache-dir --upgrade streamlink==7.4.0
+    && pip install --no-cache-dir --upgrade streamlink==7.6.0
 
 # Stage for frontend (only rebuilt when frontend changes)
 FROM base AS frontend-builder
