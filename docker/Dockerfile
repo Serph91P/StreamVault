@@ -15,6 +15,7 @@ RUN apk update && apk upgrade && \
     curl \
     ffmpeg \
     gcc \
+    g++ \
     python3-dev \
     postgresql-dev \
     musl-dev \
