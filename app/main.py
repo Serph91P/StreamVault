@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI):
     cleanup_task = None
     log_cleanup_task = None
     recording_service = None
+    background_services_task = None
     
     try:
         # Run database migrations always (development and production)
@@ -186,10 +187,22 @@ async def lifespan(app: FastAPI):
         # Start background services AFTER migrations are guaranteed to be complete
         try:
             from app.services.init.startup_init import initialize_background_services
-            await initialize_background_services()
-            logger.info("✅ Background services initialized successfully")
+
+            async def launch_background_services():
+                try:
+                    await initialize_background_services()
+                except Exception as init_error:
+                    logger.error(
+                        f"❌ Error during background services initialization: {init_error}",
+                        exc_info=True,
+                    )
+                    logger.warning("⚠️ Application will continue but background processing may be limited")
+
+            # Run heavy startup tasks in the background so the frontend becomes available immediately
+            background_services_task = asyncio.create_task(launch_background_services())
+            logger.info("🚀 Background services initialization running in background")
         except Exception as e:
-            logger.error(f"❌ Error starting background services: {e}", exc_info=True)
+            logger.error(f"❌ Failed to schedule background services initialization: {e}", exc_info=True)
             logger.warning("⚠️ Application will continue but background processing may be limited")
             
         # Start image sync service
@@ -251,6 +264,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error stopping WebSocket broadcast task: {e}")
     
+    # Ensure background services initialization finished
+    if background_services_task:
+        if not background_services_task.done():
+            logger.info("🔄 Waiting for background services initialization to finish...")
+        try:
+            await background_services_task
+        except asyncio.CancelledError:
+            logger.info("✅ Background services initialization task cancelled")
+        except Exception as e:
+            logger.error(f"❌ Background services initialization task failed during shutdown: {e}", exc_info=True)
+
     # Shutdown background queue service
     try:
         logger.info("🔄 Stopping background queue service...")
