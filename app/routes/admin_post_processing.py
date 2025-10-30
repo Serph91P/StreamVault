@@ -230,6 +230,36 @@ async def cleanup_orphaned_segments(
         logger.error(f"Error cleaning orphaned segments: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to cleanup segments: {str(e)}")
 
+@router.post("/cleanup-orphaned-files")
+async def cleanup_orphaned_files(
+    recordings_root: str = Query("/recordings", description="Root directory for recordings")
+) -> Dict[str, Any]:
+    """
+    🧹 Cleanup Orphaned Files
+    Remove broken symlinks, 0-byte files, and empty segment directories
+    """
+    try:
+        from app.services.system.cleanup_service import cleanup_service
+        
+        logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES: recordings_root={recordings_root}")
+        
+        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(recordings_root)
+        
+        logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES_RESULT: cleaned={cleaned_count} items")
+        
+        return {
+            "success": True,
+            "message": f"Cleaned {cleaned_count} orphaned files",
+            "data": {
+                "cleaned_count": cleaned_count,
+                "cleaned_paths": cleaned_paths[:100]  # Limit to first 100 for response size
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cleaning orphaned files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup orphaned files: {str(e)}")
+
 @router.get("/orphaned-list")
 async def get_orphaned_recordings_list(
     max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings"),
