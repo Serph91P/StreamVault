@@ -1002,10 +1002,28 @@ class MetadataService:
                     logger.debug(f"Could not resolve streamer name: {e}")
                     pass
                 
-                # Plex pattern: ShowName - SXXEXX - EpisodeTitle
+                # Plex pattern: Use the actual recording filename to avoid title changes during recording
+                # This prevents broken symlinks when stream title changes (e.g., date changes at midnight)
                 plex_name = f"{streamer_name} - S{season_num}E{episode_num}"
-                if stream.title:
-                    plex_name += f" - {stream.title}"
+                
+                # Try to get title from the actual filename if it exists
+                actual_title = None
+                if resolved_base_filename and resolved_base_filename != "unknown":
+                    # Extract title from filename pattern: "Streamer - SXXXXE## - Title"
+                    try:
+                        parts = resolved_base_filename.split(" - ", 2)
+                        if len(parts) >= 3:
+                            actual_title = parts[2]
+                        elif stream.title:
+                            actual_title = stream.title
+                    except Exception as e:
+                        logger.debug(f"Could not extract title from filename: {e}")
+                        actual_title = stream.title
+                else:
+                    actual_title = stream.title
+                
+                if actual_title:
+                    plex_name += f" - {actual_title}"
                 
                 # Clean the filename
                 plex_name = plex_name.replace('/', '-').replace('\\', '-').replace(':', '-')
@@ -1066,7 +1084,10 @@ class MetadataService:
                     try:
                         video_dest = target_dir / f"{plex_name}.mp4"
                         
-                        if not video_dest.exists():
+                        # Skip if source and destination are the same file
+                        if video_src.resolve() == video_dest.resolve():
+                            logger.debug(f"Skipping video symlink creation - source and destination are identical: {video_src}")
+                        elif not video_dest.exists():
                             if os.name == 'nt':  # Windows
                                 try:
                                     os.link(video_src, video_dest)
@@ -1076,9 +1097,23 @@ class MetadataService:
                             else:  # Linux/Mac
                                 try:
                                     os.symlink(video_src, video_dest)
+                                    logger.debug(f"Created video symlink: {video_dest} -> {video_src}")
                                 except (OSError, PermissionError) as e:
                                     logger.debug(f"Symlink failed, copying instead: {e}")
                                     shutil.copy2(video_src, video_dest)
+                        else:
+                            # Destination exists - check if it's a broken symlink that should be replaced
+                            if os.path.islink(video_dest):
+                                try:
+                                    # Check if symlink is broken
+                                    if not video_dest.exists():
+                                        logger.warning(f"Removing broken video symlink: {video_dest}")
+                                        os.unlink(video_dest)
+                                        # Recreate symlink
+                                        os.symlink(video_src, video_dest)
+                                        logger.info(f"Recreated video symlink: {video_dest} -> {video_src}")
+                                except (OSError, PermissionError) as e:
+                                    logger.warning(f"Could not fix broken video symlink: {e}")
                     except Exception as e:
                         logger.warning(f"Error creating Plex video symlink: {e}")
                 
@@ -1086,7 +1121,10 @@ class MetadataService:
                     try:
                         nfo_dest = target_dir / f"{plex_name}.nfo"
                         
-                        if not nfo_dest.exists():
+                        # Skip if source and destination are the same file
+                        if nfo_src.resolve() == nfo_dest.resolve():
+                            logger.debug(f"Skipping NFO symlink creation - source and destination are identical: {nfo_src}")
+                        elif not nfo_dest.exists():
                             if os.name == 'nt':  # Windows
                                 try:
                                     os.link(nfo_src, nfo_dest)
@@ -1096,9 +1134,23 @@ class MetadataService:
                             else:  # Linux/Mac
                                 try:
                                     os.symlink(nfo_src, nfo_dest)
+                                    logger.debug(f"Created NFO symlink: {nfo_dest} -> {nfo_src}")
                                 except (OSError, PermissionError) as e:
                                     logger.debug(f"Symlink failed for NFO, copying instead: {e}")
                                     shutil.copy2(nfo_src, nfo_dest)
+                        else:
+                            # Destination exists - check if it's a broken symlink that should be replaced
+                            if os.path.islink(nfo_dest):
+                                try:
+                                    # Check if symlink is broken
+                                    if not nfo_dest.exists():
+                                        logger.warning(f"Removing broken NFO symlink: {nfo_dest}")
+                                        os.unlink(nfo_dest)
+                                        # Recreate symlink
+                                        os.symlink(nfo_src, nfo_dest)
+                                        logger.info(f"Recreated NFO symlink: {nfo_dest} -> {nfo_src}")
+                                except (OSError, PermissionError) as e:
+                                    logger.warning(f"Could not fix broken NFO symlink: {e}")
                     except Exception as e:
                         logger.warning(f"Error creating Plex NFO symlink: {e}")
             
