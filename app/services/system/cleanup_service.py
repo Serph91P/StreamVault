@@ -107,10 +107,11 @@ class CleanupService:
             if preserve_favorites:
                 favorite_category_ids = CleanupService._get_favorite_categories(db)
             
-            # Get all recordings for this streamer
+            # Get all completed recordings for this streamer
+            # Include streams with recording_path OR ended_at (completed recordings even if file deleted)
             streams_query = db.query(Stream).filter(
                 Stream.streamer_id == streamer_id,
-                Stream.recording_path.isnot(None)
+                Stream.ended_at.isnot(None)  # Only completed recordings (not currently recording)
             )
             
             # Log which policy is being applied for debugging
@@ -407,6 +408,20 @@ class CleanupService:
                 # Get all metadata files from database first
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
                 files_to_delete = []
+                directories_to_check = set()
+                base_name = None  # Initialize base_name for later use
+                
+                # Get the base directory for this recording
+                recording_dir = None
+                if stream.recording_path:
+                    recording_dir = os.path.dirname(stream.recording_path)
+                    if recording_dir and os.path.exists(recording_dir):
+                        directories_to_check.add(recording_dir)
+                elif metadata and metadata.nfo_path:
+                    # If no recording_path but metadata exists, use metadata path to find directory
+                    recording_dir = os.path.dirname(metadata.nfo_path)
+                    if recording_dir and os.path.exists(recording_dir):
+                        directories_to_check.add(recording_dir)
                 
                 # Add main recording file
                 if stream.recording_path and os.path.exists(stream.recording_path):
@@ -431,39 +446,125 @@ class CleanupService:
                         if file_path and os.path.exists(file_path):
                             files_to_delete.append(file_path)
                 
+                # Find ALL related files in the recording directory by pattern matching
+                if recording_dir and os.path.exists(recording_dir):
+                    # Try to get base filename from recording_path or construct it from stream data
+                    base_name = None
+                    if stream.recording_path:
+                        base_name = os.path.splitext(os.path.basename(stream.recording_path))[0]
+                    elif metadata and metadata.nfo_path:
+                        # Construct from NFO path
+                        base_name = os.path.splitext(os.path.basename(metadata.nfo_path))[0]
+                    elif stream.started_at:
+                        # Last resort: construct from stream data (Streamer - SYYYYMME## pattern)
+                        from app.models import Streamer
+                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                        if streamer and hasattr(stream, 'episode_number'):
+                            season_num = stream.started_at.strftime("%Y%m")
+                            episode_num = f"{int(stream.episode_number):02d}" if stream.episode_number else stream.started_at.strftime("%d")
+                            base_name = f"{streamer.username} - S{season_num}E{episode_num}"
+                    
+                    if base_name:
+                        # Find all files matching this recording
+                        for filename in os.listdir(recording_dir):
+                            file_path = os.path.join(recording_dir, filename)
+                            
+                            # Skip directories for now
+                            if os.path.isdir(file_path):
+                                # Check if it's a segment directory for this recording
+                                if filename.startswith(base_name) and filename.endswith('_segments'):
+                                    directories_to_check.add(file_path)
+                                continue
+                            
+                            # Check if this file belongs to the recording
+                            if filename.startswith(base_name):
+                                # Include all variations: .nfo, .tbn, .jpg, -thumb.jpg, _thumbnail.jpg, etc.
+                                if file_path not in files_to_delete and os.path.exists(file_path):
+                                    files_to_delete.append(file_path)
+                                    
+                            # Also check for symlinks that point to this recording's files
+                            if os.path.islink(file_path):
+                                try:
+                                    link_target = os.readlink(file_path)
+                                    # Check if the symlink points to any of our files
+                                    target_base = os.path.splitext(os.path.basename(link_target))[0]
+                                    if base_name in target_base or target_base in base_name:
+                                        if file_path not in files_to_delete:
+                                            files_to_delete.append(file_path)
+                                except (OSError, ValueError):
+                                    pass
+                
                 # Delete all collected files
                 for file_path in files_to_delete:
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                        deleted_paths.append(file_path)
-                        logger.info(f"Deleted file: {file_path}")
+                    try:
+                        if os.path.exists(file_path) or os.path.islink(file_path):
+                            os.remove(file_path)
+                            deleted_paths.append(file_path)
+                            logger.info(f"Deleted file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete file {file_path}: {e}")
+                
+                # Delete segment directories if they exist and are not actively being used
+                for dir_path in directories_to_check:
+                    if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                        # Safety check: Don't delete if this is an active recording
+                        if dir_path.endswith('_segments'):
+                            # Check if this stream is currently recording
+                            if stream.ended_at is None:
+                                logger.warning(f"Skipping deletion of segment directory for active recording: {dir_path}")
+                                continue
+                            
+                            # Additional check: see if there's a corresponding stream that's still active
+                            active_stream = db.query(Stream).filter(
+                                Stream.streamer_id == stream.streamer_id,
+                                Stream.ended_at.is_(None),
+                                Stream.id != stream.id
+                            ).first()
+                            
+                            if active_stream:
+                                # Check if the segment directory name matches the active stream
+                                if base_name and base_name in os.path.basename(dir_path):
+                                    logger.warning(f"Skipping deletion of segment directory - may belong to active recording: {dir_path}")
+                                    continue
+                        
+                        try:
+                            shutil.rmtree(dir_path)
+                            logger.info(f"Deleted segment directory: {dir_path}")
+                        except Exception as e:
+                            logger.error(f"Failed to delete directory {dir_path}: {e}")
                 
                 # Delete metadata record from database
                 if metadata:
                     db.delete(metadata)
+                    logger.debug(f"Deleted metadata record for stream {stream.id}")
                 
-                # Update the stream record to remove the recording path
-                stream.recording_path = None
-                db.add(stream)
+                # Delete the stream record completely from database
+                # (Cleanup should remove the entire stream record, not just clear recording_path)
+                db.delete(stream)
                 
                 deleted_count += 1
-                logger.info(f"Deleted recording and metadata for stream {stream.id}")
+                file_count = len(files_to_delete)
+                dir_count = len(directories_to_check)
+                logger.info(f"Deleted stream {stream.id} with {file_count} files and {dir_count} directories")
                 
-                # Check if the directory is now empty, and if so, delete it
-                if stream.recording_path:
-                    directory = os.path.dirname(stream.recording_path)
-                    if directory and os.path.exists(directory):
-                        # Check if directory only contains empty subfolders
+                # Check if the parent directory is now empty, and if so, delete it
+                if recording_dir and os.path.exists(recording_dir):
+                    try:
                         remaining_files = []
-                        for root, dirs, files in os.walk(directory):
+                        for root, dirs, files in os.walk(recording_dir):
+                            # Ignore hidden directories like .media
+                            dirs[:] = [d for d in dirs if not d.startswith('.')]
                             remaining_files.extend([os.path.join(root, f) for f in files])
                         
+                        # Only delete if completely empty (ignoring system files like poster.jpg, season-poster.jpg in parent)
                         if not remaining_files:
-                            shutil.rmtree(directory)
-                            logger.info(f"Removed empty directory: {directory}")
+                            shutil.rmtree(recording_dir)
+                            logger.info(f"Removed empty directory: {recording_dir}")
+                    except Exception as e:
+                        logger.debug(f"Could not remove directory {recording_dir}: {e}")
                             
             except Exception as e:
-                logger.error(f"Error deleting stream {stream.id}: {e}")
+                logger.error(f"Error deleting stream {stream.id}: {e}", exc_info=True)
         
         # Commit changes to the database
         db.commit()
@@ -804,6 +905,82 @@ class CleanupService:
             unit_index += 1
             
         return f"{size:.2f} {units[unit_index]}"
+    
+    @staticmethod
+    async def cleanup_orphaned_files(recordings_root: str = "/recordings") -> Tuple[int, List[str]]:
+        """
+        Clean up orphaned files in the recordings directory:
+        - Broken symlinks (pointing to non-existent files)
+        - 0-byte NFO files (corrupt or incomplete)
+        - Empty segment directories
+        
+        Args:
+            recordings_root: Root directory for recordings
+            
+        Returns:
+            Tuple containing (number of cleaned files, list of cleaned file paths)
+        """
+        cleaned_count = 0
+        cleaned_paths = []
+        
+        try:
+            if not os.path.exists(recordings_root):
+                logger.warning(f"Recordings root does not exist: {recordings_root}")
+                return 0, []
+            
+            logger.info(f"🧹 Starting orphaned files cleanup in {recordings_root}")
+            
+            # Walk through all directories
+            for root, dirs, files in os.walk(recordings_root):
+                # Skip hidden directories
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                
+                # Check for broken symlinks and 0-byte files
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    
+                    try:
+                        # Check for broken symlinks
+                        if os.path.islink(file_path):
+                            if not os.path.exists(file_path):
+                                os.unlink(file_path)
+                                cleaned_paths.append(file_path)
+                                cleaned_count += 1
+                                logger.info(f"🧹 Removed broken symlink: {file_path}")
+                                continue
+                        
+                        # Check for 0-byte NFO files (excluding tvshow.nfo and season.nfo which can be small)
+                        if filename.endswith('.nfo') and filename not in ['tvshow.nfo', 'season.nfo']:
+                            if os.path.exists(file_path) and os.path.getsize(file_path) == 0:
+                                os.remove(file_path)
+                                cleaned_paths.append(file_path)
+                                cleaned_count += 1
+                                logger.info(f"🧹 Removed 0-byte NFO file: {file_path}")
+                                
+                    except Exception as e:
+                        logger.debug(f"Error processing file {file_path}: {e}")
+                
+                # Check for empty segment directories
+                for dirname in dirs[:]:  # Use slice copy to allow modification during iteration
+                    if dirname.endswith('_segments'):
+                        dir_path = os.path.join(root, dirname)
+                        try:
+                            if os.path.isdir(dir_path):
+                                # Check if directory is empty
+                                if not os.listdir(dir_path):
+                                    os.rmdir(dir_path)
+                                    cleaned_count += 1
+                                    logger.info(f"🧹 Removed empty segment directory: {dir_path}")
+                                    dirs.remove(dirname)  # Don't walk into it
+                        except Exception as e:
+                            logger.debug(f"Error processing directory {dir_path}: {e}")
+            
+            logger.info(f"🧹 Orphaned files cleanup completed: {cleaned_count} items cleaned")
+            return cleaned_count, cleaned_paths
+            
+        except Exception as e:
+            logger.error(f"Error during orphaned files cleanup: {e}", exc_info=True)
+            return cleaned_count, cleaned_paths
 
 
 # Global cleanup service instance
