@@ -344,13 +344,25 @@ class ProcessManager:
             # Stop current process gracefully
             if process_id in self.active_processes:
                 current_process = self.active_processes[process_id]
-                current_process.terminate()
                 
-                # Wait a bit for graceful termination
-                await asyncio.sleep(5)
-                
-                if current_process.returncode is None:
-                    current_process.kill()
+                try:
+                    # Check if process is still alive before trying to terminate
+                    if current_process.returncode is None:
+                        current_process.terminate()
+                        
+                        # Wait a bit for graceful termination
+                        await asyncio.sleep(5)
+                        
+                        # Check again and force kill if still running
+                        if current_process.returncode is None:
+                            current_process.kill()
+                    else:
+                        logger.debug(f"Process for stream {stream.id} already terminated (returncode: {current_process.returncode})")
+                except ProcessLookupError:
+                    # Process already terminated externally, this is expected
+                    logger.debug(f"Process for stream {stream.id} no longer exists (already terminated)")
+                except Exception as proc_error:
+                    logger.warning(f"Error terminating process for stream {stream.id}: {proc_error}")
                     
             # Prepare next segment
             segment_info['segment_count'] += 1
