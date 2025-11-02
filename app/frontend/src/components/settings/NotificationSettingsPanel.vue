@@ -565,29 +565,28 @@ const testWebSocketNotification = async () => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm, 10px);
-  min-height: 44px; /* Consistent cell height */
+  min-height: 44px; /* Consistent cell height for touch targets */
 }
 
 .streamer-name {
   line-height: 1.4;
-  /* Removed inline-block and vertical-align - flex handles alignment */
+  /* Removed inline-block, vertical-align - flex handles alignment */
 }
 
 .streamer-avatar {
-  width: 30px;
-  height: 30px;
-  min-width: 30px; /* Ensure consistent width */
+  width: 32px;
+  height: 32px;
+  min-width: 32px; /* Prevent shrinking - consistent with RecordingSettingsPanel */
   border-radius: 50%;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-shrink: 0;
 }
 
 .streamer-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .streamer-table tr:last-child td {
