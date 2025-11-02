@@ -52,7 +52,7 @@
     <div v-if="hasActiveTasks" class="active-tasks-section">
           <h4>Active Tasks</h4>
           <div class="task-list">
-      <div v-for="task in combinedActiveTasks" :key="task.id" class="task-item">
+      <div v-for="task in combinedActiveTasks" :key="task.id" class="task-item status-border status-border-primary">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -83,7 +83,7 @@
         <div v-if="recentTasks.length > 0" class="recent-tasks-section">
           <h4>Recent Tasks</h4>
           <div class="task-list">
-            <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item">
+            <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item status-border" :class="getStatusBorderClass(task.status)">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -281,6 +281,14 @@ const getStatusClass = (status: string) => {
     'retrying': 'status-retrying'
   }
   return classes[status] || 'status-unknown'
+}
+
+// Map status to border class
+const getStatusBorderClass = (status: string) => {
+  if (status === 'completed') return 'status-border-success'
+  if (status === 'failed') return 'status-border-error'
+  if (status === 'running' || status === 'retrying') return 'status-border-primary'
+  return 'status-border-secondary'
 }
 
 const formatTime = (timestamp?: string) => {
@@ -511,28 +519,16 @@ const formatTime = (timestamp?: string) => {
 .task-item {
   padding: 16px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: 4px solid transparent;
-  transition: all 0.3s ease;
+  transition: all var(--transition-base, 0.3s ease);
+  /* Border colors handled by .status-border-* classes */
 }
 
 .task-item:hover {
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.task-item.status-running {
-  border-left-color: #3b82f6;
-}
-
-.task-item.status-completed {
-  border-left-color: #28a745;
-}
-
-.task-item.status-failed {
-  border-left-color: #dc3545;
 }
 
 .task-header {
