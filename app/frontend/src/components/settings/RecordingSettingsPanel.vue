@@ -28,7 +28,7 @@
       <div class="tab-content">        <!-- Recording Tab -->
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-primary">
             <h4 class="section-title">📹 Basic Recording Settings</h4>
             
             <div class="form-group">
@@ -113,7 +113,7 @@
 
         <!-- Network Tab -->
         <div v-if="activeTab === 'network'" class="tab-panel">
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-info">
             <h4 class="section-title">🌐 Network & Proxy Settings</h4>
             <p class="section-description">
               Configure proxy settings for Streamlink to route traffic through different locations. 
@@ -187,7 +187,7 @@
           </div>
         </div>        <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-primary">
             <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
@@ -1324,9 +1324,10 @@ select.form-control-sm option {
 .settings-section {
   margin-bottom: var(--spacing-xxl, 2.5rem);
   padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: var(--border-radius, 8px);
-  border-left: 4px solid var(--primary-color, #42b883);
+  border: 1px solid var(--border-color, #2d2d35);
+  /* Use status-border-primary class from global styles instead */
 }
 
 .settings-section:last-child {
@@ -1345,17 +1346,19 @@ select.form-control-sm option {
 
 .section-description {
   color: var(--text-secondary, #adadb8);
-  margin-bottom: var(--spacing-lg, 1.5rem);  line-height: 1.6;
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  line-height: 1.6;
   font-size: 0.95rem;
 }
 
-/* Proxy settings specific styles */
+/* Proxy settings specific styles - removed duplicate border */
 .proxy-configuration {
   margin-top: var(--spacing-md, 1rem);
   padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: var(--border-radius, 8px);
-  border-left: 3px solid var(--info-color, #17a2b8);
+  border: 1px solid var(--border-color, #2d2d35);
+  /* Use status-border-info class from global styles instead */
 }
 
 .proxy-examples {
