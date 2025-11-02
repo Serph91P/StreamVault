@@ -58,7 +58,7 @@
           </div>
           <div class="modal-body">
             <p>Delete all streams for this streamer?</p>
-            <p class="warning">Active recordings will be skipped to avoid data loss.</p>
+            <p class="warning status-border status-border-warning">Active recordings will be skipped to avoid data loss.</p>
           </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="showConfirm = false">Cancel</button>
@@ -290,7 +290,7 @@ const deleteAll = async () => {
   padding: 12px;
   background: rgba(255, 165, 2, 0.1);
   border-radius: 6px;
-  border-left: 3px solid var(--warning-color);
+  /* Border color handled by .status-border-* classes */
 }
 
 .close-btn { 
