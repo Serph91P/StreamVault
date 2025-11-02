@@ -967,16 +967,44 @@ nav {
   }
 }
 
+// Reusable status border indicators (left accent)
+.status-border {
+  border-left: 3px solid transparent;
+  
+  &-primary {
+    border-left-color: v.$primary-color;
+  }
+  
+  &-success {
+    border-left-color: v.$success-color;
+  }
+  
+  &-warning {
+    border-left-color: v.$warning-color;
+  }
+  
+  &-danger,
+  &-error {
+    border-left-color: v.$danger-color;
+  }
+  
+  &-info {
+    border-left-color: v.$info-color;
+  }
+  
+  &-secondary {
+    border-left-color: v.$border-color;
+  }
+}
+
 // Notice boxes with Vue styling
 .error-message {
-  padding: v.$spacing-md;
   background: rgba(v.$danger-color, 0.1);
-  border-left: 4px solid v.$danger-color;
-  color: color.adjust(v.$danger-color, $lightness: 10%);
-  margin-bottom: v.$spacing-lg;
-  border-radius: v.$border-radius-sm;
-  box-shadow: 0 1px 2px rgba(v.$danger-color, 0.1);
-  animation: fadeIn 0.3s v.$vue-ease-out;
+  border: 1px solid v.$danger-color;
+  border-radius: v.$border-radius;
+  padding: v.$spacing-md;
+  margin: v.$spacing-md 0;
+  color: v.$danger-color;
 }
 
 .admin-notice {
