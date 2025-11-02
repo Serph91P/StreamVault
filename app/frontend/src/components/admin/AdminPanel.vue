@@ -945,11 +945,7 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.btn-primary { background: #3498db; color: white; }
-.btn-secondary { background: #95a5a6; color: white; }
-.btn-success { background: #27ae60; color: white; }
-.btn-warning { background: #f39c12; color: white; }
-.btn-info { background: #17a2b8; color: white; }
+/* Button colors handled by global .btn-* classes in _components.scss */
 
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -959,7 +955,7 @@ onMounted(() => {
 /* Health Status */
 .health-section {
   background: var(--color-background-soft);
-  border-radius: 8px;
+  border-radius: var(--border-radius, 8px);
   padding: 20px;
   margin-bottom: 30px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -968,7 +964,7 @@ onMounted(() => {
 .health-status {
   margin-top: 20px;
   padding: 15px;
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
 }
 
 .health-status.healthy { 
