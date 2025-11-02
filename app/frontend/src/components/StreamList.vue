@@ -1106,11 +1106,16 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   flex-direction: column;
   gap: 12px;
   
-  /* Desktop: title and badges side-by-side */
+  /* Desktop: Better layout with more space for title */
   @media (min-width: 768px) {
     flex-direction: row;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  
+  @media (min-width: 1024px) {
+    gap: 32px;
   }
 }
 
@@ -1123,6 +1128,23 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   word-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
+  flex: 1;
+  min-width: 0; /* Allow flex shrinking */
+  
+  /* Larger on tablet/desktop for better readability */
+  @media (min-width: 768px) {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  @media (min-width: 1024px) {
+    font-size: 1.75rem;
+    max-width: 70%; /* Give title 70% of space on desktop */
+  }
+  
+  @media (min-width: 1440px) {
+    font-size: 2rem;
+  }
 }
 
 .stream-meta-badges {
@@ -1131,6 +1153,12 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   flex-wrap: wrap;
   flex-shrink: 0;
   align-items: center;
+  
+  /* Desktop: Align to top and right */
+  @media (min-width: 768px) {
+    align-self: flex-start;
+    margin-top: 2px; /* Slight visual alignment with title */
+  }
 }
 
 .status-badge {
