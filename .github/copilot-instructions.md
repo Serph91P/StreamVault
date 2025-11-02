@@ -193,6 +193,253 @@ chore: update Docker base image
 - Use fixtures for database setup
 - Mock external APIs (Twitch, etc.)
 
+## Frontend Design System & UI Guidelines
+
+### Mobile-First Approach
+
+**IMPORTANT**: StreamVault is a PWA (Progressive Web App). Always design and develop mobile-first:
+
+1. **Start with mobile breakpoints** (320px-640px)
+2. **Progressively enhance** for tablets (768px-1023px) and desktop (1024px+)
+3. **Touch-friendly targets**: Minimum 44x44px for interactive elements
+4. **Thumb-reachable navigation**: Bottom navigation for primary mobile actions
+5. **Avoid horizontal scroll**: Use `overflow-x: hidden` on container elements
+
+### Reusable Component Styles
+
+#### Buttons (`.btn` in `_components.scss`)
+
+**NEVER** override button styles in component-specific `<style>` blocks. Use global classes:
+
+```html
+<!-- ✅ CORRECT: Use global classes -->
+<button class="btn btn-primary">Save</button>
+<button class="btn btn-danger">Delete</button>
+<button class="btn btn-success">Start</button>
+<button class="btn btn-secondary">Cancel</button>
+
+<!-- ❌ WRONG: Don't add inline button styles -->
+<style>
+.my-button {
+  border-radius: 8px; /* Already in .btn */
+  padding: 8px 16px; /* Already in .btn */
+}
+</style>
+```
+
+**Available button variants:**
+- `.btn-primary` - Primary actions (Vue green #42b883)
+- `.btn-secondary` - Secondary actions (accent purple)
+- `.btn-success` - Positive actions (green #2ed573)
+- `.btn-danger` / `.btn-delete` - Destructive actions (red #ff4757)
+- `.btn-warning` - Warning actions (orange #ffa502)
+- `.btn-info` - Informational actions (blue #70a1ff)
+
+All buttons have consistent:
+- `border-radius: 8px` (from `$border-radius` variable)
+- Hover effects (translateY, box-shadow)
+- Disabled states (opacity: 0.7)
+- Ripple effect via mixin
+
+#### Status Borders (`.status-border` in `_components.scss`)
+
+Use for left-accent indicators on cards, notifications, settings sections:
+
+```html
+<!-- ✅ CORRECT: Use global status-border classes -->
+<div class="notification status-border status-border-success">Success!</div>
+<div class="settings-section status-border status-border-primary">...</div>
+<div class="alert status-border status-border-error">Error occurred</div>
+
+<!-- ❌ WRONG: Don't add inline border-left styles -->
+<style>
+.my-card {
+  border-left: 3px solid #42b883; /* Use .status-border-primary instead */
+}
+</style>
+```
+
+**Available status border variants:**
+- `.status-border-primary` - Primary accent (Vue green)
+- `.status-border-success` - Success states (green)
+- `.status-border-warning` - Warning states (orange)
+- `.status-border-danger` / `.status-border-error` - Error states (red)
+- `.status-border-info` - Information (blue)
+- `.status-border-secondary` - Neutral (gray)
+
+#### Modals & Overlays
+
+**Consistent modal behavior:**
+
+```html
+<!-- ✅ CORRECT: Backdrop click to close -->
+<div class="modal-overlay" @click.self="closeModal">
+  <div class="modal">
+    <!-- Modal content -->
+  </div>
+</div>
+
+<style>
+.modal-overlay {
+  position: fixed; /* Not absolute - stays in viewport */
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px); /* Visual separation */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  overflow-y: auto; /* Allow scroll if modal is tall */
+}
+
+.modal {
+  margin: auto; /* Centers modal even when scrolled */
+  animation: slideUp 0.3s ease-out; /* Smooth appearance */
+}
+</style>
+```
+
+**Modal rules:**
+1. `position: fixed` - not absolute (stays in viewport when scrolled)
+2. `@click.self` on overlay - close on backdrop click
+3. `backdrop-filter: blur(4px)` - visual separation from background
+4. `overflow-y: auto` on overlay - allow scroll for tall modals
+5. `margin: auto` on modal - centers regardless of scroll position
+
+#### Tables → Mobile Cards
+
+**NEVER** use wide tables without mobile-responsive card fallback:
+
+```scss
+/* ✅ CORRECT: Responsive table pattern */
+.data-table {
+  @media (max-width: 480px) {
+    table, thead, tbody, th, td, tr {
+      display: block;
+    }
+    
+    thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+    }
+    
+    tr {
+      margin-bottom: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+    
+    td {
+      position: relative;
+      padding-left: 110px; /* Space for data labels */
+      
+      &:before {
+        content: attr(data-label);
+        position: absolute;
+        left: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+    }
+  }
+}
+```
+
+```html
+<!-- ✅ CORRECT: Add data-label for mobile cards -->
+<td data-label="Streamer">{{ streamer.name }}</td>
+<td data-label="Status">{{ streamer.status }}</td>
+```
+
+#### Grid Layouts - Desktop Optimization
+
+**Use responsive grid with proper breakpoints:**
+
+```scss
+/* ✅ CORRECT: Progressive enhancement for desktop */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+  
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+  }
+  
+  @media (min-width: 1440px) {
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 28px;
+  }
+}
+
+/* ❌ WRONG: Fixed 2-column on all screens */
+.bad-grid {
+  grid-template-columns: repeat(2, 1fr); /* Wastes desktop space */
+}
+```
+
+### SCSS Variables & Mixins
+
+**ALWAYS use variables from `_variables.scss`:**
+
+```scss
+/* ✅ CORRECT: Use variables */
+.component {
+  background: v.$background-card;
+  color: v.$text-primary;
+  border-radius: v.$border-radius;
+  padding: v.$spacing-md v.$spacing-lg;
+  box-shadow: v.$shadow-md;
+}
+
+/* ❌ WRONG: Hard-coded values */
+.bad-component {
+  background: #1f1f23; /* Use v.$background-card */
+  color: #f1f1f3; /* Use v.$text-primary */
+  border-radius: 8px; /* Use v.$border-radius */
+  padding: 16px 24px; /* Use v.$spacing-md v.$spacing-lg */
+}
+```
+
+**Available design tokens:**
+- Colors: `$primary-color`, `$success-color`, `$danger-color`, `$warning-color`, `$info-color`
+- Backgrounds: `$background-dark`, `$background-darker`, `$background-card`
+- Text: `$text-primary`, `$text-secondary`
+- Spacing: `$spacing-xs`, `$spacing-sm`, `$spacing-md`, `$spacing-lg`, `$spacing-xl`, `$spacing-xxl`
+- Shadows: `$shadow-sm`, `$shadow-md`, `$shadow-lg`
+- Border radius: `$border-radius-sm`, `$border-radius`, `$border-radius-lg`, `$border-radius-xl`
+- Transitions: `$transition-fast`, `$transition-base`, `$transition-slow`
+- Vue animations: `$vue-ease`, `$vue-ease-out`, `$vue-ease-in`
+
+### Consistency Rules
+
+1. **No inline styles in `<style scoped>` that duplicate global styles**
+2. **Use existing utility classes before creating new ones**
+3. **Check `_components.scss`, `_layout.scss`, `_variables.scss` first**
+4. **Mobile breakpoint: 480px (cards), 768px (tablet), 1024px (desktop)**
+5. **All interactive elements: min-height 44px on mobile**
+6. **Use `@media (min-width: X)` for mobile-first progressive enhancement**
+
+### Component Development Checklist
+
+Before creating a new component, ask:
+
+- [ ] Can I use existing `.btn` classes instead of custom button styles?
+- [ ] Can I use `.status-border-*` for accent indicators?
+- [ ] Does this table have mobile card layout (`data-label` attributes)?
+- [ ] Are modals using `position: fixed` with backdrop blur?
+- [ ] Is the grid responsive with proper `minmax()` breakpoints?
+- [ ] Am I using SCSS variables instead of hard-coded colors/spacing?
+- [ ] Did I test on mobile viewport (320px-640px)?
+- [ ] Are touch targets at least 44x44px?
+
 ---
 
 **Remember**: The commit type determines the version bump! Choose wisely:
