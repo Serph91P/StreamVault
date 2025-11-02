@@ -19,7 +19,7 @@
         </button>
       </div>
 
-      <div v-if="healthStatus" class="health-status" :class="healthStatus.overall_status">
+      <div v-if="healthStatus" class="health-status status-border" :class="[healthStatus.overall_status, getHealthBorderClass(healthStatus.overall_status)]">
         <div class="status-indicator">
           <i :class="getHealthIcon(healthStatus.overall_status)"></i>
           <span class="status-text">{{ healthStatus.overall_status.toUpperCase() }}</span>
@@ -42,8 +42,8 @@
           <div 
             v-for="(check, name) in healthStatus.checks" 
             :key="name"
-            class="health-check"
-            :class="check.status"
+            class="health-check status-border"
+            :class="[check.status, getHealthBorderClass(check.status)]"
           >
             <i :class="getHealthIcon(check.status)"></i>
             <span class="check-name">{{ formatCheckName(String(name)) }}</span>
@@ -64,7 +64,7 @@
       </div>
 
       <div v-if="systemInfo" class="system-info-grid">
-        <div class="info-card">
+        <div class="info-card status-border status-border-info">
           <h3>System</h3>
           <ul>
             <li><strong>Platform:</strong> {{ systemInfo.system.platform }}</li>
@@ -73,7 +73,7 @@
           </ul>
         </div>
 
-        <div class="info-card">
+        <div class="info-card status-border status-border-info">
           <h3>Resources</h3>
           <ul>
             <li><strong>CPU Cores:</strong> {{ systemInfo.resources.cpu_count }}</li>
@@ -82,7 +82,7 @@
           </ul>
         </div>
 
-        <div class="info-card">
+        <div class="info-card status-border status-border-info">
           <h3>Storage</h3>
           <div v-if="systemInfo.storage.recording_drive">
             <ul>
@@ -97,7 +97,7 @@
           </div>
         </div>
 
-        <div class="info-card">
+        <div class="info-card status-border status-border-info">
           <h3>Configuration</h3>
           <ul>
             <li><strong>Recording Dir:</strong> {{ systemInfo.settings.recording_directory }}</li>
@@ -228,8 +228,11 @@
             <div 
               v-for="result in filteredResults" 
               :key="result.test_name"
-              class="test-result-item"
-              :class="result.success ? 'passed' : 'failed'"
+              class="test-result-item status-border"
+              :class="[
+                result.success ? 'passed' : 'failed',
+                result.success ? 'status-border-success' : 'status-border-error'
+              ]"
             >
               <div class="result-header">
                 <i :class="result.success ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
@@ -283,7 +286,7 @@
         </button>
       </div>
 
-      <div v-if="cleanupResult" class="cleanup-result">
+      <div v-if="cleanupResult" class="cleanup-result status-border status-border-success">
         <h4>Cleanup Results</h4>
         <ul>
           <li>Files removed: {{ cleanupResult.files_removed }}</li>
@@ -489,7 +492,7 @@
             <div v-if="recordingsDirectoryData.base_recordings_dir_exists">
               <div class="debug-section">
                 <h4>Streamer Directories</h4>
-                <div v-for="streamer in recordingsDirectoryData.directories" :key="streamer.name" class="streamer-section">
+                <div v-for="streamer in recordingsDirectoryData.directories" :key="streamer.name" class="streamer-section status-border status-border-primary">
                   <h5>{{ streamer.name }} ({{ streamer.total_files }} files, {{ streamer.total_size_mb }}MB)</h5>
                   <div v-for="season in streamer.subdirectories" :key="season.name" class="season-section">
                     <h6>{{ season.name }} ({{ season.file_count }} files, {{ season.total_size_mb }}MB)</h6>
@@ -854,6 +857,15 @@ const getHealthIcon = (status: string) => {
   }
 }
 
+const getHealthBorderClass = (status: string) => {
+  switch (status) {
+    case 'healthy': return 'status-border-success'
+    case 'warning': return 'status-border-warning'
+    case 'error': return 'status-border-error'
+    default: return 'status-border-secondary'
+  }
+}
+
 const formatTime = (timestamp: string) => {
   return new Date(timestamp).toLocaleTimeString()
 }
@@ -961,17 +973,17 @@ onMounted(() => {
 
 .health-status.healthy { 
   background: rgba(39, 174, 96, 0.2); 
-  border-left: 4px solid #27ae60; 
+  /* Border color handled by .status-border-* classes */
   color: var(--color-text);
 }
 .health-status.warning { 
   background: rgba(243, 156, 18, 0.2); 
-  border-left: 4px solid #f39c12; 
+  /* Border color handled by .status-border-* classes */
   color: var(--color-text);
 }
 .health-status.unhealthy { 
   background: rgba(231, 76, 60, 0.2); 
-  border-left: 4px solid #e74c3c; 
+  /* Border color handled by .status-border-* classes */
   color: var(--color-text);
 }
 
@@ -1037,17 +1049,17 @@ onMounted(() => {
 
 .health-check.healthy { 
   background: rgba(39, 174, 96, 0.15); 
-  border-left: 3px solid #27ae60;
+  /* Border color handled by .status-border-* classes */
   padding-left: 10px;
 }
 .health-check.warning { 
   background: rgba(243, 156, 18, 0.15); 
-  border-left: 3px solid #f39c12;
+  /* Border color handled by .status-border-* classes */
   padding-left: 10px;
 }
 .health-check.error { 
   background: rgba(231, 76, 60, 0.15); 
-  border-left: 3px solid #e74c3c;
+  /* Border color handled by .status-border-* classes */
   padding-left: 10px;
 }
 
@@ -1070,7 +1082,7 @@ onMounted(() => {
   background: var(--color-background-mute);
   padding: 15px;
   border-radius: 5px;
-  border-left: 4px solid #3498db;
+  /* Border color handled by .status-border-* classes */
 }
 
 .info-card h3 {
@@ -1243,11 +1255,11 @@ onMounted(() => {
 }
 
 .test-result-item.passed { 
-  border-left: 4px solid #27ae60; 
+  /* Border color handled by .status-border-* classes */
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .test-result-item.failed { 
-  border-left: 4px solid #e74c3c;
+  /* Border color handled by .status-border-* classes */
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
@@ -1355,7 +1367,7 @@ onMounted(() => {
   background: rgba(46, 204, 113, 0.15);
   padding: 15px;
   border-radius: 5px;
-  border-left: 4px solid #2ecc71;
+  /* Border color handled by .status-border-* classes */
   color: var(--color-text);
 }
 
@@ -1688,7 +1700,7 @@ onMounted(() => {
   padding: 15px;
   background: var(--color-background-soft);
   border-radius: 8px;
-  border-left: 4px solid var(--color-text);
+  /* Border color handled by .status-border-* classes */
 }
 
 .streamer-section h5 {
