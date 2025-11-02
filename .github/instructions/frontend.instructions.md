@@ -19,9 +19,68 @@ applyTo: "app/frontend/**/*.vue,app/frontend/**/*.ts,app/frontend/**/*.scss"
 - `.btn-danger` - Destructive actions
 - `.btn-secondary` - Secondary actions
 
-### Status Indicators
-Use `.status-border-*` classes for left-accent borders:
-- `.status-border-primary`, `.status-border-success`, `.status-border-error`
+### Status Indicators & Left-Accent Borders
+
+**ALWAYS use `.status-border-*` utility classes** for left-accent borders (3px solid):
+
+#### Available Classes (from `_components.scss`)
+- `.status-border-primary` - Blue accent (default/info)
+- `.status-border-success` - Green accent (healthy/passed)
+- `.status-border-warning` - Orange accent (warnings)
+- `.status-border-danger` - Red accent (critical)
+- `.status-border-error` - Red accent (errors/failed)
+- `.status-border-info` - Blue accent (information)
+- `.status-border-secondary` - Gray accent (neutral/unknown)
+
+#### Usage Pattern
+```vue
+<!-- Static border -->
+<div class="card status-border status-border-success">
+  Content
+</div>
+
+<!-- Dynamic border with helper function -->
+<div 
+  class="item status-border"
+  :class="getBorderClass(status)"
+>
+  Content
+</div>
+
+<script setup lang="ts">
+const getBorderClass = (status: string) => {
+  switch (status) {
+    case 'healthy': return 'status-border-success'
+    case 'warning': return 'status-border-warning'
+    case 'error': return 'status-border-error'
+    default: return 'status-border-secondary'
+  }
+}
+</script>
+```
+
+#### Migration from Inline Styles
+**NEVER use inline `border-left` styles** - migrate to utility classes:
+
+❌ **Bad:**
+```scss
+.element {
+  border-left: 3px solid #42b883;
+}
+```
+
+✅ **Good:**
+```vue
+<div class="element status-border status-border-primary">
+
+<style scoped>
+.element {
+  /* Border color handled by .status-border-* classes */
+  padding: 1rem;
+  background: var(--background-card);
+}
+</style>
+```
 
 ### Responsive Grids
 ```scss
