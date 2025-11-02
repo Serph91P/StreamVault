@@ -106,19 +106,133 @@ All tables must transform to cards on mobile (`@media (max-width: 480px)`):
 - Include `@click.self="close"` on overlay for backdrop close
 - Add smooth animations (fadeIn, slideUp)
 
-## SCSS Variables
+## SCSS Variables & Design Tokens
 
-**NEVER hard-code colors/spacing** - use variables from `_variables.scss`:
+**CRITICAL: NEVER hard-code colors, spacing, or border-radius!**
+
+Always use SCSS variables from `_variables.scss` or CSS custom properties:
+
+### Color Variables
+```scss
+// SCSS variables
+$primary-color: #42b883;
+$danger-color: #ff4757;
+$success-color: #2ed573;
+$warning-color: #ffa502;
+$info-color: #70a1ff;
+$secondary-color: #6d6d6d;
+
+$background-dark: #121214;
+$background-darker: #18181b;
+$background-card: #1f1f23;
+$text-primary: #f1f1f3;
+$text-secondary: #b1b1b9;
+$border-color: #2d2d35;
+
+// CSS custom properties (runtime-accessible)
+var(--primary-color)
+var(--danger-color)
+var(--success-color)
+var(--warning-color)
+var(--info-color)
+var(--background-card)
+var(--text-primary)
+var(--text-secondary)
+```
+
+### Border-Radius Variables
+```scss
+$border-radius-sm: 4px;   // Small elements (badges, pills)
+$border-radius: 8px;      // DEFAULT - most components
+$border-radius-lg: 12px;  // Cards, modals
+$border-radius-xl: 16px;  // Large containers
+$border-radius-pill: 9999px; // Fully rounded
+```
+
+### Spacing Variables
+```scss
+$spacing-xs: 0.25rem;  // 4px
+$spacing-sm: 0.5rem;   // 8px
+$spacing-md: 1rem;     // 16px - DEFAULT
+$spacing-lg: 1.5rem;   // 24px
+$spacing-xl: 2rem;     // 32px
+$spacing-xxl: 3rem;    // 48px
+```
+
+### Usage Pattern
+
+❌ **Bad - Hard-coded values:**
+```scss
+.card {
+  background: #1f1f23;
+  color: #f1f1f3;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #2d2d35;
+}
+
+.badge {
+  background: #22c55e;
+  color: #ffffff;
+  border-radius: 4px;
+}
+```
+
+✅ **Good - Design tokens:**
 ```scss
 @use 'styles/variables' as v;
 
-.component {
+.card {
   background: v.$background-card;
   color: v.$text-primary;
-  padding: v.$spacing-md v.$spacing-lg;
+  padding: v.$spacing-md;
   border-radius: v.$border-radius;
+  border: 1px solid v.$border-color;
+}
+
+.badge {
+  background: v.$success-color;
+  color: v.$text-primary;
+  border-radius: v.$border-radius-sm;
 }
 ```
+
+✅ **Also Good - CSS custom properties (for dynamic values):**
+```scss
+.card {
+  background: var(--background-card);
+  color: var(--text-primary);
+  padding: var(--spacing-md, 1rem);
+  border-radius: var(--border-radius, 8px);
+}
+```
+
+### Common Mappings
+
+When refactoring hard-coded values:
+
+**Colors:**
+- `#42b883`, `#2ed573`, `#22c55e`, `#28a745` → `$success-color` / `var(--success-color)`
+- `#ff4757`, `#ef4444`, `#dc2626`, `#dc3545` → `#danger-color` / `var(--danger-color)`
+- `#ffa502`, `#f59e0b`, `#eab308`, `#ffc107` → `$warning-color` / `var(--warning-color)`
+- `#70a1ff`, `#3b82f6`, `#2563eb`, `#3498db` → `$info-color` / `var(--info-color)` or `$primary-color`
+- `#1f1f23`, `#18181b` → `$background-card` / `$background-darker`
+- `#ffffff`, `#f1f1f3` → `$text-primary`
+- `#aaa`, `#b1b1b9`, `#ccc`, `#6b7280` → `$text-secondary`
+
+**Border-Radius:**
+- `2px`, `3px`, `4px` → `$border-radius-sm` (4px)
+- `5px`, `6px`, `8px` → `$border-radius` (8px) - **DEFAULT**
+- `10px`, `12px` → `$border-radius-lg` (12px)
+- `15px`, `16px`, `20px` → `$border-radius-xl` (16px)
+- `25px`, `9999px`, `50%` → `$border-radius-pill` (9999px)
+
+**Spacing (for padding/margin):**
+- `4px` → `$spacing-xs` (0.25rem)
+- `8px` → `$spacing-sm` (0.5rem)
+- `12px`, `16px` → `$spacing-md` (1rem) - **DEFAULT**
+- `20px`, `24px` → `$spacing-lg` (1.5rem)
+- `32px` → `$spacing-xl` (2rem)
 
 ## Touch Targets
 
