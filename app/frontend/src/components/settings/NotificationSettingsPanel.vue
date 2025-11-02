@@ -565,12 +565,12 @@ const testWebSocketNotification = async () => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm, 10px);
+  min-height: 44px; /* Consistent cell height */
 }
 
 .streamer-name {
-  line-height: 1.2;
-  display: inline-block;
-  vertical-align: middle;
+  line-height: 1.4;
+  /* Removed inline-block and vertical-align - flex handles alignment */
 }
 
 .streamer-avatar {
