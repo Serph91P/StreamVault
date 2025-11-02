@@ -178,13 +178,18 @@ const fetchCategories = async () => {
     if (data.categories && Array.isArray(data.categories)) {
       categories.value = data.categories;
       
-      // Preload category images for all categories
-      const categoryNames = data.categories
+      // Don't preload all images immediately - let them lazy load with intersection observer
+      // Only preload visible categories (first ~20)
+      const visibleCategoryNames = data.categories
+        .slice(0, 20)
         .map((cat: any) => cat.name)
         .filter((name: string | null): name is string => Boolean(name));
       
-      if (categoryNames.length > 0) {
-        preloadCategoryImages(categoryNames);
+      if (visibleCategoryNames.length > 0) {
+        // Use setTimeout to defer image loading until after render
+        setTimeout(() => {
+          preloadCategoryImages(visibleCategoryNames);
+        }, 100);
       }
     } else if (Array.isArray(data)) {
       // Direct array response
@@ -273,12 +278,7 @@ const handleImageError = (event: Event) => {
 // Initialize component
 onMounted(() => {
   fetchCategories();
-}); // Debug-Output
-watch(categories, (newCategories) => {
-  if (newCategories.length > 0) {
-    
-  }
-}, { immediate: true, deep: true });
+});
 </script>
 
 <style scoped>
