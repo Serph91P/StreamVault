@@ -4,7 +4,7 @@
       {{ error }}
       
       <!-- Callback URL guidance for redirect_mismatch error -->
-      <div v-if="error.includes('redirect_mismatch')" class="callback-url-hint">
+      <div v-if="error.includes('redirect_mismatch')" class="callback-url-hint status-border status-border-warning">
         <p><strong>Important:</strong> The Redirect URI in your Twitch Developer Dashboard must match the callback URL of your StreamVault installation.</p>
         <p v-if="callbackUrl" class="callback-url">
           Configure this URL in your Twitch Developer Dashboard:<br>
@@ -20,7 +20,7 @@
     
     <div v-if="!isAuthenticated && !loading" class="auth-section">
       <!-- General guidance about callback URL -->
-      <div class="setup-hint">
+      <div class="setup-hint status-border status-border-primary">
         <p>Before connecting to Twitch, make sure the callback URL is correctly configured in your Twitch Developer Dashboard.</p>
         <p v-if="callbackUrl" class="callback-url">
           <strong>Callback URL:</strong> <code>{{ callbackUrl }}</code>
@@ -406,7 +406,7 @@ onMounted(async () => {
   background-color: var(--background-darker, #18181b);
   padding: var(--spacing-md, 1rem);
   border-radius: var(--border-radius, 8px);
-  border-left: 3px solid var(--primary-color, #42b883);
+  /* Border color handled by .status-border-* classes */
   width: 100%;
   max-width: 800px;
   margin-bottom: var(--spacing-md, 1rem);
@@ -585,7 +585,7 @@ code {
   padding: var(--spacing-md, 1rem);
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
-  border-left: 3px solid #ff9800;
+  /* Border color handled by .status-border-* classes */
 }
 
 /* Import Results */
