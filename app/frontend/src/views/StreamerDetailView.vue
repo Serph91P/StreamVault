@@ -142,47 +142,7 @@ const deleteAll = async () => {
   align-items: center;
 }
 
-.header-actions .btn {
-  font-weight: 600;
-  border: 2px solid transparent;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.header-actions .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.header-actions .btn-success {
-  background: #22c55e;
-  color: white;
-  border-color: #16a34a;
-}
-
-.header-actions .btn-success:hover:not(:disabled) {
-  background: #16a34a;
-  border-color: #15803d;
-}
-
-.btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--border-radius);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-decoration: none;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Use global button styles from _components.scss - no overrides needed */
 
 .back-button {
   display: inline-flex;
@@ -229,32 +189,124 @@ const deleteAll = async () => {
   margin-top: 0;
 }
 
-/* Modal styles */
+/* Modal styles - improved positioning and backdrop */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 20px;
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .modal {
   background: var(--background-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   max-width: 500px;
-  width: 90%;
+  width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: auto;
 }
-.modal-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
-.modal-actions { padding: 16px; display: flex; justify-content: center; align-items: center; gap: 12px; border-top: 1px solid var(--border-color); position: sticky; bottom: 0; background: var(--background-card); }
-.modal-body { padding: 16px; overflow: auto; }
-.warning { color: var(--danger-color); }
-.close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header { 
+  padding: 20px; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-darker);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.modal-actions { 
+  padding: 20px; 
+  display: flex; 
+  justify-content: flex-end; 
+  align-items: center; 
+  gap: 12px; 
+  border-top: 1px solid var(--border-color); 
+  background: var(--background-card); 
+}
+
+.modal-body { 
+  padding: 24px 20px; 
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-body p {
+  margin: 0 0 12px 0;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+.warning { 
+  color: var(--warning-color);
+  font-weight: 500;
+  padding: 12px;
+  background: rgba(255, 165, 2, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid var(--warning-color);
+}
+
+.close-btn { 
+  background: none; 
+  border: none; 
+  color: var(--text-secondary); 
+  font-size: 1.5rem; 
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
 
 @media (max-width: 768px) {
   .streamer-detail-view {
