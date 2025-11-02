@@ -46,8 +46,20 @@
           </div>
         </div>
         <div class="streamer-content">
-          <p><strong>Title:</strong> {{ streamer.current_title || streamer.last_title || '-' }}</p>
-          <p><strong>Category:</strong> {{ streamer.current_category || streamer.last_category || '-' }}</p>
+          <p v-if="streamer.is_live">
+            <strong>Title:</strong> {{ streamer.current_title || streamer.last_title || '-' }}
+          </p>
+          <p v-else>
+            <strong>Last Title:</strong> {{ streamer.last_title || '-' }}
+          </p>
+          
+          <p v-if="streamer.is_live">
+            <strong>Category:</strong> {{ streamer.current_category || streamer.last_category || '-' }}
+          </p>
+          <p v-else>
+            <strong>Last Category:</strong> {{ streamer.last_category || '-' }}
+          </p>
+          
           <p><strong>Language:</strong> {{ streamer.language || '-' }}</p>
           <p><strong>Last Updated:</strong> {{ formatDate(streamer.last_seen || undefined) }}</p>
         </div>
