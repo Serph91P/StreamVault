@@ -163,6 +163,16 @@ const combinedActiveTasks = computed(() => {
     // If recording status indicates completion (and we don't have explicit ended_at), treat as not active
     if (rec.status === 'completed' || rec.status === 'failed') continue
 
+    // Filter out stale/zombie recordings older than 24 hours
+    if (rec.started_at) {
+      const recordingAge = Date.now() - new Date(rec.started_at).getTime()
+      const maxAge = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+      if (recordingAge > maxAge) {
+        console.debug(`Filtering out stale recording ${rec.id} (age: ${Math.round(recordingAge / 3600000)}h)`)
+        continue
+      }
+    }
+
 
     // Avoid duplicates if queue already provides a recording task for this recording
     const existsById = map.has(queueId) || map.has(`recording-${rec.id}`)
