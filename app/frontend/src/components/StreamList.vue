@@ -1039,8 +1039,23 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .stream-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
+  
+  /* Responsive grid - better desktop utilization */
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+  
+  @media (min-width: 1440px) {
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 24px;
+  }
+  
+  @media (min-width: 1920px) {
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 28px;
+  }
 }
 
 .stream-card {
@@ -1080,23 +1095,31 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .stream-header {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.5);
+  margin-bottom: 16px;
 }
 
 .title-and-badges {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 15px;
+  flex-direction: column;
+  gap: 12px;
+  
+  /* Desktop: title and badges side-by-side */
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
 .stream-title {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   color: var(--text-primary);
   font-weight: 600;
-  line-height: 1.3;
-  flex: 1;
+  line-height: 1.4;
   word-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
@@ -1104,9 +1127,10 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .stream-meta-badges {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .status-badge {
