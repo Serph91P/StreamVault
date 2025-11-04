@@ -205,12 +205,169 @@ This repository uses path-specific instructions for detailed guidelines:
 - **Migrations**: See `.github/instructions/migrations.instructions.md` for database changes
 - **Docker**: See `.github/instructions/docker.instructions.md` for containerization
 
+## Security Guidelines - CRITICAL
+
+### ⚠️ MANDATORY SECURITY REQUIREMENTS
+
+**ALWAYS** apply these security checks when working with file paths, user input, or external data:
+
+#### 🔒 Path Traversal Prevention (CRITICAL)
+All file path operations MUST be validated against path traversal attacks:
+
+```python
+import os
+from app.config.settings import get_settings
+
+# ALWAYS validate user-provided paths
+def validate_path_security(user_path: str, operation_type: str = "access") -> str:
+    """
+    SECURITY: Validate path against traversal attacks
+    Returns normalized, validated path or raises exception
+    """
+    settings = get_settings()
+    safe_base = os.path.realpath(settings.RECORDING_DIRECTORY)
+    
+    try:
+        # Normalize and resolve the path
+        normalized_path = os.path.realpath(os.path.abspath(user_path))
+    except (OSError, ValueError) as e:
+        logger.error(f"🚨 SECURITY: Invalid path provided: {user_path} - {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid path: {user_path}")
+    
+    # CRITICAL: Ensure path is within safe directory
+    if not normalized_path.startswith(safe_base + os.sep) and normalized_path != safe_base:
+        logger.error(f"🚨 SECURITY: Path traversal blocked: {user_path} -> {normalized_path}")
+        raise HTTPException(status_code=403, detail="Access denied: Path outside allowed directory")
+    
+    # Verify path exists for operations that require it
+    if operation_type in ["read", "write", "delete"] and not os.path.exists(normalized_path):
+        raise HTTPException(status_code=404, detail=f"Path not found: {user_path}")
+    
+    return normalized_path
+```
+
+#### 🛡️ NEVER DO - Security Anti-Patterns
+```python
+# ❌ NEVER: Direct path operations with user input
+os.walk(user_provided_path)                    # Path traversal vulnerability
+os.path.join(base, user_input)                # Can be bypassed with ../
+open(user_filename, 'w')                      # Arbitrary file access
+shutil.rmtree(user_directory)                 # Directory traversal risk
+
+# ❌ NEVER: Unsanitized SQL queries
+cursor.execute(f"SELECT * FROM {user_table}")  # SQL injection
+query = "WHERE name = " + user_input           # SQL injection
+
+# ❌ NEVER: Eval or exec with user data  
+eval(user_code)                                # Code injection
+exec(user_script)                              # Remote code execution
+```
+
+#### ✅ ALWAYS DO - Security Best Practices
+```python
+# ✅ ALWAYS: Validate paths before operations
+safe_path = validate_path_security(user_path, "read")
+with open(safe_path, 'r') as f:
+    content = f.read()
+
+# ✅ ALWAYS: Use parameterized queries
+session.query(Stream).filter(Stream.name == user_input)
+cursor.execute("SELECT * FROM streams WHERE name = %s", (user_input,))
+
+# ✅ ALWAYS: Sanitize user input
+import html
+safe_html = html.escape(user_input)
+safe_filename = re.sub(r'[^\w\-_\.]', '_', user_filename)
+
+# ✅ ALWAYS: Validate file extensions
+ALLOWED_EXTENSIONS = {'.mp4', '.mkv', '.ts', '.m3u8'}
+if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+    raise ValueError("Invalid file type")
+```
+
+### 🔐 Input Validation Requirements
+
+#### API Endpoints - MANDATORY Validation
+```python
+# For file paths in API parameters
+@router.post("/admin/cleanup")
+async def cleanup_files(recordings_root: str = Query(...)):
+    # SECURITY: Always validate before processing
+    safe_path = validate_path_security(recordings_root, "read")
+    return await cleanup_service.cleanup_files(safe_path)
+
+# For file uploads
+@router.post("/upload")  
+async def upload_file(file: UploadFile):
+    # SECURITY: Validate file type and size
+    if file.size > MAX_FILE_SIZE:
+        raise HTTPException(400, "File too large")
+    
+    safe_filename = secure_filename(file.filename)
+    if not safe_filename:
+        raise HTTPException(400, "Invalid filename")
+```
+
+#### Database Queries - SQL Injection Prevention
+```python
+# ✅ ALWAYS: Use SQLAlchemy ORM or parameterized queries
+streams = session.query(Stream).filter(
+    Stream.streamer_name.ilike(f"%{search_term}%")  # Safe with ORM
+).all()
+
+# ✅ For raw SQL (avoid when possible)
+cursor.execute(
+    "SELECT * FROM streams WHERE created_at > %s", 
+    (start_date,)
+)
+```
+
+### 🔍 Security Code Review Checklist
+
+Before committing ANY code that handles:
+
+- [ ] **File paths**: Applied `validate_path_security()` 
+- [ ] **User input**: Sanitized and validated all parameters
+- [ ] **File operations**: Confirmed paths are within safe directories
+- [ ] **Database queries**: Used ORM or parameterized queries
+- [ ] **API endpoints**: Added input validation and proper error handling
+- [ ] **External commands**: Avoided shell injection with proper escaping
+- [ ] **File uploads**: Validated file types, sizes, and filenames
+- [ ] **Configuration**: No secrets in code, used environment variables
+
+### 🚨 Security Incident Response
+
+If you discover a security vulnerability:
+
+1. **DO NOT** commit the fix to main branch immediately
+2. **CREATE** a security branch: `security/fix-description`
+3. **ADD** detailed security impact assessment to commit message
+4. **TEST** the fix thoroughly in isolated environment
+5. **REFERENCE** this pattern in commit:
+
+```
+security: fix path traversal in cleanup service
+
+SECURITY IMPACT: High - Remote file access outside recordings directory
+VULNERABILITY: CWE-22 Path Traversal via recordings_root parameter
+ATTACK VECTOR: Admin API endpoint accepting arbitrary file paths
+
+- Added path normalization and containment validation
+- Implemented safe base directory checking
+- Added security logging for blocked attempts
+
+Testing: Verified ../../../etc/passwd attacks are blocked
+Affects: All cleanup endpoints accepting file paths
+```
+
 ## Key Principles
 
 ### Backend
-- Use type hints and specific exception types
+- Use type hints and specific exception types  
 - Eager load relationships with `joinedload()` to avoid N+1 queries
 - Services should be stateless; use dependency injection
+- **SECURITY**: Always validate file paths and user input
+- **SECURITY**: Use parameterized queries, never string concatenation
 
 ### Frontend (PWA - Mobile-First)
 - Use Composition API with `<script setup lang="ts">`
@@ -218,11 +375,15 @@ This repository uses path-specific instructions for detailed guidelines:
 - All tables must transform to cards on mobile
 - Use SCSS variables from `_variables.scss`
 - Touch targets: minimum 44x44px
+- **SECURITY**: Sanitize all user input before display
+- **SECURITY**: Validate file uploads on client and server side
 
 ### Testing
 - Unit tests for business logic
 - Integration tests for API endpoints
 - Mock external APIs (Twitch, Streamlink)
+- **SECURITY**: Test path traversal attacks and input validation
+- **SECURITY**: Verify all security controls with negative tests
 
 ## Libraries and Frameworks
 
