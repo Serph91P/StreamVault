@@ -280,12 +280,12 @@ const formatDuration = (seconds: number): string => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .status-header h2 {
   margin: 0;
-  color: #1a202c;
+  color: var(--text-primary);
   font-size: 1.5rem;
   font-weight: 600;
 }
@@ -307,18 +307,18 @@ const formatDuration = (seconds: number): string => {
 }
 
 .status-indicator.connected {
-  background-color: #dcfce7;
-  color: #166534;
+  background-color: rgba(34, 197, 94, 0.1);
+  color: var(--success-color);
 }
 
 .status-indicator.disconnected {
-  background-color: #fee2e2;
-  color: #991b1b;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color);
 }
 
 .status-indicator.loading {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: rgba(255, 193, 7, 0.1);
+  color: var(--warning-color);
 }
 
 .status-dot {
@@ -330,16 +330,16 @@ const formatDuration = (seconds: number): string => {
 
 .refresh-button {
   padding: 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border);
   border-radius: 0.375rem;
-  background-color: white;
+  background-color: var(--background-card);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .refresh-button:hover:not(:disabled) {
-  background-color: #f9fafb;
-  border-color: #9ca3af;
+  background-color: var(--background-darker);
+  border-color: var(--text-secondary);
 }
 
 .refresh-button:disabled {
@@ -362,10 +362,10 @@ const formatDuration = (seconds: number): string => {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 0.375rem;
-  color: #991b1b;
+  color: var(--danger-color);
 }
 
 .close-button {
@@ -374,13 +374,13 @@ const formatDuration = (seconds: number): string => {
   border: none;
   font-size: 1.25rem;
   cursor: pointer;
-  color: #991b1b;
+  color: var(--danger-color);
 }
 
 .last-update {
   margin-bottom: 1.5rem;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-align: center;
 }
 
@@ -392,8 +392,8 @@ const formatDuration = (seconds: number): string => {
 }
 
 .status-card {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--background-card);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
@@ -405,14 +405,14 @@ const formatDuration = (seconds: number): string => {
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .card-header h3 {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .icon {
@@ -422,13 +422,13 @@ const formatDuration = (seconds: number): string => {
 .stat-number {
   font-size: 2rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .stat-label {
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-top: 0.25rem;
 }
 
@@ -454,7 +454,7 @@ const formatDuration = (seconds: number): string => {
   align-items: center;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
-  background-color: #f8fafc;
+  background-color: var(--background-darker);
   border-radius: 0.375rem;
   /* Border color handled by .status-border-* classes */
 }
@@ -465,18 +465,18 @@ const formatDuration = (seconds: number): string => {
 
 .streamer-name {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .recording-title {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   margin-bottom: 0.25rem;
 }
 
 .recording-duration {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 0.75rem;
 }
 
@@ -486,13 +486,13 @@ const formatDuration = (seconds: number): string => {
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
-  background-color: #ef4444;
+  background-color: var(--danger-color);
   color: white;
 }
 
 .no-recordings {
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-style: italic;
   padding: 2rem;
 }
@@ -507,24 +507,24 @@ const formatDuration = (seconds: number): string => {
 .active-tasks h4 {
   margin: 0 0 0.75rem 0;
   font-size: 1rem;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .task-item {
   padding: 0.5rem 0.75rem;
-  background-color: #f1f5f9;
+  background-color: var(--background-darker);
   border-radius: 0.375rem;
   margin-bottom: 0.5rem;
 }
 
 .task-name {
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .task-progress {
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .quick-actions {
@@ -536,18 +536,18 @@ const formatDuration = (seconds: number): string => {
 
 .action-button {
   padding: 0.75rem 1.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border);
   border-radius: 0.375rem;
-  background-color: white;
-  color: #374151;
+  background-color: var(--background-card);
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .action-button:hover:not(:disabled) {
-  background-color: #f9fafb;
-  border-color: #9ca3af;
+  background-color: var(--background-darker);
+  border-color: var(--text-secondary);
 }
 
 .action-button:disabled {
