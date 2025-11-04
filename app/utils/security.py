@@ -430,12 +430,19 @@ def is_path_within_base(path: str, base: str) -> bool:
     This is a public helper function for validating that a path is contained
     within a base directory, used throughout the application for security checks.
     
+    SECURITY: This function requires Python 3.9+ for secure path validation.
+    The string-based fallback was removed due to security concerns with mixed
+    path separators on Windows (forward slash vs backslash bypass).
+    
     Args:
         path: Path to check (should be normalized)
         base: Base directory (should be normalized)
         
     Returns:
         bool: True if path is within base directory
+        
+    Raises:
+        RuntimeError: If Python version < 3.9 (is_relative_to not available)
     """
     try:
         path_obj = Path(path)
@@ -445,13 +452,22 @@ def is_path_within_base(path: str, base: str) -> bool:
         if path_obj == base_obj:
             return True
         
-        # Use is_relative_to if available (Python 3.9+)
-        if hasattr(path_obj, 'is_relative_to'):
-            return path_obj.is_relative_to(base_obj)
+        # SECURITY: Use is_relative_to (Python 3.9+) - most secure method
+        # Previous fallback to string prefix checking was vulnerable to:
+        # - Mixed path separators on Windows (/ vs \)
+        # - Path canonicalization bypasses
+        # - Case sensitivity issues
+        if not hasattr(path_obj, 'is_relative_to'):
+            raise RuntimeError(
+                "Python 3.9+ required for secure path validation. "
+                "is_relative_to() method not available. "
+                "Current Python version does not support secure path checking."
+            )
         
-        # Fallback: string-based check
-        return path.startswith(base + os.sep)
-    except (OSError, ValueError, TypeError):
+        return path_obj.is_relative_to(base_obj)
+        
+    except (OSError, ValueError, TypeError) as e:
+        logger.error(f"Path validation error: {e}")
         return False
 
 

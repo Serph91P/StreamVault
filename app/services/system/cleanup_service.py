@@ -11,6 +11,8 @@ from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSet
 from app.database import SessionLocal
 from app.services.recording.config_manager import ConfigManager
 from app.schemas.recording import CleanupPolicyType
+from app.utils.security import validate_path_security, is_path_within_base
+from app.config.settings import get_settings
 
 logger = logging.getLogger("streamvault")
 
@@ -940,9 +942,6 @@ class CleanupService:
         Args:
             recordings_root: Optional root directory. If None, uses configured RECORDING_DIRECTORY.
         """
-        from app.utils.security import validate_path_security
-        from app.config.settings import get_settings
-        
         # Use configured directory if none provided (safest approach)
         if recordings_root is None:
             recordings_root = get_settings().RECORDING_DIRECTORY
@@ -962,8 +961,6 @@ class CleanupService:
         try:
             # Helper function to validate paths during traversal
             # Uses shared validation logic from security module
-            from app.utils.security import is_path_within_base
-            
             def is_safe_subpath(path: str) -> bool:
                 """Validate that a path is within safe_root (defense-in-depth)"""
                 try:
