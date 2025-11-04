@@ -343,7 +343,7 @@ onMounted(async () => {
 
 /* Vue-styled Twitch button */
 .btn-twitch {
-  background-color: #9146FF;
+  background-color: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
@@ -362,7 +362,7 @@ onMounted(async () => {
 }
 
 .btn-twitch:hover {
-  background-color: #7d5bbe;
+  background-color: var(--primary-color-dark);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(145, 70, 255, 0.25);
 }
