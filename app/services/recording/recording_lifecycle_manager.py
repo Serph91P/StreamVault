@@ -96,6 +96,22 @@ class RecordingLifecycleManager:
                     logger.warning("🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity")
                 return None
             
+            # DUPLICATE PREVENTION: Check if streamer already has an active recording
+            # Note: This check allows 24h segment logic to work because segments use stop_recording() + start_recording()
+            # The old recording is removed from active_recordings before the new segment starts
+            active_recordings = self.state_manager.get_active_recordings()
+            existing_recording = next(
+                (rec_id for rec_id, rec_data in active_recordings.items() 
+                 if rec_data.get('streamer_id') == streamer_id),
+                None
+            )
+            if existing_recording:
+                logger.warning(
+                    f"🎬 DUPLICATE_BLOCK: Cannot start recording for streamer {streamer_id} - "
+                    f"already has active recording {existing_recording}"
+                )
+                return None
+            
             # Generate file path
             file_path = await self._generate_recording_path(streamer_id, stream_id)
             

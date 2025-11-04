@@ -3,15 +3,46 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        BUILD_ENV: development
+    
     container_name: streamvault_dev
     user: "1000:1000"
+    
+    # Development resource limits (more generous than production)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    # Health check for development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s  # Longer startup time in dev mode
+      retries: 3
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"  # Larger logs for debugging
+        max-file: "5"
+    
     volumes:
       # Mount the app directory for live code updates
       - ../app:/app/app
       - app_data:/app/data
       - ../check_indexes.py:/app/check_indexes.py
+    
     ports:
       - "7000:7000"
+    
     environment:
       - PUID=1000
       - PGID=1000
@@ -23,30 +54,55 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - LOG_LEVEL=DEBUG
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
       - ENVIRONMENT=development
+    
     restart: unless-stopped
+    
     depends_on:
       db:
         condition: service_healthy
+    
     networks:
       - streamvault_network
 
   db:
     image: postgres:16-alpine
     container_name: streamvault_db_dev
+    
+    # Development database resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    
     volumes:
       - db_data:/var/lib/postgresql/data
+    
     restart: unless-stopped
+    
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    
     networks:
       - streamvault_network
 

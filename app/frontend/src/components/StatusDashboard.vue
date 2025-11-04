@@ -58,7 +58,7 @@
             <div 
               v-for="recording in activeRecordings" 
               :key="recording.id"
-              class="recording-item"
+              class="recording-item status-border status-border-primary"
             >
               <div class="recording-info">
                 <div class="streamer-name">{{ recording.streamer_name }}</div>
@@ -451,12 +451,12 @@ const formatDuration = (seconds: number): string => {
 .recording-item {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
   background-color: #f8fafc;
   border-radius: 0.375rem;
-  border-left: 3px solid #ef4444;
+  /* Border color handled by .status-border-* classes */
 }
 
 .recording-info {

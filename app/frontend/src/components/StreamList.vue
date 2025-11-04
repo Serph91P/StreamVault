@@ -1039,8 +1039,23 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .stream-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
+  
+  /* Responsive grid - better desktop utilization */
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+  
+  @media (min-width: 1440px) {
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 24px;
+  }
+  
+  @media (min-width: 1920px) {
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 28px;
+  }
 }
 
 .stream-card {
@@ -1080,33 +1095,70 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .stream-header {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(var(--border-color-rgb, 45, 45, 53), 0.5);
+  margin-bottom: 16px;
 }
 
 .title-and-badges {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 15px;
+  flex-direction: column;
+  gap: 12px;
+  
+  /* Desktop: Better layout with more space for title */
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  
+  @media (min-width: 1024px) {
+    gap: 32px;
+  }
 }
 
 .stream-title {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   color: var(--text-primary);
   font-weight: 600;
-  line-height: 1.3;
-  flex: 1;
+  line-height: 1.4;
   word-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
+  flex: 1;
+  min-width: 0; /* Allow flex shrinking */
+  
+  /* Larger on tablet/desktop for better readability */
+  @media (min-width: 768px) {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  @media (min-width: 1024px) {
+    font-size: 1.75rem;
+    max-width: 70%; /* Give title 70% of space on desktop */
+  }
+  
+  @media (min-width: 1440px) {
+    font-size: 2rem;
+  }
 }
 
 .stream-meta-badges {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  align-items: center;
+  
+  /* Desktop: Align to top and right */
+  @media (min-width: 768px) {
+    align-self: flex-start;
+    margin-top: 2px; /* Slight visual alignment with title */
+  }
 }
 
 .status-badge {
@@ -1114,35 +1166,35 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-lg, 12px);
   font-size: 0.75rem;
   font-weight: bold;
   text-transform: uppercase;
 }
 
 .status-badge.live {
-  background: #ef4444;
-  color: white;
+  background: var(--danger-color);
+  color: var(--text-primary);
 }
 
 .status-badge.ended {
-  background: #6b7280;
-  color: white;
+  background: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .status-badge.recording {
-  background: #22c55e;
-  color: white;
+  background: var(--success-color);
+  color: var(--text-primary);
 }
 
 .status-badge.not-recording {
-  background: #6b7280;
-  color: white;
+  background: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .status-badge.has-recording {
-  background: #3b82f6;
-  color: white;
+  background: var(--info-color);
+  color: var(--text-primary);
 }
 
 .recording-pulse {
@@ -1236,27 +1288,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.header-actions .btn-success {
-  background: #22c55e;
-  color: white;
-  border-color: #16a34a;
-}
-
-.header-actions .btn-success:hover:not(:disabled) {
-  background: #16a34a;
-  border-color: #15803d;
-}
-
-.header-actions .btn-danger {
-  background: #ef4444;
-  color: white;
-  border-color: #dc2626;
-}
-
-.header-actions .btn-danger:hover:not(:disabled) {
-  background: #dc2626;
-  border-color: #b91c1c;
-}
+/* Button colors handled by global .btn-* classes in _components.scss */
 
 /* Button Styling */
 .stream-actions {
@@ -1286,7 +1318,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .action-btn {
   font-size: 0.85rem;
   padding: 10px 14px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   font-weight: 600;
   transition: all 0.2s ease;
   border: 2px solid transparent;
@@ -1313,7 +1345,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .stream-actions .btn {
   font-size: 0.85rem;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   font-weight: 600;
   transition: all 0.2s ease;
   border: 2px solid transparent;
@@ -1325,71 +1357,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.stream-actions .btn-success {
-  background: #22c55e;
-  color: white;
-  border-color: #16a34a;
-}
-
-.stream-actions .btn-success:hover:not(:disabled) {
-  background: #16a34a;
-  border-color: #15803d;
-}
-
-.stream-actions .btn-warning {
-  background: #f59e0b;
-  color: white;
-  border-color: #d97706;
-}
-
-.stream-actions .btn-warning:hover:not(:disabled) {
-  background: #d97706;
-  border-color: #b45309;
-}
-
-.stream-actions .btn-info {
-  background: #3b82f6;
-  color: white;
-  border-color: #2563eb;
-}
-
-.stream-actions .btn-info:hover:not(:disabled) {
-  background: #2563eb;
-  border-color: #1d4ed8;
-}
-
-.stream-actions .btn-primary {
-  background: #6366f1;
-  color: white;
-  border-color: #4f46e5;
-}
-
-.stream-actions .btn-primary:hover:not(:disabled) {
-  background: #4f46e5;
-  border-color: #4338ca;
-}
-
-.stream-actions .btn-secondary {
-  background: #6b7280;
-  color: white;
-  border-color: #4b5563;
-}
-
-.stream-actions .btn-secondary:hover:not(:disabled) {
-  background: #4b5563;
-  border-color: #374151;
-}
-
-.stream-actions .btn-danger {
-  background: #ef4444;
-  color: white;
-  border-color: #dc2626;
-}
-
-.stream-actions .btn-danger:hover:not(:disabled) {
-  background: #dc2626;
-  border-color: #b91c1c;
-}
+/* Button colors handled by global .btn-* classes in _components.scss */
 
 .stream-actions .btn:disabled {
   opacity: 0.6;
@@ -1482,7 +1450,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   gap: 12px;
   padding: 8px;
   background: var(--background-darker);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   border: 1px solid var(--border-color);
 }
 
@@ -1495,7 +1463,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   flex-shrink: 0;
   width: 30px;
   height: 40px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   overflow: hidden;
   background: var(--background-card);
   display: flex;
@@ -1582,7 +1550,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   padding: 6px 8px;
   background: var(--background-darker);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
 }
 
 .chapter-time {
@@ -1827,7 +1795,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   }
   
   .stream-card {
-    border-radius: 8px;
+    border-radius: var(--border-radius, 8px);
   }
   
   .stream-info {

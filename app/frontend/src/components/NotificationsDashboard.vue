@@ -104,8 +104,11 @@
         <div 
           v-for="event in filteredEvents"
           :key="event.id || event.timestamp"
-          class="event-item"
-          :class="`event-${event.type}`"
+          class="event-item status-border"
+          :class="[
+            `event-${event.type}`,
+            getEventBorderClass(event.type)
+          ]"
         >
           <div class="event-icon">
             <component :is="getEventIcon(event.type)" />
@@ -331,6 +334,20 @@ const openStreamerSettings = () => {
 const viewEventHistory = () => {
   // TODO: Navigate to full event history
   console.log('Viewing event history...')
+}
+
+// Map event types to status-border classes
+const getEventBorderClass = (eventType: string): string => {
+  if (eventType.includes('online') || eventType.includes('started')) {
+    return 'status-border-success'
+  }
+  if (eventType.includes('offline') || eventType.includes('stopped')) {
+    return 'status-border-secondary'
+  }
+  if (eventType.includes('error') || eventType.includes('failed')) {
+    return 'status-border-error'
+  }
+  return 'status-border-info'
 }
 </script>
 
@@ -561,24 +578,10 @@ const viewEventHistory = () => {
   gap: 1rem;
   padding: 1rem;
   margin-bottom: 0.5rem;
-  background: #f8fafc;
-  border-radius: 0.375rem;
-  border-left: 3px solid #e2e8f0;
-}
-
-.event-item.event-stream_online,
-.event-item.event-streamer_online {
-  border-left-color: #22c55e;
-}
-
-.event-item.event-recording_started {
-  border-left-color: #ef4444;
-}
-
-.event-item.event-stream_offline,
-.event-item.event-streamer_offline,
-.event-item.event-recording_stopped {
-  border-left-color: #6b7280;
+  background: var(--background-card, #f8fafc);
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color, #e2e8f0);
+  /* Border colors handled by .status-border-* classes */
 }
 
 .event-icon {

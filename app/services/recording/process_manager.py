@@ -171,6 +171,27 @@ class ProcessManager:
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
             
+            # CRITICAL: Check proxy connectivity before starting recording
+            # This prevents silent failures when proxy is down
+            if proxy_settings and any(proxy_settings.values()):
+                from app.utils.streamlink_utils import check_proxy_connectivity
+                
+                is_reachable, proxy_error = check_proxy_connectivity(proxy_settings)
+                if not is_reachable:
+                    error_msg = f"Cannot start recording for {streamer_name}: Proxy connection failed - {proxy_error}"
+                    logger.error(f"🔴 PROXY_DOWN: {error_msg}")
+                    
+                    # Log to structured logging service
+                    if self.logging_service:
+                        streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                        self.logging_service.log_streamlink_error(
+                            streamer_name=streamer_name,
+                            error_message=f"Proxy connectivity check failed: {proxy_error}",
+                            log_path=streamlink_log_path
+                        )
+                    
+                    raise ProcessError(f"Proxy connection failed: {proxy_error}. Please check proxy settings or network connectivity.")
+            
             logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
             
             # Generate streamlink command for this segment
@@ -344,13 +365,25 @@ class ProcessManager:
             # Stop current process gracefully
             if process_id in self.active_processes:
                 current_process = self.active_processes[process_id]
-                current_process.terminate()
                 
-                # Wait a bit for graceful termination
-                await asyncio.sleep(5)
-                
-                if current_process.returncode is None:
-                    current_process.kill()
+                try:
+                    # Check if process is still alive before trying to terminate
+                    if current_process.returncode is None:
+                        current_process.terminate()
+                        
+                        # Wait a bit for graceful termination
+                        await asyncio.sleep(5)
+                        
+                        # Check again and force kill if still running
+                        if current_process.returncode is None:
+                            current_process.kill()
+                    else:
+                        logger.debug(f"Process for stream {stream.id} already terminated (returncode: {current_process.returncode})")
+                except ProcessLookupError:
+                    # Process already terminated externally, this is expected
+                    logger.debug(f"Process for stream {stream.id} no longer exists (already terminated)")
+                except Exception as proc_error:
+                    logger.warning(f"Error terminating process for stream {stream.id}: {proc_error}")
                     
             # Prepare next segment
             segment_info['segment_count'] += 1

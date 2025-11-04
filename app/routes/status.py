@@ -239,6 +239,16 @@ async def get_streamers_status() -> Dict[str, Any]:
                     except Exception as e:
                         logger.warning(f"Failed to get profile image URL for streamer {streamer.id}: {e}")
                 
+                # Get last known info from most recent stream (for offline streamers)
+                last_title = None
+                last_category = None
+                language = None
+                
+                if latest_stream:
+                    last_title = latest_stream.title
+                    last_category = latest_stream.category_name
+                    language = latest_stream.language
+                
                 streamer_status.append({
                     "id": streamer.id,
                     "name": streamer.username,
@@ -251,7 +261,10 @@ async def get_streamers_status() -> Dict[str, Any]:
                     "auto_record": streamer.auto_record,
                     "last_seen": latest_stream.created_at.isoformat() if latest_stream else None,
                     "current_title": latest_stream.title if latest_stream and is_live else None,
-                    "current_category": latest_stream.category_name if latest_stream and is_live else None
+                    "current_category": latest_stream.category_name if latest_stream and is_live else None,
+                    "last_title": last_title,
+                    "last_category": last_category,
+                    "language": language
                 })
             
             return {

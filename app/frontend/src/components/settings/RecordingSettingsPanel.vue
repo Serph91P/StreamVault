@@ -28,7 +28,7 @@
       <div class="tab-content">        <!-- Recording Tab -->
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-primary">
             <h4 class="section-title">📹 Basic Recording Settings</h4>
             
             <div class="form-group">
@@ -113,7 +113,7 @@
 
         <!-- Network Tab -->
         <div v-if="activeTab === 'network'" class="tab-panel">
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-info">
             <h4 class="section-title">🌐 Network & Proxy Settings</h4>
             <p class="section-description">
               Configure proxy settings for Streamlink to route traffic through different locations. 
@@ -187,7 +187,7 @@
           </div>
         </div>        <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="settings-section">
+          <div class="settings-section status-border status-border-primary">
             <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
@@ -943,8 +943,18 @@ select.form-control option {
 .streamer-table td {
   padding: 0.75rem;
   border-bottom: 1px solid var(--border-color, #303034);
-  vertical-align: middle;
   text-align: left;
+  /* Removed vertical-align: middle - conflicts with flexbox in .streamer-info */
+}
+
+.streamer-table td {
+  /* Ensure consistent alignment */
+  vertical-align: top;
+}
+
+.streamer-table td:has(.streamer-info) {
+  /* Special handling for streamer info cell */
+  vertical-align: middle;
 }
 
 .streamer-table th {
@@ -964,13 +974,14 @@ select.form-control option {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm, 0.5rem);
-  max-width: 100%; /* Ensure content doesn't overflow */
+  min-height: 44px; /* Consistent cell height for touch targets */
+  max-width: 100%;
 }
 
 .streamer-avatar {
-  width: 30px;
-  height: 30px;
-  margin-right: var(--spacing-sm, 10px);
+  width: 32px;
+  height: 32px;
+  min-width: 32px; /* Prevent shrinking */
   overflow: hidden;
   border-radius: 50%;
   flex-shrink: 0;
@@ -980,15 +991,15 @@ select.form-control option {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .streamer-name {
   font-size: 1rem;
   font-weight: 500;
   color: var(--text-primary, #efeff1);
-  white-space: normal; /* Allow text to wrap */
-  word-break: break-word; /* Break long words if needed */
-  overflow: visible; /* Remove text truncation */
+  line-height: 1.4;
+  /* Removed inline-block, vertical-align - flex handles alignment */
 }
 
 .form-actions {
@@ -1324,9 +1335,10 @@ select.form-control-sm option {
 .settings-section {
   margin-bottom: var(--spacing-xxl, 2.5rem);
   padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: var(--border-radius, 8px);
-  border-left: 4px solid var(--primary-color, #42b883);
+  border: 1px solid var(--border-color, #2d2d35);
+  /* Use status-border-primary class from global styles instead */
 }
 
 .settings-section:last-child {
@@ -1345,17 +1357,19 @@ select.form-control-sm option {
 
 .section-description {
   color: var(--text-secondary, #adadb8);
-  margin-bottom: var(--spacing-lg, 1.5rem);  line-height: 1.6;
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  line-height: 1.6;
   font-size: 0.95rem;
 }
 
-/* Proxy settings specific styles */
+/* Proxy settings specific styles - removed duplicate border */
 .proxy-configuration {
   margin-top: var(--spacing-md, 1rem);
   padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: var(--border-radius, 8px);
-  border-left: 3px solid var(--info-color, #17a2b8);
+  border: 1px solid var(--border-color, #2d2d35);
+  /* Use status-border-info class from global styles instead */
 }
 
 .proxy-examples {

@@ -217,10 +217,74 @@ async def unified_recovery_scan():
         # Don't raise - this is not critical for startup
 
 
+async def cleanup_zombie_recordings():
+    """Clean up zombie/stale recordings from database on startup
+    
+    Recordings are considered zombies if:
+    - They are marked as 'recording' status in the database
+    - But the application was restarted (no actual Streamlink process running)
+    
+    This prevents the UI from showing "Active Recordings" that don't actually exist.
+    """
+    try:
+        logger.info("🧹 Cleaning up zombie recordings from database...")
+        
+        from app.database import SessionLocal
+        from app.models import Recording
+        from datetime import datetime, timedelta
+        
+        with SessionLocal() as db:
+            # Find all recordings with 'recording' status
+            zombie_recordings = db.query(Recording).filter(
+                Recording.status == 'recording'
+            ).all()
+            
+            if not zombie_recordings:
+                logger.info("✅ No zombie recordings found")
+                return
+            
+            cleaned_count = 0
+            for recording in zombie_recordings:
+                try:
+                    # Calculate duration if available
+                    duration = None
+                    if recording.start_time:
+                        end_time = recording.end_time or datetime.now()
+                        duration = int((end_time - recording.start_time).total_seconds())
+                    
+                    # Mark as stopped (not failed, because the recording may have been successful)
+                    recording.status = 'stopped'
+                    recording.end_time = recording.end_time or datetime.now()
+                    if duration:
+                        recording.duration_seconds = duration
+                    
+                    cleaned_count += 1
+                    
+                    logger.info(
+                        f"🧹 Cleaned zombie recording {recording.id}: "
+                        f"stream_id={recording.stream_id}, "
+                        f"started={recording.start_time}, "
+                        f"duration={duration}s"
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to clean zombie recording {recording.id}: {e}")
+                    continue
+            
+            db.commit()
+            logger.info(f"✅ Cleaned up {cleaned_count} zombie recordings")
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to cleanup zombie recordings: {e}", exc_info=True)
+        # Don't raise - this is not critical for startup
+
 async def recover_active_recordings():
     """Recover active recordings from persistent state"""
     try:
         logger.info("Recovering active recordings from persistent state...")
+        
+        # First, clean up zombie recordings from previous session
+        await cleanup_zombie_recordings()
         
         from app.services.recording.recording_service import RecordingService
         

@@ -105,8 +105,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
+import { IMAGE_LOADING } from '@/config/constants';
 
 interface Category {
   id: string;
@@ -178,13 +179,25 @@ const fetchCategories = async () => {
     if (data.categories && Array.isArray(data.categories)) {
       categories.value = data.categories;
       
-      // Preload category images for all categories
-      const categoryNames = data.categories
+      // Don't preload all images immediately - let them lazy load with intersection observer
+      // Only preload visible categories (configurable count)
+      const visibleCategoryNames = data.categories
+        .slice(0, IMAGE_LOADING.VISIBLE_CATEGORIES_PRELOAD_COUNT)
         .map((cat: any) => cat.name)
         .filter((name: string | null): name is string => Boolean(name));
       
-      if (categoryNames.length > 0) {
-        preloadCategoryImages(categoryNames);
+      if (visibleCategoryNames.length > 0) {
+        // Use nextTick to defer image loading until after DOM update
+        // This is more reliable than setTimeout and respects Vue's rendering lifecycle
+        nextTick(() => {
+          // Error handling for image preloading to prevent unhandled promise rejections
+          try {
+            preloadCategoryImages(visibleCategoryNames);
+          } catch (err) {
+            console.warn('Failed to preload category images:', err);
+            // Non-critical error - images will still lazy load when visible
+          }
+        });
       }
     } else if (Array.isArray(data)) {
       // Direct array response
@@ -273,12 +286,7 @@ const handleImageError = (event: Event) => {
 // Initialize component
 onMounted(() => {
   fetchCategories();
-}); // Debug-Output
-watch(categories, (newCategories) => {
-  if (newCategories.length > 0) {
-    
-  }
-}, { immediate: true, deep: true });
+});
 </script>
 
 <style scoped>

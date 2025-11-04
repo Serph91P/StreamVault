@@ -21,15 +21,15 @@
             <span class="label">Active Tasks:</span>
             <span class="value">{{ status.total_active_tasks }}</span>
           </div>
-          <div class="status-item error" v-if="status.stuck_recordings > 0">
+          <div class="status-item error status-border status-border-error" v-if="status.stuck_recordings > 0">
             <span class="label">Stuck Recordings:</span>
             <span class="value">{{ status.stuck_recordings }}</span>
           </div>
-          <div class="status-item error" v-if="status.continuous_orphaned > 0">
+          <div class="status-item error status-border status-border-error" v-if="status.continuous_orphaned > 0">
             <span class="label">Continuous Orphaned:</span>
             <span class="value">{{ status.continuous_orphaned }}</span>
           </div>
-          <div class="status-item error" v-if="status.unknown_tasks > 0">
+          <div class="status-item error status-border status-border-error" v-if="status.unknown_tasks > 0">
             <span class="label">Unknown Tasks:</span>
             <span class="value">{{ status.unknown_tasks }}</span>
           </div>
@@ -135,8 +135,11 @@
       <!-- Result Messages -->
       <div class="result-messages" v-if="lastResult">
         <div 
-          class="result-message"
-          :class="{ success: lastResult.success, error: !lastResult.success }"
+          class="result-message status-border"
+          :class="[
+            { success: lastResult.success, error: !lastResult.success },
+            lastResult.success ? 'status-border-success' : 'status-border-error'
+          ]"
         >
           <h5>{{ lastResult.success ? '✅' : '❌' }} Result</h5>
           <p>{{ lastResult.message }}</p>
@@ -320,7 +323,7 @@ export default {
 
 .status-item.error {
   background: var(--error-bg, #fee);
-  border-left: 3px solid var(--error-color, #dc3545);
+  /* Border color handled by .status-border-* classes */
 }
 
 .status-item .label {
@@ -449,17 +452,17 @@ export default {
 .result-message {
   padding: 16px;
   border-radius: 8px;
-  border-left: 4px solid;
+  /* Border color handled by .status-border-* classes */
 }
 
 .result-message.success {
   background: var(--success-bg, #d4edda);
-  border-left-color: var(--success-color, #28a745);
+  /* Border color handled by .status-border-* classes */
 }
 
 .result-message.error {
   background: var(--error-bg, #f8d7da);
-  border-left-color: var(--error-color, #dc3545);
+  /* Border color handled by .status-border-* classes */
 }
 
 .result-message h5 {

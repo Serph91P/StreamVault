@@ -360,6 +360,36 @@ class LoggingService:
         
         logger.debug(f"✅ Streamlink output logged for {streamer_name}")
     
+    def log_streamlink_error(self, streamer_name: str, error_message: str, log_path: str = None):
+        """
+        Log streamlink errors (e.g., proxy failures) to streamer-specific file
+        
+        Args:
+            streamer_name: Name of the streamer
+            error_message: Error message to log
+            log_path: Optional custom log path (if None, will use default)
+        """
+        if not streamer_name:
+            streamer_name = "unknown"
+        
+        logger.error(f"🔴 Logging streamlink error for {streamer_name}: {error_message}")
+        
+        # Get log path if not provided
+        if not log_path:
+            log_path = self.get_streamlink_log_path(streamer_name)
+        
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {error_message}\n")
+                f.write("=" * 80 + "\n")
+            
+            logger.debug(f"✅ Streamlink error logged to: {log_path}")
+        except Exception as e:
+            logger.error(f"❌ Could not write streamlink error to log {log_path}: {e}")
+        
+        # Also log to main streamlink logger
+        self.streamlink_logger.error(f"[{streamer_name}] {error_message}")
+    
     def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
         """Log FFmpeg command start with mandatory streamer name"""
         logger.debug(f"🎯 Logging FFmpeg start for {streamer_name}: {operation}")
