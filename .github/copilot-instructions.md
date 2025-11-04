@@ -438,7 +438,7 @@ This creates institutional knowledge that persists across sessions.
 - Use type hints and specific exception types  
 - Eager load relationships with `joinedload()` to avoid N+1 queries
 - Services should be stateless; use dependency injection
-- **NO MAGIC NUMBERS**: Extract all constants to configuration or module-level constants
+- **NO MAGIC NUMBERS**: Extract all constants to `app/config/constants.py` (see Constants section)
 - **BREAKING CHANGES**: Document behavior changes in comments and commit messages
 - **EXTERNAL SERVICE FAILURES**: Always check connectivity before using external services (proxies, APIs)
 - **FAIL FAST**: Validate preconditions early, don't let processes silently fail
@@ -448,16 +448,75 @@ This creates institutional knowledge that persists across sessions.
 - **SECURITY**: Always validate file paths and user input
 - **SECURITY**: Use parameterized queries, never string concatenation
 
+### Backend Constants (`app/config/constants.py`)
+
+**CRITICAL**: All magic numbers, timeouts, and thresholds MUST be extracted to constants:
+
+```python
+from app.config.constants import (
+    ASYNC_DELAYS,         # Sleep times, polling intervals
+    RETRY_CONFIG,         # Retry counts and delays
+    TIMEOUTS,             # Subprocess, API, process timeouts
+    CACHE_CONFIG,         # Cache sizes and TTL values
+    FILE_SIZE_THRESHOLDS, # File size limits in bytes
+    METADATA_CONFIG       # Parsing depth limits
+)
+
+# Usage examples:
+await asyncio.sleep(ASYNC_DELAYS.ERROR_RECOVERY_DELAY)  # 5.0s
+max_retries = RETRY_CONFIG.DEFAULT_MAX_RETRIES          # 3
+timeout = TIMEOUTS.GRACEFUL_SHUTDOWN                    # 30s
+cache = TTLCache(
+    maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,            # 1000
+    ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL          # 300s
+)
+```
+
+**When adding constants:**
+- Choose appropriate dataclass (ASYNC_DELAYS, RETRY_CONFIG, etc.)
+- Add descriptive comment explaining the value
+- Use semantic names (e.g., `ERROR_RECOVERY_DELAY` not `DELAY_5`)
+- Update `backend.instructions.md` if adding new category
+
 ### Frontend (PWA - Mobile-First)
 - Use Composition API with `<script setup lang="ts">`
 - **NEVER** override global `.btn` or `.status-border-*` classes
 - All tables must transform to cards on mobile
 - Use SCSS variables from `_variables.scss`
 - Touch targets: minimum 44x44px
-- **NO MAGIC NUMBERS**: Extract timing delays, thresholds, and limits to constants
+- **NO MAGIC NUMBERS**: Extract timing delays, thresholds, and limits to `app/frontend/src/config/constants.ts`
 - **USE VUE LIFECYCLE**: Prefer `nextTick()` over `setTimeout()` for deferred operations
 - **SECURITY**: Sanitize all user input before display
 - **SECURITY**: Validate file uploads on client and server side
+
+### Frontend Constants (`app/frontend/src/config/constants.ts`)
+
+**CRITICAL**: All magic numbers, delays, and thresholds MUST be extracted to constants:
+
+```typescript
+import { IMAGE_LOADING, API, UI } from '@/config/constants'
+
+// Image loading configuration
+const preloadCount = IMAGE_LOADING.VISIBLE_CATEGORIES_PRELOAD_COUNT  // 20
+
+// API configuration
+const timeout = API.DEFAULT_TIMEOUT  // 30000ms
+
+// UI configuration
+const debounce = UI.SEARCH_DEBOUNCE_MS    // 300ms
+const toastDuration = UI.TOAST_DURATION_MS  // 3000ms
+```
+
+**When adding constants:**
+- Choose appropriate group (IMAGE_LOADING, API, UI)
+- Add JSDoc comment explaining the value
+- Use `as const` for type safety
+- Update `frontend.instructions.md` if adding new category
+
+**Categories:**
+- `IMAGE_LOADING` - Image preload counts, lazy load thresholds
+- `API` - API timeouts, retry delays, polling intervals
+- `UI` - Debounce delays, animation durations, toast timings
 
 ### Code Quality Standards
 1. **No Magic Numbers**: 
