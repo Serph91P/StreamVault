@@ -4,12 +4,60 @@ applyTo: "app/**/*.py,migrations/**/*.py"
 
 # Backend Development Guidelines
 
+## 🔐 Security Requirements (MANDATORY)
+
+**CRITICAL**: Read and follow `security.instructions.md` for comprehensive security guidelines.
+
+### Path Security - Apply to ALL File Operations
+```python
+# ✅ ALWAYS: Validate user-provided paths
+from app.utils.security import validate_path_security
+
+def process_file(user_path: str):
+    safe_path = validate_path_security(user_path, "read")
+    with open(safe_path, 'r') as f:
+        return f.read()
+
+# ❌ NEVER: Direct file operations with user input
+def process_file_unsafe(user_path: str):
+    with open(user_path, 'r') as f:  # Path traversal vulnerability
+        return f.read()
+```
+
+### Database Security - Prevent SQL Injection
+```python
+# ✅ ALWAYS: Use SQLAlchemy ORM
+streams = db.query(Stream).filter(Stream.name == user_input).all()
+
+# ✅ ALWAYS: Parameterized queries for raw SQL
+result = db.execute(text("SELECT * FROM streams WHERE name = :name"), {"name": user_input})
+
+# ❌ NEVER: String formatting with user input
+query = f"SELECT * FROM streams WHERE name = '{user_input}'"  # SQL injection risk
+```
+
+### Input Validation - Required for ALL User Input
+```python
+# ✅ ALWAYS: Validate before processing
+def create_stream(streamer_name: str, title: str):
+    if not streamer_name or len(streamer_name.strip()) == 0:
+        raise ValueError("Streamer name required")
+    
+    clean_name = validate_streamer_name(streamer_name)
+    safe_title = html.escape(title.strip()[:200])
+    
+    # Now safe to use
+    return Stream(streamer_name=clean_name, title=safe_title)
+```
+
 ## Code Style
 
 - Use type hints for all function parameters and return types
 - Follow PEP 8 style guide
 - Add docstrings for public APIs using Google style
 - Never use bare `except:` - use specific exception types
+- **SECURITY**: Validate ALL user input before processing
+- **SECURITY**: Use parameterized queries, never string formatting
 
 ## Database & Performance
 
