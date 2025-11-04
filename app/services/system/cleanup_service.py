@@ -925,7 +925,8 @@ class CleanupService:
             recordings_root = get_settings().RECORDING_DIRECTORY
         
         # Type narrowing: at this point recordings_root is definitely str
-        assert isinstance(recordings_root, str), "recordings_root must be a string"
+        if not isinstance(recordings_root, str):
+            raise TypeError("recordings_root must be a string")
         
         # SECURITY: Always validate user-provided paths
         safe_root = validate_path_security(recordings_root, "read")
