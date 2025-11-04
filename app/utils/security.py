@@ -12,9 +12,9 @@ import re
 import html
 import json
 import logging
-from typing import Optional, Dict, Set
+from typing import Optional
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from fastapi import HTTPException
 
 logger = logging.getLogger("streamvault.security")
@@ -216,8 +216,8 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
         )
     
     # CRITICAL: Ensure path is within safe directory
-    # Both exact match and subdirectory access are allowed
-    if not (normalized_path == safe_base or normalized_path.startswith(safe_base + os.sep)):
+    # Using shared helper for consistent validation
+    if not _is_path_within_base(normalized_path, safe_base):
         logger.error(
             f"🚨 SECURITY: Path traversal attempt blocked - "
             f"User: {user_path} -> Normalized: {normalized_path} "
@@ -421,6 +421,35 @@ def validate_file_type(
         )
     
     return file_extension
+
+
+def _is_path_within_base(path: str, base: str) -> bool:
+    """
+    Internal helper: Check if path is within base directory
+    
+    Args:
+        path: Path to check (should be normalized)
+        base: Base directory (should be normalized)
+        
+    Returns:
+        bool: True if path is within base directory
+    """
+    try:
+        path_obj = Path(path)
+        base_obj = Path(base)
+        
+        # Exact match
+        if path_obj == base_obj:
+            return True
+        
+        # Use is_relative_to if available (Python 3.9+)
+        if hasattr(path_obj, 'is_relative_to'):
+            return path_obj.is_relative_to(base_obj)
+        
+        # Fallback: string-based check
+        return path.startswith(base + os.sep)
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def sanitize_html_input(html_input: str) -> str:
