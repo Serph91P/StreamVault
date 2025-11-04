@@ -907,14 +907,25 @@ class CleanupService:
         return f"{size:.2f} {units[unit_index]}"
     
     @staticmethod
-    async def cleanup_orphaned_files(recordings_root: str = "/recordings") -> Tuple[int, List[str]]:
+    async def cleanup_orphaned_files(recordings_root: Optional[str] = None) -> Tuple[int, List[str]]:
         """
         🧹 Cleanup Orphaned Files
         Remove broken symlinks, 0-byte files, and empty segment directories
 
         **SECURITY**: Uses path validation to prevent traversal attacks.
+        
+        Args:
+            recordings_root: Optional root directory. If None, uses configured RECORDING_DIRECTORY.
         """
         from app.utils.security import validate_path_security
+        from app.config.settings import get_settings
+        
+        # Use configured directory if none provided (safest approach)
+        if recordings_root is None:
+            recordings_root = get_settings().RECORDING_DIRECTORY
+        
+        # Type narrowing: at this point recordings_root is definitely str
+        assert isinstance(recordings_root, str), "recordings_root must be a string"
         
         # SECURITY: Always validate user-provided paths
         safe_root = validate_path_security(recordings_root, "read")
@@ -926,12 +937,15 @@ class CleanupService:
         
         try:
             # Helper function to validate paths during traversal
+            # Uses shared validation logic from security module
+            from app.utils.security import _is_path_within_base
+            
             def is_safe_subpath(path: str) -> bool:
                 """Validate that a path is within safe_root (defense-in-depth)"""
                 try:
                     real_path = os.path.realpath(path)
                     real_safe_root = os.path.realpath(safe_root)
-                    return real_path == real_safe_root or real_path.startswith(real_safe_root + os.sep)
+                    return _is_path_within_base(real_path, real_safe_root)
                 except (OSError, ValueError):
                     return False
             
@@ -983,7 +997,6 @@ class CleanupService:
                                     os.rmdir(dir_path)
                                     cleaned_count += 1
                                     logger.info(f"🧹 Removed empty segment directory: {dir_path}")
-                                    dirs.remove(dirname)  # Don't walk into it
                         except Exception as e:
                             logger.debug(f"Error processing directory {dir_path}: {e}")
             
