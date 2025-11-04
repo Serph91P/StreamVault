@@ -241,11 +241,11 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
     try:
         from app.services.system.cleanup_service import cleanup_service
         
-        # SECURITY: Use configured directory only, no user input
+        # SECURITY: Pass None to use configured directory (safest approach)
         # This prevents any possibility of path traversal attacks
         logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES: Using configured RECORDING_DIRECTORY")
         
-        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(RECORDINGS_ROOT)
+        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(None)
         
         logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES_RESULT: cleaned={cleaned_count} items")
         
