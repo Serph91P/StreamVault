@@ -2,7 +2,8 @@ import os
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
+from datetime import time as time_cls  # Alias to avoid confusion with time module
 from typing import List, Dict, Optional, Tuple, Any, Set
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func
@@ -383,8 +384,8 @@ class CleanupService:
                         
                         # Create time objects for comparison
                         stream_time_of_day = stream_time.time()
-                        start_time_obj = time(start_hour, start_minute)
-                        end_time_obj = time(end_hour, end_minute)
+                        start_time_obj = time_cls(start_hour, start_minute)
+                        end_time_obj = time_cls(end_hour, end_minute)
                         
                         # Check if stream time is within the range
                         if end_time_obj > start_time_obj:  # Normal case (e.g., 8:00 to 17:00)
