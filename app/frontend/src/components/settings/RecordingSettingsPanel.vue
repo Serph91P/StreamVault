@@ -1568,8 +1568,8 @@ select.form-control-sm option {
 
   .example-output {
     display: block;
-    background-color: var(--bg-tertiary, #2a2a2a);
-    color: var(--accent-color, #4a9eff);
+    background-color: var(--background-darker);
+    color: var(--info-color);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius, 8px);
     padding: 8px 12px;
