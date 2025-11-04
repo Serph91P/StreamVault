@@ -925,6 +925,16 @@ class CleanupService:
         cleaned_count = 0
         
         try:
+            # Helper function to validate paths during traversal
+            def is_safe_subpath(path: str) -> bool:
+                """Validate that a path is within safe_root (defense-in-depth)"""
+                try:
+                    real_path = os.path.realpath(path)
+                    real_safe_root = os.path.realpath(safe_root)
+                    return real_path == real_safe_root or real_path.startswith(real_safe_root + os.sep)
+                except (OSError, ValueError):
+                    return False
+            
             for root, dirs, files in os.walk(safe_root):
                 
                 # Check for broken symlinks and 0-byte files
@@ -932,6 +942,11 @@ class CleanupService:
                     file_path = os.path.join(root, filename)
                     
                     try:
+                        # SECURITY: Defense-in-depth - validate sub-path
+                        if not is_safe_subpath(file_path):
+                            logger.warning(f"🚨 SECURITY: Skipping file outside safe root: {file_path}")
+                            continue
+                        
                         # Check for broken symlinks
                         if os.path.islink(file_path):
                             if not os.path.exists(file_path):
@@ -957,6 +972,11 @@ class CleanupService:
                     if dirname.endswith('_segments'):
                         dir_path = os.path.join(root, dirname)
                         try:
+                            # SECURITY: Defense-in-depth - validate sub-path
+                            if not is_safe_subpath(dir_path):
+                                logger.warning(f"🚨 SECURITY: Skipping directory outside safe root: {dir_path}")
+                                continue
+                            
                             if os.path.isdir(dir_path):
                                 # Check if directory is empty
                                 if not os.listdir(dir_path):
