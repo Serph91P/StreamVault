@@ -942,6 +942,24 @@ async def serve_push_sw_helper():
             continue
     return Response(status_code=404)
 
+@app.get("/registerSW.js")
+async def register_service_worker():
+    """Serve the service worker registration script"""
+    for path in ["app/frontend/dist/registerSW.js", "/app/app/frontend/dist/registerSW.js"]:
+        try:
+            return FileResponse(
+                path,
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        except (FileNotFoundError, PermissionError):
+            continue
+    return Response(status_code=404)
+
 @app.get("/sw.js")
 async def service_worker():
     for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
