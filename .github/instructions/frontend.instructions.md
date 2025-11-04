@@ -9,6 +9,8 @@ applyTo: "app/frontend/**/*.vue,app/frontend/**/*.ts,app/frontend/**/*.scss"
 - Use Vue 3 Composition API with `<script setup lang="ts">`
 - Prefer composables over mixins for reusable logic
 - Keep components focused - one responsibility per component
+- **NO MAGIC NUMBERS**: Extract delays, thresholds, timeouts to named constants
+- **USE VUE LIFECYCLE**: Use `nextTick()` instead of `setTimeout()` for deferred operations
 
 ## Design System (Mobile-First PWA)
 

@@ -1,19 +1,37 @@
-# Git
+# ============================================================================
+# Docker Build Context Optimization for StreamVault
+# Purpose: Reduce build context size from ~500MB to ~50MB
+# ============================================================================
+
+# Git & Version Control
 .git
 .gitignore
+.gitattributes
 .github/
 
-# Documentation
+# Documentation (not needed in Docker image)
 *.md
+!README.md  # Keep README for reference
 docs/
+CONTRIBUTING.md
+LICENSE
+CHANGELOG.md
 
-# Development files
+# Development Files & IDE
 .vscode/
-*.log
-*.tmp
-temp_logs/
+.idea/
+*.swp
+*.swo
+*~
+.editorconfig
 
-# Python cache
+# Logs (mounted as volumes, not part of image)
+*.log
+logs/
+temp_logs/
+app/logs/
+
+# Python Cache & Build Artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -31,56 +49,108 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
 
-# Virtual environments
+# Virtual Environments
 venv/
 env/
 ENV/
+.venv/
 
-# IDE
-.idea/
-*.swp
-*.swo
-*~
+# Testing & Coverage
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage/
+*.cover
+.hypothesis/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-temp_logs/
-
-# Node.js
+# Node.js & Frontend (built separately in CI/CD)
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.npm
+.eslintcache
 
-# Docker
+# Docker Files (don't need themselves in context)
 Dockerfile*
 docker-compose*.yml
 .dockerignore
+docker/
 
-# Test files
-test_*
-*_test.py
-tests/
-coverage/
+# Database Files (should be in volumes)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
 
-# Recordings (these should be mounted as volumes)
+# OS-Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Recordings Directory (mounted as volume)
 recordings/
+*.mp4
+*.mkv
+*.ts
+*.m3u8
 
-# Local config
+# Local Configuration (use environment variables)
+.env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Security & Analysis Files
+.security/
+bandit-results.json
+safety-results.json
+trivy-results.sarif
+
+# Build Cache
+.cache/
+*.cache
+
+# Scripts (unless needed in container)
+dev.sh
+dev.bat
+run_local.py
+test_dev_system.py
+check_indexes.py
+
+# Documentation Files
+COPILOT_FIXES_SUMMARY.md
+CODE_REVIEW_IMPROVEMENTS.md
+SECURITY_FIX.md
+LOCAL_DEVELOPMENT.md
+copilot.txt
+
+# Migration Scripts (copied separately)
+# migrations/ is actually needed, so NOT excluded

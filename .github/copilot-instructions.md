@@ -374,6 +374,8 @@ Affects: All cleanup endpoints accepting file paths
 - Use type hints and specific exception types  
 - Eager load relationships with `joinedload()` to avoid N+1 queries
 - Services should be stateless; use dependency injection
+- **NO MAGIC NUMBERS**: Extract all constants to configuration or module-level constants
+- **BREAKING CHANGES**: Document behavior changes in comments and commit messages
 - **SECURITY**: Always validate file paths and user input
 - **SECURITY**: Use parameterized queries, never string concatenation
 
@@ -383,8 +385,32 @@ Affects: All cleanup endpoints accepting file paths
 - All tables must transform to cards on mobile
 - Use SCSS variables from `_variables.scss`
 - Touch targets: minimum 44x44px
+- **NO MAGIC NUMBERS**: Extract timing delays, thresholds, and limits to constants
+- **USE VUE LIFECYCLE**: Prefer `nextTick()` over `setTimeout()` for deferred operations
 - **SECURITY**: Sanitize all user input before display
 - **SECURITY**: Validate file uploads on client and server side
+
+### Code Quality Standards
+1. **No Magic Numbers**: 
+   - Extract all numeric literals to named constants
+   - Define constants at module/component level with descriptive names
+   - Example: `STALE_RECORDING_THRESHOLD_HOURS = 24` instead of `24 * 60 * 60 * 1000`
+
+2. **Explicit Logic Changes**:
+   - Add comments explaining why query logic changed (e.g., filter by `ended_at` vs `recording_path`)
+   - Document if change affects data processing (e.g., includes streams without files)
+   - Explain trade-offs in behavior
+
+3. **Breaking Changes**:
+   - Document in code comments with `BREAKING CHANGE:` prefix
+   - Explain previous vs new behavior
+   - Note trade-offs (e.g., "Stream history lost but prevents database bloat")
+   - Mention alternatives (e.g., "Use preserve_favorites to keep important streams")
+
+4. **Deferred Operations**:
+   - Use `nextTick()` in Vue instead of `setTimeout()`
+   - Use `requestIdleCallback()` for non-critical operations
+   - If `setTimeout()` is necessary, extract delay to constant with rationale
 
 ### Testing
 - Unit tests for business logic

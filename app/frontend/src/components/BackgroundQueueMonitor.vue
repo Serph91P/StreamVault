@@ -117,6 +117,9 @@ import { ref, computed } from 'vue'
 import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
+// Constants
+const STALE_RECORDING_THRESHOLD_HOURS = 24; // Hours before a recording is considered stale
+
 // Use WebSocket-only background queue
 const {
   queueStats,
@@ -163,10 +166,10 @@ const combinedActiveTasks = computed(() => {
     // If recording status indicates completion (and we don't have explicit ended_at), treat as not active
     if (rec.status === 'completed' || rec.status === 'failed') continue
 
-    // Filter out stale/zombie recordings older than 24 hours
+    // Filter out stale/zombie recordings older than threshold
     if (rec.started_at) {
       const recordingAge = Date.now() - new Date(rec.started_at).getTime()
-      const maxAge = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+      const maxAge = STALE_RECORDING_THRESHOLD_HOURS * 60 * 60 * 1000 // Convert hours to milliseconds
       if (recordingAge > maxAge) {
         console.debug(`Filtering out stale recording ${rec.id} (age: ${Math.round(recordingAge / 3600000)}h)`)
         continue

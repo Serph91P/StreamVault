@@ -1,6 +1,33 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
 FROM python:3.14-alpine AS base
 
+# Install system dependencies with security updates in a single layer
+# Grouped by purpose for better readability and caching
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    # Core utilities
+    curl \
+    bash \
+    # Media processing
+    ffmpeg \
+    # Build dependencies for Python packages
+    gcc \
+    g++ \
+    python3-dev \
+    postgresql-dev \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    zlib-dev \
+    cmake \
+    # Node.js for frontend build
+    nodejs \
+    npm \
+    # Additional tools
+    wget \
+    git \
+    && rm -rf /var/cache/apk/*
+
 # Create non-root user and set up directories
 RUN addgroup -g 1000 appuser && \
     adduser -u 1000 -G appuser -s /bin/bash -D appuser && \
@@ -9,101 +36,91 @@ RUN addgroup -g 1000 appuser && \
 
 WORKDIR /app
 
-# Install system dependencies with security updates
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-    curl \
-    ffmpeg \
-    gcc \
-    g++ \
-    python3-dev \
-    postgresql-dev \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    wget \
-    git \
-    cmake \
-    zlib-dev \
-    nodejs \
-    npm \
-    bash \
-    && rm -rf /var/cache/apk/*
-
-# Stage for Python dependencies (cached separately)
+# Stage for Python dependencies (cached separately for optimal layer reuse)
 FROM base AS python-deps
+
+# Copy only requirements.txt first for maximum cache efficiency
 COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --upgrade -r requirements.txt \
-    && pip install --no-cache-dir --upgrade streamlink==7.6.0
+
+# Install Python dependencies with pip cache mounting for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir streamlink==7.6.0
 
 # Stage for frontend (only rebuilt when frontend changes)
 FROM base AS frontend-builder
 WORKDIR /app/frontend
+
+# Copy package files first for npm cache optimization
 COPY app/frontend/package*.json ./
 
-# Only install npm dependencies if dist doesn't exist (for local builds)
-RUN if [ ! -d "../frontend/dist" ]; then \
-        echo "No pre-built frontend found, setting up npm..." && \
-        npm install -g npm@latest && \
+# Install npm dependencies with cache mounting (no global npm update needed)
+# Use npm ci for faster, reproducible installs
+RUN --mount=type=cache,target=/root/.npm \
+    if [ ! -d "../frontend/dist" ]; then \
+        echo "No pre-built frontend found, installing npm dependencies..." && \
         npm ci --prefer-offline --no-audit && \
         npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"; \
     else \
         echo "Pre-built frontend detected, skipping npm setup"; \
     fi
 
-# Copy frontend sources
+# Copy frontend sources (separate layer for better caching)
 COPY app/frontend/ ./
 
-# Build frontend only if not already built and not in development mode
+# Build frontend conditionally based on environment
 ARG BUILD_ENV=production
 RUN if [ "$BUILD_ENV" = "production" ]; then \
         if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then \
             echo "✅ Using pre-built frontend from CI/CD pipeline"; \
         else \
-            echo "Building frontend in production mode..." && \
+            echo "📦 Building frontend in production mode..." && \
             rm -rf dist || true && \
             npm run build || { \
-                echo "Build failed, cleaning cache and retrying..." && \
+                echo "⚠️ Build failed, cleaning cache and retrying..." && \
                 rm -rf node_modules/.cache || true && \
                 npm run build; \
             }; \
         fi \
     else \
-        echo "Skipping frontend build in development mode..." && \
+        echo "🔧 Skipping frontend build in development mode..." && \
         mkdir -p dist; \
     fi
 
-# Final stage - combine everything
+# Final stage - combine everything into production image
 FROM python-deps AS final
+
+WORKDIR /app
 
 # Copy built frontend from frontend stage
 COPY --from=frontend-builder /app/frontend/dist /app/app/frontend/dist
 
-# Back to main directory and copy only necessary app files
-WORKDIR /app
+# Copy application code and migrations
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 
-# Create directories with correct permissions
-RUN mkdir -p /recordings && \
-    mkdir -p /app/migrations && \
-    mkdir -p /app/logs/streamlink && \
-    mkdir -p /app/logs/ffmpeg && \
-    mkdir -p /app/logs/app && \
+# Copy and prepare entrypoint script (fix Windows CRLF line endings)
+COPY entrypoint.sh /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Create all necessary directories with correct permissions
+RUN mkdir -p \
+    /recordings \
+    /app/logs/streamlink \
+    /app/logs/ffmpeg \
+    /app/logs/app && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
-    chmod -R 775 /app/migrations && \
     chmod -R 775 /app/logs
 
-# Copy the entrypoint script and fix line endings (handles Windows CRLF)
-COPY entrypoint.sh /app/entrypoint.sh
-RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
-
-# Run final security update
-RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
-
+# Switch to non-root user for security
 USER appuser
+
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:7000/health || exit 1
 
 EXPOSE 7000
 
