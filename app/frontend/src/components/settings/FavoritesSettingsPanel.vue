@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
 
 interface Category {
@@ -118,6 +118,9 @@ interface Category {
   last_seen?: string;
   stream_count?: number;
 }
+
+// Constants
+const VISIBLE_CATEGORIES_PRELOAD_COUNT = 20; // Number of categories to preload images for
 
 // State variables
 const searchQuery = ref('');
@@ -179,17 +182,18 @@ const fetchCategories = async () => {
       categories.value = data.categories;
       
       // Don't preload all images immediately - let them lazy load with intersection observer
-      // Only preload visible categories (first ~20)
+      // Only preload visible categories (configurable count)
       const visibleCategoryNames = data.categories
-        .slice(0, 20)
+        .slice(0, VISIBLE_CATEGORIES_PRELOAD_COUNT)
         .map((cat: any) => cat.name)
         .filter((name: string | null): name is string => Boolean(name));
       
       if (visibleCategoryNames.length > 0) {
-        // Use setTimeout to defer image loading until after render
-        setTimeout(() => {
+        // Use nextTick to defer image loading until after DOM update
+        // This is more reliable than setTimeout and respects Vue's rendering lifecycle
+        nextTick(() => {
           preloadCategoryImages(visibleCategoryNames);
-        }, 100);
+        });
       }
     } else if (Array.isArray(data)) {
       // Direct array response

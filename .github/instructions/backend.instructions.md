@@ -56,6 +56,9 @@ def create_stream(streamer_name: str, title: str):
 - Follow PEP 8 style guide
 - Add docstrings for public APIs using Google style
 - Never use bare `except:` - use specific exception types
+- **NO MAGIC NUMBERS**: Extract all constants to module-level or configuration
+- **DOCUMENT LOGIC CHANGES**: Add comments explaining why query filters changed
+- **DOCUMENT BREAKING CHANGES**: Add `BREAKING CHANGE:` comments for behavior changes
 - **SECURITY**: Validate ALL user input before processing
 - **SECURITY**: Use parameterized queries, never string formatting
 

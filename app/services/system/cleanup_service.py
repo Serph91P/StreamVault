@@ -108,7 +108,13 @@ class CleanupService:
                 favorite_category_ids = CleanupService._get_favorite_categories(db)
             
             # Get all completed recordings for this streamer
-            # Include streams with recording_path OR ended_at (completed recordings even if file deleted)
+            # LOGIC CHANGE: Now filters by ended_at instead of recording_path
+            # Reason: Cleanup should also remove database records of streams where:
+            #   1. Recording file was already deleted manually
+            #   2. Recording failed but stream metadata exists
+            #   3. Recording was moved/renamed outside of StreamVault
+            # This ensures complete cleanup of old stream history, not just files.
+            # If you want to preserve stream history without files, use preserve_favorites.
             streams_query = db.query(Stream).filter(
                 Stream.streamer_id == streamer_id,
                 Stream.ended_at.isnot(None)  # Only completed recordings (not currently recording)
@@ -405,6 +411,13 @@ class CleanupService:
         
         for stream in streams_to_delete:
             try:
+                # BREAKING CHANGE: Complete stream record deletion
+                # Previous behavior: Only cleared recording_path field
+                # New behavior: Deletes entire stream record and all associated files
+                # Reason: Provides complete cleanup and prevents database bloat
+                # Trade-off: Stream history is lost (view count, timestamps, etc.)
+                # Alternative: Use preserve_favorites or preserve_timeframe to keep important streams
+                
                 # Get all metadata files from database first
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
                 files_to_delete = []
