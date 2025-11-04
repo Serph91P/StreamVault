@@ -291,9 +291,9 @@ onMounted(() => {
 
 <style scoped>
 .filter-container {
-  background-color: #18181b;
-  border-radius: 6px;
-  border: 1px solid #2a2a2d;
+  background-color: var(--background-darker);
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--color-border);
   margin-bottom: 24px;
   overflow: hidden;
 }
@@ -364,9 +364,9 @@ onMounted(() => {
   justify-content: center;
   padding: 32px;
   text-align: center;
-  color: #9e9e9e;
-  background-color: #18181b;
-  border-radius: 6px;
+  color: var(--text-secondary);
+  background-color: var(--background-darker);
+  border-radius: var(--border-radius, 8px);
   min-height: 200px;
 }
 
@@ -374,7 +374,7 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(66, 184, 131, 0.1);
-  border-top-color: #42b883;
+  border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -386,9 +386,9 @@ onMounted(() => {
 
 .error-message {
   background-color: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--danger-color);
   padding: 16px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   margin-bottom: 16px;
 }
 
@@ -518,7 +518,7 @@ onMounted(() => {
 .category-image-wrapper {
   width: 100%;
   aspect-ratio: 3/4;
-  background-color: #18181b;
+  background-color: var(--background-darker);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -536,13 +536,13 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #18181b;
-  color: #9e9e9e;
+  background-color: var(--background-darker);
+  color: var(--text-secondary);
 }
 
 .category-icon {
   font-size: 2rem;
-  color: #9146FF;
+  color: var(--info-color);
   opacity: 0.7;
 }
 
@@ -573,7 +573,7 @@ onMounted(() => {
 
 .category-meta {
   font-size: 0.8rem;
-  color: #9e9e9e;
+  color: var(--text-secondary);
   margin: 4px 0;
 }
 
@@ -598,21 +598,21 @@ onMounted(() => {
   padding: 4px 8px;
   font-size: 0.8rem;
   background-color: transparent;
-  color: #9e9e9e;
-  border: 1px solid #2a2a2d;
-  border-radius: 4px;
+  color: var(--text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm, 4px);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-icon:hover {
-  background-color: #18181b;
-  color: #efeff1;
+  background-color: var(--background-darker);
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
 .btn-icon.is-favorite {
-  color: #FFD700;
+  color: var(--warning-color);
   border-color: rgba(255, 215, 0, 0.5);
 }
 
@@ -630,80 +630,25 @@ onMounted(() => {
   }
 }
 
+/* Button overrides removed - using global .btn-* classes from design system */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.btn-primary {
-  background-color: #42b883;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #3ca978;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
-}
-
-.btn-secondary {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #efeff1;
-  border: 1px solid #2a2a2d;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
-
-.btn-info {
-  background-color: #17a2b8;
-  color: white;
-  border: 1px solid #17a2b8;
-}
-
-.btn-info:hover:not(:disabled) {
-  background-color: #138496;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(23, 162, 184, 0.25);
-}
-
-.btn-warning {
-  background-color: #ffc107;
-  color: #000;
-  border: 1px solid #ffc107;
-}
-
-.btn-warning:hover:not(:disabled) {
-  background-color: #e0a800;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(255, 193, 7, 0.25);
+  border-radius: var(--border-radius-sm, 4px);
 }
 
 .form-control {
   width: 100%;
   box-sizing: border-box;
-  background: #121214;
-  border: 1px solid #2a2a2d;
-  color: #efeff1;
+  background: var(--background-dark);
+  border: 1px solid var(--color-border);
+  color: var(--text-primary);
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   font-size: 0.95rem;
   transition: all 0.2s ease;
 }
 
 .form-control:focus {
-  border-color: #42b883;
+  border-color: var(--primary-color);
   outline: none;
   box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
 }
