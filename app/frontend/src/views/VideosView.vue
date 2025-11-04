@@ -312,7 +312,7 @@ onMounted(() => {
     gap: 20px;
     margin-bottom: 30px;
     padding: 20px;
-    background: var(--bg-secondary);
+    background: var(--background-card);
     border-radius: 12px;
 }
 
@@ -326,7 +326,7 @@ onMounted(() => {
 .search-input {
     flex: 1;
     padding: 12px 16px;
-    border: 2px solid var(--border-color);
+    border: 2px solid var(--color-border);
     border-radius: 25px;
     font-size: 16px;
     outline: none;
@@ -348,7 +348,7 @@ onMounted(() => {
 }
 
 .search-btn:hover {
-    background: var(--primary-hover);
+    background: var(--primary-color-dark);
 }
 
 .filter-buttons {
@@ -360,7 +360,7 @@ onMounted(() => {
 
 .filter-btn {
     padding: 8px 20px;
-    border: 2px solid var(--border-color);
+    border: 2px solid var(--color-border);
     background: transparent;
     color: var(--text-primary);
     border-radius: 20px;
@@ -395,7 +395,7 @@ onMounted(() => {
 
 .category-btn {
     padding: 6px 16px;
-    border: 2px solid var(--border-color);
+    border: 2px solid var(--color-border);
     background: transparent;
     color: var(--text-primary);
     border-radius: 15px;
@@ -406,9 +406,9 @@ onMounted(() => {
 
 .category-btn:hover,
 .category-btn.active {
-    background: var(--accent-color);
+    background: var(--success-color);
     color: white;
-    border-color: var(--accent-color);
+    border-color: var(--success-color);
 }
 
 .loading-container {
@@ -422,7 +422,7 @@ onMounted(() => {
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid var(--border-color);
+    border: 4px solid var(--color-border);
     border-top: 4px solid var(--primary-color);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -446,8 +446,8 @@ onMounted(() => {
 }
 
 .video-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--background-card);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
@@ -463,7 +463,7 @@ onMounted(() => {
 }
 
 .video-card:nth-child(odd) {
-    background: var(--bg-secondary);
+    background: var(--background-card);
 }
 
 .video-card:nth-child(even) {
@@ -489,9 +489,9 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--bg-tertiary) 0%, #404040 100%);
+    background: linear-gradient(135deg, var(--background-darker) 0%, var(--background-dark) 100%);
     color: var(--text-secondary);
-    border: 2px dashed var(--border-color);
+    border: 2px dashed var(--color-border);
 }
 
 .video-duration {
@@ -554,7 +554,7 @@ onMounted(() => {
 }
 
 .video-category {
-    color: var(--accent-color);
+    color: var(--success-color);
     font-size: 0.85rem;
     margin-bottom: 8px;
     font-weight: 500;
@@ -593,7 +593,7 @@ onMounted(() => {
 
 .error-state svg {
     margin-bottom: 20px;
-    color: #e74c3c;
+    color: var(--danger-color);
 }
 
 .error-state h3 {
@@ -614,7 +614,7 @@ onMounted(() => {
 }
 
 .retry-btn:hover {
-    background: var(--primary-hover);
+    background: var(--primary-color-dark);
 }
 
 /* Mobile Responsive */
@@ -667,31 +667,7 @@ onMounted(() => {
     }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-primary: #1a1a1a;
-        --bg-secondary: #2d2d2d;
-        --bg-tertiary: #383838;
-        --text-primary: #ffffff;
-        --text-secondary: #b0b0b0;
-        --border-color: #404040;
-        --primary-color: #6f42c1;
-        --primary-hover: #5a359a;
-        --accent-color: #28a745;
-    }
-}
-
-/* Light mode support */
-:root {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8f9fa;
-    --bg-tertiary: #e9ecef;
-    --text-primary: #212529;
-    --text-secondary: #6c757d;
-    --border-color: #dee2e6;
-    --primary-color: #6f42c1;
-    --primary-hover: #5a359a;
-    --accent-color: #28a745;
-}
+/* NOTE: This component now uses global design tokens from _variables.scss
+   Local CSS variable definitions were removed to prevent conflicts with the design system.
+   All colors are now managed centrally through the design token system. */
 </style>
