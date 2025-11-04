@@ -472,9 +472,14 @@ class CleanupService:
                         # Last resort: construct from stream data (Streamer - SYYYYMME## pattern)
                         from app.models import Streamer
                         streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                        if streamer and hasattr(stream, 'episode_number'):
+                        if streamer:
                             season_num = stream.started_at.strftime("%Y%m")
-                            episode_num = f"{int(stream.episode_number):02d}" if stream.episode_number else stream.started_at.strftime("%d")
+                            # Safe access to episode_number with hasattr check
+                            episode_num = (
+                                f"{int(stream.episode_number):02d}" 
+                                if hasattr(stream, 'episode_number') and stream.episode_number 
+                                else stream.started_at.strftime("%d")
+                            )
                             base_name = f"{streamer.username} - S{season_num}E{episode_num}"
                     
                     if base_name:
@@ -505,6 +510,8 @@ class CleanupService:
                                         if file_path not in files_to_delete:
                                             files_to_delete.append(file_path)
                                 except (OSError, ValueError):
+                                    # Ignore broken symlinks or permission errors during readlink
+                                    # These will be handled by the orphaned files cleanup
                                     pass
                 
                 # Delete all collected files
@@ -790,6 +797,7 @@ class CleanupService:
                             size = os.path.getsize(stream.recording_path)
                             total_size += size
                         except Exception:
+                            # Ignore permission errors or race conditions where file was deleted
                             pass
                 
                 # Identify preserved streams
@@ -828,6 +836,7 @@ class CleanupService:
                             streams.append(stream)
                             current_size -= file_size
                         except Exception:
+                            # Ignore permission errors or race conditions where file was deleted
                             pass
                 
             elif policy_type == CleanupPolicyType.AGE.value:
@@ -869,6 +878,7 @@ class CleanupService:
                         size = os.path.getsize(stream.recording_path)
                         total_size += size
                     except Exception:
+                        # Ignore permission errors or race conditions where file was deleted
                         pass
                 
                 result_streams.append({

@@ -21,6 +21,8 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
     """
     SECURITY: Validate path against traversal attacks
     
+    This is the actual implementation from app/utils/security.py
+    
     Args:
         user_path: User-provided path (can be relative or absolute)
         operation_type: "read", "write", "delete", or "access"
@@ -33,12 +35,14 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
     """
     import os
     from app.config.settings import get_settings
+    from app.utils.security import is_path_within_base  # Shared helper function
     
     settings = get_settings()
     safe_base = os.path.realpath(settings.RECORDING_DIRECTORY)
     
     try:
         # CRITICAL: Normalize and resolve all path components
+        # This resolves symlinks and relative path components (../, ./)
         normalized_path = os.path.realpath(os.path.abspath(user_path))
     except (OSError, ValueError, TypeError) as e:
         logger.error(f"🚨 SECURITY: Invalid path provided: {user_path} - {e}")
@@ -48,12 +52,25 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
         )
     
     # CRITICAL: Ensure path is within safe directory
-    # Both exact match and subdirectory are allowed
-    if not (normalized_path == safe_base or normalized_path.startswith(safe_base + os.sep)):
+    # Uses shared validation helper for consistent checking across the app
+    if not is_path_within_base(normalized_path, safe_base):
         logger.error(
             f"🚨 SECURITY: Path traversal attempt blocked: "
             f"{user_path} -> {normalized_path} (safe base: {safe_base})"
         )
+        
+        # Log security event for monitoring
+        log_security_event(
+            event_type="PATH_TRAVERSAL_BLOCKED",
+            details={
+                "attempted_path": user_path,
+                "normalized_path": normalized_path,
+                "safe_base": safe_base,
+                "operation_type": operation_type
+            },
+            severity="CRITICAL"
+        )
+        
         raise HTTPException(
             status_code=403, 
             detail="Access denied: Path outside allowed directory"
@@ -73,11 +90,18 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
                 status_code=400,
                 detail=f"Path is not a file: {user_path}"
             )
-        elif operation_type == "write" and os.path.isdir(normalized_path):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot write to directory: {user_path}"
-            )
+        elif operation_type == "write":
+            parent_dir = os.path.dirname(normalized_path)
+            if not os.path.isdir(parent_dir):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Parent directory does not exist: {parent_dir}"
+                )
+            if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot write to directory: {user_path}"
+                )
     
     return normalized_path
 ```
