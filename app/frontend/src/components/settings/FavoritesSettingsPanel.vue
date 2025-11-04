@@ -190,7 +190,13 @@ const fetchCategories = async () => {
         // Use nextTick to defer image loading until after DOM update
         // This is more reliable than setTimeout and respects Vue's rendering lifecycle
         nextTick(() => {
-          preloadCategoryImages(visibleCategoryNames);
+          // Error handling for image preloading to prevent unhandled promise rejections
+          try {
+            preloadCategoryImages(visibleCategoryNames);
+          } catch (err) {
+            console.warn('Failed to preload category images:', err);
+            // Non-critical error - images will still lazy load when visible
+          }
         });
       }
     } else if (Array.isArray(data)) {
