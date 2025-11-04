@@ -237,10 +237,13 @@ async def cleanup_orphaned_files(
     """
     🧹 Cleanup Orphaned Files
     Remove broken symlinks, 0-byte files, and empty segment directories
+    
+    Security: Path traversal protection applied to recordings_root parameter
     """
     try:
         from app.services.system.cleanup_service import cleanup_service
         
+        # SECURITY: Validation happens in service layer
         logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES: recordings_root={recordings_root}")
         
         cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(recordings_root)
