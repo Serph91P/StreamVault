@@ -14,8 +14,7 @@ from app.utils.security import (
     validate_path_security,
     validate_filename,
     validate_streamer_name,
-    validate_file_type,
-    ALLOWED_VIDEO_EXTENSIONS
+    validate_file_type
 )
 
 
@@ -148,7 +147,7 @@ class TestPathTraversalPrevention:
     def test_null_path_blocked(self):
         """Test that null paths are blocked"""
         with pytest.raises(HTTPException) as exc_info:
-            validate_path_security(None, "read")
+            validate_path_security(None, "read")  # type: ignore
         
         assert exc_info.value.status_code == 400
 
