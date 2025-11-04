@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from typing import List, Dict, Optional, Tuple, Any, Set
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func
@@ -383,7 +383,6 @@ class CleanupService:
                         
                         # Create time objects for comparison
                         stream_time_of_day = stream_time.time()
-                        from datetime import time
                         start_time_obj = time(start_hour, start_minute)
                         end_time_obj = time(end_hour, end_minute)
                         
@@ -472,7 +471,6 @@ class CleanupService:
                         base_name = os.path.splitext(os.path.basename(metadata.nfo_path))[0]
                     elif stream.started_at:
                         # Last resort: construct from stream data (Streamer - SYYYYMME## pattern)
-                        from app.models import Streamer
                         streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
                         if streamer:
                             season_num = stream.started_at.strftime("%Y%m")
