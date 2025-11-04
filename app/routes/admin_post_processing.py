@@ -231,22 +231,21 @@ async def cleanup_orphaned_segments(
         raise HTTPException(status_code=500, detail=f"Failed to cleanup segments: {str(e)}")
 
 @router.post("/cleanup-orphaned-files")
-async def cleanup_orphaned_files(
-    recordings_root: str = Query("/recordings", description="Root directory for recordings")
-) -> Dict[str, Any]:
+async def cleanup_orphaned_files() -> Dict[str, Any]:
     """
     🧹 Cleanup Orphaned Files
     Remove broken symlinks, 0-byte files, and empty segment directories
     
-    Security: Path traversal protection applied to recordings_root parameter
+    Security: Uses configured RECORDING_DIRECTORY, no user input accepted
     """
     try:
         from app.services.system.cleanup_service import cleanup_service
         
-        # SECURITY: Validation happens in service layer
-        logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES: recordings_root={recordings_root}")
+        # SECURITY: Use configured directory only, no user input
+        # This prevents any possibility of path traversal attacks
+        logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES: Using configured RECORDING_DIRECTORY")
         
-        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(recordings_root)
+        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(RECORDINGS_ROOT)
         
         logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES_RESULT: cleaned={cleaned_count} items")
         
