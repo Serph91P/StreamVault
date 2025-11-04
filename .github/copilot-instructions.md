@@ -368,6 +368,70 @@ Testing: Verified ../../../etc/passwd attacks are blocked
 Affects: All cleanup endpoints accepting file paths
 ```
 
+## 📝 Documentation & Learning Protocol
+
+**CRITICAL**: After fixing production bugs or discovering new patterns, **ALWAYS** document lessons learned.
+
+### When to Update Instructions
+Update `.github/instructions/*.instructions.md` when you:
+
+1. **Fix a production bug** → Document the root cause and prevention pattern
+2. **Discover a missing pattern** → Add to Common Patterns section
+3. **Find a framework quirk** → Document the workaround
+4. **Resolve a silent failure** → Add validation requirement
+5. **Implement a duplicate check** → Add to duplicate prevention patterns
+6. **Add startup cleanup** → Document zombie state detection
+
+### Documentation Workflow
+
+```
+Production Bug → Root Cause Analysis → Pattern Extraction → Documentation Update
+```
+
+**Example:**
+```
+Bug: WebSocket connections fail with "WebSocketState is not defined"
+Root Cause: Missing import from starlette.websockets
+Pattern: Always verify ALL required imports for library features
+Documentation: → backend.instructions.md "Missing Import Prevention" section
+```
+
+### What to Document
+
+**In `backend.instructions.md`:**
+- Production patterns (duplicate prevention, zombie cleanup, startup validation)
+- Framework-specific requirements (imports, configuration, dependencies)
+- Silent failure prevention (connectivity checks, validation)
+- State management patterns
+
+**In `frontend.instructions.md`:**
+- Component patterns
+- State management anti-patterns
+- PWA-specific requirements
+- Mobile-first gotchas
+
+**In `security.instructions.md`:**
+- Security vulnerabilities discovered
+- Attack vectors found in code review
+- Validation requirements
+
+**In `copilot-instructions.md`:**
+- Meta-patterns (like this documentation protocol)
+- Cross-cutting concerns
+- Project-wide standards
+
+### Self-Improvement Loop
+
+```
+1. Encounter problem
+2. Solve problem
+3. Extract pattern
+4. Document pattern
+5. Apply pattern proactively in future
+```
+
+This creates institutional knowledge that persists across sessions.
+
 ## Key Principles
 
 ### Backend
@@ -378,6 +442,9 @@ Affects: All cleanup endpoints accepting file paths
 - **BREAKING CHANGES**: Document behavior changes in comments and commit messages
 - **EXTERNAL SERVICE FAILURES**: Always check connectivity before using external services (proxies, APIs)
 - **FAIL FAST**: Validate preconditions early, don't let processes silently fail
+- **MISSING IMPORTS**: Verify ALL imports when using framework features (WebSocketState, etc.)
+- **DUPLICATE PREVENTION**: Check for existing operations before starting new ones
+- **STARTUP CLEANUP**: Clean zombie/stale state on application startup
 - **SECURITY**: Always validate file paths and user input
 - **SECURITY**: Use parameterized queries, never string concatenation
 

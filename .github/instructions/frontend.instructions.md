@@ -248,4 +248,114 @@ All interactive elements must have `min-height: 44px` on mobile for accessibilit
 - Large: 1440px+
 - XL: 1920px+
 
+## PWA & Service Worker Requirements
+
+### Service Worker Registration
+**CRITICAL**: Service worker files MUST be served at root level, not in subdirectories.
+
+#### File Location Requirements
+```
+✅ CORRECT:
+/sw.js               - Service worker itself
+/registerSW.js       - Registration script
+/manifest.json       - Web app manifest
+
+❌ WRONG:
+/pwa/sw.js          - Can only control /pwa/** (not whole app!)
+/assets/sw.js       - Cannot control parent directories
+```
+
+**Why Root Level?**
+- Service workers can only control their own directory and subdirectories
+- `/pwa/sw.js` scope is limited to `/pwa/**`
+- `/sw.js` scope includes the entire application
+- Browser security model enforces this restriction
+
+#### Backend Integration (FastAPI)
+Service worker files must have dedicated endpoints:
+
+```python
+# ✅ CORRECT: Root-level endpoints
+@app.get("/registerSW.js")
+async def register_service_worker():
+    return FileResponse(
+        "app/frontend/dist/registerSW.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache", 
+            "Expires": "0"
+        }
+    )
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(
+        "app/frontend/dist/sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"}  # Never cache SW!
+    )
+
+# ❌ WRONG: Only mounting under /pwa/
+app.mount("/pwa", StaticFiles(directory="dist"))
+# Browser requests /registerSW.js → 404!
+```
+
+#### Cache Headers for Service Workers
+**NEVER cache service worker files** - they must always be fresh:
+
+```
+✅ CORRECT Cache Headers:
+Cache-Control: no-cache, no-store, must-revalidate
+Pragma: no-cache
+Expires: 0
+
+❌ WRONG:
+Cache-Control: public, max-age=31536000  # Will prevent updates!
+```
+
+**Why No Cache?**
+- Service worker updates must be detected immediately
+- Stale service workers can break the entire application
+- Browser checks for updates on every page load
+- If cached, users get stuck with old broken code
+
+#### Testing Service Worker Registration
+
+```bash
+# Check if files are accessible at root
+curl -I https://your-app.com/registerSW.js  # Should return 200
+curl -I https://your-app.com/sw.js          # Should return 200
+
+# Verify headers
+curl -I https://your-app.com/sw.js | grep -i cache
+# Should show: Cache-Control: no-cache
+```
+
+**Browser DevTools:**
+1. Open Application tab → Service Workers
+2. Should show service worker registered at `/sw.js`
+3. Check Console for errors like "Failed to load /registerSW.js"
+4. Network tab should show 200 responses for SW files
+
+#### Common Issues & Solutions
+
+**Issue: 404 on /registerSW.js**
+```
+❌ Problem: File only available at /pwa/registerSW.js
+✅ Solution: Add root-level endpoint in FastAPI main.py
+```
+
+**Issue: Service worker not updating**
+```
+❌ Problem: Cached with max-age header
+✅ Solution: Use no-cache headers for all SW files
+```
+
+**Issue: Service worker scope limited**
+```
+❌ Problem: Registered at /pwa/sw.js, can't control /api/
+✅ Solution: Move service worker to root level
+```
+
 Use `@media (min-width: X)` for progressive enhancement.

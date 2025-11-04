@@ -90,6 +90,148 @@ def create_stream(streamer_name: str, title: str):
 - Implement graceful shutdown for long-running tasks
 - Use WebSocket for real-time UI updates
 
+## Production Best Practices
+
+### Missing Import Prevention
+**ALWAYS verify imports are complete when using external libraries**
+
+```python
+# ✅ CORRECT: Import ALL required classes
+from fastapi import WebSocket
+from starlette.websockets import WebSocketState  # Required for state checking!
+
+if websocket.client_state == WebSocketState.CONNECTED:
+    await websocket.send_json(data)
+
+# ❌ WRONG: Missing import causes runtime error
+# from fastapi import WebSocket  # Missing WebSocketState import!
+# if websocket.client_state == WebSocketState.CONNECTED:  # NameError!
+```
+
+**Check:** If you reference a class/constant, ensure it's imported at the top of the file.
+
+### Duplicate Prevention Checks
+**ALWAYS check for existing operations before starting duplicates**
+
+```python
+# ✅ CORRECT: Check for existing active recording
+active_recordings = state_manager.get_active_recordings()
+existing_recording = next(
+    (rec_id for rec_id, rec_data in active_recordings.items() 
+     if rec_data.get('streamer_id') == streamer_id),
+    None
+)
+if existing_recording:
+    logger.warning(f"DUPLICATE_BLOCK: Streamer {streamer_id} already has active recording {existing_recording}")
+    return None
+
+# Start new recording only if no duplicate exists
+recording_id = await start_recording(streamer_id)
+
+# ❌ WRONG: Start without checking for duplicates
+recording_id = await start_recording(streamer_id)  # May create multiple recordings!
+```
+
+**Apply to:**
+- Recording processes (one per streamer at a time)
+- Background tasks (prevent duplicate jobs)
+- WebSocket connections (prevent duplicate event handlers)
+- File operations (prevent concurrent writes to same file)
+
+**Note:** Consider if your duplicate check is compatible with segmented/chunked operations (e.g., 24h recording segments).
+
+### Startup Cleanup - Zombie State Detection
+**ALWAYS clean up stale state on application startup**
+
+```python
+# ✅ CORRECT: Startup cleanup function
+async def cleanup_zombie_recordings():
+    """Clean up stale recordings from database on startup
+    
+    Recordings are zombies if:
+    - Status is 'recording' in database
+    - But no actual process is running (after restart)
+    """
+    with SessionLocal() as db:
+        zombie_recordings = db.query(Recording).filter(
+            Recording.status == 'recording'
+        ).all()
+        
+        for recording in zombie_recordings:
+            # Update to realistic state
+            recording.status = 'stopped'
+            recording.end_time = recording.end_time or datetime.now()
+            
+            logger.info(f"🧹 Cleaned zombie recording {recording.id}")
+        
+        db.commit()
+        logger.info(f"✅ Cleaned up {len(zombie_recordings)} zombie recordings")
+
+# Call during startup BEFORE attempting recovery
+async def startup_initialization():
+    await cleanup_zombie_recordings()  # Clean first
+    await recover_active_recordings()   # Then recover
+```
+
+**Apply to:**
+- Recording status in database (status='recording' but no process)
+- WebSocket connections (connections in DB but not in memory)
+- Background tasks (tasks marked 'running' but not executing)
+- Temporary files (orphaned temp files from previous session)
+- Locks/semaphores (stale locks that prevent operations)
+
+**Pattern:**
+1. Query for entities in "active" state (recording, running, locked, etc.)
+2. Verify actual state (check if process exists, file is locked, etc.)
+3. Update to realistic state (stopped, failed, unlocked)
+4. Log cleanup actions for debugging
+
+### Static File Serving - PWA & Service Workers
+**ALWAYS provide root-level endpoints for PWA critical files**
+
+```python
+# ✅ CORRECT: Serve PWA files at root level
+@app.get("/registerSW.js")
+async def register_service_worker():
+    """Service worker registration must be at root level"""
+    for path in ["app/frontend/dist/registerSW.js", "/app/app/frontend/dist/registerSW.js"]:
+        try:
+            return FileResponse(
+                path,
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",  # Never cache SW
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        except (FileNotFoundError, PermissionError):
+            continue
+    return Response(status_code=404)
+
+@app.get("/sw.js")
+async def service_worker():
+    """Service worker must also be at root"""
+    # Same pattern as above
+
+# ❌ WRONG: Only mounting under /pwa/
+app.mount("/pwa", StaticFiles(directory="dist"))
+# Browser requests /registerSW.js → 404!
+# Service worker scope rules require root-level files
+```
+
+**PWA File Requirements:**
+- `/sw.js` - Service worker itself (MUST be at root)
+- `/registerSW.js` - Registration script (MUST be at root)
+- `/manifest.json` - Web app manifest (MUST be at root)
+- Headers: Service workers MUST have `no-cache` headers
+- Scope: Service worker scope is limited to its location and below
+
+**Why Root Level?**
+- Service workers can only control their own directory and subdirectories
+- `/pwa/sw.js` can only control `/pwa/**`, not the whole app
+- `/sw.js` can control the entire application
+
 ## Testing
 
 - Write unit tests for business logic
