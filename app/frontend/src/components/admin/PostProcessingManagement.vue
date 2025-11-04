@@ -670,8 +670,8 @@ onMounted(() => {
   color: var(--color-text-light);
 }
 
-.text-success { color: #28a745 !important; }
-.text-danger { color: #dc3545 !important; }
+.text-success { color: var(--success-color) !important; }
+.text-danger { color: var(--danger-color) !important; }
 
 .result-summary {
   margin-bottom: 20px;
