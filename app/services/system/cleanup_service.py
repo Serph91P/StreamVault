@@ -909,31 +909,23 @@ class CleanupService:
     @staticmethod
     async def cleanup_orphaned_files(recordings_root: str = "/recordings") -> Tuple[int, List[str]]:
         """
-        Clean up orphaned files in the recordings directory:
-        - Broken symlinks (pointing to non-existent files)
-        - 0-byte NFO files (corrupt or incomplete)
-        - Empty segment directories
-        
-        Args:
-            recordings_root: Root directory for recordings
-            
-        Returns:
-            Tuple containing (number of cleaned files, list of cleaned file paths)
+        🧹 Cleanup Orphaned Files
+        Remove broken symlinks, 0-byte files, and empty segment directories
+
+        **SECURITY**: Uses path validation to prevent traversal attacks.
         """
-        cleaned_count = 0
+        from app.utils.security import validate_path_security
+        
+        # SECURITY: Always validate user-provided paths
+        safe_root = validate_path_security(recordings_root, "read")
+        
+        logger.info(f"🧹 CLEANUP_ORPHANED_FILES: Starting cleanup in {safe_root}")
+        
         cleaned_paths = []
+        cleaned_count = 0
         
         try:
-            if not os.path.exists(recordings_root):
-                logger.warning(f"Recordings root does not exist: {recordings_root}")
-                return 0, []
-            
-            logger.info(f"🧹 Starting orphaned files cleanup in {recordings_root}")
-            
-            # Walk through all directories
-            for root, dirs, files in os.walk(recordings_root):
-                # Skip hidden directories
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for root, dirs, files in os.walk(safe_root):
                 
                 # Check for broken symlinks and 0-byte files
                 for filename in files:
