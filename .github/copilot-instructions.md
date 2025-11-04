@@ -289,12 +289,20 @@ if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
 
 #### API Endpoints - MANDATORY Validation
 ```python
-# For file paths in API parameters
+# BEST PRACTICE: Don't accept file paths as parameters at all
 @router.post("/admin/cleanup")
-async def cleanup_files(recordings_root: str = Query(...)):
-    # SECURITY: Always validate before processing
-    safe_path = validate_path_security(recordings_root, "read")
+async def cleanup_files():
+    # SECURITY: Use configured directory, no user input
+    from app.config.settings import get_settings
+    safe_path = get_settings().RECORDING_DIRECTORY
     return await cleanup_service.cleanup_files(safe_path)
+
+# If you MUST accept paths, validate thoroughly
+@router.post("/admin/process-file")
+async def process_file(file_path: str = Query(...)):
+    # SECURITY: Always validate before processing
+    safe_path = validate_path_security(file_path, "read")
+    return await file_service.process(safe_path)
 
 # For file uploads
 @router.post("/upload")  
