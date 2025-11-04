@@ -376,6 +376,8 @@ Affects: All cleanup endpoints accepting file paths
 - Services should be stateless; use dependency injection
 - **NO MAGIC NUMBERS**: Extract all constants to configuration or module-level constants
 - **BREAKING CHANGES**: Document behavior changes in comments and commit messages
+- **EXTERNAL SERVICE FAILURES**: Always check connectivity before using external services (proxies, APIs)
+- **FAIL FAST**: Validate preconditions early, don't let processes silently fail
 - **SECURITY**: Always validate file paths and user input
 - **SECURITY**: Use parameterized queries, never string concatenation
 
@@ -411,6 +413,13 @@ Affects: All cleanup endpoints accepting file paths
    - Use `nextTick()` in Vue instead of `setTimeout()`
    - Use `requestIdleCallback()` for non-critical operations
    - If `setTimeout()` is necessary, extract delay to constant with rationale
+
+5. **External Service Error Handling**:
+   - **Check connectivity BEFORE** starting long-running operations
+   - **Fail fast** with clear error messages when external services are unavailable
+   - **Never let processes fail silently** - always log errors and propagate exceptions
+   - **Example**: Check proxy connectivity before starting Streamlink recording
+   - **Pattern**: Validate → Log → Raise exception with actionable error message
 
 ### Testing
 - Unit tests for business logic

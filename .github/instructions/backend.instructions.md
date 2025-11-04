@@ -75,6 +75,8 @@ def create_stream(streamer_name: str, title: str):
 - Use structured logging with context
 - Implement proper error handling with specific exceptions
 - Use TTLCache for caches that could grow unboundedly
+- **Check external service connectivity BEFORE starting long-running operations**
+- **Fail fast with clear errors when external services are unavailable**
 
 ## Configuration
 
@@ -118,6 +120,19 @@ try:
     process.terminate()
 except ProcessLookupError:
     logger.debug("Process already terminated")
+
+# ✅ CORRECT: Check external service connectivity first
+from app.utils.streamlink_utils import check_proxy_connectivity
+
+proxy_settings = get_proxy_settings_from_db()
+if proxy_settings:
+    is_reachable, error = check_proxy_connectivity(proxy_settings)
+    if not is_reachable:
+        logger.error(f"🔴 Proxy connection failed: {error}")
+        raise ProxyConnectionError(f"Cannot start recording: {error}")
+
+# ❌ WRONG: Start process without checking connectivity
+process = subprocess.Popen([...])  # May fail silently if proxy is down!
 except Exception as e:
     logger.error(f"Failed to terminate: {e}")
 

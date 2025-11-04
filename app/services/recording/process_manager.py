@@ -171,6 +171,27 @@ class ProcessManager:
             # Get proxy settings
             proxy_settings = get_proxy_settings_from_db()
             
+            # CRITICAL: Check proxy connectivity before starting recording
+            # This prevents silent failures when proxy is down
+            if proxy_settings and any(proxy_settings.values()):
+                from app.utils.streamlink_utils import check_proxy_connectivity
+                
+                is_reachable, proxy_error = check_proxy_connectivity(proxy_settings)
+                if not is_reachable:
+                    error_msg = f"Cannot start recording for {streamer_name}: Proxy connection failed - {proxy_error}"
+                    logger.error(f"🔴 PROXY_DOWN: {error_msg}")
+                    
+                    # Log to structured logging service
+                    if self.logging_service:
+                        streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
+                        self.logging_service.log_streamlink_error(
+                            streamer_name=streamer_name,
+                            error_message=f"Proxy connectivity check failed: {proxy_error}",
+                            log_path=streamlink_log_path
+                        )
+                    
+                    raise ProcessError(f"Proxy connection failed: {proxy_error}. Please check proxy settings or network connectivity.")
+            
             logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
             
             # Generate streamlink command for this segment

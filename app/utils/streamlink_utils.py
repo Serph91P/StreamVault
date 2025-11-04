@@ -48,6 +48,74 @@ def get_streamlink_version() -> str:
         logger.error(f"Error getting Streamlink version: {e}")
         return "Error"
 
+def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, str]:
+    """
+    Check if proxy is reachable before attempting to record.
+    
+    Args:
+        proxy_settings: Optional dictionary containing "http" and/or "https" proxy URLs
+        
+    Returns:
+        Tuple of (is_reachable: bool, error_message: str)
+    """
+    if not proxy_settings or not any(proxy_settings.values()):
+        # No proxy configured, connectivity is assumed OK
+        return True, ""
+    
+    # Test proxy connectivity with a simple Streamlink command
+    test_cmd = ["streamlink", "--json", "twitch.tv/test"]
+    
+    if "http" in proxy_settings and proxy_settings["http"].strip():
+        test_cmd.extend(["--http-proxy", proxy_settings["http"].strip()])
+    if "https" in proxy_settings and proxy_settings["https"].strip():
+        test_cmd.extend(["--https-proxy", proxy_settings["https"].strip()])
+    
+    try:
+        # Use a short timeout to fail fast if proxy is down
+        result = subprocess.run(
+            test_cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=10,  # 10 second timeout
+            check=False  # Don't raise exception on non-zero exit
+        )
+        
+        # Check for proxy connection errors in stderr
+        stderr_lower = result.stderr.lower() if result.stderr else ""
+        
+        # Common proxy error patterns
+        proxy_error_patterns = [
+            "unable to connect to proxy",
+            "proxy connection failed",
+            "connection refused",
+            "proxy error",
+            "failed to connect",
+            "network is unreachable",
+            "connection timed out",
+            "name or service not known"  # DNS resolution failure
+        ]
+        
+        for pattern in proxy_error_patterns:
+            if pattern in stderr_lower:
+                error_msg = f"Proxy connectivity check failed: {pattern}"
+                logger.error(f"🔴 {error_msg}")
+                logger.debug(f"Proxy test stderr: {result.stderr}")
+                return False, error_msg
+        
+        # If we got here without errors, proxy is reachable
+        logger.debug("✅ Proxy connectivity check passed")
+        return True, ""
+        
+    except subprocess.TimeoutExpired:
+        error_msg = "Proxy connectivity check timed out after 10 seconds"
+        logger.error(f"🔴 {error_msg}")
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Proxy connectivity check failed with exception: {e}"
+        logger.error(f"🔴 {error_msg}")
+        return False, error_msg
+
+
 def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, Dict[str, Any]]:
     """
     Get information about a stream using Streamlink.
@@ -60,6 +128,17 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
         Tuple of (success: bool, info: dict)
         where info contains stream details if successful
     """
+    # Check proxy connectivity first if proxy is configured
+    if proxy_settings and any(proxy_settings.values()):
+        is_reachable, proxy_error = check_proxy_connectivity(proxy_settings)
+        if not is_reachable:
+            logger.error(f"🔴 PROXY_DOWN: Cannot get stream info for {streamer_name} - {proxy_error}")
+            return False, {
+                "error": "Proxy connection failed",
+                "details": proxy_error,
+                "proxy_settings": {k: v[:50] + "..." if len(v) > 50 else v for k, v in proxy_settings.items() if v}
+            }
+    
     cmd = ["streamlink", "--json", f"twitch.tv/{streamer_name}"]
     
     # Add proxy settings if provided
@@ -71,15 +150,29 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
     
     try:
         logger.debug(f"Running stream info command: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
         
         # Parse the JSON output
         stream_info = json.loads(result.stdout)
         return True, stream_info
+    except subprocess.TimeoutExpired:
+        error_msg = "Streamlink command timed out after 30 seconds"
+        logger.error(f"🔴 {error_msg} for {streamer_name}")
+        return False, {"error": error_msg}
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to get stream info for {streamer_name}: {e}")
         logger.debug(f"Command output: {e.stdout}")
         logger.debug(f"Command error: {e.stderr}")
+        
+        # Check if this is a proxy-related error
+        stderr_lower = (e.stderr or "").lower()
+        if any(pattern in stderr_lower for pattern in ["proxy", "connection refused", "network unreachable"]):
+            return False, {
+                "error": "Proxy or network connection failed",
+                "stderr": e.stderr,
+                "details": "Check proxy settings or network connectivity"
+            }
+        
         return False, {"error": str(e), "stderr": e.stderr if hasattr(e, 'stderr') else "No error output"}
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON output from Streamlink: {e}")
