@@ -80,7 +80,68 @@ def create_stream(streamer_name: str, title: str):
 
 ## Configuration
 
-- Put magic numbers in `app/config/constants.py`
+### Constants Management (MANDATORY)
+
+**ALWAYS** use `app/config/constants.py` for magic numbers, timeouts, and thresholds.
+
+#### Available Constant Groups:
+
+```python
+from app.config.constants import (
+    ASYNC_DELAYS,        # Delays for async operations (seconds)
+    RETRY_CONFIG,        # Retry attempts and strategies
+    TIMEOUTS,            # Timeout values for various operations
+    CACHE_CONFIG,        # Cache sizes and TTL values
+    FILE_SIZE_THRESHOLDS,# File size thresholds in bytes
+    METADATA_CONFIG      # Metadata extraction configuration
+)
+
+# Examples:
+await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)  # 1.0 seconds
+max_retries = RETRY_CONFIG.DEFAULT_MAX_RETRIES  # 3 attempts
+timeout = TIMEOUTS.GRACEFUL_SHUTDOWN  # 30 seconds
+ttl = CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL  # 300 seconds
+```
+
+#### When to Use Constants:
+
+❌ **Bad - Magic Numbers:**
+```python
+await asyncio.sleep(5)  # What does 5 mean?
+max_retries = 3  # Why 3?
+if file_size > 2097152:  # What is 2097152?
+cache = TTLCache(maxsize=1000, ttl=300)  # Arbitrary values
+```
+
+✅ **Good - Named Constants:**
+```python
+await asyncio.sleep(ASYNC_DELAYS.ERROR_RECOVERY_DELAY)
+max_retries = RETRY_CONFIG.DEFAULT_MAX_RETRIES
+if file_size > FILE_SIZE_THRESHOLDS.TEST_FILE_SIZE:
+cache = TTLCache(
+    maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
+    ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL
+)
+```
+
+#### Adding New Constants:
+
+When you find a magic number in code:
+1. **Check** if a similar constant exists in `constants.py`
+2. **Add** to appropriate dataclass if new
+3. **Document** purpose with clear comment
+4. **Update** this guide if adding new category
+
+**Categories:**
+- `ASYNC_DELAYS` - Sleep times, polling intervals
+- `RETRY_CONFIG` - Retry counts and delays
+- `TIMEOUTS` - Subprocess, API, process timeouts
+- `CACHE_CONFIG` - Cache sizes and TTL values
+- `FILE_SIZE_THRESHOLDS` - File size limits
+- `METADATA_CONFIG` - Parsing depth limits
+
+### Environment Variables
+
 - Use environment variables for secrets
 - Validate configuration at startup
 
