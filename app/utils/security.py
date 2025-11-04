@@ -217,7 +217,7 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
     
     # CRITICAL: Ensure path is within safe directory
     # Using shared helper for consistent validation
-    if not _is_path_within_base(normalized_path, safe_base):
+    if not is_path_within_base(normalized_path, safe_base):
         logger.error(
             f"🚨 SECURITY: Path traversal attempt blocked - "
             f"User: {user_path} -> Normalized: {normalized_path} "
@@ -423,9 +423,12 @@ def validate_file_type(
     return file_extension
 
 
-def _is_path_within_base(path: str, base: str) -> bool:
+def is_path_within_base(path: str, base: str) -> bool:
     """
-    Internal helper: Check if path is within base directory
+    Check if path is within base directory
+    
+    This is a public helper function for validating that a path is contained
+    within a base directory, used throughout the application for security checks.
     
     Args:
         path: Path to check (should be normalized)

@@ -939,14 +939,14 @@ class CleanupService:
         try:
             # Helper function to validate paths during traversal
             # Uses shared validation logic from security module
-            from app.utils.security import _is_path_within_base
+            from app.utils.security import is_path_within_base
             
             def is_safe_subpath(path: str) -> bool:
                 """Validate that a path is within safe_root (defense-in-depth)"""
                 try:
                     real_path = os.path.realpath(path)
                     real_safe_root = os.path.realpath(safe_root)
-                    return _is_path_within_base(real_path, real_safe_root)
+                    return is_path_within_base(real_path, real_safe_root)
                 except (OSError, ValueError):
                     return False
             
