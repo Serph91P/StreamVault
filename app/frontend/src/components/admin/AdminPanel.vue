@@ -931,7 +931,7 @@ onMounted(() => {
 .btn {
   padding: 10px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
   cursor: pointer;
   font-weight: 500;
   display: inline-flex;
@@ -1030,7 +1030,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   margin-bottom: 5px;
 }
 
@@ -1077,7 +1077,7 @@ onMounted(() => {
 .info-card {
   background: var(--color-background-mute);
   padding: 15px;
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
   /* Border color handled by .status-border-* classes */
 }
 
@@ -1134,14 +1134,14 @@ onMounted(() => {
 .progress-bar {
   width: 100%;
   height: 20px;
-  background: #ecf0f1;
-  border-radius: 10px;
+  background: var(--color-background-mute);
+  border-radius: var(--border-radius-lg, 12px);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #3498db;
+  background: var(--info-color);
   transition: width 0.3s;
 }
 
@@ -1167,7 +1167,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 15px;
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
   min-width: 80px;
   color: var(--color-text-dark);
   font-weight: 500;
@@ -1216,7 +1216,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   background: var(--color-background);
   color: var(--color-text);
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -1227,9 +1227,9 @@ onMounted(() => {
 }
 
 .filter-btn.active {
-  background: #3498db;
-  color: white;
-  border-color: #2980b9;
+  background: var(--info-color);
+  color: var(--text-primary);
+  border-color: var(--info-color);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
@@ -1240,7 +1240,7 @@ onMounted(() => {
 
 .test-result-item {
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   margin-bottom: 15px;
   overflow: hidden;
   transition: transform 0.2s ease-in-out;
@@ -1320,7 +1320,7 @@ onMounted(() => {
   margin-top: 20px;
   padding: 20px;
   background: var(--color-background-mute);
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
 }
 
 .test-categories {
@@ -1362,7 +1362,7 @@ onMounted(() => {
 .cleanup-result {
   background: rgba(46, 204, 113, 0.15);
   padding: 15px;
-  border-radius: 5px;
+  border-radius: var(--border-radius, 8px);
   /* Border color handled by .status-border-* classes */
   color: var(--color-text);
 }
@@ -1435,7 +1435,7 @@ onMounted(() => {
 .log-controls input {
   padding: 5px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   background: var(--color-background);
   color: var(--color-text);
 }
@@ -1446,7 +1446,7 @@ onMounted(() => {
   background: var(--color-background-mute);
   color: var(--color-text);
   padding: 15px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   font-family: 'Courier New', monospace;
   border: 1px solid var(--color-border);
 }
@@ -1473,11 +1473,11 @@ onMounted(() => {
 }
 
 .debug-btn {
-  background: linear-gradient(145deg, #1d4ed8, #1e40af);
-  color: white;
+  background: linear-gradient(145deg, var(--info-color), var(--primary-color));
+  color: var(--text-primary);
   border: none;
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   cursor: pointer;
   font-weight: 500;
   transition: all 0.3s ease;
@@ -1487,13 +1487,13 @@ onMounted(() => {
 }
 
 .debug-btn:hover {
-  background: linear-gradient(145deg, #1e40af, #1d4ed8);
+  background: linear-gradient(145deg, var(--primary-color), var(--info-color));
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.4);
+  box-shadow: 0 4px 12px rgba(66, 184, 131, 0.4);
 }
 
 .debug-btn:disabled {
-  background: #6b7280;
+  background: var(--text-secondary);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -1574,7 +1574,7 @@ onMounted(() => {
   font-size: 20px;
   cursor: pointer;
   padding: 5px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
   transition: background 0.2s;
 }
 
@@ -1678,17 +1678,17 @@ onMounted(() => {
 }
 
 .text-green {
-  color: #059669;
+  color: var(--success-color);
   font-weight: 600;
 }
 
 .text-red {
-  color: #dc2626;
+  color: var(--danger-color);
   font-weight: 600;
 }
 
 .text-gray {
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .streamer-section {
@@ -1750,20 +1750,22 @@ onMounted(() => {
   background: var(--color-background-soft);
   color: var(--color-text);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--border-radius-sm, 4px);
   font-weight: 500;
   font-size: 10px;
   text-transform: uppercase;
 }
 
 .file-ext.mp4 {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-color);
+  color: var(--background-darker);
+  opacity: 0.8;
 }
 
 .file-ext.ts {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--info-color);
+  color: var(--background-darker);
+  opacity: 0.8;
 }
 
 .more-files {
@@ -1779,16 +1781,16 @@ onMounted(() => {
 }
 
 /* Utility classes */
-.text-green { color: #059669; font-weight: 600; }
-.text-yellow { color: #f1c40f; }
-.text-red { color: #dc2626; font-weight: 600; }
+.text-green { color: var(--success-color); font-weight: 600; }
+.text-yellow { color: var(--warning-color); }
+.text-red { color: var(--danger-color); font-weight: 600; }
 .text-gray { color: var(--color-text-light); }
 
 .error {
   background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  color: var(--danger-color);
   padding: 15px;
-  border-radius: 8px;
+  border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(220, 38, 38, 0.3);
   font-weight: 500;
 }
