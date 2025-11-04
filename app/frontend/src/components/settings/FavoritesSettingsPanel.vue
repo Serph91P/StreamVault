@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
+import { IMAGE_LOADING } from '@/config/constants';
 
 interface Category {
   id: string;
@@ -118,9 +119,6 @@ interface Category {
   last_seen?: string;
   stream_count?: number;
 }
-
-// Constants
-const VISIBLE_CATEGORIES_PRELOAD_COUNT = 20; // Number of categories to preload images for
 
 // State variables
 const searchQuery = ref('');
@@ -184,7 +182,7 @@ const fetchCategories = async () => {
       // Don't preload all images immediately - let them lazy load with intersection observer
       // Only preload visible categories (configurable count)
       const visibleCategoryNames = data.categories
-        .slice(0, VISIBLE_CATEGORIES_PRELOAD_COUNT)
+        .slice(0, IMAGE_LOADING.VISIBLE_CATEGORIES_PRELOAD_COUNT)
         .map((cat: any) => cat.name)
         .filter((name: string | null): name is string => Boolean(name));
       
