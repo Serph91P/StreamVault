@@ -696,7 +696,7 @@ const handleStreamerPolicySaved = (policy: any) => {
   cursor: pointer;
   color: var(--text-secondary);
   font-weight: 500;
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--border-radius, 8px) var(--border-radius, 8px) 0 0;
   transition: all 0.2s ease;
   border-bottom: 3px solid transparent;
   font-size: 14px;
@@ -762,13 +762,13 @@ const handleStreamerPolicySaved = (policy: any) => {
 
 /* Error state for form controls */
 .form-control.error {
-  border-color: #ef4444;
+  border-color: var(--danger-color);
   background-color: rgba(239, 68, 68, 0.1);
 }
 
 /* Error text styling */
 .error-text {
-  color: #ef4444;
+  color: var(--danger-color);
   font-size: 0.875rem;
   margin-top: 4px;
   font-weight: 500;
@@ -1038,7 +1038,7 @@ select.form-control option {
   background-color: var(--background-dark, #2a2a2a);
   color: var(--text-primary, #f1f1f3);
   border: 1px solid var(--border-color, #404040);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   padding: 6px 12px;
   font-family: 'Courier New', 'Monaco', monospace;
   font-size: 0.85em;
@@ -1465,12 +1465,12 @@ select.form-control-sm option {
   
   .tab-navigation::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+    border-radius: var(--border-radius-sm, 4px);
   }
   
   .tab-navigation::-webkit-scrollbar-thumb {
     background: var(--primary-color, #9147ff);
-    border-radius: 2px;
+    border-radius: var(--border-radius-sm, 4px);
   }
   
   .tab-button {
@@ -1506,7 +1506,7 @@ select.form-control-sm option {
   .form-control {
     padding: 12px;
     font-size: 16px; /* Prevent zoom on iOS */
-    border-radius: 8px;
+    border-radius: var(--border-radius, 8px);
   }
   
   /* Select elements - Better mobile touch */
@@ -1528,7 +1528,7 @@ select.form-control-sm option {
     width: 95vw;
     max-width: 95vw;
     max-height: 95vh;
-    border-radius: 12px;
+    border-radius: var(--border-radius-lg, 12px);
     margin: 2.5vh auto;
   }
   
@@ -1557,7 +1557,7 @@ select.form-control-sm option {
     background-color: var(--background-dark, #2a2a2a);
     color: var(--text-primary, #f1f1f3);
     border: 1px solid var(--border-color, #404040);
-    border-radius: 6px;
+    border-radius: var(--border-radius, 8px);
     padding: 6px 10px;
     font-family: 'Courier New', 'Monaco', monospace;
     font-size: 0.8em;
@@ -1571,7 +1571,7 @@ select.form-control-sm option {
     background-color: var(--bg-tertiary, #2a2a2a);
     color: var(--accent-color, #4a9eff);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--border-radius, 8px);
     padding: 8px 12px;
     font-family: 'Courier New', monospace;
     font-size: 0.85em;
@@ -1614,7 +1614,7 @@ select.form-control-sm option {
     min-height: 44px;
     padding: 12px 16px;
     font-size: 16px;
-    border-radius: 8px;
+    border-radius: var(--border-radius, 8px);
     touch-action: manipulation;
   }
   
