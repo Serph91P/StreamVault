@@ -12,6 +12,57 @@ applyTo: "app/frontend/**/*.vue,app/frontend/**/*.ts,app/frontend/**/*.scss"
 - **NO MAGIC NUMBERS**: Extract delays, thresholds, timeouts to named constants
 - **USE VUE LIFECYCLE**: Use `nextTick()` instead of `setTimeout()` for deferred operations
 
+### Constants Management (MANDATORY)
+
+**ALWAYS** use `app/frontend/src/config/constants.ts` for magic numbers, delays, and thresholds.
+
+#### Available Constant Groups:
+
+```typescript
+import { IMAGE_LOADING, API, UI } from '@/config/constants'
+
+// Image loading configuration
+IMAGE_LOADING.VISIBLE_CATEGORIES_PRELOAD_COUNT  // 20 - Preload count for initial render
+
+// API configuration
+API.DEFAULT_TIMEOUT  // 30000ms - Default API timeout
+
+// UI configuration
+UI.SEARCH_DEBOUNCE_MS   // 300ms - Search input debounce
+UI.TOAST_DURATION_MS    // 3000ms - Notification duration
+```
+
+#### When to Use Constants:
+
+❌ **Bad - Magic Numbers:**
+```typescript
+const preloadCount = 20  // Why 20?
+setTimeout(() => {}, 300)  // What does 300 mean?
+if (elapsed > 3000) {}  // Why 3000?
+```
+
+✅ **Good - Named Constants:**
+```typescript
+import { IMAGE_LOADING, UI } from '@/config/constants'
+
+const preloadCount = IMAGE_LOADING.VISIBLE_CATEGORIES_PRELOAD_COUNT
+setTimeout(() => {}, UI.SEARCH_DEBOUNCE_MS)
+if (elapsed > UI.TOAST_DURATION_MS) {}
+```
+
+#### Adding New Constants:
+
+When you find a magic number in component code:
+1. **Check** if a similar constant exists in `constants.ts`
+2. **Add** to appropriate group (IMAGE_LOADING, API, UI) if new
+3. **Document** purpose with JSDoc comment
+4. **Use** `as const` for type safety
+
+**Categories:**
+- `IMAGE_LOADING` - Image preload counts, lazy load thresholds
+- `API` - API timeouts, retry delays, polling intervals
+- `UI` - Debounce delays, animation durations, toast timings
+
 ## Design System (Mobile-First PWA)
 
 ### Button Styling
