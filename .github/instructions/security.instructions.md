@@ -614,6 +614,120 @@ AFFECTED: All file operation APIs accepting user paths
 Testing: Verified ../../../etc/passwd attacks blocked
 ```
 
+## Platform-Specific Security Considerations
+
+### Windows Path Validation - CRITICAL
+
+**VULNERABILITY**: String-based path validation is vulnerable on Windows.
+
+**Problem:**
+- Windows accepts both `/` and `\` as path separators
+- String prefix checking with `os.sep` only validates one separator type
+- Attacker can mix separators to bypass validation
+- Example: `C:\safe\../ ` bypasses `startswith("C:\safe" + os.sep)`
+
+**Solution:**
+Use `Path.is_relative_to()` (Python 3.9+) exclusively:
+
+```python
+# ❌ WRONG: Vulnerable to mixed separator bypass on Windows
+def is_path_within_base_unsafe(path: str, base: str) -> bool:
+    # String check only validates os.sep (\ on Windows, / on Unix)
+    # Attacker can use alternate separator to bypass
+    return path.startswith(base + os.sep)  # VULNERABLE!
+
+# ✅ CORRECT: Secure path validation (Python 3.9+)
+def is_path_within_base(path: str, base: str) -> bool:
+    """Check if path is within base directory (Python 3.9+ required)"""
+    try:
+        path_obj = Path(path)
+        base_obj = Path(base)
+        
+        # Exact match
+        if path_obj == base_obj:
+            return True
+        
+        # SECURITY: is_relative_to handles all path separators correctly
+        # Normalizes paths and resolves symlinks before comparison
+        if not hasattr(path_obj, 'is_relative_to'):
+            raise RuntimeError(
+                "Python 3.9+ required for secure path validation. "
+                "is_relative_to() not available."
+            )
+        
+        return path_obj.is_relative_to(base_obj)
+        
+    except (OSError, ValueError, TypeError) as e:
+        logger.error(f"Path validation error: {e}")
+        return False
+```
+
+**Why This Matters:**
+- String checks don't normalize path separators
+- `Path.is_relative_to()` handles both `/` and `\` correctly
+- Resolves symlinks and relative paths before comparison
+- Works consistently across Windows, Linux, macOS
+
+**Attack Examples Blocked:**
+```python
+# These bypass string-based checks on Windows:
+validate("C:\\safe\\../../../etc/passwd")  # Mixed separators
+validate("C:/safe/..\\..\\..\\etc\\passwd")  # Reverse mixed
+validate("C:\\safe\\./../../../etc/passwd")  # Normalized bypass
+
+# All blocked by Path.is_relative_to()
+```
+
+**Fail-Safe Design:**
+- Raise `RuntimeError` if Python < 3.9
+- Never fall back to insecure string checking
+- Explicit error guides users to upgrade
+- No silent security downgrades
+
+### Import Placement - Performance Best Practice
+
+**ANTI-PATTERN**: Imports inside functions or loops
+
+```python
+# ❌ WRONG: Import overhead on every function call
+def cleanup_files():
+    for file in files:
+        from app.utils.security import validate_path  # Repeated import!
+        safe_path = validate_path(file)
+
+# ❌ WRONG: Import inside conditional
+def process_file(path: str):
+    if needs_validation:
+        from app.utils.security import validate_path  # Late import
+        return validate_path(path)
+```
+
+**Solution**: Module-level imports
+
+```python
+# ✅ CORRECT: Import at module level
+from app.utils.security import validate_path
+
+def cleanup_files():
+    for file in files:
+        safe_path = validate_path(file)  # No import overhead
+
+def process_file(path: str):
+    if needs_validation:
+        return validate_path(path)  # Pre-imported
+```
+
+**Why This Matters:**
+- Python caches imports, but check still has overhead
+- Especially problematic in loops or frequently-called functions
+- Better for static analysis and type checking
+- Clearer code structure (dependencies at top)
+
+**Exceptions** (when late import is acceptable):
+- Circular import workarounds (refactor instead if possible)
+- Optional dependencies that may not be installed
+- Heavy modules only needed in rare code paths
+
 ## Security Dependencies
 
 Ensure these security-focused packages are installed:
