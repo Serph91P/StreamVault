@@ -554,6 +554,99 @@ const toastDuration = UI.TOAST_DURATION_MS  // 3000ms
 - **SECURITY**: Test path traversal attacks and input validation
 - **SECURITY**: Verify all security controls with negative tests
 
+## Build Error Resolution & Debugging
+
+### SCSS Build Errors (Frontend)
+
+**Common Error Pattern**: Undefined variables, missing imports, mixed declarations
+
+**Systematic Debugging Workflow:**
+
+1. **Read error carefully** → Identify file, line number, variable/property name
+2. **Check imports** → Ensure `@use 'variables' as v;` is at top of file
+3. **Check namespaces** → All variables need `v.$` prefix in Sass module system
+4. **Check variable existence** → Variable must be defined in `_variables.scss`
+5. **Fix and rebuild** → Errors are sequential, fixing one reveals next
+6. **Verify clean build** → Should show `✓ built in X.XXs` with no warnings
+
+**Quick Fixes:**
+
+```bash
+# Missing namespace on many variables (batch fix)
+cd app/frontend/src/styles
+sed -i 's/\$spacing-/v.\$spacing-/g' _utilities.scss
+sed -i 's/\$shadow-/v.\$shadow-/g' _utilities.scss
+sed -i 's/\$border-radius-/v.\$border-radius-/g' _utilities.scss
+
+# Add missing import at top of file
+sed -i '1i@use '\''variables'\'' as v;' _utilities.scss
+
+# Fix Sass mixed-decls deprecation (wrap in & {})
+# See frontend.instructions.md for detailed examples
+```
+
+**Error Types:**
+
+| Error Message | Root Cause | Solution |
+|--------------|------------|----------|
+| `Undefined variable $name` | Missing import or namespace | Add `@use 'variables' as v;` + namespace all vars |
+| `Undefined variable $duration-250` | Variable doesn't exist | Add missing variable to `_variables.scss` |
+| `Invalid end tag` in .vue file | Duplicate `</style>` tags | Delete orphaned CSS between tags |
+| `Deprecation Warning: mixed-decls` | Declaration after nested rule | Wrap in `& {}` or move before nested rules |
+
+**See `frontend.instructions.md` for complete SCSS debugging guide.**
+
+### Python Build/Runtime Errors (Backend)
+
+**Common Error Pattern**: Missing imports, undefined names, attribute errors
+
+**Quick Checks:**
+
+```python
+# Missing import (NameError: name 'WebSocketState' is not defined)
+# ❌ Wrong:
+from fastapi import WebSocket
+if websocket.client_state == WebSocketState.CONNECTED:  # NameError!
+
+# ✅ Correct:
+from fastapi import WebSocket
+from starlette.websockets import WebSocketState  # Import ALL required classes
+if websocket.client_state == WebSocketState.CONNECTED:
+```
+
+**Debugging Steps:**
+
+1. **Check imports** → Verify ALL classes/constants are imported
+2. **Check type hints** → Ensure imported types match usage
+3. **Check for circular imports** → Move imports inside functions if needed
+4. **Run tests** → `pytest tests/` to catch errors early
+5. **Check logs** → `tail -f logs/streamvault.log` for runtime errors
+
+**See `backend.instructions.md` for comprehensive debugging patterns.**
+
+### Production Build Validation
+
+**Before committing, ALWAYS run:**
+
+```bash
+# Frontend build check
+cd app/frontend
+rm -rf dist/
+npm run build  # Should show: ✓ built in X.XXs (no errors, no warnings)
+
+# Backend startup check (catches missing imports)
+cd ../..
+python -m pytest tests/test_application_startup.py -v
+
+# Full test suite
+pytest tests/ -v
+```
+
+**Clean build output should show:**
+- Frontend: `✓ built in 2-3s`, no errors, no warnings
+- Backend: All tests pass, no import errors
+- Logs: No ERROR or WARNING messages on startup
+
 ## Libraries and Frameworks
 
 - **Backend**: FastAPI, SQLAlchemy, Pydantic, Streamlink, psycopg2

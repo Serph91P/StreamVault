@@ -14,7 +14,8 @@
 
 @mixin respond-below($breakpoint) {
   @if map.has-key(v.$breakpoints, $breakpoint) {
-    @media (max-width: map.get(v.$breakpoints, $breakpoint) - 1px) {
+    $breakpoint-value: map.get(v.$breakpoints, $breakpoint);
+    @media (max-width: #{$breakpoint-value - 1px}) {
       @content;
     }
   } @else {
@@ -31,25 +32,66 @@
   flex-wrap: $wrap;
 }
 
-// Verbesserte Card-Styles mit einheitlichem Erscheinungsbild
-@mixin card-base($padding: v.$spacing-md, $bg: v.$background-card) {
+// ============================================================================
+// CARD SYSTEM - Modern Design
+// ============================================================================
+
+@mixin card-base($padding: v.$spacing-6, $bg: var(--background-card)) {
   background: $bg;
-  border-radius: v.$border-radius;
+  border-radius: v.$border-radius-lg;  // 12px (modern rounded)
   padding: $padding;
-  box-shadow: v.$shadow-sm;
-  border: 1px solid rgba(v.$border-color, 0.5);
-  transition: all v.$vue-ease 0.25s;
+  box-shadow: v.$shadow-sm;  // Subtle elevation
+  border: 1px solid var(--border-color);
+  transition: v.$transition-all;
   
   @include respond-to('md') {
-    padding: v.$spacing-lg;
-    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-8;  // 32px on larger screens
+    border-radius: v.$border-radius-xl;  // 16px on desktop
   }
   
+  // Hover state (subtle lift)
   &:hover {
     box-shadow: v.$shadow-md;
     transform: translateY(-2px);
+    border-color: rgba(var(--primary-color-rgb), 0.3);
+  }
+  
+  // Interactive card (clickable)
+  &.interactive {
+    cursor: pointer;
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: v.$shadow-sm;
+    }
   }
 }
+
+// Card variants
+@mixin card-elevated {
+  @include card-base;
+  
+  & {
+    box-shadow: v.$shadow-lg;  // Higher elevation
+  }
+  
+  &:hover {
+    box-shadow: v.$shadow-xl;
+  }
+}
+
+@mixin card-flat {
+  @include card-base;
+  
+  & {
+    box-shadow: none;
+    border: 1px solid var(--border-color);
+  }
+}
+
+// ============================================================================
+// INTERACTION MIXINS
+// ============================================================================
 
 // Focus styles für bessere Accessibility
 @mixin focus-outline {

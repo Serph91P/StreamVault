@@ -506,10 +506,14 @@ watch(() => props.chapters, (newChapters) => {
 </script>
 
 <style scoped>
+/* ============================================================================
+   VIDEO PLAYER - Modern Design
+   ============================================================================ */
+
 .video-player-container {
   position: relative;
   background: var(--background-darker);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-lg);  /* 12px */
   overflow: hidden;
   width: 100%;
   max-width: 100%;
@@ -541,12 +545,13 @@ watch(() => props.chapters, (newChapters) => {
   height: 4px;
   display: flex;
   z-index: 5;
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .chapter-segment {
   height: 100%;
   cursor: pointer;
-  transition: height 0.2s ease;
+  transition: height var(--duration-200) var(--ease-out);
   opacity: 0.8;
 }
 
@@ -563,23 +568,24 @@ watch(() => props.chapters, (newChapters) => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   color: white;
   z-index: 20;
+  gap: var(--spacing-4);  /* 16px */
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
   border-top-color: var(--primary-color);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: spin 1s linear infinite;
-  margin-bottom: 16px;
 }
 
 @keyframes spin {
@@ -587,46 +593,50 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .error-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: var(--text-5xl);  /* 48px */
 }
 
 .error-message {
-  margin-bottom: 16px;
   text-align: center;
   max-width: 300px;
+  font-size: var(--text-base);  /* 16px */
+  line-height: var(--leading-relaxed);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .retry-btn {
   background: var(--primary-color);
   border: none;
   color: white;
-  padding: 12px 24px;
-  border-radius: var(--border-radius);
+  padding: var(--spacing-3) var(--spacing-6);  /* 12px 24px */
+  border-radius: var(--radius-md);  /* 10px */
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-weight: var(--font-semibold);  /* 600 */
+  font-size: var(--text-sm);  /* 14px */
+  transition: var(--transition-all);
+  box-shadow: var(--shadow-md);
 }
 
 .retry-btn:hover {
   background: var(--primary-color-hover);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Video Controls Extension */
 .video-controls-extension {
   background: var(--background-card);
-  padding: 16px;
+  padding: var(--spacing-4);  /* 16px */
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-top: 1px solid var(--border-color);
-  gap: 16px;
+  gap: var(--spacing-4);  /* 16px */
 }
 
 .chapter-controls {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);  /* 8px */
   align-items: center;
   flex-wrap: wrap;
 }
@@ -635,27 +645,39 @@ watch(() => props.chapters, (newChapters) => {
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 8px 16px;
-  border-radius: var(--border-radius);
+  padding: var(--spacing-2) var(--spacing-4);  /* 8px 16px */
+  border-radius: var(--radius-md);  /* 10px */
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-  font-size: 0.9rem;
+  gap: var(--spacing-2);  /* 8px */
+  transition: var(--transition-all);
+  font-size: var(--text-sm);  /* 14px */
+  font-weight: var(--font-medium);  /* 500 */
   white-space: nowrap;
+  line-height: var(--leading-normal);
+  min-height: 44px;  /* Touch target */
 }
 
 .control-btn:hover:not(:disabled) {
   background: var(--background-dark);
   border-color: var(--primary-color);
   color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.control-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-focus-primary);
 }
 
 .control-btn.active {
   background: var(--primary-color);
   border-color: var(--primary-color);
   color: white;
+  box-shadow: var(--shadow-primary);
 }
 
 .control-btn:disabled {
@@ -670,18 +692,20 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .current-chapter-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 4px;
+  font-weight: var(--font-semibold);  /* 600 */
+  font-size: var(--text-sm);  /* 14px */
+  margin-bottom: var(--spacing-1);  /* 4px */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: var(--leading-tight);
 }
 
 .current-chapter-progress {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);  /* 12px */
   color: var(--text-secondary);
-  font-family: monospace;
+  font-family: var(--font-mono);
+  font-weight: var(--font-medium);  /* 500 */
 }
 
 /* Chapter List Panel */
@@ -692,11 +716,29 @@ watch(() => props.chapters, (newChapters) => {
   overflow-y: auto;
 }
 
+/* Custom scrollbar for chapter list */
+.chapter-list-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chapter-list-panel::-webkit-scrollbar-track {
+  background: var(--background-darker);
+}
+
+.chapter-list-panel::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-full);
+}
+
+.chapter-list-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
 .chapter-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: var(--spacing-4);  /* 16px */
   border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
@@ -706,48 +748,66 @@ watch(() => props.chapters, (newChapters) => {
 
 .chapter-list-header h3 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);  /* 18px */
+  font-weight: var(--font-semibold);  /* 600 */
   color: var(--text-primary);
+  line-height: var(--leading-tight);
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);  /* 24px */
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px;
+  padding: var(--spacing-1);  /* 4px */
   line-height: 1;
+  transition: var(--transition-colors);
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
 }
 
 .close-btn:hover {
   color: var(--text-primary);
+  background: var(--background-hover);
+}
+
+.close-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .chapter-list {
-  padding: 8px;
+  padding: var(--spacing-2);  /* 8px */
 }
 
 .chapter-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--spacing-3);  /* 12px */
+  padding: var(--spacing-3);  /* 12px */
   cursor: pointer;
-  transition: all 0.2s;
-  border-radius: var(--border-radius);
+  transition: var(--transition-all);
+  border-radius: var(--radius-md);  /* 10px */
   border: 1px solid transparent;
+  min-height: 44px;  /* Touch target */
 }
 
 .chapter-item:hover {
-  background: var(--background-darker);
+  background: var(--background-hover);
   border-color: var(--border-color);
+  transform: translateX(4px);
 }
 
 .chapter-item.active {
   background: var(--primary-color);
   border-color: var(--primary-color);
   color: white;
+  box-shadow: var(--shadow-primary);
 }
 
 .chapter-item.active .chapter-time,
@@ -760,13 +820,14 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-placeholder {
   width: 60px;
   height: 60px;
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);  /* 10px */
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--background-darker);
+  box-shadow: var(--shadow-sm);
 }
 
 .chapter-thumbnail img,
@@ -777,7 +838,7 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .chapter-placeholder {
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);  /* 24px */
   color: var(--text-secondary);
 }
 
@@ -787,27 +848,28 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .chapter-title {
-  font-weight: 600;
+  font-weight: var(--font-semibold);  /* 600 */
   color: var(--text-primary);
-  font-size: 1rem;
-  margin-bottom: 4px;
-  line-height: 1.3;
+  font-size: var(--text-base);  /* 16px */
+  margin-bottom: var(--spacing-1);  /* 4px */
+  line-height: var(--leading-snug);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .chapter-time {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);  /* 14px */
   color: var(--text-secondary);
-  font-family: monospace;
-  font-weight: 500;
-  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-weight: var(--font-medium);  /* 500 */
+  margin-bottom: var(--spacing-0-5);  /* 2px */
 }
 
 .chapter-duration {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);  /* 12px */
   color: var(--text-secondary);
 }
 
@@ -815,8 +877,8 @@ watch(() => props.chapters, (newChapters) => {
 @media (max-width: 768px) {
   .video-controls-extension {
     flex-direction: column;
-    gap: 12px;
-    padding: 12px;
+    gap: var(--spacing-3);  /* 12px */
+    padding: var(--spacing-3);  /* 12px */
   }
 
   .chapter-controls {
@@ -827,8 +889,8 @@ watch(() => props.chapters, (newChapters) => {
   .control-btn {
     flex: 1;
     justify-content: center;
-    padding: 10px 8px;
-    font-size: 0.8rem;
+    padding: var(--spacing-2-5) var(--spacing-2);  /* 10px 8px */
+    font-size: var(--text-xs);  /* 12px */
   }
 
   .current-chapter-info {
@@ -845,7 +907,7 @@ watch(() => props.chapters, (newChapters) => {
   .chapter-item {
     flex-direction: column;
     text-align: center;
-    padding: 16px;
+    padding: var(--spacing-4);  /* 16px */
   }
 
   .chapter-thumbnail,
@@ -871,25 +933,25 @@ watch(() => props.chapters, (newChapters) => {
 /* Very small screens */
 @media (max-width: 480px) {
   .video-controls-extension {
-    padding: 8px;
+    padding: var(--spacing-2);  /* 8px */
   }
 
   .chapter-controls {
     flex-direction: column;
-    gap: 6px;
+    gap: var(--spacing-2);  /* 8px */
   }
 
   .control-btn {
     width: 100%;
-    padding: 12px;
+    padding: var(--spacing-3);  /* 12px */
   }
 
   .chapter-list-header {
-    padding: 12px;
+    padding: var(--spacing-3);  /* 12px */
   }
 
   .chapter-item {
-    padding: 12px;
+    padding: var(--spacing-3);  /* 12px */
   }
 
   .chapter-thumbnail,

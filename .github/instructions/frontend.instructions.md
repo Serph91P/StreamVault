@@ -410,3 +410,326 @@ curl -I https://your-app.com/sw.js | grep -i cache
 ```
 
 Use `@media (min-width: X)` for progressive enhancement.
+
+## SCSS Build Errors & Debugging (CRITICAL)
+
+### Sass Module System (@use vs @import)
+
+**ALWAYS use `@use` with namespace** - never use bare `@import`:
+
+```scss
+// ✅ CORRECT - Modern Sass module system
+@use 'variables' as v;
+@use 'mixins' as m;
+
+.component {
+  padding: v.$spacing-md;        // Namespaced variable
+  @include m.card-base;          // Namespaced mixin
+}
+
+// ❌ WRONG - Deprecated @import (will be removed in Sass 2.0)
+@import 'variables';
+@import 'mixins';
+
+.component {
+  padding: $spacing-md;          // Bare variable (pollutes global scope)
+  @include card-base;            // Bare mixin
+}
+```
+
+### Common Build Errors & Solutions
+
+#### Error 1: "Undefined variable"
+
+**Symptom:**
+```
+[sass] Undefined variable.
+  6 │ .text-xs { font-size: $text-xs; }
+    │                       ^^^^^^^^
+```
+
+**Root Cause:** Missing `@use` import or missing namespace prefix
+
+**Solution:**
+```scss
+// 1. Add @use at top of file (MUST be first line before any code)
+@use 'variables' as v;
+
+// 2. Add namespace to all variable references
+.text-xs { font-size: v.$text-xs; }        // Was: $text-xs
+.card { padding: v.$spacing-4; }           // Was: $spacing-4
+.rounded { border-radius: v.$border-radius-md; }  // Was: $border-radius
+```
+
+**Batch Fix with sed (for many references):**
+```bash
+# Fix hyphenated variables (spacing-, shadow-, duration-, etc.)
+sed -i 's/\$spacing-/v.\$spacing-/g' file.scss
+sed -i 's/\$shadow-/v.\$shadow-/g' file.scss
+sed -i 's/\$border-radius-/v.\$border-radius-/g' file.scss
+
+# Fix non-hyphenated variables (font-sans, font-mono)
+sed -i 's/\$font-sans/v.\$font-sans/g' file.scss
+sed -i 's/\$font-mono/v.\$font-mono/g' file.scss
+```
+
+#### Error 2: "Mixed Declarations" (Sass 2.0 Deprecation)
+
+**Symptom:**
+```
+Deprecation Warning: Sass's behavior for declarations that appear after nested
+rules will be changing to match the behavior specified by CSS.
+
+More info: https://sass-lang.com/d/mixed-decls
+
+    ╷
+7   │ ┌     @media (min-width: ...) {
+8   │ │       @content;
+9   │ │     }
+    │ └─── nested rule
+... │
+83  │     border: 1px solid var(--border-color);
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ declaration
+    ╵
+```
+
+**Root Cause:** Declarations (properties) appear AFTER nested rules (@media, &:hover, etc.)
+
+**Bad Example:**
+```scss
+@mixin card-base {
+  padding: 1rem;
+  
+  @media (min-width: 768px) {  // ← Nested rule
+    padding: 2rem;
+  }
+  
+  border: 1px solid gray;  // ⚠️ Declaration AFTER nested rule (deprecated)
+}
+```
+
+**Solutions (3 options):**
+
+**Option 1: Move declaration BEFORE nested rules (preferred for simple cases)**
+```scss
+@mixin card-base {
+  padding: 1rem;
+  border: 1px solid gray;  // ✅ Declaration BEFORE nested rule
+  
+  @media (min-width: 768px) {
+    padding: 2rem;
+  }
+}
+```
+
+**Option 2: Wrap in `& {}` (preferred for mixins that extend other mixins)**
+```scss
+@mixin card-flat {
+  @include card-base;  // This includes nested @media rules
+  
+  & {  // ✅ Explicit nested rule wrapper
+    box-shadow: none;
+    border: 1px solid var(--border-color);
+  }
+}
+```
+
+**Option 3: Wrap in `@at-root & {}` (for root-level declarations)**
+```scss
+.component {
+  @include some-mixin;  // Has nested rules
+  
+  @at-root & {  // ✅ Forces root-level scope
+    display: block;
+  }
+}
+```
+
+**When to use each:**
+- **Move up** → Simple cases, few declarations
+- **`& {}`** → Mixins extending other mixins, multiple declarations
+- **`@at-root &`** → Need to escape deeply nested context
+
+#### Error 3: Missing Variables in _variables.scss
+
+**Symptom:**
+```
+[sass] Undefined variable.
+  265 │ $transition-base: $duration-250 $ease-in-out;
+      │                   ^^^^^^^^^^^^^
+```
+
+**Root Cause:** Variable used in definition doesn't exist
+
+**Solution - Add missing variable:**
+```scss
+// Check variable list for gaps
+$duration-200: 200ms;
+$duration-250: 250ms;  // ← ADD if missing
+$duration-300: 300ms;
+$duration-400: 400ms;  // ← ADD if missing
+$duration-500: 500ms;
+```
+
+**Pattern:** Keep variable scales complete (no gaps in 100/200/300 sequences)
+
+#### Error 4: Duplicate Style Tags in Vue Components
+
+**Symptom:**
+```
+[plugin vite:vue] Invalid end tag at ComponentName.vue:2339:1
+```
+
+**Root Cause:** Multiple `</style>` tags from incomplete edits
+
+**Detection:**
+```bash
+grep -n "</style>" Component.vue
+# Output: 1466:</style>
+#         2339:</style>  ← Duplicate!
+```
+
+**Solution:**
+```bash
+# Delete orphaned CSS between first and second closing tag
+sed -i '1466,2338d' Component.vue  # Deletes lines 1466-2338
+```
+
+**Prevention:** Always verify Vue SFC structure after large edits:
+- One `<template>` block
+- One `<script>` block
+- One `<style>` block (scoped or not)
+
+### SCSS Build Debugging Workflow
+
+**Step-by-step error resolution:**
+
+1. **Read error message carefully**
+   - Note exact line number and file
+   - Identify variable/property name
+   - Check if it's Sass error vs Vue/Vite error
+
+2. **Read file context** (3-5 lines before/after error)
+   ```bash
+   # Read specific line range
+   sed -n '260,270p' _variables.scss
+   ```
+
+3. **Identify root cause**
+   - Missing import? → Add `@use 'variables' as v;`
+   - Missing namespace? → Add `v.$` prefix
+   - Missing variable? → Add to _variables.scss
+   - Mixed decls? → Wrap in `& {}` or move up
+   - Duplicate tags? → Remove orphaned code
+
+4. **Apply targeted fix**
+   - Small fixes: Use replace_string_in_file
+   - Batch fixes: Use sed commands
+   - Large cleanups: Delete line ranges
+
+5. **Rebuild and validate**
+   ```bash
+   npm run build
+   ```
+
+6. **Repeat until clean build** (errors are sequential)
+
+### SCSS File Organization Rules
+
+**Import order (MUST be at top, before any code):**
+```scss
+// 1. Sass built-ins first
+@use 'sass:map';
+@use 'sass:math';
+
+// 2. Variables and configuration
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// 3. External libraries (if any)
+@use 'some-library';
+
+// 4. Now write your styles
+.component {
+  padding: v.$spacing-4;
+}
+```
+
+**Variable naming conventions:**
+```scss
+// Use descriptive suffixes for variants
+$shadow-sm: ...;        // Small
+$shadow-md: ...;        // Medium (default)
+$shadow-lg: ...;        // Large
+$shadow-xl: ...;        // Extra large
+
+$shadow-focus-primary: ...;  // Specific use case variant
+
+// NOT just numeric without context
+$shadow-1: ...;  // ❌ What does 1 mean?
+$shadow-2: ...;  // ❌ Is 2 bigger or darker?
+```
+
+**Mixin organization:**
+```scss
+// Base mixin (foundation)
+@mixin card-base {
+  // Declarations first
+  padding: v.$spacing-4;
+  background: v.$background-card;
+  
+  // Nested rules after
+  @media (min-width: 768px) {
+    padding: v.$spacing-8;
+  }
+}
+
+// Variant mixins (extend base)
+@mixin card-elevated {
+  @include card-base;
+  
+  & {  // ✅ Wrap to avoid mixed-decls
+    box-shadow: v.$shadow-lg;
+  }
+}
+```
+
+### Production Build Validation
+
+**Before committing SCSS changes:**
+
+```bash
+# 1. Clean build
+rm -rf dist/
+npm run build
+
+# 2. Check for errors
+# Should show: "✓ built in X.XXs"
+# Should NOT show: "[sass]" or "Undefined variable"
+
+# 3. Check for warnings
+# Acceptable: None
+# Fix immediately: "Deprecation Warning: mixed-decls"
+
+# 4. Verify bundle sizes (should be reasonable)
+# CSS: < 250 KB (gzipped < 50 KB)
+# JS: < 500 KB (gzipped < 150 KB)
+
+# 5. Test in browser
+npm run dev
+# Open http://localhost:5173
+# Check DevTools Console for errors
+```
+
+**Build output should show:**
+```
+✓ 134 modules transformed.
+✓ built in 2.31s
+PWA v0.21.1
+precache  83 entries (2952.94 KiB)
+
+# No errors ✅
+# No warnings ✅
+# All assets generated ✅
+```
+

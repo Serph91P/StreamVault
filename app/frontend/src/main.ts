@@ -7,6 +7,11 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
+// Initialize theme before app mounts
+import { useTheme } from './composables/useTheme'
+const { initializeTheme } = useTheme()
+initializeTheme()
+
 // PWA Debug helper (nur in development) 
 import('./utils/pwaDebug')
 

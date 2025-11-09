@@ -6,6 +6,7 @@
 @use 'layout';
 @use 'components';
 @use 'views';
+@use 'utilities';  // NEW: Design system utilities
 
 // Import FontAwesome
 @import '@fortawesome/fontawesome-free/css/all.css';
@@ -26,6 +27,25 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  
+  // Smooth theme transition for all color properties
+  transition: 
+    background-color 300ms var(--vue-ease-out),
+    color 300ms var(--vue-ease-out),
+    border-color 300ms var(--vue-ease-out);
+}
+
+// Light mode color scheme
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+// Apply smooth transitions to all elements during theme change
+* {
+  transition: 
+    background-color 300ms var(--vue-ease-out),
+    color 300ms var(--vue-ease-out),
+    border-color 300ms var(--vue-ease-out);
 }
 
 /* Core fixes mit besserer Mobiloptimierung */

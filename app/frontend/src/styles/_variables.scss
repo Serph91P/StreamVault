@@ -1,35 +1,188 @@
-// Colors
-$background-dark: #121214;
-$background-darker: #18181b;
-$background-card: #1f1f23;
-$text-primary: #f1f1f3;
-$text-secondary: #b1b1b9;
-$border-color: #2d2d35;
-$primary-color: #42b883; // Vue.js green as primary color
-$primary-color-light: #63d5a4;
-$primary-color-dark: #2f9c6a;
-$accent-color: #7c4dff; // Purple as accent color
-$danger-color: #ff4757;
-$success-color: #2ed573;
-$warning-color: #ffa502;
-$info-color: #70a1ff;
-$secondary-color: #7c4dff; // Verwende den bereits definierten Accent-Color
-// oder
-$secondary-color: #6d6d6d; // Oder definiere eine andere sekundäre Farbe
+// ============================================================================
+// THEME: Modern Neutral (Option B)
+// Primary: Teal (#14b8a6) | Accent: Purple (#8b5cf6)
+// Created: November 9, 2025
+// ============================================================================
 
-// Shadows
-$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
-$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.16);
-$shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.20);
+// Primary Colors (Teal/Green) - Main brand color
+$primary-50: #f0fdfa;
+$primary-100: #ccfbf1;
+$primary-200: #99f6e4;
+$primary-300: #5eead4;
+$primary-400: #2dd4bf;
+$primary-500: #14b8a6;  // Main Primary
+$primary-600: #0d9488;
+$primary-700: #0f766e;
+$primary-800: #115e59;
+$primary-900: #134e4a;
 
-// Spacing (using rem for better scaling)
-$spacing-xxs: 0.125rem;
-$spacing-xs: 0.25rem;
-$spacing-sm: 0.5rem;
-$spacing-md: 1rem;
-$spacing-lg: 1.5rem;
-$spacing-xl: 2rem;
-$spacing-xxl: 3rem;
+// Accent Colors (Purple) - Highlights and CTAs
+$accent-50: #faf5ff;
+$accent-100: #f3e8ff;
+$accent-200: #e9d5ff;
+$accent-300: #d8b4fe;
+$accent-400: #a78bfa;
+$accent-500: #8b5cf6;  // Main Accent
+$accent-600: #7c3aed;
+$accent-700: #6d28d9;
+$accent-800: #5b21b6;
+$accent-900: #4c1d95;
+
+// Semantic Colors
+$success-50: #f0fdf4;
+$success-400: #4ade80;
+$success-500: #10b981;  // Main Success
+$success-600: #059669;
+$success-700: #047857;
+
+$danger-50: #fef2f2;
+$danger-400: #f87171;
+$danger-500: #ef4444;  // Main Danger
+$danger-600: #dc2626;
+$danger-700: #b91c1c;
+
+$warning-50: #fffbeb;
+$warning-400: #fbbf24;
+$warning-500: #f59e0b;  // Main Warning
+$warning-600: #d97706;
+$warning-700: #b45309;
+
+$info-50: #eff6ff;
+$info-400: #60a5fa;
+$info-500: #3b82f6;  // Main Info
+$info-600: #2563eb;
+$info-700: #1d4ed8;
+
+// Neutral Colors (Slate-based) - Backgrounds, text, borders
+$slate-50: #f8fafc;
+$slate-100: #f1f5f9;
+$slate-200: #e2e8f0;
+$slate-300: #cbd5e1;
+$slate-400: #94a3b8;
+$slate-500: #64748b;
+$slate-600: #475569;
+$slate-700: #334155;
+$slate-800: #1e293b;
+$slate-900: #0f172a;
+$slate-950: #020617;
+
+// Backward compatibility aliases (OLD → NEW)
+$primary-color: $primary-500;
+$primary-color-light: $primary-400;
+$primary-color-dark: $primary-600;
+$accent-color: $accent-500;
+$danger-color: $danger-500;
+$success-color: $success-500;
+$warning-color: $warning-500;
+$info-color: $info-500;
+$secondary-color: $accent-500;
+
+// Dark Theme Defaults (Current theme)
+$background-dark: $slate-900;      // #0f172a (was #121214)
+$background-darker: $slate-950;    // #020617 (was #18181b)
+$background-card: $slate-800;      // #1e293b (was #1f1f23)
+$text-primary: $slate-50;          // #f8fafc (was #f1f1f3)
+$text-secondary: $slate-400;       // #94a3b8 (was #b1b1b9)
+$border-color: $slate-700;         // #334155 (was #2d2d35)
+
+// ============================================================================
+// TYPOGRAPHY SYSTEM
+// ============================================================================
+
+// Font Families
+$font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+$font-mono: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+
+// Type Scale (1.250 - Major Third)
+$text-xs: 0.75rem;      // 12px
+$text-sm: 0.875rem;     // 14px
+$text-base: 1rem;       // 16px
+$text-lg: 1.125rem;     // 18px
+$text-xl: 1.25rem;      // 20px
+$text-2xl: 1.5rem;      // 24px
+$text-3xl: 1.875rem;    // 30px
+$text-4xl: 2.25rem;     // 36px
+$text-5xl: 3rem;        // 48px
+
+// Line Heights
+$leading-none: 1;
+$leading-tight: 1.25;
+$leading-snug: 1.375;
+$leading-normal: 1.5;
+$leading-relaxed: 1.625;
+$leading-loose: 2;
+
+// Font Weights
+$font-light: 300;
+$font-normal: 400;
+$font-medium: 500;
+$font-semibold: 600;
+$font-bold: 700;
+
+// Letter Spacing
+$tracking-tighter: -0.05em;
+$tracking-tight: -0.025em;
+$tracking-normal: 0;
+$tracking-wide: 0.025em;
+$tracking-wider: 0.05em;
+$tracking-widest: 0.1em;
+
+// ============================================================================
+// SPACING SYSTEM (4px base grid)
+// ============================================================================
+
+$spacing-0: 0;
+$spacing-1: 0.25rem;    // 4px
+$spacing-2: 0.5rem;     // 8px
+$spacing-3: 0.75rem;    // 12px
+$spacing-4: 1rem;       // 16px
+$spacing-5: 1.25rem;    // 20px
+$spacing-6: 1.5rem;     // 24px
+$spacing-8: 2rem;       // 32px
+$spacing-10: 2.5rem;    // 40px
+$spacing-12: 3rem;      // 48px
+$spacing-16: 4rem;      // 64px
+$spacing-20: 5rem;      // 80px
+$spacing-24: 6rem;      // 96px
+
+// Legacy spacing (backward compatibility)
+$spacing-xxs: $spacing-1;
+$spacing-xs: $spacing-2;
+$spacing-sm: $spacing-3;
+$spacing-md: $spacing-4;
+$spacing-lg: $spacing-6;
+$spacing-xl: $spacing-8;
+$spacing-xxl: $spacing-12;
+
+// ============================================================================
+// SHADOW SYSTEM (Elevation Levels)
+// ============================================================================
+
+// Core Shadows (5 elevation levels)
+$shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+$shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+$shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+$shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+$shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+$shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+// Inner Shadow
+$shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+
+// No Shadow
+$shadow-none: 0 0 #0000;
+
+// Focus/Interaction Shadows
+$shadow-primary: 0 0 0 3px rgba($primary-500, 0.15);
+$shadow-accent: 0 0 0 3px rgba($accent-500, 0.15);
+$shadow-danger: 0 0 0 3px rgba($danger-500, 0.15);
+$shadow-success: 0 0 0 3px rgba($success-500, 0.15);
+
+// Focus Shadows (for :focus-visible states)
+$shadow-focus-primary: 0 0 0 3px rgba($primary-500, 0.3);
+$shadow-focus-accent: 0 0 0 3px rgba($accent-500, 0.3);
+$shadow-focus-danger: 0 0 0 3px rgba($danger-500, 0.3);
+$shadow-focus-success: 0 0 0 3px rgba($success-500, 0.3);
 
 // Breakpoints (mobile-first)
 $breakpoints: (
@@ -77,52 +230,188 @@ $font-scale: (
   '2xl': fluid-type(320, 1200, 1.75, 2.25)
 );
 
-// Border styles
-$border-radius-sm: 4px;
-$border-radius: 8px;
-$border-radius-lg: 12px;
-$border-radius-xl: 16px;
-$border-radius-pill: 9999px;
+// ============================================================================
+// BORDER RADIUS SYSTEM
+// ============================================================================
 
-// Transitions
-$transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-$transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-$transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+$border-radius-none: 0;
+$border-radius-sm: 0.25rem;     // 4px
+$border-radius: 0.5rem;         // 8px
+$border-radius-md: 0.625rem;    // 10px
+$border-radius-lg: 0.75rem;     // 12px
+$border-radius-xl: 1rem;        // 16px
+$border-radius-2xl: 1.5rem;     // 24px
+$border-radius-3xl: 2rem;       // 32px
+$border-radius-full: 9999px;    // Pills, circles
+$border-radius-pill: 9999px;    // Alias
 
-// Vue.js theme animation curves
+// ============================================================================
+// ANIMATION SYSTEM
+// ============================================================================
+
+// Timing Functions (Easing Curves)
+$ease-linear: linear;
+$ease-in: cubic-bezier(0.4, 0, 1, 1);
+$ease-out: cubic-bezier(0, 0, 0.2, 1);
+$ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+$ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+// Durations
+$duration-75: 75ms;
+$duration-100: 100ms;
+$duration-150: 150ms;
+$duration-200: 200ms;
+$duration-250: 250ms;
+$duration-300: 300ms;
+$duration-400: 400ms;
+$duration-500: 500ms;
+$duration-700: 700ms;
+$duration-1000: 1000ms;
+
+// Legacy transition aliases (backward compatibility)
+$transition-fast: $duration-150 $ease-out;
+$transition-base: $duration-250 $ease-in-out;
+$transition-slow: $duration-400 $ease-in-out;
+
+// Named transitions for specific use cases
+$transition-colors: color $duration-150 $ease-in-out,
+                   background-color $duration-150 $ease-in-out,
+                   border-color $duration-150 $ease-in-out;
+
+$transition-opacity: opacity $duration-150 $ease-in-out;
+$transition-shadow: box-shadow $duration-150 $ease-in-out;
+$transition-transform: transform $duration-200 $ease-out;
+
+$transition-all: all $duration-150 $ease-in-out;
+
+// Vue.js animation curves (kept for compatibility)
 $vue-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
 $vue-ease-out: cubic-bezier(0, 0, 0.2, 1);
 $vue-ease-in: cubic-bezier(0.4, 0, 1, 1);
 
-// CSS Variablen für bessere Runtime-Anpassungen
+// Named animation durations (semantic)
+$duration-250: 250ms;  // Missing in original list
+$duration-400: 400ms;  // Missing in original list
+
+// CSS Custom Properties für Runtime Theme-Switching
+// Dark Mode (Default)
 :root {
-  --primary-color: #{$primary-color};
-  --primary-color-light: #{$primary-color-light};
-  --primary-color-dark: #{$primary-color-dark};
+  // Brand Colors
+  --primary-color: #{$primary-500};
+  --primary-color-light: #{$primary-400};
+  --primary-color-dark: #{$primary-600};
+  --accent-color: #{$accent-500};
+  --secondary-color: #{$accent-500};
   
-  // Alle Farben als CSS-Variablen
-  --background-dark: #{$background-dark};
-  --background-darker: #{$background-darker};
-  --background-card: #{$background-card};
-  --text-primary: #{$text-primary};
-  --text-secondary: #{$text-secondary};
-  --border-color: #{$border-color};
-  --danger-color: #{$danger-color};
-  --success-color: #{$success-color};
-  --warning-color: #{$warning-color};
-  --info-color: #{$info-color};
-  --secondary-color: #{$secondary-color};
+  // Semantic Colors
+  --danger-color: #{$danger-500};
+  --success-color: #{$success-500};
+  --warning-color: #{$warning-500};
+  --info-color: #{$info-500};
   
-  // Farbwerte als RGB für alpha-Operationen
-  --primary-color-rgb: 66, 184, 131;
-  --background-darker-rgb: 24, 24, 27;
-  --border-color-rgb: 45, 45, 53;
-  --danger-color-rgb: 239, 68, 68;
+  // Dark Mode Backgrounds
+  --background-dark: #{$slate-900};
+  --background-darker: #{$slate-950};
+  --background-card: #{$slate-800};
   
-  // Animation und Timing
+  // Dark Mode Text
+  --text-primary: #{$slate-50};
+  --text-secondary: #{$slate-400};
+  
+  // Dark Mode Borders
+  --border-color: #{$slate-700};
+  
+  // RGB Values for alpha operations
+  --primary-color-rgb: 20, 184, 166;       // Teal-500
+  --accent-color-rgb: 139, 92, 246;        // Purple-500
+  --background-darker-rgb: 2, 6, 23;       // Slate-950
+  --border-color-rgb: 51, 65, 85;          // Slate-700
+  --danger-color-rgb: 239, 68, 68;         // Red-500
+  
+  // Typography
+  --font-sans: #{$font-sans};
+  --font-mono: #{$font-mono};
+  
+  --text-xs: #{$text-xs};
+  --text-sm: #{$text-sm};
+  --text-base: #{$text-base};
+  --text-lg: #{$text-lg};
+  --text-xl: #{$text-xl};
+  --text-2xl: #{$text-2xl};
+  --text-3xl: #{$text-3xl};
+  --text-4xl: #{$text-4xl};
+  --text-5xl: #{$text-5xl};
+  
+  --leading-none: #{$leading-none};
+  --leading-tight: #{$leading-tight};
+  --leading-snug: #{$leading-snug};
+  --leading-normal: #{$leading-normal};
+  --leading-relaxed: #{$leading-relaxed};
+  --leading-loose: #{$leading-loose};
+  
+  // Spacing
+  --spacing-1: #{$spacing-1};
+  --spacing-2: #{$spacing-2};
+  --spacing-3: #{$spacing-3};
+  --spacing-4: #{$spacing-4};
+  --spacing-5: #{$spacing-5};
+  --spacing-6: #{$spacing-6};
+  --spacing-8: #{$spacing-8};
+  --spacing-10: #{$spacing-10};
+  --spacing-12: #{$spacing-12};
+  --spacing-16: #{$spacing-16};
+  
+  // Shadows
+  --shadow-xs: #{$shadow-xs};
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-xl: #{$shadow-xl};
+  --shadow-2xl: #{$shadow-2xl};
+  
+  // Border Radius
+  --radius-sm: #{$border-radius-sm};
+  --radius: #{$border-radius};
+  --radius-md: #{$border-radius-md};
+  --radius-lg: #{$border-radius-lg};
+  --radius-xl: #{$border-radius-xl};
+  --radius-2xl: #{$border-radius-2xl};
+  --radius-full: #{$border-radius-full};
+  
+  // Animation and Timing
   --transition-fast: #{$transition-fast};
   --transition-base: #{$transition-base};
   --transition-slow: #{$transition-slow};
   --vue-ease: #{$vue-ease};
   --vue-ease-out: #{$vue-ease-out};
+  
+  --duration-150: #{$duration-150};
+  --duration-200: #{$duration-200};
+  --duration-300: #{$duration-300};
+  --duration-500: #{$duration-500};
+}
+
+// Light Mode Theme (activate with [data-theme="light"])
+[data-theme="light"] {
+  // Light Mode Backgrounds
+  --background-dark: #{$slate-50};
+  --background-darker: #{$slate-100};
+  --background-card: #ffffff;
+  
+  // Light Mode Text
+  --text-primary: #{$slate-900};
+  --text-secondary: #{$slate-600};
+  
+  // Light Mode Borders
+  --border-color: #{$slate-300};
+  
+  // Adjusted Semantic Colors for Light Mode (darker for contrast)
+  --success-color: #{$success-600};
+  --danger-color: #{$danger-600};
+  --warning-color: #{$warning-600};
+  --info-color: #{$info-600};
+  
+  // RGB Values for Light Mode
+  --background-darker-rgb: 241, 245, 249;  // Slate-100
+  --border-color-rgb: 203, 213, 225;       // Slate-300
 }

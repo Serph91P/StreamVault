@@ -3,35 +3,48 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 
-// Navigation with Vue-style animations
+// ============================================================================
+// NAVIGATION SYSTEM - Modern Design
+// ============================================================================
+
 nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: v.$spacing-sm;
+  gap: v.$spacing-2;  // 8px
   width: 100%;
 
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
+  @include m.respond-to('md') {
     width: auto;
-    gap: 1.5rem;
+    gap: v.$spacing-4;  // 16px
   }
 
   a {
-    color: v.$text-secondary;
+    // Typography
+    color: var(--text-secondary);
+    font-size: v.$text-sm;  // 14px
+    font-weight: v.$font-medium;  // 500
     text-decoration: none;
-    font-weight: 500;
-    padding: v.$spacing-sm;
-    border-radius: v.$border-radius-sm;
-    transition: all v.$vue-ease 0.2s;
-    font-size: map.get(v.$font-scale, 'sm');
+    line-height: v.$leading-normal;
+    
+    // Spacing
+    padding: v.$spacing-2 v.$spacing-3;  // 8px 12px
+    
+    // Visual
+    border-radius: v.$border-radius-md;  // 10px
+    background: transparent;
+    
+    // State
     position: relative;
     overflow: hidden;
+    transition: v.$transition-all;  // color, background 150ms ease-in-out
 
-    @media (min-width: map.get(v.$breakpoints, 'md')) {
-      padding: v.$spacing-sm v.$spacing-md;
-      font-size: map.get(v.$font-scale, 'base');
+    @include m.respond-to('md') {
+      padding: v.$spacing-3 v.$spacing-4;  // 12px 16px
+      font-size: v.$text-base;  // 16px
     }
 
+    // Underline indicator
     &::after {
       content: '';
       position: absolute;
@@ -40,141 +53,430 @@ nav {
       transform: translateX(-50%);
       width: 0;
       height: 2px;
-      background-color: v.$primary-color;
-      transition: width 0.2s v.$vue-ease;
+      background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+      transition: width v.$duration-200 v.$ease-out;
+      border-radius: v.$border-radius-full;
     }
 
+    // Hover state
     &:hover {
-      color: v.$primary-color;
+      color: var(--primary-color);
+      background: var(--background-hover);
 
       &::after {
         width: 70%;
       }
     }
 
+    // Active link state
     &.router-link-active {
-      color: v.$primary-color;
-      background: rgba(v.$primary-color, 0.1);
+      color: var(--primary-color);
+      background: var(--primary-bg);
+      font-weight: v.$font-semibold;  // 600
 
       &::after {
         width: 90%;
       }
     }
+
+    // Focus state (accessibility)
+    &:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+      box-shadow: v.$shadow-focus-primary;
+    }
   }
 }
 
-// Buttons mit konsistenter Stilisierung
+// ============================================================================
+// BUTTON SYSTEM - Modern Design
+// ============================================================================
+
 .btn {
   @include m.flex(row, center, center);
   @include m.ripple-effect;
-  padding: v.$spacing-sm v.$spacing-lg;
-  border-radius: v.$border-radius;
-  font-size: map.get(v.$font-scale, 'base');
-  font-weight: 600;
-  cursor: pointer;
-  transition: all v.$vue-ease 0.2s;
+  
+  // Spacing (new design tokens)
+  padding: v.$spacing-3 v.$spacing-6;  // 12px 24px
+  gap: v.$spacing-2;  // 8px gap for icon + text
+  
+  // Typography (new design tokens)
+  font-size: v.$text-base;  // 16px
+  font-weight: v.$font-semibold;  // 600
+  line-height: v.$leading-normal;  // 1.5
+  
+  // Border & Radius (new design tokens)
   border: none;
+  border-radius: v.$border-radius-md;  // 10px (modern rounded)
+  
+  // Interaction
+  cursor: pointer;
+  transition: v.$transition-all;
   width: auto;
+  position: relative;
+  overflow: hidden;
   
+  // Touch target (mobile-first)
   @include m.respond-below('sm') {
-    min-height: 44px; // iOS recommended minimum
+    min-height: 44px;  // iOS recommended minimum
+    padding: v.$spacing-3 v.$spacing-5;  // Slightly smaller on mobile
+    font-size: v.$text-sm;  // 14px on mobile
   }
   
+  // Hover state (subtle lift)
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    box-shadow: v.$shadow-md;
   }
   
+  // Active state (press down)
   &:active:not(:disabled) {
-    transform: translateY(1px);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
+    box-shadow: v.$shadow-sm;
   }
   
+  // Focus state (accessibility)
+  &:focus-visible {
+    outline: none;
+    box-shadow: v.$shadow-primary;
+  }
+  
+  // Disabled state
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
   
-  // Stilisierte Varianten
+  // Size Variants
+  &-sm {
+    padding: v.$spacing-2 v.$spacing-4;  // 8px 16px
+    font-size: v.$text-sm;  // 14px
+    border-radius: v.$border-radius-sm;  // 4px
+    min-height: 32px;
+  }
+  
+  &-lg {
+    padding: v.$spacing-4 v.$spacing-8;  // 16px 32px
+    font-size: v.$text-lg;  // 18px
+    border-radius: v.$border-radius-lg;  // 12px
+    min-height: 52px;
+  }
+  
+  // ========================================
+  // Color Variants (Modern Palette)
+  // ========================================
+  
   &-primary {
-    background: v.$primary-color;
+    background: var(--primary-color);  // Teal
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$primary-color, 0.3);
+    box-shadow: v.$shadow-sm;
     
     &:hover:not(:disabled) {
-      background: v.$primary-color-light;
+      background: v.$primary-400;  // Lighter on hover
+      box-shadow: v.$shadow-md;
     }
     
     &:active:not(:disabled) {
-      background: v.$primary-color-dark;
+      background: v.$primary-600;  // Darker on press
+    }
+    
+    &:focus-visible {
+      box-shadow: v.$shadow-primary;
     }
   }
   
   &-secondary {
-    background: v.$accent-color;
+    background: var(--accent-color);  // Purple
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$secondary-color, 0.3);
+    box-shadow: v.$shadow-sm;
     
     &:hover:not(:disabled) {
-      background: color.adjust(v.$secondary-color, $lightness: -10%);
+      background: v.$accent-400;  // Lighter on hover
+      box-shadow: v.$shadow-md;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$accent-600;  // Darker on press
+    }
+    
+    &:focus-visible {
+      box-shadow: v.$shadow-accent;
     }
   }
   
   &-success {
-    background: v.$success-color;
+    background: var(--success-color);
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$success-color, 0.3);
+    box-shadow: v.$shadow-sm;
     
     &:hover:not(:disabled) {
-      background: color.adjust(v.$success-color, $lightness: -10%);
+      background: v.$success-400;
+      box-shadow: v.$shadow-md;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$success-600;
+    }
+    
+    &:focus-visible {
+      box-shadow: v.$shadow-success;
     }
   }
   
-  &-danger, &-delete {
-    background: v.$danger-color;
+  &-danger,
+  &-delete {
+    background: var(--danger-color);
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.3);
+    box-shadow: v.$shadow-sm;
     
     &:hover:not(:disabled) {
-      background: color.adjust(v.$danger-color, $lightness: -10%);
+      background: v.$danger-400;
+      box-shadow: v.$shadow-md;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$danger-600;
+    }
+    
+    &:focus-visible {
+      box-shadow: v.$shadow-danger;
     }
   }
   
-  // Weitere Varianten...
+  &-warning {
+    background: var(--warning-color);
+    color: white;
+    box-shadow: v.$shadow-sm;
+    
+    &:hover:not(:disabled) {
+      background: v.$warning-400;
+      box-shadow: v.$shadow-md;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$warning-600;
+    }
+  }
+  
+  &-info {
+    background: var(--info-color);
+    color: white;
+    box-shadow: v.$shadow-sm;
+    
+    &:hover:not(:disabled) {
+      background: v.$info-400;
+      box-shadow: v.$shadow-md;
+    }
+    
+    &:active:not(:disabled) {
+      background: v.$info-600;
+    }
+  }
+  
+  // Outline Variants (transparent with border)
+  &-outline {
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    box-shadow: none;
+    
+    &:hover:not(:disabled) {
+      background: rgba(var(--primary-color-rgb), 0.1);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+  }
+  
+  &-outline-primary {
+    background: transparent;
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+    box-shadow: none;
+    
+    &:hover:not(:disabled) {
+      background: var(--primary-color);
+      color: white;
+    }
+  }
+  
+  &-outline-danger {
+    background: transparent;
+    color: var(--danger-color);
+    border: 2px solid var(--danger-color);
+    box-shadow: none;
+    
+    &:hover:not(:disabled) {
+      background: var(--danger-color);
+      color: white;
+    }
+  }
+  
+  // Ghost Variant (transparent, no border)
+  &-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    box-shadow: none;
+    
+    &:hover:not(:disabled) {
+      background: rgba(var(--primary-color-rgb), 0.1);
+      color: var(--primary-color);
+    }
+  }
+  
+  // Link Style (looks like text link)
+  &-link {
+    background: transparent;
+    color: var(--primary-color);
+    box-shadow: none;
+    padding: v.$spacing-1 v.$spacing-2;
+    text-decoration: underline;
+    
+    &:hover:not(:disabled) {
+      color: v.$primary-400;
+      transform: none;
+      text-decoration: none;
+    }
+  }
 }
 
-// Form-Felder mit besserer Zugänglichkeit
+// ============================================================================
+// FORM SYSTEM - Modern Design
+// ============================================================================
+
 .form-group {
-  margin-bottom: v.$spacing-md;
+  margin-bottom: v.$spacing-5;  // 20px spacing between fields
   position: relative;
 }
 
-.input-field {
+.input-field,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="url"],
+textarea,
+select {
   width: 100%;
-  background: v.$background-dark;
-  border: 2px solid v.$border-color;
-  color: v.$text-primary;
-  padding: v.$spacing-sm v.$spacing-md;
-  border-radius: v.$border-radius;
-  font-size: map.get(v.$font-scale, 'base');
-  transition: all v.$vue-ease 0.2s;
+  background: var(--background-card);
+  border: 2px solid var(--border-color);
+  color: var(--text-primary);
+  padding: v.$spacing-3 v.$spacing-4;  // 12px 16px
+  border-radius: v.$border-radius-md;  // 10px
+  font-size: v.$text-base;  // 16px
+  font-family: v.$font-sans;
+  line-height: v.$leading-normal;
+  transition: v.$transition-all;
   position: relative;
   
+  // Mobile optimization (prevent zoom on iOS)
+  @include m.respond-below('sm') {
+    font-size: 16px;  // Prevents iOS zoom
+    min-height: 44px;  // Touch target
+  }
+  
+  // Focus state
   &:focus {
     outline: none;
-    border-color: v.$primary-color;
-    box-shadow: 0 0 0 3px rgba(v.$primary-color, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: v.$shadow-primary;
+    background: var(--background-darker);
   }
   
+  // Placeholder
   &::placeholder {
-    color: v.$text-secondary;
-    opacity: 0.7;
+    color: var(--text-secondary);
+    opacity: 0.6;
   }
   
+  // Disabled state
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
-    background: color.adjust(v.$background-dark, $lightness: -3%);
+    background: var(--background-dark);
+  }
+  
+  // Error state
+  &.error,
+  &:invalid:not(:placeholder-shown) {
+    border-color: var(--danger-color);
+    
+    &:focus {
+      box-shadow: v.$shadow-danger;
+    }
+  }
+  
+  // Success state
+  &.success {
+    border-color: var(--success-color);
+    
+    &:focus {
+      box-shadow: v.$shadow-success;
+    }
+  }
+}
+
+// Textarea specific
+textarea {
+  resize: vertical;
+  min-height: 100px;
+  line-height: v.$leading-relaxed;  // More comfortable for multi-line
+}
+
+// Select specific
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right v.$spacing-3 center;
+  padding-right: v.$spacing-10;  // Space for dropdown arrow
+}
+
+// Label
+label {
+  display: block;
+  margin-bottom: v.$spacing-2;  // 8px
+  font-size: v.$text-sm;  // 14px
+  font-weight: v.$font-medium;  // 500
+  color: var(--text-primary);
+  
+  // Required indicator
+  &.required::after {
+    content: " *";
+    color: var(--danger-color);
+  }
+}
+
+// Helper text
+.help-text {
+  display: block;
+  margin-top: v.$spacing-1;  // 4px
+  font-size: v.$text-xs;  // 12px
+  color: var(--text-secondary);
+  line-height: v.$leading-snug;
+}
+
+// Error message
+.error-message {
+  display: block;
+  margin-top: v.$spacing-1;
+  font-size: v.$text-xs;
+  color: var(--danger-color);
+  line-height: v.$leading-snug;
+}
+
+// Checkbox & Radio
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  margin-right: v.$spacing-2;
+  cursor: pointer;
+  accent-color: var(--primary-color);  // Modern browser support
+  
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 
@@ -355,11 +657,34 @@ nav {
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
-// Karten-Komponenten
+// ============================================================================
+// CARD COMPONENTS - Modern Design
+// ============================================================================
+
+// Base card (uses new design tokens)
 .card {
   @include m.card-base;
+  
+  // Variants
+  &.card-elevated {
+    @include m.card-elevated;
+  }
+  
+  &.card-flat {
+    @include m.card-flat;
+  }
+  
+  &.card-interactive {
+    cursor: pointer;
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: v.$shadow-sm;
+    }
+  }
 }
 
+// Streamer card (updated with new design tokens)
 .streamer-card {
   @extend .card;
   display: flex;
@@ -373,26 +698,35 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: v.$spacing-md;
+    margin-bottom: v.$spacing-4;  // 16px
     flex-wrap: wrap;
-    gap: v.$spacing-sm;
+    gap: v.$spacing-3;  // 12px
   }
 
   .streamer-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: v.$spacing-sm;
+    gap: v.$spacing-3;  // 12px
 
     p {
       margin: 0;
-      line-height: 1.4;
+      line-height: v.$leading-normal;  // 1.5
       overflow-wrap: break-word;
-      color: v.$text-secondary;
+      color: var(--text-secondary);
+      font-size: v.$text-sm;  // 14px
     }
+  }
+  
+  .streamer-title {
+    font-size: v.$text-lg;  // 18px
+    font-weight: v.$font-semibold;  // 600
+    color: var(--text-primary);
+    line-height: v.$leading-tight;  // 1.25
   }
 }
 
+// Stream card (updated with new design tokens)
 .stream-card {
   @extend .card;
   display: flex;
@@ -403,25 +737,28 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: v.$spacing-sm v.$spacing-md;
-    background-color: rgba(v.$background-darker, 0.6);
-    border-bottom: 1px solid v.$border-color;
-    margin: -#{v.$spacing-md} -#{v.$spacing-md} v.$spacing-md -#{v.$spacing-md};
+    padding: v.$spacing-3 v.$spacing-4;  // 12px 16px
+    background-color: var(--background-darker);
+    border-bottom: 1px solid var(--border-color);
+    margin: -#{v.$spacing-6} -#{v.$spacing-6} v.$spacing-4 -#{v.$spacing-6};
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
-      margin: -#{v.$spacing-lg} -#{v.$spacing-lg} v.$spacing-lg -#{v.$spacing-lg};
+      margin: -#{v.$spacing-8} -#{v.$spacing-8} v.$spacing-6 -#{v.$spacing-8};
+      padding: v.$spacing-4 v.$spacing-6;  // 16px 24px
     }
   }
 
   .stream-info {
     display: flex;
     align-items: center;
-    gap: v.$spacing-sm;
+    gap: v.$spacing-3;  // 12px
 
     h3 {
       margin: 0;
-      font-size: map.get(v.$font-scale, 'base');
-      font-weight: 600;
+      font-size: v.$text-base;  // 16px
+      font-weight: v.$font-semibold;  // 600
+      color: var(--text-primary);
+      line-height: v.$leading-tight;  // 1.25
     }
   }
 
@@ -429,17 +766,26 @@ nav {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: v.$spacing-xs;
+    gap: v.$spacing-2;  // 8px
 
     p {
       margin: 0;
-      color: v.$text-secondary;
-      line-height: 1.5;
+      color: var(--text-secondary);
+      line-height: v.$leading-normal;  // 1.5
+      font-size: v.$text-sm;  // 14px
     }
   }
 
   .stream-thumbnail {
     position: relative;
+    width: 100%;
+    height: 0;
+    padding-bottom: 56.25%; // 16:9 aspect ratio
+    margin-bottom: v.$spacing-3;  // 12px
+    overflow: hidden;
+    border-radius: v.$border-radius-md;  // 10px
+    background: var(--background-darker);
+    box-shadow: v.$shadow-sm;  // Subtle depth
     width: 100%;
     height: 0;
     padding-bottom: 56.25%; // 16:9 aspect ratio
@@ -620,59 +966,97 @@ nav {
   }
 }
 
-// Status indicators with animations
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: v.$danger-color;
-  transition: background-color 0.3s v.$vue-ease;
-  display: inline-block;
-  margin-right: v.$spacing-xs;
-  position: relative;
+// ============================================================================
+// STATUS INDICATORS - Modern Design
+// ============================================================================
 
-  &.live {
-    background: v.$success-color;
-    box-shadow: 0 0 0 rgba(v.$success-color, 0.5);
-    animation: pulse 2s infinite;
+// Status dot (animated for live states)
+.status-dot {
+  width: 10px;  // Slightly larger for better visibility
+  height: 10px;
+  border-radius: v.$border-radius-full;  // 9999px
+  background: var(--danger-color);
+  transition: v.$transition-colors;
+  display: inline-block;
+  margin-right: v.$spacing-2;  // 8px
+  position: relative;
+  flex-shrink: 0;  // Don't shrink in flex layouts
+
+  &.live,
+  &.recording {
+    background: var(--success-color);
+    box-shadow: 0 0 0 rgba(var(--success-color), 0.5);
+    animation: pulse 2s ease-out infinite;
+  }
+  
+  &.offline {
+    background: var(--danger-color);
+  }
+  
+  &.processing {
+    background: var(--warning-color);
+    animation: pulse 2s ease-out infinite;
   }
 
   @keyframes pulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(v.$success-color, 0.7);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);  // success-500
     }
     70% {
-      box-shadow: 0 0 0 6px rgba(v.$success-color, 0);
+      box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(v.$success-color, 0);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
     }
   }
 }
 
+// Status badge (pill-shaped with modern colors)
 .status-badge {
-  padding: 0.2em 0.6em;
-  border-radius: v.$border-radius-pill;
-  font-size: map.get(v.$font-scale, 'xs');
-  font-weight: 600;
-  min-width: 60px;
+  padding: v.$spacing-1 v.$spacing-3;  // 4px 12px
+  border-radius: v.$border-radius-full;  // Pill shape
+  font-size: v.$text-xs;  // 12px
+  font-weight: v.$font-semibold;  // 600
+  min-width: 64px;
   text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: 0.5px;
-  height: 22px;
+  gap: v.$spacing-1;  // 4px (for icon + text)
+  letter-spacing: v.$tracking-wide;  // 0.025em
+  height: 24px;
+  text-transform: uppercase;
+  transition: v.$transition-all;
 
-  &.live {
-    background: v.$success-color;
+  &.live,
+  &.recording {
+    background: var(--success-color);
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$success-color, 0.4);
+    box-shadow: v.$shadow-sm;
   }
 
   &.offline {
-    background: v.$danger-color;
+    background: var(--danger-color);
     color: white;
-    box-shadow: 0 2px 4px rgba(v.$danger-color, 0.4);
+    box-shadow: v.$shadow-sm;
+  }
+  
+  &.processing {
+    background: var(--warning-color);
+    color: white;
+    box-shadow: v.$shadow-sm;
+  }
+  
+  &.completed {
+    background: var(--info-color);
+    color: white;
+    box-shadow: v.$shadow-sm;
+  }
+  
+  &.pending {
+    background: var(--text-secondary);
+    color: white;
+    box-shadow: v.$shadow-sm;
   }
 }
 
@@ -701,16 +1085,20 @@ nav {
   font-size: map.get(v.$font-scale, 'sm');
 }
 
-// Modernere Tabellen
+// ============================================================================
+// TABLE SYSTEM - Modern Design
+// ============================================================================
+
 .table-container {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding: v.$spacing-md;
-  border-radius: v.$border-radius;
-  background-color: v.$background-card;
-  border: 1px solid v.$border-color;
-  margin-bottom: v.$spacing-lg;
+  padding: v.$spacing-6;  // 24px
+  border-radius: v.$border-radius-lg;  // 12px
+  background-color: var(--background-card);
+  border: 1px solid var(--border-color);
+  margin-bottom: v.$spacing-8;  // 32px
+  box-shadow: v.$shadow-sm;
   
   table {
     width: 100%;
@@ -718,37 +1106,57 @@ nav {
     border-spacing: 0;
     
     th, td {
-      padding: v.$spacing-sm;
+      padding: v.$spacing-3 v.$spacing-4;  // 12px 16px
       text-align: left;
       vertical-align: middle;
-      border-bottom: 1px solid rgba(v.$border-color, 0.5);
+      border-bottom: 1px solid var(--border-color);
+      font-size: v.$text-sm;  // 14px
       
       @include m.respond-to('md') {
-        padding: v.$spacing-md;
+        padding: v.$spacing-4 v.$spacing-6;  // 16px 24px
+        font-size: v.$text-base;  // 16px
       }
     }
     
     th {
-      font-weight: 600;
-      color: v.$text-primary;
+      font-weight: v.$font-semibold;  // 600
+      color: var(--text-primary);
+      background: var(--background-darker);
       position: sticky;
       top: 0;
       z-index: 10;
-      background: v.$background-darker;
       backdrop-filter: blur(8px);
+      letter-spacing: v.$tracking-wide;  // 0.025em
+      text-transform: uppercase;
+      font-size: v.$text-xs;  // 12px
+      
+      @include m.respond-to('md') {
+        font-size: v.$text-sm;  // 14px
+      }
     }
     
     tbody tr {
-      transition: background-color 0.2s v.$vue-ease;
+      transition: v.$transition-colors;
       
       &:hover {
-        background-color: rgba(v.$primary-color, 0.05);
+        background-color: rgba(var(--primary-color-rgb), 0.05);
       }
+      
+      &:last-child td {
+        border-bottom: none;  // Remove border on last row
+      }
+    }
+    
+    td {
+      color: var(--text-secondary);
+      line-height: v.$leading-normal;  // 1.5
     }
   }
   
-  // Verbesserte responsive Tabellen
+  // Mobile responsive (card-style)
   @include m.respond-below('md') {
+    padding: v.$spacing-4;
+    
     table, thead, tbody, tr, th, td {
       display: block;
     }
@@ -759,159 +1167,334 @@ nav {
       left: -9999px;
     }
     
+    tbody tr {
+      margin-bottom: v.$spacing-4;
+      border: 1px solid var(--border-color);
+      border-radius: v.$border-radius-md;
+      padding: v.$spacing-3;
+      background: var(--background-darker);
+    }
+    
     td {
       position: relative;
-      padding-left: 40%;
+      padding-left: 45%;
+      padding-top: v.$spacing-2;
+      padding-bottom: v.$spacing-2;
       border: none;
-      border-bottom: 1px solid rgba(v.$border-color, 0.3);
+      border-bottom: 1px solid rgba(var(--border-color-rgb), 0.3);
+      
+      &:last-child {
+        border-bottom: none;
+      }
       
       &:before {
         content: attr(data-label);
         position: absolute;
-        top: v.$spacing-sm;
-        left: v.$spacing-sm;
-        width: 35%;
-        font-weight: 600;
+        top: v.$spacing-2;
+        left: v.$spacing-3;
+        width: 40%;
+        font-weight: v.$font-semibold;
         white-space: nowrap;
-        color: v.$primary-color;
+        color: var(--primary-color);
+        font-size: v.$text-xs;
+        text-transform: uppercase;
+        letter-spacing: v.$tracking-wide;
       }
     }
   }
 }
 
-// Loading indicators with Vue animation
-.spinner, .loader {
+// ============================================================================
+// LOADING STATES - Modern Design
+// ============================================================================
+
+// Spinner (large loader)
+.spinner,
+.loader {
   display: inline-block;
-  border-radius: 50%;
+  border-radius: v.$border-radius-full;  // 9999px
   border-style: solid;
-  border-color: rgba(255, 255, 255, 0.15);
-  border-top-color: #ffffff;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
   box-sizing: border-box;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-width: 4px;
+  border-color: rgba(var(--primary-color-rgb), 0.2);
+  border-top-color: var(--primary-color);
+  border-right-color: var(--primary-color);
 }
 
+// Small inline loader
 .loader {
+  width: 20px;
+  height: 20px;
+  border-width: 3px;
+  border-color: rgba(var(--primary-color-rgb), 0.2);
+  border-top-color: var(--primary-color);
+  vertical-align: middle;
+  margin-right: v.$spacing-2;  // 8px
+}
+
+// Button loader (small, white)
+.btn .loader {
   width: 16px;
   height: 16px;
   border-width: 2px;
-  vertical-align: middle;
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  margin-right: v.$spacing-2;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-// Loading and empty states with animations
-.loading-container, .no-data-container {
+// Loading container (centered with message)
+.loading-container,
+.no-data-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 240px;
   text-align: center;
-  padding: v.$spacing-xl;
-  animation: fadeIn 0.4s v.$vue-ease-out;
+  padding: v.$spacing-12;  // 48px
+  gap: v.$spacing-4;  // 16px
+  animation: fadeIn 0.3s v.$vue-ease-out;
 
-  p {
-    color: v.$text-secondary;
-    margin: v.$spacing-md 0;
-    max-width: 400px;
-    line-height: 1.6;
+  .spinner {
+    margin-bottom: v.$spacing-2;
   }
 
-  .btn {
-    margin-top: v.$spacing-md;
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: v.$text-base;
+    line-height: v.$leading-relaxed;
+  }
+  
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: v.$text-xl;
+    font-weight: v.$font-semibold;
   }
 }
 
-// Vue-styled notification feed
+// Skeleton loader (placeholder animation)
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--background-card) 0%,
+    var(--background-darker) 50%,
+    var(--background-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: v.$border-radius-md;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  @extend .skeleton;
+  height: 1em;
+  margin-bottom: v.$spacing-2;
+  
+  &.skeleton-text-lg {
+    height: 1.5em;
+  }
+  
+  &.skeleton-text-sm {
+    height: 0.75em;
+  }
+}
+
+.skeleton-avatar {
+  @extend .skeleton;
+  width: 48px;
+  height: 48px;
+  border-radius: v.$border-radius-full;
+}
+
+.skeleton-card {
+  @extend .skeleton;
+  height: 200px;
+  width: 100%;
+}
+
+// ============================================================================
+// NOTIFICATION & TOAST SYSTEM - Modern Design
+// ============================================================================
+
+// Notification feed container
 .notification-feed {
   position: fixed;
-  bottom: v.$spacing-md;
-  left: v.$spacing-md;
-  right: v.$spacing-md;
+  bottom: v.$spacing-4;  // 16px
+  left: v.$spacing-4;
+  right: v.$spacing-4;
   z-index: map.get(v.$z-layers, 'toast');
-  pointer-events: none; // Allow clicking through the container
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-3;  // 12px
 
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     bottom: auto;
     top: 80px;
-    right: v.$spacing-md;
+    right: v.$spacing-6;  // 24px
     left: auto;
-    max-width: 350px;
+    max-width: 400px;
     width: 100%;
   }
 }
 
-.notification-item {
-  pointer-events: auto; // Make the notification itself clickable
-  background: v.$background-darker;
-  color: white;
-  padding: v.$spacing-sm v.$spacing-md;
-  margin-bottom: v.$spacing-sm;
-  border-radius: v.$border-radius;
-  box-shadow: v.$shadow-md;
+// Individual toast notification
+.notification-item,
+.toast {
+  pointer-events: auto;
+  background: var(--background-card);
+  color: var(--text-primary);
+  padding: v.$spacing-4 v.$spacing-5;  // 16px 20px
+  border-radius: v.$border-radius-lg;  // 12px
+  box-shadow: v.$shadow-xl;  // Prominent shadow
   display: flex;
-  align-items: center;
-  gap: v.$spacing-sm;
+  align-items: flex-start;
+  gap: v.$spacing-3;  // 12px
   position: relative;
   overflow: hidden;
-  border-left: 3px solid v.$primary-color;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary-color);
+  backdrop-filter: blur(10px);
+  animation: slideInRight 0.3s v.$vue-ease-out;
+  
+  @include m.respond-below('md') {
+    padding: v.$spacing-3 v.$spacing-4;
+    border-left-width: 3px;
+  }
 
-  // Progress bar animation
+  // Content area
+  .notification-content,
+  .toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-1;
+    
+    .notification-title,
+    .toast-title {
+      font-size: v.$text-sm;  // 14px
+      font-weight: v.$font-semibold;  // 600
+      color: var(--text-primary);
+      line-height: v.$leading-tight;  // 1.25
+    }
+    
+    .notification-message,
+    .toast-message {
+      font-size: v.$text-sm;  // 14px
+      color: var(--text-secondary);
+      line-height: v.$leading-normal;  // 1.5
+    }
+  }
+
+  // Progress bar
   &::after {
     content: '';
     position: absolute;
     bottom: 0;
     left: 0;
-    height: 3px;
-    background: v.$primary-color;
+    height: 2px;
+    background: var(--primary-color);
     width: 100%;
-    animation: progress 5s linear forwards;
+    animation: toast-progress 5s linear forwards;
   }
 
-  @keyframes progress {
+  @keyframes toast-progress {
     0% { width: 100%; }
     100% { width: 0%; }
   }
 
+  // Type variants
   &.success {
-    border-left-color: v.$success-color;
+    border-left-color: var(--success-color);
 
     &::after {
-      background: v.$success-color;
+      background: var(--success-color);
     }
   }
 
-  &.error {
-    border-left-color: v.$danger-color;
+  &.error,
+  &.danger {
+    border-left-color: var(--danger-color);
 
     &::after {
-      background: v.$danger-color;
+      background: var(--danger-color);
+    }
+  }
+  
+  &.warning {
+    border-left-color: var(--warning-color);
+
+    &::after {
+      background: var(--warning-color);
+    }
+  }
+  
+  &.info {
+    border-left-color: var(--info-color);
+
+    &::after {
+      background: var(--info-color);
     }
   }
 
-  .notification-close {
+  // Close button
+  .notification-close,
+  .toast-close {
     position: absolute;
-    top: v.$spacing-xs;
-    right: v.$spacing-xs;
-    background: none;
+    top: v.$spacing-2;  // 8px
+    right: v.$spacing-2;
+    background: transparent;
     border: none;
-    color: v.$text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
-    font-size: 1rem;
-    padding: 2px;
+    font-size: v.$text-lg;  // 18px
+    padding: v.$spacing-1;
     line-height: 1;
+    border-radius: v.$border-radius-sm;
+    transition: v.$transition-colors;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     &:hover {
-      color: white;
+      color: var(--text-primary);
+      background: rgba(var(--danger-color-rgb), 0.1);
     }
+  }
+}
+
+// Toast slide-in animation
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 
@@ -946,9 +1529,224 @@ nav {
   }
 }
 
+// ============================================================================
+// MODAL SYSTEM - Modern Design
+// ============================================================================
+
+// Modal overlay (backdrop)
+.modal-overlay,
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: map.get(v.$z-layers, 'modal');
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: v.$spacing-4;  // 16px
+  animation: fadeIn 0.2s v.$vue-ease-out;
+  
+  @include m.respond-to('md') {
+    padding: v.$spacing-8;  // 32px
+  }
+}
+
+// Modal container
+.modal,
+.modal-content,
+.video-modal {
+  background: var(--background-card);
+  border-radius: v.$border-radius-xl;  // 16px
+  box-shadow: v.$shadow-2xl;  // Prominent shadow
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  animation: modalSlideIn 0.3s v.$vue-ease-out;
+  
+  @include m.respond-below('md') {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: v.$border-radius-lg;  // 12px on mobile
+  }
+  
+  // Large modal variant
+  &.modal-lg,
+  &.videos-debug-modal,
+  &.recordings-directory-modal {
+    max-width: 900px;
+  }
+  
+  // Full-screen modal on mobile
+  &.modal-fullscreen-mobile {
+    @include m.respond-below('md') {
+      max-height: 100vh;
+      border-radius: 0;
+    }
+  }
+}
+
+// Modal header
+.modal-header {
+  padding: v.$spacing-5 v.$spacing-6;  // 20px 24px
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$spacing-4;
+  flex-shrink: 0;
+  
+  @include m.respond-below('md') {
+    padding: v.$spacing-4 v.$spacing-5;  // 16px 20px
+  }
+  
+  h2,
+  h3 {
+    margin: 0;
+    font-size: v.$text-xl;  // 20px
+    font-weight: v.$font-semibold;  // 600
+    color: var(--text-primary);
+    line-height: v.$leading-tight;  // 1.25
+    
+    @include m.respond-to('md') {
+      font-size: v.$text-2xl;  // 24px
+    }
+  }
+  
+  // Close button in header
+  .close-btn,
+  button[aria-label="Close"] {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: v.$text-2xl;  // 24px
+    padding: v.$spacing-1;
+    line-height: 1;
+    border-radius: v.$border-radius-sm;
+    transition: v.$transition-colors;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    &:hover {
+      color: var(--text-primary);
+      background: rgba(var(--danger-color-rgb), 0.1);
+    }
+  }
+}
+
+// Modal body
+.modal-body {
+  padding: v.$spacing-6;  // 24px
+  overflow-y: auto;
+  flex: 1;
+  
+  @include m.respond-below('md') {
+    padding: v.$spacing-5;  // 20px
+  }
+  
+  p {
+    margin: 0 0 v.$spacing-4 0;  // 16px bottom margin
+    color: var(--text-secondary);
+    line-height: v.$leading-relaxed;  // 1.625
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--background-darker);
+    border-radius: v.$border-radius-sm;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: v.$border-radius-sm;
+    
+    &:hover {
+      background: var(--primary-color);
+    }
+  }
+}
+
+// Modal footer/actions
+.modal-footer,
+.modal-actions {
+  padding: v.$spacing-5 v.$spacing-6;  // 20px 24px
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: v.$spacing-3;  // 12px
+  flex-shrink: 0;
+  background: var(--background-darker);
+  
+  @include m.respond-below('md') {
+    padding: v.$spacing-4 v.$spacing-5;  // 16px 20px
+    flex-direction: column-reverse;
+    
+    .btn {
+      width: 100%;
+    }
+  }
+}
+
+// Modal animations
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Vue transition hooks for modals
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s v.$vue-ease-out;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+// ============================================================================
+// BACK BUTTON & NAVIGATION
+// ============================================================================
+
 // Back button with animation
 .back-btn-container {
-  margin-bottom: v.$spacing-md;
+  margin-bottom: v.$spacing-4;  // 16px
 }
 
 .back-btn {

@@ -24,6 +24,8 @@
                 <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
               </button>
             </div>
+            <!-- Theme Toggle -->
+            <ThemeToggle />
             <button @click="logout" class="logout-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -128,6 +130,7 @@ import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch, provide } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
