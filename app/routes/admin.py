@@ -3,6 +3,7 @@ API routes for system testing and administration
 """
 import logging
 import platform
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
 from sqlalchemy.orm import Session, joinedload
@@ -915,8 +916,8 @@ async def cleanup_orphaned_database_recordings(
             "details": []
         }
         
-        # Calculate cutoff time
-        cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+        # Calculate cutoff time (timezone-aware)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
         
         with SessionLocal() as db:
             # Find recordings that are still "recording" but started too long ago with eager loading
@@ -951,14 +952,17 @@ async def cleanup_orphaned_database_recordings(
                             recording_result["streamer_name"] = recording.stream.streamer.username
                     
                     if recording.start_time:
-                        duration = datetime.utcnow() - recording.start_time
+                        # Use timezone-aware datetime
+                        now = datetime.now(timezone.utc)
+                        duration = now - recording.start_time
                         recording_result["duration_hours"] = duration.total_seconds() / 3600
                     
                     # Mark as completed with current time
                     recording_result["action"] = "mark_completed"
                     if not dry_run:
                         recording.status = "completed"
-                        recording.end_time = datetime.utcnow()
+                        # Use timezone-aware datetime
+                        recording.end_time = datetime.now(timezone.utc)
                         if recording.start_time:
                             duration = recording.end_time - recording.start_time
                             recording.duration = duration.total_seconds()
@@ -1044,7 +1048,9 @@ async def cleanup_process_orphaned_recordings(
                             recording_result["streamer_name"] = recording.stream.streamer.username
                     
                     if recording.start_time:
-                        duration = datetime.utcnow() - recording.start_time
+                        # Use timezone-aware datetime to match recording.start_time
+                        now = datetime.now(timezone.utc)
+                        duration = now - recording.start_time
                         recording_result["duration_hours"] = duration.total_seconds() / 3600
                     
                     # If no active process, mark as completed
@@ -1052,7 +1058,8 @@ async def cleanup_process_orphaned_recordings(
                         recording_result["action"] = "mark_completed_no_process"
                         if not dry_run:
                             recording.status = "completed"
-                            recording.end_time = datetime.utcnow()
+                            # Use timezone-aware datetime
+                            recording.end_time = datetime.now(timezone.utc)
                             if recording.start_time:
                                 duration = recording.end_time - recording.start_time
                                 recording.duration = duration.total_seconds()
