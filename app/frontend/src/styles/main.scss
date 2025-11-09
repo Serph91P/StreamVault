@@ -3,6 +3,8 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 @forward 'variables';
+@use 'glass';  // Phase 3: Glassmorphism system
+@use 'animations';
 @use 'layout';
 @use 'components';
 @use 'views';

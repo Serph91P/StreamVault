@@ -1,0 +1,216 @@
+// ============================================================================
+// GLASSMORPHISM SYSTEM
+// Frosted glass effects for cards, overlays, and surfaces
+// ============================================================================
+
+@use 'variables' as v;
+
+// ============================================================================
+// GLASS CARD MIXIN
+// ============================================================================
+
+/// Creates a glassmorphism effect with customizable blur and opacity
+/// @param {number} $blur [20px] - Backdrop blur amount
+/// @param {number} $opacity [0.7] - Background opacity (0-1)
+/// @param {string} $border-opacity [0.1] - Border opacity for glass edge effect
+@mixin glass-card($blur: 20px, $opacity: 0.7, $border-opacity: 0.1) {
+  background: rgba(var(--background-card-rgb), $opacity);
+  backdrop-filter: blur($blur) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, $border-opacity);
+  border-radius: var(--radius-xl);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.37),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  
+  // Fallback for browsers without backdrop-filter
+  @supports not (backdrop-filter: blur($blur)) {
+    background: var(--background-card);
+  }
+}
+
+// ============================================================================
+// GLASS CARD VARIANTS
+// ============================================================================
+
+.glass-card-subtle {
+  @include glass-card(10px, 0.5, 0.05);
+}
+
+.glass-card-medium {
+  @include glass-card(20px, 0.7, 0.1);
+}
+
+.glass-card-strong {
+  @include glass-card(40px, 0.9, 0.15);
+}
+
+// ============================================================================
+// GLASS OVERLAY (for modals, dropdowns)
+// ============================================================================
+
+@mixin glass-overlay($blur: 30px, $opacity: 0.8) {
+  background: rgba(var(--background-darker-rgb), $opacity);
+  backdrop-filter: blur($blur) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  
+  @supports not (backdrop-filter: blur($blur)) {
+    background: var(--background-darker);
+  }
+}
+
+.glass-overlay {
+  @include glass-overlay();
+}
+
+// ============================================================================
+// STATUS GRADIENT BORDERS
+// Visual distinction for stream states
+// ============================================================================
+
+/// Live stream status (pulsing red gradient)
+.status-border-live {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, v.$danger-400, v.$danger-600);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    animation: pulse-live 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-live {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scaleY(1);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: scaleY(0.95);
+  }
+}
+
+/// Recording status (teal gradient)
+.status-border-recording {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, v.$primary-400, v.$primary-600);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
+
+/// Ended status (muted gradient)
+.status-border-ended {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, v.$slate-500, v.$slate-600);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
+
+/// Offline status (dark gradient)
+.status-border-offline {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, v.$slate-700, v.$slate-800);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
+
+// ============================================================================
+// HOVER EFFECTS FOR GLASS CARDS
+// ============================================================================
+
+@mixin glass-hover-lift {
+  transition: transform v.$duration-300 v.$ease-out,
+              box-shadow v.$duration-300 v.$ease-out;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+      0 12px 48px 0 rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  &:active {
+    transform: translateY(-2px);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+}
+
+.glass-hover-lift {
+  @include glass-hover-lift;
+}
+
+@mixin glass-hover-scale {
+  transition: transform v.$duration-200 v.$ease-out;
+  
+  &:hover {
+    transform: scale(1.02);
+  }
+  
+  &:active {
+    transform: scale(0.99);
+  }
+}
+
+.glass-hover-scale {
+  @include glass-hover-scale;
+}
+
+// ============================================================================
+// ELEVATED GLASS CARD (higher z-index appearance)
+// ============================================================================
+
+.glass-card-elevated {
+  box-shadow: 
+    0 20px 60px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+// ============================================================================
+// GRADIENT BORDER UTILITY
+// ============================================================================
+
+@mixin gradient-border($colors, $width: 3px, $radius: var(--radius-xl)) {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: $width;
+    background: linear-gradient(135deg, $colors...);
+    border-radius: $radius $radius 0 0;
+  }
+}

@@ -12,13 +12,19 @@ import { useTheme } from './composables/useTheme'
 const { initializeTheme } = useTheme()
 initializeTheme()
 
-// PWA Debug helper (nur in development) 
+// PWA Debug helper (nur in development)
 import('./utils/pwaDebug')
+
+// Import directives
+import rippleDirective from './directives/ripple'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+
+// Register directives
+app.directive('ripple', rippleDirective)
 
 app.mount('#app')
 
