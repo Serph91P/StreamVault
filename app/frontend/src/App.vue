@@ -1,25 +1,19 @@
 <template>
   <div class="app">
-    <!-- Desktop and tablet header -->
+    <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
     <header class="app-header">
       <div class="header-content">
-        <h1 class="app-logo">StreamVault</h1>
-        <nav class="main-nav">
-          <router-link to="/" class="nav-link">Home</router-link>
-          <router-link to="/streamers" class="nav-link">Streamers</router-link>
-          <router-link to="/videos" class="nav-link">Videos</router-link>
-          <router-link to="/add-streamer" class="nav-link">Add Streamer</router-link>
-          <router-link to="/subscriptions" class="nav-link">Subscriptions</router-link>
-          <router-link to="/settings" class="nav-link">Settings</router-link>
+        <router-link to="/" class="app-logo">StreamVault</router-link>
+        
+        <div class="header-right">
           <!-- Background Queue Monitor -->
           <BackgroundQueueMonitor />
           
           <div class="nav-actions">
             <div class="notification-bell-container">
               <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-                <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                <svg class="bell-icon">
+                  <use href="#icon-bell" />
                 </svg>
                 <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
               </button>
@@ -27,17 +21,13 @@
             <!-- Theme Toggle -->
             <ThemeToggle />
             <button @click="logout" class="logout-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-              </svg>
               Logout
             </button>
           </div>
-        </nav>
+        </div>
       </div>
-    </header>    <!-- Notification overlay -->
+    </header>    
+    <!-- Notification overlay -->
     <div v-if="showNotifications" class="notification-overlay">
       <NotificationFeed 
         @notifications-read="markAsRead" 
@@ -57,68 +47,14 @@
       @dismiss="removeToast"
     />
     
-    <div class="main-content">
+    <!-- NEW: Navigation Wrapper with Bottom Nav + Sidebar -->
+    <NavigationWrapper>
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
-    </div>
-    
-    <!-- Mobile navigation for better mobile experience -->
-    <div class="mobile-nav-bottom">
-      <router-link to="/" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-        <span>Home</span>
-      </router-link>
-      <router-link to="/streamers" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6"></path>
-          <path d="M2 12h20"></path>
-        </svg>
-        <span>Streamers</span>
-      </router-link>
-      <router-link to="/videos" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="23 7 16 12 23 17 23 7"></polygon>
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-        </svg>
-        <span>Videos</span>
-      </router-link>
-      <router-link to="/add-streamer" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="16"></line>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
-        </svg>
-        <span>Add</span>
-      </router-link>
-      <router-link to="/subscriptions" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-        <span>Subs</span>
-      </router-link>
-      <router-link to="/settings" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-        <span>Settings</span>
-      </router-link>
-      <button @click="toggleNotifications" class="mobile-nav-item mobile-notification-btn">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-        <span>Alerts</span>
-        <span v-if="unreadCount > 0" class="mobile-notification-indicator"></span>
-      </button>
-    </div>
+    </NavigationWrapper>
     
     <!-- PWA Install Prompt -->
     <PWAInstallPrompt />
@@ -131,11 +67,17 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
 import { ref, onMounted, watch, provide } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
+import { useTheme } from '@/composables/useTheme'
+
+// Initialize theme
+const { initializeTheme } = useTheme()
+initializeTheme()
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
@@ -481,12 +423,73 @@ watch(messages, (newMessages) => {
 </script>
 
 <style scoped>
+/* Modern Header Styles (Phase 1 Enhanced) */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 64px;
+  z-index: 1100;
+
+  /* Glassmorphism effect */
+  background: rgba(var(--background-card-rgb), 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+  /* Smooth theme transitions */
+  transition: background-color 300ms var(--vue-ease-out),
+              border-color 300ms var(--vue-ease-out);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 var(--spacing-6, 1.5rem);
+  gap: var(--spacing-4, 1rem);
+}
+
+.app-logo {
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--primary-color);
+  text-decoration: none;
+  line-height: 1;
+
+  /* Smooth transition */
+  transition: color var(--duration-200, 200ms) var(--vue-ease-out);
+
+  &:hover {
+    color: var(--accent-color);
+  }
+
+  /* Focus-visible for keyboard navigation */
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+    border-radius: var(--radius-sm, 4px);
+  }
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
+  height: 100%;
+}
+
 /* Navigation actions styles */
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-left: auto;
+  gap: var(--spacing-3, 0.75rem);
+  height: 100%;
 }
 
 .notification-bell-container {
@@ -496,44 +499,91 @@ watch(messages, (newMessages) => {
 .logout-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: none;
+  justify-content: center;
+  gap: var(--spacing-2, 0.5rem);
+  min-height: 44px;
+  padding: var(--spacing-2, 0.5rem) var(--spacing-4, 1rem);
+
+  /* Colors */
+  background: var(--danger-color);
+  color: white;
   border: none;
-  color: var(--text-primary);
+  border-radius: var(--radius-lg, 12px);
+
+  /* Typography */
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--font-medium, 500);
+  line-height: 1;
+
+  /* Interaction */
   cursor: pointer;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-}
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
 
-.logout-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--primary-color);
-}
+  &:hover {
+    background: var(--danger-600, #dc2626);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
 
-.logout-btn svg {
-  width: 16px;
-  height: 16px;
+  &:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--danger-color);
+    outline-offset: 2px;
+  }
 }
 
 .notification-bell {
   position: relative;
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Touch-friendly sizing */
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  padding: var(--spacing-2, 8px);
+
+  /* Style */
+  background: transparent;
   border: none;
-  cursor: pointer;
-  padding: 8px;
   border-radius: 50%;
   color: var(--text-primary);
-  transition: all 0.2s ease;
-}
 
-.notification-bell:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  /* Interaction */
+  cursor: pointer;
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
+
+  .bell-icon {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+    transition: transform var(--duration-200, 200ms) var(--vue-ease-out);
+  }
+
+  &:hover {
+    background-color: rgba(var(--primary-500-rgb), 0.1);
+    color: var(--primary-color);
+
+    .bell-icon {
+      transform: scale(1.1);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
 .notification-bell.has-unread .bell-icon {
-  color: var(--primary-color);
+  color: var(--primary-500);
   animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
   transform-origin: top center;
 }
@@ -552,57 +602,20 @@ watch(messages, (newMessages) => {
 
 .notification-count {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  background-color: var(--danger-color);
+  top: 4px;
+  right: 4px;
+  background-color: var(--danger-500);
   color: white;
   border-radius: 50%;
-  width: 18px;
+  min-width: 18px;
   height: 18px;
+  padding: 0 4px;
   font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-}
-
-.mobile-notification-btn {
-  position: relative;
-}
-
-.mobile-notification-btn {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px;
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-  transition: all 0.2s ease;
-}
-
-.mobile-notification-btn:hover {
-  color: var(--text-primary);
-}
-
-.mobile-notification-btn .mobile-nav-icon {
-  margin-bottom: 4px;
-  transition: transform 0.2s ease, stroke 0.2s ease;
-  stroke: currentColor;
-}
-
-.mobile-notification-indicator {
-  position: absolute;
-  top: 2px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  background-color: var(--danger-color);
-  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Notification overlay positioning */
@@ -624,12 +637,13 @@ watch(messages, (newMessages) => {
     width: auto;
     max-width: none;
   }
-}
-
-/* Ensure mobile navigation doesn't display on larger screens */
-@media (min-width: 768px) {
-  .mobile-nav-bottom {
-    display: none;
+  
+  .header-content {
+    padding: 0 1rem;
+  }
+  
+  .app-logo {
+    font-size: 1.25rem;
   }
 }
 </style>

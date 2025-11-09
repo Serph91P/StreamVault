@@ -522,7 +522,7 @@ watch(() => props.chapters, (newChapters) => {
 .video-wrapper {
   position: relative;
   width: 100%;
-  background: #000;
+  background: var(--background-darker);
 }
 
 .video-element {

@@ -51,6 +51,40 @@
 .text-warning { color: var(--warning-color); }
 .text-info { color: var(--info-color); }
 
+// Gradient Text (Glassmorphism / Premium Look)
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+
+  // Ensure text is readable if browser doesn't support background-clip
+  @supports not (background-clip: text) {
+    color: var(--primary-color);
+  }
+}
+
+.text-gradient-primary {
+  background: linear-gradient(135deg, v.$primary-400, v.$primary-600);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-accent {
+  background: linear-gradient(135deg, v.$accent-400, v.$accent-600);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-rainbow {
+  background: linear-gradient(135deg, v.$primary-500, v.$accent-500, v.$info-500);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 // ============================================================================
 // SPACING UTILITIES (Padding & Margin)
 // ============================================================================
@@ -327,3 +361,150 @@
 .opacity-50 { opacity: 0.5; }
 .opacity-75 { opacity: 0.75; }
 .opacity-100 { opacity: 1; }
+
+// ============================================================================
+// FOCUS-VISIBLE UTILITIES (Accessibility)
+// ============================================================================
+
+// Base focus-visible (removes default outline, adds custom)
+.focus-ring {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: v.$border-radius-sm;
+  }
+}
+
+// Focus ring variants
+.focus-ring-primary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-accent:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-danger:focus-visible {
+  outline: 2px solid var(--danger-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-success:focus-visible {
+  outline: 2px solid var(--success-color);
+  outline-offset: 2px;
+}
+
+// Focus ring with shadow (more prominent)
+.focus-ring-shadow:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  box-shadow: v.$shadow-focus-primary;
+}
+
+// Focus ring inset (for buttons, cards)
+.focus-ring-inset:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+// ============================================================================
+// INTERACTION STATE UTILITIES
+// ============================================================================
+
+// Hover effects
+.hover-lift {
+  transition: transform v.$duration-200 v.$ease-out,
+              box-shadow v.$duration-200 v.$ease-out;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: v.$shadow-lg;
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: v.$shadow-md;
+  }
+}
+
+.hover-scale {
+  transition: transform v.$duration-200 v.$ease-out;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.hover-brightness {
+  transition: filter v.$duration-200 v.$ease-out;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+
+  &:active {
+    filter: brightness(0.95);
+  }
+}
+
+// Touch target sizing (minimum 44x44px for accessibility)
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// ============================================================================
+// RESPONSIVE TYPOGRAPHY UTILITIES
+// ============================================================================
+
+// Headings with responsive sizing using clamp()
+.heading-1 {
+  font-size: clamp(2rem, 5vw, 3rem);      // 32px - 48px
+  line-height: v.$leading-tight;
+  font-weight: v.$font-bold;
+  letter-spacing: v.$tracking-tight;
+}
+
+.heading-2 {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);  // 24px - 36px
+  line-height: v.$leading-tight;
+  font-weight: v.$font-semibold;
+  letter-spacing: v.$tracking-tight;
+}
+
+.heading-3 {
+  font-size: clamp(1.25rem, 3vw, 1.875rem); // 20px - 30px
+  line-height: v.$leading-snug;
+  font-weight: v.$font-semibold;
+}
+
+.heading-4 {
+  font-size: clamp(1.125rem, 2.5vw, 1.5rem); // 18px - 24px
+  line-height: v.$leading-snug;
+  font-weight: v.$font-medium;
+}
+
+// Body text optimized for readability
+.body-readable {
+  font-size: v.$text-base;
+  line-height: v.$leading-relaxed;
+  letter-spacing: 0.01em;
+}
+
+.body-compact {
+  font-size: v.$text-sm;
+  line-height: v.$leading-normal;
+}

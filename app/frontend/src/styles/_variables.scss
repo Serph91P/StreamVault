@@ -389,6 +389,14 @@ $duration-400: 400ms;  // Missing in original list
   --duration-200: #{$duration-200};
   --duration-300: #{$duration-300};
   --duration-500: #{$duration-500};
+  
+  // RGB Values for rgba() usage (glassmorphism)
+  --background-card-rgb: 30, 41, 59;        // Slate-800 for dark mode
+  --background-darker-rgb: 2, 6, 23;        // Slate-950 for dark mode
+  --primary-500-rgb: 20, 184, 166;          // Teal-500
+  --accent-500-rgb: 139, 92, 246;           // Purple-500
+  --danger-500-rgb: 239, 68, 68;            // Red-500
+  --border-color-rgb: 51, 65, 85;           // Slate-700 for dark mode
 }
 
 // Light Mode Theme (activate with [data-theme="light"])
@@ -412,6 +420,7 @@ $duration-400: 400ms;  // Missing in original list
   --info-color: #{$info-600};
   
   // RGB Values for Light Mode
-  --background-darker-rgb: 241, 245, 249;  // Slate-100
-  --border-color-rgb: 203, 213, 225;       // Slate-300
+  --background-card-rgb: 255, 255, 255;     // White for light mode
+  --background-darker-rgb: 241, 245, 249;   // Slate-100
+  --border-color-rgb: 203, 213, 225;        // Slate-300
 }

@@ -89,6 +89,21 @@
   </head>
   <body>
     <div id="app"></div>
+    
+    <!-- Load SVG Icon Sprite -->
+    <script>
+      // Load icon sprite immediately for better performance
+      fetch('/icons.svg')
+        .then(res => res.text())
+        .then(svg => {
+          const div = document.createElement('div')
+          div.innerHTML = svg
+          div.style.display = 'none'
+          document.body.insertBefore(div, document.body.firstChild)
+        })
+        .catch(err => console.error('Failed to load icon sprite:', err))
+    </script>
+    
     <script type="module" src="/src/main.ts"></script>
     <script src="/registerSW.js"></script>
   </body>
