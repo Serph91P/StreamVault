@@ -1,76 +1,95 @@
 <template>
-    <div class="video-player-view">
-        <!-- Player Header -->
-        <div class="player-header">
-            <button @click="goBack" class="back-btn">
-                ← Back
-            </button>
-            <div class="stream-info">
-                <h1>{{ streamTitle }}</h1>
-                <p v-if="streamerName">{{ streamerName }}</p>
-            </div>
-        </div>
+  <div class="video-player-view">
+    <!-- Player Header -->
+    <div class="player-header">
+      <button @click="goBack" class="btn-back" v-ripple>
+        <svg class="icon">
+          <use href="#icon-arrow-left" />
+        </svg>
+        <span>Back</span>
+      </button>
 
-        <!-- Loading State -->
-        <div v-if="isLoading" class="loading-container">
-            <div class="spinner"></div>
-            <p>Loading video player...</p>
-        </div>
-
-        <!-- Error State -->
-        <div v-else-if="error" class="error-container">
-            <div class="error-icon">⚠️</div>
-            <p class="error-message">{{ error }}</p>
-            <button @click="retryLoad" class="btn btn-primary">🔄 Retry</button>
-        </div>
-
-        <!-- No Video State -->
-        <div v-else-if="!chapterData?.video_url" class="no-video-container">
-            <div class="no-video-icon">🎬</div>
-            <h3>No video file available</h3>
-            <p>This stream doesn't have a video file or it's still being processed.</p>
-            <button @click="retryLoad" class="btn btn-secondary">🔄 Refresh</button>
-        </div>
-
-        <!-- Video Player -->
-        <VideoPlayer v-else :video-src="chapterData.video_url" :chapters="chapterData.chapters"
-            :stream-title="chapterData.stream_title" :stream-id="parseInt(streamId)" class="video-player-container"
-            @chapter-change="onChapterChange" @video-ready="onVideoReady" @time-update="onTimeUpdate" />
+      <div class="stream-info">
+        <h1 class="stream-title">{{ streamTitle }}</h1>
+        <p v-if="streamerName" class="streamer-name">
+          <svg class="icon">
+            <use href="#icon-user" />
+          </svg>
+          <span>{{ streamerName }}</span>
+        </p>
+      </div>
     </div>
+
+    <!-- Loading State -->
+    <div v-if="isLoading" class="content-state">
+      <LoadingSkeleton type="video" />
+      <p class="state-text">Loading video player...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="content-state">
+      <EmptyState
+        icon="alert-circle"
+        title="Failed to Load Video"
+        :description="error"
+        action-label="Retry"
+        action-icon="refresh-cw"
+        @action="retryLoad"
+      />
+    </div>
+
+    <!-- No Video State -->
+    <div v-else-if="!chapterData?.video_url" class="content-state">
+      <EmptyState
+        icon="video-off"
+        title="No Video Available"
+        description="This stream doesn't have a video file or it's still being processed."
+        action-label="Refresh"
+        action-icon="refresh-cw"
+        @action="retryLoad"
+      />
+    </div>
+
+    <!-- Video Player -->
+    <div v-else class="player-wrapper">
+      <VideoPlayer
+        :video-src="chapterData.video_url"
+        :chapters="chapterData.chapters"
+        :stream-title="chapterData.stream_title"
+        :stream-id="parseInt(streamId)"
+        class="video-player-container"
+        @chapter-change="onChapterChange"
+        @video-ready="onVideoReady"
+        @time-update="onTimeUpdate"
+      />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-// @ts-ignore
 import { ref, onMounted, computed } from 'vue'
-// @ts-ignore
 import { useRoute, useRouter } from 'vue-router'
-// @ts-ignore
 import VideoPlayer from '@/components/VideoPlayer.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { videoApi } from '@/services/api'
 
-interface APIChapter {
-    id: number
-    title: string
-    start_time: number
-    end_time: number
-}
-
 interface ChapterData {
-    chapters: Array<{
-        start_time: string
-        title: string
-        type: string
-    }>
-    stream_id: number
-    stream_title: string
-    duration?: number
-    video_url: string
-    video_file: string
-    metadata: {
-        has_vtt: boolean
-        has_srt: boolean
-        has_ffmpeg: boolean
-    }
+  chapters: Array<{
+    start_time: string
+    title: string
+    type: string
+  }>
+  stream_id: number
+  stream_title: string
+  duration?: number
+  video_url: string
+  video_file: string
+  metadata: {
+    has_vtt: boolean
+    has_srt: boolean
+    has_ffmpeg: boolean
+  }
 }
 
 const route = useRoute()
@@ -86,339 +105,270 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 
 const loadChapterData = async () => {
-    try {
-        isLoading.value = true
-        error.value = null
+  try {
+    isLoading.value = true
+    error.value = null
 
-        // Load video chapters using the new API
-        const chapters: any[] = await videoApi.getChapters(parseInt(streamId.value))
+    // Load video chapters using the new API
+    const chapters: any[] = await videoApi.getChapters(parseInt(streamId.value))
 
-        // Create chapter data structure compatible with the video player
-        chapterData.value = {
-            chapters: chapters.map((chapter: any) => ({
-                start_time: chapter.start_time.toString(),
-                title: chapter.title,
-                type: 'chapter'
-            })),
-            stream_id: parseInt(streamId.value),
-            stream_title: streamTitle.value,
-            duration: chapters.length > 0 ? chapters[chapters.length - 1].end_time : 0,
-            video_url: videoApi.getVideoStreamUrl(parseInt(streamId.value)),
-            video_file: `stream_${streamId.value}.mp4`,
-            metadata: {
-                has_vtt: false,
-                has_srt: false,
-                has_ffmpeg: true
-            }
-        }
-    } catch (err: any) {
-        console.error('Error loading chapter data:', err)
-        error.value = err instanceof Error ? err.message : 'Failed to load video data'
-    } finally {
-        isLoading.value = false
+    // Create chapter data structure compatible with the video player
+    chapterData.value = {
+      chapters: chapters.map((chapter: any) => ({
+        start_time: chapter.start_time.toString(),
+        title: chapter.title,
+        type: 'chapter'
+      })),
+      stream_id: parseInt(streamId.value),
+      stream_title: streamTitle.value,
+      duration: chapters.length > 0 ? chapters[chapters.length - 1].end_time : 0,
+      video_url: videoApi.getVideoStreamUrl(parseInt(streamId.value)),
+      video_file: `stream_${streamId.value}.mp4`,
+      metadata: {
+        has_vtt: false,
+        has_srt: false,
+        has_ffmpeg: true
+      }
     }
+  } catch (err: any) {
+    console.error('Error loading chapter data:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to load video data. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const retryLoad = () => {
-    loadChapterData()
+  loadChapterData()
 }
 
 const goBack = () => {
-    router.back()
+  router.back()
 }
 
 // Video player event handlers
 const onChapterChange = (chapter: any, index: number) => {
-    console.log('Chapter changed:', chapter.title, 'at index:', index)
+  console.log('Chapter changed:', chapter.title, 'at index:', index)
 }
 
 const onVideoReady = (duration: number) => {
-    console.log('Video ready, duration:', duration)
+  console.log('Video ready, duration:', duration)
 }
 
 const onTimeUpdate = (currentTime: number) => {
-    // Update progress or other time-based features
+  // Update progress or other time-based features
 }
 
 onMounted(() => {
-    loadChapterData()
+  loadChapterData()
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .video-player-view {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    background: var(--background-primary);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--background-primary);
+  animation: fadeIn 0.3s ease-out;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Header
 .player-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 20px;
-    background: var(--background-card);
-    border-bottom: 1px solid var(--border-color);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-6);
+  background: var(--background-card);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  background: rgba(var(--background-card-rgb), 0.95);
 }
 
-.back-btn {
-    background: var(--background-darker);
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  &:hover {
+    background: var(--background-tertiary);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    padding: 10px 16px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-}
-
-.back-btn:hover {
-    background: var(--background-dark);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    border-color: var(--color-primary);
     transform: translateY(-1px);
+  }
 }
 
 .stream-info {
-    flex: 1;
-    min-width: 0;
+  flex: 1;
+  min-width: 0;
 }
 
-.stream-info h1 {
-    margin: 0;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.stream-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.stream-info p {
-    margin: 4px 0 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.streamer-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: var(--spacing-1) 0 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .icon {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    flex-shrink: 0;
+  }
 }
 
-.loading-container,
-.error-container,
-.no-video-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    text-align: center;
-    padding: 40px 20px;
-    min-height: 400px;
+// Content States
+.content-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--spacing-8);
+  min-height: 400px;
+  animation: fadeIn 0.4s ease-out;
 }
 
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--border-color);
-    border-top: 3px solid var(--primary-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 16px;
+.state-text {
+  margin-top: var(--spacing-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
 }
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-.error-icon,
-.no-video-icon {
-    font-size: 3rem;
-    margin-bottom: 16px;
-}
-
-.error-container h3,
-.no-video-container h3 {
-    margin: 0 0 8px 0;
-    color: var(--text-primary);
-    font-size: 1.2rem;
-}
-
-.error-container p,
-.no-video-container p {
-    margin: 0 0 20px 0;
-    color: var(--text-secondary);
-    max-width: 400px;
-    line-height: 1.5;
-}
-
-.error-message {
-    color: var(--danger-color);
-    font-weight: 500;
-}
-
-.btn {
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 500;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.btn:hover {
-    background: var(--primary-color-hover);
-    transform: translateY(-1px);
-}
-
-.btn.btn-primary {
-    background: var(--primary-color);
-}
-
-.btn.btn-primary:hover {
-    background: var(--primary-color-hover);
-}
-
-.btn.btn-secondary {
-    background: var(--background-darker);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-}
-
-.btn.btn-secondary:hover {
-    background: var(--background-dark);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+// Player Wrapper
+.player-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-secondary);
 }
 
 .video-player-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Mobile Responsive */
+// Responsive
 @media (max-width: 768px) {
-    .player-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 12px 16px;
-    }
+  .player-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3) var(--spacing-4);
+  }
 
-    .back-btn {
-        align-self: flex-start;
-    }
+  .btn-back {
+    align-self: flex-start;
+  }
 
-    .stream-info {
-        width: 100%;
-    }
+  .stream-info {
+    width: 100%;
+  }
 
-    .stream-info h1 {
-        font-size: 1.2rem;
-        white-space: normal;
-        overflow: visible;
-        text-overflow: unset;
-        line-height: 1.3;
-    }
+  .stream-title {
+    font-size: var(--font-size-base);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.4;
+  }
 
-    .stream-info p {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: unset;
-    }
+  .streamer-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
 
-    .loading-container,
-    .error-container,
-    .no-video-container {
-        padding: 20px 16px;
-        min-height: 300px;
-    }
-
-    .error-icon,
-    .no-video-icon {
-        font-size: 2.5rem;
-    }
-
-    .btn {
-        padding: 14px 24px;
-        width: 100%;
-        max-width: 200px;
-        justify-content: center;
-    }
+  .content-state {
+    padding: var(--spacing-6) var(--spacing-4);
+    min-height: 300px;
+  }
 }
 
-/* Small mobile screens */
 @media (max-width: 480px) {
-    .player-header {
-        padding: 10px 12px;
-    }
+  .player-header {
+    padding: var(--spacing-2) var(--spacing-3);
+  }
 
-    .stream-info h1 {
-        font-size: 1.1rem;
-    }
+  .stream-title {
+    font-size: var(--font-size-sm);
+  }
 
-    .stream-info p {
-        font-size: 0.85rem;
-    }
+  .streamer-name {
+    font-size: var(--font-size-xs);
+  }
 
-    .loading-container,
-    .error-container,
-    .no-video-container {
-        padding: 16px 12px;
-    }
-
-    .error-container h3,
-    .no-video-container h3 {
-        font-size: 1.1rem;
-    }
-
-    .error-container p,
-    .no-video-container p {
-        font-size: 0.9rem;
-    }
+  .content-state {
+    padding: var(--spacing-4) var(--spacing-3);
+  }
 }
 
-/* Landscape mobile */
+// Landscape mobile optimization
 @media (max-width: 768px) and (orientation: landscape) {
-    .player-header {
-        flex-direction: row;
-        align-items: center;
-        padding: 8px 16px;
-    }
+  .player-header {
+    flex-direction: row;
+    align-items: center;
+    padding: var(--spacing-2) var(--spacing-4);
+  }
 
-    .stream-info h1 {
-        font-size: 1.1rem;
-    }
+  .stream-title {
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-    .stream-info p {
-        font-size: 0.8rem;
-    }
+  .streamer-name {
+    font-size: var(--font-size-xs);
+  }
 
-    .loading-container,
-    .error-container,
-    .no-video-container {
-        min-height: 200px;
-        padding: 20px 16px;
-    }
+  .content-state {
+    min-height: 200px;
+    padding: var(--spacing-4);
+  }
 }
 </style>
