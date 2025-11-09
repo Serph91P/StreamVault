@@ -5,7 +5,7 @@
       :key="tab.route"
       @click="handleTabClick(tab.route)"
       :class="{ active: isActiveRoute(tab.route) }"
-      class="nav-tab"
+      class="nav-tab focus-ring-primary"
       :aria-label="tab.label"
       :aria-current="isActiveRoute(tab.route) ? 'page' : undefined"
     >
@@ -44,7 +44,7 @@ const handleTabClick = (route: string) => {
 </script>
 
 <style scoped lang="scss">
-@use '../../styles/variables' as v;
+@use '@/styles/variables' as v;
 
 .bottom-nav {
   position: fixed;
@@ -55,8 +55,8 @@ const handleTabClick = (route: string) => {
   z-index: 1000;
   
   // Glassmorphism effect
-  background: rgba(var(--background-card-rgb), 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(var(--background-card-rgb), 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid var(--border-color);
   
   // Shadow for elevation
@@ -71,12 +71,9 @@ const handleTabClick = (route: string) => {
   padding-bottom: env(safe-area-inset-bottom);
   
   // Smooth transitions
-  transition: transform v.$duration-300 v.$ease-in-out;
-  
-  // Fallback for browsers without backdrop-filter
-  @supports not (backdrop-filter: blur(20px)) {
-    background: var(--background-card);
-  }
+  transition: transform v.$duration-300 v.$ease-in-out,
+              background-color 300ms var(--vue-ease-out),
+              border-color 300ms var(--vue-ease-out);
 }
 
 .nav-tab {
@@ -111,7 +108,7 @@ const handleTabClick = (route: string) => {
   
   // Active state
   &.active {
-    color: var(--primary-500);
+    color: var(--primary-color);
     
     .nav-icon {
       transform: scale(1.1);
@@ -121,21 +118,15 @@ const handleTabClick = (route: string) => {
       font-weight: v.$font-semibold;
     }
   }
-  
-  // Focus state (keyboard navigation)
-  &:focus-visible {
-    outline: 2px solid var(--primary-500);
-    outline-offset: 2px;
-    border-radius: v.$border-radius-md;
-  }
 }
 
 .nav-icon {
   width: 24px;
   height: 24px;
   transition: transform v.$duration-200 v.$ease-in-out;
-  stroke: currentColor;
   fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 
 .nav-label {
@@ -148,9 +139,9 @@ const handleTabClick = (route: string) => {
 .nav-badge {
   position: absolute;
   top: 4px;
-  right: 4px;
+  right: 8px;
   
-  background: var(--danger-500);
+  background: var(--danger-color);
   color: white;
   
   min-width: 18px;
@@ -166,10 +157,5 @@ const handleTabClick = (route: string) => {
   
   // Shadow for visibility
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-// Hide on scroll down (optional enhancement)
-.bottom-nav.hidden {
-  transform: translateY(100%);
 }
 </style>
