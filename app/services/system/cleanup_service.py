@@ -584,15 +584,23 @@ class CleanupService:
                             shutil.rmtree(recording_dir)
                             logger.info(f"Removed empty episode directory: {recording_dir}")
                             
+                            # SECURITY: Validate season_dir is within safe boundaries before operations
+                            # While recording_dir is validated earlier, the parent could be manipulated via symlinks
+                            try:
+                                safe_season_dir = validate_path_security(season_dir, "read")
+                            except Exception as e:
+                                logger.warning(f"🚨 SECURITY: Season directory {season_dir} is outside safe path, skipping cleanup: {e}")
+                                continue
+                            
                             # NOW check if the Season directory is also empty
-                            if season_dir and os.path.exists(season_dir):
+                            if safe_season_dir and os.path.exists(safe_season_dir):
                                 try:
                                     # Check if Season directory only contains metadata files (poster.jpg, etc.) or is completely empty
                                     season_files = []
                                     season_dirs = []
                                     
-                                    for item in os.listdir(season_dir):
-                                        item_path = os.path.join(season_dir, item)
+                                    for item in os.listdir(safe_season_dir):
+                                        item_path = os.path.join(safe_season_dir, item)
                                         
                                         # Skip hidden files/dirs
                                         if item.startswith('.'):
@@ -610,19 +618,19 @@ class CleanupService:
                                     
                                     if len(season_dirs) == 0:
                                         # No subdirectories - check if only metadata or completely empty
-                                        non_metadata_files = [f for f in season_files if f not in metadata_files and os.path.getsize(os.path.join(season_dir, f)) > 0]
+                                        non_metadata_files = [f for f in season_files if f not in metadata_files and os.path.getsize(os.path.join(safe_season_dir, f)) > 0]
                                         
                                         if len(non_metadata_files) == 0:
                                             # Safe to delete - only metadata (or empty)
-                                            shutil.rmtree(season_dir)
-                                            logger.info(f"🗂️ Removed empty Season directory: {season_dir} (had {len(season_files)} metadata files)")
+                                            shutil.rmtree(safe_season_dir)
+                                            logger.info(f"🗂️ Removed empty Season directory: {safe_season_dir} (had {len(season_files)} metadata files)")
                                         else:
-                                            logger.debug(f"Season directory {season_dir} still has {len(non_metadata_files)} non-metadata files, keeping it")
+                                            logger.debug(f"Season directory {safe_season_dir} still has {len(non_metadata_files)} non-metadata files, keeping it")
                                     else:
-                                        logger.debug(f"Season directory {season_dir} still has {len(season_dirs)} subdirectories, keeping it")
+                                        logger.debug(f"Season directory {safe_season_dir} still has {len(season_dirs)} subdirectories, keeping it")
                                         
                                 except Exception as season_error:
-                                    logger.debug(f"Could not check/remove Season directory {season_dir}: {season_error}")
+                                    logger.debug(f"Could not check/remove Season directory {safe_season_dir}: {season_error}")
                     except Exception as e:
                         logger.debug(f"Could not remove directory {recording_dir}: {e}")
                             
