@@ -567,7 +567,7 @@ class CleanupService:
                 dir_count = len(directories_to_check)
                 logger.info(f"Deleted stream {stream.id} with {file_count} files and {dir_count} directories")
                 
-                # Check if the parent directory is now empty, and if so, delete it
+                # Check if the parent directory (episode directory) is now empty, and if so, delete it
                 if recording_dir and os.path.exists(recording_dir):
                     try:
                         remaining_files = []
@@ -578,8 +578,51 @@ class CleanupService:
                         
                         # Only delete if completely empty (ignoring system files like poster.jpg, season-poster.jpg in parent)
                         if not remaining_files:
+                            # Get parent (Season directory) before deleting episode directory
+                            season_dir = os.path.dirname(recording_dir)
+                            
                             shutil.rmtree(recording_dir)
-                            logger.info(f"Removed empty directory: {recording_dir}")
+                            logger.info(f"Removed empty episode directory: {recording_dir}")
+                            
+                            # NOW check if the Season directory is also empty
+                            if season_dir and os.path.exists(season_dir):
+                                try:
+                                    # Check if Season directory only contains metadata files (poster.jpg, etc.) or is completely empty
+                                    season_files = []
+                                    season_dirs = []
+                                    
+                                    for item in os.listdir(season_dir):
+                                        item_path = os.path.join(season_dir, item)
+                                        
+                                        # Skip hidden files/dirs
+                                        if item.startswith('.'):
+                                            continue
+                                        
+                                        if os.path.isdir(item_path):
+                                            season_dirs.append(item)
+                                        else:
+                                            season_files.append(item)
+                                    
+                                    # Season directory is eligible for deletion if:
+                                    # 1. No subdirectories (all episodes deleted)
+                                    # 2. Only metadata files remain (poster.jpg, fanart.jpg, season-poster.jpg, 0b symlinks)
+                                    metadata_files = {'poster.jpg', 'fanart.jpg', 'season-poster.jpg', 'banner.jpg'}
+                                    
+                                    if len(season_dirs) == 0:
+                                        # No subdirectories - check if only metadata or completely empty
+                                        non_metadata_files = [f for f in season_files if f not in metadata_files and os.path.getsize(os.path.join(season_dir, f)) > 0]
+                                        
+                                        if len(non_metadata_files) == 0:
+                                            # Safe to delete - only metadata (or empty)
+                                            shutil.rmtree(season_dir)
+                                            logger.info(f"🗂️ Removed empty Season directory: {season_dir} (had {len(season_files)} metadata files)")
+                                        else:
+                                            logger.debug(f"Season directory {season_dir} still has {len(non_metadata_files)} non-metadata files, keeping it")
+                                    else:
+                                        logger.debug(f"Season directory {season_dir} still has {len(season_dirs)} subdirectories, keeping it")
+                                        
+                                except Exception as season_error:
+                                    logger.debug(f"Could not check/remove Season directory {season_dir}: {season_error}")
                     except Exception as e:
                         logger.debug(f"Could not remove directory {recording_dir}: {e}")
                             
