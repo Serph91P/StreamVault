@@ -1213,7 +1213,7 @@ onMounted(() => {
 
 .filter-btn {
   padding: 8px 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   background: var(--color-background);
   color: var(--color-text);
   border-radius: var(--border-radius-sm, 4px);
@@ -1239,7 +1239,7 @@ onMounted(() => {
 }
 
 .test-result-item {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius, 8px);
   margin-bottom: 15px;
   overflow: hidden;
@@ -1395,7 +1395,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   color: var(--color-text);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .modal-header {
@@ -1403,7 +1403,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
   background: var(--color-background-soft);
 }
 
@@ -1434,7 +1434,7 @@ onMounted(() => {
 .log-controls select,
 .log-controls input {
   padding: 5px 10px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm, 4px);
   background: var(--color-background);
   color: var(--color-text);
@@ -1448,7 +1448,7 @@ onMounted(() => {
   padding: 15px;
   border-radius: var(--border-radius-sm, 4px);
   font-family: 'Courier New', monospace;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .logs-content pre {
@@ -1539,7 +1539,7 @@ onMounted(() => {
   max-height: 90vh;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .videos-debug-modal {
@@ -1557,7 +1557,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
@@ -1601,7 +1601,7 @@ onMounted(() => {
   margin-bottom: 15px;
   font-size: 18px;
   font-weight: 600;
-  border-bottom: 2px solid var(--color-border);
+  border-bottom: 2px solid var(--border-color);
   padding-bottom: 8px;
 }
 
@@ -1617,7 +1617,7 @@ onMounted(() => {
   padding: 15px;
   border-radius: 8px;
   text-align: center;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .stat .count {
@@ -1639,7 +1639,7 @@ onMounted(() => {
   background: var(--color-background);
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .debug-table table {
@@ -1653,7 +1653,7 @@ onMounted(() => {
   text-align: left;
   font-weight: 600;
   color: var(--color-text);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
   font-size: 14px;
 }
 
@@ -1710,7 +1710,7 @@ onMounted(() => {
   padding: 12px;
   background: var(--color-background);
   border-radius: 6px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .season-section h6 {

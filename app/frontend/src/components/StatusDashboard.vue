@@ -280,7 +280,7 @@ const formatDuration = (seconds: number): string => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .status-header h2 {
@@ -330,7 +330,7 @@ const formatDuration = (seconds: number): string => {
 
 .refresh-button {
   padding: 0.5rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background-color: var(--background-card);
   cursor: pointer;
@@ -393,7 +393,7 @@ const formatDuration = (seconds: number): string => {
 
 .status-card {
   background: var(--background-card);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
@@ -405,7 +405,7 @@ const formatDuration = (seconds: number): string => {
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .card-header h3 {
@@ -536,7 +536,7 @@ const formatDuration = (seconds: number): string => {
 
 .action-button {
   padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background-color: var(--background-card);
   color: var(--text-primary);

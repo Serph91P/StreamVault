@@ -364,7 +364,7 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .dashboard-header h2 {
@@ -417,7 +417,7 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background: var(--background-card);
   color: var(--text-primary);
@@ -444,7 +444,7 @@ const getEventBorderClass = (eventType: string): string => {
 
 .status-card {
   background: var(--background-card);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
@@ -456,7 +456,7 @@ const getEventBorderClass = (eventType: string): string => {
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .card-header h3 {
@@ -518,7 +518,7 @@ const getEventBorderClass = (eventType: string): string => {
 
 .events-section {
   background: var(--background-card);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -530,7 +530,7 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .section-header h3 {
@@ -548,14 +548,14 @@ const getEventBorderClass = (eventType: string): string => {
 
 .event-filters select {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background: var(--background-card);
 }
 
 .clear-btn {
   padding: 0.5rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background: var(--background-card);
   cursor: pointer;
@@ -639,7 +639,7 @@ const getEventBorderClass = (eventType: string): string => {
 .spinner {
   width: 2rem;
   height: 2rem;
-  border: 2px solid var(--color-border);
+  border: 2px solid var(--border-color);
   border-top: 2px solid var(--info-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -658,7 +658,7 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   background: var(--background-card);
   color: var(--text-primary);

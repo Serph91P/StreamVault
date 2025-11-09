@@ -399,7 +399,7 @@ const formatTime = (timestamp?: string) => {
   right: 0;
   width: 450px;
   background: var(--background-card);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg, 12px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
   z-index: 1000;
@@ -412,7 +412,7 @@ const formatTime = (timestamp?: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
 }

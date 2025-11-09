@@ -293,7 +293,7 @@ onMounted(() => {
 .filter-container {
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   margin-bottom: 24px;
   overflow: hidden;
 }
@@ -599,7 +599,7 @@ onMounted(() => {
   font-size: 0.8rem;
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm, 4px);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -639,7 +639,7 @@ onMounted(() => {
   width: 100%;
   box-sizing: border-box;
   background: var(--background-dark);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
   padding: 8px 12px;
   border-radius: var(--border-radius, 8px);

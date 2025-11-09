@@ -326,7 +326,7 @@ onMounted(() => {
 .search-input {
     flex: 1;
     padding: 12px 16px;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--border-color);
     border-radius: 25px;
     font-size: 16px;
     outline: none;
@@ -360,7 +360,7 @@ onMounted(() => {
 
 .filter-btn {
     padding: 8px 20px;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--border-color);
     background: transparent;
     color: var(--text-primary);
     border-radius: 20px;
@@ -395,7 +395,7 @@ onMounted(() => {
 
 .category-btn {
     padding: 6px 16px;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--border-color);
     background: transparent;
     color: var(--text-primary);
     border-radius: 15px;
@@ -422,7 +422,7 @@ onMounted(() => {
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid var(--color-border);
+    border: 4px solid var(--border-color);
     border-top: 4px solid var(--primary-color);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -447,7 +447,7 @@ onMounted(() => {
 
 .video-card {
     background: var(--background-card);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
@@ -491,7 +491,7 @@ onMounted(() => {
     justify-content: center;
     background: linear-gradient(135deg, var(--background-darker) 0%, var(--background-dark) 100%);
     color: var(--text-secondary);
-    border: 2px dashed var(--color-border);
+    border: 2px dashed var(--border-color);
 }
 
 .video-duration {
