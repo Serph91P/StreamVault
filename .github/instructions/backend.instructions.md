@@ -346,6 +346,154 @@ except:
     pass
 ```
 
+### Process Lifecycle Management - Critical for Long-Running Operations
+**ALWAYS use fail-forward strategy for external process cleanup**
+
+#### Pattern: Zombie Process Handling (uvloop)
+When using uvloop (StreamVault's event loop), **always poll() before checking returncode**:
+
+```python
+# ✅ CORRECT: Poll first to update status
+try:
+    process.poll()  # Updates returncode, may throw ProcessLookupError
+    if process.returncode is None:
+        # Process is still alive
+        process.terminate()
+    else:
+        # Process already terminated
+        logger.info(f"Process already terminated (returncode: {process.returncode})")
+except ProcessLookupError:
+    # Expected for zombie processes (terminated but not reaped)
+    logger.info("Process already terminated externally")
+
+# ❌ WRONG: Direct returncode check
+if process.returncode is None:  # May be stale!
+    process.terminate()  # ProcessLookupError if zombie
+```
+
+#### Pattern: Fail-Forward with Finally Block
+**Always continue with next step even if cleanup fails**:
+
+```python
+# ✅ CORRECT: Cleanup won't block next step
+async def rotate_segment(stream: Stream, segment_info: Dict):
+    try:
+        process_id = f"stream_{stream.id}"
+        
+        # Try to stop old process
+        if process_id in self.active_processes:
+            current_process = self.active_processes[process_id]
+            
+            try:
+                # Attempt graceful cleanup
+                current_process.poll()
+                if current_process.returncode is None:
+                    current_process.terminate()
+                    await asyncio.sleep(5)
+                    current_process.poll()
+                    if current_process.returncode is None:
+                        current_process.kill()
+                        
+            except ProcessLookupError:
+                # EXPECTED - process died externally (OOM, crash)
+                logger.info("🔄 ROTATION: Process already terminated, continuing")
+                
+            except Exception as e:
+                # Log but DON'T stop rotation
+                logger.warning(f"🔄 ROTATION: Cleanup error: {e}, continuing anyway")
+            
+            finally:
+                # CRITICAL: Always remove from tracking
+                self.active_processes.pop(process_id, None)
+        
+        # ✅ This ALWAYS executes, even if cleanup failed
+        segment_info['segment_count'] += 1
+        new_process = await self._start_segment(stream, next_path, quality)
+        
+        if new_process:
+            logger.info(f"✅ Successfully rotated to segment {segment_info['segment_count']}")
+        else:
+            logger.error(f"❌ Failed to start new segment")
+    
+    except Exception as e:
+        logger.error(f"Critical error in rotation: {e}", exc_info=True)
+
+# ❌ WRONG: Cleanup failure blocks next step
+async def rotate_segment_wrong(stream: Stream):
+    try:
+        current_process.terminate()  # May throw ProcessLookupError
+        await asyncio.sleep(5)
+        current_process.kill()
+    except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
+        return  # ❌ New segment never started!
+    
+    # This code never reached if cleanup fails
+    new_process = await self._start_segment(...)
+```
+
+#### Pattern: Expected vs Unexpected Exceptions
+Use appropriate log levels for process lifecycle events:
+
+```python
+# ✅ CORRECT: INFO for expected conditions
+try:
+    process.poll()
+except ProcessLookupError:
+    logger.info("Process already terminated externally")  # Expected (OOM, crash)
+except OSError as e:
+    logger.error(f"Unexpected OS error: {e}")  # Unexpected system issue
+
+# ✅ CORRECT: Semantic logging for operations
+logger.info("🔄 ROTATION: Starting segment rotation")
+logger.info("✅ Successfully rotated to segment 002")
+logger.error("❌ Failed to start new segment")
+
+# ❌ WRONG: ERROR for expected events
+try:
+    process.poll()
+except ProcessLookupError:
+    logger.error("Process lookup failed")  # This is normal!
+```
+
+#### Why External Processes Die
+Long-running processes (24h+ streams) can terminate externally due to:
+- **OOM Killer**: System runs out of memory → kills largest process
+- **Container Restarts**: Docker/Kubernetes maintenance
+- **Network Failures**: Proxy timeouts → streamlink crash
+- **Application Bugs**: Streamlink internal crashes
+
+**Always assume external processes can die at any time** and handle gracefully.
+
+#### Critical Cleanup Requirements
+When managing process dictionaries/tracking:
+
+1. **Use `finally` blocks** to ensure cleanup happens
+2. **Use `.pop(key, None)`** instead of `del` to avoid KeyError
+3. **Remove from tracking BEFORE starting new process** to prevent race conditions
+4. **Log all cleanup actions** with context for debugging
+
+```python
+# ✅ CORRECT: Safe dictionary cleanup
+try:
+    risky_operation()
+except Exception as e:
+    logger.error(f"Operation failed: {e}")
+finally:
+    # CRITICAL: Always executes, even with exception
+    self.tracking_dict.pop(process_id, None)  # No KeyError if missing
+    self.cleanup_resources()
+
+# ❌ WRONG: Cleanup skipped on exception
+try:
+    risky_operation()
+    self.tracking_dict.pop(process_id)  # Never reached if exception!
+except Exception as e:
+    logger.error(f"Failed: {e}")
+```
+
+**See Also**: `docs/segment_rotation_fixes.md` for complete production bug analysis
+
 ### Logging
 ```python
 # ✅ CORRECT: Structured logging
