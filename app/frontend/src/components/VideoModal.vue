@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
 .video-container {
   position: relative;
   flex: 1;
-  background: #000;
+  background: var(--background-dark);
   display: flex;
   align-items: center;
   justify-content: center;

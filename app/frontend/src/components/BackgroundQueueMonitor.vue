@@ -320,7 +320,7 @@ const formatTime = (timestamp?: string) => {
   gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
@@ -343,16 +343,16 @@ const formatTime = (timestamp?: string) => {
 }
 
 .status-icon.status-idle {
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 .status-icon.status-active {
-  color: #3b82f6;
+  color: var(--info-color);
   animation: pulse 2s infinite;
 }
 
 .status-icon.status-error {
-  color: #dc3545;
+  color: var(--danger-color);
 }
 
 .queue-info {
@@ -365,7 +365,7 @@ const formatTime = (timestamp?: string) => {
 
 .queue-label {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-secondary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -374,23 +374,23 @@ const formatTime = (timestamp?: string) => {
 .queue-count {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .progress-bar {
   width: 30px;
   height: 4px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  border-radius: var(--border-radius-sm, 4px);
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
   transition: width 0.3s ease;
-  border-radius: 2px;
+  border-radius: var(--border-radius-sm, 4px);
 }
 
 .queue-panel {
@@ -398,9 +398,9 @@ const formatTime = (timestamp?: string) => {
   top: 100%;
   right: 0;
   width: 450px;
-  background: #1f1f23;
-  border: 1px solid #333;
-  border-radius: 12px;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg, 12px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
   z-index: 1000;
   margin-top: 12px;
@@ -412,14 +412,14 @@ const formatTime = (timestamp?: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
 }
 
 .panel-header h3 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
 }
@@ -427,16 +427,16 @@ const formatTime = (timestamp?: string) => {
 .close-btn {
   background: none;
   border: none;
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -459,7 +459,7 @@ const formatTime = (timestamp?: string) => {
   align-items: center;
   padding: 16px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
 }
@@ -471,7 +471,7 @@ const formatTime = (timestamp?: string) => {
 
 .stat-label {
   font-size: 13px;
-  color: #aaa;
+  color: var(--text-secondary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -479,13 +479,13 @@ const formatTime = (timestamp?: string) => {
 
 .stat-value {
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
 }
 
-.text-green { color: #28a745; }
-.text-red { color: #dc3545; }
-.text-yellow { color: #eab308; }
+.text-green { color: var(--success-color); }
+.text-red { color: var(--danger-color); }
+.text-yellow { color: var(--warning-color); }
 
 .active-tasks-section,
 .recent-tasks-section {
@@ -495,7 +495,7 @@ const formatTime = (timestamp?: string) => {
 .active-tasks-section h4,
 .recent-tasks-section h4 {
   margin: 0 0 16px 0;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
   display: flex;
@@ -505,12 +505,12 @@ const formatTime = (timestamp?: string) => {
 
 .active-tasks-section h4::before {
   content: "⚡";
-  color: #3b82f6;
+  color: var(--info-color);
 }
 
 .recent-tasks-section h4::before {
   content: "📝";
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 .task-list {
@@ -543,16 +543,16 @@ const formatTime = (timestamp?: string) => {
 
 .task-type {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .task-streamer {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 12px;
   background: rgba(255, 255, 255, 0.1);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
 }
 
 .task-progress {
@@ -566,16 +566,16 @@ const formatTime = (timestamp?: string) => {
   flex: 1;
   height: 6px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: var(--border-radius-sm, 4px);
 }
 
 .task-progress .progress-fill {
-  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
 }
 
 .progress-text {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-secondary);
   min-width: 40px;
   font-weight: 600;
 }
@@ -588,7 +588,7 @@ const formatTime = (timestamp?: string) => {
 
 .status-badge {
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -598,49 +598,49 @@ const formatTime = (timestamp?: string) => {
 
 .status-badge.status-pending {
   background: rgba(234, 179, 8, 0.2);
-  color: #eab308;
+  color: var(--warning-color);
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
 .status-badge.status-running {
   background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
+  color: var(--info-color);
   border: 1px solid rgba(59, 130, 246, 0.3);
   animation: pulse 2s infinite;
 }
 
 .status-badge.status-completed {
   background: rgba(40, 167, 69, 0.2);
-  color: #28a745;
+  color: var(--success-color);
   border: 1px solid rgba(40, 167, 69, 0.3);
 }
 
 .status-badge.status-failed {
   background: rgba(220, 53, 69, 0.2);
-  color: #dc3545;
+  color: var(--danger-color);
   border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
 .status-badge.status-retrying {
   background: rgba(249, 115, 22, 0.2);
-  color: #f97316;
+  color: var(--warning-color);
   border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
 .task-time {
   font-size: 11px;
-  color: #aaa;
+  color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.1);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm, 4px);
 }
 
 .task-error {
   margin-top: 12px;
   padding: 12px;
   background: rgba(220, 53, 69, 0.1);
-  border-radius: 6px;
-  color: #dc3545;
+  border-radius: var(--border-radius, 8px);
+  color: var(--danger-color);
   font-size: 12px;
   border: 1px solid rgba(220, 53, 69, 0.2);
 }
@@ -648,7 +648,7 @@ const formatTime = (timestamp?: string) => {
 .no-tasks {
   text-align: center;
   padding: 48px 24px;
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 .no-tasks p {
@@ -668,20 +668,20 @@ const formatTime = (timestamp?: string) => {
   gap: 8px;
   padding: 8px 12px;
   background: rgba(34, 197, 94, 0.1);
-  border-radius: 6px;
+  border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .pulse-indicator {
   width: 8px;
   height: 8px;
-  background: #22c55e;
+  background: var(--success-color);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
 }
 
 .recording-text {
-  color: #22c55e;
+  color: var(--success-color);
   font-size: 12px;
   font-weight: 500;
 }

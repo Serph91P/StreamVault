@@ -364,12 +364,12 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .dashboard-header h2 {
   margin: 0;
-  color: #1a202c;
+  color: var(--text-primary);
   font-size: 1.75rem;
   font-weight: 600;
 }
@@ -385,13 +385,13 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
-  background: #fee2e2;
-  color: #991b1b;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color);
 }
 
 .notification-status.enabled {
-  background: #dcfce7;
-  color: #166534;
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success-color);
 }
 
 .status-indicator {
@@ -405,11 +405,11 @@ const getEventBorderClass = (eventType: string): string => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger-color);
 }
 
 .status-dot.active {
-  background: #22c55e;
+  background: var(--success-color);
 }
 
 .refresh-btn {
@@ -417,17 +417,17 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
-  background: white;
-  color: #374151;
+  background: var(--background-card);
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--background-darker);
 }
 
 .refresh-btn:disabled {
@@ -443,8 +443,8 @@ const getEventBorderClass = (eventType: string): string => {
 }
 
 .status-card {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
@@ -456,14 +456,14 @@ const getEventBorderClass = (eventType: string): string => {
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .card-header h3 {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .status-grid {
@@ -480,18 +480,18 @@ const getEventBorderClass = (eventType: string): string => {
 }
 
 .status-item .label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .status-item .value {
-  color: #1e293b;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .status-item .value.enabled,
 .status-item .value.configured {
-  color: #059669;
+  color: var(--success-color);
 }
 
 .push-stats {
@@ -502,11 +502,11 @@ const getEventBorderClass = (eventType: string): string => {
 .stat-number {
   font-size: 2rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .stat-label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -517,8 +517,8 @@ const getEventBorderClass = (eventType: string): string => {
 }
 
 .events-section {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -530,14 +530,14 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .section-header h3 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .event-filters {
@@ -548,23 +548,23 @@ const getEventBorderClass = (eventType: string): string => {
 
 .event-filters select {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
-  background: white;
+  background: var(--background-card);
 }
 
 .clear-btn {
   padding: 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
-  background: white;
+  background: var(--background-card);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .clear-btn:hover {
-  background: #fee2e2;
-  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger-color);
 }
 
 .events-list {
@@ -595,7 +595,7 @@ const getEventBorderClass = (eventType: string): string => {
 
 .event-message {
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
@@ -603,7 +603,7 @@ const getEventBorderClass = (eventType: string): string => {
   display: flex;
   gap: 1rem;
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .event-streamer {
@@ -613,17 +613,17 @@ const getEventBorderClass = (eventType: string): string => {
 .event-type {
   flex-shrink: 0;
   padding: 0.25rem 0.5rem;
-  background: #e2e8f0;
+  background: var(--background-darker);
   border-radius: 0.25rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .empty-events, .loading-events {
   text-align: center;
   padding: 3rem 2rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .empty-icon {
@@ -633,14 +633,14 @@ const getEventBorderClass = (eventType: string): string => {
 
 .empty-events h4 {
   margin: 0 0 0.5rem 0;
-  color: #374151;
+  color: var(--text-primary);
 }
 
 .spinner {
   width: 2rem;
   height: 2rem;
-  border: 2px solid #e5e7eb;
-  border-top: 2px solid #3b82f6;
+  border: 2px solid var(--border-color);
+  border-top: 2px solid var(--info-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
@@ -658,27 +658,27 @@ const getEventBorderClass = (eventType: string): string => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 0.375rem;
-  background: white;
-  color: #374151;
+  background: var(--background-card);
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .action-btn:hover {
-  background: #f9fafb;
+  background: var(--background-darker);
 }
 
 .action-btn.primary {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
+  background: var(--info-color);
+  color: var(--text-primary);
+  border-color: var(--info-color);
 }
 
 .action-btn.primary:hover {
-  background: #2563eb;
+  background: var(--primary-color);
 }
 
 .error-banner {
@@ -687,10 +687,10 @@ const getEventBorderClass = (eventType: string): string => {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   margin-top: 1rem;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 0.375rem;
-  color: #991b1b;
+  color: var(--danger-color);
 }
 
 .close-btn {
@@ -699,7 +699,7 @@ const getEventBorderClass = (eventType: string): string => {
   border: none;
   font-size: 1.25rem;
   cursor: pointer;
-  color: #991b1b;
+  color: var(--danger-color);
 }
 
 .spinning {

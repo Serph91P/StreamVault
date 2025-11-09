@@ -429,7 +429,7 @@ onMounted(() => {
 
 .card {
   background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 20px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -437,7 +437,7 @@ onMounted(() => {
 
 .card-header {
   padding: 15px 20px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
   background: var(--color-background-mute);
   border-radius: 8px 8px 0 0;
   display: flex;
@@ -466,7 +466,7 @@ onMounted(() => {
   padding: 15px;
   background: var(--color-background-mute);
   border-radius: 6px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .stat-value {
@@ -484,7 +484,7 @@ onMounted(() => {
 .streamer-breakdown {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-color);
 }
 
 .streamer-list {
@@ -501,7 +501,7 @@ onMounted(() => {
   padding: 8px 12px;
   background: var(--color-background-mute);
   border-radius: 4px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .streamer-name {
@@ -526,7 +526,7 @@ onMounted(() => {
   gap: 20px;
   align-items: center;
   padding-top: 15px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-row label {
@@ -539,7 +539,7 @@ onMounted(() => {
 
 .form-input {
   padding: 6px 10px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   width: 80px;
   background: var(--color-background);
@@ -587,7 +587,7 @@ onMounted(() => {
   gap: 10px;
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .recordings-list {
@@ -604,7 +604,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -670,8 +670,8 @@ onMounted(() => {
   color: var(--color-text-light);
 }
 
-.text-success { color: #28a745 !important; }
-.text-danger { color: #dc3545 !important; }
+.text-success { color: var(--success-color) !important; }
+.text-danger { color: var(--danger-color) !important; }
 
 .result-summary {
   margin-bottom: 20px;
@@ -728,7 +728,7 @@ onMounted(() => {
   padding: 8px 12px;
   background: var(--color-background-mute);
   border-radius: 4px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
 }
 
 .detail-id {

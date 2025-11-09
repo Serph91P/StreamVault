@@ -77,7 +77,7 @@ class ProcessManager:
         self._is_shutting_down = False
 
     async def start_recording_process(
-        self, stream: Stream, output_path: str, quality: str, recording_id: int = None
+        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
         
@@ -112,7 +112,7 @@ class ProcessManager:
             logger.error(f"Failed to start recording process for stream {stream.id}: {e}", exc_info=True)
             raise ProcessError(f"Failed to start recording: {e}")
 
-    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str, recording_id: int = None) -> Dict:
+    async def _initialize_segmented_recording(self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None) -> Dict:
         """Initialize segmented recording structure for long streams"""
         base_path = Path(output_path)
         segment_dir = base_path.parent / f"{base_path.stem}_segments"
@@ -363,27 +363,52 @@ class ProcessManager:
             process_id = f"stream_{stream.id}"
             
             # Stop current process gracefully
+            # CRITICAL: Entire process cleanup must be wrapped in try-catch
+            # because uvloop can throw ProcessLookupError at ANY point when checking dead processes
             if process_id in self.active_processes:
                 current_process = self.active_processes[process_id]
                 
                 try:
+                    # Try to poll the process to update returncode
+                    # uvloop may throw ProcessLookupError here if process is a zombie
+                    current_process.poll()
+                    
                     # Check if process is still alive before trying to terminate
                     if current_process.returncode is None:
+                        # Process appears to be running, try graceful termination
                         current_process.terminate()
+                        logger.debug(f"Sent SIGTERM to stream {stream.id} process")
                         
                         # Wait a bit for graceful termination
                         await asyncio.sleep(5)
                         
+                        # Poll again to check termination status
+                        current_process.poll()
+                        
                         # Check again and force kill if still running
                         if current_process.returncode is None:
                             current_process.kill()
+                            logger.debug(f"Sent SIGKILL to stream {stream.id} process")
                     else:
-                        logger.debug(f"Process for stream {stream.id} already terminated (returncode: {current_process.returncode})")
+                        logger.info(f"Process for stream {stream.id} already terminated (returncode: {current_process.returncode})")
+                        
                 except ProcessLookupError:
-                    # Process already terminated externally, this is expected
-                    logger.debug(f"Process for stream {stream.id} no longer exists (already terminated)")
+                    # Process is a zombie or was cleaned up externally
+                    # This is EXPECTED for long-running streams where streamlink crashes/OOM
+                    logger.info(f"🔄 ROTATION: Process for stream {stream.id} already terminated externally, continuing with rotation")
+                    
                 except Exception as proc_error:
-                    logger.warning(f"Error terminating process for stream {stream.id}: {proc_error}")
+                    # Log but continue - we still want to start the new segment
+                    logger.warning(f"🔄 ROTATION: Error stopping old process for stream {stream.id}: {proc_error}, continuing anyway")
+                
+                finally:
+                    # ALWAYS remove the old process from tracking, even if cleanup failed
+                    # This prevents stuck process references
+                    try:
+                        self.active_processes.pop(process_id, None)
+                        logger.debug(f"Removed process {process_id} from active_processes tracking")
+                    except Exception as e:
+                        logger.warning(f"Error removing process {process_id} from tracking: {e}")
                     
             # Prepare next segment
             segment_info['segment_count'] += 1
@@ -607,7 +632,7 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
 
-    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str, recording_id: int = None):
+    async def _fallback_trigger_post_processing(self, stream_id: int, output_path: str, recording_id: Optional[int] = None):
         """Fallback method for post-processing when no callback is injected"""
         try:
             # Import here to avoid circular imports (only used as fallback)
@@ -620,7 +645,7 @@ class ProcessManager:
                 if not recording_id:
                     # Look for active recording for this specific stream with path validation
                     recordings = await recording_service.orchestrator.database_service.get_recordings_by_status("recording")
-                    candidate_recording_id = None
+                    candidate_recording_id: Optional[int] = None
                     
                     # First pass: try to find recording that matches both stream_id and path proximity
                     for recording in recordings:
