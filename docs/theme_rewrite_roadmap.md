@@ -566,7 +566,7 @@ $gray-950: #020617;
   --text-secondary: #{$gray-400};
   
   // Dark Mode Borders
-  --color-border: #{$gray-700};
+  --border-color: #{$gray-700};
 }
 
 // Light Mode (via data-theme attribute)
@@ -581,7 +581,7 @@ $gray-950: #020617;
   --text-secondary: #{$gray-600};
   
   // Light Mode Borders
-  --color-border: #{$gray-300};
+  --border-color: #{$gray-300};
   
   // Angepasste Semantic Colors für Light Mode
   --success-color: #{$success-600};
