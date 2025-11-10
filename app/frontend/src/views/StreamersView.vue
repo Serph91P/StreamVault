@@ -283,7 +283,8 @@ const filteredAndSortedStreamers = computed(() => {
 async function fetchStreamers() {
   try {
     const response = await streamersApi.getAll()
-    streamers.value = Array.isArray(response) ? response : (response.data || [])
+    // Backend returns {streamers: [...]} format
+    streamers.value = response.streamers || []
     lastUpdateTime.value = new Date()
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
