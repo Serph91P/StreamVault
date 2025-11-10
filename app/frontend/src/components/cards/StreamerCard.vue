@@ -3,11 +3,9 @@
     variant="medium"
     hoverable
     clickable
-    :gradient="isLive"
-    :gradient-colors="isLive ? ['#ef4444', '#dc2626'] : undefined"
     @click="handleClick"
     class="streamer-card"
-    :class="{ 'actions-open': showActions }"
+    :class="{ 'actions-open': showActions, 'is-live': isLive }"
   >
     <div class="streamer-card-content">
       <!-- Avatar/Thumbnail - CENTERED -->
@@ -25,7 +23,7 @@
             </svg>
           </div>
 
-          <!-- Live Badge -->
+          <!-- Live Badge ON Avatar -->
           <div v-if="isLive" class="live-badge" :class="{ 'is-recording': streamer.is_recording }">
             <span class="live-indicator"></span>
             <span class="live-text">LIVE</span>
@@ -49,39 +47,53 @@
       
       <!-- Live Stream Info OR Offline Info -->
       <div class="stream-info-container">
-        <div v-if="isLive && streamer.title" class="live-info">
-          <p class="stream-title" :title="streamer.title">{{ truncateText(streamer.title, 60) }}</p>
-          <p v-if="streamer.category_name" class="stream-category">
-            <svg class="category-icon">
-              <use href="#icon-gamepad" />
-            </svg>
-            {{ streamer.category_name }}
+        <!-- LIVE: Only show title (category is in stats below) -->
+        <div v-if="isLive" class="live-info">
+          <p v-if="streamer.title" class="stream-title" :title="streamer.title">
+            {{ streamer.title }}
+          </p>
+          <p v-else class="stream-title no-title">
+            No stream title
           </p>
         </div>
         
-        <!-- Offline Description -->
+        <!-- OFFLINE: Show description -->
         <p v-else-if="streamer.description" class="streamer-description">
           {{ truncatedDescription }}
+        </p>
+        <p v-else class="streamer-description no-description">
+          No description available
         </p>
       </div>
 
       <!-- Stats - AT BOTTOM -->
       <div class="streamer-stats">
-        <div v-if="isLive && currentStream" class="stat stat-live">
+        <!-- Viewers (only when live) -->
+        <div v-if="isLive && currentStream" class="stat stat-viewers">
           <svg class="stat-icon">
             <use href="#icon-users" />
           </svg>
           <span>{{ formatViewers(currentStream.viewer_count) }}</span>
         </div>
 
-        <div v-if="streamer.recording_count" class="stat">
+        <!-- Category (only when live) -->
+        <div v-if="isLive && streamer.category_name" class="stat stat-category">
+          <svg class="stat-icon">
+            <use href="#icon-gamepad" />
+          </svg>
+          <span>{{ streamer.category_name }}</span>
+        </div>
+
+        <!-- VOD Count (always visible if has recordings) -->
+        <div v-if="streamer.recording_count" class="stat stat-vods">
           <svg class="stat-icon">
             <use href="#icon-video" />
           </svg>
           <span>{{ streamer.recording_count }} VODs</span>
         </div>
 
-        <div v-if="lastStreamTime" class="stat stat-time">
+        <!-- Last stream time (only when offline) -->
+        <div v-if="!isLive && lastStreamTime" class="stat stat-time">
           <svg class="stat-icon">
             <use href="#icon-clock" />
           </svg>
@@ -304,11 +316,19 @@ onUnmounted(() => {
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-5);
-    min-height: 280px;  /* INCREASED: More space for vertical layout */
-    max-height: 320px;  /* NEW: Prevent cards from growing too tall */
-    overflow: visible;  /* CRITICAL: Allow dropdown to overflow */
+    min-height: 280px;
+    max-height: 320px;
+    overflow: visible;
     display: flex;
     flex-direction: column;
+  }
+  
+  // LIVE indicator: Subtle red border instead of gradient
+  &.is-live {
+    :deep(.glass-card-content) {
+      border: 2px solid var(--danger-color);
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), var(--shadow-md);
+    }
   }
   
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -459,11 +479,12 @@ onUnmounted(() => {
 .stream-info-container {
   width: 100%;
   text-align: center;
-  flex: 1;  /* Take available space */
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   overflow: hidden;
+  padding: var(--spacing-2) 0;  /* Add vertical spacing */
 }
 
 .streamer-description {
@@ -479,6 +500,11 @@ onUnmounted(() => {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
+  
+  &.no-description {
+    font-style: italic;
+    opacity: 0.6;
+  }
 }
 
 .live-info {
@@ -486,65 +512,90 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  align-items: center;  /* Center content */
+  align-items: center;
   overflow: hidden;
+  width: 100%;
 }
 
 .stream-title {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);  /* INCREASED: Better readability */
   font-weight: v.$font-medium;
   color: var(--text-primary);
   line-height: 1.4;
   margin: 0;
+  width: 100%;
   
-  /* CRITICAL: Limit to 2 lines */
+  /* CRITICAL: Max 3 lines for live title (more important than description) */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;  /* 3 lines for live streams */
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  max-height: 2.8em;  /* 2 * 1.4 line-height */
-}
-
-.stream-category {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
+  max-height: 4.2em;  /* 3 * 1.4 line-height */
   
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  margin: 0;
-  
-  /* Prevent long category names from breaking layout */
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.category-icon {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  flex-shrink: 0;
+  &.no-title {
+    font-style: italic;
+    opacity: 0.6;
+    font-size: var(--text-sm);
+  }
 }
 
 /* Stats - AT BOTTOM, CENTERED */
 .streamer-stats {
   display: flex;
-  gap: var(--spacing-4);
-  justify-content: center;  /* Centered */
+  gap: var(--spacing-3);  /* REDUCED: Smaller gap for better fit */
+  justify-content: center;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: auto;  /* Push to bottom */
+  margin-top: auto;
   padding-top: var(--spacing-3);
   width: 100%;
 }
 
 .stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+
+  .stat-icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+/* LIVE stats - More prominent */
+.stat-viewers {
+  color: var(--danger-color);
+  font-weight: v.$font-semibold;
+}
+
+.stat-category {
+  color: var(--text-primary);
+  font-weight: v.$font-medium;
+  
+  /* Truncate long category names */
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-vods {
+  color: var(--primary-color);
+}
+
+.stat-time {
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */.stat {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
