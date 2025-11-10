@@ -171,6 +171,12 @@ onMounted(() => {
     color: white;
     box-shadow: v.$shadow-md;
     
+    // CRITICAL: Ensure text is visible in light mode
+    [data-theme="light"] & {
+      background: var(--primary-600);
+      color: white;  // White text on colored background is always visible
+    }
+    
     .nav-icon {
       transform: scale(1.1);
     }

@@ -103,33 +103,40 @@
           </svg>
         </button>
 
-        <!-- Actions dropdown menu -->
-        <div v-if="showActions" class="actions-dropdown" @click.stop>
-          <button v-if="isLive" @click="handleWatch" class="action-item">
-            <svg class="icon">
-              <use href="#icon-play" />
-            </svg>
-            Watch Live
-          </button>
-          <button @click="handleForceRecord" class="action-item">
-            <svg class="icon">
-              <use href="#icon-video" />
-            </svg>
-            Force Record
-          </button>
-          <button @click="handleViewDetails" class="action-item">
-            <svg class="icon">
-              <use href="#icon-eye" />
-            </svg>
-            View Details
-          </button>
-          <button @click="handleDelete" class="action-item action-danger">
-            <svg class="icon">
-              <use href="#icon-trash" />
-            </svg>
-            Delete Streamer
-          </button>
-        </div>
+        <!-- Actions dropdown menu - Using Teleport to avoid clipping -->
+        <Teleport to="body">
+          <div 
+            v-if="showActions" 
+            class="actions-dropdown" 
+            :style="dropdownStyle"
+            @click.stop
+          >
+            <button v-if="isLive" @click="handleWatch" class="action-item">
+              <svg class="icon">
+                <use href="#icon-play" />
+              </svg>
+              Watch Live
+            </button>
+            <button @click="handleForceRecord" class="action-item">
+              <svg class="icon">
+                <use href="#icon-video" />
+              </svg>
+              Force Record
+            </button>
+            <button @click="handleViewDetails" class="action-item">
+              <svg class="icon">
+                <use href="#icon-eye" />
+              </svg>
+              View Details
+            </button>
+            <button @click="handleDelete" class="action-item action-danger">
+              <svg class="icon">
+                <use href="#icon-trash" />
+              </svg>
+              Delete Streamer
+            </button>
+          </div>
+        </Teleport>
       </div>
     </div>
   </GlassCard>
@@ -173,8 +180,21 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const showActions = ref(false)
+const moreButtonRef = ref<HTMLButtonElement | null>(null)
 
 const isLive = computed(() => props.streamer.is_live || false)
+
+// Calculate dropdown position relative to trigger button
+const dropdownStyle = computed(() => {
+  // Return default positioning if no trigger button
+  return {
+    position: 'fixed' as const,
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 10000
+  }
+})
 
 const truncatedDescription = computed(() => {
   const desc = props.streamer.description || ''

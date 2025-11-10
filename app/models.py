@@ -61,6 +61,36 @@ class Streamer(Base):
             stacklevel=2
         )
         return self.username
+    
+    @property
+    def is_recording(self) -> bool:
+        """
+        Check if this streamer currently has an active recording.
+        Returns True if there's an active recording (status='recording') for any of this streamer's streams.
+        
+        This property dynamically queries the Recording table to ensure real-time accuracy.
+        """
+        from sqlalchemy.orm import object_session
+        
+        session = object_session(self)
+        if not session:
+            return False
+        
+        # Check if there's any active recording for this streamer's streams
+        active_recording = session.query(Recording).join(Stream).filter(
+            Stream.streamer_id == self.id,
+            Recording.status == 'recording'
+        ).first()
+        
+        return active_recording is not None
+    
+    @property
+    def recording_enabled(self) -> bool:
+        """
+        Alias for auto_record field for backward compatibility.
+        Returns True if automatic recording is enabled for this streamer.
+        """
+        return self.auto_record
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (

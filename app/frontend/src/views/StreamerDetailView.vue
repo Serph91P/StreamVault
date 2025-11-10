@@ -335,11 +335,17 @@ const sortedVideos = computed(() => {
 async function fetchStreamer() {
   isLoading.value = true
   try {
+    console.log('[DEBUG] Fetching streamer with ID:', streamerId.value, 'Type:', typeof streamerId.value)
     const response = await streamersApi.get(Number(streamerId.value))
-    console.log('[DEBUG] Fetched streamer:', response)
+    console.log('[DEBUG] Fetched streamer successfully:', response)
     streamer.value = response
-  } catch (error) {
-    console.error('Failed to fetch streamer:', error)
+  } catch (error: any) {
+    console.error('[ERROR] Failed to fetch streamer:', error)
+    console.error('[ERROR] Error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
     streamer.value = null
   } finally {
     isLoading.value = false
