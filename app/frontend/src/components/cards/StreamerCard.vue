@@ -92,6 +92,7 @@
       <div class="streamer-actions">
         <!-- Actions dropdown trigger -->
         <button
+          ref="moreButtonRef"
           @click.stop="toggleActions"
           class="btn-action btn-more"
           :class="{ active: showActions }"
@@ -143,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import GlassCard from './GlassCard.vue'
 
@@ -186,12 +187,25 @@ const isLive = computed(() => props.streamer.is_live || false)
 
 // Calculate dropdown position relative to trigger button
 const dropdownStyle = computed(() => {
-  // Return default positioning if no trigger button
+  if (!moreButtonRef.value) {
+    // Fallback positioning if button ref not available
+    return {
+      position: 'fixed' as const,
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 10000
+    }
+  }
+  
+  // Get button position relative to viewport
+  const rect = moreButtonRef.value.getBoundingClientRect()
+  
+  // Position dropdown below and to the right of button
   return {
     position: 'fixed' as const,
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
+    top: `${rect.bottom + 8}px`,  // 8px below button
+    left: `${rect.left - 140}px`,  // Align to right edge (180px width - 40px button)
     zIndex: 10000
   }
 })
@@ -254,6 +268,29 @@ const handleWatch = () => {
   // Open Twitch stream in new tab
   window.open(`https://twitch.tv/${props.streamer.username}`, '_blank', 'noopener,noreferrer')
 }
+
+// Close dropdown when clicking outside
+const handleClickOutside = (event: MouseEvent) => {
+  if (!showActions.value) return
+  
+  const dropdown = document.querySelector('.actions-dropdown')
+  const target = event.target as Node
+  
+  if (moreButtonRef.value && 
+      !moreButtonRef.value.contains(target) &&
+      dropdown && 
+      !dropdown.contains(target)) {
+    showActions.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <style scoped lang="scss">
@@ -540,50 +577,60 @@ const handleWatch = () => {
 }
 
 .actions-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: var(--spacing-2);
+  position: fixed;  /* Fixed positioning for Teleport */
   
   background: var(--background-darker);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);  /* Slightly smaller radius */
   box-shadow: var(--shadow-xl);
   
-  min-width: 180px;
+  min-width: 160px;  /* REDUCED from 180px */
+  max-width: 180px;
+  padding: var(--spacing-1);  /* REDUCED from spacing-0 */
   overflow: hidden;
-  z-index: 1000;  /* Very high to ensure it's above everything including card overflow */
+  z-index: 10000;
+  
+  /* Smooth appearance */
+  animation: dropdown-appear 0.15s ease-out;
+}
+
+@keyframes dropdown-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .action-item {
   width: 100%;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);  /* REDUCED from spacing-3 spacing-4 */
   
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);  /* Add border radius */
   
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   
-  font-size: var(--text-sm);
+  font-size: var(--text-sm);  /* REDUCED from text-base */
   font-weight: v.$font-medium;
   color: var(--text-primary);
   text-align: left;
   
   cursor: pointer;
-  transition: background v.$duration-200 v.$ease-out;
+  transition: background v.$duration-150 v.$ease-out;  /* Faster transition */
   
   .icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;  /* REDUCED from 18px */
+    height: 16px;
     stroke: currentColor;
     fill: none;
-  }
-  
-  &:last-child {
-    border-bottom: none;
+    flex-shrink: 0;
   }
   
   &:hover {

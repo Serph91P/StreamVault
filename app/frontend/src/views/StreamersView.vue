@@ -858,8 +858,9 @@ onUnmounted(() => {
 .streamers-container {
   &.view-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));  /* INCREASED from 320px */
     gap: var(--spacing-5);
+    align-items: start;  /* CRITICAL: Prevent cards from stretching */
   }
 
   &.view-list {
