@@ -1,42 +1,45 @@
 <template>
   <div class="app">
-    <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
-    <header class="app-header">
-      <div class="header-content">
-        <router-link to="/" class="app-logo">StreamVault</router-link>
-        
-        <div class="header-right">
-          <!-- Background Queue Monitor -->
-          <BackgroundQueueMonitor />
+    <!-- Show header and navigation ONLY on authenticated pages -->
+    <template v-if="!isAuthPage">
+      <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
+      <header class="app-header">
+        <div class="header-content">
+          <router-link to="/" class="app-logo">StreamVault</router-link>
           
-          <div class="nav-actions">
-            <div class="notification-bell-container">
-              <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-                <svg class="bell-icon">
-                  <use href="#icon-bell" />
-                </svg>
-                <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          <div class="header-right">
+            <!-- Background Queue Monitor -->
+            <BackgroundQueueMonitor />
+            
+            <div class="nav-actions">
+              <div class="notification-bell-container">
+                <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
+                  <svg class="bell-icon">
+                    <use href="#icon-bell" />
+                  </svg>
+                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+                </button>
+              </div>
+              <!-- Theme Toggle -->
+              <ThemeToggle />
+              <button @click="logout" class="logout-btn">
+                Logout
               </button>
             </div>
-            <!-- Theme Toggle -->
-            <ThemeToggle />
-            <button @click="logout" class="logout-btn">
-              Logout
-            </button>
           </div>
         </div>
+      </header>    
+      <!-- Notification overlay -->
+      <div v-if="showNotifications" class="notification-overlay">
+        <NotificationFeed 
+          @notifications-read="markAsRead" 
+          @close-panel="closeNotificationPanel"
+          @clear-all="clearAllNotifications"
+        />
       </div>
-    </header>    
-    <!-- Notification overlay -->
-    <div v-if="showNotifications" class="notification-overlay">
-      <NotificationFeed 
-        @notifications-read="markAsRead" 
-        @close-panel="closeNotificationPanel"
-        @clear-all="clearAllNotifications"
-      />
-    </div>
+    </template>
     
-    <!-- Toast notifications -->
+    <!-- Toast notifications (always visible) -->
     <ToastNotification 
       v-for="toast in activeToasts" 
       :key="toast.id"
@@ -47,14 +50,21 @@
       @dismiss="removeToast"
     />
     
-    <!-- NEW: Navigation Wrapper with Bottom Nav + Sidebar -->
-    <NavigationWrapper>
+    <!-- Navigation Wrapper with Bottom Nav + Sidebar (only on authenticated pages) -->
+    <NavigationWrapper v-if="!isAuthPage">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
     </NavigationWrapper>
+    
+    <!-- Auth pages without navigation -->
+    <router-view v-else v-slot="{ Component }">
+      <transition name="page" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
     
     <!-- PWA Install Prompt -->
     <PWAInstallPrompt />
@@ -69,7 +79,8 @@ import ToastNotification from '@/components/ToastNotification.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, watch, provide } from 'vue'
+import { ref, onMounted, watch, provide, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
@@ -78,6 +89,13 @@ import { useTheme } from '@/composables/useTheme'
 // Initialize theme
 const { initializeTheme } = useTheme()
 initializeTheme()
+
+// Check if current route is an auth page
+const route = useRoute()
+const isAuthPage = computed(() => {
+  const authPaths = ['/auth/login', '/auth/setup', '/welcome']
+  return authPaths.includes(route.path)
+})
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
