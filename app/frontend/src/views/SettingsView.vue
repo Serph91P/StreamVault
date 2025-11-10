@@ -142,7 +142,7 @@
             </p>
           </div>
 
-          <div class="settings-card">
+          <GlassCard>
             <div class="card-content">
               <div class="setting-item">
                 <div class="setting-info">
@@ -153,7 +153,6 @@
                   <select v-model="theme" class="select-input">
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
-                    <option value="auto">Auto (System)</option>
                   </select>
                 </div>
               </div>
@@ -171,7 +170,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </GlassCard>
         </div>
 
         <!-- PWA Settings -->
@@ -205,7 +204,7 @@
             </p>
           </div>
 
-          <div class="settings-card">
+          <GlassCard>
             <div class="card-content">
               <div class="setting-item">
                 <div class="setting-info">
@@ -247,7 +246,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </GlassCard>
         </div>
 
         <!-- About Settings -->
@@ -264,7 +263,7 @@
             </p>
           </div>
 
-          <div class="settings-card">
+          <GlassCard>
             <div class="card-content">
               <div class="about-content">
                 <div class="about-logo">
@@ -293,7 +292,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </GlassCard>
         </div>
       </main>
     </div>
@@ -305,7 +304,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useTheme } from '@/composables/useTheme'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
@@ -364,8 +365,10 @@ const activeSection = ref('notifications')
 const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 
+// Theme management - use global theme composable
+const { theme, setTheme } = useTheme()
+
 // Appearance settings
-const theme = ref('dark')
 const animationsEnabled = ref(true)
 
 // Advanced settings
@@ -443,6 +446,14 @@ watch(messages, (newMessages) => {
     activeRecordings.value = latestMessage.data || []
   } else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
     fetchActiveRecordings()
+  }
+})
+
+// Watch theme changes from dropdown and apply via setTheme
+watch(theme, (newTheme) => {
+  // Only call setTheme if it's a valid theme value
+  if (newTheme === 'dark' || newTheme === 'light') {
+    setTheme(newTheme)
   }
 })
 
