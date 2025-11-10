@@ -217,7 +217,9 @@ const validateUsername = async () => {
   streamerInfo.value = null
 
   try {
-    const response = await fetch(`/api/streamers/validate/${username.value.trim().toLowerCase()}`)
+    const response = await fetch(`/api/streamers/validate/${username.value.trim().toLowerCase()}`, {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
     
     if (response.ok && data.valid) {
@@ -258,6 +260,7 @@ const addStreamer = async () => {
     
     const response = await fetch(`/api/streamers/${cleanUsername}`, {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Content-Type': 'application/json'
       },

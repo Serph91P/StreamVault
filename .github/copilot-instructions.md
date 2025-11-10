@@ -762,6 +762,297 @@ pytest tests/ -v
 - **SCSS**: Use design tokens from `_variables.scss`, never hard-code colors
 - **Commits**: Conventional Commits for semantic versioning
 
+## Frontend Component Patterns
+
+### API Response Format Normalization
+
+**Backend Convention**: All list endpoints return data wrapped in an object:
+
+```python
+@router.get("/api/streamers")
+async def get_streamers(...):
+    return {"streamers": streamers_list}  # ✅ Correct
+
+# ❌ WRONG: Don't return raw arrays
+return streamers_list
+```
+
+**Frontend Pattern**: Extract from wrapper object:
+
+```typescript
+// ✅ CORRECT: Extract from response object
+const response = await fetch('/api/streamers', { credentials: 'include' })
+const data = await response.json()
+streamers.value = data.streamers || []  // Use wrapper key
+
+// ❌ WRONG: Old pattern (caused "No Streamers" bug)
+streamers.value = response.data || []  // response.data is undefined
+```
+
+**Verified Endpoints:**
+- `/api/streamers` → `{streamers: [...]}`
+- `/api/streamers/{id}/streams` → `{streams: [...]}`
+- `/api/categories` → `{categories: [...]}`
+
+### Actions Dropdown Pattern
+
+For cards with multiple actions, use dropdown menus instead of multiple buttons:
+
+**Component Structure:**
+
+```vue
+<template>
+  <div class="card">
+    <!-- Primary action visible -->
+    <button v-if="isLive" @click.stop="handleWatch">Watch</button>
+    
+    <!-- More actions in dropdown -->
+    <button @click.stop="toggleActions" class="btn-more">More</button>
+    
+    <div v-if="showActions" class="actions-dropdown" @click.stop>
+      <button @click="handleForceRecord">Force Record</button>
+      <button @click="handleViewDetails">View Details</button>
+      <button @click="handleDelete" class="action-danger">Delete</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+const showActions = ref(false)
+
+const toggleActions = () => {
+  showActions.value = !showActions.value
+}
+
+const emit = defineEmits<{
+  watch: [item: Item]
+  forceRecord: [item: Item]
+  delete: [item: Item]
+}>()
+
+const handleForceRecord = () => {
+  showActions.value = false  // Close dropdown
+  emit('forceRecord', props.item)
+}
+
+const handleDelete = () => {
+  showActions.value = false
+  emit('delete', props.item)
+}
+</script>
+```
+
+**Parent View Event Handling:**
+
+```vue
+<template>
+  <ItemCard
+    @force-record="handleForceRecord"
+    @delete="handleDelete"
+    @watch="handleWatch"
+  />
+</template>
+
+<script setup lang="ts">
+async function handleForceRecord(item: any) {
+  await fetch(`/api/items/${item.id}/force-action`, {
+    method: 'POST',
+    credentials: 'include'
+  })
+  await refreshList()  // Refresh after action
+}
+
+async function handleDelete(item: any) {
+  if (!confirm(`Delete ${item.name}? This cannot be undone.`)) {
+    return
+  }
+  
+  const response = await fetch(`/api/items/${item.id}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  })
+  
+  if (response.ok) {
+    await refreshList()
+  }
+}
+</script>
+```
+
+**Styling Best Practices:**
+
+```scss
+.actions-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;  // Above other elements
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  
+  button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    
+    &:hover {
+      background: var(--bg-hover);
+    }
+    
+    &.action-danger {
+      color: var(--danger-color);
+      
+      &:hover {
+        background: rgba(255, 0, 0, 0.1);
+      }
+    }
+  }
+}
+```
+
+### Confirmation Dialogs for Destructive Actions
+
+**ALWAYS** confirm before DELETE operations:
+
+```typescript
+// ✅ CORRECT: Confirm with clear message
+async function handleDelete(item: any) {
+  if (!confirm(`Delete ${item.display_name}? This action cannot be undone.`)) {
+    return  // User cancelled
+  }
+  
+  // Proceed with deletion
+  await deleteItem(item.id)
+}
+
+// ❌ WRONG: No confirmation
+async function handleDelete(item: any) {
+  await deleteItem(item.id)  // Too easy to accidentally delete!
+}
+```
+
+**Message Guidelines:**
+- State what will be deleted
+- Mention if data will be lost
+- Use "cannot be undone" for permanent deletions
+- Keep under 80 characters
+
+### Live Stream Info Display
+
+When showing live streamer information, follow this pattern:
+
+**Backend Normalization:**
+
+```python
+@router.get("/api/streamers")
+async def get_streamers(...):
+    return {
+        "streamers": [{
+            "id": streamer.id,
+            "username": streamer.username,
+            "display_name": streamer.username,  # Frontend needs this
+            "is_live": streamer.is_live,
+            # Only show when live:
+            "title": streamer.title if streamer.is_live else None,
+            "category_name": streamer.category_name if streamer.is_live else None,
+            "viewer_count": streamer.viewer_count if streamer.is_live else None
+        }]
+    }
+```
+
+**Frontend Display:**
+
+```vue
+<template>
+  <div class="streamer-card" :class="{ 'is-live': streamer.is_live }">
+    <div class="status-badge" v-if="streamer.is_live">
+      <span class="live-dot"></span> LIVE
+    </div>
+    
+    <!-- Only show when live -->
+    <div v-if="streamer.is_live && streamer.title" class="stream-info">
+      <h3>{{ truncateText(streamer.title, 50) }}</h3>
+      <p class="game-name">{{ streamer.category_name }}</p>
+      <span class="viewers">{{ streamer.viewer_count }} viewers</span>
+    </div>
+    
+    <!-- Show when offline -->
+    <div v-else class="offline-info">
+      <p>Offline - {{ streamer.vods_count || 0 }} VODs</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
+}
+</script>
+
+<style scoped>
+.is-live {
+  .status-badge {
+    background: rgba(255, 0, 0, 0.1);
+    color: #ff0000;
+    font-weight: bold;
+  }
+  
+  .live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff0000;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  .viewers {
+    color: #ff0000;
+    font-weight: bold;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>
+```
+
+### Login Redirect Delay Pattern
+
+**CRITICAL**: After successful login, delay redirect to ensure session cookie persistence:
+
+```typescript
+// ✅ CORRECT: Delay before redirect
+if (response.ok) {
+  // Wait for cookie to be set
+  await new Promise(resolve => setTimeout(resolve, 100))
+  
+  // Full page reload to ensure session is active
+  window.location.href = '/'
+}
+
+// ❌ WRONG: Immediate redirect can cause blank page
+if (response.ok) {
+  window.location.href = '/'  // Cookie not yet persisted!
+}
+```
+
+**Why this is necessary:**
+- Browser needs time to persist HTTP-only cookie
+- Immediate redirect can happen before cookie is written
+- Results in blank page / 401 errors on first load after login
+
+**Related Commit:** 66b90ced
+
 ---
 
 **Remember**: The commit type determines the version bump! Choose wisely:

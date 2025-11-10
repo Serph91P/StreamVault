@@ -158,7 +158,9 @@ const fetchCategories = async () => {
   error.value = null;
   
   try {
-    const response = await fetch('/api/categories');
+    const response = await fetch('/api/categories', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    });
     
     if (!response.ok) {
       // Check for specific HTTP error codes
@@ -241,6 +243,7 @@ const toggleFavorite = async (category: Category) => {
     
     const response = await fetch(endpoint, {
       method,
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Content-Type': 'application/json'
       },
