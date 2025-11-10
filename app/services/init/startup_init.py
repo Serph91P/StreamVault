@@ -231,7 +231,7 @@ async def cleanup_zombie_recordings():
         
         from app.database import SessionLocal
         from app.models import Recording
-        from datetime import datetime, timedelta
+        from datetime import datetime, timezone
         
         with SessionLocal() as db:
             # Find all recordings with 'recording' status
@@ -246,15 +246,29 @@ async def cleanup_zombie_recordings():
             cleaned_count = 0
             for recording in zombie_recordings:
                 try:
+                    # CRITICAL: Use timezone-aware datetime to match database timestamps
+                    # Database stores timestamps with timezone (PostgreSQL TIMESTAMP WITH TIME ZONE)
+                    now_utc = datetime.now(timezone.utc)
+                    
                     # Calculate duration if available
                     duration = None
                     if recording.start_time:
-                        end_time = recording.end_time or datetime.now()
-                        duration = int((end_time - recording.start_time).total_seconds())
+                        # Ensure end_time is timezone-aware
+                        end_time = recording.end_time or now_utc
+                        
+                        # Both datetimes must be timezone-aware for subtraction
+                        if recording.start_time.tzinfo is None:
+                            # If start_time is naive, assume UTC
+                            from datetime import timezone as tz
+                            start_time_aware = recording.start_time.replace(tzinfo=tz.utc)
+                        else:
+                            start_time_aware = recording.start_time
+                        
+                        duration = int((end_time - start_time_aware).total_seconds())
                     
                     # Mark as stopped (not failed, because the recording may have been successful)
                     recording.status = 'stopped'
-                    recording.end_time = recording.end_time or datetime.now()
+                    recording.end_time = recording.end_time or now_utc
                     if duration:
                         recording.duration_seconds = duration
                     
