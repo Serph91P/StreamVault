@@ -169,6 +169,8 @@
           :streamer="streamer"
           :view-mode="viewMode"
           @click="navigateToDetail(streamer)"
+          @force-record="handleForceRecord"
+          @delete="handleDelete"
         />
       </div>
     </div>
@@ -355,6 +357,43 @@ function navigateToDetail(streamer: any) {
     params: { id: streamer.id },
     query: { name: streamer.name }
   })
+}
+
+// Handle force record action
+async function handleForceRecord(streamer: any) {
+  try {
+    // Call the force record API
+    await fetch(`/api/streamers/${streamer.id}/force-record`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    // Refresh streamers to show updated status
+    await fetchStreamers()
+  } catch (error) {
+    console.error('Failed to force record:', error)
+  }
+}
+
+// Handle delete streamer action
+async function handleDelete(streamer: any) {
+  if (!confirm(`Are you sure you want to delete ${streamer.display_name || streamer.username}? This will remove all recordings and settings.`)) {
+    return
+  }
+  
+  try {
+    const response = await fetch(`/api/streamers/${streamer.id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      // Refresh streamers list
+      await fetchStreamers()
+    }
+  } catch (error) {
+    console.error('Failed to delete streamer:', error)
+  }
 }
 
 // Lifecycle

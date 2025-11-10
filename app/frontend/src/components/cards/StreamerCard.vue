@@ -84,30 +84,54 @@
           @click.stop="handleWatch"
           class="btn-action btn-watch"
           aria-label="Watch stream"
+          title="Watch live stream"
         >
           <svg class="icon">
             <use href="#icon-video" />
           </svg>
         </button>
 
-        <!-- Settings button links to streamer detail page -->
-        <router-link
-          :to="`/streamers/${streamer.id}`"
+        <!-- Actions dropdown trigger -->
+        <button
+          @click.stop="toggleActions"
           class="btn-action btn-edit"
-          :aria-label="`View ${streamer.display_name || streamer.username} details`"
-          @click.stop
+          :class="{ active: showActions }"
+          :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
+          title="More actions"
         >
           <svg class="icon">
-            <use href="#icon-settings" />
+            <use href="#icon-more-vertical" />
           </svg>
-        </router-link>
+        </button>
+
+        <!-- Actions dropdown menu -->
+        <div v-if="showActions" class="actions-dropdown" @click.stop>
+          <button @click="handleForceRecord" class="action-item">
+            <svg class="icon">
+              <use href="#icon-video" />
+            </svg>
+            Force Record
+          </button>
+          <button @click="handleViewDetails" class="action-item">
+            <svg class="icon">
+              <use href="#icon-eye" />
+            </svg>
+            View Details
+          </button>
+          <button @click="handleDelete" class="action-item action-danger">
+            <svg class="icon">
+              <use href="#icon-trash" />
+            </svg>
+            Delete Streamer
+          </button>
+        </div>
       </div>
     </div>
   </GlassCard>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import GlassCard from './GlassCard.vue'
 
@@ -137,9 +161,12 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   watch: [streamer: Streamer]
+  forceRecord: [streamer: Streamer]
+  delete: [streamer: Streamer]
 }>()
 
 const router = useRouter()
+const showActions = ref(false)
 
 const isLive = computed(() => props.streamer.is_live || false)
 
@@ -176,6 +203,25 @@ const truncateText = (text: string, maxLength: number) => {
 
 const handleClick = () => {
   router.push(`/streamers/${props.streamer.id}`)
+}
+
+const toggleActions = () => {
+  showActions.value = !showActions.value
+}
+
+const handleForceRecord = () => {
+  showActions.value = false
+  emit('forceRecord', props.streamer)
+}
+
+const handleViewDetails = () => {
+  showActions.value = false
+  router.push(`/streamers/${props.streamer.id}`)
+}
+
+const handleDelete = () => {
+  showActions.value = false
+  emit('delete', props.streamer)
 }
 
 const handleWatch = () => {
@@ -356,6 +402,7 @@ const handleWatch = () => {
   display: flex;
   gap: var(--spacing-2);
   flex-shrink: 0;
+  position: relative;
 }
 
 .btn-action {
@@ -387,6 +434,11 @@ const handleWatch = () => {
     transform: translateY(-2px);
   }
 
+  &.active {
+    background: rgba(var(--primary-500-rgb), 0.3);
+    border-color: var(--primary-color);
+  }
+
   &:active {
     transform: translateY(0);
   }
@@ -408,6 +460,66 @@ const handleWatch = () => {
   &:hover {
     background: var(--danger-600);
     border-color: var(--danger-600);
+  }
+}
+
+.actions-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--spacing-2);
+  
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  
+  min-width: 180px;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.action-item {
+  width: 100%;
+  padding: var(--spacing-3) var(--spacing-4);
+  
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-primary);
+  text-align: left;
+  
+  cursor: pointer;
+  transition: background v.$duration-200 v.$ease-out;
+  
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background: rgba(var(--primary-500-rgb), 0.1);
+  }
+  
+  &.action-danger {
+    color: var(--danger-color);
+    
+    &:hover {
+      background: rgba(var(--danger-500-rgb), 0.1);
+    }
   }
 }
 
