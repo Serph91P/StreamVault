@@ -120,12 +120,13 @@ async def get_streamers(streamer_service: StreamerService = Depends(get_streamer
             "id": streamer.id,
             "twitch_id": streamer.twitch_id,
             "username": streamer.username,
+            "display_name": streamer.username,  # Fallback to username if no display_name
             "is_live": streamer.is_live,
             "is_recording": streamer.is_recording,
             "recording_enabled": streamer.recording_enabled,
             "active_stream_id": streamer.active_stream_id,
-            "title": streamer.title,
-            "category_name": streamer.category_name,
+            "title": streamer.title if streamer.is_live else None,  # Only show title when live
+            "category_name": streamer.category_name if streamer.is_live else None,  # Only show game when live
             "language": streamer.language,
             "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
             "profile_image_url": unified_image_service.get_profile_image_url(
@@ -428,12 +429,36 @@ async def delete_streamer(
         )
 
 @router.get("/streamer/{streamer_id}")
-async def get_streamer(streamer_id: str, streamer_service: StreamerService = Depends(get_streamer_service)):
+async def get_streamer(streamer_id: str, streamer_service: StreamerService = Depends(get_streamer_service), db: Session = Depends(get_db)):
     """Get detailed information about a specific streamer"""
-    streamer_info = await streamer_service.get_streamer_info(streamer_id)
-    if not streamer_info:
+    # Get streamer from database first
+    streamer = db.query(Streamer).filter(Streamer.id == int(streamer_id)).first()
+    if not streamer:
         raise HTTPException(status_code=404, detail="Streamer not found")
-    return streamer_info
+    
+    # Get cached profile image URL
+    profile_image_url = unified_image_service.get_profile_image_url(
+        streamer.id,
+        streamer.profile_image_url
+    )
+    
+    # Return normalized format for frontend
+    return {
+        "id": streamer.id,
+        "twitch_id": streamer.twitch_id,
+        "name": streamer.username,  # Frontend expects 'name'
+        "username": streamer.username,
+        "display_name": streamer.username,  # Fallback to username
+        "is_live": streamer.is_live,
+        "is_recording": streamer.is_recording,
+        "recording_enabled": streamer.recording_enabled,
+        "title": streamer.current_stream_title if streamer.is_live else None,
+        "category_name": streamer.current_category_name if streamer.is_live else None,
+        "profile_image_url": profile_image_url,
+        "original_profile_image_url": streamer.profile_image_url,
+        "description": None,  # TODO: Store description in DB if needed
+        "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None
+    }
 
 @router.get("/subscriptions")
 async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):

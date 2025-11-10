@@ -32,14 +32,29 @@
 
       <!-- Streamer Info -->
       <div class="streamer-info">
-        <h3 class="streamer-name">{{ streamer.display_name || streamer.username }}</h3>
-        <p v-if="streamer.description" class="streamer-description">
+        <h3 class="streamer-name" :title="streamer.display_name || streamer.username">
+          {{ streamer.display_name || streamer.username }}
+        </h3>
+        
+        <!-- Live Stream Info -->
+        <div v-if="isLive && streamer.title" class="live-info">
+          <p class="stream-title">{{ truncateText(streamer.title, 60) }}</p>
+          <p v-if="streamer.category_name" class="stream-category">
+            <svg class="category-icon">
+              <use href="#icon-gamepad" />
+            </svg>
+            {{ streamer.category_name }}
+          </p>
+        </div>
+        
+        <!-- Offline Description -->
+        <p v-else-if="streamer.description" class="streamer-description">
           {{ truncatedDescription }}
         </p>
 
         <!-- Stats -->
         <div class="streamer-stats">
-          <div v-if="isLive && currentStream" class="stat">
+          <div v-if="isLive && currentStream" class="stat stat-live">
             <svg class="stat-icon">
               <use href="#icon-users" />
             </svg>
@@ -50,12 +65,12 @@
             <svg class="stat-icon">
               <use href="#icon-video" />
             </svg>
-            <span>{{ streamer.recording_count }}</span>
+            <span>{{ streamer.recording_count }} VODs</span>
           </div>
 
           <div v-if="lastStreamTime" class="stat stat-time">
             <svg class="stat-icon">
-              <use href="#icon-radio" />
+              <use href="#icon-clock" />
             </svg>
             <span>{{ lastStreamTime }}</span>
           </div>
@@ -104,6 +119,8 @@ interface Streamer {
   recording_count?: number
   is_live?: boolean
   last_stream_time?: string
+  title?: string  // Stream title when live
+  category_name?: string  // Game/category when live
 }
 
 interface Stream {
@@ -149,6 +166,11 @@ const formatViewers = (count?: number) => {
   if (!count) return '0'
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
   return count.toString()
+}
+
+const truncateText = (text: string, maxLength: number) => {
+  if (!text || text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
 }
 
 const handleClick = () => {
@@ -272,6 +294,35 @@ const handleWatch = () => {
   margin: 0 0 var(--spacing-3) 0;
 }
 
+.live-info {
+  margin: 0 0 var(--spacing-3) 0;
+}
+
+.stream-title {
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-primary);
+  line-height: v.$leading-snug;
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.stream-category {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.category-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+}
+
 .streamer-stats {
   display: flex;
   gap: var(--spacing-4);
@@ -292,6 +343,11 @@ const handleWatch = () => {
     stroke: currentColor;
     fill: none;
   }
+}
+
+.stat-live {
+  color: var(--danger-color);
+  font-weight: v.$font-semibold;
 }
 
 .stat-time {
