@@ -34,6 +34,19 @@ jobs:
         id: branch_name
         run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
       
+      - name: Get latest version tag
+        id: get_version
+        run: |
+          # Get latest version tag from ALL branches (not just current)
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n1 | sed 's/^v//')
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="1.0.0"
+            echo "No version tags found, starting with $LATEST_TAG"
+          else
+            echo "Latest version tag: v$LATEST_TAG"
+          fi
+          echo "current_version=$LATEST_TAG" >> $GITHUB_OUTPUT
+      
       - name: Determine version bump
         id: semver
         uses: paulhatch/semantic-version@v5.4.0
@@ -49,23 +62,26 @@ jobs:
           search_commit_body: true
           user_format_type: "csv"
           debug: true
+          # Allow version calculation even without matching tags on current branch
+          enable_prerelease_mode: false
 
       - name: Set final version
         id: version
         run: |
           echo "=== Version Detection ==="
           echo "Version from semver: ${{ steps.semver.outputs.version }}"
+          echo "Current version (manual): ${{ steps.get_version.outputs.current_version }}"
           echo "Major: ${{ steps.semver.outputs.major }}"
           echo "Minor: ${{ steps.semver.outputs.minor }}"
           echo "Patch: ${{ steps.semver.outputs.patch }}"
           
-          if [ -n "${{ steps.semver.outputs.version }}" ]; then
+          if [ -n "${{ steps.semver.outputs.version }}" ] && [ "${{ steps.semver.outputs.version }}" != "0.0.0" ]; then
             NEW_VERSION="${{ steps.semver.outputs.version }}"
             echo "✅ Using semantic version: $NEW_VERSION"
           else
-            # Fallback: Get latest tag and bump patch
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
-            echo "Latest tag: $LATEST_TAG"
+            # Fallback: Use manually retrieved latest tag and bump based on commit message
+            LATEST_TAG="${{ steps.get_version.outputs.current_version }}"
+            echo "⚠️ Semantic version unavailable, using fallback with latest tag: $LATEST_TAG"
             IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
             
             # Check commit message for bump type
