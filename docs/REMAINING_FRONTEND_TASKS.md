@@ -644,6 +644,269 @@ Available icons (check sprite):
 
 ---
 
+### Issue #11: Recording Animation in Streamer Overview (Grid)
+**Status:** 🟡 NOT STARTED  
+**Priority:** MEDIUM - Visual consistency  
+**Estimated Time:** 1-2 hours
+
+**Problem:**
+In der Streamer-Übersicht (Grid) fehlt die pulsierende Animation beim Aufnehmen. Es gibt nur eine statische rote Umrandung.
+
+**Current Behavior:**
+```
+Streamer Detail View:
+✅ Pulsierende Animation bei Aufnahme (funktioniert)
+
+Streamer Overview (Grid/Cards):
+❌ Nur rote Umrandung, KEINE Animation
+```
+
+**Expected Behavior:**
+Gleicher pulsierender Effekt wie in der Streamer-Detail-Ansicht, damit man in der Übersicht sofort sieht dass aufgenommen wird.
+
+**Solution:**
+
+**1. Locate Streamer Detail View Animation**
+File: `app/frontend/src/views/StreamerDetailView.vue` (or similar)
+
+Find the working pulsing animation:
+```scss
+// COPY THESE animations from Detail View
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.streamer-header.is-recording {
+  border: 2px solid var(--danger-color);
+  animation: pulse-border 2s ease-in-out infinite;
+  
+  .recording-badge {
+    animation: pulse-recording 2s ease-in-out infinite;
+  }
+}
+```
+
+**2. Apply to StreamerCard Component**
+
+File: `app/frontend/src/components/cards/StreamerCard.vue`
+
+Current (BROKEN - no animation):
+```scss
+.streamer-card {
+  &.is-live {
+    :deep(.glass-card-content) {
+      border: 2px solid var(--danger-color);  // Static border
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), var(--shadow-md);
+    }
+  }
+}
+```
+
+Fixed (WITH animation):
+```scss
+// Add keyframes at component level
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.streamer-card {
+  // Live indicator (static)
+  &.is-live {
+    :deep(.glass-card-content) {
+      border: 2px solid var(--danger-color);
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), var(--shadow-md);
+    }
+  }
+  
+  // Recording indicator (PULSING)
+  &.is-recording {
+    :deep(.glass-card-content) {
+      border: 2px solid var(--danger-color);
+      animation: pulse-border 2s ease-in-out infinite;  // ADD THIS
+    }
+    
+    .live-badge,
+    .recording-badge {
+      animation: pulse-recording 2s ease-in-out infinite;  // ADD THIS
+    }
+  }
+}
+```
+
+**3. Ensure Component Has `is-recording` Class**
+
+Check template:
+```vue
+<template>
+  <GlassCard
+    @click="handleClick"
+    class="streamer-card"
+    :class="{ 
+      'is-live': isLive,
+      'is-recording': isRecording  <!-- ENSURE THIS EXISTS -->
+    }"
+  >
+    <!-- ... -->
+  </GlassCard>
+</template>
+
+<script setup lang="ts">
+const isRecording = computed(() => {
+  // Check if actively recording
+  return props.streamer.is_recording || 
+         props.streamer.current_stream?.status === 'recording'
+})
+</script>
+```
+
+**4. Alternative: Check if Badge Needs Animation**
+
+Find the recording/live badge element:
+```vue
+<div v-if="isLive" class="live-badge">
+  <span class="live-indicator"></span>
+  <span class="live-text">LIVE</span>
+</div>
+
+<!-- Or if there's a separate recording badge -->
+<div v-if="isRecording" class="recording-badge">
+  <span class="recording-dot"></span>
+  <span class="recording-text">RECORDING</span>
+</div>
+```
+
+Apply animation to badge:
+```scss
+.live-badge,
+.recording-badge {
+  .live-indicator,
+  .recording-dot {
+    // Pulsing dot
+    animation: pulse-recording 2s ease-in-out infinite;
+  }
+}
+
+.streamer-card.is-recording {
+  .live-badge,
+  .recording-badge {
+    // Entire badge pulses when recording
+    animation: pulse-recording 2s ease-in-out infinite;
+  }
+}
+```
+
+**Implementation Steps:**
+1. Open StreamerDetailView.vue and copy the working pulse animations
+2. Add keyframes to StreamerCard.vue
+3. Add `.is-recording` class logic to card
+4. Apply `pulse-border` animation to card border
+5. Apply `pulse-recording` animation to badge/indicator
+6. Test with active recording
+7. Verify animation matches Detail View exactly
+
+**Testing Checklist:**
+- [ ] Recording badge pulses in grid view (opacity + scale)
+- [ ] Red border pulses with shadow effect in grid
+- [ ] Animation timing matches Detail View (2s ease-in-out)
+- [ ] Animation stops when recording ends
+- [ ] No animation when only live (not recording)
+- [ ] Looks good in both light and dark mode
+- [ ] Works in both grid and list view
+
+**Files to Modify:**
+- `app/frontend/src/components/cards/StreamerCard.vue` (add animations)
+- Copy animations from: `app/frontend/src/views/StreamerDetailView.vue`
+
+**Alternative: Extract to Shared SCSS**
+
+If animations are used in multiple places, extract to `_animations.scss`:
+
+File: `app/frontend/src/styles/_animations.scss` (create if needed)
+
+```scss
+// Recording pulse animations - shared across components
+
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+// Mixin for recording state
+@mixin recording-state {
+  &.is-recording {
+    border: 2px solid var(--danger-color);
+    animation: pulse-border 2s ease-in-out infinite;
+    
+    .recording-badge,
+    .live-badge {
+      animation: pulse-recording 2s ease-in-out infinite;
+    }
+  }
+}
+```
+
+Then import in both files:
+```scss
+@use '../styles/animations' as anim;
+
+.streamer-card {
+  @include anim.recording-state;
+}
+
+.streamer-header {
+  @include anim.recording-state;
+}
+```
+
+---
+
 ## 🟢 LOW PRIORITY / NICE TO HAVE
 
 ### Issue #10: Settings View Complete Overhaul
