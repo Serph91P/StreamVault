@@ -208,21 +208,6 @@
             <div class="card-content">
               <div class="setting-item">
                 <div class="setting-info">
-                  <label class="setting-label">API URL</label>
-                  <p class="setting-description">Backend API endpoint (requires restart)</p>
-                </div>
-                <div class="setting-control">
-                  <input
-                    type="text"
-                    v-model="apiUrl"
-                    class="text-input"
-                    placeholder="http://localhost:8000"
-                  />
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
                   <label class="setting-label">Debug Mode</label>
                   <p class="setting-description">Enable detailed logging and debugging</p>
                 </div>
@@ -372,7 +357,6 @@ const { theme, setTheme } = useTheme()
 const animationsEnabled = ref(true)
 
 // Advanced settings
-const apiUrl = ref('')
 const debugMode = ref(false)
 
 // Notification settings composable

@@ -4,6 +4,69 @@ applyTo: "app/frontend/**/*.vue,app/frontend/**/*.ts,app/frontend/**/*.scss"
 
 # Frontend Development Guidelines
 
+## API Communication (CRITICAL)
+
+### Session Authentication - credentials:'include' (MANDATORY)
+
+**CRITICAL RULE**: ALL fetch() calls MUST include `credentials: 'include'` to send session cookies!
+
+**Why this is critical:**
+- Session cookies are NOT sent by default in fetch() requests
+- Without `credentials: 'include'`, backend returns 401 Unauthorized
+- Results in empty data, TypeErrors on array operations, blank pages
+
+**Pattern for ALL API calls:**
+
+```typescript
+// ✅ CORRECT: GET requests
+const response = await fetch('/api/streamers', {
+  credentials: 'include'  // CRITICAL!
+})
+
+// ✅ CORRECT: POST/PUT/DELETE requests
+const response = await fetch('/api/settings', {
+  method: 'POST',
+  credentials: 'include',  // CRITICAL!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(data)
+})
+
+// ✅ CORRECT: Auth endpoints
+const response = await fetch('/auth/login', {
+  method: 'POST',
+  credentials: 'include',  // CRITICAL!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, password })
+})
+```
+
+**❌ NEVER forget credentials:**
+```typescript
+// ❌ WRONG: No credentials = 401 errors
+await fetch('/api/streamers')  // Session cookie not sent!
+
+// ❌ WRONG: Composables fail without credentials
+const { streamers } = useStreamers()  // Will be empty if fetch missing credentials
+```
+
+**Checklist for new composables/API calls:**
+- [ ] Added `credentials: 'include'` to ALL fetch() calls
+- [ ] Tested after login that data loads
+- [ ] Tested page refresh - session persists
+- [ ] No 401 errors in dev console
+- [ ] No TypeErrors on .filter()/.sort()
+
+**Affected Patterns:**
+- All composables: `use*.ts` files making API calls
+- Auth flows: LoginView, Router guards
+- Settings panels: Notification, Recording, PWA
+- Data fetching: Streamers, Streams, Categories
+
+**Related Commits:**
+- c37d167f - Initial auth guard fixes
+- 06bc13b1 - All composable fetch() calls fixed
+- 66b90ced - Login redirect delay fix
+
 ## Component Architecture
 
 - Use Vue 3 Composition API with `<script setup lang="ts">`

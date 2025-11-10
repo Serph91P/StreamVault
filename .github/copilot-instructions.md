@@ -211,7 +211,108 @@ This repository uses path-specific instructions for detailed guidelines:
 
 **ALWAYS** apply these security checks when working with file paths, user input, or external data:
 
-#### 🔒 Path Traversal Prevention (CRITICAL)
+#### � Session Authentication - credentials:'include' (CRITICAL)
+
+**CRITICAL RULE**: ALL fetch() calls MUST include `credentials: 'include'` to send session cookies!
+
+**Why this is critical:**
+- HTTP cookies (session tokens) are NOT sent by default in fetch() requests
+- Without `credentials: 'include'`, the browser doesn't send the session cookie
+- Backend returns 401 Unauthorized → Empty data → TypeErrors on array operations
+
+**Symptoms of missing credentials:**
+```javascript
+// 401 errors in console
+Failed to fetch streamers status {}
+Failed to fetch streams status {}
+TypeError: v.value.filter is not a function  // Empty {} instead of []
+```
+
+**ALWAYS include credentials in ALL fetch calls:**
+
+```typescript
+// ✅ CORRECT: Login/Auth endpoints
+const response = await fetch('/auth/login', {
+  method: 'POST',
+  credentials: 'include',  // CRITICAL!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, password })
+})
+
+// ✅ CORRECT: API endpoints (GET)
+const response = await fetch('/api/streamers', {
+  credentials: 'include'  // CRITICAL!
+})
+
+// ✅ CORRECT: API endpoints (POST/PUT/DELETE)
+const response = await fetch('/api/settings', {
+  method: 'POST',
+  credentials: 'include',  // CRITICAL!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(data)
+})
+
+// ✅ CORRECT: Router auth guards
+const authResponse = await fetch('/auth/check', {
+  credentials: 'include',  // CRITICAL!
+  headers: { 'X-Requested-With': 'XMLHttpRequest' }
+})
+```
+
+**❌ NEVER omit credentials:**
+```typescript
+// ❌ WRONG: No credentials = No session cookie sent
+await fetch('/api/streamers')  // Returns 401!
+
+// ❌ WRONG: Will fail auth even after successful login
+await fetch('/api/settings', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' }
+  // Missing credentials: 'include'!
+})
+```
+
+**Checklist for new API calls:**
+- [ ] Added `credentials: 'include'` to fetch options
+- [ ] Tested login → API call → Data loads
+- [ ] Tested page refresh → Session persists
+- [ ] No 401 errors in dev console
+- [ ] No TypeErrors on .filter()/.sort() (empty data)
+
+**Login Redirect Pattern:**
+```typescript
+// ✅ CORRECT: Delay before redirect to ensure cookie persistence
+if (response.ok) {
+  await new Promise(resolve => setTimeout(resolve, 100))
+  window.location.href = '/'  // Full page reload with session
+}
+
+// ❌ WRONG: Immediate redirect can cause blank page
+if (response.ok) {
+  window.location.href = '/'  // Cookie not yet persisted!
+}
+```
+
+**Affected Files Checklist:**
+- ✅ `LoginView.vue` - Login request
+- ✅ `router/index.ts` - /auth/check, /auth/setup
+- ✅ `useAuth.ts` - Auth composable
+- ✅ `useSystemAndRecordingStatus.ts` - All status endpoints
+- ✅ `useStreamers.ts` - Streamer CRUD
+- ✅ `useStreams.ts` - Stream history
+- ✅ `useRecordingSettings.ts` - Recording config (11 calls!)
+- ✅ `useNotificationSettings.ts` - Notification config
+- ✅ `usePWA.ts` - Push notifications
+- ✅ `useBackgroundQueue.ts` - Task management
+- ✅ `useCategoryImages.ts` - Image fetching
+- ✅ `useFilenamePresets.ts` - Filename templates
+
+**Related Issues:**
+- Commits: c37d167f (initial fix), 06bc13b1 (composables), 66b90ced (login delay)
+- Production bug: Empty Home/Streamers/Settings after login
+- Root cause: 41 fetch() calls missing credentials flag
+
+#### �🔒 Path Traversal Prevention (CRITICAL)
 All file path operations MUST be validated against path traversal attacks:
 
 ```python
