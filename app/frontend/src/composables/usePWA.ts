@@ -115,7 +115,9 @@ export function usePWA() {
       if (!subscription) {
         console.log('🔔 Fetching VAPID public key...')
         // Generate VAPID keys on server side and use the public key here
-        const response = await fetch('/api/push/vapid-public-key')
+        const response = await fetch('/api/push/vapid-public-key', {
+          credentials: 'include' // CRITICAL: Required to send session cookie
+        })
         const { publicKey } = await response.json()
         console.log('🔔 VAPID public key received:', publicKey?.substring(0, 20) + '...')
 
@@ -138,6 +140,7 @@ export function usePWA() {
       // Send subscription to server
       const serverResponse = await fetch('/api/push/subscribe', {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
@@ -173,6 +176,7 @@ export function usePWA() {
         // Notify server
         await fetch('/api/push/unsubscribe', {
           method: 'POST',
+          credentials: 'include', // CRITICAL: Required to send session cookie
           headers: {
             'Content-Type': 'application/json'
           },

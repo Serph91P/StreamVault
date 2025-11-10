@@ -106,7 +106,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/system${cacheParam}`)
+      const response = await fetch(`/api/status/system${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -130,7 +132,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/active-recordings${cacheParam}`)
+      const response = await fetch(`/api/status/active-recordings${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -154,7 +158,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streamers${cacheParam}`)
+      const response = await fetch(`/api/status/streamers${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -178,7 +184,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streams${cacheParam}`)
+      const response = await fetch(`/api/status/streams${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -202,7 +210,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/notifications${cacheParam}`)
+      const response = await fetch(`/api/status/notifications${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)

@@ -84,7 +84,7 @@
 
       <!-- Footer -->
       <div class="login-footer">
-        <p>First time here? The default credentials are in the setup guide.</p>
+        <p>First time here? Please use Setup to create credentials</p>
       </div>
     </div>
 

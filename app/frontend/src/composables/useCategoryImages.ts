@@ -66,7 +66,9 @@ export function useCategoryImages() {
     try {
       pendingRequests.add(categoryName)
       
-      const response = await fetch(`/api/categories/image/${encodeURIComponent(categoryName)}`)
+      const response = await fetch(`/api/categories/image/${encodeURIComponent(categoryName)}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (response.ok) {
         const data = await response.json()
         
@@ -95,6 +97,7 @@ export function useCategoryImages() {
     try {
       const response = await fetch('/api/categories/preload-images', {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
@@ -113,7 +116,9 @@ export function useCategoryImages() {
 
   const getCacheStatus = async () => {
     try {
-      const response = await fetch('/api/categories/cache-status')
+      const response = await fetch('/api/categories/cache-status', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (response.ok) {
         return await response.json()
       }
@@ -126,6 +131,7 @@ export function useCategoryImages() {
     try {
       const response = await fetch('/api/categories/refresh-images', {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
