@@ -10,44 +10,45 @@
     :class="{ 'actions-open': showActions }"
   >
     <div class="streamer-card-content">
-      <!-- Avatar/Thumbnail -->
-      <div class="streamer-avatar" :class="{ 'is-live': isLive }">
-        <img
-          v-if="streamer.profile_image_url || streamer.avatar"
-          :src="streamer.profile_image_url || streamer.avatar"
-          :alt="streamer.display_name || streamer.username"
-          loading="lazy"
-        />
-        <div v-else class="avatar-placeholder">
-          <svg class="icon-user">
-            <use href="#icon-users" />
-          </svg>
-        </div>
+      <!-- Avatar/Thumbnail - CENTERED -->
+      <div class="streamer-avatar-container">
+        <div class="streamer-avatar" :class="{ 'is-live': isLive }">
+          <img
+            v-if="streamer.profile_image_url || streamer.avatar"
+            :src="streamer.profile_image_url || streamer.avatar"
+            :alt="streamer.display_name || streamer.username"
+            loading="lazy"
+          />
+          <div v-else class="avatar-placeholder">
+            <svg class="icon-user">
+              <use href="#icon-users" />
+            </svg>
+          </div>
 
-        <!-- Live Badge -->
-        <div v-if="isLive" class="live-badge" :class="{ 'is-recording': streamer.is_recording }">
-          <span class="live-indicator"></span>
-          <span class="live-text">LIVE</span>
+          <!-- Live Badge -->
+          <div v-if="isLive" class="live-badge" :class="{ 'is-recording': streamer.is_recording }">
+            <span class="live-indicator"></span>
+            <span class="live-text">LIVE</span>
+          </div>
         </div>
       </div>
 
-      <!-- Streamer Info -->
-      <div class="streamer-info">
-        <!-- Streamer Name - ALWAYS visible, links to Twitch -->
-        <a 
-          :href="`https://twitch.tv/${streamer.username}`" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          class="streamer-name-link"
-          @click.stop
-          :title="`Open ${streamer.display_name || streamer.username} on Twitch`"
-        >
-          <h3 class="streamer-name">
-            {{ streamer.display_name || streamer.username }}
-          </h3>
-        </a>
-        
-        <!-- Live Stream Info -->
+      <!-- Streamer Name - ALWAYS VISIBLE, FULL WIDTH, MAX 2 LINES -->
+      <a 
+        :href="`https://twitch.tv/${streamer.username}`" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        class="streamer-name-link"
+        @click.stop
+        :title="`Open ${streamer.display_name || streamer.username} on Twitch`"
+      >
+        <h3 class="streamer-name">
+          {{ streamer.display_name || streamer.username }}
+        </h3>
+      </a>
+      
+      <!-- Live Stream Info OR Offline Info -->
+      <div class="stream-info-container">
         <div v-if="isLive && streamer.title" class="live-info">
           <p class="stream-title" :title="streamer.title">{{ truncateText(streamer.title, 60) }}</p>
           <p v-if="streamer.category_name" class="stream-category">
@@ -62,35 +63,34 @@
         <p v-else-if="streamer.description" class="streamer-description">
           {{ truncatedDescription }}
         </p>
+      </div>
 
-        <!-- Stats -->
-        <div class="streamer-stats">
-          <div v-if="isLive && currentStream" class="stat stat-live">
-            <svg class="stat-icon">
-              <use href="#icon-users" />
-            </svg>
-            <span>{{ formatViewers(currentStream.viewer_count) }}</span>
-          </div>
+      <!-- Stats - AT BOTTOM -->
+      <div class="streamer-stats">
+        <div v-if="isLive && currentStream" class="stat stat-live">
+          <svg class="stat-icon">
+            <use href="#icon-users" />
+          </svg>
+          <span>{{ formatViewers(currentStream.viewer_count) }}</span>
+        </div>
 
-          <div v-if="streamer.recording_count" class="stat">
-            <svg class="stat-icon">
-              <use href="#icon-video" />
-            </svg>
-            <span>{{ streamer.recording_count }} VODs</span>
-          </div>
+        <div v-if="streamer.recording_count" class="stat">
+          <svg class="stat-icon">
+            <use href="#icon-video" />
+          </svg>
+          <span>{{ streamer.recording_count }} VODs</span>
+        </div>
 
-          <div v-if="lastStreamTime" class="stat stat-time">
-            <svg class="stat-icon">
-              <use href="#icon-clock" />
-            </svg>
-            <span>{{ lastStreamTime }}</span>
-          </div>
+        <div v-if="lastStreamTime" class="stat stat-time">
+          <svg class="stat-icon">
+            <use href="#icon-clock" />
+          </svg>
+          <span>{{ lastStreamTime }}</span>
         </div>
       </div>
 
-      <!-- Actions -->
+      <!-- Actions Dropdown - TOP RIGHT CORNER -->
       <div class="streamer-actions">
-        <!-- Actions dropdown trigger -->
         <button
           ref="moreButtonRef"
           @click.stop="toggleActions"
@@ -304,8 +304,8 @@ onUnmounted(() => {
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-5);
-    min-height: 240px;  /* INCREASED: Consistent card height for grid */
-    max-height: 280px;  /* NEW: Prevent cards from growing too tall */
+    min-height: 280px;  /* INCREASED: More space for vertical layout */
+    max-height: 320px;  /* NEW: Prevent cards from growing too tall */
     overflow: visible;  /* CRITICAL: Allow dropdown to overflow */
     display: flex;
     flex-direction: column;
@@ -319,17 +319,28 @@ onUnmounted(() => {
 }
 
 .streamer-card-content {
+  /* VERTICAL LAYOUT: Stack everything vertically */
   display: flex;
-  gap: var(--spacing-4);
-  align-items: flex-start;
-  flex: 1;  /* NEW: Take full height */
-  min-height: 0;  /* NEW: Allow flexbox shrinking */
+  flex-direction: column;
+  align-items: center;  /* Center horizontally */
+  gap: var(--spacing-3);
+  flex: 1;
+  min-height: 0;
+  position: relative;  /* For absolute positioning of actions button */
+}
+
+/* Avatar Container - CENTERED */
+.streamer-avatar-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-2);
 }
 
 .streamer-avatar {
   position: relative;
-  width: 100px;  /* Größer: war 80px */
-  height: 100px;  /* Größer: war 80px */
+  width: 100px;
+  height: 100px;
   flex-shrink: 0;
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -400,22 +411,14 @@ onUnmounted(() => {
   animation: pulse-live 2s ease-in-out infinite;
 }
 
-.streamer-info {
-  flex: 1;
-  min-width: 0;  /* Allow text truncation */
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);  /* NEW: Consistent spacing */
-  overflow: hidden;  /* NEW: Prevent content overflow */
-}
-
+/* Streamer Name - FULL WIDTH, CENTERED, MAX 2 LINES */
 .streamer-name-link {
   text-decoration: none;
   color: inherit;
   display: block;
-  width: fit-content;
+  width: 100%;  /* Full width */
+  text-align: center;  /* Centered */
   transition: all v.$duration-200 v.$ease-out;
-  margin-bottom: var(--spacing-2);
   
   &:hover {
     color: var(--primary-color);
@@ -437,49 +440,76 @@ onUnmounted(() => {
   font-weight: v.$font-semibold;
   color: var(--text-primary);
   margin: 0;
+  line-height: 1.3;
 
+  /* MAX 2 LINES with ellipsis */
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  max-height: 2.6em;  /* 2 * 1.3 line-height */
   
   transition: color v.$duration-200 v.$ease-out;
+}
+
+/* Stream Info - CENTERED */
+.stream-info-container {
+  width: 100%;
+  text-align: center;
+  flex: 1;  /* Take available space */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
 }
 
 .streamer-description {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: v.$leading-snug;
-  margin: 0 0 var(--spacing-3) 0;
+  margin: 0;
+  
+  /* Limit to 2 lines */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .live-info {
-  margin: 0;  /* REMOVED bottom margin */
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);  /* NEW: Consistent spacing */
-  overflow: hidden;  /* NEW: Prevent overflow */
+  gap: var(--spacing-2);
+  align-items: center;  /* Center content */
+  overflow: hidden;
 }
 
 .stream-title {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.4;  /* FIXED: Consistent line-height for accurate clamping */
-  margin: 0 0 var(--spacing-2) 0;
+  line-height: 1.4;
+  margin: 0;
   
-  /* CRITICAL: Prevent long titles from breaking layout - LIMITED TO 2 LINES */
+  /* CRITICAL: Limit to 2 lines */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;  /* REDUCED from 3 to 2 for grid consistency */
+  -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  max-height: 2.8em;  /* 2 lines * 1.4 line-height = 2.8em */
+  max-height: 2.8em;  /* 2 * 1.4 line-height */
 }
 
 .stream-category {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
   
@@ -488,6 +518,7 @@ onUnmounted(() => {
   margin: 0;
   
   /* Prevent long category names from breaking layout */
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -498,14 +529,19 @@ onUnmounted(() => {
   height: 14px;
   stroke: currentColor;
   fill: none;
+  flex-shrink: 0;
 }
 
+/* Stats - AT BOTTOM, CENTERED */
 .streamer-stats {
   display: flex;
   gap: var(--spacing-4);
+  justify-content: center;  /* Centered */
+  align-items: center;
   flex-wrap: wrap;
-  margin-top: auto;  /* NEW: Push to bottom of card */
-  padding-top: var(--spacing-2);  /* NEW: Add some space above */
+  margin-top: auto;  /* Push to bottom */
+  padding-top: var(--spacing-3);
+  width: 100%;
 }
 
 .stat {
@@ -534,12 +570,12 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
+/* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */
 .streamer-actions {
-  display: flex;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;  /* Ensure actions are above other content */
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
 }
 
 .btn-action {
@@ -597,16 +633,16 @@ onUnmounted(() => {
 }
 
 .actions-dropdown {
-  position: fixed;  /* Fixed positioning for Teleport */
+  position: fixed;
   
   background: var(--background-darker);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);  /* Slightly smaller radius */
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-xl);
   
-  min-width: 160px;  /* REDUCED from 180px */
+  min-width: 160px;
   max-width: 180px;
-  padding: var(--spacing-1);  /* REDUCED from spacing-0 */
+  padding: var(--spacing-1);
   overflow: hidden;
   z-index: 10000;
   
@@ -627,26 +663,26 @@ onUnmounted(() => {
 
 .action-item {
   width: 100%;
-  padding: var(--spacing-2) var(--spacing-3);  /* REDUCED from spacing-3 spacing-4 */
+  padding: var(--spacing-2) var(--spacing-3);
   
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);  /* Add border radius */
+  border-radius: var(--radius-sm);
   
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   
-  font-size: var(--text-sm);  /* REDUCED from text-base */
+  font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
   text-align: left;
   
   cursor: pointer;
-  transition: background v.$duration-150 v.$ease-out;  /* Faster transition */
+  transition: background v.$duration-150 v.$ease-out;
   
   .icon {
-    width: 16px;  /* REDUCED from 18px */
+    width: 16px;
     height: 16px;
     stroke: currentColor;
     fill: none;
@@ -667,18 +703,16 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .streamer-card-content {
-    flex-direction: column;
+  .streamer-card {
+    :deep(.glass-card-content) {
+      min-height: 260px;
+      max-height: 300px;
+    }
   }
 
   .streamer-avatar {
-    width: 100%;
-    height: 120px;
-  }
-
-  .streamer-actions {
-    width: 100%;
-    justify-content: flex-end;
+    width: 80px;
+    height: 80px;
   }
 }
 

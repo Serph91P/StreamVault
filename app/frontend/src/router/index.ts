@@ -16,6 +16,15 @@ const VideosView = () => import('../views/VideosView.vue');
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // FIXED: Always scroll to top when navigating to new page
+  scrollBehavior(to, from, savedPosition) {
+    // If user clicked back/forward button, restore position
+    if (savedPosition) {
+      return savedPosition
+    }
+    // Always scroll to top for new navigation
+    return { top: 0, behavior: 'smooth' }
+  },
   routes: [
     {
       path: '/',
@@ -68,7 +77,7 @@ const router = createRouter({
       component: SettingsView
     },
     {
-      path: '/streamer/:id',
+      path: '/streamers/:id',  // FIXED: Changed from /streamer to /streamers (plural) to match navigation
       name: 'streamer-detail',
       component: StreamerDetailView
     },
