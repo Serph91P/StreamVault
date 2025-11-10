@@ -346,6 +346,101 @@ except:
     pass
 ```
 
+### Datetime Handling - PostgreSQL Timezone Awareness
+**CRITICAL**: PostgreSQL stores `TIMESTAMP WITH TIME ZONE` - always use timezone-aware datetimes in Python.
+
+```python
+# ✅ CORRECT: Timezone-aware datetime
+from datetime import datetime, timezone
+
+# For new timestamps
+now = datetime.now(timezone.utc)
+stream.end_time = now
+
+# For calculations
+if recording.start_time:
+    end_time = recording.end_time or datetime.now(timezone.utc)
+    duration = int((end_time - recording.start_time).total_seconds())
+
+# For edge cases where DB might have naive datetimes
+if recording.start_time.tzinfo is None:
+    # Assume UTC if timezone info is missing
+    start_time_aware = recording.start_time.replace(tzinfo=timezone.utc)
+else:
+    start_time_aware = recording.start_time
+
+# ❌ WRONG: Timezone-naive datetime
+now = datetime.now()  # No timezone info
+duration = (datetime.now() - recording.start_time).total_seconds()
+# ↑ ERROR: "can't subtract offset-naive and offset-aware datetimes"
+
+# ❌ WRONG: Mixing aware and naive
+end_time = recording.end_time or datetime.now()  # end_time has tz, datetime.now() doesn't
+```
+
+**Database Schema:**
+- All timestamp columns use `TIMESTAMP WITH TIME ZONE`
+- PostgreSQL stores timestamps in UTC, converts on query
+- Python SQLAlchemy returns timezone-aware datetime objects
+- **ALWAYS** use `datetime.now(timezone.utc)` for consistency
+
+**Common Gotchas:**
+- `datetime.now()` returns **naive** datetime (no timezone)
+- `datetime.now(timezone.utc)` returns **aware** datetime
+- Cannot subtract naive from aware or vice versa
+- Database queries return aware datetimes from PostgreSQL
+
+### Database Cascade Deletes - Foreign Key Ordering
+**CRITICAL**: When deleting records with foreign keys, delete children BEFORE parents.
+
+```python
+# ✅ CORRECT: Delete recordings before stream
+from app.models import Recording
+
+# Get all associated recordings
+associated_recordings = db.query(Recording).filter(
+    Recording.stream_id == stream.id
+).all()
+
+# Delete recordings first
+for recording in associated_recordings:
+    db.delete(recording)
+
+# Then delete metadata
+if metadata:
+    db.delete(metadata)
+
+# Finally delete the stream
+db.delete(stream)
+db.commit()
+
+# ❌ WRONG: Delete stream first
+db.delete(stream)  # IntegrityError: recordings still reference this stream_id
+# ERROR: null value in column "stream_id" violates not-null constraint
+
+# ❌ WRONG: Rely on CASCADE DELETE without explicit deletion
+# Even though schema has ondelete="CASCADE", SQLAlchemy needs explicit deletion
+db.delete(stream)  # May cause IntegrityError depending on session state
+```
+
+**Why Manual Deletion?**
+- SQLAlchemy's ORM session state vs database CASCADE behavior
+- `ondelete="CASCADE"` in schema works at database level
+- But SQLAlchemy session may try to UPDATE children to NULL first
+- Explicit deletion ensures predictable, session-aware cleanup
+
+**Schema Reference:**
+```python
+# models.py
+class Recording(Base):
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False)
+```
+
+**Best Practice:**
+- Always delete in order: Recordings → Metadata → Stream
+- Commit after all deletions to maintain transactional integrity
+- Log each deletion for debugging
+
 ### Process Lifecycle Management - Critical for Long-Running Operations
 **ALWAYS use fail-forward strategy for external process cleanup**
 
