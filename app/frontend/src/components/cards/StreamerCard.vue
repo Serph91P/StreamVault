@@ -347,6 +347,15 @@ const handleWatch = () => {
   color: var(--text-primary);
   line-height: v.$leading-snug;
   margin: 0 0 var(--spacing-1) 0;
+  
+  /* CRITICAL: Prevent long titles from breaking layout */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;  /* Max 2 lines for title */
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .stream-category {
@@ -357,6 +366,11 @@ const handleWatch = () => {
   font-size: var(--text-xs);
   color: var(--text-secondary);
   margin: 0;
+  
+  /* Prevent long category names from breaking layout */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .category-icon {
