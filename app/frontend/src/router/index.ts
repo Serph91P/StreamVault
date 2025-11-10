@@ -92,6 +92,7 @@ router.beforeEach(async (to, from, next) => {
   }
   try {
     const response = await fetch('/auth/setup', {
+      credentials: 'include', // Required for session cookies
       headers: {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
@@ -111,6 +112,7 @@ router.beforeEach(async (to, from, next) => {
       }
 
       const authResponse = await fetch('/auth/check', {
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           Accept: 'application/json',
           'X-Requested-With': 'XMLHttpRequest',

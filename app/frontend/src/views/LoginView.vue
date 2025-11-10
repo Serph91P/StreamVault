@@ -118,6 +118,7 @@ const handleLogin = async () => {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include', // CRITICAL: Required to set/send session cookie
       body: JSON.stringify({
         username: username.value,
         password: password.value
@@ -125,7 +126,8 @@ const handleLogin = async () => {
     })
 
     if (response.ok) {
-      router.push('/')
+      // Force a full page reload to ensure all composables reinitialize with auth
+      window.location.href = '/'
     } else {
       const data = await response.json()
       error.value = data.detail || 'Invalid username or password'
