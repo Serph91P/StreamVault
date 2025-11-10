@@ -90,15 +90,17 @@
           </svg>
         </button>
 
-        <button
-          @click.stop="handleEdit"
+        <!-- Settings button links to streamer detail page -->
+        <router-link
+          :to="`/streamers/${streamer.id}`"
           class="btn-action btn-edit"
-          :aria-label="`Edit ${streamer.display_name || streamer.username}`"
+          :aria-label="`View ${streamer.display_name || streamer.username} details`"
+          @click.stop
         >
           <svg class="icon">
             <use href="#icon-settings" />
           </svg>
-        </button>
+        </router-link>
       </div>
     </div>
   </GlassCard>
@@ -134,7 +136,6 @@ interface Props {
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  edit: [streamer: Streamer]
   watch: [streamer: Streamer]
 }>()
 
@@ -175,10 +176,6 @@ const truncateText = (text: string, maxLength: number) => {
 
 const handleClick = () => {
   router.push(`/streamers/${props.streamer.id}`)
-}
-
-const handleEdit = () => {
-  emit('edit', props.streamer)
 }
 
 const handleWatch = () => {
