@@ -28,6 +28,25 @@ docker/              # Docker configuration
 docs/                # Project documentation
 ```
 
+## 🏗️ Backend Architecture
+
+**For complete production architecture documentation, see:** [**ARCHITECTURE.md**](.github/ARCHITECTURE.md)
+
+**Key Topics Covered:**
+- **Recording Flow:** EventSub → Streamlink → Post-Processing
+- **Concurrent Processing:** Multi-threaded recording management
+- **Segment Rotation:** Automatic 24h segment splitting for long streams
+- **Recovery Mechanisms:** Zombie state cleanup, startup resumption
+- **Notification System:** Profile image handling, external service integration
+- **Database Patterns:** Properties vs columns, eager loading, timezone handling
+
+**Quick Reference - Critical Production Patterns:**
+1. **Duplicate Prevention:** Always check `state_manager.get_active_recording()` before starting
+2. **Fail-Forward Cleanup:** Use `finally` blocks + `.pop(key, None)` for process cleanup
+3. **Zombie Detection:** Startup cleanup for stale `status='recording'` entries
+4. **Timezone Awareness:** Use `datetime.now(timezone.utc)` for all timestamps
+5. **Profile Images:** Always use HTTP URLs for notifications (no local paths)
+
 ## Commit Message Convention
 
 **IMPORTANT**: This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic semantic versioning.

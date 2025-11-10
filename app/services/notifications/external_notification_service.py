@@ -105,49 +105,35 @@ class ExternalNotificationService:
                 # Get service-specific URL configuration
                 twitch_url = f"https://twitch.tv/{streamer_name}"
                 
-                # Get cached profile image path using unified image service
-                cached_profile_image = unified_image_service.get_cached_profile_image(streamer.id)
-                
-                # For notifications, prefer HTTP URLs for external services like Apprise
-                # But first check if we have a local cached image to convert to HTTP URL
+                # CRITICAL: Always use original Twitch HTTP URL for notifications
+                # External services (Ntfy, Discord, etc.) cannot access local file paths
                 profile_image_url = ""
                 
-                # Priority 1: If details has HTTP URL, use it
-                if details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
-                    profile_image_url = details["profile_image_url"]
-                    logger.debug(f"Using profile URL from details: {profile_image_url}")
+                # Priority 1: Use original Twitch URL (always HTTP, always works)
+                if streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
+                    profile_image_url = streamer.original_profile_image_url
+                    logger.debug(f"Using original Twitch profile URL: {profile_image_url}")
                 
-                # Priority 2: If streamer has HTTP URL, use it  
+                # Priority 2: If details has HTTP URL (from EventSub notification)
+                elif details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
+                    profile_image_url = details["profile_image_url"]
+                    logger.debug(f"Using profile URL from EventSub details: {profile_image_url}")
+                
+                # Priority 3: Current streamer profile URL (if HTTP)
                 elif streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
                     profile_image_url = streamer.profile_image_url
-                    logger.debug(f"Using profile URL from streamer: {profile_image_url}")
+                    logger.debug(f"Using current profile URL: {profile_image_url}")
                 
-                # Priority 3: If we have a local cached path, convert to BASE_URL
-                elif streamer.profile_image_url and streamer.profile_image_url.startswith('/recordings/.media/profiles/'):
-                    # Convert local path to public URL using BASE_URL from settings
-                    base_url = settings.notification_url or settings.BASE_URL
-                    if base_url:
-                        # Remove /recordings from the path and make it publicly accessible
-                        public_path = streamer.profile_image_url.replace('/recordings', '')
-                        profile_image_url = f"{base_url.rstrip('/')}{public_path}"
-                        logger.debug(f"Converted local cache to public URL: {profile_image_url}")
-                
-                # Priority 4: Fallback to original URL if available
-                elif streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
-                    profile_image_url = streamer.original_profile_image_url
-                    logger.debug(f"Using original profile URL as fallback: {profile_image_url}")
-                
-                # If no suitable URL found, leave empty
+                # If no suitable URL found, leave empty (notification will use service default icon)
                 if not profile_image_url:
-                    logger.debug(f"No suitable profile image URL found for streamer {streamer_name}, notifications will have no avatar")
+                    logger.warning(f"No HTTP profile image URL found for {streamer_name}, notification will use default icon")
                 
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
                     twitch_url=twitch_url,
-                    profile_image=profile_image_url,
+                    profile_image=profile_image_url,  # FIXED: Now always HTTP URL
                     streamer_name=streamer_name,
-                    event_type=event_type,
-                    original_image_url=details.get("profile_image_url")
+                    event_type=event_type
                 )
 
                 # Create new Apprise instance
@@ -216,9 +202,13 @@ class ExternalNotificationService:
             return False
 
     def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, 
-                                 streamer_name: str, event_type: str, 
-                                 original_image_url: Optional[str] = None) -> str:
-        """Configure service-specific parameters based on the notification service."""
+                                 streamer_name: str, event_type: str) -> str:
+        """
+        Configure service-specific parameters based on the notification service.
+        
+        IMPORTANT: profile_image must be an HTTP URL accessible by external services.
+        Local file paths (/recordings/.media/...) will NOT work.
+        """
 
         logger.debug(f"Configuring service-specific URL for {base_url}")
     
@@ -243,13 +233,12 @@ class ExternalNotificationService:
             else:
                 params.append("tags=notification")
         
-            # Bevorzuge die Original-URL für Benachrichtigungen
-            if original_image_url and original_image_url.startswith('http'):
-                params.append(f"avatar_url={original_image_url}")
-                logger.debug(f"Using original Twitch profile URL: {original_image_url}")
-            elif profile_image and profile_image.startswith('http'):
-                params.append(f"avatar_url={profile_image}")
-                logger.debug(f"Using profile image URL: {profile_image}")
+            # CRITICAL FIX: Add avatar_url for ALL event types if profile_image is available
+            if profile_image and profile_image.startswith('http'):
+                params.append(f"icon={profile_image}")  # FIXED: Use icon parameter for ntfy
+                logger.debug(f"Added profile image to notification: {profile_image}")
+            else:
+                logger.debug(f"No valid HTTP profile image, notification will use default icon")
         
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated ntfy URL: {final_url}")
