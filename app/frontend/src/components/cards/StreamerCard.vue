@@ -256,7 +256,11 @@ const handleForceRecord = () => {
 
 const handleViewDetails = () => {
   showActions.value = false
-  router.push(`/streamers/${props.streamer.id}`)
+  // Use nextTick to ensure dropdown is closed before navigation
+  // This prevents the card click handler from interfering
+  setTimeout(() => {
+    router.push(`/streamers/${props.streamer.id}`)
+  }, 50)
 }
 
 const handleDelete = () => {
@@ -299,9 +303,12 @@ onUnmounted(() => {
 .streamer-card {
   // Card-specific overrides
   :deep(.glass-card-content) {
-    padding: var(--spacing-5);  /* Mehr Padding: war spacing-4 */
-    min-height: 200px;  /* Minimum Höhe für konsistente Kartengröße */
+    padding: var(--spacing-5);
+    min-height: 240px;  /* INCREASED: Consistent card height for grid */
+    max-height: 280px;  /* NEW: Prevent cards from growing too tall */
     overflow: visible;  /* CRITICAL: Allow dropdown to overflow */
+    display: flex;
+    flex-direction: column;
   }
   
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -315,6 +322,8 @@ onUnmounted(() => {
   display: flex;
   gap: var(--spacing-4);
   align-items: flex-start;
+  flex: 1;  /* NEW: Take full height */
+  min-height: 0;  /* NEW: Allow flexbox shrinking */
 }
 
 .streamer-avatar {
@@ -393,7 +402,11 @@ onUnmounted(() => {
 
 .streamer-info {
   flex: 1;
-  min-width: 0;
+  min-width: 0;  /* Allow text truncation */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);  /* NEW: Consistent spacing */
+  overflow: hidden;  /* NEW: Prevent content overflow */
 }
 
 .streamer-name-link {
@@ -440,24 +453,29 @@ onUnmounted(() => {
 }
 
 .live-info {
-  margin: 0 0 var(--spacing-3) 0;
+  margin: 0;  /* REMOVED bottom margin */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);  /* NEW: Consistent spacing */
+  overflow: hidden;  /* NEW: Prevent overflow */
 }
 
 .stream-title {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: v.$leading-relaxed;  /* Mehr Zeilenabstand für Lesbarkeit */
+  line-height: 1.4;  /* FIXED: Consistent line-height for accurate clamping */
   margin: 0 0 var(--spacing-2) 0;
   
-  /* CRITICAL: Prevent long titles from breaking layout */
+  /* CRITICAL: Prevent long titles from breaking layout - LIMITED TO 2 LINES */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;  /* Mehr Zeilen: war 2, jetzt 3 für bessere Lesbarkeit */
-  line-clamp: 3;
+  -webkit-line-clamp: 2;  /* REDUCED from 3 to 2 for grid consistency */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
+  max-height: 2.8em;  /* 2 lines * 1.4 line-height = 2.8em */
 }
 
 .stream-category {
@@ -486,6 +504,8 @@ onUnmounted(() => {
   display: flex;
   gap: var(--spacing-4);
   flex-wrap: wrap;
+  margin-top: auto;  /* NEW: Push to bottom of card */
+  padding-top: var(--spacing-2);  /* NEW: Add some space above */
 }
 
 .stat {
