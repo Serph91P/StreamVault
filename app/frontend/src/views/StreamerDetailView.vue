@@ -336,6 +336,7 @@ async function fetchStreamer() {
   isLoading.value = true
   try {
     const response = await streamersApi.get(Number(streamerId.value))
+    console.log('[DEBUG] Fetched streamer:', response)
     streamer.value = response
   } catch (error) {
     console.error('Failed to fetch streamer:', error)

@@ -178,14 +178,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
+import { useWebSocket } from '@/composables/useWebSocket'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 const router = useRouter()
+
+// WebSocket for real-time updates
+const { messages } = useWebSocket()
 
 // State
 const isLoading = ref(true)
@@ -376,25 +380,77 @@ async function handleForceRecord(streamer: any) {
 }
 
 // Handle delete streamer action
+// Delete streamer
 async function handleDelete(streamer: any) {
-  if (!confirm(`Are you sure you want to delete ${streamer.display_name || streamer.username}? This will remove all recordings and settings.`)) {
+  if (!confirm(`Delete ${streamer.name}? This will also delete all their recordings.`)) {
     return
   }
-  
+
   try {
-    const response = await fetch(`/api/streamers/${streamer.id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
-    
-    if (response.ok) {
-      // Refresh streamers list
-      await fetchStreamers()
-    }
+    await streamersApi.delete(streamer.id)
+    streamers.value = streamers.value.filter(s => s.id !== streamer.id)
   } catch (error) {
     console.error('Failed to delete streamer:', error)
+    alert('Failed to delete streamer. Please try again.')
   }
 }
+
+// WebSocket: Real-time updates for streamer status
+watch(messages, (newMessages) => {
+  if (!newMessages || newMessages.length === 0) return
+  
+  // Process latest message
+  const latestMessage = newMessages[newMessages.length - 1]
+  
+  // Handle stream status changes
+  if (latestMessage.type === 'stream.online' || 
+      latestMessage.type === 'stream.offline' ||
+      latestMessage.type === 'channel.update' ||
+      latestMessage.type === 'stream.update') {
+    
+    const username = latestMessage.data?.username || latestMessage.data?.streamer_name
+    if (!username) return
+    
+    // Find streamer in list
+    const streamerIndex = streamers.value.findIndex(
+      s => s.username?.toLowerCase() === username.toLowerCase() ||
+           s.name?.toLowerCase() === username.toLowerCase()
+    )
+    
+    if (streamerIndex === -1) return
+    
+    // Update streamer data based on message type
+    const streamer = { ...streamers.value[streamerIndex] }
+    
+    if (latestMessage.type === 'stream.online') {
+      streamer.is_live = true
+      streamer.title = latestMessage.data?.title
+      streamer.category_name = latestMessage.data?.category_name
+      console.log(`[WebSocket] ${username} went LIVE: ${streamer.title}`)
+    } else if (latestMessage.type === 'stream.offline') {
+      streamer.is_live = false
+      streamer.title = null
+      streamer.category_name = null
+      console.log(`[WebSocket] ${username} went OFFLINE`)
+    } else if (latestMessage.type === 'channel.update' || latestMessage.type === 'stream.update') {
+      // Update title and category in real-time
+      if (latestMessage.data?.title) {
+        streamer.title = latestMessage.data.title
+      }
+      if (latestMessage.data?.category_name) {
+        streamer.category_name = latestMessage.data.category_name
+      }
+      console.log(`[WebSocket] ${username} updated: ${streamer.title} | ${streamer.category_name}`)
+    }
+    
+    // Update the streamer in array (trigger reactivity)
+    streamers.value = [
+      ...streamers.value.slice(0, streamerIndex),
+      streamer,
+      ...streamers.value.slice(streamerIndex + 1)
+    ]
+  }
+}, { deep: true })
 
 // Lifecycle
 onMounted(async () => {
@@ -529,7 +585,7 @@ onUnmounted(() => {
     color: white;
 
     &:hover {
-      background: var(--primary-600);
+      background: var(--primary-600);  /* Darker green when ON */
       box-shadow: var(--shadow-md);
     }
   }
@@ -540,8 +596,9 @@ onUnmounted(() => {
     border: 1px solid var(--border-color);
 
     &:hover {
+      background: var(--primary-color);  /* Green background when hovering OFF state */
       border-color: var(--primary-color);
-      color: var(--primary-color);
+      color: white;  /* White text when hovering */
     }
   }
 }

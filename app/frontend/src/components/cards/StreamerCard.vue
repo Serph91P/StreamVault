@@ -24,7 +24,7 @@
         </div>
 
         <!-- Live Badge -->
-        <div v-if="isLive" class="live-badge">
+        <div v-if="isLive" class="live-badge" :class="{ 'is-recording': streamer.is_recording }">
           <span class="live-indicator"></span>
           <span class="live-text">LIVE</span>
         </div>
@@ -32,13 +32,23 @@
 
       <!-- Streamer Info -->
       <div class="streamer-info">
-        <h3 class="streamer-name" :title="streamer.display_name || streamer.username">
-          {{ streamer.display_name || streamer.username }}
-        </h3>
+        <!-- Streamer Name - ALWAYS visible, links to Twitch -->
+        <a 
+          :href="`https://twitch.tv/${streamer.username}`" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="streamer-name-link"
+          @click.stop
+          :title="`Open ${streamer.display_name || streamer.username} on Twitch`"
+        >
+          <h3 class="streamer-name">
+            {{ streamer.display_name || streamer.username }}
+          </h3>
+        </a>
         
         <!-- Live Stream Info -->
         <div v-if="isLive && streamer.title" class="live-info">
-          <p class="stream-title">{{ truncateText(streamer.title, 60) }}</p>
+          <p class="stream-title" :title="streamer.title">{{ truncateText(streamer.title, 60) }}</p>
           <p v-if="streamer.category_name" class="stream-category">
             <svg class="category-icon">
               <use href="#icon-gamepad" />
@@ -79,22 +89,10 @@
 
       <!-- Actions -->
       <div class="streamer-actions">
-        <button
-          v-if="isLive"
-          @click.stop="handleWatch"
-          class="btn-action btn-watch"
-          aria-label="Watch stream"
-          title="Watch live stream"
-        >
-          <svg class="icon">
-            <use href="#icon-video" />
-          </svg>
-        </button>
-
         <!-- Actions dropdown trigger -->
         <button
           @click.stop="toggleActions"
-          class="btn-action btn-edit"
+          class="btn-action btn-more"
           :class="{ active: showActions }"
           :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
           title="More actions"
@@ -106,6 +104,12 @@
 
         <!-- Actions dropdown menu -->
         <div v-if="showActions" class="actions-dropdown" @click.stop>
+          <button v-if="isLive" @click="handleWatch" class="action-item">
+            <svg class="icon">
+              <use href="#icon-play" />
+            </svg>
+            Watch Live
+          </button>
           <button @click="handleForceRecord" class="action-item">
             <svg class="icon">
               <use href="#icon-video" />
@@ -144,6 +148,7 @@ interface Streamer {
   description?: string
   recording_count?: number
   is_live?: boolean
+  is_recording?: boolean  // NEW: Recording status
   last_stream_time?: string
   title?: string  // Stream title when live
   category_name?: string  // Game/category when live
@@ -235,7 +240,8 @@ const handleWatch = () => {
 .streamer-card {
   // Card-specific overrides
   :deep(.glass-card-content) {
-    padding: var(--spacing-4);
+    padding: var(--spacing-5);  /* Mehr Padding: war spacing-4 */
+    min-height: 200px;  /* Erhöht: war 180px - Mehr Platz für Name + Titel + Kategorie */
   }
 }
 
@@ -247,8 +253,8 @@ const handleWatch = () => {
 
 .streamer-avatar {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 100px;  /* Größer: war 80px */
+  height: 100px;  /* Größer: war 80px */
   flex-shrink: 0;
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -304,6 +310,11 @@ const handleWatch = () => {
   font-weight: v.$font-bold;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  
+  /* Pulsing effect when recording */
+  &.is-recording {
+    animation: pulse-recording 2s ease-in-out infinite;
+  }
 }
 
 .live-indicator {
@@ -319,15 +330,40 @@ const handleWatch = () => {
   min-width: 0;
 }
 
+.streamer-name-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  width: fit-content;
+  transition: all v.$duration-200 v.$ease-out;
+  margin-bottom: var(--spacing-2);
+  
+  &:hover {
+    color: var(--primary-color);
+    
+    .streamer-name {
+      color: var(--primary-color);
+    }
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
 .streamer-name {
   font-size: var(--text-lg);
   font-weight: v.$font-semibold;
   color: var(--text-primary);
-  margin: 0 0 var(--spacing-1) 0;
+  margin: 0;
 
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  
+  transition: color v.$duration-200 v.$ease-out;
 }
 
 .streamer-description {
@@ -345,15 +381,15 @@ const handleWatch = () => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: v.$leading-snug;
-  margin: 0 0 var(--spacing-1) 0;
+  line-height: v.$leading-relaxed;  /* Mehr Zeilenabstand für Lesbarkeit */
+  margin: 0 0 var(--spacing-2) 0;
   
   /* CRITICAL: Prevent long titles from breaking layout */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;  /* Max 2 lines for title */
-  line-clamp: 2;
+  -webkit-line-clamp: 3;  /* Mehr Zeilen: war 2, jetzt 3 für bessere Lesbarkeit */
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
@@ -417,6 +453,7 @@ const handleWatch = () => {
   gap: var(--spacing-2);
   flex-shrink: 0;
   position: relative;
+  z-index: 10;  /* Ensure actions are above other content */
 }
 
 .btn-action {
@@ -424,8 +461,8 @@ const handleWatch = () => {
   height: 40px;
   padding: 0;
 
-  background: rgba(var(--primary-500-rgb), 0.1);
-  border: 1px solid rgba(var(--primary-500-rgb), 0.3);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
 
   display: flex;
@@ -438,19 +475,29 @@ const handleWatch = () => {
   .icon {
     width: 20px;
     height: 20px;
-    stroke: var(--primary-color);
+    stroke: var(--text-secondary);
     fill: none;
+    transition: stroke v.$duration-200 v.$ease-out;
   }
 
   &:hover {
-    background: rgba(var(--primary-500-rgb), 0.2);
+    background: var(--primary-color);
     border-color: var(--primary-color);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    
+    .icon {
+      stroke: white;
+    }
   }
 
   &.active {
-    background: rgba(var(--primary-500-rgb), 0.3);
+    background: var(--primary-color);
     border-color: var(--primary-color);
+    
+    .icon {
+      stroke: white;
+    }
   }
 
   &:active {
@@ -460,20 +507,6 @@ const handleWatch = () => {
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
-  }
-}
-
-.btn-watch {
-  background: var(--danger-color);
-  border-color: var(--danger-color);
-
-  .icon {
-    stroke: white;
-  }
-
-  &:hover {
-    background: var(--danger-600);
-    border-color: var(--danger-600);
   }
 }
 
@@ -490,7 +523,7 @@ const handleWatch = () => {
   
   min-width: 180px;
   overflow: hidden;
-  z-index: 100;
+  z-index: 1000;  /* Very high to ensure it's above everything including card overflow */
 }
 
 .action-item {
@@ -550,6 +583,30 @@ const handleWatch = () => {
   .streamer-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+// Animations
+@keyframes pulse-live {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes pulse-recording {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
 </style>

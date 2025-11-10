@@ -117,8 +117,6 @@
           label="Live Now"
           icon="video"
           type="danger"
-          :trend="liveStreamers.length > 0 ? `${liveStreamers.length} streaming` : undefined"
-          trend-direction="up"
         />
         <StatusCard
           :value="activeRecordings.length"
@@ -345,7 +343,7 @@ section {
   display: flex;
   gap: var(--spacing-4);
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;  /* CRITICAL: Allow dropdown to overflow vertically */
   padding: var(--spacing-2) var(--spacing-2) var(--spacing-4);
   margin: 0 calc(var(--spacing-4) * -1);
   padding-left: var(--spacing-4);

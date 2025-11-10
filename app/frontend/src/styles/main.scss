@@ -59,8 +59,8 @@ html, body {
 }
 
 body {
-  background: v.$background-dark;
-  color: v.$text-primary;
+  background: var(--background-dark);  /* CRITICAL: Use CSS custom property for theme switching */
+  color: var(--text-primary);          /* CRITICAL: Use CSS custom property for theme switching */
   min-height: 100vh;
   line-height: 1.6;
   display: flex;
@@ -91,12 +91,12 @@ h5, h6 { font-size: map.get(v.$font-scale, 'sm'); }
 
 // Link-Styling
 a {
-  color: v.$primary-color;
+  color: var(--primary-color);  /* Use CSS variable for theme switching */
   text-decoration: none;
   transition: color v.$transition-fast;
   
   &:hover {
-    color: v.$primary-color-light; 
+    color: var(--primary-600);  /* Use CSS variable for theme switching */
   }
 }
 
@@ -149,15 +149,16 @@ img {
 }
 
 ::-webkit-scrollbar-track {
-  background: v.$background-darker;
+  background: var(--background-darker);  /* Use CSS variable for theme switching */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: v.$border-color;
+  background: var(--border-color);  /* Use CSS variable for theme switching */
   border-radius: 4px;
   
   &:hover {
-    background: color.adjust(v.$border-color, $lightness: 10%);
+    background: var(--border-color);  /* Use CSS variable */
+    opacity: 0.8;
   }
 }
 

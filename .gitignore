@@ -19,6 +19,10 @@ pip-log.txt
 pip-delete-this-directory.txt
 *.sqlite3
 
+# Logs (CRITICAL: Never commit log files)
+logs/
+*.log
+
 # FastAPI
 instance/
 *.db

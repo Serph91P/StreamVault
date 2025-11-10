@@ -224,6 +224,7 @@ async def resubscribe_all(
         
         return {
             "success": True,
+            "message": f"Resubscribed to {len(results)} streamer(s)",  # NEW: Frontend expects message field
             "results": results,
             "total_processed": len(results)
         }
