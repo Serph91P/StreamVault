@@ -7,6 +7,7 @@
     :gradient-colors="isLive ? ['#ef4444', '#dc2626'] : undefined"
     @click="handleClick"
     class="streamer-card"
+    :class="{ 'actions-open': showActions }"
   >
     <div class="streamer-card-content">
       <!-- Avatar/Thumbnail -->
@@ -230,7 +231,8 @@ const handleDelete = () => {
 }
 
 const handleWatch = () => {
-  emit('watch', props.streamer)
+  // Open Twitch stream in new tab
+  window.open(`https://twitch.tv/${props.streamer.username}`, '_blank', 'noopener,noreferrer')
 }
 </script>
 
@@ -241,7 +243,14 @@ const handleWatch = () => {
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-5);  /* Mehr Padding: war spacing-4 */
-    min-height: 200px;  /* Erhöht: war 180px - Mehr Platz für Name + Titel + Kategorie */
+    min-height: 200px;  /* Minimum Höhe für konsistente Kartengröße */
+    overflow: visible;  /* CRITICAL: Allow dropdown to overflow */
+  }
+  
+  // When actions dropdown is open, increase z-index to appear above other cards
+  &.actions-open {
+    position: relative;
+    z-index: 100;
   }
 }
 

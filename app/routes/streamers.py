@@ -443,7 +443,7 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
         streamer.profile_image_url
     )
     
-    # Return normalized format for frontend
+        # Return normalized format for frontend
     return {
         "id": streamer.id,
         "twitch_id": streamer.twitch_id,
@@ -453,8 +453,8 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
         "is_live": streamer.is_live,
         "is_recording": streamer.is_recording,
         "recording_enabled": streamer.recording_enabled,
-        "title": streamer.current_stream_title if streamer.is_live else None,
-        "category_name": streamer.current_category_name if streamer.is_live else None,
+        "title": streamer.title if streamer.is_live else None,  # FIXED: Use title not current_stream_title
+        "category_name": streamer.category_name if streamer.is_live else None,  # FIXED: Use category_name
         "profile_image_url": profile_image_url,
         "original_profile_image_url": streamer.profile_image_url,
         "description": None,  # TODO: Store description in DB if needed

@@ -169,6 +169,7 @@
           :streamer="streamer"
           :view-mode="viewMode"
           @click="navigateToDetail(streamer)"
+          @watch="handleWatch"
           @force-record="handleForceRecord"
           @delete="handleDelete"
         />
@@ -182,6 +183,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
@@ -190,6 +192,9 @@ const router = useRouter()
 
 // WebSocket for real-time updates
 const { messages } = useWebSocket()
+
+// Force recording composable
+const { forceStartRecording } = useForceRecording()  // NEW: Use composable
 
 // State
 const isLoading = ref(true)
@@ -365,24 +370,22 @@ function navigateToDetail(streamer: any) {
 
 // Handle force record action
 async function handleForceRecord(streamer: any) {
-  try {
-    // Call the force record API
-    await fetch(`/api/streamers/${streamer.id}/force-record`, {
-      method: 'POST',
-      credentials: 'include'
-    })
-    
-    // Refresh streamers to show updated status
+  await forceStartRecording(streamer.id, async () => {
+    // Refresh streamers after successful force record
     await fetchStreamers()
-  } catch (error) {
-    console.error('Failed to force record:', error)
-  }
+  })
+}
+
+// Handle watch live action
+function handleWatch(streamer: any) {
+  // Open Twitch stream in new tab
+  window.open(`https://twitch.tv/${streamer.username}`, '_blank')
 }
 
 // Handle delete streamer action
-// Delete streamer
 async function handleDelete(streamer: any) {
-  if (!confirm(`Delete ${streamer.name}? This will also delete all their recordings.`)) {
+  const displayName = streamer.display_name || streamer.username || 'this streamer'
+  if (!confirm(`Delete ${displayName}? This will also delete all their recordings.`)) {
     return
   }
 

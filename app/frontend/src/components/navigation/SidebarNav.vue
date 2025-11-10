@@ -68,31 +68,24 @@ onMounted(() => {
 
 .sidebar-nav {
   position: fixed;
+  top: 0;
   left: 0;
-  top: 64px; // Below header
   bottom: 0;
-  z-index: 900;
+  width: 240px;
   
-  // Glassmorphism
-  background: rgba(var(--background-card-rgb), 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  
   border-right: 1px solid var(--border-color);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);  /* Darker shadow for better visibility */
   
-  // Shadow
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
   
-  // Smooth width transition
-  transition: width v.$duration-300 v.$ease-in-out;
+  overflow-x: hidden;
+  overflow-y: auto;
   
-  // Expanded state (240px)
-  &.expanded {
-    width: 240px;
-  }
-  
-  // Collapsed state (64px - icons only)
-  &.collapsed {
-    width: 64px;
-  }
+  transition: transform v.$duration-300 v.$ease-in-out;
   
   // Fallback for browsers without backdrop-filter
   @supports not (backdrop-filter: blur(20px)) {
