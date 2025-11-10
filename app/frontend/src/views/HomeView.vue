@@ -182,7 +182,8 @@ async function fetchStreamers() {
   isLoadingStreamers.value = true
   try {
     const response = await streamersApi.getAll()
-    streamers.value = response || []
+    // Backend returns {streamers: [...]} not raw array
+    streamers.value = response?.streamers || []
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
     streamers.value = []
