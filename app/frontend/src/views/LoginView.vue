@@ -126,6 +126,8 @@ const handleLogin = async () => {
     })
 
     if (response.ok) {
+      // Small delay to ensure session cookie is set before redirect
+      await new Promise(resolve => setTimeout(resolve, 100))
       // Force a full page reload to ensure all composables reinitialize with auth
       window.location.href = '/'
     } else {
