@@ -57,7 +57,17 @@
           </p>
         </div>
         
-        <!-- OFFLINE: Show description -->
+        <!-- OFFLINE: Show last stream info if available -->
+        <div v-else-if="streamer.last_stream_title" class="offline-last-stream">
+          <p class="last-stream-title" :title="streamer.last_stream_title">
+            {{ streamer.last_stream_title }}
+          </p>
+          <p v-if="streamer.last_stream_category_name" class="last-stream-category">
+            {{ streamer.last_stream_category_name }}
+          </p>
+        </div>
+        
+        <!-- OFFLINE: Fallback to description if no last stream info -->
         <p v-else-if="streamer.description" class="streamer-description">
           {{ truncatedDescription }}
         </p>
@@ -173,6 +183,11 @@ interface Streamer {
   last_stream_time?: string
   title?: string  // Stream title when live
   category_name?: string  // Game/category when live
+  // Last stream info (shown when offline)
+  last_stream_title?: string
+  last_stream_category_name?: string
+  last_stream_viewer_count?: number
+  last_stream_ended_at?: string
 }
 
 interface Stream {
@@ -228,9 +243,11 @@ const truncatedDescription = computed(() => {
 })
 
 const lastStreamTime = computed(() => {
-  if (!props.streamer.last_stream_time) return null
+  // Prefer last_stream_ended_at (new field), fallback to last_stream_time (legacy)
+  const timestamp = props.streamer.last_stream_ended_at || props.streamer.last_stream_time
+  if (!timestamp) return null
 
-  const date = new Date(props.streamer.last_stream_time)
+  const date = new Date(timestamp)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
@@ -542,6 +559,42 @@ onUnmounted(() => {
     opacity: 0.6;
     font-size: var(--text-sm);
   }
+}
+
+/* Offline Last Stream Info - Grayed out to indicate past stream */
+.offline-last-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  width: 100%;
+  opacity: 0.6;  /* Grayed out to show it's not current */
+}
+
+.last-stream-title {
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+  
+  /* Max 2 lines for last stream title */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  max-height: 2.8em;  /* 2 * 1.4 line-height */
+}
+
+.last-stream-category {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Stats - AT BOTTOM, CENTERED */
