@@ -130,6 +130,9 @@ function continueToHome() {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .welcome-view {
   min-height: 100vh;
   display: flex;
@@ -513,7 +516,7 @@ function continueToHome() {
 }
 
 // Responsive
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .welcome-view {
     padding: var(--spacing-6) var(--spacing-4);
   }

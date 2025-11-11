@@ -45,7 +45,6 @@ const handleTabClick = (route: string) => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
 .bottom-nav {
   position: fixed;
   bottom: 0;

@@ -152,7 +152,10 @@ defineExpose({
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .toast-container {
   position: fixed;
   top: 20px;
@@ -286,7 +289,7 @@ defineExpose({
 }
 
 /* Mobile responsive */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .toast-container {
     top: 10px;
     right: 10px;
@@ -322,7 +325,7 @@ defineExpose({
 }
 
 /* Small mobile screens */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .toast-container {
     top: 8px;
     right: 8px;

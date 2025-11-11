@@ -104,6 +104,9 @@ const handleStreamersImported = () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .add-streamer-view {
   padding: var(--spacing-6) var(--spacing-6) var(--spacing-8);
   max-width: 800px;
@@ -326,7 +329,7 @@ const handleStreamersImported = () => {
 }
 
 // Responsive
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .add-streamer-view {
     padding: var(--spacing-4);
   }

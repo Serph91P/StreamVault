@@ -800,7 +800,10 @@ watch(messages, (newMessages) => {
 }, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 /* Modern Header Styles (Phase 1 Enhanced) */
 .app-header {
   position: fixed;
@@ -900,7 +903,7 @@ watch(messages, (newMessages) => {
 }
 
 /* Show hamburger on mobile */
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .hamburger-btn {
     display: flex;
   }
@@ -911,7 +914,7 @@ watch(messages, (newMessages) => {
   display: flex; /* Shown by default */
 }
 
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .desktop-only {
     display: none; /* Hidden on mobile */
   }
@@ -1220,7 +1223,7 @@ watch(messages, (newMessages) => {
 }
 
 /* Mobile specific notification overlay */
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .notification-overlay {
     top: 20px;
     right: 10px;

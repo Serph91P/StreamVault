@@ -351,7 +351,10 @@ const getEventBorderClass = (eventType: string): string => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .notifications-dashboard {
   padding: 1.5rem;
   max-width: 1200px;
@@ -712,7 +715,7 @@ const getEventBorderClass = (eventType: string): string => {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .notifications-dashboard {
     padding: 1rem;
   }

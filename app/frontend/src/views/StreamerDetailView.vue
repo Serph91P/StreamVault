@@ -519,7 +519,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
+@use '@/styles/mixins' as m;
 .streamer-detail-view {
   padding: var(--spacing-4);
   max-width: 1400px;
@@ -1085,8 +1085,7 @@ onMounted(async () => {
   }
 }
 
-// Responsive
-@media (max-width: 1024px) {
+@include m.respond-below('lg') {  // < 1024px
   .profile-content {
     padding: var(--spacing-6);
   }
@@ -1100,7 +1099,7 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .profile-content {
     padding: var(--spacing-4);
   }
@@ -1172,8 +1171,8 @@ onMounted(async () => {
   }
 }
 
-// Mobile icon-only buttons (< 480px)
-@media (max-width: 480px) {
+// Mobile icon-only buttons (< 375px - very small phones)
+@include m.respond-below('xs') {  // < 375px
   .btn-icon-mobile {
     .button-text {
       display: none; // Hide text on mobile

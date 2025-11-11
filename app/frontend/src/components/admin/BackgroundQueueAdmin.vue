@@ -263,7 +263,7 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .background-queue-admin {
   max-width: 1000px;
   margin: 0 auto;

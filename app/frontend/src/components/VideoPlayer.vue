@@ -505,7 +505,8 @@ watch(() => props.chapters, (newChapters) => {
 }, { immediate: true })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 /* ============================================================================
    VIDEO PLAYER - Modern Design
    ============================================================================ */
@@ -873,8 +874,8 @@ watch(() => props.chapters, (newChapters) => {
   color: var(--text-secondary);
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
+/* Mobile Responsive - Use SCSS mixins for breakpoints */
+@include m.respond-below('md') {  // < 768px
   .video-controls-extension {
     flex-direction: column;
     gap: var(--spacing-3);  /* 12px */
@@ -931,7 +932,7 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 /* Very small screens */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 375px
   .video-controls-extension {
     padding: var(--spacing-2);  /* 8px */
   }

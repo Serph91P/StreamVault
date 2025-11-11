@@ -328,7 +328,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
+@use '@/styles/mixins' as m;
 .streamer-card {
   // Card-specific overrides
   :deep(.glass-card-content) {
@@ -808,7 +808,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .streamer-card {
     :deep(.glass-card-content) {
       min-height: 260px;

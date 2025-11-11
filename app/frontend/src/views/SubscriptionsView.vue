@@ -313,6 +313,9 @@ onMounted(loadSubscriptions)
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .subscriptions-view {
   padding: var(--spacing-6);
   animation: fadeIn 0.3s ease-out;
@@ -602,7 +605,7 @@ onMounted(loadSubscriptions)
 }
 
 // Responsive
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .subscriptions-view {
     padding: var(--spacing-4);
   }

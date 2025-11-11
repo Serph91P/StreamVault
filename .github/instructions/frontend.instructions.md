@@ -348,6 +348,232 @@ When refactoring hard-coded values:
 - `8px` → `$spacing-sm` (0.5rem)
 - `12px`, `16px` → `$spacing-md` (1rem) - **DEFAULT**
 - `20px`, `24px` → `$spacing-lg` (1.5rem)
+
+## SCSS Breakpoints & Responsive Design (CRITICAL)
+
+### ⚠️ MANDATORY: Use SCSS Mixins for ALL Breakpoints
+
+**CRITICAL RULE**: NEVER use hard-coded `@media (max-width: XXXpx)` queries in Vue components!
+
+**❌ FORBIDDEN - Hard-coded breakpoints:**
+```scss
+// ❌ WRONG: Hard-coded magic numbers
+@media (max-width: 640px) {
+  .component { padding: 8px; }
+}
+
+@media (max-width: 768px) {
+  .header { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .button { width: 100%; }
+}
+```
+
+**✅ REQUIRED - SCSS Mixins:**
+```scss
+// ✅ CORRECT: Use mixins from _mixins.scss
+@use '@/styles/mixins' as m;
+
+@include m.respond-below('sm') {  // < 640px
+  .component { padding: 8px; }
+}
+
+@include m.respond-below('md') {  // < 768px
+  .header { flex-direction: column; }
+}
+
+@include m.respond-below('xs') {  // < 375px
+  .button { width: 100%; }
+}
+```
+
+### Centralized Breakpoint System
+
+**Breakpoints** are defined in `app/frontend/src/styles/_variables.scss`:
+
+```scss
+$breakpoints: (
+  'xs': 375px,   // Mobile extra-small (iPhone SE)
+  'sm': 640px,   // Mobile / Phablet (most phones in landscape)
+  'md': 768px,   // Tablet portrait
+  'lg': 1024px,  // Desktop / Tablet landscape
+  'xl': 1200px   // Large desktop
+);
+```
+
+**Mixins** are provided in `app/frontend/src/styles/_mixins.scss`:
+
+```scss
+// Minimum width (mobile-first approach)
+@mixin respond-to($breakpoint) {
+  @media (min-width: map.get(v.$breakpoints, $breakpoint)) {
+    @content;
+  }
+}
+
+// Maximum width (desktop-first approach)
+@mixin respond-below($breakpoint) {
+  $breakpoint-value: map.get(v.$breakpoints, $breakpoint);
+  @media (max-width: #{$breakpoint-value - 1px}) {
+    @content;
+  }
+}
+```
+
+### Migration Guide: Hard-Coded → SCSS Mixins
+
+**Step 1: Add mixin import to your component**
+
+```vue
+<style scoped lang="scss">
+// Add this at the top of your <style> block
+@use '@/styles/mixins' as m;
+
+.your-component {
+  // your styles
+}
+</style>
+```
+
+**Step 2: Replace hard-coded breakpoints**
+
+| Hard-coded | SCSS Mixin Replacement | Reason |
+|------------|------------------------|--------|
+| `@media (max-width: 374px)` | `@include m.respond-below('xs')` | < 375px |
+| `@media (max-width: 375px)` | `@include m.respond-below('xs')` | < 375px |
+| `@media (max-width: 480px)` | `@include m.respond-below('xs')` | Map to xs (closest) |
+| `@media (max-width: 639px)` | `@include m.respond-below('sm')` | < 640px |
+| `@media (max-width: 640px)` | `@include m.respond-below('sm')` | < 640px |
+| `@media (max-width: 767px)` | `@include m.respond-below('md')` | < 768px |
+| `@media (max-width: 768px)` | `@include m.respond-below('md')` | < 768px |
+| `@media (max-width: 1023px)` | `@include m.respond-below('lg')` | < 1024px |
+| `@media (max-width: 1024px)` | `@include m.respond-below('lg')` | < 1024px |
+
+**Step 3: Add explanatory comments**
+
+```scss
+// ✅ GOOD: Explain what breakpoint means
+@include m.respond-below('md') {  // < 768px - Tablet and below
+  .component {
+    flex-direction: column;
+  }
+}
+
+// ❌ BAD: No context
+@include m.respond-below('md') {
+  .component {
+    flex-direction: column;
+  }
+}
+```
+
+### Common Responsive Patterns
+
+**Pattern 1: Mobile-First (Recommended)**
+
+```scss
+.component {
+  // Base styles for mobile
+  padding: var(--spacing-2);
+  font-size: var(--text-sm);
+}
+
+@include m.respond-to('sm') {  // >= 640px
+  .component {
+    padding: var(--spacing-3);
+  }
+}
+
+@include m.respond-to('md') {  // >= 768px
+  .component {
+    padding: var(--spacing-4);
+    font-size: var(--text-base);
+  }
+}
+
+@include m.respond-to('lg') {  // >= 1024px
+  .component {
+    padding: var(--spacing-6);
+    font-size: var(--text-lg);
+  }
+}
+```
+
+**Pattern 2: Desktop-First (When Needed)**
+
+```scss
+.component {
+  // Base styles for desktop
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-6);
+}
+
+@include m.respond-below('lg') {  // < 1024px
+  .component {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-4);
+  }
+}
+
+@include m.respond-below('sm') {  // < 640px
+  .component {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-3);
+  }
+}
+```
+
+**Pattern 3: Progressive Enhancement (Touch Targets)**
+
+```scss
+.button {
+  min-height: 36px;  // Base height
+  padding: var(--spacing-2) var(--spacing-4);
+}
+
+@include m.respond-below('md') {  // < 768px - Touch devices
+  .button {
+    min-height: 44px;  // Touch-friendly (Apple HIG)
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+}
+
+@include m.respond-below('sm') {  // < 640px - Small phones
+  .button {
+    width: 100%;  // Full-width on mobile
+    min-height: 48px;  // Extra touch area
+  }
+}
+```
+
+### Why This Matters (Benefits)
+
+1. **Single Source of Truth**: Changing `640px → 720px` only requires editing `_variables.scss`
+2. **Maintainability**: No scattered magic numbers across 50+ Vue files
+3. **Consistency**: All components break at the same viewport widths
+4. **Semantic Names**: `'sm'` is more readable than `640px`
+5. **Type Safety**: SCSS will error on unknown breakpoints like `'medium'`
+
+### Pre-Commit Checklist
+
+Before committing any Vue component:
+
+- [ ] No `@media (max-width: XXXpx)` in component styles
+- [ ] All breakpoints use `@include m.respond-below('breakpoint')`
+- [ ] Mixin import `@use '@/styles/mixins' as m;` is present
+- [ ] Breakpoint comments explain viewport size (e.g., `// < 768px`)
+- [ ] Touch targets >= 44px on mobile breakpoints
+
+### Related Documentation
+
+- Breakpoint definitions: `app/frontend/src/styles/_variables.scss`
+- Mixin implementations: `app/frontend/src/styles/_mixins.scss`
+- Refactoring commit: See commit "refactor: migrate all hard-coded breakpoints to SCSS mixins"
+
+
 - `32px` → `$spacing-xl` (2rem)
 
 ## Touch Targets

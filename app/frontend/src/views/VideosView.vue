@@ -418,6 +418,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
 
 .videos-view {
   padding: var(--spacing-6) var(--spacing-4);
@@ -852,8 +853,8 @@ onMounted(() => {
   transform: translateY(-10px);
 }
 
-// Responsive
-@media (max-width: 1024px) {
+// Responsive - Use SCSS mixins for breakpoints
+@include m.respond-below('lg') {  // < 1024px
   .controls-bar {
     flex-direction: column;
     align-items: stretch;
@@ -861,7 +862,7 @@ onMounted(() => {
 
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .videos-view {
     padding: var(--spacing-4) var(--spacing-3);
   }

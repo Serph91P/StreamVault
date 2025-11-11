@@ -267,7 +267,10 @@ const formatDuration = (seconds: number): string => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .status-dashboard {
   padding: 1.5rem;
   max-width: 1200px;
@@ -556,7 +559,7 @@ const formatDuration = (seconds: number): string => {
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .status-dashboard {
     padding: 1rem;
   }

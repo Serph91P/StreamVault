@@ -171,7 +171,10 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .category-timeline {
   background: #1f1f23;
   border-radius: 12px;
@@ -508,7 +511,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .horizontal-timeline {
     overflow: hidden; /* Keep consistent, no scrolling */
     padding-bottom: 10px;

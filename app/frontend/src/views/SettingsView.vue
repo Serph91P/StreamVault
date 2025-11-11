@@ -556,7 +556,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
+@use '@/styles/mixins' as m;
 .settings-view {
   padding: var(--spacing-6) var(--spacing-4);
   max-width: 1600px;
@@ -1025,8 +1025,7 @@ onMounted(() => {
   }
 }
 
-// Responsive
-@media (max-width: 1024px) {
+@include m.respond-below('lg') {  // < 1024px
   .settings-layout {
     grid-template-columns: 1fr;
   }
@@ -1057,7 +1056,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .settings-view {
     padding: var(--spacing-4) var(--spacing-3);
   }

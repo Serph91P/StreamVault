@@ -117,7 +117,10 @@ const dismissPrompt = () => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .install-prompt {
   position: fixed;
   bottom: 20px;
@@ -237,7 +240,7 @@ const dismissPrompt = () => {
 }
 
 /* Mobile specific styles */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .install-prompt {
     margin: 8px;
     border-radius: 12px;

@@ -292,7 +292,8 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 .filter-container {
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
@@ -320,8 +321,9 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-/* Responsive Anpassungen */
-@media (max-width: 640px) {
+/* Responsive Anpassungen - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('sm') {  // < 640px
   .filter-row {
     flex-direction: column;
   }
@@ -429,7 +431,7 @@ onMounted(() => {
 }
 
 /* Small screens: 1 card per row */
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .category-cards {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -437,7 +439,7 @@ onMounted(() => {
 }
 
 /* Medium screens: 2-3 cards per row */
-@media (min-width: 641px) and (max-width: 1023px) {
+@include m.respond-to('sm') {  // >= 640px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 20px;
@@ -445,7 +447,7 @@ onMounted(() => {
 }
 
 /* Large screens: 3-4 cards per row */
-@media (min-width: 1024px) and (max-width: 1439px) {
+@include m.respond-to('lg') {  // >= 1024px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 24px;
@@ -453,7 +455,7 @@ onMounted(() => {
 }
 
 /* Extra large screens: 4+ cards per row */
-@media (min-width: 1440px) {
+@include m.respond-to('xl') {  // >= 1200px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 24px;
@@ -630,7 +632,7 @@ onMounted(() => {
   transform: scale(1.2);
 }
 
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 375px
   .button-label {
     display: none;
   }

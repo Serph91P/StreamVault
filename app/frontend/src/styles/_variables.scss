@@ -185,11 +185,14 @@ $shadow-focus-danger: 0 0 0 3px rgba($danger-500, 0.3);
 $shadow-focus-success: 0 0 0 3px rgba($success-500, 0.3);
 
 // Breakpoints (mobile-first)
+// CRITICAL: ALWAYS use mixins from _mixins.scss (respond-to, respond-below)
+// NEVER use hard-coded @media (max-width: XXXpx) in Vue components!
 $breakpoints: (
-  'sm': 375px,
-  'md': 768px,
-  'lg': 1024px,
-  'xl': 1200px
+  'xs': 375px,   // Mobile extra-small (iPhone SE)
+  'sm': 640px,   // Mobile / Phablet (most phones in landscape)
+  'md': 768px,   // Tablet portrait
+  'lg': 1024px,  // Desktop / Tablet landscape
+  'xl': 1200px   // Large desktop
 );
 
 // Container max-widths - beibehalten für Rückwärtskompatibilität

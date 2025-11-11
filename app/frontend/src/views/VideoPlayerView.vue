@@ -165,6 +165,7 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
 .video-player-view {
   display: flex;
   flex-direction: column;
@@ -292,8 +293,7 @@ onMounted(() => {
   flex-direction: column;
 }
 
-// Responsive
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .player-header {
     flex-direction: column;
     align-items: flex-start;
@@ -336,7 +336,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .video-player-view {
     padding: var(--spacing-3);
   }
@@ -365,7 +365,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 375px (very small phones)
   .player-header {
     padding: var(--spacing-2) var(--spacing-3);
   }
@@ -383,8 +383,8 @@ onMounted(() => {
   }
 }
 
-// Landscape mobile optimization
-@media (max-width: 768px) and (orientation: landscape) {
+// Landscape mobile optimization (Cannot use mixins for orientation queries)
+@media (max-width: 767px) and (orientation: landscape) {
   .player-header {
     flex-direction: row;
     align-items: center;

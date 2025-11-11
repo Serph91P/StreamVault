@@ -78,6 +78,9 @@ withDefaults(defineProps<Props>(), {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 
 .skeleton-wrapper {
   width: 100%;
@@ -229,7 +232,7 @@ withDefaults(defineProps<Props>(), {
 }
 
 // Responsive
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .skeleton-streamer,
   .skeleton-list-item {
     flex-direction: column;

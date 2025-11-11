@@ -143,6 +143,9 @@ const handleAction = () => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 
 .status-card {
   // Card specific overrides
@@ -329,7 +332,7 @@ const handleAction = () => {
 }
 
 // Responsive
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .status-value {
     font-size: var(--text-2xl);
   }

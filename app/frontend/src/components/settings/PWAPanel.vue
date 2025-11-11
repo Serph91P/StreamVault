@@ -370,7 +370,8 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 .pwa-panel {
   max-width: 800px;
 }
@@ -565,8 +566,9 @@ onMounted(() => {
   border: 1px solid var(--info-border-color, #bee5eb);
 }
 
-/* Mobile responsive */
-@media (max-width: 768px) {
+/* Mobile responsive - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('md') {  // < 768px
   .setting-item {
     flex-direction: column;
     align-items: stretch;

@@ -94,7 +94,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .websocket-monitor {
   padding: 20px;
   max-width: 800px;

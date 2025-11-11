@@ -681,7 +681,10 @@ const handleStreamerPolicySaved = (policy: any) => {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
@@ -841,7 +844,7 @@ select.form-control option {
 }
 
 /* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .streamer-table table,
   .streamer-table thead,
   .streamer-table tbody,
@@ -962,7 +965,7 @@ select.form-control option {
   gap: 8px;
 }
 
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .form-actions {
     flex-direction: column;
   }
@@ -1530,7 +1533,7 @@ select.form-control-sm option {
 }
 
 /* Mobile responsiveness */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   /* Tab Navigation - Mobile Optimized */
   .tab-navigation {
     display: flex;
@@ -1734,7 +1737,7 @@ select.form-control-sm option {
 }
 
 /* Extra small screens (phones in portrait) */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .modal-content {
     width: 100vw;
     max-width: 100vw;

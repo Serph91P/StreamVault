@@ -81,6 +81,9 @@ const handleAction = () => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 
 .empty-state {
   position: relative;
@@ -311,7 +314,7 @@ const handleAction = () => {
 }
 
 // Responsive
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .empty-state {
     min-height: 300px;
     padding: var(--spacing-6);

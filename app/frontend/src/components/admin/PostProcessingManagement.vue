@@ -406,7 +406,10 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .post-processing-management {
   max-width: 1200px;
   margin: 0 auto;
@@ -766,7 +769,7 @@ onMounted(() => {
   font-style: italic;
 }
 
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .action-buttons {
     grid-template-columns: 1fr;
   }

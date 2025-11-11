@@ -361,7 +361,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .logging-panel {
   padding: 2rem;
   max-width: 1200px;

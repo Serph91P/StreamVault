@@ -933,7 +933,10 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .streams-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -1753,7 +1756,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .streams-container {
     padding: 15px;
   }

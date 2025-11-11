@@ -889,7 +889,8 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 /* ============================================================================
    ADMIN PANEL - Modern Design
    ============================================================================ */
@@ -1445,8 +1446,9 @@ onMounted(() => {
   line-height: var(--leading-relaxed);
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
+/* Mobile Responsive - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('md') {  // < 768px
   .admin-panel {
     padding: var(--spacing-3);  /* 12px */
   }
@@ -1461,6 +1463,66 @@ onMounted(() => {
 
   .test-controls .btn {
     width: 100%;
+    min-height: 44px;  /* Touch-friendly */
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+  }
+  
+  .section-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@include m.respond-below('sm') {  // < 640px
+  .admin-panel {
+    padding: var(--spacing-2);
+  }
+  
+  .header h1 {
+    font-size: var(--text-2xl);
+  }
+  
+  .subtitle {
+    font-size: var(--text-sm);
+  }
+
+  .summary-stats {
+    grid-template-columns: 1fr;  /* Single column on small mobile */
+    gap: var(--spacing-2);
+  }
+  
+  .system-info-grid {
+    grid-template-columns: 1fr;  /* Single column */
+    gap: var(--spacing-3);
+  }
+  
+  .health-checks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+  
+  .health-check {
+    padding: var(--spacing-3);
+  }
+  
+  .btn {
+    min-height: 44px;  /* Touch-friendly */
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--text-sm);
+  }
+  
+  .test-item {
+    padding: var(--spacing-3);
+  }
+  
+  .results-table {
+    font-size: var(--text-xs);
   }
 }
 </style>

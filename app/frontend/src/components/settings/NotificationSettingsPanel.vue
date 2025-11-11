@@ -376,7 +376,10 @@ const testWebSocketNotification = async () => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .settings-form {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
@@ -613,7 +616,7 @@ const testWebSocketNotification = async () => {
   white-space: nowrap;
 }
 
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .streamer-table {
     border-radius: 0;
   }
@@ -660,7 +663,7 @@ const testWebSocketNotification = async () => {
 }
 
 /* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .streamer-table table,
   .streamer-table thead,
   .streamer-table tbody,
@@ -755,7 +758,7 @@ const testWebSocketNotification = async () => {
 }
 
 /* Extra small screens: Additional optimizations */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .streamer-table tr {
     margin-bottom: var(--spacing-3, 12px);
   }

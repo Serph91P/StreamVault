@@ -237,7 +237,10 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .pwa-tester {
   max-width: 800px;
   margin: 0 auto;
@@ -384,7 +387,7 @@ onMounted(() => {
   color: #856404;
 }
 
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .pwa-tester {
     padding: 10px;
   }

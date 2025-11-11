@@ -159,7 +159,7 @@ const handlePlay = () => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
+@use '@/styles/mixins' as m;
 .video-card {
   overflow: hidden;
 
@@ -368,8 +368,9 @@ const handlePlay = () => {
   }
 }
 
-/* Mobile Optimizations (< 768px) */
-@media (max-width: 767px) {
+/* Mobile Optimizations - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('md') {  // < 768px
   .video-info {
     padding: var(--spacing-3);
   }
@@ -409,8 +410,8 @@ const handlePlay = () => {
   }
 }
 
-/* Extra Small Screens (< 480px) */
-@media (max-width: 480px) {
+/* Extra Small Screens */
+@include m.respond-below('xs') {  // < 375px
   .video-info {
     padding: var(--spacing-2);
   }

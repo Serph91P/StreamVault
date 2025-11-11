@@ -540,7 +540,10 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .notification-feed {
   max-width: 400px;
   max-height: 800px;
@@ -951,7 +954,7 @@ onUnmounted(() => {
 }
 
 /* Mobile responsiveness */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .notification-feed {
     width: 100vw;
     max-width: 100vw;
@@ -1116,7 +1119,7 @@ onUnmounted(() => {
 }
 
 /* Extra small screens (phones in portrait) */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .feed-header {
     padding: 12px 16px;
   }
@@ -1179,7 +1182,7 @@ onUnmounted(() => {
 }
 
 /* Landscape phones */
-@media (max-width: 768px) and (orientation: landscape) {
+@media (max-width: 767px) and (orientation: landscape) {  // Cannot use mixins for orientation queries
   .notification-list {
     max-height: calc(100vh - 70px);
   }

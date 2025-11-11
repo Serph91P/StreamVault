@@ -470,7 +470,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-
+@use '@/styles/mixins' as m;
 .streamers-view {
   padding: var(--spacing-6) var(--spacing-4);
   max-width: 1600px;
@@ -885,8 +885,7 @@ onUnmounted(() => {
   }
 }
 
-// Responsive
-@media (max-width: 1024px) {
+@include m.respond-below('lg') {  // < 1024px
   .controls-bar {
     flex-wrap: wrap;
   }
@@ -903,7 +902,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
   }
