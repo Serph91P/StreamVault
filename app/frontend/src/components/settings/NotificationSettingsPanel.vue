@@ -476,12 +476,13 @@ const testWebSocketNotification = async () => {
 
 .btn-primary {
   background-color: var(--primary-color, #42b883);
-  color: white;
+  color: white;  /* White text is correct on primary-color background */
 }
 
 .btn-secondary {
-  background-color: var(--background-darker, #3a3a3a);
-  color: white;
+  background-color: var(--background-card, #3a3a3a);
+  color: var(--text-primary);  /* Theme-aware text color */
+  border: 1px solid var(--border-color);
 }
 
 .btn:hover:not(:disabled) {
