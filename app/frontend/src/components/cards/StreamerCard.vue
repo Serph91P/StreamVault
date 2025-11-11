@@ -323,13 +323,8 @@ onUnmounted(() => {
     flex-direction: column;
   }
   
-  // LIVE indicator: Subtle red border instead of gradient
-  &.is-live {
-    :deep(.glass-card-content) {
-      border: 2px solid var(--danger-color);
-      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), var(--shadow-md);
-    }
-  }
+  // LIVE indicator: REMOVED - Red border now only on avatar (line 377)
+  // Keeps card cleaner and less overwhelming
   
   // RECORDING indicator: Pulsing border animation
   &.is-recording {

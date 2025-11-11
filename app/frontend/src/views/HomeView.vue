@@ -405,7 +405,7 @@ section {
   gap: var(--spacing-4);
   overflow-x: auto;
   overflow-y: visible;  /* CRITICAL: Allow dropdown to overflow vertically */
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-6);  /* FIXED: Increased bottom padding for shadow */
   margin: 0 calc(var(--spacing-4) * -1);
   padding-left: var(--spacing-4);
   padding-right: var(--spacing-4);
@@ -498,6 +498,13 @@ section {
 
   .section-title {
     font-size: var(--text-lg);
+  }
+
+  // Center live cards on mobile
+  .horizontal-scroll {
+    justify-content: center;
+    padding-left: var(--spacing-2);
+    padding-right: var(--spacing-2);
   }
 
   .live-card,
