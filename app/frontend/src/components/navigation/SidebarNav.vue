@@ -169,19 +169,28 @@ onMounted(() => {
   &.active {
     background: var(--primary-color);
     color: white;
-    box-shadow: v.$shadow-md;
+    box-shadow: v.$shadow-md, inset 4px 0 0 rgba(255, 255, 255, 0.2);
     
     // Light mode: Use primary-600 for better contrast
     // PRIMARY-600 (#0d9488) on white bg = 4.5:1 contrast ratio (WCAG AA compliant)
     [data-theme="light"] & {
       background: var(--primary-color-dark);  // Uses CSS variable (primary-600)
       color: white;
-      border-left: 4px solid v.$primary-700;
+      box-shadow: v.$shadow-md, inset 4px 0 0 v.$primary-700;
     }
     
     .nav-icon {
       transform: scale(1.1);
       stroke: white;  // Ensure icon is also white
+    }
+    
+    // Active + Hover: Slightly lighter background
+    &:hover {
+      background: var(--primary-400);
+      
+      [data-theme="light"] & {
+        background: var(--primary-500);
+      }
     }
   }
   
