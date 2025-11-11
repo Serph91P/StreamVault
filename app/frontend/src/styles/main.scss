@@ -202,3 +202,14 @@ img {
   white-space: nowrap;
   border-width: 0;
 }
+
+// Animation Toggle - Disable all animations when user preference is set
+.no-animations,
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

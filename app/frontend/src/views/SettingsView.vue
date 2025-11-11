@@ -221,6 +221,19 @@
 
               <div class="setting-item">
                 <div class="setting-info">
+                  <label class="setting-label">Enable Animations</label>
+                  <p class="setting-description">Show animated transitions, hover effects, and recording pulse</p>
+                </div>
+                <div class="setting-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" v-model="animationsEnabled" @change="toggleAnimations" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
                   <label class="setting-label">Clear Cache</label>
                   <p class="setting-description">Remove cached data and reload application</p>
                 </div>
@@ -502,6 +515,18 @@ function clearCache() {
   }
 }
 
+function toggleAnimations() {
+  // Save to localStorage
+  localStorage.setItem('animationsEnabled', animationsEnabled.value.toString())
+  
+  // Apply or remove 'no-animations' class from document
+  if (animationsEnabled.value) {
+    document.documentElement.classList.remove('no-animations')
+  } else {
+    document.documentElement.classList.add('no-animations')
+  }
+}
+
 function saveAllChanges() {
   hasUnsavedChanges.value = false
   // Save logic handled by individual panels
@@ -515,6 +540,17 @@ function resetChanges() {
 // Initialize
 onMounted(() => {
   loadAllSettings()
+  
+  // Load animation preference from localStorage
+  const savedAnimationsEnabled = localStorage.getItem('animationsEnabled')
+  if (savedAnimationsEnabled !== null) {
+    animationsEnabled.value = savedAnimationsEnabled === 'true'
+  }
+  
+  // Apply animation state on mount
+  if (!animationsEnabled.value) {
+    document.documentElement.classList.add('no-animations')
+  }
 })
 </script>
 
