@@ -162,26 +162,27 @@
                 </div>
               </div>
 
-              <div class="proxy-examples">
+              <div class="proxy-info-card">
                 <h5>📋 Proxy URL Examples:</h5>
-                <ul>
+                <ul class="proxy-examples-list">
                   <li><code>http://proxy.example.com:8080</code> - Basic proxy</li>
                   <li><code>http://username:password@proxy.example.com:8080</code> - Authenticated proxy</li>
                   <li><code>https://secure-proxy.example.com:8080</code> - HTTPS proxy</li>
                   <li><code>socks5://127.0.0.1:1080</code> - SOCKS5 proxy (if supported)</li>
                 </ul>
-              </div>
+                
                 <div class="proxy-tips">
-                <h6>💡 Tips:</h6>
-                <ul>
-                  <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
-                  <li>Test your proxy configuration before enabling recording</li>
-                  <li>Some regions have fewer or no Twitch advertisements</li>
-                  <li>Ensure your proxy provider allows video streaming traffic</li>
-                  <li>Leave fields empty to disable proxy for that protocol</li>
-                  <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
-                  <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
-                </ul>
+                  <h6>💡 Tips:</h6>
+                  <ul>
+                    <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
+                    <li>Test your proxy configuration before enabling recording</li>
+                    <li>Some regions have fewer or no Twitch advertisements</li>
+                    <li>Ensure your proxy provider allows video streaming traffic</li>
+                    <li>Leave fields empty to disable proxy for that protocol</li>
+                    <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
+                    <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -1372,27 +1373,51 @@ select.form-control-sm option {
   /* Use status-border-info class from global styles instead */
 }
 
-.proxy-examples {
+.proxy-info-card {
   margin-top: var(--spacing-lg, 1.5rem);
-  padding: var(--spacing-md, 1rem);
-  background-color: var(--background-dark, #18181b);
-  border-radius: var(--border-radius, 6px);
-  border: 1px solid var(--border-color, #303034);
+  padding: var(--spacing-lg, 1.5rem);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 8px);
 }
 
-.proxy-examples h5 {
+.proxy-info-card h5 {
   margin-bottom: var(--spacing-md, 1rem);
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
   font-size: 1rem;
   font-weight: 600;
 }
 
-.proxy-examples h6 {
+.proxy-info-card h6 {
   margin-top: var(--spacing-lg, 1.5rem);
   margin-bottom: var(--spacing-sm, 0.5rem);
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.proxy-examples-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.proxy-examples-list li {
+  margin-bottom: var(--spacing-sm, 0.5rem);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.proxy-examples-list code {
+  background: var(--background-darker);
+  color: var(--primary-color);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  display: inline-block;
+  word-break: break-all;
 }
 
 .example-list {
@@ -1430,17 +1455,20 @@ select.form-control-sm option {
 
 .proxy-tips {
   margin-top: var(--spacing-md, 1rem);
+  padding-top: var(--spacing-md, 1rem);
+  border-top: 1px solid var(--border-color);
 }
 
 .proxy-tips ul {
   margin: var(--spacing-sm, 0.5rem) 0;
   padding-left: var(--spacing-lg, 1.5rem);
+  list-style: disc;
 }
 
 .proxy-tips li {
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   font-size: 0.85rem;
-  line-height: 1.4;
+  line-height: 1.6;
   margin-bottom: var(--spacing-xs, 0.25rem);
 }
 
@@ -1585,8 +1613,25 @@ select.form-control-sm option {
     padding: 12px;
   }
   
-  .proxy-examples {
-    padding: 12px;
+  .proxy-info-card {
+    padding: var(--spacing-md, 1rem);
+  }
+  
+  .proxy-info-card h5 {
+    font-size: 0.95rem;
+  }
+  
+  .proxy-info-card h6 {
+    font-size: 0.85rem;
+  }
+  
+  .proxy-examples-list code {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+  }
+  
+  .proxy-tips li {
+    font-size: 0.8rem;
   }
   
   .example-item {
