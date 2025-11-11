@@ -641,7 +641,7 @@ onMounted(() => {
 .form-control {
   width: 100%;
   box-sizing: border-box;
-  background: var(--background-dark);
+  background: var(--background-darker);  /* Better contrast in both themes */
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   padding: 8px 12px;
@@ -654,5 +654,9 @@ onMounted(() => {
   border-color: var(--primary-color);
   outline: none;
   box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
+}
+
+.form-control::placeholder {
+  color: var(--text-tertiary);  /* Subtle placeholder text */
 }
 </style>
