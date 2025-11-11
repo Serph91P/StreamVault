@@ -5,7 +5,7 @@
     clickable
     @click="handleClick"
     class="streamer-card"
-    :class="{ 'actions-open': showActions, 'is-live': isLive }"
+    :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording }"
   >
     <div class="streamer-card-content">
       <!-- Avatar/Thumbnail - CENTERED -->
@@ -328,6 +328,13 @@ onUnmounted(() => {
     :deep(.glass-card-content) {
       border: 2px solid var(--danger-color);
       box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), var(--shadow-md);
+    }
+  }
+  
+  // RECORDING indicator: Pulsing border animation
+  &.is-recording {
+    :deep(.glass-card-content) {
+      animation: pulse-recording 2s ease-in-out infinite;
     }
   }
   
