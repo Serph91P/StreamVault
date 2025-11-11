@@ -1125,20 +1125,50 @@ onMounted(async () => {
     .btn-action {
       flex: 1;
       justify-content: center;
+      min-height: 44px;  // Touch-friendly
     }
   }
 
   .history-header {
     flex-direction: column;
     align-items: stretch;
+    gap: var(--spacing-3);
   }
 
   .view-controls {
     justify-content: space-between;
+    gap: var(--spacing-2);
+  }
+  
+  .view-toggle {
+    flex: none;  // Fixed width
+    
+    .toggle-btn {
+      min-width: 44px;  // Touch-friendly
+      min-height: 44px;
+      padding: var(--spacing-2);
+      
+      .icon {
+        width: 22px;
+        height: 22px;
+      }
+    }
+  }
+  
+  .sort-select {
+    flex: 1;  // Fill remaining space
+    min-height: 44px;  // Touch-friendly
+    font-size: 16px;  // Prevent iOS zoom
+    padding: var(--spacing-3);
   }
 
   .videos-container.view-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .stats-section {
+    grid-template-columns: 1fr;  // Stack stats on mobile
+    gap: var(--spacing-3);
   }
 }
 
@@ -1162,6 +1192,16 @@ onMounted(async () => {
 
   .profile-actions {
     gap: var(--spacing-2);
+  }
+  
+  .modal-actions {
+    flex-direction: column;  // Stack buttons vertically
+    
+    button {
+      width: 100%;
+      min-height: 44px;  // Touch-friendly
+      justify-content: center;
+    }
   }
 }
 
