@@ -981,10 +981,12 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-5);
+  min-height: 44px;  /* Touch-friendly target */
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   color: var(--text-primary);
   text-decoration: none;
   font-size: var(--text-sm);
@@ -992,16 +994,22 @@ onMounted(() => {
   transition: all v.$duration-200 v.$ease-out;
 
   .icon {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     stroke: currentColor;
     fill: none;
   }
 
   &:hover {
     border-color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.1);
     color: var(--primary-color);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 
@@ -1083,6 +1091,18 @@ onMounted(() => {
 
   .nav-description {
     display: none;
+  }
+
+  .about-links {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .about-link {
+    width: 100%;
+    justify-content: center;
+    padding: var(--spacing-4) var(--spacing-5);
+    min-height: 48px;  /* Larger touch target on mobile */
   }
 }
 </style>
