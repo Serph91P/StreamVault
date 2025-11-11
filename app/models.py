@@ -50,6 +50,13 @@ class Streamer(Base):
     is_favorite = Column(Boolean, default=False, index=True)
     auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Last stream information (shown when offline)
+    last_stream_title = Column(String, nullable=True)
+    last_stream_category_name = Column(String, nullable=True)
+    last_stream_viewer_count = Column(Integer, nullable=True)
+    last_stream_ended_at = Column(DateTime(timezone=True), nullable=True)
+    
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
     
     @property

@@ -300,7 +300,13 @@ class EventHandlerRegistry:
                         .first()                    
                     if stream:
                         stream.ended_at = datetime.now(timezone.utc)
-                        # stream.status = "offline"  # Remove - status is not a field in the Stream model
+                        
+                        # Update last stream info on streamer for offline display
+                        streamer.last_stream_title = stream.title
+                        streamer.last_stream_category_name = stream.category_name
+                        streamer.last_stream_ended_at = stream.ended_at
+                        # Note: last_stream_viewer_count will be updated when recording finishes
+                        # (not available in stream.offline event)
                 
                     db.commit()
             

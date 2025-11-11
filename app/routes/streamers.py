@@ -133,7 +133,12 @@ async def get_streamers(streamer_service: StreamerService = Depends(get_streamer
                 streamer.id, 
                 streamer.profile_image_url
             ),
-            "original_profile_image_url": streamer.original_profile_image_url
+            "original_profile_image_url": streamer.original_profile_image_url,
+            # Last stream info (shown when offline)
+            "last_stream_title": streamer.last_stream_title if not streamer.is_live else None,
+            "last_stream_category_name": streamer.last_stream_category_name if not streamer.is_live else None,
+            "last_stream_viewer_count": streamer.last_stream_viewer_count if not streamer.is_live else None,
+            "last_stream_ended_at": streamer.last_stream_ended_at.isoformat() if streamer.last_stream_ended_at and not streamer.is_live else None,
         })
     
     # Return in the format expected by frontend
