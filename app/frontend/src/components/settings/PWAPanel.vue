@@ -84,6 +84,9 @@
             class="btn btn-primary"
             :disabled="isEnablingNotifications"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-bell"></use>
+            </svg>
             {{ isEnablingNotifications ? 'Enabling...' : 'Enable Notifications' }}
           </button>
           <button 
@@ -92,6 +95,9 @@
             class="btn btn-secondary"
             :disabled="isDisablingNotifications"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-bell-off"></use>
+            </svg>
             {{ isDisablingNotifications ? 'Disabling...' : 'Disable Notifications' }}
           </button>
         </div>
@@ -110,6 +116,9 @@
             class="btn btn-secondary"
             :disabled="isSendingTest"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-send"></use>
+            </svg>
             {{ isSendingTest ? 'Sending...' : 'Send Test' }}
           </button>
           <button 
@@ -117,6 +126,9 @@
             class="btn btn-primary"
             style="margin-left: 8px;"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-smartphone"></use>
+            </svg>
             Test Local
           </button>
         </div>
@@ -470,11 +482,20 @@ onMounted(() => {
 .btn {
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-lg, 8px);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .btn:disabled {
@@ -492,12 +513,13 @@ onMounted(() => {
 }
 
 .btn.btn-secondary {
-  background: var(--secondary-color, #6c757d);
-  color: white;
+  background: var(--background-card, #3a3a3a);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover-color, #545b62);
+  background: var(--background-darker, #2a2a2a);
 }
 
 .install-btn {
