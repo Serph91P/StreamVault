@@ -1,7 +1,7 @@
 # Remaining Frontend Tasks - Continuation Guide
-**Date:** 11. November 2025 (Updated - Session 3 Completed)  
-**Status:** ✅ Excellent Progress - 18/59 Issues Fixed (30%)  
-**Session:** Day 3 - Settings Tables Mobile Responsive Complete
+**Date:** 11. November 2025 (Updated - Session 4 Completed)  
+**Status:** ✅ Excellent Progress - 19/59 Issues Fixed (32%)  
+**Session:** Day 4 - Last Stream Info Complete (Backend + Frontend)
 
 **High Priority Issues Completed:**
 - ✅ Issue #NEW1: Login & Setup Icons (d597e451)
@@ -16,8 +16,41 @@
 - ✅ Issue #9: Add Missing Icons (80610ffe, 777f7451)
 - ✅ Issue #NEW7: Favorite Games Light Mode & Spacing (verified - already correct)
 - ✅ Issue #NEW8: Settings Tables Mobile Responsive (71fbb59b)
+- ✅ Issue #NEW9: Last Stream Info for Offline Streamers (54191f60, b9dc50e6)
 
-**Total Backlog:** 41 Issues Remaining (mostly low/medium priority)
+**Total Backlog:** 40 Issues Remaining (mostly low/medium priority)
+
+---
+
+## ✅ Completed Today (Session 4 - 11. Nov 2025)
+
+### Issue #NEW9: Last Stream Info for Offline Streamers ✅
+**Problem:** Offline streamers show generic "No description available" without context  
+**Solution:** Full-stack implementation to display last stream info when offline  
+**Implementation:**
+
+**Backend (Commit: 54191f60):**
+- ✅ Added 4 fields to Streamer model: last_stream_title, last_stream_category_name, last_stream_viewer_count, last_stream_ended_at
+- ✅ Created migration 023 with backfill from most recent ended streams
+- ✅ Updated StreamerResponse schema with new fields
+- ✅ Updated /api/streamers endpoint to include last stream info when offline
+- ✅ Updated handle_stream_offline event to save last stream info
+
+**Frontend (Commit: b9dc50e6):**
+- ✅ Extended Streamer interface with last_stream_* fields
+- ✅ Display last stream title + category when offline (grayed out, opacity: 0.6)
+- ✅ Updated lastStreamTime to use last_stream_ended_at
+- ✅ Added CSS styling for offline-last-stream section
+- ✅ Maintains card layout consistency
+
+**UI Behavior:**
+- Live: "Stream Title" + "Category" (full color)
+- Offline with data: "Last Stream Title" + "Last Category" (grayed out) + "3h ago"
+- Offline without data: Streamer description
+
+**Files:**
+- Backend: models.py, schemas/streamers.py, routes/streamers.py, events/handler_registry.py, migrations/023_add_last_stream_info.py
+- Frontend: components/cards/StreamerCard.vue
 
 ---
 
