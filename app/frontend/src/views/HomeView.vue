@@ -24,10 +24,22 @@
 
       <!-- Empty State -->
       <EmptyState
+        v-else-if="liveStreamers.length === 0 && totalStreamers === 0"
+        variant="compact"
+        title="Welcome to StreamVault"
+        description="Add your first streamer to start recording streams automatically."
+        icon="users"
+        action-label="Add Streamer"
+        action-icon="plus"
+        :show-decoration="false"
+        @action="navigateToAddStreamer"
+      />
+      
+      <EmptyState
         v-else-if="liveStreamers.length === 0"
         variant="compact"
         title="No Live Streams"
-        description="None of your streamers are currently live."
+        description="None of your streamers are currently live. Check out your recent recordings below."
         icon="video-off"
         :show-decoration="false"
       />
