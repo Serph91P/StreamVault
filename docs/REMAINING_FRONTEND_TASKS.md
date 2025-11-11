@@ -1,7 +1,45 @@
 # Remaining Frontend Tasks - Continuation Guide
-**Date:** 10. November 2025  
+**Date:** 11. November 2025 (Updated - Session 2 Extended)  
 **Status:** 🟡 In Progress  
-**Session:** Day 1 Complete - 5/35 Issues Fixed
+**Session:** Day 2 Continued - 7/59 Issues Fixed (34 NEW Issues Added Today)
+
+**New Issues Added:**
+- 14 Issues from initial feedback (Streamers, Videos, Settings pages)
+- 19 Critical Issues from mobile/login testing
+- 1 StreamerDetailView Settings button & layout issue
+
+**Total Backlog:** 52 Issues Remaining
+
+---
+
+## ✅ Completed Today (Session 2 - 11. Nov 2025)
+
+### Issue #8: Design System Colors - SidebarNav ✅
+**Problem:** Hardcoded teal colors in SidebarNav.vue broke design consistency  
+**Solution:** Replaced with CSS variables `var(--primary-color)`, `var(--primary-600)`  
+**File:** `app/frontend/src/components/navigation/SidebarNav.vue`  
+**Commit:** 61f16b68
+
+### Issue #3: Light Mode Button Visibility - Verification ✅
+**Status:** Already correct - buttons use CSS variables throughout  
+**Action:** Documented button color patterns with clarity comments  
+**File:** Various components  
+**Commit:** 0101d9a8
+
+### Issue #9: Add Missing Icons - SVG Sprite ✅
+**Problem:** Icons referenced in code but not displaying (not loaded correctly)  
+**Solution:** Embedded ALL 28 icons inline in App.vue <template> for guaranteed loading  
+**Icons Added:** circle, film, arrow-right, video-off, plus, trash, refresh, edit, check, x, download, gamepad, menu, log-out, clock, more-vertical, play, eye  
+**Files:**  
+- `app/frontend/src/App.vue` (inline SVG sprite with <defs>)
+- `app/frontend/index.html` (removed fetch() script)  
+**Commits:** 80610ffe (initial), 777f7451 (inline fix)
+
+### Issue #11: Recording Animation - Grid View ✅
+**Problem:** Static red border on recording cards, no pulsing animation  
+**Solution:** Added pulse-recording & pulse-border animations to StreamerCard  
+**File:** `app/frontend/src/components/cards/StreamerCard.vue`  
+**Commit:** dca57696
 
 ---
 
@@ -326,6 +364,847 @@ Issue:
 ```bash
 grep -r "white.*text\|color: white\|color: #fff" app/frontend/src/views/SettingsView.vue
 grep -r "background: black\|background: #000" app/frontend/src/views/SettingsView.vue
+```
+
+---
+
+### Issue #NEW1: Login & Setup Pages - Missing Icons & Button Styling (CRITICAL)
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - First impression issues  
+**Estimated Time:** 2-3 hours
+
+**Problems:**
+
+**1. Login Page (LoginView.vue)**
+- Missing icons on login form (user icon, lock icon)
+- Login button has no styling (looks like plain text)
+- Light mode: Insufficient contrast on input fields
+
+**2. Setup Page (SetupView.vue)**  
+- Missing icons (same as login page)
+- Setup wizard steps lack visual indicators
+- Buttons inconsistent with design system
+
+**3. Welcome Page (WelcomeView.vue)**
+- "Go to Dashboard" button redirects to `/home` instead of `/`
+- Missing icons on feature cards
+- Button styling inconsistent
+
+**Files to Fix:**
+```
+app/frontend/src/views/LoginView.vue
+app/frontend/src/views/SetupView.vue
+app/frontend/src/views/WelcomeView.vue
+```
+
+**Required Icons:**
+- `icon-user` (username input)
+- `icon-lock` (password input)
+- `icon-check-circle` (success states)
+- `icon-alert-circle` (error states)
+
+**Button Fixes:**
+```scss
+.login-btn, .setup-btn, .dashboard-btn {
+  // Use design system button styles
+  background: var(--primary-color);
+  color: white;
+  padding: var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  
+  &:hover {
+    background: var(--primary-600);
+    transform: translateY(-2px);
+  }
+}
+```
+
+**Route Fix:**
+```typescript
+// WelcomeView.vue
+const goToDashboard = () => {
+  router.push('/') // FIXED: Was '/home'
+}
+```
+
+---
+
+### Issue #NEW2: Home View Mobile - Layout & Alignment Issues (HIGH)
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - Mobile user experience  
+**Estimated Time:** 2-3 hours
+
+**Problems:**
+
+**1. Live Now Section - Cards Left-Aligned**
+- Live streamer cards are left-aligned instead of centered
+- Looks unbalanced on mobile (< 640px)
+- **Solution:** Center cards in container
+
+**2. Live Card - Red Border Too Prominent**
+- Outer red border on entire card is overwhelming
+- **Better:** Only profile image should have red border
+- Keep pulsing effect for recording indicator
+
+**3. Quick Stats - Video Icon Width Issue**
+- Video stat card background is wider than others
+- Icons inconsistent sizes
+- **Solution:** Standardize icon container width
+
+**4. Live Card Shadow Clipping**
+- Box shadow on live streamer card is cut off
+- Parent container has `overflow: hidden`
+- **Solution:** Add padding or remove overflow constraint
+
+**5. Recent Recordings Background**
+- Confusing background image/pattern
+- **Question:** What is this supposed to be?
+- **Solution:** Remove or replace with subtle gradient
+
+**Files to Fix:**
+```
+app/frontend/src/views/HomeView.vue
+app/frontend/src/components/cards/StreamerCard.vue
+app/frontend/src/components/cards/StatusCard.vue
+```
+
+**CSS Fixes:**
+
+```scss
+// HomeView.vue - Center live cards on mobile
+.live-streamers-grid {
+  @media (max-width: 640px) {
+    justify-content: center; // ADDED
+  }
+}
+
+// StreamerCard.vue - Subtle border on profile only
+.streamer-card.is-live {
+  :deep(.glass-card-content) {
+    border: none; // REMOVED: 2px solid var(--danger-color)
+  }
+  
+  .streamer-avatar {
+    border: 3px solid var(--danger-color); // KEEP THIS
+    box-shadow: 0 0 0 4px rgba(var(--danger-color-rgb), 0.2);
+  }
+}
+
+// StatusCard.vue - Standardize icon sizes
+.status-icon {
+  width: 48px;  // FIXED: Was inconsistent
+  height: 48px;
+  
+  .icon {
+    width: 24px;  // FIXED: Was 24-28px
+    height: 24px;
+  }
+}
+
+// Remove or explain recent recordings background
+.recent-recordings-section {
+  background: none; // REMOVED: background-image
+  // OR
+  background: linear-gradient(135deg, 
+    rgba(var(--primary-500-rgb), 0.05) 0%,
+    rgba(var(--accent-500-rgb), 0.05) 100%
+  );
+}
+```
+
+---
+
+### Issue #NEW3: Mobile Header - Jobs Window & Hamburger Menu UX (CRITICAL)
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - Unusable on mobile  
+**Estimated Time:** 3-4 hours
+
+**Problems:**
+
+**1. Jobs Window Off-Center**
+- Background queue monitor (JOBS 0) is shifted off-screen
+- Unreadable on mobile
+- **Solution:** Reposition or make responsive
+
+**2. Hamburger Menu Confusion**
+- Button is on LEFT side of header
+- Menu slides in from RIGHT side
+- **Expected:** Button and menu on same side
+- **Solution:** Move button to right OR slide menu from left
+
+**3. Notifications Button (Mobile)**
+- Button visible but does nothing when clicked
+- No dropdown/panel appears
+- **Solution:** Make notification panel work on mobile
+
+**4. Theme Toggle - Hit Area Too Small**
+- Button same size as notification button
+- Only icon + border respond to clicks
+- Background doesn't respond
+- **Solution:** Increase clickable area
+
+**Files to Fix:**
+```
+app/frontend/src/App.vue (header)
+app/frontend/src/components/BackgroundQueueMonitor.vue
+app/frontend/src/components/ThemeToggle.vue
+```
+
+**Mobile Header Fixes:**
+
+```vue
+<!-- App.vue - Better mobile layout -->
+<header class="app-header">
+  <!-- Mobile: Hamburger on RIGHT (matches menu slide) -->
+  <router-link to="/" class="app-logo">StreamVault</router-link>
+  
+  <div class="header-right">
+    <!-- Jobs monitor - HIDE on mobile or make compact -->
+    <BackgroundQueueMonitor class="desktop-only" />
+    
+    <!-- Mobile controls -->
+    <button @click="toggleNotifications" class="mobile-notification-btn">
+      <svg><use href="#icon-bell" /></svg>
+      <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
+    </button>
+    
+    <button @click="toggleMobileMenu" class="hamburger-btn">
+      <svg><use href="#icon-menu" /></svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile menu slides from RIGHT (matches button) -->
+<div v-if="showMobileMenu" class="mobile-menu" :class="{ 'slide-right': true }">
+  <ThemeToggle /> <!-- Full-width button -->
+  <NotificationPanel v-if="showNotifications" /> <!-- Mobile-friendly -->
+  <BackgroundQueueMonitor /> <!-- Compact view -->
+  <button @click="logout" class="logout-btn-mobile">Logout</button>
+</div>
+```
+
+**Theme Toggle Fix:**
+```scss
+// ThemeToggle.vue
+.theme-toggle {
+  min-width: 44px;  // Touch target
+  min-height: 44px;
+  padding: var(--spacing-2);
+  
+  // ENTIRE button clickable
+  cursor: pointer;
+  background: transparent;
+  
+  &:hover {
+    background: rgba(var(--primary-500-rgb), 0.1);
+  }
+}
+```
+
+**Jobs Window Responsive:**
+```scss
+// BackgroundQueueMonitor.vue
+@media (max-width: 768px) {
+  .queue-monitor {
+    // Option 1: Hide and show in mobile menu
+    display: none;
+    
+    // Option 2: Compact badge
+    .queue-count {
+      font-size: var(--text-xs);
+      padding: 2px 6px;
+    }
+    
+    .queue-label {
+      display: none; // Hide "JOBS" text
+    }
+  }
+}
+```
+
+---
+
+### Issue #NEW4: Add Streamer View - Light Mode & Layout Issues (HIGH)
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - Broken UX  
+**Estimated Time:** 2-3 hours
+
+**Problems:**
+
+**1. Light Mode Design Mismatch**
+- Input fields have poor contrast
+- Buttons not styled correctly
+- Card backgrounds don't use design system
+
+**2. Twitch Import Section - Text Too Narrow**
+- Callback URL text is cramped
+- Hard to read, poor UX
+- **Solution:** Wider container or scrollable
+
+**3. "OR" Divider Unreadable**
+- Separator between manual/import is invisible
+- Lost in background design
+- **Solution:** Higher contrast, better styling
+
+**4. Mobile Layout Issues**
+- Cards overlap
+- Buttons too small for touch
+- Form inputs cramped
+
+**Files to Fix:**
+```
+app/frontend/src/views/AddStreamerView.vue
+```
+
+**Design Fixes:**
+
+```vue
+<!-- AddStreamerView.vue -->
+<template>
+  <div class="add-streamer-view">
+    <!-- Manual Add Card -->
+    <GlassCard variant="medium" class="add-card">
+      <h3>Add by Username</h3>
+      <input 
+        type="text" 
+        v-model="username"
+        placeholder="Enter Twitch username"
+        class="streamer-input"
+      />
+      <button @click="checkUsername" class="btn-primary">
+        <svg><use href="#icon-search" /></svg>
+        Check
+      </button>
+      <button @click="addStreamer" class="btn-success">
+        <svg><use href="#icon-plus" /></svg>
+        Add Streamer
+      </button>
+    </GlassCard>
+    
+    <!-- OR Divider - IMPROVED -->
+    <div class="divider-container">
+      <div class="divider-line"></div>
+      <span class="divider-text">OR</span>
+      <div class="divider-line"></div>
+    </div>
+    
+    <!-- Twitch Import Card -->
+    <GlassCard variant="medium" class="import-card">
+      <h3>
+        <svg><use href="#icon-download" /></svg>
+        Import from Twitch
+      </h3>
+      <p class="import-description">
+        Import streamers you already follow on your Twitch account
+      </p>
+      
+      <!-- WIDER callback URL container -->
+      <div class="callback-info">
+        <p><strong>Before connecting, configure your Twitch Developer Dashboard:</strong></p>
+        <div class="callback-url">
+          <label>Callback URL format:</label>
+          <code class="url-code">https://your-streamvault-domain.com/api/twitch/callback</code>
+          <button @click="copyCallback" class="btn-copy">
+            <svg><use href="#icon-copy" /></svg>
+            Copy
+          </button>
+        </div>
+      </div>
+      
+      <button @click="connectTwitch" class="btn-twitch">
+        <svg><use href="#icon-twitch" /></svg>
+        Connect with Twitch
+      </button>
+    </GlassCard>
+  </div>
+</template>
+
+<style scoped lang="scss">
+// Light mode fixes
+[data-theme="light"] & {
+  .streamer-input {
+    background: white;
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+  }
+  
+  .add-card, .import-card {
+    background: rgba(255, 255, 255, 0.9);
+  }
+}
+
+// OR Divider - High contrast
+.divider-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin: var(--spacing-6) 0;
+  
+  .divider-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border-color);
+  }
+  
+  .divider-text {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--background-card);
+    padding: var(--spacing-2) var(--spacing-4);
+    border-radius: var(--radius-full);
+    border: 2px solid var(--border-color);
+  }
+}
+
+// Wider callback URL
+.callback-url {
+  background: var(--background-darker);
+  padding: var(--spacing-4);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-3) 0;
+  
+  .url-code {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: var(--text-sm);
+    color: var(--primary-color);
+    word-break: break-all; // FIXED: Allows wrapping
+    padding: var(--spacing-2);
+    background: var(--background-card);
+    border-radius: var(--radius-sm);
+    margin: var(--spacing-2) 0;
+  }
+}
+
+// Mobile responsive
+@media (max-width: 640px) {
+  .add-card, .import-card {
+    padding: var(--spacing-4);
+  }
+  
+  button {
+    min-height: 44px; // Touch target
+    width: 100%;
+  }
+}
+</style>
+```
+
+---
+
+### Issue #NEW5: Settings Tables - Mobile Responsive Design (HIGH)
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - Unusable on mobile  
+**Estimated Time:** 4-6 hours
+
+**Problems:**
+
+**Affected Tables:**
+1. **Notification Settings** - Streamer notification matrix
+2. **Recording Settings** - Per-streamer recording config
+3. **Favorite Games** - Search input doesn't match theme
+
+**Current Issues:**
+- Tables don't collapse on mobile (< 768px)
+- Horizontal scroll is bad UX
+- Checkboxes too small for touch
+- Headers get lost
+- Light mode: Poor contrast
+
+**Files to Fix:**
+```
+app/frontend/src/views/SettingsView.vue (Notifications tab)
+app/frontend/src/views/SettingsView.vue (Recording tab)
+app/frontend/src/views/SettingsView.vue (Favorite Games tab)
+```
+
+**Solution: Transform Tables to Cards on Mobile**
+
+```vue
+<!-- Notification Settings - Mobile Cards -->
+<template>
+  <!-- Desktop: Table (≥ 768px) -->
+  <table class="streamer-notifications-table desktop-only">
+    <thead>
+      <tr>
+        <th>Streamer</th>
+        <th>Online</th>
+        <th>Offline</th>
+        <th>Updates</th>
+        <th>Favorites</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr v-for="streamer in streamers" :key="streamer.id">
+        <!-- ... -->
+      </tr>
+    </tbody>
+  </table>
+  
+  <!-- Mobile: Cards (< 768px) -->
+  <div class="streamer-notifications-cards mobile-only">
+    <GlassCard v-for="streamer in streamers" :key="streamer.id" class="streamer-card">
+      <div class="card-header">
+        <img :src="streamer.profile_image" :alt="streamer.display_name" />
+        <h3>{{ streamer.display_name }}</h3>
+      </div>
+      
+      <div class="notification-toggles">
+        <label class="toggle-row">
+          <span>Notify when online</span>
+          <input type="checkbox" v-model="streamer.notify_online" />
+        </label>
+        <label class="toggle-row">
+          <span>Notify when offline</span>
+          <input type="checkbox" v-model="streamer.notify_offline" />
+        </label>
+        <label class="toggle-row">
+          <span>Title/Category changes</span>
+          <input type="checkbox" v-model="streamer.notify_updates" />
+        </label>
+        <label class="toggle-row">
+          <span>Favorite game notifications</span>
+          <input type="checkbox" v-model="streamer.notify_favorites" />
+        </label>
+      </div>
+      
+      <div class="card-actions">
+        <button @click="editStreamer(streamer)" class="btn-edit">
+          <svg><use href="#icon-edit" /></svg>
+          Edit
+        </button>
+        <button @click="deleteStreamer(streamer)" class="btn-danger">
+          <svg><use href="#icon-trash" /></svg>
+          Delete
+        </button>
+      </div>
+    </GlassCard>
+  </div>
+</template>
+
+<style scoped lang="scss">
+// Show/hide based on screen size
+.desktop-only {
+  display: table;
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.mobile-only {
+  display: none;
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+}
+
+// Mobile card styling
+.streamer-card {
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-4);
+    
+    img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+    }
+    
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: 600;
+    }
+  }
+  
+  .notification-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-3);
+      background: var(--background-darker);
+      border-radius: var(--radius-md);
+      min-height: 44px; // Touch target
+      
+      span {
+        font-size: var(--text-sm);
+        color: var(--text-primary);
+      }
+      
+      input[type="checkbox"] {
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+      }
+    }
+  }
+  
+  .card-actions {
+    display: flex;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-4);
+    
+    button {
+      flex: 1;
+      min-height: 44px;
+    }
+  }
+}
+
+// Favorite Games search fix
+.game-search-input {
+  background: var(--background-card);
+  border: 2px solid var(--border-color);
+  color: var(--text-primary);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+  
+  // Light mode fix
+  [data-theme="light"] & {
+    background: white;
+    border-color: var(--border-color);
+  }
+}
+```
+
+---
+
+### Issue #NEW6: StreamerDetailView - Settings Button & Layout Issues (MEDIUM)
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM - UX improvement  
+**Estimated Time:** 2-3 hours  
+**Screenshot:** Screen #streamer-detail
+
+**Problems:**
+
+**1. Settings Button Has No Function**
+- "Settings" button exists but does nothing when clicked
+- No clear purpose or destination
+- Takes up valuable space on mobile
+
+**Proposed Solutions:**
+
+**Option A: Per-Streamer Settings Modal (RECOMMENDED)**
+Opens a modal/drawer with streamer-specific settings:
+
+```vue
+<!-- StreamerDetailView.vue -->
+<template>
+  <button @click="openStreamerSettings" class="btn btn-secondary">
+    <svg class="icon"><use href="#icon-settings" /></svg>
+    Settings
+  </button>
+  
+  <!-- Settings Modal -->
+  <Teleport to="body">
+    <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
+      <div class="modal-content settings-modal">
+        <div class="modal-header">
+          <h2>Settings for {{ streamer.display_name }}</h2>
+          <button @click="closeSettings" class="btn-close">
+            <svg class="icon"><use href="#icon-x" /></svg>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <!-- Recording Quality Override -->
+          <div class="setting-group">
+            <label>Recording Quality</label>
+            <select v-model="streamerSettings.quality">
+              <option value="">Use Global Setting</option>
+              <option value="best">Best Available</option>
+              <option value="1080p60">1080p60</option>
+              <option value="720p60">720p60</option>
+              <option value="480p">480p</option>
+            </select>
+          </div>
+          
+          <!-- Custom Filename Template -->
+          <div class="setting-group">
+            <label>Custom Filename Template</label>
+            <input 
+              v-model="streamerSettings.filenameTemplate" 
+              placeholder="Leave empty to use global template"
+            />
+          </div>
+          
+          <!-- Auto-Record Toggle -->
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" v-model="streamerSettings.autoRecord" />
+              Auto-record this streamer when live
+            </label>
+          </div>
+          
+          <!-- Notification Preferences -->
+          <div class="setting-group">
+            <label>Notifications</label>
+            <label>
+              <input type="checkbox" v-model="streamerSettings.notifyOnline" />
+              Notify when goes online
+            </label>
+            <label>
+              <input type="checkbox" v-model="streamerSettings.notifyOffline" />
+              Notify when goes offline
+            </label>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button @click="closeSettings" class="btn btn-secondary">Cancel</button>
+          <button @click="saveSettings" class="btn btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+const showSettings = ref(false)
+const streamerSettings = ref({
+  quality: '',
+  filenameTemplate: '',
+  autoRecord: true,
+  notifyOnline: true,
+  notifyOffline: true
+})
+
+const openStreamerSettings = () => {
+  // Load current settings from API
+  loadStreamerSettings()
+  showSettings.value = true
+}
+
+const closeSettings = () => {
+  showSettings.value = false
+}
+
+const saveSettings = async () => {
+  // Save to API
+  await fetch(`/api/streamers/${streamer.id}/settings`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(streamerSettings.value)
+  })
+  closeSettings()
+}
+</script>
+```
+
+**Option B: Navigate to Settings Page (Alternative)**
+```typescript
+// Route to global settings with streamer pre-selected
+router.push(`/settings/recording?streamer=${streamer.id}`)
+```
+
+**Option C: Remove Button (Simplest)**
+If per-streamer settings aren't needed, just remove the button and give more space to "Record Now" and "Delete All".
+
+**Recommendation:** Option A (Modal) - Most user-friendly and consistent with design
+
+**2. Avg Duration Icon Background Larger Than Others**
+- "Avg Duration" stat card icon background is wider
+- Inconsistent with "Total VODs" and "Total Size" icons
+- Visual imbalance
+
+**Fix:**
+```scss
+// StreamerDetailView.vue (or StatusCard.vue)
+.stat-icon {
+  width: 48px;   // FIXED: Standardize all icons
+  height: 48px;  // FIXED: Standardize all icons
+  flex-shrink: 0;  // Prevent growing/shrinking
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  .icon {
+    width: 24px;  // Icon itself (consistent)
+    height: 24px;
+  }
+}
+```
+
+**3. Button Text Wrapping on Mobile**
+- "Delete All" and "Record Now" buttons wrap to 2 lines on small screens
+- Caused by "Settings" button taking up space
+
+**Solution (if keeping Settings button):**
+```scss
+@media (max-width: 480px) {
+  .action-buttons {
+    flex-wrap: wrap;
+    gap: var(--spacing-2);
+    
+    button {
+      flex: 1 1 calc(50% - var(--spacing-1)); // 2 buttons per row
+      min-width: 0; // Allow text truncation
+      font-size: var(--text-sm); // Slightly smaller text
+    }
+  }
+}
+```
+
+**Solution (if removing Settings button):**
+```vue
+<!-- Only 2 buttons = more space -->
+<div class="action-buttons">
+  <button class="btn btn-primary">Record Now</button>
+  <button class="btn btn-danger">Delete All</button>
+</div>
+```
+
+**Files to Modify:**
+- `app/frontend/src/views/StreamerDetailView.vue`
+- `app/frontend/src/components/cards/StatusCard.vue` (icon sizing)
+- Optional: Create `app/frontend/src/components/modals/StreamerSettingsModal.vue`
+
+**Implementation Steps:**
+1. **Decide:** Modal vs Route vs Remove
+2. **If Modal:**
+   - Create modal component
+   - Add settings state management
+   - Create API endpoint `/api/streamers/:id/settings`
+   - Add backend model for per-streamer settings
+3. **If Route:** Update router and settings view
+4. **If Remove:** Delete button, adjust layout
+5. Fix icon sizing for all stat cards
+6. Test button layout on mobile (375px, 414px)
+
+**API Endpoint Needed (if Modal):**
+```python
+# app/routes/streamers.py
+@router.get("/api/streamers/{streamer_id}/settings")
+async def get_streamer_settings(streamer_id: int):
+    return {
+        "quality": streamer.quality_override or None,
+        "filename_template": streamer.filename_template_override or None,
+        "auto_record": streamer.auto_record,
+        "notify_online": streamer.notify_online,
+        "notify_offline": streamer.notify_offline
+    }
+
+@router.put("/api/streamers/{streamer_id}/settings")
+async def update_streamer_settings(streamer_id: int, settings: StreamerSettings):
+    # Update settings
+    # Return updated settings
 ```
 
 ---
@@ -907,7 +1786,856 @@ Then import in both files:
 
 ---
 
-## 🟢 LOW PRIORITY / NICE TO HAVE
+## � HIGH PRIORITY - New Issues from User Feedback (11. Nov 2025)
+
+### Issue #12: StreamersView - Auto ON Button Invisible in Light Mode 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH - Critical usability  
+**Estimated Time:** 30 min  
+**Screenshot:** Screen #1-2
+
+**Problem:**
+- "Auto ON" button text invisible when hovering in light mode
+- Missing icon before "Auto ON" text
+- Inconsistent with "Add Streamer" button (which has + icon)
+
+**Current State:**
+```vue
+<button class="auto-on-btn">Auto ON</button>  <!-- White text on hover -->
+```
+
+**Fix:**
+```vue
+<button class="btn btn-secondary">
+  <svg class="icon"><use href="#icon-refresh" /></svg>  <!-- Or icon-zap for auto -->
+  Auto ON
+</button>
+```
+
+**Files:**
+- `app/frontend/src/views/StreamersView.vue`
+
+---
+
+### Issue #13: StreamersView - Missing Icons in Search and View Toggle 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 20 min  
+**Screenshot:** Screen #3
+
+**Problem:**
+- Search bar missing search icon (magnifying glass)
+- Grid/List view toggle missing icons (grid icon / list icon)
+
+**Current State:**
+```vue
+<input type="text" placeholder="Search streamers..." />
+<button class="view-toggle">Grid</button>
+<button class="view-toggle">List</button>
+```
+
+**Fix:**
+```vue
+<div class="search-container">
+  <svg class="search-icon"><use href="#icon-search" /></svg>  <!-- ADD -->
+  <input type="text" placeholder="Search streamers..." />
+</div>
+
+<div class="view-toggle-group">
+  <button :class="{ active: viewMode === 'grid' }">
+    <svg class="icon"><use href="#icon-grid" /></svg>  <!-- ADD -->
+    Grid
+  </button>
+  <button :class="{ active: viewMode === 'list' }">
+    <svg class="icon"><use href="#icon-list" /></svg>  <!-- ADD -->
+    List
+  </button>
+</div>
+```
+
+**Files:**
+- `app/frontend/src/views/StreamersView.vue`
+- Check if icons exist: icon-search, icon-grid, icon-list
+
+---
+
+### Issue #14: VideosView - Cancel Button Invisible & Missing Icons 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH  
+**Estimated Time:** 30 min  
+**Screenshot:** Screen #4-5
+
+**Problem:**
+- "Cancel" button turns white with no text when hovered (light mode)
+- Purpose of "Cancel" button unclear (when does it appear?)
+- "Filters" button missing icon
+
+**Questions:**
+- What does "Cancel" do? Cancel multi-select? Cancel search?
+
+**Current State:**
+```vue
+<button class="cancel-btn">Cancel</button>  <!-- White on hover -->
+<button class="filters-btn">Filters</button>  <!-- No icon -->
+```
+
+**Fix:**
+```vue
+<button class="btn btn-secondary" @click="cancelSelection">
+  <svg class="icon"><use href="#icon-x" /></svg>
+  Cancel Selection  <!-- More descriptive -->
+</button>
+
+<button class="btn btn-secondary" @click="toggleFilters">
+  <svg class="icon"><use href="#icon-filter" /></svg>  <!-- ADD icon -->
+  Filters
+  <span v-if="activeFiltersCount" class="badge">{{ activeFiltersCount }}</span>
+</button>
+```
+
+**Files:**
+- `app/frontend/src/views/VideosView.vue`
+
+---
+
+### Issue #15: SubscriptionsView - Missing Icons & Buttons Unreadable 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH  
+**Estimated Time:** 1 hour  
+**Screenshot:** Screen #6
+
+**Problem:**
+- Buttons "Resubscribe All", "Enable All", "Disable All" invisible in light mode
+- Missing icons on ALL buttons
+- Button colors not using CSS variables
+
+**Current State:**
+```vue
+<button class="btn-resubscribe">Resubscribe All</button>  <!-- White text -->
+<button class="btn-enable-all">Enable All</button>  <!-- White text -->
+<button class="btn-disable-all">Disable All</button>  <!-- White text -->
+```
+
+**Fix:**
+```vue
+<button class="btn btn-primary">
+  <svg class="icon"><use href="#icon-refresh" /></svg>
+  Resubscribe All
+</button>
+
+<button class="btn btn-success">
+  <svg class="icon"><use href="#icon-check" /></svg>
+  Enable All
+</button>
+
+<button class="btn btn-secondary">
+  <svg class="icon"><use href="#icon-x" /></svg>
+  Disable All
+</button>
+```
+
+**Files:**
+- `app/frontend/src/views/SubscriptionsView.vue`
+
+---
+
+### Issue #16: Settings - Notifications Tab - Buttons & Table Design 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH  
+**Estimated Time:** 3-4 hours  
+**Screenshot:** Screen #7
+
+**Problems:**
+1. "Save Settings", "Enable All", "Disable All" buttons white text (invisible)
+2. Streamer notification table doesn't match glassmorphism design
+3. Table has plain borders, no backdrop blur
+4. Checkboxes not styled
+5. Missing icons in table headers
+
+**Current Table (PLAIN HTML):**
+```vue
+<table class="notifications-table">
+  <thead>
+    <tr>
+      <th>Streamer</th>
+      <th>Online</th>
+      <th>Offline</th>
+      <th>Updates</th>
+      <th>Favorites</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <!-- ... -->
+</table>
+```
+
+**Fix - GlassCard Integration:**
+```vue
+<div class="notifications-container">
+  <GlassCard
+    v-for="streamer in streamers"
+    :key="streamer.id"
+    variant="subtle"
+    class="notification-card"
+  >
+    <div class="notification-row">
+      <div class="streamer-info">
+        <img :src="streamer.avatar" class="avatar" />
+        <span>{{ streamer.name }}</span>
+      </div>
+      
+      <div class="notification-toggles">
+        <div class="toggle-item">
+          <label>
+            <input type="checkbox" v-model="streamer.notify_online" />
+            <svg class="icon"><use href="#icon-video" /></svg>
+            Online
+          </label>
+        </div>
+        
+        <div class="toggle-item">
+          <label>
+            <input type="checkbox" v-model="streamer.notify_offline" />
+            <svg class="icon"><use href="#icon-video-off" /></svg>
+            Offline
+          </label>
+        </div>
+        
+        <!-- etc -->
+      </div>
+    </div>
+  </GlassCard>
+</div>
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (Notifications tab)
+
+---
+
+### Issue #17: Settings - Recording Tab - Streamer Settings Table 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** HIGH  
+**Estimated Time:** 3-4 hours  
+**Screenshot:** Screen #8
+
+**Problems:**
+1. Streamer-specific recording settings table SEHR SCHLIMM (very bad design)
+2. Plain table borders, no glassmorphism
+3. Quality dropdowns plain select elements
+4. "Policy" buttons misaligned
+5. No icons anywhere
+
+**Current Table:**
+```vue
+<table class="streamer-settings-table">
+  <tr>
+    <td><img src="avatar" /></td>
+    <td>maxim</td>
+    <td>
+      <select v-model="quality">
+        <option>Best Available</option>
+      </select>
+    </td>
+    <td>
+      <input type="text" placeholder="Use global template" />
+    </td>
+    <td>
+      <button class="btn-policy">Policy</button>  <!-- Plain button -->
+    </td>
+  </tr>
+</table>
+```
+
+**Fix - Card-Based Design:**
+```vue
+<div class="streamer-recording-settings">
+  <GlassCard
+    v-for="streamer in streamers"
+    :key="streamer.id"
+    variant="subtle"
+    class="streamer-setting-card"
+  >
+    <div class="setting-row">
+      <!-- Avatar & Name -->
+      <div class="streamer-info">
+        <img :src="streamer.avatar" class="avatar-small" />
+        <span class="name">{{ streamer.name }}</span>
+      </div>
+      
+      <!-- Record Toggle -->
+      <div class="setting-item">
+        <label class="switch">
+          <input type="checkbox" v-model="streamer.recording_enabled" />
+          <span class="slider"></span>
+        </label>
+        <span class="label">Record</span>
+      </div>
+      
+      <!-- Quality Dropdown -->
+      <div class="setting-item">
+        <label>Quality</label>
+        <select v-model="streamer.quality" class="styled-select">
+          <option value="best">Best Available</option>
+          <option value="1080p60">1080p60</option>
+          <option value="720p">720p</option>
+        </select>
+      </div>
+      
+      <!-- Custom Filename -->
+      <div class="setting-item">
+        <input 
+          type="text" 
+          v-model="streamer.custom_filename"
+          placeholder="Use global template"
+          class="styled-input"
+        />
+      </div>
+      
+      <!-- Actions -->
+      <div class="setting-actions">
+        <button class="btn btn-secondary btn-sm">
+          <svg class="icon"><use href="#icon-settings" /></svg>
+          Policy
+        </button>
+        
+        <button class="btn btn-secondary btn-sm">
+          <svg class="icon"><use href="#icon-trash" /></svg>
+        </button>
+      </div>
+    </div>
+  </GlassCard>
+</div>
+```
+
+**Styled Select Example:**
+```scss
+.styled-select {
+  background: var(--background-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--text-sm);
+  
+  &:hover {
+    border-color: var(--primary-color);
+  }
+  
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (Recording tab)
+
+---
+
+### Issue #18: Settings - Network Tab - Double Borders 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 1-2 hours  
+**Screenshot:** Screen #9
+
+**Problems:**
+1. Proxy URL examples box has DOUBLE border (inner + outer)
+2. Box doesn't match glassmorphism design
+3. Tips section looks inconsistent
+
+**Current State:**
+```vue
+<div class="proxy-examples">
+  <div class="examples-box" style="border: 1px solid; padding: 20px;">
+    <!-- Double border created by box + content -->
+    <h4>Proxy URL Examples:</h4>
+    <ul>
+      <li>...</li>
+    </ul>
+  </div>
+</div>
+```
+
+**Fix:**
+```vue
+<GlassCard variant="subtle" class="proxy-info-card">
+  <h4 class="card-title">
+    <svg class="icon"><use href="#icon-info" /></svg>
+    Proxy URL Examples
+  </h4>
+  
+  <ul class="example-list">
+    <li><code>http://proxy.example.com:8080</code> - Basic proxy</li>
+    <li><code>http://username:password@proxy.example.com:8080</code> - Authenticated</li>
+    <!-- ... -->
+  </ul>
+</GlassCard>
+
+<GlassCard variant="subtle" class="tips-card">
+  <h4 class="card-title">
+    <svg class="icon"><use href="#icon-lightbulb" /></svg>
+    Tips
+  </h4>
+  
+  <ul class="tips-list">
+    <li>Use HTTPS proxy for better security</li>
+    <!-- ... -->
+  </ul>
+</GlassCard>
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (Network tab)
+
+---
+
+### Issue #19: Settings - Favorite Games - Search Black Background 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 20 min  
+**Screenshot:** Screen #10
+
+**Problem:**
+- Search input has black background in light mode (hardcoded)
+
+**Current:**
+```scss
+.game-search {
+  background: black;  // WRONG
+  color: white;
+}
+```
+
+**Fix:**
+```scss
+.game-search {
+  background: var(--background-darker);  // Theme-aware
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (Favorite Games tab)
+
+---
+
+### Issue #20: Settings - Favorite Games - Too Much Whitespace (Desktop) 🟡
+**Status:** 🟡 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 1 hour  
+**Screenshot:** Screen #13
+
+**Problem:**
+- Only 3 rows of game tiles on large desktop screens
+- Tons of unused whitespace
+- Could show 5-6 rows on 1920px+ screens
+
+**Current Layout:**
+```scss
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-4);
+}
+```
+
+**Suggested Fix - Responsive Columns:**
+```scss
+.games-grid {
+  display: grid;
+  gap: var(--spacing-4);
+  
+  // Mobile: 2 columns
+  grid-template-columns: repeat(2, 1fr);
+  
+  // Tablet: 3 columns
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  // Desktop: 4 columns
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  // Large Desktop: 5 columns
+  @media (min-width: 1440px) {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  
+  // Extra Large: 6 columns
+  @media (min-width: 1920px) {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+```
+
+**Alternative - Fixed Max Width:**
+```scss
+.games-container {
+  max-width: 1600px;  // Limit container width
+  margin: 0 auto;
+  
+  .games-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (Favorite Games tab)
+
+---
+
+### Issue #21: Settings - PWA Tab - Buttons Eckig (Square) 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 1 hour  
+**Screenshot:** Screen #14
+
+**Problems:**
+1. Buttons have NO border-radius (square corners)
+2. Buttons don't match design system
+3. Missing icons on buttons
+4. Button colors hardcoded
+
+**Current Buttons:**
+```vue
+<button class="enable-notifications">Enable Notifications</button>  <!-- Square -->
+<button class="test-notification">Test Notification</button>  <!-- Square -->
+```
+
+**Fix:**
+```vue
+<button class="btn btn-primary">
+  <svg class="icon"><use href="#icon-bell" /></svg>
+  Enable Notifications
+</button>
+
+<button class="btn btn-secondary">
+  <svg class="icon"><use href="#icon-send" /></svg>
+  Test Notification
+</button>
+```
+
+**CSS Fix:**
+```scss
+// Ensure all buttons use design system
+.pwa-settings {
+  .btn,
+  button {
+    border-radius: var(--radius-lg);  // NOT 0
+    // ... rest of button styles
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (PWA & Mobile tab)
+
+---
+
+### Issue #22: Settings - Advanced Tab - Remove Entirely? 🟡
+**Status:** 🟡 DISCUSSION NEEDED  
+**Priority:** LOW  
+**Estimated Time:** 30 min (if removing)  
+**Screenshot:** None
+
+**Problem:**
+- Debug Mode: Can only be enabled via docker-compose environment variable (not saved in DB)
+- Clear Cache Button: Purpose unclear, what does it clear?
+
+**Options:**
+
+**Option A: Remove Tab Entirely**
+```vue
+<!-- Remove from settings tabs array -->
+const settingsTabs = [
+  { id: 'notifications', label: 'Notifications', icon: 'bell' },
+  { id: 'recording', label: 'Recording', icon: 'video' },
+  { id: 'favorites', label: 'Favorite Games', icon: 'gamepad' },
+  { id: 'appearance', label: 'Appearance', icon: 'sun' },
+  { id: 'pwa', label: 'PWA & Mobile', icon: 'smartphone' },
+  // { id: 'advanced', label: 'Advanced', icon: 'settings' },  // REMOVE
+  { id: 'about', label: 'About', icon: 'info' }
+]
+```
+
+**Option B: Repurpose Tab**
+- Rename to "System" or "Developer"
+- Add useful debugging info (read-only):
+  - Backend version
+  - Database size
+  - Number of recordings
+  - Disk space usage
+  - System health checks
+
+**Option C: Move Clear Cache to Different Tab**
+- Move to Appearance tab (clear UI cache)
+- Or PWA tab (clear PWA cache)
+
+**Decision Needed:**
+- What does "Clear Cache" currently do?
+- Is debug mode toggle actually functional?
+- Keep or remove?
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue`
+
+---
+
+### Issue #23: Settings - About Tab - Missing Icons & Broken Links 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 30 min  
+**Screenshot:** Screen #14
+
+**Problems:**
+1. Missing icon above "StreamVault" title
+2. GitHub link not styled/clickable
+3. Documentation link is placeholder
+
+**Current State:**
+```vue
+<div class="about-section">
+  <h2>StreamVault</h2>  <!-- No icon -->
+  <p>Version: 1.0.0</p>
+  
+  <a href="https://github.com/...">GitHub</a>  <!-- Not styled -->
+  <a href="#">Documentation</a>  <!-- Placeholder -->
+</div>
+```
+
+**Fix:**
+```vue
+<GlassCard variant="medium" class="about-card">
+  <!-- App Icon/Logo -->
+  <div class="app-logo-container">
+    <div class="app-logo">
+      <svg class="logo-icon">
+        <use href="#icon-briefcase" />  <!-- Or custom StreamVault logo -->
+      </svg>
+    </div>
+  </div>
+  
+  <h2 class="app-name">StreamVault</h2>
+  <p class="app-version">Version {{ appVersion }}</p>
+  <p class="app-description">
+    Automated Twitch stream recording and management platform
+  </p>
+  
+  <div class="links-section">
+    <a 
+      href="https://github.com/Serph91P/StreamVault" 
+      target="_blank"
+      class="link-btn"
+    >
+      <svg class="icon"><use href="#icon-github" /></svg>
+      View on GitHub
+    </a>
+    
+    <a 
+      href="https://github.com/Serph91P/StreamVault/wiki" 
+      target="_blank"
+      class="link-btn"
+    >
+      <svg class="icon"><use href="#icon-book" /></svg>
+      Documentation
+    </a>
+    
+    <a 
+      href="https://github.com/Serph91P/StreamVault/issues" 
+      target="_blank"
+      class="link-btn"
+    >
+      <svg class="icon"><use href="#icon-bug" /></svg>
+      Report Issue
+    </a>
+  </div>
+</GlassCard>
+```
+
+**Link Button Styling:**
+```scss
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-lg);
+  
+  background: var(--background-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  
+  text-decoration: none;
+  font-weight: v.$font-medium;
+  transition: all v.$duration-200 v.$ease-out;
+  
+  .icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  &:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue` (About tab)
+- Check if icons exist: icon-github, icon-book, icon-bug
+
+---
+
+### Issue #24: Sidebar vs Settings Menu - Inconsistent Active State 🔴
+**Status:** 🔴 NOT STARTED  
+**Priority:** MEDIUM  
+**Estimated Time:** 1 hour  
+**Screenshot:** Screen #15
+
+**Problem:**
+- Sidebar active state: Different color/style than Settings menu active state
+- Should be consistent across app
+
+**Current Sidebar (HARDCODED):**
+```scss
+// SidebarNav.vue
+.nav-item.active {
+  background: #14b8a6;  // Hardcoded teal
+  color: white;
+  border-left: 4px solid #0d9488;
+}
+```
+
+**Current Settings Menu (CORRECT):**
+```scss
+// SettingsView.vue
+.setting-item.active {
+  background: var(--primary-color);
+  color: white;
+  border-left: 4px solid var(--primary-600);
+}
+```
+
+**Fix - Make Sidebar Match Settings:**
+```scss
+// SidebarNav.vue - USE CSS VARIABLES
+.nav-item {
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-md);
+  transition: all v.$duration-200 v.$ease-out;
+  
+  color: var(--text-secondary);
+  
+  &:hover {
+    background: var(--background-hover);
+    color: var(--text-primary);
+  }
+  
+  &.active {
+    background: var(--primary-color);  // NOT hardcoded
+    color: white;
+    border-left: 4px solid var(--primary-600);
+    
+    // Light mode override (if needed)
+    [data-theme="light"] & {
+      background: var(--primary-600);  // Darker for contrast
+      border-left-color: var(--primary-700);
+    }
+    
+    .nav-icon {
+      stroke: white;
+    }
+  }
+}
+```
+
+**Files:**
+- `app/frontend/src/components/navigation/SidebarNav.vue`
+- Reference: `app/frontend/src/views/SettingsView.vue` (settings menu styling)
+
+---
+
+### Issue #25: Appearance Settings - Animation Toggle Does Nothing? 🟡
+**Status:** 🟡 INVESTIGATION NEEDED  
+**Priority:** LOW  
+**Estimated Time:** 1-2 hours  
+
+**Question:**
+- Does the "Enable Animations" toggle in Appearance settings actually work?
+- If not, implement it
+- If yes, verify it affects all animations
+
+**Expected Behavior:**
+When "Enable Animations" is OFF:
+- No page transitions
+- No hover animations
+- No pulsing/loading animations
+- Instant state changes
+
+**Implementation:**
+```vue
+<!-- SettingsView.vue - Appearance tab -->
+<label class="switch">
+  <input type="checkbox" v-model="animationsEnabled" @change="updateAnimations" />
+  <span class="slider"></span>
+</label>
+
+<script setup>
+const animationsEnabled = ref(true)
+
+const updateAnimations = () => {
+  if (animationsEnabled.value) {
+    document.documentElement.style.removeProperty('--animation-duration')
+  } else {
+    document.documentElement.style.setProperty('--animation-duration', '0s')
+  }
+  
+  localStorage.setItem('animations-enabled', animationsEnabled.value.toString())
+}
+
+onMounted(() => {
+  const saved = localStorage.getItem('animations-enabled')
+  if (saved !== null) {
+    animationsEnabled.value = saved === 'true'
+    updateAnimations()
+  }
+})
+</script>
+```
+
+**CSS Changes:**
+```scss
+// _variables.scss
+$duration-fast: var(--animation-duration, 0.15s);
+$duration-normal: var(--animation-duration, 0.3s);
+$duration-slow: var(--animation-duration, 0.5s);
+
+// When animations disabled:
+// --animation-duration: 0s (set via JS)
+```
+
+**Files:**
+- `app/frontend/src/views/SettingsView.vue`
+- `app/frontend/src/styles/_variables.scss`
+
+---
+
+## �🟢 LOW PRIORITY / NICE TO HAVE
 
 ### Issue #10: Settings View Complete Overhaul
 **Status:** 🟢 NOT STARTED  
@@ -1047,3 +2775,64 @@ git push origin develop
 ---
 
 **Good luck! 🚀**
+
+---
+
+## 📊 Session 2 Summary (11. Nov 2025)
+
+### Issues Documented Today: 14 NEW
+- **HIGH Priority:** 9 issues (StreamersView, VideosView, SubscriptionsView, Settings tabs)
+- **MEDIUM Priority:** 4 issues (Favorite Games spacing, PWA styling, About links, Sidebar consistency)
+- **LOW/Discussion:** 1 issue (Advanced tab - remove?)
+
+### Quick Wins (< 1 hour each):
+1. Issue #12: Auto ON button light mode (30 min)
+2. Issue #13: Search & view toggle icons (20 min)
+3. Issue #14: Cancel button visibility (30 min)
+4. Issue #15: Subscriptions buttons (1 hour)
+5. Issue #19: Favorite Games search background (20 min)
+6. Issue #23: About tab icons & links (30 min)
+7. Issue #24: Sidebar active state consistency (1 hour)
+
+**Quick Wins Total:** ~4-5 hours
+
+### Bigger Tasks (2-4 hours each):
+1. Issue #16: Notifications tab table redesign (3-4 hours)
+2. Issue #17: Recording settings table redesign (3-4 hours)
+3. Issue #18: Network tab borders (1-2 hours)
+4. Issue #20: Favorite Games grid responsive (1 hour)
+5. Issue #21: PWA buttons styling (1 hour)
+6. Issue #22: Advanced tab decision (30 min - 2 hours)
+7. Issue #25: Animation toggle functionality (1-2 hours)
+
+**Bigger Tasks Total:** ~13-20 hours
+
+### Estimated Total Time Remaining:
+- **Quick Wins:** 4-5 hours
+- **Bigger Tasks:** 13-20 hours
+- **Previous Tasks:** 12-18 hours (from Session 1)
+- **GRAND TOTAL:** ~29-43 hours
+
+### Recommended Approach:
+1. **Day 1:** Knock out all quick wins (4-5 hours)
+2. **Day 2-3:** Tackle Settings tabs redesign (2 days, ~12-16 hours)
+3. **Day 4-5:** Mobile menu + remaining tasks (2 days, ~12-16 hours)
+
+### Files Most Affected:
+- `app/frontend/src/views/SettingsView.vue` (8 issues)
+- `app/frontend/src/views/StreamersView.vue` (2 issues)
+- `app/frontend/src/views/VideosView.vue` (1 issue)
+- `app/frontend/src/views/SubscriptionsView.vue` (1 issue)
+- `app/frontend/src/components/navigation/SidebarNav.vue` (1 issue)
+- `app/frontend/src/App.vue` (mobile menu - future)
+
+### Design Patterns to Apply Consistently:
+1. **All buttons:** `class="btn btn-{variant}"` with icons
+2. **All tables:** Convert to GlassCard-based cards
+3. **All inputs:** Theme-aware backgrounds with `var(--background-*)`
+4. **All icons:** Inline SVG with `<use href="#icon-*">`
+5. **All colors:** CSS variables, NEVER hardcode
+
+---
+
+**End of Document** 📄
