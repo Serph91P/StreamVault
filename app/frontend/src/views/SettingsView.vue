@@ -1071,7 +1071,43 @@ onMounted(() => {
 
     .btn-action {
       flex: 1;
+      min-height: 44px;  // Touch-friendly
+      justify-content: center;
     }
+  }
+
+  .settings-sidebar {
+    padding: 0;  // Remove padding for better scroll snap
+    margin: 0 calc(-1 * var(--spacing-3));  // Extend to viewport edges
+    padding: var(--spacing-2) var(--spacing-3);  // Inner padding
+  }
+
+  .settings-nav {
+    gap: var(--spacing-2);
+    scroll-snap-type: x mandatory;  // Enable snap scrolling
+    scroll-padding: var(--spacing-3);
+  }
+
+  .nav-item {
+    min-width: 140px;
+    min-height: 44px;  // Touch-friendly
+    scroll-snap-align: start;  // Snap to start of item
+    padding: var(--spacing-3);
+    
+    // Enhance visual feedback on mobile
+    &.active {
+      box-shadow: var(--shadow-md);
+      transform: scale(1.02);
+    }
+  }
+
+  .nav-description {
+    display: none;  // Hide descriptions on mobile for cleaner look
+  }
+  
+  .nav-label {
+    font-size: var(--text-sm);
+    font-weight: 600;
   }
 
   .setting-item {
@@ -1083,14 +1119,8 @@ onMounted(() => {
   .select-input,
   .text-input {
     width: 100%;
-  }
-
-  .nav-item {
-    min-width: 140px;
-  }
-
-  .nav-description {
-    display: none;
+    min-height: 44px;  // Touch-friendly
+    font-size: 16px;  // Prevent iOS zoom
   }
 
   .about-links {
@@ -1102,7 +1132,7 @@ onMounted(() => {
     width: 100%;
     justify-content: center;
     padding: var(--spacing-4) var(--spacing-5);
-    min-height: 48px;  /* Larger touch target on mobile */
+    min-height: 48px;  // Larger touch target
   }
 }
 </style>
