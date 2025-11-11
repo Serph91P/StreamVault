@@ -303,6 +303,13 @@ onMounted(() => {
 
   .btn-back {
     align-self: flex-start;
+    min-height: 44px;  // Touch-friendly
+    padding: var(--spacing-3) var(--spacing-4);
+    
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
   }
 
   .stream-info {
@@ -326,6 +333,35 @@ onMounted(() => {
   .content-state {
     padding: var(--spacing-6) var(--spacing-4);
     min-height: 300px;
+  }
+}
+
+@media (max-width: 640px) {
+  .video-player-view {
+    padding: var(--spacing-3);
+  }
+  
+  .player-header {
+    padding: var(--spacing-3);
+  }
+
+  .btn-back {
+    min-height: 44px;  // Touch-friendly
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--text-sm);
+  }
+
+  .stream-title {
+    font-size: var(--text-base);
+  }
+
+  .streamer-name {
+    font-size: var(--text-sm);
+  }
+
+  .content-state {
+    padding: var(--spacing-4) var(--spacing-3);
+    min-height: 250px;
   }
 }
 
@@ -353,6 +389,10 @@ onMounted(() => {
     flex-direction: row;
     align-items: center;
     padding: var(--spacing-2) var(--spacing-4);
+  }
+  
+  .btn-back {
+    min-height: 40px;  // Slightly smaller in landscape
   }
 
   .stream-title {
