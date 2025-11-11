@@ -399,6 +399,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .pwa-section h4 {

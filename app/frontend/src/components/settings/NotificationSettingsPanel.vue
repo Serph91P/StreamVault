@@ -382,6 +382,8 @@ const testWebSocketNotification = async () => {
   background-color: var(--background-darker, #1f1f23);
   padding: 20px;
   border-radius: var(--border-radius, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
 }
 
 .form-group {

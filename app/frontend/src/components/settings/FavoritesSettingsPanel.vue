@@ -297,6 +297,7 @@ onMounted(() => {
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
   border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   margin-bottom: 24px;
   overflow: hidden;
 }
@@ -370,6 +371,8 @@ onMounted(() => {
   color: var(--text-secondary);
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   min-height: 200px;
 }
 

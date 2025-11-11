@@ -383,6 +383,7 @@ onMounted(() => {
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 1.5rem;
   text-align: center;
 }
