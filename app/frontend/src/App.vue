@@ -5,13 +5,25 @@
       <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
       <header class="app-header">
         <div class="header-content">
+          <!-- Mobile: Hamburger Menu Button (< 768px) -->
+          <button 
+            @click="toggleMobileMenu" 
+            class="hamburger-btn"
+            aria-label="Open menu"
+          >
+            <svg class="hamburger-icon">
+              <use href="#icon-menu" />
+            </svg>
+          </button>
+          
           <router-link to="/" class="app-logo">StreamVault</router-link>
           
           <div class="header-right">
-            <!-- Background Queue Monitor -->
+            <!-- Background Queue Monitor (always visible) -->
             <BackgroundQueueMonitor />
             
-            <div class="nav-actions">
+            <!-- Desktop: Full nav actions (≥ 768px) -->
+            <div class="nav-actions desktop-only">
               <div class="notification-bell-container">
                 <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
                   <svg class="bell-icon">
@@ -28,7 +40,47 @@
             </div>
           </div>
         </div>
-      </header>    
+      </header>
+      
+      <!-- Mobile Menu Overlay -->
+      <Teleport to="body">
+        <div 
+          v-if="showMobileMenu" 
+          class="mobile-menu-overlay"
+          @click.self="closeMobileMenu"
+        >
+          <div class="mobile-menu">
+            <button @click="closeMobileMenu" class="mobile-menu-close" aria-label="Close menu">
+              <svg class="close-icon">
+                <use href="#icon-x" />
+              </svg>
+            </button>
+            
+            <nav class="mobile-menu-nav">
+              <div class="notification-bell-container">
+                <button @click="handleMobileNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
+                  <svg class="bell-icon">
+                    <use href="#icon-bell" />
+                  </svg>
+                  <span class="nav-label">Notifications</span>
+                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+                </button>
+              </div>
+              
+              <div class="mobile-theme-toggle">
+                <ThemeToggle />
+              </div>
+              
+              <button @click="handleMobileLogout" class="mobile-logout-btn">
+                <svg class="logout-icon">
+                  <use href="#icon-log-out" />
+                </svg>
+                <span>Logout</span>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </Teleport>    
       <!-- Notification overlay -->
       <div v-if="showNotifications" class="notification-overlay">
         <NotificationFeed 
@@ -96,6 +148,34 @@ const isAuthPage = computed(() => {
   const authPaths = ['/auth/login', '/auth/setup', '/welcome']
   return authPaths.includes(route.path)
 })
+
+// Mobile menu state
+const showMobileMenu = ref(false)
+
+const toggleMobileMenu = () => {
+  showMobileMenu.value = !showMobileMenu.value
+  // Prevent body scroll when menu is open
+  if (showMobileMenu.value) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+}
+
+const closeMobileMenu = () => {
+  showMobileMenu.value = false
+  document.body.style.overflow = ''
+}
+
+const handleMobileNotifications = () => {
+  closeMobileMenu()
+  toggleNotifications()
+}
+
+const handleMobileLogout = () => {
+  closeMobileMenu()
+  logout()
+}
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
@@ -508,6 +588,219 @@ watch(messages, (newMessages) => {
   align-items: center;
   gap: var(--spacing-3, 0.75rem);
   height: 100%;
+}
+
+/* Mobile: Hide hamburger button on desktop */
+.hamburger-btn {
+  display: none; /* Hidden by default (desktop) */
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 200ms ease-out;
+  
+  .hamburger-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  &:hover {
+    background: var(--background-hover);
+    border-radius: var(--radius-md);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Show hamburger on mobile */
+@media (max-width: 767px) {
+  .hamburger-btn {
+    display: flex;
+  }
+}
+
+/* Desktop: Hide nav actions on mobile */
+.desktop-only {
+  display: flex; /* Shown by default */
+}
+
+@media (max-width: 767px) {
+  .desktop-only {
+    display: none; /* Hidden on mobile */
+  }
+}
+
+/* Mobile Menu Overlay */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 200ms ease-out;
+}
+
+@media (min-width: 768px) {
+  .mobile-menu-overlay {
+    display: none; /* Never show on desktop */
+  }
+}
+
+.mobile-menu {
+  width: 280px;
+  height: 100%;
+  background: var(--background-card);
+  box-shadow: var(--shadow-xl);
+  animation: slideInRight 300ms ease-out;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--border-color);
+}
+
+.mobile-menu-close {
+  align-self: flex-end;
+  width: 44px;
+  height: 44px;
+  margin: var(--spacing-4);
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease-out;
+  
+  .close-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  &:hover {
+    background: var(--background-hover);
+    border-radius: var(--radius-md);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.mobile-menu-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  
+  .notification-bell-container {
+    width: 100%;
+    
+    .notification-bell {
+      width: 100%;
+      justify-content: flex-start;
+      gap: var(--spacing-3);
+      padding: var(--spacing-3) var(--spacing-4);
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      transition: all 200ms ease-out;
+      
+      .nav-label {
+        flex: 1;
+        text-align: left;
+        font-size: var(--text-base);
+        font-weight: var(--font-medium);
+      }
+      
+      &:hover {
+        background: var(--background-hover);
+        border-color: var(--primary-500);
+      }
+      
+      &.has-unread {
+        border-color: var(--danger-500);
+      }
+    }
+  }
+  
+  .mobile-theme-toggle {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: transparent;
+    
+    :deep(.theme-toggle) {
+      width: 100%;
+    }
+  }
+}
+
+.mobile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  min-height: 44px;
+  margin-top: auto; /* Push to bottom */
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--danger-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all 200ms ease-out;
+  
+  .logout-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  &:hover {
+    background: var(--danger-600);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .notification-bell-container {

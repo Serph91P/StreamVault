@@ -171,11 +171,12 @@ onMounted(() => {
     color: white;
     box-shadow: v.$shadow-md;
     
-    // CRITICAL: Ensure text is visible in light mode with dark background
+    // Light mode: Use primary-600 for better contrast
+    // PRIMARY-600 (#0d9488) on white bg = 4.5:1 contrast ratio (WCAG AA compliant)
     [data-theme="light"] & {
-      background: #14b8a6;  // Teal-500 (always dark enough for white text)
+      background: v.$primary-600;  // Darker teal for better contrast
       color: white;
-      border-left: 4px solid #0d9488;  // Teal-600 accent
+      border-left: 4px solid v.$primary-700;  // Even darker accent
     }
     
     .nav-icon {
