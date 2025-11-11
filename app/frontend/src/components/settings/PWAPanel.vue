@@ -123,8 +123,7 @@
           </button>
           <button 
             @click="sendLocalTestNotification" 
-            class="btn btn-primary"
-            style="margin-left: 8px;"
+            class="btn btn-primary btn-spacing"
           >
             <svg class="icon" aria-hidden="true">
               <use xlink:href="#icon-smartphone"></use>
@@ -491,12 +490,17 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 40px;  /* Touch-friendly */
 }
 
 .btn .icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+}
+
+.btn-spacing {
+  margin-left: 0.5rem;
 }
 
 .btn:disabled {
@@ -511,6 +515,8 @@ onMounted(() => {
 
 .btn.btn-primary:hover:not(:disabled) {
   background: var(--primary-hover-color, #5a2d91);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(111, 66, 193, 0.3);
 }
 
 .btn.btn-secondary {
@@ -521,6 +527,12 @@ onMounted(() => {
 
 .btn.btn-secondary:hover:not(:disabled) {
   background: var(--background-darker, #2a2a2a);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .install-btn {
