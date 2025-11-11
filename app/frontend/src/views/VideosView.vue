@@ -859,24 +859,6 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .search-box {
-    order: -1;
-    width: 100%;
-  }
-
-  .view-toggle,
-  .filters-btn,
-  .sort-select {
-    flex: 1;
-  }
-
-  .filter-panel {
-    flex-direction: column;
-  }
-
-  .filter-group {
-    width: 100%;
-  }
 }
 
 @media (max-width: 640px) {
@@ -894,6 +876,60 @@ onMounted(() => {
     .btn-action {
       flex: 1;
       justify-content: center;
+      min-height: 44px;  // Touch-friendly
+    }
+  }
+  
+  // Filter and sort controls
+  .filters-btn,
+  .sort-select {
+    min-height: 44px;  // Touch-friendly
+    font-size: var(--text-base);  // Larger for readability
+  }
+  
+  .filter-panel {
+    padding: var(--spacing-4);
+    gap: var(--spacing-3);
+  }
+  
+  .filter-select {
+    min-height: 44px;  // Touch-friendly
+    font-size: 16px;  // Prevent iOS zoom
+  }
+  
+  .clear-filters-btn {
+    width: 100%;  // Full width on mobile
+    min-height: 44px;
+    justify-content: center;
+  }
+  
+  // Search and view controls
+  .search-box {
+    order: -1;  // Move search to top on mobile
+    width: 100%;
+    margin-bottom: var(--spacing-3);
+  }
+  
+  .view-toggle,
+  .filters-btn,
+  .sort-select {
+    flex: 1;  // Equal width buttons
+  }
+  
+  .filter-panel {
+    flex-direction: column;  // Stack vertically on mobile
+  }
+  
+  .filter-group {
+    width: 100%;
+    
+    label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+    
+    select {
+      width: 100%;
     }
   }
 
