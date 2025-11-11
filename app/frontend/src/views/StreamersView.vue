@@ -895,6 +895,7 @@ onUnmounted(() => {
     order: -1;
     width: 100%;
     flex-basis: 100%;
+    min-width: unset;
   }
 
   .filter-tabs {
@@ -917,17 +918,72 @@ onUnmounted(() => {
     .btn-action {
       flex: 1;
       justify-content: center;
+      min-height: 44px;  // Touch-friendly
+    }
+  }
+  
+  .controls-bar {
+    gap: var(--spacing-2);
+  }
+
+  .search-box {
+    .search-input {
+      min-height: 44px;  // Touch-friendly
+      font-size: 16px;  // Prevent iOS zoom
+      padding: var(--spacing-3) var(--spacing-10);
+    }
+    
+    .clear-btn {
+      width: 32px;  // Larger touch target
+      height: 32px;
+      
+      .icon {
+        width: 18px;
+        height: 18px;
+      }
     }
   }
 
   .filter-tabs {
     width: 100%;
     justify-content: stretch;
+    flex: none;  // Don't shrink
 
     .filter-tab {
       flex: 1;
       justify-content: center;
+      min-height: 40px;  // Touch-friendly
+      padding: var(--spacing-2) var(--spacing-2);
+      font-size: var(--text-xs);
+      
+      .tab-badge {
+        font-size: 10px;
+        min-width: 18px;
+        height: 18px;
+      }
     }
+  }
+  
+  .view-toggle {
+    flex: none;  // Fixed width
+    
+    .toggle-btn {
+      min-width: 44px;  // Touch-friendly
+      min-height: 44px;
+      padding: var(--spacing-2);
+      
+      .icon {
+        width: 22px;
+        height: 22px;
+      }
+    }
+  }
+  
+  .sort-select {
+    flex: 1;  // Fill remaining space
+    min-height: 44px;  // Touch-friendly
+    font-size: 16px;  // Prevent iOS zoom
+    padding: var(--spacing-3);
   }
 
   .streamers-container.view-grid {
