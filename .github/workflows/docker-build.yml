@@ -37,74 +37,50 @@ jobs:
       - name: Get latest version tag
         id: get_version
         run: |
-          # Get latest version tag from ALL branches (not just current)
-          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n1 | sed 's/^v//')
+          # Get latest version tag (filter out invalid tags like 'v' without version)
+          LATEST_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n1 | sed 's/^v//')
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="1.0.0"
-            echo "No version tags found, starting with $LATEST_TAG"
+            echo "⚠️ No valid version tags found (format: v1.0.0), starting with $LATEST_TAG"
           else
-            echo "Latest version tag: v$LATEST_TAG"
+            echo "✅ Latest version tag: v$LATEST_TAG"
           fi
           echo "current_version=$LATEST_TAG" >> $GITHUB_OUTPUT
-      
-      - name: Determine version bump
-        id: semver
-        uses: paulhatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          # Major bump: regex pattern matching commit messages containing BREAKING CHANGE, breaking:, or MAJOR
-          major_pattern: "(BREAKING CHANGE|breaking:|MAJOR)"
-          # Minor bump: regex pattern matching commit messages containing feat:, feature:, add:, MINOR, refactor:, or perf:
-          minor_pattern: "(feat:|feature:|add:|MINOR|refactor:|perf:)"
-          # Patch bump: happens automatically for commit messages not matching the above patterns (e.g., fix:, chore:, docs:)
-          version_format: "${major}.${minor}.${patch}"
-          bump_each_commit: false  # Set to false to bump version once per push
-          search_commit_body: true
-          user_format_type: "csv"
-          debug: true
-          # Allow version calculation even without matching tags on current branch
-          enable_prerelease_mode: false
 
       - name: Set final version
         id: version
         run: |
           echo "=== Version Detection ==="
-          echo "Version from semver: ${{ steps.semver.outputs.version }}"
-          echo "Current version (manual): ${{ steps.get_version.outputs.current_version }}"
-          echo "Major: ${{ steps.semver.outputs.major }}"
-          echo "Minor: ${{ steps.semver.outputs.minor }}"
-          echo "Patch: ${{ steps.semver.outputs.patch }}"
+          LATEST_TAG="${{ steps.get_version.outputs.current_version }}"
+          echo "📦 Current version: $LATEST_TAG"
           
-          if [ -n "${{ steps.semver.outputs.version }}" ] && [ "${{ steps.semver.outputs.version }}" != "0.0.0" ]; then
-            NEW_VERSION="${{ steps.semver.outputs.version }}"
-            echo "✅ Using semantic version: $NEW_VERSION"
+          # Parse version components
+          IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          # Get commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "📝 Commit message: $COMMIT_MSG"
+          
+          # Determine bump type based on commit message
+          if echo "$COMMIT_MSG" | grep -qiE '(BREAKING CHANGE|breaking:|MAJOR)'; then
+            # Major bump: 1.0.0 -> 2.0.0
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+            echo "🚨 BREAKING CHANGE detected - Major bump to $NEW_VERSION"
+          elif echo "$COMMIT_MSG" | grep -qiE '(feat:|feature:|add:|refactor:|perf:|MINOR)'; then
+            # Minor bump: 1.0.0 -> 1.1.0
+            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            echo "✨ Feature detected - Minor bump to $NEW_VERSION"
           else
-            # Fallback: Use manually retrieved latest tag and bump based on commit message
-            LATEST_TAG="${{ steps.get_version.outputs.current_version }}"
-            echo "⚠️ Semantic version unavailable, using fallback with latest tag: $LATEST_TAG"
-            IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
-            
-            # Check commit message for bump type
-            COMMIT_MSG=$(git log -1 --pretty=%B)
-            echo "Commit message: $COMMIT_MSG"
-            
-            if echo "$COMMIT_MSG" | grep -qiE '(BREAKING CHANGE|breaking:|MAJOR)'; then
-              # Major bump: 1.0.0 -> 2.0.0
-              NEW_VERSION="$((${VERSION_PARTS[0]} + 1)).0.0"
-              echo "🚨 BREAKING CHANGE detected - Major bump to $NEW_VERSION"
-            elif echo "$COMMIT_MSG" | grep -qiE '(feat:|feature:|add:|refactor:|perf:|MINOR)'; then
-              # Minor bump: 1.0.0 -> 1.1.0
-              NEW_VERSION="${VERSION_PARTS[0]}.$((${VERSION_PARTS[1]} + 1)).0"
-              echo "✨ Feature detected - Minor bump to $NEW_VERSION"
-            else
-              # Patch bump: 1.0.0 -> 1.0.1
-              NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((${VERSION_PARTS[2]:-0} + 1))"
-              echo "🐛 Patch/fix - Patch bump to $NEW_VERSION"
-            fi
+            # Patch bump: 1.0.0 -> 1.0.1
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+            echo "🐛 Patch/fix - Patch bump to $NEW_VERSION"
           fi
           
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "=== Final version: $NEW_VERSION ==="
+          echo "=== ✅ Final version: v$NEW_VERSION ==="
 
       - name: Create version tag
         if: github.ref == 'refs/heads/main'
