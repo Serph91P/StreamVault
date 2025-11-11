@@ -367,4 +367,76 @@ const handlePlay = () => {
     fill: none;
   }
 }
+
+/* Mobile Optimizations (< 768px) */
+@media (max-width: 767px) {
+  .video-info {
+    padding: var(--spacing-3);
+  }
+
+  .video-title {
+    font-size: var(--text-base);
+    // Keep 2-line clamp for consistency
+  }
+
+  .video-meta,
+  .video-stats {
+    font-size: var(--text-xs);
+  }
+
+  .play-button {
+    width: 72px;  // Larger for touch
+    height: 72px;
+
+    .icon-play {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .duration-badge {
+    bottom: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    font-size: var(--text-xs);
+  }
+
+  .status-badge {
+    top: 10px;
+    left: 10px;
+    padding: 6px 10px;
+    font-size: var(--text-xs);
+  }
+}
+
+/* Extra Small Screens (< 480px) */
+@media (max-width: 480px) {
+  .video-info {
+    padding: var(--spacing-2);
+  }
+
+  .video-title {
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-1);
+  }
+
+  .video-meta {
+    margin-bottom: var(--spacing-1);
+    gap: var(--spacing-1);
+  }
+
+  .video-stats {
+    gap: var(--spacing-2);
+  }
+
+  .play-button {
+    width: 56px;  // Slightly smaller for very small screens
+    height: 56px;
+
+    .icon-play {
+      width: 28px;
+      height: 28px;
+    }
+  }
+}
 </style>
