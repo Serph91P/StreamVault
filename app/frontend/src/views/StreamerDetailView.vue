@@ -634,12 +634,13 @@ onMounted(async () => {
   }
 
   &.btn-secondary {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    backdrop-filter: blur(10px);
+    background: var(--background-card);
+    color: var(--text-primary); /* ✅ Theme-aware text color */
+    border: 1px solid var(--border-color);
 
     &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.3);
+      background: var(--background-hover);
+      border-color: var(--primary-color);
       transform: translateY(-2px);
     }
   }

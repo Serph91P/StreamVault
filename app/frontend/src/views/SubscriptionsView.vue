@@ -389,7 +389,7 @@ onMounted(loadSubscriptions)
 
   &.btn-primary {
     background: var(--gradient-primary);
-    color: white;
+    color: white; /* Always white on gradient background */
 
     &:hover:not(:disabled) {
       transform: translateY(-2px);
@@ -399,7 +399,7 @@ onMounted(loadSubscriptions)
 
   &.btn-secondary {
     background: var(--background-secondary);
-    color: var(--text-primary);
+    color: var(--text-primary); /* ✅ Theme-aware: dark text in light mode, light text in dark mode */
     border: 1px solid var(--border-color);
 
     &:hover:not(:disabled) {
@@ -410,7 +410,7 @@ onMounted(loadSubscriptions)
 
   &.btn-danger {
     background: var(--color-error);
-    color: white;
+    color: white; /* Always white on error background */
 
     &:hover:not(:disabled) {
       background: var(--color-error-hover);
