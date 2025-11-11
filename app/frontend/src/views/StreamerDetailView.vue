@@ -71,11 +71,11 @@
               </svg>
               Delete All
             </button>
-            <button class="btn-action btn-secondary" v-ripple>
+            <button @click="openSettings" class="btn-action btn-secondary btn-icon-mobile" v-ripple>
               <svg class="icon">
                 <use href="#icon-settings" />
               </svg>
-              Settings
+              <span class="button-text">Settings</span>
             </button>
           </div>
         </div>
@@ -221,6 +221,81 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Settings Modal -->
+    <Teleport to="body">
+      <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
+        <div class="modal settings-modal">
+          <div class="modal-header">
+            <h3>Settings for {{ streamer?.name || 'Streamer' }}</h3>
+            <button class="close-btn" @click="closeSettings" v-ripple>×</button>
+          </div>
+          <div class="modal-body">
+            <!-- Recording Quality Override -->
+            <div class="setting-group">
+              <label class="setting-label">Recording Quality</label>
+              <select v-model="streamerSettings.quality" class="setting-input">
+                <option value="">Use Global Setting</option>
+                <option value="best">Best Available</option>
+                <option value="1080p60">1080p60</option>
+                <option value="720p60">720p60</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+              </select>
+              <p class="setting-hint">Override global recording quality for this streamer</p>
+            </div>
+
+            <!-- Custom Filename Template -->
+            <div class="setting-group">
+              <label class="setting-label">Custom Filename Template</label>
+              <input 
+                v-model="streamerSettings.filenameTemplate" 
+                type="text"
+                class="setting-input"
+                placeholder="Leave empty to use global template"
+              />
+              <p class="setting-hint">
+                Available variables: {streamer}, {title}, {game}, {date}, {time}
+              </p>
+            </div>
+
+            <!-- Auto-Record Toggle -->
+            <div class="setting-group">
+              <label class="setting-checkbox">
+                <input type="checkbox" v-model="streamerSettings.autoRecord" />
+                <span>Auto-record when this streamer goes live</span>
+              </label>
+            </div>
+
+            <!-- Notification Preferences -->
+            <div class="setting-group">
+              <label class="setting-label">Notifications</label>
+              <label class="setting-checkbox">
+                <input type="checkbox" v-model="streamerSettings.notifyOnline" />
+                <span>Notify when goes online</span>
+              </label>
+              <label class="setting-checkbox">
+                <input type="checkbox" v-model="streamerSettings.notifyOffline" />
+                <span>Notify when goes offline</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="closeSettings" v-ripple>
+              Cancel
+            </button>
+            <button
+              class="btn-primary"
+              :disabled="savingSettings"
+              @click="saveSettings"
+              v-ripple
+            >
+              {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -258,6 +333,49 @@ const deletingAll = ref(false)
 
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
+
+// Settings modal
+const showSettings = ref(false)
+const savingSettings = ref(false)
+const streamerSettings = ref({
+  quality: '',
+  filenameTemplate: '',
+  autoRecord: true,
+  notifyOnline: true,
+  notifyOffline: true
+})
+
+const openSettings = () => {
+  // Load current settings (TODO: fetch from API when backend is ready)
+  showSettings.value = true
+}
+
+const closeSettings = () => {
+  showSettings.value = false
+}
+
+const saveSettings = async () => {
+  savingSettings.value = true
+  
+  try {
+    // TODO: Implement API endpoint when backend is ready
+    // await fetch(`/api/streamers/${streamerId.value}/settings`, {
+    //   method: 'PUT',
+    //   credentials: 'include',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(streamerSettings.value)
+    // })
+    
+    // Simulate API call for now
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    closeSettings()
+  } catch (error) {
+    console.error('Failed to save settings:', error)
+  } finally {
+    savingSettings.value = false
+  }
+}
 
 // Banner gradient style
 const bannerStyle = computed(() => {
@@ -886,6 +1004,87 @@ onMounted(async () => {
   }
 }
 
+// Settings Modal
+.settings-modal {
+  max-width: 600px;
+
+  .modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+}
+
+.setting-group {
+  margin-bottom: var(--spacing-6);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.setting-label {
+  display: block;
+  margin-bottom: var(--spacing-2);
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.setting-input {
+  width: 100%;
+  padding: var(--spacing-3);
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  transition: all v.$duration-200 v.$ease-out;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+.setting-hint {
+  margin-top: var(--spacing-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: v.$leading-relaxed;
+}
+
+.setting-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+  }
+
+  span {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  &:hover {
+    span {
+      color: var(--primary-color);
+    }
+  }
+}
+
 // Responsive
 @media (max-width: 1024px) {
   .profile-content {
@@ -940,6 +1139,29 @@ onMounted(async () => {
 
   .videos-container.view-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+// Mobile icon-only buttons (< 480px)
+@media (max-width: 480px) {
+  .btn-icon-mobile {
+    .button-text {
+      display: none; // Hide text on mobile
+    }
+
+    // Keep icon visible and centered
+    .icon {
+      margin: 0;
+    }
+
+    // Smaller padding since no text
+    padding: var(--spacing-3);
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .profile-actions {
+    gap: var(--spacing-2);
   }
 }
 
