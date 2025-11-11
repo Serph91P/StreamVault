@@ -651,13 +651,14 @@ const testWebSocketNotification = async () => {
   
   /* Make checkboxes easier to tap on mobile */
   input[type="checkbox"] {
-    min-width: 18px;
-    min-height: 18px;
+    min-width: 20px;  /* Increased from 18px for better touch targets */
+    min-height: 20px;
+    cursor: pointer;
   }
 }
 
-/* For very small screens, switch to card layout */
-@media (max-width: 480px) {
+/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
+@media (max-width: 767px) {
   .streamer-table table,
   .streamer-table thead,
   .streamer-table tbody,
@@ -667,56 +668,103 @@ const testWebSocketNotification = async () => {
     display: block;
   }
   
+  /* Hide table header */
   .streamer-table thead tr {
     position: absolute;
     top: -9999px;
     left: -9999px;
   }
   
+  /* Style each row as a card */
   .streamer-table tr {
-    margin-bottom: var(--spacing-md, 16px);
+    margin-bottom: var(--spacing-4, 16px);
     border-radius: var(--border-radius, 8px);
     border: 1px solid var(--border-color, #333);
+    background: var(--background-card, #2a2a2e);
     overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
+  /* Style table cells as rows */
   .streamer-table td {
     position: relative;
-    padding-left: 110px; /* Space for labels */
-    min-height: 30px;
+    padding: 12px 12px 12px 120px; /* Space for labels */
+    min-height: 44px;  /* Touch-friendly height */
     display: flex;
     align-items: center;
-    border-bottom: 1px solid rgba(var(--border-color-rgb), 0.5);
+    border-bottom: 1px solid var(--border-color-subtle, rgba(255, 255, 255, 0.05));
   }
   
+  .streamer-table td:last-child {
+    border-bottom: none;
+  }
+  
+  /* Add labels before each cell */
   .streamer-table td:before {
     content: attr(data-label);
     position: absolute;
-    top: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     left: 12px;
     width: 95px;
     padding-right: 10px;
     font-weight: 600;
     white-space: nowrap;
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary, #adadb8);
     font-size: 0.85rem;
   }
   
+  /* Streamer info cell (first cell) */
   .streamer-table td.streamer-info {
-    padding-left: 12px;
+    padding: 12px;
     font-weight: 600;
-    background-color: rgba(0, 0, 0, 0.15);
+    background: var(--background-darker, #1f1f23);
     display: flex;
+    align-items: center;
+    gap: 12px;
   }
   
+  .streamer-table td.streamer-info:before {
+    display: none;  /* No label for streamer name */
+  }
+  
+  /* Actions cell */
   .streamer-table td.actions-cell {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     padding-left: 12px;
+  }
+  
+  .streamer-table td.actions-cell:before {
+    content: '';  /* Empty label for actions */
   }
   
   .btn-group {
     margin-left: auto;
+  }
+  
+  /* Make buttons full width on mobile for easier tapping */
+  .streamer-table .btn-sm {
+    padding: 8px 16px;
+    min-width: 60px;
+    font-size: 0.875rem;
+  }
+}
+
+/* Extra small screens: Additional optimizations */
+@media (max-width: 480px) {
+  .streamer-table tr {
+    margin-bottom: var(--spacing-3, 12px);
+  }
+  
+  .streamer-table td {
+    padding-left: 100px;  /* Slightly less padding */
+  }
+  
+  .streamer-table td:before {
+    width: 85px;
+    font-size: 0.8rem;
   }
 }
 </style>

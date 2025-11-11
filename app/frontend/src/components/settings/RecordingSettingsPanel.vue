@@ -268,17 +268,17 @@
             </thead>
             <tbody>
               <tr v-for="streamer in streamerSettings" :key="streamer.streamer_id">
-                <td class="streamer-info">
+                <td class="streamer-info" data-label="">
                   <div class="streamer-avatar" v-if="streamer.profile_image_url">
                     <img :src="streamer.profile_image_url" :alt="streamer.username || ''" />
                   </div>
                   <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
                 </td>
-                <td>
+                <td data-label="Record">
                   <input type="checkbox" v-model="streamer.enabled"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
-                <td>
+                <td data-label="Quality">
                   <select v-model="streamer.quality"
                     @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
                     class="form-control form-control-sm">
@@ -288,12 +288,12 @@
                     </option>
                   </select>
                 </td>
-                <td>
+                <td data-label="Custom Filename">
                   <input type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td>
+                <td data-label="Actions">
                   <div class="streamer-actions">
                     <button 
                       v-if="isActiveRecording(streamer.streamer_id)" 
@@ -840,52 +840,109 @@ select.form-control option {
   border: 1px solid var(--border-color, #303034);
 }
 
-/* Card-basierte Layout für kleine Bildschirme */
+/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
 @media (max-width: 767px) {
-  .streamer-table table {
-    border-collapse: separate;
-    border-spacing: 0;
+  .streamer-table table,
+  .streamer-table thead,
+  .streamer-table tbody,
+  .streamer-table th,
+  .streamer-table td,
+  .streamer-table tr {
+    display: block;
   }
   
-  .streamer-table thead {
-    display: none; /* Header auf Mobilgeräten ausblenden */
+  /* Hide table header */
+  .streamer-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
   }
   
-  .streamer-table tbody tr {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    margin-bottom: 16px;
-    padding: 12px;
-    background-color: rgba(0, 0, 0, 0.2);
+  /* Style each row as a card */
+  .streamer-table tr {
+    margin-bottom: var(--spacing-4, 16px);
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid var(--border-color, #333);
+    background: var(--background-card, #2a2a2e);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
+  /* Style table cells as rows */
   .streamer-table td {
-    display: flex;
-    padding: 8px 0;
-    border: none;
     position: relative;
+    padding: 12px 12px 12px 150px;  /* More space for longer labels */
+    min-height: 44px;  /* Touch-friendly */
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color-subtle);
   }
   
-  .streamer-table td:not(:last-child) {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .streamer-table td::before {
+  /* Add labels before each cell */
+  .streamer-table td:before {
     content: attr(data-label);
-    width: 40%;
-    font-weight: bold;
-    margin-right: 12px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 12px;
+    width: 125px;  /* Wider for "Custom Filename" label */
+    font-weight: 600;
+    color: var(--text-secondary, #adadb8);
+    font-size: 0.85rem;
   }
   
-  .streamer-table td:first-child {
-    padding-top: 0;
+  /* Streamer info cell styling */
+  .streamer-table td.streamer-info {
+    padding: 12px;
+    font-weight: 600;
+    background: var(--background-darker, #1f1f23);
+    gap: 12px;
   }
-    .streamer-table .form-control-sm {
+  
+  .streamer-table td.streamer-info:before {
+    display: none;  /* No label for streamer name */
+  }
+  
+  /* Make checkboxes easier to tap */
+  input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+    cursor: pointer;
+  }
+  
+  /* Select dropdowns - Full width on mobile */
+  .streamer-table select.form-control,
+  .streamer-table select.form-control-sm {
     width: 100%;
+    max-width: 100%;
+    padding: 10px;
+    font-size: 16px;  /* Prevent iOS zoom */
     background-color: var(--background-dark, #18181b);
     color: var(--text-primary, #f1f1f3);
+  }
+  
+  /* Text inputs - Full width on mobile */
+  .streamer-table input[type="text"].form-control,
+  .streamer-table input[type="text"].form-control-sm {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px;
+    font-size: 16px;  /* Prevent iOS zoom */
+    background-color: var(--background-dark, #18181b);
+    color: var(--text-primary, #f1f1f3);
+  }
+  
+  /* Action buttons - Stack vertically on mobile */
+  .streamer-table .streamer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .streamer-table .streamer-actions .btn {
+    width: 100%;
+    min-height: 44px;  /* Touch-friendly */
   }
 }
 
@@ -1713,6 +1770,20 @@ select.form-control-sm option {
   .variable-tag {
     font-size: 0.75em;
     padding: 4px 8px;
+  }
+  
+  /* Extra small screen table optimizations */
+  .streamer-table tr {
+    margin-bottom: var(--spacing-3, 12px);
+  }
+  
+  .streamer-table td {
+    padding-left: 130px;
+  }
+  
+  .streamer-table td:before {
+    width: 115px;
+    font-size: 0.8rem;
   }
 }
 </style>
