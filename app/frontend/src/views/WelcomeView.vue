@@ -125,7 +125,7 @@ const router = useRouter()
 
 function continueToHome() {
   localStorage.setItem('welcome_seen', '1')
-  router.replace('/home')
+  router.replace('/') // FIXED: Was '/home' - now redirects to dashboard root
 }
 </script>
 
