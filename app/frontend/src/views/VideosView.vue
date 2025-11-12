@@ -369,7 +369,19 @@ async function fetchVideos() {
 
 // Actions
 function playVideo(video: any) {
-  router.push(`/videos/${video.id}`)
+  // Navigate to video player with correct route parameters
+  // Route expects: /streamer/:streamerId/stream/:streamId/watch
+  router.push({
+    name: 'VideoPlayer',
+    params: {
+      streamerId: video.streamer_id,
+      streamId: video.id  // video.id is actually the stream_id
+    },
+    query: {
+      title: video.title || `Stream ${video.id}`,
+      streamerName: video.streamer_name
+    }
+  })
 }
 
 function toggleSelectMode() {

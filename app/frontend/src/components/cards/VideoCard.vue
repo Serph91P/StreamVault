@@ -80,6 +80,7 @@ interface Video {
   view_count?: number
   created_at?: string
   streamer_name?: string
+  streamer_id?: number  // Required for navigation to video player
   status?: 'recording' | 'processing' | 'ready' | 'failed'
 }
 
@@ -149,7 +150,19 @@ const formatFileSize = (bytes: number) => {
 }
 
 const handleClick = () => {
-  router.push(`/videos/${props.video.id}`)
+  // Navigate to video player with correct route parameters
+  // Route expects: /streamer/:streamerId/stream/:streamId/watch
+  router.push({
+    name: 'VideoPlayer',
+    params: {
+      streamerId: props.video.streamer_id,
+      streamId: props.video.id  // video.id is actually the stream_id
+    },
+    query: {
+      title: props.video.title || `Stream ${props.video.id}`,
+      streamerName: props.video.streamer_name
+    }
+  })
 }
 
 const handlePlay = () => {
@@ -323,6 +336,7 @@ const handlePlay = () => {
   // Limit to 2 lines
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;  // Standard property for compatibility
   -webkit-box-orient: vertical;
   overflow: hidden;
 
