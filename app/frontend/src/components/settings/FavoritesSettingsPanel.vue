@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
+import { useToast } from '@/composables/useToast';
 import { IMAGE_LOADING } from '@/config/constants';
 
 interface Category {
@@ -130,6 +131,7 @@ const imageErrors = ref<Set<string>>(new Set());
 
 // Use category images composable
 const { getCategoryImage, preloadCategoryImages, refreshImages, clearCache } = useCategoryImages();
+const toast = useToast();
 
 // Computed properties
 const filteredCategories = computed(() => {
@@ -256,9 +258,17 @@ const toggleFavorite = async (category: Category) => {
     
     // Update the local state
     category.is_favorite = !category.is_favorite;
+    
+    // Show success toast
+    toast.success(
+      category.is_favorite 
+        ? `Added "${category.name}" to favorites` 
+        : `Removed "${category.name}" from favorites`
+    );
   } catch (err: any) {
     error.value = err.message;
     console.error('Error toggling favorite status:', err);
+    toast.error('Failed to update favorite status');
   }
 };
 

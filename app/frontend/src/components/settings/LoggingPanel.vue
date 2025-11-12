@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useToast } from '@/composables/useToast'
 
 interface LogFile {
   filename: string
@@ -183,6 +184,7 @@ interface LogsData {
 const isLoading = ref(false)
 const isLoadingContent = ref(false)
 const isCleaningUp = ref(false)
+const toast = useToast()
 const stats = ref<LogStats>({} as LogStats)
 const logsData = ref<LogsData>({} as LogsData)
 const activeTab = ref('streamlink')
@@ -305,7 +307,7 @@ const downloadLogFile = async (logFile: LogFile) => {
     }
   } catch (error) {
     console.error('Error downloading log file:', error)
-    alert('Error downloading log file')
+    toast.error('Error downloading log file')
   }
 }
 
@@ -318,12 +320,13 @@ const deleteLogFile = async (logFile: LogFile) => {
     })
     if (response.ok) {
       await refreshLogs()
+      toast.success(`Deleted ${logFile.filename}`)
     } else {
       throw new Error('Failed to delete log file')
     }
   } catch (error) {
     console.error('Error deleting log file:', error)
-    alert('Error deleting log file')
+    toast.error('Error deleting log file')
   }
 }
 
@@ -338,13 +341,13 @@ const cleanupLogs = async () => {
     if (response.ok) {
       showCleanupDialog.value = false
       await refreshLogs()
-      alert('Log cleanup completed successfully')
+      toast.success('Log cleanup completed successfully')
     } else {
       throw new Error('Failed to cleanup logs')
     }
   } catch (error) {
     console.error('Error cleaning up logs:', error)
-    alert('Error cleaning up logs')
+    toast.error('Error cleaning up logs')
   } finally {
     isCleaningUp.value = false
   }

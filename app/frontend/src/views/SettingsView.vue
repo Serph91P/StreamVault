@@ -303,6 +303,7 @@ import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useTheme } from '@/composables/useTheme'
+import { useToast } from '@/composables/useToast'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
@@ -365,6 +366,9 @@ const hasUnsavedChanges = ref(false)
 
 // Theme management - use global theme composable
 const { theme, setTheme } = useTheme()
+
+// Toast notifications
+const toast = useToast()
 
 // Appearance settings
 const animationsEnabled = ref(true)
@@ -458,8 +462,10 @@ watch(theme, (newTheme) => {
 async function handleUpdateNotificationSettings(newSettings: Partial<NotificationSettings>) {
   try {
     await updateNotificationSettings(newSettings)
+    toast.success('Notification settings saved successfully')
   } catch (error) {
     console.error('Failed to update notification settings:', error)
+    toast.error('Failed to save notification settings')
   }
 }
 
@@ -470,8 +476,10 @@ async function handleUpdateStreamerNotificationSettings(
   try {
     await updateStreamerNotificationSettings(streamerId, settings)
     notificationStreamerSettings.value = await getNotificationStreamerSettings()
+    toast.success('Streamer notification settings saved successfully')
   } catch (error) {
     console.error('Failed to update streamer notification settings:', error)
+    toast.error('Failed to save streamer notification settings')
   }
 }
 
@@ -483,8 +491,10 @@ function handleTestNotification() {
 async function handleUpdateRecordingSettings(newSettings: RecordingSettings) {
   try {
     await updateRecordingSettings(newSettings)
+    toast.success('Recording settings saved successfully')
   } catch (error) {
     console.error('Failed to update recording settings:', error)
+    toast.error('Failed to save recording settings')
   }
 }
 
@@ -492,8 +502,10 @@ async function handleUpdateStreamerRecordingSettings(streamerId: number, setting
   try {
     await updateStreamerRecordingSettings(streamerId, settings)
     await fetchRecordingStreamerSettings()
+    toast.success('Streamer recording settings saved successfully')
   } catch (error) {
     console.error('Failed to update streamer recording settings:', error)
+    toast.error('Failed to save streamer recording settings')
   }
 }
 
@@ -501,14 +513,17 @@ async function handleStopRecording(recordingId: number) {
   try {
     await stopRecording(recordingId)
     await fetchActiveRecordings()
+    toast.success('Recording stopped successfully')
   } catch (error) {
     console.error('Failed to stop recording:', error)
+    toast.error('Failed to stop recording')
   }
 }
 
 // Advanced actions
 function clearCache() {
   if (confirm('This will clear all cached data and reload the application. Continue?')) {
+    toast.info('Clearing cache...')
     localStorage.clear()
     sessionStorage.clear()
     window.location.reload()

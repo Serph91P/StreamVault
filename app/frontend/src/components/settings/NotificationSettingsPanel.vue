@@ -198,6 +198,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
+import { useToast } from '@/composables/useToast'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
@@ -219,6 +220,7 @@ const typedStreamerSettings = computed(() => {
 
 // Emits
 const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-notification'])
+const toast = useToast()
 
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({
@@ -402,9 +404,9 @@ const testWebSocketNotification = async () => {
       throw new Error(error.detail || 'Failed to send test WebSocket notification')
     }
 
-    alert('Test WebSocket notification sent! Check the notification bell.')
+    toast.success('Test WebSocket notification sent! Check the notification bell.')
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
+    toast.error(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
   }
 }
 </script>

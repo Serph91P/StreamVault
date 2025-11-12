@@ -343,6 +343,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
+import { useToast } from '@/composables/useToast';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import type { GlobalSettings } from '@/types/settings';
@@ -369,6 +370,7 @@ const tabs = [
 ];
 
 const { isLoading, error } = useRecordingSettings();
+const toast = useToast();
 
 // Filename presets from API
 const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsError } = useFilenamePresets();
@@ -473,7 +475,7 @@ const saveProxySettings = async () => {
     
   } catch (error) {
     console.error('Failed to save proxy settings:', error);
-    alert('Failed to save proxy settings. Please try again.');
+    toast.error('Failed to save proxy settings. Please try again.');
   }
 };
 
@@ -613,7 +615,7 @@ const saveSettings = async () => {
     
   } catch (error) {
     console.error('Failed to save settings:', error);
-    alert('Failed to save settings. Please try again.');
+    toast.error('Failed to save settings. Please try again.');
   } finally {
     isSaving.value = false;
   }
