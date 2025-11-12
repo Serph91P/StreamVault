@@ -2,14 +2,18 @@
 
 ## 🎯 Session Summary
 
-**Focus**: Complete Apprise Integration + Fix critical bugs
+**Focus**: Complete Apprise Integration + Fix critical bugs + Testing
 
 **Commits**:
 1. `685066ce` - feat: complete Apprise integration for recording events
 2. `a4e83f2a` - fix: resolve StreamerService initialization in zombie cleanup
 3. `40bc1b2e` - fix: remove non-existent _notifications_enabled attribute
+4. `0de691ff` - docs: update Session 7 status with AttributeError fix
+5. `f266b778` - docs: document 6 UI issues found during testing
 
-**Time**: ~60 minutes
+**Time**: ~90 minutes
+
+**Testing Results**: 6 UI issues discovered (see KNOWN_ISSUES_SESSION_7.md)
 
 ---
 
@@ -303,20 +307,35 @@ if (message.type === 'recording_failed') {
 
 ## 🚀 NEXT SESSION PRIORITIES
 
-### Option A: Production Readiness (Low Risk)
-**Time**: 30 minutes  
-**Tasks**:
-1. Test Apprise Integration end-to-end
-2. Test Zombie Cleanup fix
-3. Review Toast design (if needed)
-4. Update documentation
+⚠️ **UPDATED AFTER TESTING** - 6 UI issues discovered (see KNOWN_ISSUES_SESSION_7.md)
 
-**Benefits**: Ensure all completed features work correctly
+### Option A: Fix UI Bugs (RECOMMENDED)
+**Time**: 2.5-4 hours  
+**Priority**: 🔴 HIGH (regressions after design rework)
+
+**Phase 1: Functional Bugs (90-120 min)**
+1. Test Notification button broken (20-30 min)
+2. Clear notifications button broken (20-30 min)
+3. Chapter duplicate issue (30-45 min)
+4. Fullscreen exit button broken (20-30 min)
+
+**Phase 2: Design Polish (60-105 min)**
+5. Notifications Panel design missing (30-45 min)
+6. Video Player design missing (30-60 min)
+
+**Benefits**: 
+- Restore functionality after design rework
+- Fix user-facing issues
+- Apply Design System consistently
+
+**See**: `docs/KNOWN_ISSUES_SESSION_7.md` for complete debugging guide
 
 ---
 
 ### Option B: Multi-Proxy System (High Value)
 **Time**: 3-4 hours  
+**Priority**: 🔴 CRITICAL (proxy down)
+
 **Tasks**:
 1. Create migration: proxies table
 2. Implement ProxyHealthCheckService
@@ -330,26 +349,45 @@ if (message.type === 'recording_failed') {
 
 ---
 
-### Recommended: Option A First, Then Option B
+### Option C: Production Readiness (Original Plan - Obsolete)
+**Status**: ⚠️ **NOT RECOMMENDED** - Testing revealed 6 issues  
+**Time**: 30 minutes (if no issues existed)
+
+**Why Obsolete**: Testing found bugs that need fixing first
+
+---
+
+### Recommended: Option A (Fix Bugs First)
 
 **Reasoning**:
-1. Verify all completed features work correctly (30 min)
-2. Start Multi-Proxy System with clean slate (3-4 hours)
-3. Total: 4-5 hours for significant progress
+1. **User Experience**: 6 UI issues affect usability
+2. **Regressions**: Features that worked before are now broken
+3. **Quick Wins**: Most bugs are 20-30 min fixes
+4. **Design System**: Apply tokens while fixing
+5. **Total Time**: 2.5-4 hours → Then consider Multi-Proxy
+
+**Alternative**: If proxy is critically down → Option B first
 
 ---
 
 ## 📁 IMPORTANT FILES (for Tomorrow)
 
-### Apprise Integration
+### UI Bug Fixes (NEW - Priority 1)
+- `app/frontend/src/components/settings/NotificationSettingsPanel.vue` - Test button fix
+- `app/frontend/src/components/NotificationPanel.vue` - Clear button fix + design
+- `app/frontend/src/views/WatchView.vue` - Fullscreen fix + Chapter duplicate + design
+- `app/services/metadata/chapter_service.py` - Chapter duplicate query
+- `docs/KNOWN_ISSUES_SESSION_7.md` - **Complete debugging guide**
+
+### Apprise Integration (Completed)
 - `app/services/recording/process_manager.py` - 4 notification points (lines 330, 573, 711, 1169)
 - `app/services/notifications/external_notification_service.py` - send_recording_notification() method
 - `app/frontend/src/components/settings/NotificationSettingsPanel.vue` - UI settings
 
-### Zombie Cleanup Fix
+### Zombie Cleanup Fix (Completed)
 - `app/services/init/startup_init.py` - cleanup_zombie_recordings() function (line ~230)
 
-### Toast System
+### Toast System (Completed)
 - `app/frontend/src/composables/useToast.ts` - Composable
 - `app/frontend/src/components/ToastContainer.vue` - Display component
 - `app/frontend/src/App.vue` - Integration (line ~540 for recording_failed)
