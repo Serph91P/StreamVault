@@ -1034,11 +1034,31 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
         
         for stream, streamer in streams:
             try:
-                # Verify the file exists
+                # Verify the recording exists
                 recording_path = Path(stream.recording_path)
                 
-                if recording_path.exists() and recording_path.is_file():
-                    file_stats = recording_path.stat()
+                # CRITICAL FIX: Handle both finished recordings AND active segmented recordings
+                # Finished: /path/to/file.ts (is_file)
+                # Active: /path/to/file_segments/ (is_dir with .ts segments inside)
+                is_finished_file = recording_path.exists() and recording_path.is_file()
+                is_segmented_dir = (
+                    recording_path.exists() and 
+                    recording_path.is_dir() and 
+                    recording_path.name.endswith('_segments')
+                )
+                
+                if is_finished_file or is_segmented_dir:
+                    # Get file stats (use first segment for directory)
+                    if is_finished_file:
+                        file_stats = recording_path.stat()
+                        file_size = file_stats.st_size
+                    else:
+                        # For segmented recordings, sum up all segment files
+                        file_size = sum(
+                            f.stat().st_size 
+                            for f in recording_path.glob('*.ts') 
+                            if f.is_file()
+                        )
                     
                     # Calculate duration if available
                     duration = None
@@ -1051,14 +1071,15 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "streamer_name": streamer.username,
                         "streamer_id": streamer.id,
                         "file_path": str(recording_path),
-                        "file_size": file_stats.st_size,
+                        "file_size": file_size,
                         "created_at": stream.started_at.isoformat() if stream.started_at else None,
                         "started_at": stream.started_at.isoformat() if stream.started_at else None,
                         "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
+                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path)),
+                        "is_segmented": is_segmented_dir  # NEW: Flag for active recordings
                     }
                     videos.append(video_info)
                 else:

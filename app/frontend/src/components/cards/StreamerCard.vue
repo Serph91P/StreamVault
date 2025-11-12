@@ -202,7 +202,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   watch: [streamer: Streamer]
-  forceRecord: [streamer: Streamer]
+  'force-record': [streamer: Streamer]  // CRITICAL FIX: kebab-case for Vue event naming
   delete: [streamer: Streamer]
 }>()
 
@@ -280,7 +280,7 @@ const toggleActions = () => {
 
 const handleForceRecord = () => {
   showActions.value = false
-  emit('forceRecord', props.streamer)
+  emit('force-record', props.streamer)  // CRITICAL FIX: Use kebab-case event name
 }
 
 const handleViewDetails = () => {
