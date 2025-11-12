@@ -6,6 +6,10 @@ export interface NotificationSettings {
   notify_offline_global: boolean
   notify_update_global: boolean
   notify_favorite_category_global?: boolean
+  // System notification settings (Migration 028)
+  notify_recording_started?: boolean
+  notify_recording_failed?: boolean
+  notify_recording_completed?: boolean
 }
 
 export interface StreamerNotificationSettings {

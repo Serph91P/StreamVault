@@ -56,6 +56,31 @@
           <!-- Checkboxes... -->
         </div>
       </div>
+      
+      <!-- System Notification Settings (NEW) -->
+      <div class="form-group">
+        <h4>System Notification Settings</h4>
+        <p class="section-description">
+          Configure which recording events trigger external notifications (Discord, Telegram, etc.)
+        </p>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingStarted" />
+            Recording Started
+            <span class="label-hint">(may be noisy - every stream triggers recording)</span>
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingFailed" />
+            Recording Failed ⚠️
+            <span class="label-hint label-recommended">(RECOMMENDED - know when recordings fail)</span>
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingCompleted" />
+            Recording Completed
+            <span class="label-hint">(may be noisy - most recordings complete normally)</span>
+          </label>
+        </div>
+      </div>
 
       <div class="form-actions">
         <button 
@@ -202,7 +227,11 @@ const data = ref({
   notifyOnlineGlobal: props.settings.notify_online_global !== false,
   notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
   notifyUpdateGlobal: props.settings.notify_update_global !== false,
-  notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
+  notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false,
+  // System notification settings (NEW - Migration 028)
+  notifyRecordingStarted: props.settings.notify_recording_started !== undefined ? props.settings.notify_recording_started : false,
+  notifyRecordingFailed: props.settings.notify_recording_failed !== undefined ? props.settings.notify_recording_failed : true,
+  notifyRecordingCompleted: props.settings.notify_recording_completed !== undefined ? props.settings.notify_recording_completed : false
 })
 
 // Add these new refs for validation
@@ -316,7 +345,11 @@ const saveSettings = async () => {
       notify_online_global: data.value.notifyOnlineGlobal,
       notify_offline_global: data.value.notifyOfflineGlobal,
       notify_update_global: data.value.notifyUpdateGlobal,
-      notify_favorite_category_global: data.value.notifyFavoriteCategoryGlobal
+      notify_favorite_category_global: data.value.notifyFavoriteCategoryGlobal,
+      // System notification settings (NEW - Migration 028)
+      notify_recording_started: data.value.notifyRecordingStarted,
+      notify_recording_failed: data.value.notifyRecordingFailed,
+      notify_recording_completed: data.value.notifyRecordingCompleted
     })
   } catch (error) {
     console.error('Failed to save settings:', error)
@@ -415,6 +448,25 @@ const testWebSocketNotification = async () => {
 .checkbox-group input[type="checkbox"] {
   margin-right: var(--spacing-sm, 8px);
   margin-top: 4px;
+}
+
+.section-description {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-md, 12px);
+  line-height: 1.5;
+}
+
+.label-hint {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-left: var(--spacing-xs, 4px);
+}
+
+.label-recommended {
+  color: var(--warning-color, #f59e0b);
+  font-weight: 500;
 }
 
 .input-with-tooltip {

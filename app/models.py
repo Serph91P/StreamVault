@@ -225,6 +225,11 @@ class GlobalSettings(Base):
     notify_favorite_category_global: bool = Column(Boolean, default=True)
     http_proxy: Optional[str] = Column(String)
     https_proxy: Optional[str] = Column(String)
+    
+    # System notification settings (Migration 028)
+    notify_recording_started: bool = Column(Boolean, default=False)  # OFF: Every stream triggers recording, too noisy
+    notify_recording_failed: bool = Column(Boolean, default=True)    # ON: Critical issue, user needs to know
+    notify_recording_completed: bool = Column(Boolean, default=False)  # OFF: Most recordings complete normally, noisy
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"

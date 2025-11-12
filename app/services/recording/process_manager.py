@@ -308,6 +308,27 @@ class ProcessManager:
             #     )
                 
             logger.info(f"Started segment recording for stream {stream.id} with PID {process.pid}")
+            
+            # Send Apprise notification for recording_started (NEW)
+            try:
+                from app.services.notifications.external_notification_service import ExternalNotificationService
+                notification_service = ExternalNotificationService()
+                
+                await notification_service.send_recording_notification(
+                    streamer_name=streamer_name,
+                    event_type='recording_started',
+                    details={
+                        'quality': quality,
+                        'stream_title': stream.title or 'N/A',
+                        'category': stream.category_name or 'N/A'
+                    }
+                )
+                
+                logger.info(f"📧 Apprise notification sent: recording_started for {streamer_name}")
+                
+            except Exception as apprise_error:
+                logger.error(f"Failed to send Apprise notification for recording_started: {apprise_error}")
+            
             return process
             
         except Exception as e:
@@ -590,6 +611,54 @@ class ProcessManager:
             
             if process.returncode == 0:
                 logger.info(f"Successfully concatenated segments into {output_path}")
+                
+                # Send Apprise notification for recording_completed (NEW)
+                try:
+                    from app.database import SessionLocal
+                    from app.models import Stream
+                    from app.services.notifications.external_notification_service import ExternalNotificationService
+                    from datetime import datetime, timezone
+                    import os
+                    
+                    notification_service = ExternalNotificationService()
+                    
+                    with SessionLocal() as db:
+                        stream = (
+                            db.query(Stream)
+                            .options(joinedload(Stream.streamer))
+                            .filter(Stream.id == segment_info['stream_id'])
+                            .first()
+                        )
+                        
+                        if stream and stream.streamer:
+                            # Calculate recording duration
+                            if segment_info.get('segment_start_time'):
+                                duration_seconds = int((datetime.now() - segment_info['segment_start_time']).total_seconds())
+                                hours = duration_seconds // 3600
+                                minutes = (duration_seconds % 3600) // 60
+                            else:
+                                hours = 0
+                                minutes = 0
+                            
+                            # Get file size
+                            file_size_bytes = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+                            file_size_mb = file_size_bytes / (1024 * 1024)
+                            
+                            await notification_service.send_recording_notification(
+                                streamer_name=stream.streamer.username,
+                                event_type='recording_completed',
+                                details={
+                                    'hours': hours,
+                                    'minutes': minutes,
+                                    'file_size_mb': f"{file_size_mb:.2f}",
+                                    'quality': stream.quality or 'best'
+                                }
+                            )
+                            
+                            logger.info(f"📧 Apprise notification sent: recording_completed for {stream.streamer.username}")
+                            
+                except Exception as apprise_error:
+                    logger.error(f"Failed to send Apprise notification for recording_completed: {apprise_error}")
                 
                 # Move concatenated file from segments directory to parent directory
                 await self._move_concatenated_file_to_parent(segment_info)
@@ -1027,6 +1096,27 @@ class ProcessManager:
                         
                     except Exception as ws_error:
                         logger.error(f"Failed to send WebSocket notification: {ws_error}")
+                    
+                    # Send Apprise notification (NEW)
+                    try:
+                        from app.services.notifications.external_notification_service import ExternalNotificationService
+                        notification_service = ExternalNotificationService()
+                        
+                        await notification_service.send_recording_notification(
+                            streamer_name=stream.streamer.username,
+                            event_type='recording_failed',
+                            details={
+                                'error_message': error_message,
+                                'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                'stream_title': stream.title or 'N/A',
+                                'category': stream.category_name or 'N/A'
+                            }
+                        )
+                        
+                        logger.info(f"📧 Apprise notification sent: recording_failed for {stream.streamer.username}")
+                        
+                    except Exception as apprise_error:
+                        logger.error(f"Failed to send Apprise notification: {apprise_error}")
                         
         except Exception as e:
             logger.error(f"Error in _notify_recording_failed: {e}", exc_info=True)

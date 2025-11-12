@@ -18,6 +18,10 @@ class GlobalSettingsSchema(BaseModel):
     notify_offline_global: bool = True
     notify_update_global: bool = True
     notify_favorite_category_global: bool = True
+    # System notification settings (Migration 028)
+    notify_recording_started: bool = False  # OFF by default (noisy)
+    notify_recording_failed: bool = True    # ON by default (CRITICAL)
+    notify_recording_completed: bool = False  # OFF by default (noisy)
     http_proxy: Optional[str] = Field(
         default="",
         description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)"

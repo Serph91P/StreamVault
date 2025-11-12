@@ -296,3 +296,104 @@ class ExternalNotificationService:
         # Default case - return original URL if service not specifically handled
         logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
         return base_url
+    
+    async def send_recording_notification(self, streamer_name: str, event_type: str, 
+                                         details: dict = None) -> bool:
+        """
+        Send notification for recording events (started/failed/completed)
+        
+        Args:
+            streamer_name: Name of the streamer
+            event_type: 'recording_started', 'recording_failed', 'recording_completed'
+            details: Additional info (error_message, duration, file_size, quality, etc.)
+        
+        Returns:
+            True if notification sent successfully
+        """
+        try:
+            if not self._notifications_enabled:
+                logger.debug("Notifications globally disabled")
+                return False
+            
+            if not self._notification_url:
+                logger.debug("No notification URL configured")
+                return False
+            
+            # Check if this specific event type is enabled
+            from app.database import SessionLocal
+            from app.models import GlobalSettings, Streamer
+            
+            with SessionLocal() as db:
+                settings = db.query(GlobalSettings).first()
+                if not settings:
+                    logger.debug("No global settings found")
+                    return False
+                
+                # Check event-specific toggle
+                if event_type == "recording_started" and not settings.notify_recording_started:
+                    logger.debug("Recording started notifications disabled")
+                    return False
+                elif event_type == "recording_failed" and not settings.notify_recording_failed:
+                    logger.debug("Recording failed notifications disabled")
+                    return False
+                elif event_type == "recording_completed" and not settings.notify_recording_completed:
+                    logger.debug("Recording completed notifications disabled")
+                    return False
+                
+                # Get streamer for profile image
+                streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                if not streamer:
+                    logger.debug(f"Streamer {streamer_name} not found")
+                    return False
+                
+                # Get profile image URL (HTTP only)
+                profile_image_url = ""
+                if streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
+                    profile_image_url = streamer.original_profile_image_url
+                elif details and details.get("profile_image_url", "").startswith('http'):
+                    profile_image_url = details["profile_image_url"]
+                
+                twitch_url = f"https://twitch.tv/{streamer_name}"
+                
+                # Get service-specific URL
+                notification_url = self._get_service_specific_url(
+                    base_url=settings.notification_url,
+                    twitch_url=twitch_url,
+                    profile_image=profile_image_url,
+                    streamer_name=streamer_name,
+                    event_type=event_type
+                )
+                
+                # Create Apprise instance
+                from apprise import Apprise, NotifyFormat
+                apprise = Apprise()
+                if not apprise.add(notification_url):
+                    logger.error(f"Failed to add notification URL: {notification_url}")
+                    return False
+                
+                # Format message
+                title, message = self.formatter.format_recording_notification(
+                    streamer_name=streamer_name,
+                    event_type=event_type,
+                    details=details or {}
+                )
+                
+                # Send notification
+                logger.debug(f"Sending recording notification: {event_type} for {streamer_name}")
+                result = await apprise.async_notify(
+                    title=title,
+                    body=message,
+                    body_format=NotifyFormat.TEXT
+                )
+                
+                if result:
+                    logger.info(f"✅ Recording notification sent: {event_type} - {streamer_name}")
+                else:
+                    logger.error(f"❌ Failed to send recording notification: {event_type}")
+                
+                return result
+        
+        except Exception as e:
+            logger.error(f"Error sending recording notification: {e}", exc_info=True)
+            return False
+
