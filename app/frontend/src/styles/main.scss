@@ -89,6 +89,92 @@ h3 { font-size: map.get(v.$font-scale, 'lg'); }
 h4 { font-size: map.get(v.$font-scale, 'base'); }
 h5, h6 { font-size: map.get(v.$font-scale, 'sm'); }
 
+// Form Elements - iOS Zoom Prevention & Consistent Styling
+// CRITICAL: Font-size >= 16px prevents iOS Safari from zooming on focus
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  // Base styles
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: v.$border-radius;
+  padding: v.$spacing-sm v.$spacing-md;
+  transition: border-color v.$transition-fast, box-shadow v.$transition-fast;
+  width: 100%;
+  
+  // iOS zoom prevention on mobile (font-size must be >= 16px)
+  // See: https://webkit.org/blog/3810/stop-emails-from-zooming-on-mobile-safari/
+  @include m.respond-below('md') {  // < 768px (mobile/tablet)
+    font-size: 16px !important;  // CRITICAL: Prevents iOS zoom on focus
+  }
+  
+  // Desktop: Use design system font size
+  @include m.respond-to('md') {  // >= 768px (desktop)
+    font-size: map.get(v.$font-scale, 'base');
+  }
+  
+  // Interaction states
+  &:hover {
+    border-color: var(--primary-color);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--background-darker);
+  }
+  
+  &::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+}
+
+// Buttons - Touch Targets & Consistent Styling
+button:not(.unstyled),
+.btn {
+  font-family: inherit;
+  font-weight: 500;  // Medium weight
+  border-radius: v.$border-radius-lg;
+  cursor: pointer;
+  transition: all v.$transition-fast;
+  border: none;
+  
+  // Touch targets on mobile (Apple HIG: 44x44px minimum)
+  @include m.respond-below('md') {  // < 768px
+    min-height: 44px;
+    padding: v.$spacing-sm v.$spacing-md;
+  }
+  
+  // Desktop
+  @include m.respond-to('md') {  // >= 768px
+    min-height: 36px;
+    padding: calc(v.$spacing-sm - 2px) v.$spacing-md;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  &:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: v.$shadow-md;
+  }
+  
+  &:not(:disabled):active {
+    transform: translateY(0);
+  }
+}
+
 // Link-Styling
 a {
   color: var(--primary-color);  /* Use CSS variable for theme switching */
