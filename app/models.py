@@ -230,6 +230,10 @@ class GlobalSettings(Base):
     notify_recording_started: bool = Column(Boolean, default=False)  # OFF: Every stream triggers recording, too noisy
     notify_recording_failed: bool = Column(Boolean, default=True)    # ON: Critical issue, user needs to know
     notify_recording_completed: bool = Column(Boolean, default=False)  # OFF: Most recordings complete normally, noisy
+    
+    # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
+    supported_codecs: str = Column(String, default="h264,h265")  # Default: H.264 with H.265 fallback (best compatibility/quality)
+    prefer_higher_quality: bool = Column(Boolean, default=True)  # Auto-select highest available quality with h265/av1
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"

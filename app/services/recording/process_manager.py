@@ -168,8 +168,18 @@ class ProcessManager:
             # Debug logging to track potential mismatches
             logger.info(f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}")
             
-            # Get proxy settings
+            # Get proxy settings and codec preferences from database
             proxy_settings = get_proxy_settings_from_db()
+            
+            # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
+            supported_codecs = None
+            from app.database import SessionLocal
+            from app.models import GlobalSettings
+            with SessionLocal() as db:
+                global_settings = db.query(GlobalSettings).first()
+                if global_settings and hasattr(global_settings, 'supported_codecs'):
+                    supported_codecs = global_settings.supported_codecs
+                    logger.debug(f"🎨 Using codec preference from database: {supported_codecs}")
             
             # CRITICAL: Check proxy connectivity before starting recording
             # This prevents silent failures when proxy is down
@@ -199,7 +209,8 @@ class ProcessManager:
                 streamer_name=streamer_name,
                 quality=quality,
                 output_path=segment_path,
-                proxy_settings=proxy_settings
+                proxy_settings=proxy_settings,
+                supported_codecs=supported_codecs
             )
             
             logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")

@@ -22,6 +22,9 @@ class GlobalSettingsSchema(BaseModel):
     notify_recording_started: bool = False  # OFF by default (noisy)
     notify_recording_failed: bool = True    # ON by default (CRITICAL)
     notify_recording_completed: bool = False  # OFF by default (noisy)
+    # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
+    supported_codecs: str = "h264,h265"  # Default: H.264 with H.265 fallback
+    prefer_higher_quality: bool = True   # Auto-select highest available quality
     http_proxy: Optional[str] = Field(
         default="",
         description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)"

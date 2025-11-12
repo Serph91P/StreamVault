@@ -152,6 +152,61 @@ class MetadataConfig:
 
 
 # ============================================================================
+# CODEC CONFIGURATION (Streamlink 8.0.0+)
+# ============================================================================
+
+@dataclass(frozen=True)
+class CodecConfig:
+    """Video codec preferences for H.265/AV1 support
+    
+    Requires Streamlink 8.0.0+ with --twitch-supported-codecs support.
+    Higher quality streams (1440p60) require modern codecs (h265/av1).
+    """
+    
+    # Default codec preference (RECOMMENDED: best quality/compatibility balance)
+    DEFAULT_CODECS: str = "h264,h265"
+    
+    # Available codec options with descriptions
+    CODEC_OPTIONS: dict = {
+        "h264": {
+            "label": "H.264 Only",
+            "description": "Maximum 1080p60, highest compatibility",
+            "max_resolution": "1080p60",
+            "compatibility": "high",
+            "requires_modern_hardware": False
+        },
+        "h265": {
+            "label": "H.265/HEVC Only", 
+            "description": "Up to 1440p60, modern hardware required",
+            "max_resolution": "1440p60",
+            "compatibility": "medium",
+            "requires_modern_hardware": True
+        },
+        "av1": {
+            "label": "AV1 Only",
+            "description": "Experimental, newest hardware required, very rare",
+            "max_resolution": "1440p60",
+            "compatibility": "low",
+            "requires_modern_hardware": True
+        },
+        "h264,h265": {
+            "label": "H.264 + H.265 (RECOMMENDED)",
+            "description": "Best quality/compatibility balance, auto-fallback",
+            "max_resolution": "1440p60",
+            "compatibility": "high",
+            "requires_modern_hardware": False  # H.264 fallback for older hardware
+        },
+        "h264,h265,av1": {
+            "label": "All Codecs (Future-proof)",
+            "description": "Maximum quality, requires AV1 decode support",
+            "max_resolution": "1440p60",
+            "compatibility": "medium",
+            "requires_modern_hardware": True
+        }
+    }
+
+
+# ============================================================================
 # GLOBAL INSTANCES
 # ============================================================================
 
@@ -162,3 +217,4 @@ TIMEOUTS = Timeouts()
 CACHE_CONFIG = CacheConfig()
 FILE_SIZE_THRESHOLDS = FileSizeThresholds()
 METADATA_CONFIG = MetadataConfig()
+CODEC_CONFIG = CodecConfig()

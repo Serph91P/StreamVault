@@ -187,7 +187,8 @@ def get_streamlink_command(
     output_path: str,
     proxy_settings: Optional[Dict[str, str]] = None,
     force_mode: bool = False,
-    log_path: Optional[str] = None
+    log_path: Optional[str] = None,
+    supported_codecs: Optional[str] = None
 ) -> List[str]:
     """
     Generate a Streamlink command for recording a stream.
@@ -202,6 +203,7 @@ def get_streamlink_command(
         proxy_settings: Optional dictionary containing "http" and/or "https" proxy URLs
         force_mode: Use more aggressive settings for difficult connections
         log_path: Custom path for streamlink logs (if None, will use default location)
+        supported_codecs: Comma-separated list of codecs (e.g. "h264,h265") - Streamlink 8.0.0+
         
     Returns:
         List of command arguments for streamlink
@@ -236,6 +238,12 @@ def get_streamlink_command(
         "--logformat", "[{asctime}][{name}][{levelname}] {message}",
         "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
+    
+    # Add codec support (Streamlink 8.0.0+)
+    # Enables H.265/AV1 for higher quality streams (up to 1440p60)
+    if supported_codecs and supported_codecs.strip():
+        cmd.extend(["--twitch-supported-codecs", supported_codecs.strip()])
+        logger.debug(f"🎨 Using codec preference: {supported_codecs}")
     
     # Add proxy settings if provided
     if proxy_settings:
