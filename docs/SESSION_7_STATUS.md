@@ -2,13 +2,14 @@
 
 ## 🎯 Session Summary
 
-**Focus**: Complete Apprise Integration + Fix critical startup bug
+**Focus**: Complete Apprise Integration + Fix critical bugs
 
 **Commits**:
 1. `685066ce` - feat: complete Apprise integration for recording events
 2. `a4e83f2a` - fix: resolve StreamerService initialization in zombie cleanup
+3. `40bc1b2e` - fix: remove non-existent _notifications_enabled attribute
 
-**Time**: ~45 minutes
+**Time**: ~60 minutes
 
 ---
 
@@ -102,9 +103,46 @@ with SessionLocal() as db:
 
 ---
 
+### 3. ExternalNotificationService AttributeError Fix (CRITICAL BUG)
+
+**Status**: ✅ **FIXED** - Commit 40bc1b2e
+
+**Error**:
+```
+AttributeError: 'ExternalNotificationService' object has no attribute '_notifications_enabled'
+```
+
+**Root Cause**:
+- `send_recording_notification()` checked `self._notifications_enabled`
+- This attribute was never set in `__init__()`
+- Only `self._notification_url` was initialized
+
+**Solution**:
+```python
+# Before (WRONG):
+if not self._notifications_enabled:
+    logger.debug("Notifications globally disabled")
+    return False
+
+# After (CORRECT):
+with SessionLocal() as db:
+    settings = db.query(GlobalSettings).first()
+    if not settings.notifications_enabled:
+        logger.debug("Notifications globally disabled")
+        return False
+```
+
+**File**: `app/services/notifications/external_notification_service.py` (line ~313)
+
+**Impact**: Recording started notifications now work correctly without AttributeError
+
+**Testing**: Start recording → Verify notification sent → No AttributeError in logs
+
+---
+
 ## 🎯 ALREADY IMPLEMENTED (Discovered Today)
 
-### 3. Toast Notification System (100% COMPLETE)
+### 4. Toast Notification System (100% COMPLETE)
 
 **Status**: ✅ **PRODUCTION READY**
 
@@ -136,7 +174,7 @@ toast.warning('Proxy connection unstable')
 
 ---
 
-### 4. Recording Failure Detection (100% COMPLETE)
+### 5. Recording Failure Detection (100% COMPLETE)
 
 **Status**: ✅ **PRODUCTION READY**
 
@@ -168,7 +206,7 @@ if (message.type === 'recording_failed') {
 
 ## 📝 PENDING FEATURES (from BACKEND_FEATURES_PLANNED.md)
 
-### 5. Multi-Proxy System (NOT IMPLEMENTED)
+### 6. Multi-Proxy System (NOT IMPLEMENTED)
 
 **Priority**: 🔴 **CRITICAL** (current proxy down)
 
@@ -397,12 +435,26 @@ Error Fixed: StreamerService.__init__() missing 3 required positional arguments
 File: app/services/init/startup_init.py (~245)
 ```
 
+### Commit 3: `40bc1b2e` - ExternalNotificationService AttributeError Fix
+```
+fix: remove non-existent _notifications_enabled attribute
+
+- Fixed AttributeError: 'ExternalNotificationService' object has no attribute '_notifications_enabled'
+- Removed self._notifications_enabled check (never initialized)
+- Read notifications_enabled directly from GlobalSettings
+- Consolidated database check at start of method
+
+Error Fixed: AttributeError in send_recording_notification()
+File: app/services/notifications/external_notification_service.py (~313)
+Impact: Recording notifications now work correctly
+```
+
 ---
 
 ## 🎯 SUCCESS METRICS
 
 ### Today's Achievements
-- ✅ 2 features completed (Apprise Integration + Zombie Cleanup fix)
+- ✅ 3 features completed (Apprise Integration + 2 critical bug fixes)
 - ✅ 2 features verified as complete (Toast System + Recording Failure Detection)
 - ✅ 0 regressions introduced
 - ✅ 100% of critical bugs fixed
@@ -418,8 +470,10 @@ File: app/services/init/startup_init.py (~245)
 
 1. **Always check existing code before implementing**: Toast and Recording Failure Detection were already done!
 2. **Dependency Injection**: StreamerService requires proper DI - don't forget parameters
-3. **Systematic Status Checks**: Grep searches revealed existing implementations
-4. **Documentation**: Comprehensive session reports enable seamless continuation
+3. **Attribute Initialization**: Check __init__() when using self.attribute - avoid AttributeError
+4. **Database Access**: Read settings from DB instead of storing as instance variables
+5. **Systematic Status Checks**: Grep searches revealed existing implementations
+6. **Documentation**: Comprehensive session reports enable seamless continuation
 
 ---
 
