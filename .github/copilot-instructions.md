@@ -49,7 +49,9 @@ docs/                # Project documentation
 
 ## Commit Message Convention
 
-**IMPORTANT**: This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic semantic versioning.
+**CRITICAL**: This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic semantic versioning.
+
+**LANGUAGE REQUIREMENT**: All commit messages **MUST** be written in **English** for international collaboration and understanding.
 
 ### Commit Message Format
 
@@ -59,6 +61,20 @@ docs/                # Project documentation
 [optional body]
 
 [optional footer(s)]
+```
+
+**❌ WRONG (German):**
+```
+feat: füge YouTube Recording hinzu
+refactor: eliminiere hardcoded Colors
+docs: erstelle Design-System Dokumentation
+```
+
+**✅ CORRECT (English):**
+```
+feat: add YouTube recording support
+refactor: eliminate hardcoded colors in components
+docs: create design system documentation
 ```
 
 ### Commit Types and Version Impact
@@ -223,6 +239,52 @@ This repository uses path-specific instructions for detailed guidelines:
 - **API**: See `.github/instructions/api.instructions.md` for endpoint design
 - **Migrations**: See `.github/instructions/migrations.instructions.md` for database changes
 - **Docker**: See `.github/instructions/docker.instructions.md` for containerization
+
+## Documentation Language Policy
+
+**CRITICAL**: All documentation and commit messages **MUST** be written in **English** for international collaboration.
+
+### What MUST be in English:
+- ✅ **Commit messages** - All types (feat, fix, refactor, docs, etc.)
+- ✅ **Code comments** - Inline comments, docstrings, JSDoc
+- ✅ **Documentation files** - README, ARCHITECTURE, design docs
+- ✅ **Git commit bodies** - Detailed explanations, breaking changes
+- ✅ **TODO comments** - In-code task markers
+- ✅ **Error messages** - User-facing and developer-facing
+
+### Examples:
+
+**❌ WRONG (German):**
+```typescript
+// Prüfe ob Benutzer eingeloggt ist
+if (!user) {
+  throw new Error('Benutzer nicht gefunden')
+}
+
+/**
+ * Lädt alle Streamer aus der Datenbank
+ * @returns Liste von Streamern
+ */
+```
+
+**✅ CORRECT (English):**
+```typescript
+// Check if user is logged in
+if (!user) {
+  throw new Error('User not found')
+}
+
+/**
+ * Loads all streamers from database
+ * @returns List of streamers
+ */
+```
+
+### Rationale:
+- **International collaboration** - Contributors worldwide can understand code
+- **Industry standard** - English is lingua franca of software development
+- **Tooling support** - Better IDE/AI support for English documentation
+- **Future-proofing** - Easy onboarding for non-German speakers
 
 ## Security Guidelines - CRITICAL
 
