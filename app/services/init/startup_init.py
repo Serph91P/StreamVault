@@ -238,14 +238,15 @@ async def cleanup_zombie_recordings():
         from app.models import Recording, Stream, Streamer
         from app.services.streamer_service import StreamerService
         from app.services.recording.recording_service import RecordingService
+        from app.services.communication.websocket_manager import websocket_manager
+        from app.events.handler_registry import event_handler_registry
         from datetime import datetime, timezone
         from sqlalchemy.orm import joinedload
         
-        # Initialize services
-        streamer_service = StreamerService()
-        recording_service = RecordingService()
-        
         with SessionLocal() as db:
+            # Initialize services with required dependencies
+            streamer_service = StreamerService(db, websocket_manager, event_handler_registry)
+            recording_service = RecordingService()
             # Find all recordings with 'recording' status (eager load relationships)
             zombie_recordings = db.query(Recording).options(
                 joinedload(Recording.stream).joinedload(Stream.streamer)
