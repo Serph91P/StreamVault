@@ -573,8 +573,308 @@ Before committing any Vue component:
 - Mixin implementations: `app/frontend/src/styles/_mixins.scss`
 - Refactoring commit: See commit "refactor: migrate all hard-coded breakpoints to SCSS mixins"
 
+---
 
-- `32px` → `$spacing-xl` (2rem)
+## Global SCSS Changes (CRITICAL - Read This First!)
+
+### ⚠️ NEVER Make Per-Page/Per-Component Style Changes
+
+**CRITICAL PRINCIPLE**: When fixing styling issues (font sizes, input styles, spacing, etc.), ALWAYS work in the global SCSS files, NOT in individual Vue components!
+
+**Why This Matters:**
+- Changes in global SCSS apply to ALL components automatically
+- Prevents inconsistencies across pages
+- Reduces code duplication (DRY principle)
+- Makes maintenance easier (change once, apply everywhere)
+- Ensures design system consistency
+
+### Common Scenarios & Correct Approach
+
+#### ❌ WRONG: Fix font-size in each component
+
+```scss
+// LoginView.vue - ❌ BAD
+input {
+  font-size: 16px;  // iOS zoom prevention
+}
+
+// SetupView.vue - ❌ BAD
+input {
+  font-size: 16px;  // iOS zoom prevention (duplicate!)
+}
+
+// AddStreamerView.vue - ❌ BAD
+input {
+  font-size: 16px;  // iOS zoom prevention (duplicate again!)
+}
+```
+
+**Problem**: Same fix repeated 10+ times across different files. If we need to change it later, we have to update 10+ files!
+
+#### ✅ CORRECT: Fix once in global SCSS
+
+```scss
+// app/frontend/src/styles/main.scss - ✅ GOOD
+input, select, textarea {
+  font-size: 16px;  // iOS zoom prevention - applies globally
+  
+  @include m.respond-to('md') {  // >= 768px (desktop)
+    font-size: var(--text-base);  // Use design system on desktop
+  }
+}
+```
+
+**Result**: Fixed everywhere automatically! All inputs in LoginView, SetupView, AddStreamerView, Settings, etc. get the correct font-size.
+
+### Global SCSS Files & Their Purpose
+
+| File | Purpose | When to Use |
+|------|---------|-------------|
+| `app/frontend/src/styles/main.scss` | **Global base styles** | Base HTML elements (input, button, a, h1-h6), body, html, resets |
+| `app/frontend/src/styles/_variables.scss` | **Design tokens** | Colors, spacing, typography, breakpoints, shadows, borders |
+| `app/frontend/src/styles/_mixins.scss` | **Reusable patterns** | Breakpoint mixins, common styles (flex-center, truncate-text) |
+| `app/frontend/src/styles/_utilities.scss` | **Utility classes** | .text-center, .mt-4, .flex, .grid, status borders |
+
+### Decision Tree: Where to Make Changes?
+
+```
+┌─────────────────────────────────────────┐
+│ Need to change a style?                 │
+└───────────────┬─────────────────────────┘
+                │
+                ▼
+        ┌───────────────┐
+        │ Affects HTML  │
+        │ base element? │
+        │ (input, button)│
+        └───┬───────────┘
+            │
+    ┌───────┴───────┐
+    │ YES           │ NO
+    ▼               ▼
+┌────────────┐  ┌──────────────┐
+│ main.scss  │  │ Used in 3+   │
+│            │  │ components?  │
+└────────────┘  └───┬──────────┘
+                    │
+            ┌───────┴───────┐
+            │ YES           │ NO
+            ▼               ▼
+    ┌──────────────┐  ┌────────────────┐
+    │ _utilities.   │  │ Component      │
+    │ scss or       │  │ <style scoped> │
+    │ _mixins.scss  │  │                │
+    └──────────────┘  └────────────────┘
+```
+
+### Examples by Category
+
+#### 1. iOS Zoom Prevention (Input Font Size)
+
+**❌ WRONG Approach:**
+- Add `font-size: 16px` to every component with inputs
+- LoginView.vue, SetupView.vue, AddStreamerView.vue, SettingsView.vue...
+- Result: 20+ files modified, same code duplicated
+
+**✅ CORRECT Approach:**
+```scss
+// app/frontend/src/styles/main.scss
+input, select, textarea {
+  @include m.respond-below('md') {  // < 768px (mobile/tablet)
+    font-size: 16px !important;  // Prevent iOS zoom
+  }
+}
+```
+
+#### 2. Touch Targets (Button Minimum Height)
+
+**❌ WRONG Approach:**
+- Add `min-height: 44px` to buttons in each view
+- Modify HomeView, StreamersView, VideosView, SettingsView...
+
+**✅ CORRECT Approach:**
+```scss
+// app/frontend/src/styles/main.scss
+button, .btn, a.btn {
+  @include m.respond-below('md') {  // < 768px
+    min-height: 44px;  // Touch-friendly
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+}
+```
+
+#### 3. Consistent Spacing
+
+**❌ WRONG Approach:**
+- Replace hard-coded `padding: 12px` in 50+ components individually
+
+**✅ CORRECT Approach:**
+```scss
+// First, verify the pattern exists in design system
+// app/frontend/src/styles/_variables.scss
+$spacing-3: 0.75rem;  // 12px
+
+// Then use it everywhere:
+.card {
+  padding: var(--spacing-3);  // Not 12px!
+}
+```
+
+#### 4. Theme Colors (Light Mode Buttons)
+
+**❌ WRONG Approach:**
+- Fix button colors in NotificationSettingsPanel.vue
+- Then fix in RecordingSettingsPanel.vue
+- Then fix in PWAPanel.vue...
+
+**✅ CORRECT Approach:**
+```scss
+// app/frontend/src/styles/_utilities.scss or main.scss
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+  
+  &:hover {
+    background: var(--primary-600);
+  }
+  
+  // Light mode override
+  [data-theme="light"] & {
+    background: var(--primary-600);
+    border: 1px solid var(--primary-700);
+  }
+}
+```
+
+### Audit Process for Global Changes
+
+When you identify a pattern that needs fixing across multiple components:
+
+**Step 1: Identify the Pattern**
+```bash
+# Example: Find all hard-coded font-sizes
+rg "font-size:\s*\d+px" app/frontend/src --type scss
+```
+
+**Step 2: Count Occurrences**
+```bash
+# How many files need updating?
+rg "font-size:\s*\d+px" app/frontend/src --type scss --files-with-matches | wc -l
+```
+
+**Step 3: Decide Scope**
+- **1-2 files**: Component-scoped change is okay
+- **3-5 files**: Consider creating a mixin or utility class
+- **6+ files**: MUST use global SCSS or design token
+
+**Step 4: Implement Globally**
+1. Add/update in `main.scss`, `_variables.scss`, or `_utilities.scss`
+2. Test in dev server (changes apply immediately)
+3. Verify in multiple components
+4. Remove old component-specific overrides
+
+**Step 5: Document**
+- Add comment in SCSS explaining why the style exists
+- Reference iOS guidelines, accessibility standards, etc.
+
+### Common Global Patterns
+
+#### Input Styling (iOS Zoom + Theme)
+
+```scss
+// app/frontend/src/styles/main.scss
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  // Base styles
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: var(--spacing-2) var(--spacing-3);
+  transition: border-color 0.2s ease;
+  
+  // iOS zoom prevention on mobile
+  @include m.respond-below('md') {
+    font-size: 16px !important;
+  }
+  
+  // Desktop: Use design system font
+  @include m.respond-to('md') {
+    font-size: var(--text-base);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+```
+
+#### Button Styling (Touch Targets + Theme)
+
+```scss
+// app/frontend/src/styles/main.scss
+button, .btn {
+  // Base styles
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  // Touch targets on mobile
+  @include m.respond-below('md') {
+    min-height: 44px;
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+  
+  // Desktop
+  @include m.respond-to('md') {
+    min-height: 36px;
+    padding: var(--spacing-2) var(--spacing-4);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+```
+
+### Pre-Commit Checklist for Global Changes
+
+Before making style changes:
+
+- [ ] Is this pattern used in 3+ components? → Use global SCSS
+- [ ] Does it affect base HTML elements? → Add to `main.scss`
+- [ ] Is it a design token (color/spacing)? → Check `_variables.scss` first
+- [ ] Is it a responsive pattern? → Use SCSS breakpoint mixins
+- [ ] Will it affect light AND dark themes? → Test both
+- [ ] Is it accessibility-related? → Add explanatory comment
+
+### Related Commits
+
+Reference commits that demonstrate global SCSS changes:
+
+- SCSS Breakpoint Migration: `12d23ab7` - Migrated 50+ files to use centralized mixins
+- Animation Toggle: `da402917` - Global `.no-animations` class in `main.scss`
+- Design System Consistency: `61f16b68` - Fixed hardcoded colors with CSS variables
+
+### Key Takeaway
+
+**Think globally, code once!** Before editing component styles, ask:
+- "Will other components need this too?"
+- "Is this a design pattern or a one-off?"
+- "Can I solve this with a design token?"
+
+If the answer is "yes" to any of these → Use global SCSS files!
+
+---
 
 ## Touch Targets
 

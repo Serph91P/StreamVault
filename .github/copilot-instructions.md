@@ -609,6 +609,52 @@ cache = TTLCache(
 - **SECURITY**: Sanitize all user input before display
 - **SECURITY**: Validate file uploads on client and server side
 
+### Frontend Styling - CRITICAL Rules
+
+**⚠️ MANDATORY: Work in Global SCSS Files, NOT Per-Component!**
+
+When fixing styling issues (font sizes, input styles, spacing, touch targets, etc.), **ALWAYS** make changes in global SCSS files:
+
+**Global SCSS Files:**
+- `app/frontend/src/styles/main.scss` - Base HTML elements (input, button, a, body, html)
+- `app/frontend/src/styles/_variables.scss` - Design tokens (colors, spacing, typography, breakpoints)
+- `app/frontend/src/styles/_mixins.scss` - Reusable patterns (breakpoints, flex-center, truncate-text)
+- `app/frontend/src/styles/_utilities.scss` - Utility classes (.text-center, .mt-4, .flex, .grid)
+
+**Decision Rule:**
+- Pattern used in **3+ components**? → Use global SCSS
+- Affects **base HTML elements** (input, button, select)? → Add to `main.scss`
+- Is a **design token** (color, spacing, border-radius)? → Use `_variables.scss`
+- Is **responsive/accessibility** (iOS zoom, touch targets)? → Use breakpoint mixins in `main.scss`
+
+**Examples:**
+
+❌ **WRONG - Per-Component Fixes:**
+```scss
+// LoginView.vue - DON'T DO THIS
+input { font-size: 16px; }  // iOS zoom prevention
+
+// SetupView.vue - DON'T DO THIS
+input { font-size: 16px; }  // Same fix repeated!
+
+// AddStreamerView.vue - DON'T DO THIS
+input { font-size: 16px; }  // Duplicated 3rd time!
+```
+
+✅ **CORRECT - Global Fix:**
+```scss
+// app/frontend/src/styles/main.scss - DO THIS
+input, select, textarea {
+  @include m.respond-below('md') {  // < 768px (mobile)
+    font-size: 16px !important;  // iOS zoom prevention - applies globally
+  }
+}
+```
+
+**Result**: Fixed everywhere automatically! All inputs in LoginView, SetupView, AddStreamerView, Settings, etc.
+
+**See `.github/instructions/frontend.instructions.md` → "Global SCSS Changes" section for complete guide.**
+
 ### Frontend Constants (`app/frontend/src/config/constants.ts`)
 
 **CRITICAL**: All magic numbers, delays, and thresholds MUST be extracted to constants:
