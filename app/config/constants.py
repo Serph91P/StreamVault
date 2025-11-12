@@ -11,7 +11,7 @@ Benefits:
 - Type safety and IDE autocomplete support
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 # ============================================================================
@@ -155,19 +155,9 @@ class MetadataConfig:
 # CODEC CONFIGURATION (Streamlink 8.0.0+)
 # ============================================================================
 
-@dataclass(frozen=True)
-class CodecConfig:
-    """Video codec preferences for H.265/AV1 support
-    
-    Requires Streamlink 8.0.0+ with --twitch-supported-codecs support.
-    Higher quality streams (1440p60) require modern codecs (h265/av1).
-    """
-    
-    # Default codec preference (RECOMMENDED: best quality/compatibility balance)
-    DEFAULT_CODECS: str = "h264,h265"
-    
-    # Available codec options with descriptions
-    CODEC_OPTIONS: dict = {
+def _get_codec_options():
+    """Factory function for CODEC_OPTIONS to avoid mutable default in dataclass"""
+    return {
         "h264": {
             "label": "H.264 Only",
             "description": "Maximum 1080p60, highest compatibility",
@@ -204,6 +194,20 @@ class CodecConfig:
             "requires_modern_hardware": True
         }
     }
+
+@dataclass(frozen=True)
+class CodecConfig:
+    """Video codec preferences for H.265/AV1 support
+    
+    Requires Streamlink 8.0.0+ with --twitch-supported-codecs support.
+    Higher quality streams (1440p60) require modern codecs (h265/av1).
+    """
+    
+    # Default codec preference (RECOMMENDED: best quality/compatibility balance)
+    DEFAULT_CODECS: str = "h264,h265"
+    
+    # Available codec options with descriptions (use field with default_factory)
+    CODEC_OPTIONS: dict = field(default_factory=_get_codec_options)
 
 
 # ============================================================================
