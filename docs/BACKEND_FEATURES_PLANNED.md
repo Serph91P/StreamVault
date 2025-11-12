@@ -2287,11 +2287,13 @@ if recording.recovery_attempts >= MAX_RECOVERY_ATTEMPTS:
    - ✅ Frontend: RecordingSettingsPanel.vue, types/recording.ts
    - ⏸️ **Needs Testing**: Test with h264/h265/av1 streams
 
-2. ✅ **Apprise Integration (Recording Events)** (PARTIALLY COMPLETE)
+2. ✅ **Apprise Integration (Recording Events)** (COMPLETED - Commit: TBD)
    - ✅ Migration 027 applied (error tracking)
    - ✅ Migration 028 applied (notification settings)
    - ✅ Database schema ready
-   - ⏸️ **Remaining**: Frontend UI + process_manager.py integration
+   - ✅ Frontend UI complete (NotificationSettingsPanel.vue)
+   - ✅ Backend integration complete (process_manager.py)
+   - ⏸️ **Needs Testing**: Test with ntfy/Discord notifications
 
 3. ✅ **Stream Recovery After Restart** (COMPLETED - Commit: 82432f47)
    - ✅ Smart zombie cleanup with Twitch API check
@@ -2324,20 +2326,38 @@ if recording.recovery_attempts >= MAX_RECOVERY_ATTEMPTS:
    - **Estimated Time**: 30 minutes
    - **Dependency**: Toast notification component
 
-**Completion Status**: 4/8 features complete (50%)  
+**Completion Status**: 5/8 features complete (62.5%)  
 **Testing Required**: H.265/AV1, Apprise, Stream Recovery, Video Player
 
 ---
 
 ## 7. Apprise Integration for Recording Events
 
-**Status**: ✅ **PARTIALLY IMPLEMENTED** - Backend Complete, Frontend Pending  
-**Implementation**: Migration 027 (error tracking) + Migration 028 (notification settings) applied  
-**Testing Status**: ⏸️ Needs Testing  
-**Remaining Work**: 
-- Frontend UI for notification toggles (NotificationSettingsPanel.vue)
-- Integration with process_manager.py for sending notifications
-- End-to-end testing with various Apprise services
+**Status**: ✅ **COMPLETED**  
+**Implementation**: 
+- ✅ Migration 027 (error tracking) - Applied
+- ✅ Migration 028 (notification settings) - Applied
+- ✅ Frontend UI (NotificationSettingsPanel.vue) - Lines 59-75, 234-236, 352-354
+- ✅ Backend integration (process_manager.py) - Lines 330, 573, 711, 1169
+**Testing Status**: ⏸️ Needs End-to-End Testing with Apprise services
+
+### Implementation Summary
+
+**Frontend (NotificationSettingsPanel.vue):**
+- Checkboxes: `notifyRecordingStarted`, `notifyRecordingFailed`, `notifyRecordingCompleted`
+- Data ref: Initialized with correct defaults (Failed = ON by default)
+- SaveSettings: Emits all 3 fields to backend
+
+**Backend (process_manager.py):**
+- `_start_segment()` (line 330): Sends `recording_started` notification
+- `wait_for_process()` (line 573): Sends `recording_completed` for non-segmented recordings
+- `_finalize_segmented_recording()` (line 711): Sends `recording_completed` for segmented recordings
+- `_notify_recording_failed()` (line 1169): Sends `recording_failed` notification
+
+**External Service (external_notification_service.py):**
+- `send_recording_notification()` method already implemented (line 300)
+- Checks GlobalSettings for event-specific toggles
+- Supports 100+ services via Apprise
 
 ### Current Apprise Infrastructure (Already Implemented)
 

@@ -532,6 +532,57 @@ class ProcessManager:
                     
                 else:
                     logger.info(f"✅ Recording process completed successfully (PID: {process.pid})")
+                    
+                    # Send Apprise notification for recording_completed (NEW - non-segmented)
+                    try:
+                        from app.database import SessionLocal
+                        from app.models import Stream
+                        from app.services.notifications.external_notification_service import ExternalNotificationService
+                        from datetime import datetime, timezone
+                        import os
+                        
+                        notification_service = ExternalNotificationService()
+                        
+                        with SessionLocal() as db:
+                            stream_id = process_id.split('_')[1] if '_' in process_id else None
+                            if stream_id:
+                                stream = (
+                                    db.query(Stream)
+                                    .options(joinedload(Stream.streamer))
+                                    .filter(Stream.id == int(stream_id))
+                                    .first()
+                                )
+                                
+                                if stream and stream.streamer and stream.recording_path:
+                                    # Calculate recording duration from stream timestamps
+                                    duration_seconds = 0
+                                    if stream.started_at and stream.ended_at:
+                                        duration_seconds = int((stream.ended_at - stream.started_at).total_seconds())
+                                    
+                                    hours = duration_seconds // 3600
+                                    minutes = (duration_seconds % 3600) // 60
+                                    
+                                    # Get file size
+                                    file_size_bytes = 0
+                                    if os.path.exists(stream.recording_path):
+                                        file_size_bytes = os.path.getsize(stream.recording_path)
+                                    file_size_mb = file_size_bytes / (1024 * 1024)
+                                    
+                                    await notification_service.send_recording_notification(
+                                        streamer_name=stream.streamer.username,
+                                        event_type='recording_completed',
+                                        details={
+                                            'hours': hours,
+                                            'minutes': minutes,
+                                            'file_size_mb': f"{file_size_mb:.2f}",
+                                            'quality': stream.quality or 'best'
+                                        }
+                                    )
+                                    
+                                    logger.info(f"📧 Apprise notification sent: recording_completed for {stream.streamer.username}")
+                                    
+                    except Exception as apprise_error:
+                        logger.error(f"Failed to send Apprise notification for recording_completed: {apprise_error}")
                 
                 # Log to structured logging service
                 if self.logging_service:
