@@ -614,6 +614,269 @@ Documentation: → backend.instructions.md "Missing Import Prevention" section
 
 This creates institutional knowledge that persists across sessions.
 
+## 📋 Task Management & Master Task List
+
+**CRITICAL**: All project tasks MUST be tracked in the **Master Task List** for visibility and progress tracking.
+
+### Master Task List Location
+
+**Primary Document:** `docs/MASTER_TASK_LIST.md`
+
+This document consolidates **ALL** tasks from:
+- `docs/BACKEND_FEATURES_PLANNED.md` (Backend features)
+- `docs/REMAINING_FRONTEND_TASKS.md` (Frontend issues)
+- `docs/QUICK_REFERENCE_REMAINING_TASKS.md` (Quick wins)
+- `docs/KNOWN_ISSUES_SESSION_7.md` (Current bugs)
+- Session summaries and status reports
+
+### When to Update Master Task List
+
+**ALWAYS** update `MASTER_TASK_LIST.md` when:
+
+1. **Completing a task** → Mark with ✅ + commit hash
+2. **Discovering new bugs** → Add to appropriate priority section
+3. **Adding new features** → Document with time estimate + impact
+4. **Splitting large tasks** → Break into smaller actionable items
+5. **Changing priorities** → Reorder based on criticality
+6. **Starting new sprint** → Review and update recommended order
+
+### Task Structure (Required Fields)
+
+```markdown
+### X. [Priority Emoji] Task Title
+**Status:** [✅ COMPLETED | 🔴 NOT STARTED | 🟡 IN PROGRESS | ⏸️ DEFERRED]  
+**Priority:** [CRITICAL | HIGH | MEDIUM | LOW]  
+**Time:** [Estimated hours]  
+**Impact:** [HIGH | MEDIUM | LOW]
+
+**Problem:**
+Brief description of the issue or requirement.
+
+**Solution:**
+Implementation approach with key steps.
+
+**Files to Modify:**
+- `path/to/file1.py` (what changes)
+- `path/to/file2.vue` (what changes)
+
+**Documentation:** Reference to detailed docs (if exists)
+
+**Testing Checklist:**
+- [ ] Test case 1
+- [ ] Test case 2
+```
+
+### Priority Emoji System
+
+- 🔴 **CRITICAL** - Blocking production, broken functionality
+- 🟡 **HIGH** - Important UX/features, needed soon
+- 🟢 **MEDIUM** - Nice to have, polish items
+- ⏸️ **DEFERRED** - Low priority, can wait
+
+### Task Discovery Workflow
+
+```
+1. User reports issue OR new feature needed
+2. Analyze scope and priority
+3. Add to MASTER_TASK_LIST.md in correct priority section
+4. Estimate time and impact
+5. Update TODO list (top 5 actionable tasks only)
+6. Cross-reference detailed docs if needed
+```
+
+### Updating After Completion
+
+```markdown
+### X. ✅ Task Title (COMPLETED)
+**Status:** ✅ COMPLETED  
+**Commit:** abc123de  
+**Time:** X hours (actual)  
+**Completed:** 12. November 2025
+
+**Implementation Notes:**
+Brief summary of what was done and any deviations from plan.
+```
+
+### Verification Workflow
+
+**Before marking complete:**
+1. Run tests (unit + integration)
+2. Build frontend (no errors/warnings)
+3. Test in browser (desktop + mobile)
+4. Verify no regressions
+5. Update documentation
+6. Commit with conventional commit message
+7. Update MASTER_TASK_LIST.md with ✅ + commit hash
+
+### Sprint Planning
+
+**Recommended Sprint Structure:**
+
+```markdown
+## Sprint X: [Goal] (Total Hours)
+
+### Week 1 (Days 1-3): Critical Tasks
+1. 🔴 Task A (4h)
+2. 🔴 Task B (3h)
+3. 🔴 Task C (2h)
+
+### Week 2 (Days 4-7): High Priority
+4. 🟡 Task D (6h)
+5. 🟡 Task E (4h)
+
+**Outcome:** [What will be achieved]
+```
+
+### Progress Tracking
+
+**Update these sections regularly:**
+
+```markdown
+## 📊 Status Overview
+
+### Backend Features (X tasks total)
+- ✅ **COMPLETED:** Y tasks (Z%)
+- 🔴 **CRITICAL:** A tasks
+- 🟡 **HIGH:** B tasks
+
+### Frontend Issues (X tasks total)
+- ✅ **COMPLETED:** Y tasks (Z%)
+- 🔴 **CRITICAL:** A tasks
+- 🟡 **HIGH:** B tasks
+
+**Total Progress:** X/Y (Z%)
+```
+
+### Task Dependencies
+
+**Document blocking relationships:**
+
+```markdown
+**Depends On:** Task #3 (Multi-Proxy System)  
+**Blocks:** Task #7 (Advanced proxy routing)
+```
+
+### Cross-Referencing Detailed Docs
+
+**For large features, create separate docs:**
+
+```markdown
+**Documentation:** `docs/BACKEND_FEATURES_PLANNED.md` (Section 2 - complete implementation guide)
+```
+
+**Don't duplicate implementation details in Master Task List** - keep it concise with references.
+
+### Example: Complete Task Entry
+
+```markdown
+### 3. 🔴 Multi-Proxy System with Health Checks (CRITICAL)
+**Status:** 🔴 NOT STARTED  
+**Priority:** CRITICAL (current proxy DOWN → recordings fail)  
+**Time:** 3-4 hours  
+**Impact:** HIGH - Prevents recording failures
+
+**Current Problem:**
+- Proxy `http://serph91p:***@77.90.19.62:9999` returns 500 error
+- ALL recordings fail after ~1 minute
+- No fallback mechanism
+
+**Solution: Application-Level Proxy Rotation**
+
+**Backend Tasks (2-3 hours):**
+1. Migration 025: `proxy_settings` table
+2. ProxyHealthService: Health check service
+3. ProcessManager Update: Use proxy rotation
+4. API Endpoints: `/api/proxy/*`
+
+**Frontend Tasks (1 hour):**
+1. ProxySettingsPanel.vue: NEW component
+2. useProxySettings.ts: NEW composable
+
+**Files to Create:**
+- `migrations/025_add_multi_proxy_support.py`
+- `app/services/proxy/proxy_health_service.py`
+- `app/routes/proxy.py`
+- `app/frontend/src/components/settings/ProxySettingsPanel.vue`
+
+**Files to Modify:**
+- `app/services/recording/process_manager.py`
+- `app/models.py`
+
+**Documentation:** `docs/BACKEND_FEATURES_PLANNED.md` (Section 2)
+
+**Testing Checklist:**
+- [ ] Migration runs successfully
+- [ ] Add proxy via UI
+- [ ] Health checks run every 5 minutes
+- [ ] Recordings use best available proxy
+```
+
+### Maintenance Schedule
+
+**Weekly Review:**
+- Check completed tasks → Archive or remove
+- Update progress percentages
+- Adjust priorities based on new information
+- Plan next sprint
+
+**After Each Session:**
+- Update task statuses
+- Add new discovered issues
+- Mark completed tasks with commit hashes
+- Update documentation references
+
+### Integration with TODO List
+
+**TODO List (managed by GitHub Copilot):**
+- Maximum 5-10 tasks
+- Only **currently actionable** items
+- Updated frequently during work
+
+**Master Task List:**
+- Complete inventory (all 59+ tasks)
+- Strategic planning document
+- Updated weekly or after major milestones
+
+**Relationship:**
+```
+Master Task List (Strategic) → TODO List (Tactical)
+```
+
+### Best Practices
+
+1. ✅ **Keep Master List comprehensive** - All tasks, even small ones
+2. ✅ **Use consistent formatting** - Makes parsing easier
+3. ✅ **Update immediately** - Don't let it get stale
+4. ✅ **Reference detailed docs** - Don't duplicate implementation guides
+5. ✅ **Track actual time** - Improves future estimates
+6. ✅ **Document blockers** - Makes dependencies clear
+7. ✅ **Celebrate progress** - Update percentages and milestone markers
+
+### Anti-Patterns (DON'T DO)
+
+- ❌ Forgetting to update after completing tasks
+- ❌ Mixing implementation details with task overview
+- ❌ Not cross-referencing detailed documentation
+- ❌ Leaving status ambiguous (is it done or not?)
+- ❌ Not tracking actual time vs estimates
+- ❌ Ignoring task dependencies
+
+### Self-Check Questions
+
+Before starting work:
+- [ ] Is this task in MASTER_TASK_LIST.md?
+- [ ] Does it have correct priority?
+- [ ] Are dependencies documented?
+- [ ] Do I have reference to detailed docs?
+
+After completing work:
+- [ ] Did I mark task as ✅ in Master List?
+- [ ] Did I add commit hash?
+- [ ] Did I update progress percentages?
+- [ ] Did I document any deviations?
+
+---
+
 ## Key Principles
 
 ### Design System Philosophy - CRITICAL
