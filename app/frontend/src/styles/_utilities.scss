@@ -508,3 +508,581 @@
   font-size: v.$text-sm;
   line-height: v.$leading-normal;
 }
+
+// ============================================================================
+// BADGE COMPONENTS (Reusable Status/Label Badges)
+// ============================================================================
+
+// Base badge styling (small labeled pill)
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);  // 4px
+  padding: var(--spacing-1) var(--spacing-2);  // 4px 8px
+  border-radius: var(--radius-full);  // Pill shape
+  font-size: v.$text-xs;
+  font-weight: v.$font-medium;
+  line-height: 1;
+  white-space: nowrap;
+  transition: v.$transition-colors;
+}
+
+// Badge color variants
+.badge-primary {
+  background: rgba(var(--primary-color-rgb), 0.15);
+  color: var(--primary-color);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.3);
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);  // success-500
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-danger {
+  background: rgba(var(--danger-color-rgb), 0.15);
+  color: var(--danger-color);
+  border: 1px solid rgba(var(--danger-color-rgb), 0.3);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);  // warning-500
+  color: var(--warning-color);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.15);  // info-500
+  color: var(--info-color);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-neutral {
+  background: var(--background-darker);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+// Badge sizes
+.badge-sm {
+  padding: 2px var(--spacing-2);  // 2px 8px
+  font-size: 0.625rem;  // 10px
+}
+
+.badge-lg {
+  padding: var(--spacing-2) var(--spacing-3);  // 8px 12px
+  font-size: v.$text-sm;
+}
+
+// Badge with dot indicator (e.g., "LIVE" badge)
+.badge-dot::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+// Status badges (larger, more prominent)
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);  // 8px
+  padding: var(--spacing-2) var(--spacing-3);  // 8px 12px
+  border-radius: var(--radius);  // 8px
+  font-size: v.$text-sm;
+  font-weight: v.$font-semibold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+// Status badge variants
+.status-live {
+  background: rgba(var(--danger-color-rgb), 0.15);
+  color: var(--danger-color);
+  border: 1px solid rgba(var(--danger-color-rgb), 0.3);
+}
+
+.status-recording {
+  background: rgba(var(--danger-color-rgb), 0.2);
+  color: var(--danger-color);
+  border: 1px solid var(--danger-color);
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+.status-offline {
+  background: var(--background-darker);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.status-processing {
+  background: rgba(var(--warning-color-rgb), 0.15);
+  color: var(--warning-color);
+  border: 1px solid rgba(var(--warning-color-rgb), 0.3);
+}
+
+.status-completed {
+  background: rgba(16, 185, 129, 0.15);  // success-500
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+// Border variants for status cards
+.status-border-live {
+  border-left: 4px solid var(--danger-color);
+}
+
+.status-border-recording {
+  border-left: 4px solid var(--danger-color);
+  animation: pulse-border-recording 2s ease-in-out infinite;
+}
+
+.status-border-offline {
+  border-left: 4px solid var(--border-color);
+}
+
+.status-border-success {
+  border-left: 4px solid var(--success-color);
+}
+
+.status-border-warning {
+  border-left: 4px solid var(--warning-color);
+}
+
+// ============================================================================
+// BANNER/ALERT COMPONENTS
+// ============================================================================
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);  // 12px
+  padding: var(--spacing-4);  // 16px
+  border-radius: var(--radius-lg);  // 12px
+  font-size: v.$text-sm;
+  line-height: v.$leading-relaxed;
+  border: 1px solid transparent;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+// Alert variants
+.alert-info {
+  background: rgba(59, 130, 246, 0.1);  // info-500
+  color: var(--info-color);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);  // success-500
+  color: var(--success-color);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.alert-warning {
+  background: rgba(245, 158, 11, 0.1);  // warning-500
+  color: var(--warning-color);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.alert-danger {
+  background: rgba(var(--danger-color-rgb), 0.1);
+  color: var(--danger-color);
+  border-color: rgba(var(--danger-color-rgb), 0.3);
+}
+
+// Banner (full-width alert)
+.banner {
+  padding: var(--spacing-4) var(--spacing-6);  // 16px 24px
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+// ============================================================================
+// LOADING STATES & SKELETONS
+// ============================================================================
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--background-card) 0%,
+    var(--background-darker) 50%,
+    var(--background-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: var(--spacing-2);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-heading {
+  height: 2em;
+  width: 60%;
+  margin-bottom: var(--spacing-3);
+}
+
+.skeleton-button {
+  height: 40px;
+  width: 120px;
+  border-radius: var(--radius);
+}
+
+.skeleton-card {
+  height: 200px;
+  border-radius: var(--radius-lg);
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+}
+
+// ============================================================================
+// MODAL/OVERLAY PATTERNS
+// ============================================================================
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-4);
+}
+
+.modal-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);  // 16px
+  box-shadow: v.$shadow-2xl;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  padding: var(--spacing-6);  // 24px
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: v.$text-xl;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  padding: var(--spacing-2);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: v.$transition-colors;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.modal-body {
+  padding: var(--spacing-6);  // 24px
+}
+
+.modal-footer {
+  padding: var(--spacing-6);  // 24px
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+}
+
+// ============================================================================
+// BUTTON GROUPS
+// ============================================================================
+
+.btn-group {
+  display: inline-flex;
+  border-radius: var(--radius);
+  overflow: hidden;
+  
+  button {
+    border-radius: 0;
+    border-right: 1px solid rgba(var(--border-color-rgb), 0.5);
+
+    &:first-child {
+      border-top-left-radius: var(--radius);
+      border-bottom-left-radius: var(--radius);
+    }
+
+    &:last-child {
+      border-top-right-radius: var(--radius);
+      border-bottom-right-radius: var(--radius);
+      border-right: none;
+    }
+
+    &.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+  }
+}
+
+// ============================================================================
+// CARD PATTERNS (Beyond _mixins.scss)
+// ============================================================================
+
+// Glassmorphism card (high blur, semi-transparent)
+.glass-card {
+  background: rgba(var(--background-card-rgb), 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--border-color-rgb), 0.3);
+  border-radius: var(--radius-xl);  // 16px
+  padding: var(--spacing-6);  // 24px
+  box-shadow: v.$shadow-lg;
+  transition: v.$transition-all;
+
+  &:hover {
+    background: rgba(var(--background-card-rgb), 0.7);
+    box-shadow: v.$shadow-xl;
+    transform: translateY(-2px);
+  }
+}
+
+// Simple bordered card (no glassmorphism)
+.card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);  // 12px
+  padding: var(--spacing-6);  // 24px
+  box-shadow: v.$shadow-sm;
+  transition: v.$transition-all;
+}
+
+.card-elevated {
+  box-shadow: v.$shadow-md;
+
+  &:hover {
+    box-shadow: v.$shadow-lg;
+  }
+}
+
+.card-interactive {
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: v.$shadow-lg;
+    border-color: rgba(var(--primary-color-rgb), 0.5);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// ============================================================================
+// DIVIDER / SEPARATOR
+// ============================================================================
+
+.divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--spacing-4) 0;  // 16px vertical
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 100%;
+  background: var(--border-color);
+  margin: 0 var(--spacing-4);  // 16px horizontal
+}
+
+.divider-text {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin: var(--spacing-6) 0;  // 24px vertical
+  text-transform: uppercase;
+  font-size: v.$text-xs;
+  font-weight: v.$font-semibold;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
+}
+
+// ============================================================================
+// ANIMATIONS (Global Keyframes)
+// ============================================================================
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--danger-color);
+    opacity: 1;
+  }
+  50% {
+    border-color: rgba(var(--danger-color-rgb), 0.5);
+    opacity: 0.7;
+  }
+}
+
+@keyframes pulse-border-recording {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--danger-color-rgb), 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(var(--danger-color-rgb), 0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Animation utility classes
+.animate-fade-in {
+  animation: fade-in v.$duration-300 v.$ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up v.$duration-400 v.$ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down v.$duration-400 v.$ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right v.$duration-300 v.$ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left v.$duration-300 v.$ease-out;
+}
+
+.animate-shake {
+  animation: shake v.$duration-500 v.$ease-in-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

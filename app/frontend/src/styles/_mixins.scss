@@ -89,6 +89,74 @@
   }
 }
 
+// Glassmorphism card variant
+@mixin card-glass($blur: 20px, $opacity: 0.6) {
+  background: rgba(var(--background-card-rgb), $opacity);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);  // Safari support
+  border: 1px solid rgba(var(--border-color-rgb), 0.3);
+  border-radius: v.$border-radius-xl;  // 16px
+  padding: v.$spacing-6;  // 24px
+  box-shadow: v.$shadow-lg;
+  transition: v.$transition-all;
+
+  @include respond-to('md') {
+    padding: v.$spacing-8;  // 32px on desktop
+  }
+
+  &:hover {
+    background: rgba(var(--background-card-rgb), $opacity + 0.1);
+    box-shadow: v.$shadow-xl;
+    transform: translateY(-2px);
+  }
+}
+
+// Card with gradient header
+@mixin card-with-gradient-header($gradient-start, $gradient-end) {
+  @include card-base;
+  
+  & {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .card-header {
+    background: linear-gradient(135deg, $gradient-start 0%, $gradient-end 100%);
+    padding: v.$spacing-6;
+    color: white;
+    
+    @include respond-to('md') {
+      padding: v.$spacing-8;
+    }
+  }
+
+  .card-body {
+    padding: v.$spacing-6;
+    
+    @include respond-to('md') {
+      padding: v.$spacing-8;
+    }
+  }
+}
+
+// Card with border accent (left border)
+@mixin card-with-border-accent($color, $width: 4px) {
+  @include card-base;
+  
+  & {
+    border-left: $width solid $color;
+  }
+}
+
+// Compact card (less padding)
+@mixin card-compact {
+  @include card-base(v.$spacing-4);
+  
+  @include respond-to('md') {
+    padding: v.$spacing-5;
+  }
+}
+
 // ============================================================================
 // INTERACTION MIXINS
 // ============================================================================
@@ -122,5 +190,108 @@
   
   &:focus:not(:active)::after {
     animation: ripple 0.7s v.$vue-ease-out;
+  }
+}
+
+// Hover lift effect (reusable)
+@mixin hover-lift($lift: 2px, $shadow: v.$shadow-lg) {
+  transition: transform v.$duration-200 v.$ease-out,
+              box-shadow v.$duration-200 v.$ease-out;
+
+  &:hover {
+    transform: translateY(-$lift);
+    box-shadow: $shadow;
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: v.$shadow-md;
+  }
+}
+
+// Truncate text with ellipsis
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Line clamp (multi-line truncate)
+@mixin line-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Flex center (common pattern)
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Aspect ratio (for responsive media)
+@mixin aspect-ratio($width, $height) {
+  position: relative;
+  
+  &::before {
+    content: '';
+    display: block;
+    padding-top: calc(#{$height} / #{$width} * 100%);
+  }
+  
+  > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+// Visually hidden (for accessibility)
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+// Reset list styles
+@mixin reset-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+// Smooth scrolling container
+@mixin smooth-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--background-darker);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(var(--border-color-rgb), 0.8);
+    }
   }
 }
