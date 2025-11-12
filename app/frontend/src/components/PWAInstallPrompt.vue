@@ -123,12 +123,12 @@ const dismissPrompt = () => {
 
 .install-prompt {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
-  right: 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  bottom: var(--spacing-6);
+  left: var(--spacing-6);
+  right: var(--spacing-6);
+  background: var(--background-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   z-index: 1000;
   animation: slideUp 0.3s ease-out;
 }
@@ -143,12 +143,12 @@ const dismissPrompt = () => {
 .install-prompt__content {
   display: flex;
   align-items: center;
-  padding: 16px;
-  gap: 12px;
+  padding: var(--spacing-4);
+  gap: var(--spacing-3);
 }
 
 .install-prompt__icon {
-  color: #6f42c1;
+  color: var(--accent-color);
   flex-shrink: 0;
 }
 
@@ -157,28 +157,28 @@ const dismissPrompt = () => {
 }
 
 .install-prompt__text h3 {
-  margin: 0 0 4px 0;
+  margin: 0 0 var(--spacing-1) 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .install-prompt__text p {
   margin: 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .install-prompt__actions {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   flex-shrink: 0;
 }
 
 .install-btn, .dismiss-btn {
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -186,21 +186,21 @@ const dismissPrompt = () => {
 }
 
 .install-btn {
-  background: #6f42c1;
+  background: var(--accent-color);
   color: white;
 }
 
 .install-btn:hover {
-  background: #5a359a;
+  background: var(--accent-color-hover);
 }
 
 .dismiss-btn {
-  background: #f8f9fa;
-  color: #666;
+  background: var(--background-darker);
+  color: var(--text-secondary);
 }
 
 .dismiss-btn:hover {
-  background: #e9ecef;
+  background: var(--background-dark);
 }
 
 @keyframes slideUp {
@@ -214,50 +214,25 @@ const dismissPrompt = () => {
   }
 }
 
-/* Dark mode styles */
-@media (prefers-color-scheme: dark) {
-  .install-prompt {
-    background: #2a2c33;
-    color: white;
-  }
-  
-  .install-prompt__text h3 {
-    color: white;
-  }
-  
-  .install-prompt__text p {
-    color: #a8b2c7;
-  }
-  
-  .dismiss-btn {
-    background: #3a3d45;
-    color: #a8b2c7;
-  }
-  
-  .dismiss-btn:hover {
-    background: #4a4d55;
-  }
-}
-
 /* Mobile specific styles */
 @include m.respond-below('md') {  // < 768px
   .install-prompt {
-    margin: 8px;
-    border-radius: 12px;
+    margin: var(--spacing-2);
+    border-radius: var(--radius-lg);
   }
   
   .install-prompt__content {
-    padding: 16px;
+    padding: var(--spacing-4);
     flex-direction: column;
     text-align: center;
   }
   
   .install-prompt__icon {
-    margin: 0 0 12px 0;
+    margin: 0 0 var(--spacing-3) 0;
   }
   
   .install-prompt__actions {
-    margin-top: 16px;
+    margin-top: var(--spacing-4);
     justify-content: center;
     flex-direction: column;
     width: 100%;
@@ -265,7 +240,7 @@ const dismissPrompt = () => {
   
   .install-btn, .dismiss-btn {
     width: 100%;
-    padding: 12px 16px;
+    padding: var(--spacing-3) var(--spacing-4);
     font-size: 16px;
   }
 }

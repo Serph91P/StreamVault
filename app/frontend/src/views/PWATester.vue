@@ -358,7 +358,7 @@ onMounted(() => {
   color: white;
 
   &:hover:not(:disabled) {
-    background: #2563eb;  // info-600
+    background: var(--info-color-dark);
   }
 
   &:disabled {
@@ -373,16 +373,16 @@ onMounted(() => {
   color: white;
 
   &:hover {
-    background: #059669;  // success-600
+    background: var(--success-color-dark);
   }
 }
 
 .debug-btn {
   background: var(--warning-color);
-  color: #212529;
+  color: var(--text-on-warning);
 
   &:hover {
-    background: #d97706;  // warning-600
+    background: var(--warning-color-dark);
     color: white;
   }
 }

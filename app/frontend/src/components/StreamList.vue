@@ -1603,23 +1603,23 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .status-recording {
-  color: #22c55e;
+  color: var(--success-color);
 }
 
 .status-not-recording {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .status-ended {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .status-available {
-  color: #22c55e;
+  color: var(--success-color);
 }
 
 .status-unavailable {
-  color: #ef4444;
+  color: var(--danger-color);
 }
 
 .btn {
