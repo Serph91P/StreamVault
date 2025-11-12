@@ -53,6 +53,11 @@ $info-500: #3b82f6;  // Main Info
 $info-600: #2563eb;
 $info-700: #1d4ed8;
 
+// Twitch Branding Colors (used for Category Timeline and Twitch-related features)
+$twitch-purple: #9146FF;  // Main Twitch purple
+$twitch-purple-dark: #6441A5;  // Dark variant
+$twitch-purple-rgb: 145, 70, 255;  // RGB for rgba() usage
+
 // Neutral Colors (Slate-based) - Backgrounds, text, borders
 $slate-50: #f8fafc;
 $slate-100: #f1f5f9;
@@ -317,6 +322,11 @@ $duration-400: 400ms;  // Missing in original list
   --danger-color-dark: #{$danger-600};
   --warning-color-dark: #{$warning-600};
   --info-color-dark: #{$info-600};
+  
+  // Twitch Branding Colors
+  --twitch-purple: #{$twitch-purple};
+  --twitch-purple-dark: #{$twitch-purple-dark};
+  --twitch-purple-rgb: #{$twitch-purple-rgb};
   
   // Dark Mode Backgrounds
   --background-dark: #{$slate-900};

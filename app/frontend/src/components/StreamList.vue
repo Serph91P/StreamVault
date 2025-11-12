@@ -940,7 +940,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .streams-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--spacing-5);
   background: var(--background-primary);
   min-height: 100vh;
 }
@@ -970,7 +970,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: var(--spacing-15) var(--spacing-5);
   background: var(--background-card);
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
@@ -996,7 +996,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
-  padding: 20px;
+  padding: var(--spacing-5);
   background: var(--background-card);
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
@@ -1012,7 +1012,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -1088,7 +1088,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 /* New simplified header styles */
 .stream-info {
-  padding: 20px;
+  padding: var(--spacing-5);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1168,7 +1168,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--border-radius-lg, 12px);
   font-size: 0.75rem;
   font-weight: bold;
@@ -1210,7 +1210,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .stream-info {
-  padding: 20px;
+  padding: var(--spacing-5);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1299,7 +1299,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   flex-direction: column;
   gap: 12px;
   margin-top: auto;
-  padding-top: 15px;
+  padding-top: var(--spacing-4);
 }
 
 .recording-actions, .secondary-actions {
@@ -1314,13 +1314,13 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .secondary-actions {
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--border-color);
 }
 
 .action-btn {
   font-size: 0.85rem;
-  padding: 10px 14px;
+  padding: var(--spacing-2_5) var(--spacing-3_5);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
   transition: all 0.2s ease;
@@ -1347,7 +1347,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .stream-actions .btn {
   font-size: 0.85rem;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
   transition: all 0.2s ease;
@@ -1385,7 +1385,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 
 .stream-details {
   border-top: 1px solid var(--border-color);
-  padding: 20px;
+  padding: var(--spacing-5);
   background: var(--background-darker);
 }
 
@@ -1400,7 +1400,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  padding: 16px;
+  padding: var(--spacing-4);
 }
 
 .section-title {
@@ -1427,7 +1427,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: var(--spacing-2) 0;
 }
 
 .detail-label {
@@ -1550,7 +1550,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 6px 8px;
+  padding: var(--spacing-1_5) var(--spacing-2);
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius, 8px);
@@ -1577,7 +1577,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: var(--spacing-2) 0;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -1626,7 +1626,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   border: none;
   border-radius: var(--border-radius);
   font-size: 0.9rem;
@@ -1702,7 +1702,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: var(--spacing-5);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -1717,7 +1717,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   font-size: 1.5rem;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px;
+  padding: var(--spacing-1);
   line-height: 1;
 }
 
@@ -1726,29 +1726,29 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .modal-body {
-  padding: 20px;
+  padding: var(--spacing-5);
   color: var(--text-primary);
   overflow: auto; /* scroll within body if needed */
 }
 
 .stream-preview {
   background: var(--background-darker);
-  padding: 15px;
+  padding: var(--spacing-4);
   border-radius: var(--border-radius);
-  margin: 15px 0;
+  margin: var(--spacing-4) 0;
 }
 
 .warning {
   color: var(--danger-color);
   font-weight: 500;
-  margin-top: 15px;
+  margin-top: var(--spacing-4);
 }
 
 .modal-actions {
   display: flex;
   justify-content: center; /* center the confirm/cancel buttons */
   gap: 12px;
-  padding: 20px;
+  padding: var(--spacing-5);
   border-top: 1px solid var(--border-color);
   position: sticky; /* keep actions visible */
   bottom: 0;
@@ -1758,24 +1758,24 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 /* Responsive Design */
 @include m.respond-below('md') {  // < 768px
   .streams-container {
-    padding: 15px;
+    padding: var(--spacing-4);
   }
   
   .stream-grid {
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: var(--spacing-4);
   }
   
   .page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 15px;
+    gap: var(--spacing-4);
   }
   
   .header-left {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: var(--spacing-2_5);
   }
   
   .header-info h1 {
@@ -1784,12 +1784,12 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   
   .stream-actions {
     gap: 6px;
-    padding-top: 10px;
+    padding-top: var(--spacing-2_5);
   }
   
   .stream-actions .btn {
     font-size: 0.8rem;
-    padding: 6px 10px;
+    padding: var(--spacing-1_5) var(--spacing-2_5);
     min-width: 80px;
   }
   
@@ -1802,7 +1802,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   }
   
   .stream-info {
-    padding: 15px;
+    padding: var(--spacing-4);
   }
 }
 </style>

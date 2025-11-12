@@ -413,7 +413,7 @@ onMounted(() => {
 .post-processing-management {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--spacing-5);
 }
 
 .section-header {
@@ -439,7 +439,7 @@ onMounted(() => {
 }
 
 .card-header {
-  padding: 15px 20px;
+  padding: var(--spacing-4) var(--spacing-5);
   border-bottom: 1px solid var(--border-color);
   background: var(--color-background-mute);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
@@ -454,7 +454,7 @@ onMounted(() => {
 }
 
 .card-body {
-  padding: 20px;
+  padding: var(--spacing-5);
 }
 
 .stats-grid {
@@ -466,7 +466,7 @@ onMounted(() => {
 
 .stat-item {
   text-align: center;
-  padding: 15px;
+  padding: var(--spacing-4);
   background: var(--color-background-mute);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
@@ -501,7 +501,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-background-mute);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
@@ -541,7 +541,7 @@ onMounted(() => {
 }
 
 .form-input {
-  padding: 6px 10px;
+  padding: var(--spacing-1_5) var(--spacing-2_5);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   width: 80px;
@@ -550,7 +550,7 @@ onMounted(() => {
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: var(--spacing-2_5) var(--spacing-5);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -569,14 +569,10 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.btn-primary { background: #007bff; color: white; }
-.btn-success { background: #28a745; color: white; }
-.btn-warning { background: #ffc107; color: #212529; }
-.btn-danger { background: #dc3545; color: white; }
-.btn-secondary { background: #6c757d; color: white; }
+/* Bootstrap button colors removed - using global .btn-* classes from main.scss */
 
 .btn-sm {
-  padding: 6px 12px;
+  padding: var(--spacing-1_5) var(--spacing-3);
   font-size: 0.8em;
 }
 
@@ -606,7 +602,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px;
+  padding: var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -616,7 +612,7 @@ onMounted(() => {
 
 .recording-checkbox:hover {
   background: var(--color-background-soft);
-  border-color: #007bff;
+  border-color: var(--primary-color);
 }
 
 .recording-checkbox input[type="checkbox"] {
@@ -636,7 +632,7 @@ onMounted(() => {
 
 .recording-id {
   font-weight: bold;
-  color: #007bff;
+  color: var(--primary-color);
 }
 
 .streamer-name {
@@ -648,7 +644,7 @@ onMounted(() => {
   font-size: 0.9em;
   color: var(--color-text-light);
   background: var(--color-background-mute);
-  padding: 2px 6px;
+  padding: var(--spacing-0_5) var(--spacing-1_5);
   border-radius: 3px;
 }
 
@@ -681,21 +677,21 @@ onMounted(() => {
 }
 
 .result-message {
-  padding: 12px;
+  padding: var(--spacing-3);
   border-radius: var(--radius-sm);
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-2_5);
   font-weight: 500;
 }
 
 .result-message.success {
   background: rgba(40, 167, 69, 0.1);
-  color: #28a745;
+  color: var(--success-color);
   border: 1px solid rgba(40, 167, 69, 0.3);
 }
 
 .result-message.error {
   background: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
+  color: var(--danger-color);
   border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
@@ -714,13 +710,13 @@ onMounted(() => {
 }
 
 .errors-list li {
-  color: #dc3545;
+  color: var(--danger-color);
   margin-bottom: 5px;
 }
 
 .details-grid {
   display: grid;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .detail-item {
@@ -728,7 +724,7 @@ onMounted(() => {
   grid-template-columns: auto 1fr auto auto;
   gap: 15px;
   align-items: center;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-background-mute);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
@@ -744,27 +740,27 @@ onMounted(() => {
 }
 
 .detail-status.success {
-  color: #28a745;
+  color: var(--success-color);
 }
 
 .detail-status.error {
-  color: #dc3545;
+  color: var(--danger-color);
 }
 
 .detail-error {
   font-size: 0.8em;
-  color: #dc3545;
+  color: var(--danger-color);
 }
 
 .loading {
   text-align: center;
-  padding: 40px;
+  padding: var(--spacing-10);
   color: var(--color-text-light);
 }
 
 .no-data {
   text-align: center;
-  padding: 40px;
+  padding: var(--spacing-10);
   color: var(--color-text-light);
   font-style: italic;
 }
