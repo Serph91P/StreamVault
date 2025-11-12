@@ -311,14 +311,6 @@ class ExternalNotificationService:
             True if notification sent successfully
         """
         try:
-            if not self._notifications_enabled:
-                logger.debug("Notifications globally disabled")
-                return False
-            
-            if not self._notification_url:
-                logger.debug("No notification URL configured")
-                return False
-            
             # Check if this specific event type is enabled
             from app.database import SessionLocal
             from app.models import GlobalSettings, Streamer
@@ -327,6 +319,15 @@ class ExternalNotificationService:
                 settings = db.query(GlobalSettings).first()
                 if not settings:
                     logger.debug("No global settings found")
+                    return False
+                
+                # Check if notifications are globally enabled
+                if not settings.notifications_enabled:
+                    logger.debug("Notifications globally disabled")
+                    return False
+                
+                if not settings.notification_url:
+                    logger.debug("No notification URL configured")
                     return False
                 
                 # Check event-specific toggle
