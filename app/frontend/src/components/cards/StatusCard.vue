@@ -126,12 +126,14 @@ const trendText = computed(() => {
 })
 
 const gradientColors = computed((): [string, string] => {
+  // Use CSS custom properties for theme-aware gradients
+  // All gradients now use design system variables
   const colors = {
     primary: ['var(--primary-color)', 'var(--accent-color)'],
-    success: ['#10b981', '#059669'],
-    danger: ['#ef4444', '#dc2626'],
-    warning: ['#f59e0b', '#d97706'],
-    info: ['#3b82f6', '#2563eb']
+    success: ['var(--success-color)', 'var(--success-color-dark)'],
+    danger: ['var(--danger-color)', 'var(--danger-color-dark)'],
+    warning: ['var(--warning-color)', 'var(--warning-color-dark)'],
+    info: ['var(--info-color)', 'var(--info-color-dark)']
   }
   return colors[props.type] as [string, string]
 })

@@ -312,6 +312,12 @@ $duration-400: 400ms;  // Missing in original list
   --warning-color: #{$warning-500};
   --info-color: #{$info-500};
   
+  // Semantic Colors (Dark variants for gradients)
+  --success-color-dark: #{$success-600};
+  --danger-color-dark: #{$danger-600};
+  --warning-color-dark: #{$warning-600};
+  --info-color-dark: #{$info-600};
+  
   // Dark Mode Backgrounds
   --background-dark: #{$slate-900};
   --background-darker: #{$slate-950};
