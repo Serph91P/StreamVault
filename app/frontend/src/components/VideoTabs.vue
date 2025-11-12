@@ -391,7 +391,7 @@ watch(() => props.videos, (newVideos) => {
   color: white;
   font-size: 0.75rem;
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   min-width: 20px;
   text-align: center;
   font-weight: 600;
@@ -582,7 +582,7 @@ watch(() => props.videos, (newVideos) => {
   background: rgba(0,0,0,0.8);
   color: white;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 500;
   font-family: monospace;

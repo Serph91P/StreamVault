@@ -172,7 +172,7 @@ defineExpose({
   gap: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   cursor: pointer;
   pointer-events: auto;
@@ -249,7 +249,7 @@ defineExpose({
   color: currentColor;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.7;
   transition: opacity 0.2s ease;
   font-size: 12px;

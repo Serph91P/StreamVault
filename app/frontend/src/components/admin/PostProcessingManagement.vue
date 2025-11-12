@@ -433,7 +433,7 @@ onMounted(() => {
 .card {
   background: var(--color-background-soft);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 20px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -442,7 +442,7 @@ onMounted(() => {
   padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--color-background-mute);
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -468,7 +468,7 @@ onMounted(() => {
   text-align: center;
   padding: 15px;
   background: var(--color-background-mute);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
@@ -503,7 +503,7 @@ onMounted(() => {
   align-items: center;
   padding: 8px 12px;
   background: var(--color-background-mute);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
@@ -543,7 +543,7 @@ onMounted(() => {
 .form-input {
   padding: 6px 10px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   width: 80px;
   background: var(--color-background);
   color: var(--color-text);
@@ -552,7 +552,7 @@ onMounted(() => {
 .btn {
   padding: 10px 20px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.9em;
   font-weight: 500;
@@ -608,7 +608,7 @@ onMounted(() => {
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
   background: var(--color-background);
@@ -682,7 +682,7 @@ onMounted(() => {
 
 .result-message {
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 10px;
   font-weight: 500;
 }
@@ -730,7 +730,7 @@ onMounted(() => {
   align-items: center;
   padding: 8px 12px;
   background: var(--color-background-mute);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 

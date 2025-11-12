@@ -306,8 +306,8 @@ onMounted(() => {
 .filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
 }
 
 .search-box {
@@ -317,7 +317,7 @@ onMounted(() => {
 
 .filter-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   flex-wrap: wrap;
 }
 
@@ -334,12 +334,12 @@ onMounted(() => {
   
   .filter-buttons {
     justify-content: space-between;
-    margin-top: 8px;
+    margin-top: var(--spacing-2);
   }
   
   .filter-buttons .btn {
     flex: 1;
-    padding: 10px 8px;
+    padding: var(--spacing-3) var(--spacing-2);
   }
   
   .button-text {
@@ -368,7 +368,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: var(--spacing-9);
   text-align: center;
   color: var(--text-secondary);
   background-color: var(--background-darker);
@@ -385,7 +385,7 @@ onMounted(() => {
   border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-4);
 }
 
 @keyframes spin {
@@ -395,9 +395,9 @@ onMounted(() => {
 .error-message {
   background-color: rgba(239, 68, 68, 0.1);
   color: var(--danger-color);
-  padding: 16px;
+  padding: var(--spacing-4);
   border-radius: var(--border-radius, 8px);
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-4);
 }
 
 /* Card transition animations */
@@ -425,7 +425,7 @@ onMounted(() => {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
   gap: 20px;
-  padding: 8px;
+  padding: var(--spacing-2);
   width: 100%;
   min-height: 200px; /* Debug: ensure container has height */
 }
@@ -559,7 +559,7 @@ onMounted(() => {
 }
 
 .category-content {
-  padding: 8px;
+  padding: var(--spacing-2);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -582,7 +582,7 @@ onMounted(() => {
 .category-meta {
   font-size: 0.8rem;
   color: var(--text-secondary);
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
 }
 
 .category-actions {
@@ -590,7 +590,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--border-color, #2d2d35);
 }
 
@@ -602,8 +602,8 @@ onMounted(() => {
 .btn-icon {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: 0.8rem;
   background-color: transparent;
   color: var(--text-secondary);
@@ -649,7 +649,7 @@ onMounted(() => {
   background: var(--background-darker);  /* Better contrast in both themes */
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius, 8px);
   font-size: 0.95rem;
   transition: all 0.2s ease;

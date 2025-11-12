@@ -696,7 +696,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .tab-button {
   background: none;
   border: none;
-  padding: 12px 20px;
+  padding: var(--spacing-3) var(--spacing-6);
   cursor: pointer;
   color: var(--text-secondary);
   font-weight: 500;
@@ -737,7 +737,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .streamer-settings {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
-  padding: 20px;
+  padding: var(--spacing-6);
   border-radius: var(--border-radius, 8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
@@ -756,7 +756,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 /* Ensure form controls are properly styled */
 .form-control {
   width: 100%;
-  padding: 10px;
+  padding: var(--spacing-3);
   border: 1px solid var(--border-color);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #f1f1f3);
@@ -796,7 +796,7 @@ select.form-control {
 select.form-control option {
   background-color: var(--background-darker, #18181b);
   color: var(--text-primary, #f1f1f3);
-  padding: 8px;
+  padding: var(--spacing-2);
 }
 
 .help-text {
@@ -918,7 +918,7 @@ select.form-control option {
   .streamer-table select.form-control-sm {
     width: 100%;
     max-width: 100%;
-    padding: 10px;
+    padding: var(--spacing-3);
     font-size: 16px;  /* Prevent iOS zoom */
     background-color: var(--background-dark, #18181b);
     color: var(--text-primary, #f1f1f3);
@@ -929,7 +929,7 @@ select.form-control option {
   .streamer-table input[type="text"].form-control-sm {
     width: 100%;
     max-width: 100%;
-    padding: 10px;
+    padding: var(--spacing-3);
     font-size: 16px;  /* Prevent iOS zoom */
     background-color: var(--background-dark, #18181b);
     color: var(--text-primary, #f1f1f3);
@@ -1090,7 +1090,7 @@ select.form-control option {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0;
+  margin: var(--spacing-3) 0;
   max-width: 100%;
 }
 
@@ -1100,7 +1100,7 @@ select.form-control option {
   color: var(--text-primary, #f1f1f3);
   border: 1px solid var(--border-color, #404040);
   border-radius: var(--border-radius, 8px);
-  padding: 6px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-family: 'Courier New', 'Monaco', monospace;
   font-size: 0.85em;
   font-weight: 500;
@@ -1252,7 +1252,7 @@ select.form-control option {
 
 .form-control-sm {
   width: 100%;
-  padding: 8px;
+  padding: var(--spacing-2);
   border: 1px solid var(--border-color);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #f1f1f3);
@@ -1340,7 +1340,7 @@ select.form-control-sm option {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: var(--spacing-6);
 }
 
 .modal-content {
@@ -1358,7 +1358,7 @@ select.form-control-sm option {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: var(--spacing-6);
   border-bottom: 1px solid var(--border-color, #303034);
 }
 
@@ -1389,7 +1389,7 @@ select.form-control-sm option {
 }
 
 .modal-body {
-  padding: 20px;
+  padding: var(--spacing-6);
 }
 
 /* Settings sections for better visual organization */
@@ -1695,7 +1695,7 @@ select.form-control-sm option {
   }
   
   .example-item {
-    padding: 8px;
+    padding: var(--spacing-2);
     margin-bottom: 8px;
   }
   
@@ -1754,11 +1754,11 @@ select.form-control-sm option {
   }
   
   .settings-form {
-    padding: 8px;
+    padding: var(--spacing-2);
   }
   
   .settings-section {
-    padding: 8px;
+    padding: var(--spacing-2);
     margin-bottom: 16px;
   }
   
@@ -1767,7 +1767,7 @@ select.form-control-sm option {
   }
   
   .form-control {
-    padding: 10px;
+    padding: var(--spacing-3);
   }
   
   .variable-tag {

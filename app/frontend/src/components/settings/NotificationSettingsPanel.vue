@@ -383,7 +383,7 @@ const testWebSocketNotification = async () => {
 .settings-form {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
-  padding: 20px;
+  padding: var(--spacing-6);
   border-radius: var(--border-radius, 8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
@@ -423,7 +423,7 @@ const testWebSocketNotification = async () => {
 
 .form-control {
   width: 100%;
-  padding: 10px;
+  padding: var(--spacing-3);
   border: 1px solid var(--border-color, #333);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #fff);
@@ -471,7 +471,7 @@ const testWebSocketNotification = async () => {
 }
 
 .btn {
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   border-radius: var(--border-radius, 6px);
   font-weight: 600;
   cursor: pointer;
@@ -506,7 +506,7 @@ const testWebSocketNotification = async () => {
 }
 
 .btn-sm {
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: 0.875rem;
   white-space: nowrap;
   display: inline-flex;
@@ -556,13 +556,13 @@ const testWebSocketNotification = async () => {
   font-weight: 500;
   color: var(--text-secondary, #ccc);
   position: relative;
-  padding: 12px 15px;
+  padding: var(--spacing-3) var(--spacing-4);
   text-align: left;
   border-bottom: 1px solid var(--border-color, #333);
 }
 
 .streamer-table td {
-  padding: 12px 15px;
+  padding: var(--spacing-3) var(--spacing-4);
   text-align: left;
   border-bottom: 1px solid var(--border-color, #333);
 }
@@ -622,12 +622,12 @@ const testWebSocketNotification = async () => {
   }
   
   .btn {
-    padding: 6px 10px;
+    padding: var(--spacing-2) var(--spacing-3);
     font-size: 0.9rem;
   }
   
   .btn-sm {
-    padding: 4px 6px;
+    padding: var(--spacing-1) var(--spacing-2);
     font-size: 0.8rem;
   }
   
@@ -642,7 +642,7 @@ const testWebSocketNotification = async () => {
   
   /* Fix alignment in table cells */
   .streamer-table td, .streamer-table th {
-    padding: 8px 6px;
+    padding: var(--spacing-2) var(--spacing-2);
   }
   
   /* Fix the streamer info height */
@@ -721,7 +721,7 @@ const testWebSocketNotification = async () => {
   
   /* Streamer info cell (first cell) */
   .streamer-table td.streamer-info {
-    padding: 12px;
+    padding: var(--spacing-3);
     font-weight: 600;
     background: var(--background-darker, #1f1f23);
     display: flex;
@@ -751,7 +751,7 @@ const testWebSocketNotification = async () => {
   
   /* Make buttons full width on mobile for easier tapping */
   .streamer-table .btn-sm {
-    padding: 8px 16px;
+    padding: var(--spacing-2) var(--spacing-4);
     min-width: 60px;
     font-size: 0.875rem;
   }
