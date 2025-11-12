@@ -616,6 +616,78 @@ This creates institutional knowledge that persists across sessions.
 
 ## Key Principles
 
+### Design System Philosophy - CRITICAL
+
+**GOLDEN RULE**: Use global SCSS patterns from the design system. Never duplicate styling in individual components.
+
+**Why this matters:**
+- ✅ **Consistency** - All badges, buttons, forms look identical
+- ✅ **Speed** - Copy-paste from DESIGN_SYSTEM.md instead of writing CSS
+- ✅ **Maintainability** - Change primary color in 1 place, not 50+ files
+- ✅ **Theme support** - CSS variables enable automatic dark/light mode
+
+**Example - Building a new feature:**
+
+❌ **WRONG - Per-component duplication:**
+```vue
+<template>
+  <div class="streamer-table">
+    <div class="status">Live</div>
+  </div>
+</template>
+
+<style scoped>
+.streamer-table {
+  background: #1f1f23;        /* Hardcoded! */
+  border: 1px solid #2d2d35;  /* Hardcoded! */
+  border-radius: 8px;         /* Hardcoded! */
+  padding: 16px;              /* Hardcoded! */
+}
+
+.status {
+  background: #22c55e;        /* Hardcoded! */
+  color: white;
+  padding: 4px 8px;           /* Hardcoded! */
+  border-radius: 4px;         /* Hardcoded! */
+}
+/* 😫 20+ lines of duplicate CSS! */
+</style>
+```
+
+✅ **CORRECT - Reuse global classes:**
+```vue
+<template>
+  <div class="card">
+    <!-- ✅ From _utilities.scss - 0 lines of CSS needed! -->
+    <div class="badge badge-success">Live</div>
+    <!-- ✅ Theme-aware, consistent, maintainable -->
+  </div>
+</template>
+
+<!-- No <style> block needed! Everything is global. -->
+```
+
+**Where to find reusable patterns:**
+- 📖 `docs/DESIGN_SYSTEM.md` - 800+ line reference with copy-paste examples
+- 🎨 `app/frontend/src/styles/_utilities.scss` - 1457 lines of utility classes
+- 🔧 `app/frontend/src/styles/_mixins.scss` - 18 reusable SCSS mixins
+- 🎨 `app/frontend/src/styles/_variables.scss` - Design tokens (colors, spacing, etc.)
+
+**Available global patterns:**
+- **Badges**: `.badge`, `.badge-success`, `.badge-danger`, `.status-badge`
+- **Buttons**: `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, etc. (9 variants)
+- **Alerts**: `.alert`, `.alert-info`, `.alert-success`, `.alert-warning`, `.alert-danger`
+- **Modals**: `.modal-overlay`, `.modal-card`, `.modal-header`, `.modal-body`
+- **Forms**: `.form-group`, `.form-label`, `.input-group`, `.form-error` (300+ lines)
+- **Cards**: `.card`, `.card-elevated`, `.glass-card`
+- **Skeletons**: `.skeleton`, `.skeleton-text`, `.skeleton-card`
+
+**Before writing new CSS, ALWAYS:**
+1. Check `DESIGN_SYSTEM.md` for existing patterns
+2. Use global utility classes from `_utilities.scss`
+3. Only write custom CSS if pattern doesn't exist
+4. If pattern is reusable, add it to `_utilities.scss` instead
+
 ### Backend
 - Use type hints and specific exception types  
 - Eager load relationships with `joinedload()` to avoid N+1 queries
