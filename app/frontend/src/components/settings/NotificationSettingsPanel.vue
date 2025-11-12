@@ -82,31 +82,6 @@
         </div>
       </div>
 
-      <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
-      <div class="form-group">
-        <h4>🎨 Codec Preferences (Advanced)</h4>
-        <p class="section-description">
-          Configure video codec support for higher quality recordings (up to 1440p60).
-          <strong>Requires Streamlink 8.0.0+</strong>
-        </p>
-        <label>Supported Codecs:</label>
-        <select v-model="data.supportedCodecs" class="form-control">
-          <option value="h264">📺 H.264 Only - 1080p60 max, highest compatibility</option>
-          <option value="h265">🎬 H.265/HEVC Only - 1440p60, modern hardware required</option>
-          <option value="av1">🚀 AV1 Only - Experimental, newest hardware required</option>
-          <option value="h264,h265">⭐ H.264 + H.265 (RECOMMENDED) - Best balance, auto-fallback</option>
-          <option value="h264,h265,av1">🔮 All Codecs (Future-proof) - Maximum quality</option>
-        </select>
-        <div class="help-text">
-          <strong>ℹ️ Important:</strong>
-          <ul style="margin-top: 0.5rem; margin-bottom: 0;">
-            <li>Higher quality streams depend on <strong>broadcaster settings</strong></li>
-            <li>Not all channels stream in H.265/AV1 (most still use H.264)</li>
-            <li>AV1 decode requires modern hardware (2020+) and compatible players</li>
-          </ul>
-        </div>
-      </div>
-
       <div class="form-actions">
         <button 
           @click="saveSettings" 
@@ -258,10 +233,7 @@ const data = ref({
   // System notification settings (NEW - Migration 028)
   notifyRecordingStarted: props.settings.notify_recording_started !== undefined ? props.settings.notify_recording_started : false,
   notifyRecordingFailed: props.settings.notify_recording_failed !== undefined ? props.settings.notify_recording_failed : true,
-  notifyRecordingCompleted: props.settings.notify_recording_completed !== undefined ? props.settings.notify_recording_completed : false,
-  // Codec preferences (Migration 024) - H.265/AV1 Support
-  supportedCodecs: props.settings.supported_codecs || 'h264,h265',
-  preferHigherQuality: props.settings.prefer_higher_quality !== false
+  notifyRecordingCompleted: props.settings.notify_recording_completed !== undefined ? props.settings.notify_recording_completed : false
 })
 
 // Add these new refs for validation
@@ -376,14 +348,11 @@ const saveSettings = async () => {
       notify_offline_global: data.value.notifyOfflineGlobal,
       notify_update_global: data.value.notifyUpdateGlobal,
       notify_favorite_category_global: data.value.notifyFavoriteCategoryGlobal,
-      // System notification settings (NEW - Migration 028)
+      // System notification settings (Migration 028)
       notify_recording_started: data.value.notifyRecordingStarted,
       notify_recording_failed: data.value.notifyRecordingFailed,
-      notify_recording_completed: data.value.notifyRecordingCompleted,
-      // Codec preferences (Migration 024) - H.265/AV1 Support
-      supported_codecs: data.value.supportedCodecs,
-      prefer_higher_quality: data.value.preferHigherQuality
-    })
+      notify_recording_completed: data.value.notifyRecordingCompleted
+    }
   } catch (error) {
     console.error('Failed to save settings:', error)
   } finally {

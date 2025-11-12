@@ -108,6 +108,30 @@
                 When enabled, chapter titles will use the game/category name instead of the stream title.
               </div>
             </div>
+
+            <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
+            <h4 class="section-title" style="margin-top: 2rem;">🎨 Advanced Codec Settings</h4>
+            <div class="form-group">
+              <label>Supported Codecs:</label>
+              <select v-model="data.supported_codecs" class="form-control">
+                <option value="h264">📺 H.264 Only - 1080p60 max, highest compatibility</option>
+                <option value="h265">🎬 H.265/HEVC Only - 1440p60, modern hardware required</option>
+                <option value="av1">🚀 AV1 Only - Experimental, newest hardware required</option>
+                <option value="h264,h265">⭐ H.264 + H.265 (RECOMMENDED) - Best balance, auto-fallback</option>
+                <option value="h264,h265,av1">🔮 All Codecs (Future-proof) - Maximum quality</option>
+              </select>
+              <div class="help-text">
+                Configure video codec support for higher quality recordings (up to 1440p60). 
+                <strong>Requires Streamlink 8.0.0+</strong>
+                <br><br><strong>ℹ️ Important Notes:</strong>
+                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                  <li>Higher quality streams depend on <strong>broadcaster settings</strong> (not all streamers support H.265/AV1)</li>
+                  <li>Most channels still stream in H.264 only</li>
+                  <li>H.265/AV1 decode requires modern hardware (2020+) and compatible players</li>
+                  <li>If broadcaster doesn't support selected codec, Streamlink will auto-fallback to available codec</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,7 +522,10 @@ const data = ref<RecordingSettings>({
   filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
-  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false,
+  // Codec preferences (Migration 024) - H.265/AV1 Support
+  supported_codecs: props.settings?.supported_codecs || 'h264,h265',
+  prefer_higher_quality: props.settings?.prefer_higher_quality !== false
 });
 
 const updateFilenameTemplate = () => {
@@ -607,7 +634,10 @@ const saveSettings = async () => {
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
       use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title,
+      // Codec preferences (Migration 024)
+      supported_codecs: data.value.supported_codecs,
+      prefer_higher_quality: data.value.prefer_higher_quality
     });
     
     // Save proxy settings separately
