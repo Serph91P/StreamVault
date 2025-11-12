@@ -352,7 +352,7 @@ const saveSettings = async () => {
       notify_recording_started: data.value.notifyRecordingStarted,
       notify_recording_failed: data.value.notifyRecordingFailed,
       notify_recording_completed: data.value.notifyRecordingCompleted
-    }
+    })
   } catch (error) {
     console.error('Failed to save settings:', error)
   } finally {
