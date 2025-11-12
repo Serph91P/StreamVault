@@ -230,7 +230,9 @@ const formatMessage = (notification: Notification): string => {
     case 'recording.completed':
       return `Successfully completed recording ${username}'s stream`
     case 'recording.failed':
-      return data?.error ? `Failed to record ${username}'s stream: ${data.error}` : `Failed to record ${username}'s stream`
+      // Support both error and error_message fields
+      const errorMsg = data?.error_message || data?.error || 'Unknown error'
+      return `Recording failed for ${username}: ${errorMsg}`
     case 'test':
       return data?.message || 'This is a test notification to verify the system is working properly'
     default:

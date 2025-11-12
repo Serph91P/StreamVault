@@ -23,10 +23,15 @@ class Recording(Base):
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
     start_time = Column(DateTime(timezone=True), nullable=False, index=True)
     end_time = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error"
+    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error", "failed"
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Error tracking (Migration 027)
+    error_message = Column(String, nullable=True)  # Detailed error message for debugging
+    failure_reason = Column(String, nullable=True)  # Short failure reason (proxy_error, streamlink_crash, etc.)
+    failure_timestamp = Column(DateTime(timezone=True), nullable=True)  # When the failure occurred
     
     # Relationship to Stream
     stream = relationship("Stream", backref="recordings")

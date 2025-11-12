@@ -398,6 +398,9 @@
       </transition>
     </router-view>
     
+    <!-- Toast Notification System (CRITICAL: Always visible) -->
+    <ToastContainer />
+    
     <!-- PWA Install Prompt -->
     <PWAInstallPrompt />
   </div>
@@ -408,6 +411,7 @@ import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
@@ -417,10 +421,14 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useTheme } from '@/composables/useTheme'
+import { useToast } from '@/composables/useToast'
 
 // Initialize theme
 const { initializeTheme } = useTheme()
 initializeTheme()
+
+// Initialize toast system
+const toast = useToast()
 
 // Check if current route is an auth page
 const route = useRoute()
@@ -526,6 +534,20 @@ function processToastNotification(message) {
     if (toastMessage) {
       addToast(toastMessage, type, duration, data)
     }
+  }
+  
+  // CRITICAL: Listen for recording_failed WebSocket events
+  if (message.type === 'recording_failed') {
+    const streamer_name = message.data?.streamer_name || 'Unknown'
+    const error_message = message.data?.error_message || 'Unknown error'
+    
+    toast.error(`Recording failed: ${streamer_name} - ${error_message}`, 5000)
+    
+    console.error('🚨 Recording failed:', {
+      streamer: streamer_name,
+      error: error_message,
+      data: message.data
+    })
   }
 }
 

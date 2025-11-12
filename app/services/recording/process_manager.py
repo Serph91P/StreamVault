@@ -431,7 +431,7 @@ class ProcessManager:
             logger.error(f"Error rotating segment for stream {stream.id}: {e}", exc_info=True)
 
     async def monitor_process(self, process: asyncio.subprocess.Process) -> int:
-        """Monitor a recording process until completion
+        """Monitor a recording process until completion with failure detection
         
         Args:
             process: The process to monitor
@@ -467,12 +467,39 @@ class ProcessManager:
                 # Normal single-file recording
                 stdout, stderr = await process.communicate()
                 
-                if process.returncode == 0:
-                    logger.info(f"Recording process completed successfully (PID: {process.pid})")
-                else:
-                    logger.error(f"Recording process failed with exit code {process.returncode} (PID: {process.pid})")
+                # CRITICAL: Detect recording failure and update database
+                if process.returncode != 0:
+                    logger.error(f"🚨 Recording process failed with exit code {process.returncode} (PID: {process.pid})")
+                    
+                    # Extract error message from stderr
+                    error_message = "Unknown error"
+                    failure_reason = "streamlink_crash"
+                    
                     if stderr:
-                        logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')[:1000]}")
+                        stderr_text = stderr.decode('utf-8', errors='replace')
+                        logger.error(f"Process stderr: {stderr_text[:1000]}")
+                        
+                        # Parse common failure reasons
+                        if "ProxyError" in stderr_text or "Tunnel connection failed" in stderr_text:
+                            failure_reason = "proxy_error"
+                            error_message = "Proxy connection failed (500 Internal Server Error)"
+                        elif "Unable to open URL" in stderr_text:
+                            failure_reason = "stream_unavailable"
+                            error_message = "Stream unavailable or ended"
+                        elif "No playable streams found" in stderr_text:
+                            failure_reason = "no_streams"
+                            error_message = "No playable streams found"
+                        else:
+                            error_message = f"Streamlink exited with code {process.returncode}"
+                    
+                    # Update database with error information
+                    await self._record_failure_in_database(process_id, error_message, failure_reason)
+                    
+                    # Broadcast WebSocket error notification
+                    await self._notify_recording_failed(process_id, error_message)
+                    
+                else:
+                    logger.info(f"✅ Recording process completed successfully (PID: {process.pid})")
                 
                 # Log to structured logging service
                 if self.logging_service:
@@ -905,6 +932,104 @@ class ProcessManager:
     def is_shutting_down(self) -> bool:
         """Check if process manager is shutting down"""
         return self._is_shutting_down
+    
+    async def _record_failure_in_database(self, process_id: str, error_message: str, failure_reason: str):
+        """Record recording failure in database for visibility
+        
+        Args:
+            process_id: Process ID (format: stream_{stream_id})
+            error_message: Detailed error message
+            failure_reason: Short failure category
+        """
+        try:
+            from app.database import SessionLocal
+            from app.models import Recording, Stream
+            from datetime import datetime, timezone
+            
+            # Extract stream_id from process_id
+            stream_id = process_id.split('_')[1] if '_' in process_id else None
+            if not stream_id:
+                logger.warning(f"Could not extract stream_id from process_id: {process_id}")
+                return
+            
+            with SessionLocal() as db:
+                # Find the active recording for this stream
+                recording = (
+                    db.query(Recording)
+                    .filter(
+                        Recording.stream_id == int(stream_id),
+                        Recording.status == 'recording'
+                    )
+                    .first()
+                )
+                
+                if recording:
+                    # Update recording with failure information
+                    recording.status = 'failed'
+                    recording.error_message = error_message
+                    recording.failure_reason = failure_reason
+                    recording.failure_timestamp = datetime.now(timezone.utc)
+                    recording.end_time = datetime.now(timezone.utc)
+                    
+                    db.commit()
+                    logger.info(f"✅ Recorded failure in database for recording {recording.id}: {failure_reason}")
+                else:
+                    logger.warning(f"No active recording found for stream {stream_id}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to record failure in database: {e}", exc_info=True)
+    
+    async def _notify_recording_failed(self, process_id: str, error_message: str):
+        """Broadcast WebSocket notification for recording failure
+        
+        Args:
+            process_id: Process ID (format: stream_{stream_id})
+            error_message: Error message to broadcast
+        """
+        try:
+            from app.database import SessionLocal
+            from app.models import Stream, Streamer
+            from datetime import datetime, timezone
+            
+            # Extract stream_id
+            stream_id = process_id.split('_')[1] if '_' in process_id else None
+            if not stream_id:
+                return
+            
+            with SessionLocal() as db:
+                # Get stream and streamer info
+                stream = (
+                    db.query(Stream)
+                    .options(joinedload(Stream.streamer))
+                    .filter(Stream.id == int(stream_id))
+                    .first()
+                )
+                
+                if stream and stream.streamer:
+                    # Broadcast WebSocket event
+                    try:
+                        from app.services.websocket.websocket_manager import websocket_manager
+                        
+                        await websocket_manager.broadcast({
+                            "type": "recording_failed",
+                            "data": {
+                                "stream_id": stream.id,
+                                "streamer_id": stream.streamer.id,
+                                "streamer_name": stream.streamer.username,
+                                "error_message": error_message,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "stream_title": stream.title or "N/A",
+                                "category": stream.category_name or "N/A"
+                            }
+                        })
+                        
+                        logger.info(f"📡 WebSocket notification sent: recording_failed for {stream.streamer.username}")
+                        
+                    except Exception as ws_error:
+                        logger.error(f"Failed to send WebSocket notification: {ws_error}")
+                        
+        except Exception as e:
+            logger.error(f"Error in _notify_recording_failed: {e}", exc_info=True)
 
     async def get_recording_progress(self, recording_id: int) -> Optional[Dict]:
         """Get progress information for a recording
