@@ -43,6 +43,23 @@ class AsyncDelays:
     WORKER_SHUTDOWN_PAUSE: float = 1.0           # Pause during worker shutdown
     IMAGE_SYNC_RETRY: float = 1.0                # Image sync retry delay
     AUTO_RECOVERY_ERROR_WAIT: float = 10.0       # Auto recovery error wait
+    
+    # Proxy and network delays
+    PROXY_HEALTH_CHECK_ERROR_WAIT: float = 60.0  # Wait after proxy health check error (1 min)
+    
+    # Image sync specific delays
+    IMAGE_SYNC_REQUEST_DELAY: float = 0.5        # Delay between image sync requests (rate limiting)
+    IMAGE_SYNC_WORKER_ERROR_WAIT: float = 1.0    # Wait after image sync worker error
+    IMAGE_SYNC_BATCH_DELAY: float = 0.1          # Small delay between batch operations
+    
+    # Recording process delays
+    PROCESS_START_GRACE: float = 0.1             # Grace period for process to start
+    RECORDING_ERROR_RECOVERY: float = 5.0        # Wait after recording error
+    FILE_OPERATION_RETRY: float = 5.0            # Wait before retrying file operations
+    
+    # Task processing delays
+    TASK_QUEUE_POLL_REDUCED: float = 0.1         # Reduced queue polling for better concurrency
+    POST_PROCESSING_DELAY: float = 0.15          # Delay in post-processing operations
 
 
 # ============================================================================

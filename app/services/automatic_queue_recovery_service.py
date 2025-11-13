@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -82,7 +83,7 @@ class AutomaticQueueRecoveryService:
                 break
             except Exception as e:
                 logger.error(f"Error in automatic recovery worker: {e}")
-                await asyncio.sleep(10)  # Wait longer on error
+                await asyncio.sleep(ASYNC_DELAYS.AUTO_RECOVERY_ERROR_WAIT)
                 
         logger.info("🛑 Automatic recovery worker stopped")
     

@@ -40,6 +40,41 @@ export const UI = {
    * Toast notification duration (ms)
    */
   TOAST_DURATION_MS: 3000,
+  
+  /**
+   * Auto-hide delay for copy success messages (ms)
+   */
+  AUTO_HIDE_SUCCESS_MS: 4000,
+  
+  /**
+   * Auto-hide delay for error messages (ms)
+   */
+  AUTO_HIDE_ERROR_MS: 5000,
+  
+  /**
+   * Swipe gesture initialization delay (ms)
+   */
+  SWIPE_INIT_DELAY_MS: 100,
+  
+  /**
+   * PWA debug initialization delay (ms)
+   */
+  PWA_DEBUG_DELAY_MS: 1000,
+  
+  /**
+   * WebSocket reconnect delay (ms)
+   */
+  WS_RECONNECT_DELAY_MS: 5000,
+  
+  /**
+   * Validation input debounce timeout (ms)
+   */
+  VALIDATION_DEBOUNCE_MS: 500,
+  
+  /**
+   * Tooltip show delay (ms)
+   */
+  TOOLTIP_SHOW_DELAY_MS: 1000,
 } as const
 
 /**
