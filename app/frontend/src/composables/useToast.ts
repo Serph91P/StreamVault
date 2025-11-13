@@ -1,4 +1,5 @@
 import { ref, readonly } from 'vue'
+import { UI } from '@/config/constants'
 
 /**
  * Toast Notification System
@@ -41,9 +42,9 @@ export function useToast() {
    * 
    * @param message - Message to display
    * @param type - Toast type (success, error, warning, info)
-   * @param duration - Duration in milliseconds (default: 3000)
+   * @param duration - Duration in milliseconds (default from UI.TOAST_DURATION_MS)
    */
-  function show(message: string, type: ToastType, duration = 3000) {
+  function show(message: string, type: ToastType, duration: number = UI.TOAST_DURATION_MS) {
     const id = crypto.randomUUID()
     const createdAt = Date.now()
     
@@ -81,28 +82,28 @@ export function useToast() {
   /**
    * Show success toast (green)
    */
-  function success(message: string, duration?: number) {
+  function success(message: string, duration: number = UI.TOAST_DURATION_MS) {
     show(message, 'success', duration)
   }
   
   /**
    * Show error toast (red)
    */
-  function error(message: string, duration?: number) {
+  function error(message: string, duration: number = UI.TOAST_DURATION_MS) {
     show(message, 'error', duration)
   }
   
   /**
    * Show warning toast (yellow)
    */
-  function warning(message: string, duration?: number) {
+  function warning(message: string, duration: number = UI.TOAST_DURATION_MS) {
     show(message, 'warning', duration)
   }
   
   /**
    * Show info toast (blue)
    */
-  function info(message: string, duration?: number) {
+  function info(message: string, duration: number = UI.TOAST_DURATION_MS) {
     show(message, 'info', duration)
   }
   

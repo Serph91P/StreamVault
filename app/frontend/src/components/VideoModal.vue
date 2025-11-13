@@ -120,6 +120,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { streamersApi, videoApi } from '@/services/api'
+import { UI } from '@/config/constants'
 
 const props = defineProps({
   video: {
@@ -263,7 +264,7 @@ const copyShareLink = async () => {
   try {
     await navigator.clipboard.writeText(shareLink.value)
     shareCopied.value = true
-    setTimeout(() => (shareCopied.value = false), 4000)
+    setTimeout(() => (shareCopied.value = false), UI.AUTO_HIDE_SUCCESS_MS)
   } catch (e) {
     copyError.value = true
     // Attempt to select the input so user can press Ctrl+C
@@ -273,7 +274,7 @@ const copyShareLink = async () => {
         shareLinkInput.value.select()
       }
     })
-    setTimeout(() => (copyError.value = false), 5000)
+    setTimeout(() => (copyError.value = false), UI.AUTO_HIDE_ERROR_MS)
   }
 }
 

@@ -9,6 +9,7 @@ from typing import Optional
 from app.database import SessionLocal
 from app.models import Streamer, Category, Stream
 from app.services.unified_image_service import unified_image_service
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -57,7 +58,7 @@ class AutoImageSyncService:
                 break
             except Exception as e:
                 logger.error(f"Error in auto image sync worker: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_WORKER_ERROR_WAIT)
         logger.info("Auto image sync background worker stopped")
 
     async def _process_sync_request(self, sync_request: dict):
@@ -266,7 +267,7 @@ class AutoImageSyncService:
                 
             offset += batch_size
             # Small delay to prevent overwhelming the database
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_BATCH_DELAY)
         
         logger.info(f"Completed sync for {total_synced} streamers total")
         return total_synced
@@ -286,7 +287,7 @@ class AutoImageSyncService:
                 
             offset += batch_size
             # Small delay to prevent overwhelming the database
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_BATCH_DELAY)
         
         logger.info(f"Completed sync for {total_synced} categories total")
         return total_synced

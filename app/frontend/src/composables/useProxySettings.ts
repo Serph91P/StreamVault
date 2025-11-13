@@ -8,6 +8,7 @@ import type {
   BestProxyResponse,
   ProxyHealthUpdateEvent
 } from '@/types/proxy'
+import { UI } from '@/config/constants'
 
 /**
  * Composable for Multi-Proxy System Management
@@ -268,7 +269,7 @@ export function useProxySettings() {
 
       websocket.onclose = () => {
         console.log('Proxy WebSocket closed - reconnecting in 5s')
-        setTimeout(connectWebSocket, 5000)  // Reconnect after 5 seconds
+        setTimeout(connectWebSocket, UI.WS_RECONNECT_DELAY_MS)
       }
     } catch (e) {
       console.error('Failed to connect WebSocket:', e)

@@ -199,6 +199,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { UI } from '@/config/constants'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
@@ -252,7 +253,7 @@ const handleInput = () => {
   // Set a new timeout to show validation after typing stops
   inputTimeout.value = window.setTimeout(() => {
     showValidationError.value = true
-  }, 1000) // Show validation error 1 second after typing stops
+  }, UI.VALIDATION_DEBOUNCE_MS)
 }
 
 // Handle blur event (when user clicks outside the input)
@@ -274,7 +275,7 @@ const handleTooltipMouseEnter = () => {
 const handleTooltipMouseLeave = () => {
   tooltipTimeout = window.setTimeout(() => {
     showTooltip.value = false
-  }, 300)
+  }, UI.SEARCH_DEBOUNCE_MS)
 }
 
 // Cleanup timeout on component unmount

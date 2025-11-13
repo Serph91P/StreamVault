@@ -29,6 +29,8 @@ from sqlalchemy.orm import Session
 
 import httpx
 
+from app.config.constants import ASYNC_DELAYS
+
 from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
 from app.config.constants import TIMEOUTS
@@ -110,7 +112,7 @@ class ProxyHealthService:
             except Exception as e:
                 logger.error(f"🚨 Error in health check loop: {e}", exc_info=True)
                 # Wait before retrying to avoid tight error loop
-                await asyncio.sleep(60)
+                await asyncio.sleep(ASYNC_DELAYS.PROXY_HEALTH_CHECK_ERROR_WAIT)
     
     async def _get_check_interval(self) -> int:
         """Get health check interval from database settings"""

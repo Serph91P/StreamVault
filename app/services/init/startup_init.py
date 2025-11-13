@@ -5,6 +5,7 @@ Startup initialization for background services
 import asyncio
 import logging
 from app.services.init.background_queue_init import initialize_background_queue, shutdown_background_queue
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -54,7 +55,7 @@ async def start_session_cleanup_service():
         async def periodic_session_cleanup():
             while True:
                 try:
-                    await asyncio.sleep(6 * 3600)  # 6 hours
+                    await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_INTERVAL)
                     
                     db = SessionLocal()
                     try:
@@ -110,7 +111,7 @@ async def initialize_background_services():
         
         # CRITICAL: Wait for queue workers to be fully ready before recovery
         logger.info("⏳ Waiting for background queue workers to be fully ready...")
-        await asyncio.sleep(5)  # Give queue workers time to start
+        await asyncio.sleep(ASYNC_DELAYS.QUEUE_WORKER_START_DELAY)
         
         # Verify queue is responsive before proceeding
         queue_ready = await verify_queue_readiness()
@@ -180,7 +181,7 @@ async def verify_queue_readiness() -> bool:
             
             # Always wait before retry (except on last attempt)
             if attempt < max_attempts - 1:
-                await asyncio.sleep(2)  # Wait before retry
+                await asyncio.sleep(ASYNC_DELAYS.SHORT_RETRY_DELAY)
         
         logger.warning(f"⚠️ Queue readiness verification failed after {max_attempts} attempts")
         return False
