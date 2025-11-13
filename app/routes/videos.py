@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
+from app.utils.security import validate_path_security, validate_file_type, ALLOWED_VIDEO_EXTENSIONS
 from app.utils.streamer_cache import get_valid_streamers
 from app.utils.token_store import store_share_token, validate_share_token, cleanup_expired_tokens
 from app.services.core.auth_service import AuthService
@@ -448,7 +449,9 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
         if not stream or not stream.recording_path:
             raise HTTPException(status_code=404, detail="Stream or recording not found")
         
-        recording_path = Path(stream.recording_path)
+        # SECURITY: Validate recording path first
+        validated_recording_path = validate_path_security(stream.recording_path, "read")
+        recording_path = Path(validated_recording_path)
         base_filename = recording_path.stem
         video_dir = recording_path.parent
         
@@ -461,8 +464,13 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
         thumbnail_path = None
         for candidate in thumbnail_candidates:
             if candidate.exists() and candidate.is_file():
-                thumbnail_path = candidate
-                break
+                # SECURITY: Validate thumbnail path
+                try:
+                    validated_thumbnail = validate_path_security(str(candidate), "read")
+                    thumbnail_path = Path(validated_thumbnail)
+                    break
+                except HTTPException:
+                    continue
         
         if not thumbnail_path:
             raise HTTPException(status_code=404, detail="Thumbnail not found")
@@ -500,7 +508,10 @@ async def stream_video_public(stream_id: int, token: str = Query(...), request: 
             logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
         
-        file_path = Path(stream.recording_path)
+        # SECURITY: Validate path and file type
+        validated_path = validate_path_security(stream.recording_path, "read")
+        validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        file_path = Path(validated_path)
         
         # Verify file exists
         if not file_path.exists() or not file_path.is_file():
@@ -628,7 +639,10 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         
         logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
         
-        file_path = Path(stream.recording_path)
+        # SECURITY: Validate path and file type
+        validated_path = validate_path_security(stream.recording_path, "read")
+        validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        file_path = Path(validated_path)
         
         # Verify file exists
         if not file_path.exists() or not file_path.is_file():
