@@ -387,9 +387,9 @@ import { ref, computed, watch } from 'vue'
 import { useProxySettings } from '@/composables/useProxySettings'
 import { useToast } from '@/composables/useToast'
 import type { ProxySettings, ProxyAddRequest } from '@/types/proxy'
-import GlassCard from '@/components/common/GlassCard.vue'
-import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 // Composables
 const {
