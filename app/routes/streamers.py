@@ -866,7 +866,8 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
         # Look for timestamp lines (format: 00:00:00.000 --> 00:00:00.000)
         timestamp_match = re.match(r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})', line)
         if timestamp_match:
-            if current_chapter:
+            # Add the previous chapter before starting a new one
+            if current_chapter and current_chapter.get("title"):
                 chapters.append(current_chapter)
             
             start_time = timestamp_match.group(1)
@@ -883,8 +884,8 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
                 # Multi-line title
                 current_chapter["title"] += " " + line
     
-    # Add the last chapter
-    if current_chapter:
+    # Add the last chapter (only if it has a title)
+    if current_chapter and current_chapter.get("title"):
         chapters.append(current_chapter)
     
     return chapters

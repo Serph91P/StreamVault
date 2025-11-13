@@ -265,10 +265,8 @@ const toggleFullscreen = () => {
   
   if (!document.fullscreenElement) {
     videoWrapper.value.requestFullscreen()
-    isFullscreen.value = true
   } else {
     document.exitFullscreen()
-    isFullscreen.value = false
   }
 }
 
@@ -309,12 +307,19 @@ const loadChapters = async () => {
       const response = await fetch(`/api/streams/${props.streamId}/chapters`)
       if (response.ok) {
         const chaptersData = await response.json()
-        chapters.value = chaptersData.map((ch: any) => ({
+        const converted = chaptersData.map((ch: any) => ({
           title: ch.category_name || ch.title || 'Stream Segment',
           startTime: ch.start_time || 0,
           duration: ch.duration || 60,
           gameIcon: getCategoryImage(ch.category_name)
         }))
+        
+        // Deduplicate by startTime and title
+        chapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
+          index === self.findIndex((c: any) => 
+            c.startTime === chapter.startTime && c.title === chapter.title
+          )
+        )
       }
     } catch (e) {
       console.warn('Failed to load auto-generated chapters:', e)
@@ -337,12 +342,22 @@ const loadChapters = async () => {
 
 // Convert API chapters to internal format
 const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, title: string, type: string}>) => {
-  return apiChapters.map((chapter, index) => ({
+  // Convert chapters first
+  const converted = apiChapters.map((chapter, index) => ({
     title: chapter.title || `Chapter ${index + 1}`,
     startTime: parseTimeStringToSeconds(chapter.start_time),
     duration: 60, // Default duration, can be calculated between chapters
     gameIcon: undefined
   }))
+  
+  // Deduplicate by startTime and title
+  const unique = converted.filter((chapter, index, self) => 
+    index === self.findIndex(c => 
+      c.startTime === chapter.startTime && c.title === chapter.title
+    )
+  )
+  
+  return unique
 }
 
 // Parse time string to seconds
@@ -508,16 +523,29 @@ watch(() => props.chapters, (newChapters) => {
 <style scoped lang="scss">
 @use '@/styles/mixins' as m;
 /* ============================================================================
-   VIDEO PLAYER - Modern Design
+   VIDEO PLAYER - Modern Glassmorphism Design (PWA Mobile-First)
+   Follows Complete Design Overhaul patterns
    ============================================================================ */
 
 .video-player-container {
   position: relative;
-  background: var(--background-darker);
-  border-radius: var(--radius-lg);  /* 12px */
+  /* Glassmorphism card effect */
+  background: rgba(var(--background-card-rgb), 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);  /* 16px */
   overflow: hidden;
   width: 100%;
   max-width: 100%;
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.1);
+  transition: var(--transition-all);
+}
+
+.video-player-container:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-xl), 0 0 60px rgba(var(--primary-color-rgb), 0.15);
+  border-color: rgba(var(--primary-color-rgb), 0.2);
 }
 
 .video-wrapper {
@@ -546,19 +574,27 @@ watch(() => props.chapters, (newChapters) => {
   height: 4px;
   display: flex;
   z-index: 5;
-  background: rgba(0, 0, 0, 0.3);
+  /* Subtle glass effect for progress bar background */
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .chapter-segment {
   height: 100%;
   cursor: pointer;
-  transition: height var(--duration-200) var(--ease-out);
+  transition: height var(--duration-200) var(--ease-out), opacity var(--duration-200);
   opacity: 0.8;
+  /* Glass effect for chapter segments */
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 .chapter-segment:hover {
   height: 8px;
   opacity: 1;
+  box-shadow: 0 0 8px currentColor;
 }
 
 /* Loading and Error States */
@@ -624,14 +660,16 @@ watch(() => props.chapters, (newChapters) => {
   box-shadow: var(--shadow-lg);
 }
 
-/* Video Controls Extension */
+/* Video Controls Extension - Glassmorphism Style */
 .video-controls-extension {
-  background: var(--background-card);
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: var(--spacing-4);  /* 16px */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   gap: var(--spacing-4);  /* 16px */
 }
 
@@ -643,11 +681,14 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .control-btn {
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
+  /* Glassmorphism button design */
+  background: rgba(var(--background-darker-rgb), 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
   padding: var(--spacing-2) var(--spacing-4);  /* 8px 16px */
-  border-radius: var(--radius-md);  /* 10px */
+  border-radius: var(--radius-lg);  /* 12px */
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -657,15 +698,16 @@ watch(() => props.chapters, (newChapters) => {
   font-weight: var(--font-medium);  /* 500 */
   white-space: nowrap;
   line-height: var(--leading-normal);
-  min-height: 44px;  /* Touch target */
+  min-height: 44px;  /* Touch target - PWA requirement */
+  box-shadow: var(--shadow-sm);
 }
 
 .control-btn:hover:not(:disabled) {
-  background: var(--background-dark);
-  border-color: var(--primary-color);
+  background: rgba(var(--background-darker-rgb), 0.9);
+  border-color: rgba(var(--primary-color-rgb), 0.5);
   color: var(--primary-color);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), 0 0 20px rgba(var(--primary-color-rgb), 0.2);
 }
 
 .control-btn:focus-visible {
@@ -675,10 +717,10 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .control-btn.active {
-  background: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
   border-color: var(--primary-color);
   color: white;
-  box-shadow: var(--shadow-primary);
+  box-shadow: var(--shadow-primary), 0 0 20px rgba(var(--primary-color-rgb), 0.4);
 }
 
 .control-btn:disabled {
@@ -711,28 +753,34 @@ watch(() => props.chapters, (newChapters) => {
 
 /* Chapter List Panel */
 .chapter-list-panel {
-  background: var(--background-card);
-  border-top: 1px solid var(--border-color);
+  /* Glassmorphism panel design */
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
   max-height: 400px;
   overflow-y: auto;
 }
 
-/* Custom scrollbar for chapter list */
+/* Custom scrollbar for chapter list with glass effect */
 .chapter-list-panel::-webkit-scrollbar {
   width: 8px;
 }
 
 .chapter-list-panel::-webkit-scrollbar-track {
-  background: var(--background-darker);
-}
-
-.chapter-list-panel::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: rgba(var(--background-darker-rgb), 0.3);
   border-radius: var(--radius-full);
 }
 
+.chapter-list-panel::-webkit-scrollbar-thumb {
+  background: rgba(var(--primary-color-rgb), 0.5);
+  border-radius: var(--radius-full);
+  transition: var(--transition-all);
+}
+
 .chapter-list-panel::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: rgba(var(--primary-color-rgb), 0.7);
 }
 
 .chapter-list-header {
@@ -740,11 +788,15 @@ watch(() => props.chapters, (newChapters) => {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-4);  /* 16px */
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: sticky;
   top: 0;
-  background: var(--background-card);
+  /* Glassmorphism sticky header */
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .chapter-list-header h3 {
@@ -795,25 +847,32 @@ watch(() => props.chapters, (newChapters) => {
   transition: var(--transition-all);
   border-radius: var(--radius-md);  /* 10px */
   border: 1px solid transparent;
-  min-height: 44px;  /* Touch target */
+  min-height: 44px;  /* Touch target - PWA requirement */
+  /* Glassmorphism item design */
+  background: rgba(var(--background-darker-rgb), 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .chapter-item:hover {
-  background: var(--background-hover);
-  border-color: var(--border-color);
+  background: rgba(var(--background-darker-rgb), 0.6);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
 }
 
 .chapter-item.active {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
+  background: linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.9), rgba(var(--primary-color-rgb), 0.7));
+  border-color: rgba(var(--primary-color-rgb), 0.8);
   color: white;
-  box-shadow: var(--shadow-primary);
+  box-shadow: var(--shadow-primary), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .chapter-item.active .chapter-time,
 .chapter-item.active .chapter-duration {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .chapter-thumbnail,
