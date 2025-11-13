@@ -671,6 +671,68 @@ const testWebSocketNotification = async () => {
 }
 
 @include m.respond-below('md') {  // < 768px
+  /* Settings Form - Mobile Layout */
+  .settings-form {
+    padding: 12px;
+  }
+  
+  /* Form Controls - iOS Zoom Prevention & Touch Targets */
+  .form-control {
+    padding: 12px;
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 48px;
+    border-radius: var(--border-radius, 8px);
+  }
+  
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  textarea {
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 48px;
+  }
+  
+  /* Form Actions - Stack Vertically on Mobile */
+  .form-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .form-actions .btn {
+    width: 100%;
+    min-height: 48px; /* Touch-friendly */
+    font-size: 16px;
+    padding: 12px 16px;
+  }
+  
+  /* Checkbox groups - Better touch targets */
+  .checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+  }
+  
+  .checkbox-group label {
+    padding: 8px 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Table Controls - Stack Vertically */
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .table-controls button {
+    margin-right: 0;
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+  
   .streamer-table {
     border-radius: 0;
   }
@@ -683,15 +745,6 @@ const testWebSocketNotification = async () => {
   .btn-sm {
     padding: var(--spacing-1) var(--spacing-2);
     font-size: 0.8rem;
-  }
-  
-  .table-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .table-controls button {
-    margin-right: 0;
   }
   
   /* Fix alignment in table cells */

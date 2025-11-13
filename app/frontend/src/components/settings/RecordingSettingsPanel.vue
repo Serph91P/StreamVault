@@ -1642,6 +1642,19 @@ select.form-control-sm option {
     margin-right: 12px;
   }
   
+  /* Table Controls - Stack Vertically */
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .table-controls button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+  
   /* Modal adjustments for mobile */
   .modal-content {
     width: 95vw;
