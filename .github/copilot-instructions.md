@@ -230,15 +230,49 @@ refactor: extract configuration constants
 chore: update Docker base image
 ```
 
-## Path-Specific Instructions
+## Custom Agents & Specialized Instructions
 
-This repository uses path-specific instructions for detailed guidelines:
+### Custom Agents
 
-- **Frontend**: See `.github/instructions/frontend.instructions.md` for Vue/TypeScript/SCSS guidelines
-- **Backend**: See `.github/instructions/backend.instructions.md` for Python/FastAPI patterns
-- **API**: See `.github/instructions/api.instructions.md` for endpoint design
-- **Migrations**: See `.github/instructions/migrations.instructions.md` for database changes
-- **Docker**: See `.github/instructions/docker.instructions.md` for containerization
+This repository uses **custom agents** for specialized task handling. See `AGENTS.md` for complete list.
+
+**Available Agents:**
+- 🐛 `bug-fixer` - Production crashes, import errors, runtime failures
+- 🗄️ `database-expert` - Migrations, schema changes, query optimization
+- 📝 `docs-writer` - API docs, README files, architecture documentation
+- ✨ `feature-builder` - New features, full-stack implementation
+- 📱 `mobile-specialist` - Responsive UI, PWA, touch optimization
+- ♻️ `refactor-specialist` - Code quality, performance, tech debt
+- 🔒 `security-auditor` - Security vulnerabilities, input validation
+- 🧪 `test-specialist` - Test coverage, unit tests, integration tests
+
+**How to Use:**
+```bash
+# Assign issue to specific agent
+gh issue create --label "agent:bug-fixer" ...
+
+# Or mention in comments
+@copilot with agent bug-fixer: Fix import error in models.py
+```
+
+### Path-Specific Instructions
+
+Detailed guidelines for specific file types:
+
+- **Frontend**: `.github/instructions/frontend.instructions.md` - Vue/TypeScript/SCSS
+- **Backend**: `.github/instructions/backend.instructions.md` - Python/FastAPI patterns
+- **API**: `.github/instructions/api.instructions.md` - Endpoint design
+- **Migrations**: `.github/instructions/migrations.instructions.md` - Database changes
+- **Docker**: `.github/instructions/docker.instructions.md` - Containerization
+
+### Development Environment Setup
+
+Pre-installed dependencies for Copilot's ephemeral environment:
+
+- **Setup File**: `.github/copilot-setup-steps.yml`
+- **Pre-installed**: Python 3.11, Node.js 20, PostgreSQL, FFmpeg, Streamlink
+- **Auto-runs**: Before Copilot starts working on tasks
+- **Benefits**: Faster builds, reliable tests, automatic validation
 
 ## Documentation Language Policy
 
