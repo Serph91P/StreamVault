@@ -295,3 +295,116 @@
     }
   }
 }
+
+// ============================================================================
+// LIST ITEM SYSTEM - Interactive Lists (Chapter Lists, Settings, etc.)
+// ============================================================================
+
+// Base interactive list item with touch-friendly sizing
+@mixin list-item-base($min-height-desktop: 60px, $min-height-mobile: 72px) {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-3;  // 12px
+  padding: v.$spacing-3;  // 12px
+  cursor: pointer;
+  transition: v.$transition-all;
+  border-radius: v.$border-radius-md;  // 10px
+  border: 1px solid transparent;
+  min-height: $min-height-desktop;
+  
+  // Glassmorphism item design
+  background: rgba(var(--background-darker-rgb), 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  position: relative;
+  
+  // Mobile: Larger touch targets (Apple HIG compliant)
+  @include respond-below('md') {  // < 768px
+    min-height: $min-height-mobile;
+    padding: v.$spacing-4;  // 16px
+    gap: v.$spacing-4;  // 16px
+  }
+}
+
+// Interactive list item with hover/active states
+@mixin list-item-interactive {
+  @include list-item-base;
+  
+  // Desktop hover
+  &:hover {
+    background: rgba(var(--background-darker-rgb), 0.6);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateX(4px);
+    box-shadow: v.$shadow-sm;
+  }
+  
+  // Mobile: Active state for touch feedback
+  &:active {
+    @include respond-below('md') {
+      background: rgba(var(--background-darker-rgb), 0.8);
+      transform: scale(0.98);  // Subtle press effect
+      transition: transform 0ms;  // Instant feedback
+    }
+  }
+}
+
+// Active/selected list item state with accent border
+@mixin list-item-active($border-width-desktop: 3px, $border-width-mobile: 4px) {
+  background: linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.15), rgba(var(--primary-color-rgb), 0.1));
+  border-left: $border-width-desktop solid var(--primary-color);
+  border-color: rgba(var(--primary-color-rgb), 0.3);
+  box-shadow: v.$shadow-md, 0 0 12px rgba(var(--primary-color-rgb), 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  
+  @include respond-below('md') {
+    border-left-width: $border-width-mobile;
+  }
+}
+
+// List item with thumbnail (16:9 ratio)
+@mixin list-item-thumbnail($width-desktop: 80px, $width-mobile: 96px) {
+  $height-desktop: calc($width-desktop * 9 / 16);  // 16:9 ratio
+  $height-mobile: calc($width-mobile * 9 / 16);
+  
+  width: $width-desktop;
+  height: $height-desktop;
+  border-radius: v.$border-radius-md;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-darker);
+  box-shadow: v.$shadow-sm;
+  
+  @include respond-below('md') {
+    width: $width-mobile;
+    height: $height-mobile;
+  }
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+// Active indicator icon (play icon, check mark, etc.)
+@mixin list-item-active-indicator($icon: '▶', $size-desktop: 20px, $size-mobile: 25px) {
+  &::after {
+    content: $icon;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: $size-desktop;
+    color: var(--primary-color);
+    opacity: 0.9;
+    
+    @include respond-below('md') {
+      font-size: $size-mobile;
+      right: 20px;
+    }
+  }
+}

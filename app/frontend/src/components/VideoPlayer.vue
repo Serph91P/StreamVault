@@ -174,17 +174,23 @@
     </div>
 
     <!-- Chapter List (Mobile-friendly) -->
-    <div v-if="showChapterUI && chapters.length > 0" class="chapter-list-panel">
+    <div 
+      v-if="showChapterUI && chapters.length > 0" 
+      class="chapter-list-panel"
+      ref="chapterListPanel"
+      @scroll="handleChapterListScroll"
+    >
       <div class="chapter-list-header">
         <h3>📋 Chapters</h3>
         <button @click="toggleChapterUI" class="close-btn">×</button>
       </div>
-      <div class="chapter-list">
+      <div class="chapter-list" ref="chapterList">
         <div 
           v-for="(chapter, index) in chapters" 
           :key="index"
           class="chapter-item"
           :class="{ 'active': currentChapterIndex === index }"
+          :ref="el => { if (el) chapterItemRefs[index] = el }"
           @click="seekToChapter(chapter.startTime)"
         >
           <div class="chapter-thumbnail" v-if="chapter.thumbnail">
@@ -256,6 +262,9 @@ const emit = defineEmits<{
 
 const videoElement = ref<HTMLVideoElement>()
 const videoWrapper = ref<HTMLDivElement>()
+const chapterListPanel = ref<HTMLDivElement>()
+const chapterList = ref<HTMLDivElement>()
+const chapterItemRefs = ref<Record<number, HTMLElement>>({})
 const isLoading = ref(true)
 const error = ref<string>('')
 const currentTime = ref(0)
@@ -618,10 +627,60 @@ const getChapterColor = (title: string): string => {
   return `hsl(${hue}, 70%, 60%)`
 }
 
-// Watch for chapter changes and emit events
+// Scroll indicator management for chapter list
+const handleChapterListScroll = (event: Event) => {
+  const element = event.target as HTMLElement
+  if (!element) return
+  
+  const scrollTop = element.scrollTop
+  const scrollHeight = element.scrollHeight
+  const clientHeight = element.clientHeight
+  
+  // Add/remove classes for scroll indicators
+  if (scrollTop > 10) {
+    element.classList.add('scrolled-top')
+  } else {
+    element.classList.remove('scrolled-top')
+  }
+  
+  if (scrollTop < scrollHeight - clientHeight - 10) {
+    element.classList.add('scrolled-bottom')
+  } else {
+    element.classList.remove('scrolled-bottom')
+  }
+}
+
+// Auto-scroll to keep active chapter centered
+const scrollToActiveChapter = (index: number) => {
+  if (!chapterListPanel.value || !chapterItemRefs.value[index]) return
+  
+  const panel = chapterListPanel.value
+  const item = chapterItemRefs.value[index] as HTMLElement
+  
+  // Calculate position to center the active item
+  const itemTop = item.offsetTop
+  const itemHeight = item.offsetHeight
+  const panelHeight = panel.clientHeight
+  const scrollPosition = itemTop - (panelHeight / 2) + (itemHeight / 2)
+  
+  // Smooth scroll to position
+  panel.scrollTo({
+    top: scrollPosition,
+    behavior: 'smooth'
+  })
+}
+
+// Watch for chapter changes and emit events + auto-scroll
 watch(currentChapterIndex, (newIndex, oldIndex) => {
   if (newIndex !== oldIndex && chapters.value[newIndex]) {
     emit('chapter-change', chapters.value[newIndex], newIndex)
+    
+    // Auto-scroll to active chapter if chapter UI is visible
+    if (showChapterUI.value) {
+      setTimeout(() => {
+        scrollToActiveChapter(newIndex)
+      }, 100)
+    }
   }
 })
 
@@ -980,6 +1039,7 @@ watch(() => props.chapters, (newChapters) => {
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
   max-height: 400px;
   overflow-y: auto;
+  position: relative;  /* For scroll indicators */
 }
 
 /* Custom scrollbar for chapter list with glass effect */
@@ -1058,35 +1118,17 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .chapter-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);  /* 12px */
-  padding: var(--spacing-3);  /* 12px */
-  cursor: pointer;
-  transition: var(--transition-all);
-  border-radius: var(--radius-md);  /* 10px */
-  border: 1px solid transparent;
-  min-height: 44px;  /* Touch target - PWA requirement */
-  /* Glassmorphism item design */
-  background: rgba(var(--background-darker-rgb), 0.3);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-.chapter-item:hover {
-  background: rgba(var(--background-darker-rgb), 0.6);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateX(4px);
-  box-shadow: var(--shadow-sm);
+  // Use reusable list-item-interactive mixin from design system
+  @include m.list-item-interactive;
+  border-left: 3px solid transparent;  /* Default border for active state */
 }
 
 .chapter-item.active {
-  background: linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.9), rgba(var(--primary-color-rgb), 0.7));
-  border-color: rgba(var(--primary-color-rgb), 0.8);
+  // Use reusable list-item-active mixin with play icon indicator
+  @include m.list-item-active(3px, 4px);
+  @include m.list-item-active-indicator('▶', 20px, 25px);
+  
   color: white;
-  box-shadow: var(--shadow-primary), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .chapter-item.active .chapter-time,
@@ -1097,23 +1139,8 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-thumbnail,
 .chapter-icon,
 .chapter-placeholder {
-  width: 60px;
-  height: 60px;
-  border-radius: var(--radius-md);  /* 10px */
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--background-darker);
-  box-shadow: var(--shadow-sm);
-}
-
-.chapter-thumbnail img,
-.chapter-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  // Use reusable list-item-thumbnail mixin from design system
+  @include m.list-item-thumbnail(80px, 96px);
 }
 
 .chapter-placeholder {
@@ -1124,12 +1151,13 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-info {
   flex: 1;
   min-width: 0;
+  padding-right: 40px;  /* Space for play icon on active items */
 }
 
 .chapter-title {
   font-weight: var(--font-semibold);  /* 600 */
   color: var(--text-primary);
-  font-size: var(--text-base);  /* 16px */
+  font-size: 15px;  /* Desktop: 15px */
   margin-bottom: var(--spacing-1);  /* 4px */
   line-height: var(--leading-snug);
   display: -webkit-box;
@@ -1137,19 +1165,67 @@ watch(() => props.chapters, (newChapters) => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  
+  @include m.respond-below('md') {  // < 768px
+    font-size: 16px;  /* Mobile: Larger, more readable */
+    font-weight: var(--font-bold);  /* Bolder on mobile */
+    -webkit-line-clamp: 2;  /* Allow 2 lines on mobile */
+  }
 }
 
 .chapter-time {
-  font-size: var(--text-sm);  /* 14px */
+  font-size: 14px;  /* Desktop: 14px */
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-weight: var(--font-medium);  /* 500 */
   margin-bottom: var(--spacing-0-5);  /* 2px */
+  
+  @include m.respond-below('md') {  // < 768px
+    font-size: 16px;  /* Mobile: Larger timestamps */
+    font-weight: var(--font-semibold);  /* Bolder for contrast */
+  }
 }
 
 .chapter-duration {
   font-size: var(--text-xs);  /* 12px */
   color: var(--text-secondary);
+  
+  @include m.respond-below('md') {  // < 768px
+    font-size: 14px;  /* Mobile: Larger subtitle text */
+  }
+}
+
+/* Scroll Indicators - Top and Bottom Fade Gradients */
+.chapter-list-panel::before,
+.chapter-list-panel::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.chapter-list-panel::before {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(var(--background-card-rgb), 0.95), transparent);
+}
+
+.chapter-list-panel::after {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(var(--background-card-rgb), 0.95), transparent);
+}
+
+/* Show scroll indicators when scrolled */
+.chapter-list-panel.scrolled-top::before {
+  opacity: 1;
+}
+
+.chapter-list-panel.scrolled-bottom::after {
+  opacity: 1;
 }
 
 /* ============================================================================
@@ -1426,25 +1502,22 @@ watch(() => props.chapters, (newChapters) => {
     text-overflow: unset;
   }
 
+  /* Chapter item mobile layout - keep horizontal layout */
   .chapter-item {
-    flex-direction: column;
-    text-align: center;
-    padding: var(--spacing-4);  /* 16px */
+    /* Don't override flex-direction, keep horizontal */
+    text-align: left;
+    /* Padding and gap already set in base styles */
   }
 
-  .chapter-thumbnail,
-  .chapter-icon,
-  .chapter-placeholder {
-    width: 80px;
-    height: 80px;
-  }
+  /* Thumbnails already sized in base styles */
 
   .chapter-info {
-    width: 100%;
+    width: auto;
+    flex: 1;
   }
 
   .chapter-title {
-    text-align: center;
+    text-align: left;
   }
 
   .chapter-list-panel {

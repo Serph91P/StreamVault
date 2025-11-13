@@ -689,6 +689,149 @@ var(--leading-relaxed)  // 1.625
    <button class="btn btn-primary">  // ✅
    ```
 
+---
+
+## 📋 List Item System (Interaktive Listen)
+
+### Verwendung in Vue-Komponenten
+
+Für **Chapter-Listen, Settings-Items, Menüpunkte** und andere interaktive Listen:
+
+```scss
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+
+// Standard interaktives List-Item (60px desktop, 72px mobile)
+.my-list-item {
+  @include m.list-item-interactive;
+}
+
+// Aktives/Ausgewähltes Item mit linkem Border-Akzent
+.my-list-item.active {
+  @include m.list-item-active(3px, 4px);  // 3px desktop, 4px mobile
+  @include m.list-item-active-indicator('▶', 20px, 25px);  // Play-Icon
+}
+
+// Thumbnail (16:9 ratio, responsive)
+.item-thumbnail {
+  @include m.list-item-thumbnail(80px, 96px);  // 80px desktop, 96px mobile
+}
+</style>
+```
+
+### Utility-Klassen (HTML)
+
+```html
+<!-- Standard List Item -->
+<div class="list-item">
+  <img class="list-item-thumbnail" src="thumb.jpg" />
+  <div class="flex-1">
+    <h3>Item Title</h3>
+    <p class="text-secondary">Description</p>
+  </div>
+</div>
+
+<!-- Aktives List Item -->
+<div class="list-item list-item-active">
+  <img class="list-item-thumbnail" src="thumb.jpg" />
+  <div class="flex-1">
+    <h3>Active Item</h3>
+  </div>
+  <!-- Play-Icon wird automatisch per ::after hinzugefügt -->
+</div>
+
+<!-- Kleine Thumbnails -->
+<div class="list-item">
+  <img class="list-item-thumbnail-sm" src="icon.jpg" />
+  <span>Small thumbnail item</span>
+</div>
+```
+
+### Features
+
+**Touch-Friendly Sizing:**
+- Desktop: 60px min-height (Maus-optimiert)
+- Mobile (<768px): 72px min-height (Apple HIG compliant)
+- Auto-responsives Padding (12px → 16px mobile)
+- Auto-responsive Gaps (12px → 16px mobile)
+
+**Visual Feedback:**
+- Desktop: Hover mit Slide-Right-Effekt
+- Mobile: `:active` state mit Scale-Down (0.98)
+- Instant Feedback (0ms transition auf mobile)
+- Glassmorphism-Background (Backdrop-Blur)
+
+**Active State:**
+- Gradient-Background (10-15% primary color)
+- Left Border-Akzent (3px desktop, 4px mobile)
+- Optional: Active-Indicator-Icon (▶, ✓, etc.)
+- Enhanced Shadow & Backdrop-Blur
+
+**Thumbnail-Varianten:**
+- Standard: 80x45px desktop → 96x54px mobile (16:9)
+- Small: 60x33px desktop → 72x40px mobile
+- Large: 120x67px desktop → 144x81px mobile
+
+### Beispiele
+
+#### Chapter List (wie in VideoPlayer)
+
+```vue
+<template>
+  <div class="chapter-list">
+    <div 
+      v-for="(chapter, index) in chapters"
+      :key="index"
+      class="list-item"
+      :class="{ 'list-item-active': index === currentChapterIndex }"
+      @click="seekToChapter(chapter)"
+    >
+      <img class="list-item-thumbnail" :src="chapter.thumbnail" />
+      <div class="chapter-info">
+        <p class="text-sm text-secondary">{{ chapter.timestamp }}</p>
+        <h3 class="text-base font-semibold">{{ chapter.title }}</h3>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+
+// Nutzt globale Mixins - keine Duplikation!
+.chapter-list .list-item.list-item-active {
+  @include m.list-item-active-indicator('▶', 20px, 25px);
+}
+</style>
+```
+
+#### Settings Menu Items
+
+```vue
+<template>
+  <div class="settings-list">
+    <div 
+      v-for="item in settingsItems"
+      class="list-item"
+      :class="{ 'list-item-active': item.id === activeItemId }"
+      @click="selectItem(item)"
+    >
+      <div class="list-item-thumbnail-sm">
+        <i :class="item.icon"></i>
+      </div>
+      <div class="flex-1">
+        <h3>{{ item.title }}</h3>
+        <p class="text-sm text-secondary">{{ item.description }}</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* Keine Custom-Styles nötig - alles global! */
+</style>
+```
+
 ### ❌ DON'Ts
 
 1. **NIEMALS hard-coded colors:**
