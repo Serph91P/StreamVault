@@ -249,6 +249,13 @@ class RecordingSettings(Base):
     use_category_as_chapter_title = Column(Boolean, default=False)
     max_streams_per_streamer = Column(Integer, default=0)  # 0 = unlimited
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
+    
+    # Multi-Proxy System Configuration (Migration 025)
+    enable_proxy = Column(Boolean, default=True)  # Master switch for proxy system
+    proxy_health_check_enabled = Column(Boolean, default=True)  # Enable automatic health checks
+    proxy_health_check_interval_seconds = Column(Integer, default=300)  # Check interval (5 minutes)
+    proxy_max_consecutive_failures = Column(Integer, default=3)  # Auto-disable threshold
+    fallback_to_direct_connection = Column(Boolean, default=True)  # Use direct connection when all proxies fail
       
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
@@ -417,3 +424,133 @@ class RecordingProcessingState(Base):
             return json.loads(self.task_ids_json) if self.task_ids_json else {}
         except Exception:
             return {}
+
+
+class ProxySettings(Base):
+    """
+    Multi-Proxy Configuration System
+    
+    Stores multiple proxy configurations with health monitoring and automatic failover.
+    Prevents recording failures when a single proxy goes down.
+    
+    SECURITY: Proxy credentials are encrypted in database using Fernet symmetric encryption.
+    The proxy_url column stores encrypted credentials, which are automatically decrypted
+    when accessed via the decrypted_proxy_url property.
+    
+    Selection Algorithm:
+    1. Filter: Only enabled=TRUE proxies
+    2. Prioritize: healthy > degraded > failed (by health_status)
+    3. Sort: By priority field (ascending, 0 = highest)
+    4. Sort: By average_response_time_ms (ascending, faster = better)
+    5. Return: First match or None
+    """
+    __tablename__ = "proxy_settings"
+    __table_args__ = (
+        Index('ix_proxy_enabled', 'enabled'),
+        Index('ix_proxy_health_status', 'health_status'),
+        Index('ix_proxy_priority', 'priority'),
+        Index('ix_proxy_enabled_health_priority', 'enabled', 'health_status', 'priority'),
+        {'extend_existing': True}
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    _proxy_url_encrypted = Column('proxy_url', String(1000), nullable=False)  # ENCRYPTED: Full proxy URL with credentials
+    priority = Column(Integer, nullable=False, default=0)  # 0 = highest priority, lower number = higher priority
+    enabled = Column(Boolean, nullable=False, default=True)  # Active status - disabled proxies not used
+    
+    # Health monitoring fields
+    last_health_check = Column(DateTime(timezone=True), nullable=True)  # Timestamp of last health test
+    health_status = Column(String(20), nullable=False, default='unknown')  # healthy/degraded/failed/unknown
+    consecutive_failures = Column(Integer, nullable=False, default=0)  # Failure counter for auto-disable
+    average_response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
+    
+    # Statistics tracking
+    total_recordings = Column(Integer, nullable=False, default=0)  # How many times used
+    failed_recordings = Column(Integer, nullable=False, default=0)  # How many times failed
+    success_rate = Column(Float, nullable=True)  # Calculated: (total - failed) / total
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    @property
+    def proxy_url(self) -> str:
+        """
+        Get decrypted proxy URL.
+        
+        SECURITY: Automatically decrypts the stored encrypted URL when accessed.
+        Use this property when passing proxy URL to Streamlink or other services.
+        """
+        from app.utils.proxy_encryption import get_proxy_encryption
+        
+        try:
+            return get_proxy_encryption().decrypt(self._proxy_url_encrypted)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger('streamvault')
+            logger.error(f"Failed to decrypt proxy URL for ID {self.id}: {e}")
+            return ""  # Return empty string on decryption failure
+    
+    @proxy_url.setter
+    def proxy_url(self, plaintext_url: str):
+        """
+        Set proxy URL (automatically encrypts before storing).
+        
+        SECURITY: Automatically encrypts the URL before storing in database.
+        """
+        from app.utils.proxy_encryption import get_proxy_encryption
+        
+        if plaintext_url:
+            self._proxy_url_encrypted = get_proxy_encryption().encrypt(plaintext_url)
+        else:
+            self._proxy_url_encrypted = ""
+    
+    @property
+    def masked_url(self) -> str:
+        """
+        Return proxy URL with password masked for security.
+        Example: http://username:***@proxy-host:9999
+        
+        SECURITY: Safe to display in UI and logs.
+        """
+        decrypted_url = self.proxy_url
+        
+        if '@' in decrypted_url:
+            parts = decrypted_url.split('@')
+            if ':' in parts[0]:
+                # Split protocol://username:password
+                user_part = parts[0].rsplit(':', 1)[0]
+                return f"{user_part}:***@{parts[1]}"
+        return decrypted_url
+    
+    def calculate_success_rate(self) -> Optional[float]:
+        """Calculate success rate as percentage"""
+        if self.total_recordings == 0:
+            return None
+        return ((self.total_recordings - self.failed_recordings) / self.total_recordings) * 100.0
+    
+    def update_success_rate(self):
+        """Update the success_rate column based on current statistics"""
+        self.success_rate = self.calculate_success_rate()
+    
+    def to_dict(self, mask_password: bool = True) -> dict:
+        """
+        Serialize proxy settings to dictionary.
+        
+        Args:
+            mask_password: If True, replace password with *** in URL
+        """
+        return {
+            'id': self.id,
+            'proxy_url': self.masked_url if mask_password else self.proxy_url,
+            'priority': self.priority,
+            'enabled': self.enabled,
+            'last_health_check': self.last_health_check.isoformat() if self.last_health_check else None,
+            'health_status': self.health_status,
+            'consecutive_failures': self.consecutive_failures,
+            'average_response_time_ms': self.average_response_time_ms,
+            'total_recordings': self.total_recordings,
+            'failed_recordings': self.failed_recordings,
+            'success_rate': self.success_rate,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }

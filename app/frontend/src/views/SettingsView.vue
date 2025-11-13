@@ -111,6 +111,23 @@
           />
         </div>
 
+        <!-- Proxy Management -->
+        <div v-if="activeSection === 'proxy'" class="settings-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg class="section-icon">
+                <use href="#icon-server" />
+              </svg>
+              Proxy Management
+            </h2>
+            <p class="section-description">
+              Configure multiple proxy servers with automatic health monitoring and failover
+            </p>
+          </div>
+
+          <ProxySettingsPanel />
+        </div>
+
         <!-- Favorites Settings -->
         <div v-if="activeSection === 'favorites'" class="settings-section">
           <div class="section-header">
@@ -308,6 +325,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
+import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import PWAPanel from '@/components/settings/PWAPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
@@ -326,6 +344,12 @@ const sections = [
     label: 'Recording',
     description: 'Quality & storage',
     icon: 'video'
+  },
+  {
+    id: 'proxy',
+    label: 'Proxy Management',
+    description: 'Multi-proxy system',
+    icon: 'server'
   },
   {
     id: 'favorites',

@@ -219,6 +219,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error starting WebSocket broadcast task: {e}", exc_info=True)
         
+        # Start Proxy Health Check Service
+        try:
+            from app.services.proxy.proxy_health_service import proxy_health_service
+            await proxy_health_service.start()
+            logger.info("✅ Proxy health check service started")
+        except Exception as e:
+            logger.error(f"❌ Error starting proxy health check service: {e}", exc_info=True)
+        
         # Run development tests if in debug mode
         try:
             test_success = await run_development_tests()
@@ -263,6 +271,15 @@ async def lifespan(app: FastAPI):
         logger.info("✅ WebSocket broadcast task stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error stopping WebSocket broadcast task: {e}")
+    
+    # Stop Proxy Health Check Service
+    try:
+        logger.info("🔄 Stopping proxy health check service...")
+        from app.services.proxy.proxy_health_service import proxy_health_service
+        await proxy_health_service.stop()
+        logger.info("✅ Proxy health check service stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error stopping proxy health check service: {e}")
     
     # Ensure background services initialization finished
     if background_services_task:
@@ -807,6 +824,10 @@ app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
 app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
+
+# Proxy management routes (Multi-Proxy System)
+from app.routes import proxy as proxy_router
+app.include_router(proxy_router.router)
 
 # Unified recovery routes (replaces old orphaned + failed recovery)
 from app.api import unified_recovery_endpoints
