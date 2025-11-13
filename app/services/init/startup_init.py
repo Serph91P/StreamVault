@@ -55,7 +55,7 @@ async def start_session_cleanup_service():
         async def periodic_session_cleanup():
             while True:
                 try:
-                    await asyncio.sleep(6 * 3600)  # 6 hours
+                    await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_INTERVAL)
                     
                     db = SessionLocal()
                     try:

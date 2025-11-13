@@ -60,6 +60,9 @@ class AsyncDelays:
     # Task processing delays
     TASK_QUEUE_POLL_REDUCED: float = 0.1         # Reduced queue polling for better concurrency
     POST_PROCESSING_DELAY: float = 0.15          # Delay in post-processing operations
+    
+    # Periodic cleanup intervals
+    SESSION_CLEANUP_INTERVAL: float = 6 * 3600   # Periodic session cleanup (6 hours)
 
 
 # ============================================================================
