@@ -510,7 +510,11 @@ async def stream_video_public(stream_id: int, token: str = Query(...), request: 
         
         # SECURITY: Validate path and file type
         validated_path = validate_path_security(stream.recording_path, "read")
-        validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        try:
+            validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        except ValueError as e:
+            logger.error(f"Invalid file type: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
         file_path = Path(validated_path)
         
         # Verify file exists
@@ -641,7 +645,11 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         
         # SECURITY: Validate path and file type
         validated_path = validate_path_security(stream.recording_path, "read")
-        validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        try:
+            validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        except ValueError as e:
+            logger.error(f"Invalid file type: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
         file_path = Path(validated_path)
         
         # Verify file exists
