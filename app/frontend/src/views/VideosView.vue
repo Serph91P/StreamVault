@@ -357,10 +357,24 @@ const filteredAndSortedVideos = computed(() => {
 async function fetchVideos() {
   isLoading.value = true
   try {
+    console.log('[VideosView] Fetching all videos...')
     const response = await videoApi.getAll()
+    console.log('[VideosView] API response:', response)
+    
+    // Backend returns array directly (not wrapped in { data: [] })
     videos.value = Array.isArray(response) ? response : (response.data || [])
-  } catch (error) {
-    console.error('Failed to fetch videos:', error)
+    console.log('[VideosView] Loaded videos count:', videos.value.length)
+    
+    if (videos.value.length > 0) {
+      console.log('[VideosView] Sample video:', videos.value[0])
+    }
+  } catch (error: any) {
+    console.error('[VideosView] Failed to fetch videos:', error)
+    console.error('[VideosView] Error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
     videos.value = []
   } finally {
     isLoading.value = false
@@ -837,19 +851,40 @@ onMounted(() => {
   top: var(--spacing-3);
   left: var(--spacing-3);
   z-index: 10;
-  width: 24px;
-  height: 24px;
+  min-width: 32px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-md);
   cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: var(--primary-color);
+    transform: scale(1.05);
+  }
 
   input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     cursor: pointer;
+    accent-color: var(--primary-color);
+  }
+
+  // Mobile: Larger touch target
+  @include m.respond-below('md') {  // < 768px
+    min-width: 44px;
+    min-height: 44px;
+    
+    input[type="checkbox"] {
+      width: 24px;
+      height: 24px;
+    }
   }
 }
 
