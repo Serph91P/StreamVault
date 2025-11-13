@@ -506,25 +506,84 @@ watch(() => props.chapters, (newChapters) => {
   max-width: 100%;
   box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.1);
   transition: var(--transition-all);
+  
+  // Mobile: Remove glassmorphism effects for full-width video
+  @include m.respond-below('md') {  // < 768px
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 .video-player-container:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-xl), 0 0 60px rgba(var(--primary-color-rgb), 0.15);
   border-color: rgba(var(--primary-color-rgb), 0.2);
+  
+  // Mobile: No hover effects
+  @include m.respond-below('md') {  // < 768px
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+  }
 }
 
 .video-wrapper {
   position: relative;
   width: 100%;
   background: var(--background-darker);
+  
+  // Desktop: Constrained width with 16:9 aspect ratio
+  @include m.respond-to('md') {  // >= 768px
+    max-width: 1280px;
+    margin: 0 auto;
+    aspect-ratio: 16/9;
+  }
+  
+  // Mobile Portrait: Full viewport width, no constraints
+  @include m.respond-below('md') {  // < 768px
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    aspect-ratio: 16/9;
+  }
 }
 
 .video-element {
   width: 100%;
   height: auto;
-  max-height: 70vh;
   display: block;
+  background: #000;
+  object-fit: contain;
+  
+  // Desktop: Limit height
+  @include m.respond-to('md') {  // >= 768px
+    max-height: 70vh;
+  }
+  
+  // Mobile Portrait: Full width with 16:9 ratio
+  @include m.respond-below('md') {  // < 768px
+    max-height: none;
+  }
+}
+
+// Mobile Landscape: Immersive fullscreen mode
+@media (max-width: 767px) and (orientation: landscape) {
+  .video-wrapper {
+    height: 100vh;
+    width: auto;
+    aspect-ratio: auto;
+    margin: 0;
+  }
+  
+  .video-element {
+    height: 100%;
+    width: 100%;
+    max-height: 100vh;
+  }
 }
 
 /* Chapter Progress Bar */
