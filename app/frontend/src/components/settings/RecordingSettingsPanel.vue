@@ -121,8 +121,7 @@
                 <option value="h264,h265,av1">🔮 All Codecs (Future-proof) - Maximum quality</option>
               </select>
               <div class="help-text">
-                Configure video codec support for higher quality recordings (up to 1440p60). 
-                <strong>Requires Streamlink 8.0.0+</strong>
+                Configure video codec support for higher quality recordings (up to 1440p60).
                 <br><br><strong>ℹ️ Important Notes:</strong>
                 <ul style="margin-top: 0.5rem; margin-bottom: 0;">
                   <li>Higher quality streams depend on <strong>broadcaster settings</strong> (not all streamers support H.265/AV1)</li>
