@@ -637,35 +637,58 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream or not stream.recording_path:
-            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
+        if not stream:
+            logger.error(f"Stream not found: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
+        
+        if not stream.recording_path:
+            logger.error(f"Stream {stream_id} has no recording_path set (title: {stream.title})")
+            raise HTTPException(status_code=404, detail="Video file path not configured")
         
         logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
         
         # SECURITY: Validate path and file type
-        validated_path = validate_path_security(stream.recording_path, "read")
+        try:
+            validated_path = validate_path_security(stream.recording_path, "read")
+        except HTTPException as e:
+            logger.error(f"Path validation failed for stream {stream_id}: {e.detail}")
+            raise HTTPException(status_code=403, detail="Invalid file path")
+        
         try:
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
-            logger.error(f"Invalid file type: {e}")
+            logger.error(f"Invalid file type for stream {stream_id}: {e}")
             raise HTTPException(status_code=400, detail=str(e))
         file_path = Path(validated_path)
         
-        # Verify file exists
-        if not file_path.exists() or not file_path.is_file():
-            logger.error(f"Video file not found: {stream.recording_path}")
-            raise HTTPException(status_code=404, detail="Video file not found")
+        # Handle both regular files and segmented recordings
+        # For segmented recordings (24h+ streams), recording_path points to a directory with segments
+        is_segmented = file_path.is_dir() and file_path.name.endswith('_segments')
         
-        logger.info(f"Video file exists: {file_path}")
+        if is_segmented:
+            # For segmented recordings, stream the first segment or concatenated file
+            # TODO: Implement proper segment streaming or concatenation
+            logger.error(f"Segmented recording streaming not yet fully supported: {file_path}")
+            raise HTTPException(status_code=501, detail="Segmented recordings require special handling")
+        
+        # Verify file exists
+        if not file_path.exists():
+            logger.error(f"Video file does not exist: {stream.recording_path}")
+            raise HTTPException(status_code=404, detail="Video file not found on server")
+        
+        if not file_path.is_file():
+            logger.error(f"Path exists but is not a file: {stream.recording_path}")
+            raise HTTPException(status_code=500, detail="Invalid video file")
+        
+        logger.info(f"Video file verified: {file_path}")
         
         # Get file info
         try:
             file_size = file_path.stat().st_size
             logger.info(f"File size: {file_size} bytes")
         except OSError as e:
-            logger.error(f"Error accessing file: {e}")
-            raise HTTPException(status_code=500, detail="Error accessing file")
+            logger.error(f"Error accessing file stats: {e}")
+            raise HTTPException(status_code=500, detail="Cannot access video file")
         
         # Get MIME type
         mime_type, _ = mimetypes.guess_type(str(file_path))

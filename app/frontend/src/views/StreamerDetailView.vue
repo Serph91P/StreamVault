@@ -474,10 +474,23 @@ async function fetchStreamer() {
 async function fetchVideos() {
   isLoadingVideos.value = true
   try {
+    console.log('[StreamerDetailView] Fetching videos for streamer:', streamerId.value)
     const response = await videoApi.getByStreamerId(Number(streamerId.value))
+    console.log('[StreamerDetailView] Videos response:', response)
+    
     videos.value = response || []
-  } catch (error) {
-    console.error('Failed to fetch videos:', error)
+    console.log('[StreamerDetailView] Loaded videos count:', videos.value.length)
+    
+    if (videos.value.length > 0) {
+      console.log('[StreamerDetailView] Sample video:', videos.value[0])
+    }
+  } catch (error: any) {
+    console.error('[StreamerDetailView] Failed to fetch videos:', error)
+    console.error('[StreamerDetailView] Error details:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
     videos.value = []
   } finally {
     isLoadingVideos.value = false
