@@ -41,7 +41,8 @@ async def check_recordings_active() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get active recordings with streamer info
-            active_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+            # PERF: Use eager loading to prevent N+1 queries
+            active_recordings = db.query(Recording).filter(
                 Recording.status == "recording"
             ).options(
                 joinedload(Recording.stream).joinedload(Stream.streamer)
@@ -120,7 +121,8 @@ async def get_active_recordings_status() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get active recordings with full details
-            active_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+            # PERF: Use eager loading to prevent N+1 queries
+            active_recordings = db.query(Recording).filter(
                 Recording.status == "recording"
             ).options(
                 joinedload(Recording.stream).joinedload(Stream.streamer)
@@ -247,31 +249,36 @@ async def get_streamers_status() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get streamers with their current status
-            streamers = db.query(Streamer).all()
+            # PERF: Eager load streams to avoid N+1 when checking latest_stream
+            streamers = db.query(Streamer).options(
+                joinedload(Streamer.streams)
+            ).all()
+            
+            # PERF: Fetch all active recordings in one query to avoid N+1
+            active_recording_stream_ids = set(
+                recording.stream_id for recording in 
+                db.query(Recording.stream_id).filter(
+                    Recording.status == "recording"
+                ).all()
+            )
             
             streamer_status = []
             online_count = 0
             recording_count = 0
             
             for streamer in streamers:
-                # Check if currently recording
-                active_recording = db.query(Recording).filter(
-                    and_(
-                        Recording.stream_id.in_(
-                            db.query(Stream.id).filter(Stream.streamer_id == streamer.id)
-                        ),
-                        Recording.status == "recording"
-                    )
-                ).first()
-                
-                is_recording = active_recording is not None
+                # Check if currently recording using pre-fetched set
+                stream_ids = [s.id for s in streamer.streams]
+                is_recording = any(sid in active_recording_stream_ids for sid in stream_ids)
                 if is_recording:
                     recording_count += 1
                 
-                # Check if streamer is live (has active stream)
-                latest_stream = db.query(Stream).filter(
-                    Stream.streamer_id == streamer.id
-                ).order_by(Stream.created_at.desc()).first()
+                # Get latest stream from already-loaded relationship
+                latest_stream = None
+                if streamer.streams:
+                    # Streams are already loaded, just sort in Python
+                    sorted_streams = sorted(streamer.streams, key=lambda s: s.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+                    latest_stream = sorted_streams[0] if sorted_streams else None
                 
                 is_live = latest_stream and latest_stream.ended_at is None if latest_stream else False
                 if is_live:
@@ -340,8 +347,12 @@ async def get_streams_status() -> Dict[str, Any]:
             from datetime import timedelta, timezone
             recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
             
+            # PERF: Eager load streamer and recordings to prevent N+1 queries
             recent_streams = db.query(Stream).filter(
                 Stream.created_at >= recent_cutoff
+            ).options(
+                joinedload(Stream.streamer),
+                joinedload(Stream.recordings)
             ).order_by(Stream.created_at.desc()).limit(50).all()
             
             # Get live streams
@@ -349,10 +360,8 @@ async def get_streams_status() -> Dict[str, Any]:
             
             streams_data = []
             for stream in recent_streams:
-                # Check if has recording
-                recording = db.query(Recording).filter(
-                    Recording.stream_id == stream.id
-                ).first()
+                # Check if has recording (already loaded via joinedload)
+                recording = stream.recordings[0] if stream.recordings else None
                 
                 is_live = stream.ended_at is None
                 duration = None
@@ -415,8 +424,11 @@ async def get_notifications_status() -> Dict[str, Any]:
                 from datetime import timedelta
                 recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
                 
+                # PERF: Eager load stream and streamer to prevent N+1 queries
                 events = db.query(StreamEvent).filter(
                     StreamEvent.timestamp >= recent_cutoff
+                ).options(
+                    joinedload(StreamEvent.stream).joinedload(Stream.streamer)
                 ).order_by(StreamEvent.timestamp.desc()).limit(20).all()
                 
                 for event in events:
