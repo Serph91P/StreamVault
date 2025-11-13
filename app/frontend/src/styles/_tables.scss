@@ -1,0 +1,388 @@
+// ============================================================================
+// UNIFIED TABLE SYSTEM
+// Theme-aware, mobile-responsive tables for StreamVault
+// ============================================================================
+
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// ============================================================================
+// TABLE CONTAINER
+// ============================================================================
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: var(--spacing-6, 24px);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-color);
+  
+  // Light mode: Add subtle background
+  [data-theme="light"] & {
+    background: var(--background-card);
+  }
+}
+
+// ============================================================================
+// TABLE BASE STYLES
+// ============================================================================
+
+.data-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: auto;
+  background: transparent;
+  
+  // ============================================================================
+  // TABLE HEADER
+  // ============================================================================
+  
+  thead {
+    background: rgba(0, 0, 0, 0.2);
+    
+    // Light mode: Different background
+    [data-theme="light"] & {
+      background: var(--background-darker);
+    }
+    
+    tr {
+      border-bottom: 2px solid var(--border-color);
+    }
+    
+    th {
+      padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+      text-align: left;
+      font-weight: 600;
+      font-size: var(--text-sm, 14px);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      
+      // Light mode: Darker text for contrast
+      [data-theme="light"] & {
+        color: var(--text-primary);
+      }
+    }
+  }
+  
+  // ============================================================================
+  // TABLE BODY
+  // ============================================================================
+  
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--border-color);
+      transition: background-color 150ms ease;
+      
+      // Zebra striping
+      &:nth-child(even) {
+        background: rgba(0, 0, 0, 0.1);
+        
+        // Light mode: Lighter striping
+        [data-theme="light"] & {
+          background: rgba(0, 0, 0, 0.02);
+        }
+      }
+      
+      // Hover state
+      &:hover {
+        background: rgba(var(--primary-color-rgb), 0.05);
+        
+        // Light mode: More visible hover
+        [data-theme="light"] & {
+          background: rgba(var(--primary-color-rgb), 0.08);
+        }
+      }
+      
+      // Last row: no border
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+    
+    td {
+      padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+      font-size: var(--text-base, 16px);
+      color: var(--text-primary);
+      vertical-align: middle;
+      
+      // Light mode: Ensure good contrast
+      [data-theme="light"] & {
+        color: var(--text-primary);
+      }
+    }
+  }
+  
+  // ============================================================================
+  // TABLE CELLS - SPECIAL TYPES
+  // ============================================================================
+  
+  // Streamer info cell
+  .streamer-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3, 12px);
+    min-height: 44px;
+    
+    .streamer-avatar {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 2px solid var(--border-color);
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+    }
+    
+    .streamer-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+  }
+  
+  // Actions cell
+  .actions-cell {
+    .streamer-actions,
+    .actions-group {
+      display: flex;
+      gap: var(--spacing-2, 8px);
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+    }
+  }
+  
+  // Checkbox cell
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+  }
+  
+  // Form controls in table
+  select,
+  input[type="text"] {
+    width: 100%;
+    padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius, 8px);
+    background: var(--background-dark);
+    color: var(--text-primary);
+    font-size: var(--text-sm, 14px);
+    transition: border-color 150ms ease;
+    
+    // Light mode: White background
+    [data-theme="light"] & {
+      background: white;
+    }
+    
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+    }
+  }
+}
+
+// ============================================================================
+// TABLE CONTROLS (Enable All, Disable All, etc.)
+// ============================================================================
+
+.table-controls {
+  display: flex;
+  gap: var(--spacing-3, 12px);
+  margin-bottom: var(--spacing-4, 16px);
+  flex-wrap: wrap;
+  
+  button {
+    // Use global btn styles
+  }
+}
+
+// ============================================================================
+// MOBILE TRANSFORMATION (< 768px)
+// Card-based layout for better mobile UX
+// ============================================================================
+
+@include m.respond-below('md') {  // < 768px
+  .table-wrapper {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .data-table {
+    min-width: 100%;
+    display: block;
+    
+    // Hide desktop table headers
+    thead {
+      display: none;
+    }
+    
+    tbody {
+      display: block;
+      
+      // Each row becomes a card
+      tr {
+        display: block;
+        margin-bottom: var(--spacing-4, 16px);
+        padding: var(--spacing-4, 16px);
+        background: var(--background-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg, 12px);
+        
+        // Light mode: Card with shadow
+        [data-theme="light"] & {
+          background: white;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        // Remove striping in mobile
+        &:nth-child(even) {
+          background: var(--background-card);
+          
+          [data-theme="light"] & {
+            background: white;
+          }
+        }
+        
+        // Hover state in mobile cards
+        &:hover {
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          
+          [data-theme="light"] & {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          }
+        }
+      }
+      
+      // Table cells in mobile
+      td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--spacing-2, 8px) 0;
+        border: none;
+        min-height: 36px;
+        
+        // Add label before each cell
+        &::before {
+          content: attr(data-label);
+          font-weight: 600;
+          font-size: var(--text-sm, 14px);
+          color: var(--text-secondary);
+          margin-right: var(--spacing-3, 12px);
+          flex-shrink: 0;
+          min-width: 100px;
+          
+          // Light mode: Darker label
+          [data-theme="light"] & {
+            color: var(--text-primary);
+          }
+        }
+        
+        // Streamer info: Stack vertically
+        &.streamer-info {
+          flex-direction: column;
+          align-items: flex-start;
+          
+          &::before {
+            margin-bottom: var(--spacing-2, 8px);
+          }
+        }
+        
+        // Actions: Full width, no label
+        &.actions-cell,
+        &[data-label="Actions"] {
+          justify-content: flex-end;
+          margin-top: var(--spacing-3, 12px);
+          padding-top: var(--spacing-3, 12px);
+          border-top: 1px solid var(--border-color);
+          
+          &::before {
+            display: none;
+          }
+          
+          .streamer-actions,
+          .actions-group {
+            width: 100%;
+            justify-content: stretch;
+            
+            button {
+              flex: 1;
+              min-height: 44px;
+            }
+          }
+        }
+        
+        // Form controls: Full width
+        select,
+        input[type="text"] {
+          flex: 1;
+          min-height: 44px;
+          font-size: 16px !important;  // iOS zoom prevention
+        }
+        
+        // Checkboxes: Larger touch target
+        input[type="checkbox"] {
+          width: 24px;
+          height: 24px;
+        }
+      }
+    }
+  }
+  
+  // Table controls: Stack vertically
+  .table-controls {
+    flex-direction: column;
+    
+    button {
+      width: 100%;
+      min-height: 48px;
+      font-size: 16px;
+    }
+  }
+}
+
+// ============================================================================
+// TOOLTIP IN TABLE HEADERS
+// ============================================================================
+
+.th-tooltip {
+  font-size: var(--text-xs, 12px);
+  font-weight: normal;
+  color: var(--text-secondary);
+  margin-top: var(--spacing-1, 4px);
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+  display: block;
+  white-space: normal;
+}
+
+// ============================================================================
+// EMPTY STATE IN TABLES
+// ============================================================================
+
+.table-empty-state {
+  padding: var(--spacing-8, 32px);
+  text-align: center;
+  color: var(--text-secondary);
+  
+  p {
+    margin: var(--spacing-4, 16px) 0;
+  }
+}
