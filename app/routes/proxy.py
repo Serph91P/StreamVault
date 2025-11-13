@@ -52,41 +52,55 @@ class ProxyUpdatePriorityRequest(BaseModel):
     priority: int
 
 
+class ProxyConfigSettings(BaseModel):
+    """Configuration settings for proxy system"""
+    enable_proxy: bool
+    proxy_health_check_enabled: bool
+    proxy_health_check_interval_seconds: int
+    proxy_max_consecutive_failures: int
+    fallback_to_direct_connection: bool
+
+
 class ProxyListResponse(BaseModel):
     """Response model for proxy list"""
     proxies: List[dict]
-    total: int
-    enabled_count: int
-    healthy_count: int
+    system_config: ProxyConfigSettings
 
 
 # ===== API Endpoints =====
 
-@router.get("/list", response_model=ProxyListResponse)
+@router.get("/list")
 async def list_proxies(
     user = Depends(get_current_user)
 ):
     """
-    List all configured proxies with health status.
+    List all configured proxies with health status and system configuration.
     
     Returns:
-        List of all proxies with masked passwords for security
+        List of all proxies with masked passwords + system config from recording_settings
     """
     with SessionLocal() as db:
+        # Get proxies
         proxies = db.query(ProxySettings).order_by(
             ProxySettings.priority,
             ProxySettings.health_status
         ).all()
         
-        # Count statistics
-        enabled_count = sum(1 for p in proxies if p.enabled)
-        healthy_count = sum(1 for p in proxies if p.enabled and p.health_status == 'healthy')
+        # Get system config from recording_settings
+        recording_settings = db.query(RecordingSettings).first()
+        
+        # Build system config with defaults if recording_settings doesn't exist
+        system_config = {
+            'enable_proxy': recording_settings.enable_proxy if recording_settings else True,
+            'proxy_health_check_enabled': recording_settings.proxy_health_check_enabled if recording_settings else True,
+            'proxy_health_check_interval_seconds': recording_settings.proxy_health_check_interval_seconds if recording_settings else 300,
+            'proxy_max_consecutive_failures': recording_settings.proxy_max_consecutive_failures if recording_settings else 3,
+            'fallback_to_direct_connection': recording_settings.fallback_to_direct_connection if recording_settings else True
+        }
         
         return {
             'proxies': [p.to_dict(mask_password=True) for p in proxies],
-            'total': len(proxies),
-            'enabled_count': enabled_count,
-            'healthy_count': healthy_count
+            'system_config': system_config
         }
 
 
