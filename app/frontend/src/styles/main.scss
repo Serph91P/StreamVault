@@ -9,6 +9,7 @@
 @use 'components';
 @use 'views';
 @use 'utilities';  // NEW: Design system utilities
+@use 'tables';  // NEW: Unified table system
 
 // Import FontAwesome
 @import '@fortawesome/fontawesome-free/css/all.css';

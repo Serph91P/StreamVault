@@ -115,8 +115,8 @@
         <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
       </div>
       
-      <div class="streamer-table">
-        <table>
+      <div class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Streamer</th>
@@ -579,98 +579,82 @@ const testWebSocketNotification = async () => {
   margin-bottom: var(--spacing-md, 15px);
 }
 
-.streamer-table {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  margin-bottom: var(--spacing-lg, 20px);
-}
-
-.streamer-table table {
-  width: 100%;
-  min-width: 600px;
-  border-collapse: collapse;
-  background-color: var(--background-darker, #1f1f23);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #303034);
-  overflow: hidden;
-}
-
-/* Fix table striping */
-.streamer-table table tr {
-  background-color: transparent;
-}
-
-.streamer-table table tr:nth-child(even) {
-  background-color: rgba(0, 0, 0, 0.15);
-}
-
-.streamer-table th {
-  background-color: rgba(0, 0, 0, 0.2);
-  font-weight: 500;
-  color: var(--text-secondary, #ccc);
-  position: relative;
-  padding: var(--spacing-3) var(--spacing-4);
-  text-align: left;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.streamer-table td {
-  padding: var(--spacing-3) var(--spacing-4);
-  text-align: left;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.streamer-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm, 10px);
-  min-height: 44px; /* Consistent cell height for touch targets */
-}
-
-.streamer-name {
-  line-height: 1.4;
-  /* Removed inline-block, vertical-align - flex handles alignment */
-}
-
-.streamer-avatar {
-  width: 32px;
-  height: 32px;
-  min-width: 32px; /* Prevent shrinking - consistent with RecordingSettingsPanel */
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.streamer-avatar img {
+/* Avatar placeholder for missing images */
+.avatar-placeholder {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.streamer-table tr:last-child td {
-  border-bottom: none;
-}
-
-.th-tooltip {
-  font-size: 0.8rem;
-  font-weight: normal;
-  color: var(--text-secondary, #aaa);
-  margin-top: var(--spacing-xs, 4px);
-}
-
-.btn-group {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.actions-cell {
-  white-space: nowrap;
+  justify-content: center;
+  background: var(--primary-color);
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
 }
 
 @include m.respond-below('md') {  // < 768px
+  /* Settings Form - Mobile Layout */
+  .settings-form {
+    padding: 12px;
+  }
+  
+  /* Form Controls - iOS Zoom Prevention & Touch Targets */
+  .form-control {
+    padding: 12px;
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 48px;
+    border-radius: var(--border-radius, 8px);
+  }
+  
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  textarea {
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 48px;
+  }
+  
+  /* Form Actions - Stack Vertically on Mobile */
+  .form-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .form-actions .btn {
+    width: 100%;
+    min-height: 48px; /* Touch-friendly */
+    font-size: 16px;
+    padding: 12px 16px;
+  }
+  
+  /* Checkbox groups - Better touch targets */
+  .checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+  }
+  
+  .checkbox-group label {
+    padding: 8px 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Table Controls - Stack Vertically */
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .table-controls button {
+    margin-right: 0;
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+  
   .streamer-table {
     border-radius: 0;
   }
@@ -683,15 +667,6 @@ const testWebSocketNotification = async () => {
   .btn-sm {
     padding: var(--spacing-1) var(--spacing-2);
     font-size: 0.8rem;
-  }
-  
-  .table-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .table-controls button {
-    margin-right: 0;
   }
   
   /* Fix alignment in table cells */
@@ -744,86 +719,16 @@ const testWebSocketNotification = async () => {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
-  /* Style table cells as rows */
-  .streamer-table td {
-    position: relative;
-    padding: 12px 12px 12px 120px; /* Space for labels */
-    min-height: 44px;  /* Touch-friendly height */
-    display: flex;
-    align-items: center;
-    border-bottom: 1px solid var(--border-color-subtle, rgba(255, 255, 255, 0.05));
-  }
-  
-  .streamer-table td:last-child {
-    border-bottom: none;
-  }
-  
-  /* Add labels before each cell */
-  .streamer-table td:before {
-    content: attr(data-label);
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: 12px;
-    width: 95px;
-    padding-right: 10px;
-    font-weight: 600;
-    white-space: nowrap;
-    color: var(--text-secondary, #adadb8);
-    font-size: 0.85rem;
-  }
-  
-  /* Streamer info cell (first cell) */
-  .streamer-table td.streamer-info {
-    padding: var(--spacing-3);
-    font-weight: 600;
-    background: var(--background-darker, #1f1f23);
-    display: flex;
-    align-items: center;
+  /* Table Controls - Stack Vertically on Mobile */
+  .table-controls {
+    flex-direction: column;
     gap: 12px;
   }
   
-  .streamer-table td.streamer-info:before {
-    display: none;  /* No label for streamer name */
-  }
-  
-  /* Actions cell */
-  .streamer-table td.actions-cell {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding-left: 12px;
-  }
-  
-  .streamer-table td.actions-cell:before {
-    content: '';  /* Empty label for actions */
-  }
-  
-  .btn-group {
-    margin-left: auto;
-  }
-  
-  /* Make buttons full width on mobile for easier tapping */
-  .streamer-table .btn-sm {
-    padding: var(--spacing-2) var(--spacing-4);
-    min-width: 60px;
-    font-size: 0.875rem;
-  }
-}
-
-/* Extra small screens: Additional optimizations */
-@include m.respond-below('xs') {  // < 480px
-  .streamer-table tr {
-    margin-bottom: var(--spacing-3, 12px);
-  }
-  
-  .streamer-table td {
-    padding-left: 100px;  /* Slightly less padding */
-  }
-  
-  .streamer-table td:before {
-    width: 85px;
-    font-size: 0.8rem;
+  .table-controls button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
   }
 }
 </style>

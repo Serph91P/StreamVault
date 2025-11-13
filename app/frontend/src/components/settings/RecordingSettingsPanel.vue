@@ -266,8 +266,8 @@
           <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
         </div>
 
-        <div class="streamer-table">
-          <table>
+        <div class="table-wrapper">
+          <table class="data-table">
             <thead>
               <tr>
                 <th>Streamer</th>
@@ -316,8 +316,8 @@
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td data-label="Actions">
-                  <div class="streamer-actions">
+                <td data-label="Actions" class="actions-cell">
+                  <div class="actions-group">
                     <button 
                       v-if="isActiveRecording(streamer.streamer_id)" 
                       @click="stopRecording(streamer.streamer_id)" 
@@ -1004,94 +1004,18 @@ select.form-control option {
   .form-actions button {
     width: 100%;
   }
-}
-
-/* Remove horizontal stripes */
-.streamer-table table tr:nth-child(odd) {
-  background-color: transparent;
-}
-
-.streamer-table table tr:nth-child(even) {
-  background-color: rgba(0, 0, 0, 0.15);
-}
-
-.streamer-table {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  background-color: var(--background-darker, #1f1f23);
-  border-radius: var(--border-radius, 6px);
-  border: 1px solid var(--border-color, #303034);
-}
-
-.streamer-table table {
-  width: 100%;
-  min-width: 600px;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.streamer-table th, 
-.streamer-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border-color, #303034);
-  text-align: left;
-  /* Removed vertical-align: middle - conflicts with flexbox in .streamer-info */
-}
-
-.streamer-table td {
-  /* Ensure consistent alignment */
-  vertical-align: top;
-}
-
-.streamer-table td:has(.streamer-info) {
-  /* Special handling for streamer info cell */
-  vertical-align: middle;
-}
-
-.streamer-table th {
-  background-color: rgba(0, 0, 0, 0.2);
-  font-weight: 500;
-  color: var(--text-secondary, #ccc);
-}
-
-.th-tooltip {
-  font-size: 0.75rem;
-  font-weight: normal;
-  color: var(--text-secondary, #adadb8);
-  margin-top: var(--spacing-xs, 0.25rem);
-}
-
-.streamer-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm, 0.5rem);
-  min-height: 44px; /* Consistent cell height for touch targets */
-  max-width: 100%;
-}
-
-.streamer-avatar {
-  width: 32px;
-  height: 32px;
-  min-width: 32px; /* Prevent shrinking */
-  overflow: hidden;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.streamer-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.streamer-name {
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--text-primary, #efeff1);
-  line-height: 1.4;
-  /* Removed inline-block, vertical-align - flex handles alignment */
+  
+  /* Table Controls - Stack Vertically on Mobile */
+  .table-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .table-controls button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
 }
 
 .form-actions {
@@ -1640,6 +1564,19 @@ select.form-control-sm option {
     width: 20px;
     height: 20px;
     margin-right: 12px;
+  }
+  
+  /* Table Controls - Stack Vertically */
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .table-controls button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
   }
   
   /* Modal adjustments for mobile */
