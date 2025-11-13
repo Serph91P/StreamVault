@@ -483,8 +483,26 @@ async function handleUpdateStreamerNotificationSettings(
   }
 }
 
-function handleTestNotification() {
-  console.log('Test notification triggered')
+async function handleTestNotification() {
+  try {
+    const response = await fetch('/api/settings/test-notification', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (response.ok) {
+      toast.success('Test notification sent successfully')
+    } else {
+      const errorData = await response.json()
+      toast.error(`Failed to send test notification: ${errorData.detail || 'Unknown error'}`)
+    }
+  } catch (error) {
+    console.error('Failed to send test notification:', error)
+    toast.error('Failed to send test notification')
+  }
 }
 
 // Recording handlers
