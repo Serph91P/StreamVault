@@ -64,6 +64,91 @@ def create_stream(streamer_name: str, title: str):
 
 ## Database & Performance
 
+### N+1 Query Prevention (CRITICAL)
+
+**ALWAYS use eager loading when accessing relationships** to prevent N+1 query problems.
+
+#### The N+1 Problem
+
+```python
+# ❌ WRONG: Lazy loading causes N+1 queries
+streams = db.query(Stream).all()  # Query 1: Fetch streams
+for stream in streams:
+    print(stream.streamer.username)  # Query 2-31: Fetch each streamer
+# Total: 1 + 30 = 31 queries (should be 1!)
+```
+
+#### Solution: Eager Loading with joinedload()
+
+```python
+# ✅ CORRECT: Single query with JOIN
+from sqlalchemy.orm import joinedload
+
+streams = db.query(Stream).options(
+    joinedload(Stream.streamer)  # Load relationship in same query
+).all()
+
+for stream in streams:
+    print(stream.streamer.username)  # Already loaded, no query!
+# Total: 1 query
+```
+
+#### Nested Relationships
+
+```python
+# ✅ CORRECT: Chain joinedload for multi-level relationships
+recordings = db.query(Recording).options(
+    joinedload(Recording.stream).joinedload(Stream.streamer)
+).filter(Recording.status == "recording").all()
+
+for rec in recordings:
+    print(rec.stream.streamer.username)  # All loaded in 1 query
+```
+
+#### Multiple Relationships
+
+```python
+# ✅ CORRECT: Load multiple relationships at once
+streams = db.query(Stream).options(
+    joinedload(Stream.streamer),
+    joinedload(Stream.recordings),
+    joinedload(Stream.stream_events)
+).all()
+```
+
+#### Bulk Query Pattern
+
+```python
+# ✅ CORRECT: Query once, use in-memory operations
+active_recording_stream_ids = set(
+    recording.stream_id for recording in 
+    db.query(Recording.stream_id).filter(
+        Recording.status == "recording"
+    ).all()
+)
+
+# Check membership without additional queries
+for streamer in streamers:
+    is_recording = streamer.id in active_recording_stream_ids  # No query
+```
+
+#### When to Use Eager Loading
+
+✅ **ALWAYS use when:**
+- Accessing relationships in loops
+- Displaying related data in API responses
+- Counting or aggregating related records
+- Loading data for serialization
+
+❌ **DON'T use when:**
+- Not accessing the relationship at all
+- Relationship would be too expensive to load
+- Only need a filtered subset (use WHERE instead)
+
+**See:** `docs/N_PLUS_ONE_OPTIMIZATION.md` for complete guide
+
+### Other Performance Guidelines
+
 - Use `joinedload()` for relationships to avoid N+1 queries
 - All database queries should use eager loading
 - Use dependency injection for database sessions

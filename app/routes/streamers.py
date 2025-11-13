@@ -520,9 +520,12 @@ async def get_streams_by_streamer_id(
         if not streamer:
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
         
+        # PERF: Eager load stream_events to prevent N+1 queries
         # Alle Streams für diesen Streamer abrufen, nach Startdatum absteigend sortiert
         streams = db.query(Stream).filter(
             Stream.streamer_id == streamer_id
+        ).options(
+            joinedload(Stream.stream_events)
         ).order_by(
             Stream.started_at.desc()
         ).all()
@@ -530,16 +533,9 @@ async def get_streams_by_streamer_id(
         # Streams in ein lesbares Format umwandeln
         formatted_streams = []
         for stream in streams:
-            # Get all events for this stream, ordered by timestamp
-            events = db.query(StreamEvent).filter(
-                StreamEvent.stream_id == stream.id
-            ).order_by(
-                StreamEvent.timestamp.asc()
-            ).all()
-            
-            # Format events for the response
+            # Format events for the response (already loaded via joinedload)
             formatted_events = []
-            for event in events:
+            for event in sorted(stream.stream_events, key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc)):
                 formatted_events.append({
                     "id": event.id,
                     "event_type": event.event_type,
