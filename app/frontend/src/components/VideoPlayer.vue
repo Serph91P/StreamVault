@@ -1118,72 +1118,17 @@ watch(() => props.chapters, (newChapters) => {
 }
 
 .chapter-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);  /* 12px */
-  padding: var(--spacing-3);  /* 12px */
-  cursor: pointer;
-  transition: var(--transition-all);
-  border-radius: var(--radius-md);  /* 10px */
-  border: 1px solid transparent;
+  // Use reusable list-item-interactive mixin from design system
+  @include m.list-item-interactive;
   border-left: 3px solid transparent;  /* Default border for active state */
-  min-height: 60px;  /* Desktop: 60px base height */
-  /* Glassmorphism item design */
-  background: rgba(var(--background-darker-rgb), 0.3);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  position: relative;  /* For active indicator icon */
-  
-  /* Mobile: Larger touch targets */
-  @include m.respond-below('md') {  // < 768px
-    min-height: 72px;  /* Mobile: 72px for touch */
-    padding: var(--spacing-4);  /* 16px horizontal padding */
-    gap: var(--spacing-4);  /* 16px gap between elements */
-    border-left-width: 4px;  /* Thicker border on mobile */
-  }
-}
-
-.chapter-item:hover {
-  background: rgba(var(--background-darker-rgb), 0.6);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateX(4px);
-  box-shadow: var(--shadow-sm);
-}
-
-/* Mobile: Active state for touch feedback */
-.chapter-item:active {
-  @include m.respond-below('md') {  // < 768px
-    background: rgba(var(--background-darker-rgb), 0.8);
-    transform: scale(0.98);  /* Subtle press effect */
-    transition: transform 0ms;  /* Instant feedback */
-  }
 }
 
 .chapter-item.active {
-  background: linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.15), rgba(var(--primary-color-rgb), 0.1));
-  border-left-color: var(--primary-color);  /* Left accent border */
-  border-color: rgba(var(--primary-color-rgb), 0.3);
-  color: white;
-  box-shadow: var(--shadow-md), 0 0 12px rgba(var(--primary-color-rgb), 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* Active chapter play indicator icon */
-.chapter-item.active::after {
-  content: '▶';
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
-  color: var(--primary-color);
-  opacity: 0.9;
+  // Use reusable list-item-active mixin with play icon indicator
+  @include m.list-item-active(3px, 4px);
+  @include m.list-item-active-indicator('▶', 20px, 25px);
   
-  @include m.respond-below('md') {  // < 768px
-    font-size: 25px;  /* Larger on mobile */
-    right: 20px;
-  }
+  color: white;
 }
 
 .chapter-item.active .chapter-time,
@@ -1194,28 +1139,8 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-thumbnail,
 .chapter-icon,
 .chapter-placeholder {
-  width: 80px;  /* Desktop: 80x45px for 16:9 thumbnails */
-  height: 45px;
-  border-radius: var(--radius-md);  /* 10px */
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--background-darker);
-  box-shadow: var(--shadow-sm);
-  
-  @include m.respond-below('md') {  // < 768px
-    width: 96px;  /* Mobile: Larger thumbnails */
-    height: 54px;
-  }
-}
-
-.chapter-thumbnail img,
-.chapter-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  // Use reusable list-item-thumbnail mixin from design system
+  @include m.list-item-thumbnail(80px, 96px);
 }
 
 .chapter-placeholder {
