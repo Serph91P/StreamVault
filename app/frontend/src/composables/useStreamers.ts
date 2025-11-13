@@ -41,7 +41,9 @@ export function useStreamers() {
   const fetchStreamers = async () => {
     isLoading.value = true
     try {
-      const response = await fetch('/api/streamers')
+      const response = await fetch('/api/streamers', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (!response.ok) throw new Error('Failed to fetch streamers')
       const data = await response.json()
       streamers.value = data.streamers || []
@@ -54,7 +56,8 @@ export function useStreamers() {
 
   const deleteStreamer = async (streamerId: string) => {
     const response = await fetch(`/api/streamers/${streamerId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include' // CRITICAL: Required to send session cookie
     })
     if (response.ok) {
       streamers.value = streamers.value.filter(s => s.id !== streamerId)

@@ -309,7 +309,10 @@ const formatTime = (timestamp?: string) => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .background-queue-monitor {
   position: relative;
 }
@@ -687,7 +690,7 @@ const formatTime = (timestamp?: string) => {
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .queue-status-indicator {
     padding: 6px 10px;
     gap: 6px;

@@ -22,6 +22,12 @@ class StreamerResponse(BaseModel):
     last_updated: Optional[datetime] = None
     profile_image_url: Optional[str] = None
     original_profile_image_url: Optional[str] = None
+    
+    # Last stream information (shown when offline)
+    last_stream_title: Optional[str] = None
+    last_stream_category_name: Optional[str] = None
+    last_stream_viewer_count: Optional[int] = None
+    last_stream_ended_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

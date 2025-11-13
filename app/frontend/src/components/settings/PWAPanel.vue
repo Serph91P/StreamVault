@@ -84,6 +84,9 @@
             class="btn btn-primary"
             :disabled="isEnablingNotifications"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-bell"></use>
+            </svg>
             {{ isEnablingNotifications ? 'Enabling...' : 'Enable Notifications' }}
           </button>
           <button 
@@ -92,6 +95,9 @@
             class="btn btn-secondary"
             :disabled="isDisablingNotifications"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-bell-off"></use>
+            </svg>
             {{ isDisablingNotifications ? 'Disabling...' : 'Disable Notifications' }}
           </button>
         </div>
@@ -110,13 +116,18 @@
             class="btn btn-secondary"
             :disabled="isSendingTest"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-send"></use>
+            </svg>
             {{ isSendingTest ? 'Sending...' : 'Send Test' }}
           </button>
           <button 
             @click="sendLocalTestNotification" 
-            class="btn btn-primary"
-            style="margin-left: 8px;"
+            class="btn btn-primary btn-spacing"
           >
+            <svg class="icon" aria-hidden="true">
+              <use xlink:href="#icon-smartphone"></use>
+            </svg>
             Test Local
           </button>
         </div>
@@ -359,7 +370,8 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 .pwa-panel {
   max-width: 800px;
 }
@@ -387,6 +399,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .pwa-section h4 {
@@ -470,11 +483,25 @@ onMounted(() => {
 .btn {
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-lg, 8px);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;  /* Touch-friendly */
+}
+
+.btn .icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.btn-spacing {
+  margin-left: 0.5rem;
 }
 
 .btn:disabled {
@@ -489,15 +516,24 @@ onMounted(() => {
 
 .btn.btn-primary:hover:not(:disabled) {
   background: var(--primary-hover-color, #5a2d91);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(111, 66, 193, 0.3);
 }
 
 .btn.btn-secondary {
-  background: var(--secondary-color, #6c757d);
-  color: white;
+  background: var(--background-card, #3a3a3a);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover-color, #545b62);
+  background: var(--background-darker, #2a2a2a);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .install-btn {
@@ -530,8 +566,9 @@ onMounted(() => {
   border: 1px solid var(--info-border-color, #bee5eb);
 }
 
-/* Mobile responsive */
-@media (max-width: 768px) {
+/* Mobile responsive - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('md') {  // < 768px
   .setting-item {
     flex-direction: column;
     align-items: stretch;

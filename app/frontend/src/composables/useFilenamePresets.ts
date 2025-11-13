@@ -17,7 +17,9 @@ export function useFilenamePresets() {
     error.value = null;
     
     try {
-      const response = await fetch('/api/recording/filename-presets');
+      const response = await fetch('/api/recording/filename-presets', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

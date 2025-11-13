@@ -115,7 +115,9 @@ export function useRecordingSettings() {
       isLoading.value = true;
       error.value = null;
       
-      const response = await fetch('/api/recording/settings');
+      const response = await fetch('/api/recording/settings', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       if (response.ok) {
         const data = await response.json();
         settings.value = {
@@ -144,6 +146,7 @@ export function useRecordingSettings() {
       
       const response = await fetch('/api/recording/settings', {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
@@ -184,7 +187,9 @@ export function useRecordingSettings() {
       isLoading.value = true;
       error.value = null;
       
-      const response = await fetch('/api/recording/streamers');
+      const response = await fetch('/api/recording/streamers', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Error response:", errorText);
@@ -214,6 +219,7 @@ export function useRecordingSettings() {
       
       const response = await fetch(`/api/recording/streamers/${streamerId}`, {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           streamer_id: streamerId,
@@ -246,7 +252,9 @@ export function useRecordingSettings() {
   const fetchActiveRecordings = async () => {
     try {
       isLoading.value = true;
-      const response = await fetch('/api/recording/active');
+      const response = await fetch('/api/recording/active', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch active recordings: ${response.status}`);
@@ -279,7 +287,8 @@ export function useRecordingSettings() {
       isLoading.value = true;
       
       const response = await fetch(`/api/recording/stop/${streamerId}`, {
-        method: 'POST'
+        method: 'POST',
+        credentials: 'include' // CRITICAL: Required to send session cookie
       });
       
       if (!response.ok) {
@@ -306,7 +315,8 @@ export function useRecordingSettings() {
       isLoading.value = true;
       
       const response = await fetch(`/api/recording/cleanup/${streamerId}`, {
-        method: 'POST'
+        method: 'POST',
+        credentials: 'include' // CRITICAL: Required to send session cookie
       });
       
       if (!response.ok) {
@@ -371,6 +381,7 @@ export function useRecordingSettings() {
       
       const response = await fetch(`/api/recording/streamers/${streamerId}/cleanup-policy`, {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
@@ -411,6 +422,7 @@ export function useRecordingSettings() {
       
       const response = await fetch(url, {
         method: 'POST',
+        credentials: 'include', // CRITICAL: Required to send session cookie
         headers: {
           'Content-Type': 'application/json'
         },
@@ -440,7 +452,9 @@ export function useRecordingSettings() {
     try {
       isLoading.value = true;
       
-      const response = await fetch(`/api/recording/storage/${streamerId}`);
+      const response = await fetch(`/api/recording/storage/${streamerId}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to get storage usage: ${response.statusText}`);
@@ -463,7 +477,9 @@ export function useRecordingSettings() {
 
   const getAvailableCategories = async (): Promise<{id: number; name: string}[]> => {
     try {
-      const response = await fetch('/api/categories');
+      const response = await fetch('/api/categories', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }

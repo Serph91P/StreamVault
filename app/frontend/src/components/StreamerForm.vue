@@ -196,7 +196,10 @@ const confirmDelete = () => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .streamer-form {
   background-color: var(--background-darker);
   padding: var(--spacing-md);
@@ -400,7 +403,7 @@ input[type="checkbox"]:checked::after {
 }
 
 /* Responsive adjustments for mobile */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .form-actions {
     flex-direction: column;
   }

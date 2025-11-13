@@ -230,7 +230,9 @@ const formatMessage = (notification: Notification): string => {
     case 'recording.completed':
       return `Successfully completed recording ${username}'s stream`
     case 'recording.failed':
-      return data?.error ? `Failed to record ${username}'s stream: ${data.error}` : `Failed to record ${username}'s stream`
+      // Support both error and error_message fields
+      const errorMsg = data?.error_message || data?.error || 'Unknown error'
+      return `Recording failed for ${username}: ${errorMsg}`
     case 'test':
       return data?.message || 'This is a test notification to verify the system is working properly'
     default:
@@ -540,7 +542,10 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .notification-feed {
   max-width: 400px;
   max-height: 800px;
@@ -951,7 +956,7 @@ onUnmounted(() => {
 }
 
 /* Mobile responsiveness */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .notification-feed {
     width: 100vw;
     max-width: 100vw;
@@ -1116,7 +1121,7 @@ onUnmounted(() => {
 }
 
 /* Extra small screens (phones in portrait) */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .feed-header {
     padding: 12px 16px;
   }
@@ -1179,7 +1184,7 @@ onUnmounted(() => {
 }
 
 /* Landscape phones */
-@media (max-width: 768px) and (orientation: landscape) {
+@media (max-width: 767px) and (orientation: landscape) {  // Cannot use mixins for orientation queries
   .notification-list {
     max-height: calc(100vh - 70px);
   }

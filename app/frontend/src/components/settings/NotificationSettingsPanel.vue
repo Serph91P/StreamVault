@@ -56,6 +56,31 @@
           <!-- Checkboxes... -->
         </div>
       </div>
+      
+      <!-- System Notification Settings (NEW) -->
+      <div class="form-group">
+        <h4>System Notification Settings</h4>
+        <p class="section-description">
+          Configure which recording events trigger external notifications (Discord, Telegram, etc.)
+        </p>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingStarted" />
+            Recording Started
+            <span class="label-hint">(may be noisy - every stream triggers recording)</span>
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingFailed" />
+            Recording Failed ⚠️
+            <span class="label-hint label-recommended">(RECOMMENDED - know when recordings fail)</span>
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyRecordingCompleted" />
+            Recording Completed
+            <span class="label-hint">(may be noisy - most recordings complete normally)</span>
+          </label>
+        </div>
+      </div>
 
       <div class="form-actions">
         <button 
@@ -173,6 +198,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
+import { useToast } from '@/composables/useToast'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
@@ -194,6 +220,7 @@ const typedStreamerSettings = computed(() => {
 
 // Emits
 const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-notification'])
+const toast = useToast()
 
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({
@@ -202,7 +229,11 @@ const data = ref({
   notifyOnlineGlobal: props.settings.notify_online_global !== false,
   notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
   notifyUpdateGlobal: props.settings.notify_update_global !== false,
-  notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false
+  notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false,
+  // System notification settings (NEW - Migration 028)
+  notifyRecordingStarted: props.settings.notify_recording_started !== undefined ? props.settings.notify_recording_started : false,
+  notifyRecordingFailed: props.settings.notify_recording_failed !== undefined ? props.settings.notify_recording_failed : true,
+  notifyRecordingCompleted: props.settings.notify_recording_completed !== undefined ? props.settings.notify_recording_completed : false
 })
 
 // Add these new refs for validation
@@ -316,7 +347,11 @@ const saveSettings = async () => {
       notify_online_global: data.value.notifyOnlineGlobal,
       notify_offline_global: data.value.notifyOfflineGlobal,
       notify_update_global: data.value.notifyUpdateGlobal,
-      notify_favorite_category_global: data.value.notifyFavoriteCategoryGlobal
+      notify_favorite_category_global: data.value.notifyFavoriteCategoryGlobal,
+      // System notification settings (Migration 028)
+      notify_recording_started: data.value.notifyRecordingStarted,
+      notify_recording_failed: data.value.notifyRecordingFailed,
+      notify_recording_completed: data.value.notifyRecordingCompleted
     })
   } catch (error) {
     console.error('Failed to save settings:', error)
@@ -369,19 +404,24 @@ const testWebSocketNotification = async () => {
       throw new Error(error.detail || 'Failed to send test WebSocket notification')
     }
 
-    alert('Test WebSocket notification sent! Check the notification bell.')
+    toast.success('Test WebSocket notification sent! Check the notification bell.')
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
+    toast.error(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
   }
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .settings-form {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
-  padding: 20px;
+  padding: var(--spacing-6);
   border-radius: var(--border-radius, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
 }
 
 .form-group {
@@ -412,13 +452,32 @@ const testWebSocketNotification = async () => {
   margin-top: 4px;
 }
 
+.section-description {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-md, 12px);
+  line-height: 1.5;
+}
+
+.label-hint {
+  color: var(--text-secondary, #adadb8);
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-left: var(--spacing-xs, 4px);
+}
+
+.label-recommended {
+  color: var(--warning-color, #f59e0b);
+  font-weight: 500;
+}
+
 .input-with-tooltip {
   position: relative;
 }
 
 .form-control {
   width: 100%;
-  padding: 10px;
+  padding: var(--spacing-3);
   border: 1px solid var(--border-color, #333);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #fff);
@@ -466,7 +525,7 @@ const testWebSocketNotification = async () => {
 }
 
 .btn {
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   border-radius: var(--border-radius, 6px);
   font-weight: 600;
   cursor: pointer;
@@ -476,12 +535,13 @@ const testWebSocketNotification = async () => {
 
 .btn-primary {
   background-color: var(--primary-color, #42b883);
-  color: white;
+  color: white;  /* White text is correct on primary-color background */
 }
 
 .btn-secondary {
-  background-color: var(--background-darker, #3a3a3a);
-  color: white;
+  background-color: var(--background-card, #3a3a3a);
+  color: var(--text-primary);  /* Theme-aware text color */
+  border: 1px solid var(--border-color);
 }
 
 .btn:hover:not(:disabled) {
@@ -500,7 +560,7 @@ const testWebSocketNotification = async () => {
 }
 
 .btn-sm {
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: 0.875rem;
   white-space: nowrap;
   display: inline-flex;
@@ -550,13 +610,13 @@ const testWebSocketNotification = async () => {
   font-weight: 500;
   color: var(--text-secondary, #ccc);
   position: relative;
-  padding: 12px 15px;
+  padding: var(--spacing-3) var(--spacing-4);
   text-align: left;
   border-bottom: 1px solid var(--border-color, #333);
 }
 
 .streamer-table td {
-  padding: 12px 15px;
+  padding: var(--spacing-3) var(--spacing-4);
   text-align: left;
   border-bottom: 1px solid var(--border-color, #333);
 }
@@ -610,18 +670,18 @@ const testWebSocketNotification = async () => {
   white-space: nowrap;
 }
 
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .streamer-table {
     border-radius: 0;
   }
   
   .btn {
-    padding: 6px 10px;
+    padding: var(--spacing-2) var(--spacing-3);
     font-size: 0.9rem;
   }
   
   .btn-sm {
-    padding: 4px 6px;
+    padding: var(--spacing-1) var(--spacing-2);
     font-size: 0.8rem;
   }
   
@@ -636,7 +696,7 @@ const testWebSocketNotification = async () => {
   
   /* Fix alignment in table cells */
   .streamer-table td, .streamer-table th {
-    padding: 8px 6px;
+    padding: var(--spacing-2) var(--spacing-2);
   }
   
   /* Fix the streamer info height */
@@ -650,13 +710,14 @@ const testWebSocketNotification = async () => {
   
   /* Make checkboxes easier to tap on mobile */
   input[type="checkbox"] {
-    min-width: 18px;
-    min-height: 18px;
+    min-width: 20px;  /* Increased from 18px for better touch targets */
+    min-height: 20px;
+    cursor: pointer;
   }
 }
 
-/* For very small screens, switch to card layout */
-@media (max-width: 480px) {
+/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
+@include m.respond-below('md') {  // < 767px
   .streamer-table table,
   .streamer-table thead,
   .streamer-table tbody,
@@ -666,56 +727,103 @@ const testWebSocketNotification = async () => {
     display: block;
   }
   
+  /* Hide table header */
   .streamer-table thead tr {
     position: absolute;
     top: -9999px;
     left: -9999px;
   }
   
+  /* Style each row as a card */
   .streamer-table tr {
-    margin-bottom: var(--spacing-md, 16px);
+    margin-bottom: var(--spacing-4, 16px);
     border-radius: var(--border-radius, 8px);
     border: 1px solid var(--border-color, #333);
+    background: var(--background-card, #2a2a2e);
     overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
+  /* Style table cells as rows */
   .streamer-table td {
     position: relative;
-    padding-left: 110px; /* Space for labels */
-    min-height: 30px;
+    padding: 12px 12px 12px 120px; /* Space for labels */
+    min-height: 44px;  /* Touch-friendly height */
     display: flex;
     align-items: center;
-    border-bottom: 1px solid rgba(var(--border-color-rgb), 0.5);
+    border-bottom: 1px solid var(--border-color-subtle, rgba(255, 255, 255, 0.05));
   }
   
+  .streamer-table td:last-child {
+    border-bottom: none;
+  }
+  
+  /* Add labels before each cell */
   .streamer-table td:before {
     content: attr(data-label);
     position: absolute;
-    top: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     left: 12px;
     width: 95px;
     padding-right: 10px;
     font-weight: 600;
     white-space: nowrap;
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary, #adadb8);
     font-size: 0.85rem;
   }
   
+  /* Streamer info cell (first cell) */
   .streamer-table td.streamer-info {
-    padding-left: 12px;
+    padding: var(--spacing-3);
     font-weight: 600;
-    background-color: rgba(0, 0, 0, 0.15);
+    background: var(--background-darker, #1f1f23);
     display: flex;
+    align-items: center;
+    gap: 12px;
   }
   
+  .streamer-table td.streamer-info:before {
+    display: none;  /* No label for streamer name */
+  }
+  
+  /* Actions cell */
   .streamer-table td.actions-cell {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     padding-left: 12px;
+  }
+  
+  .streamer-table td.actions-cell:before {
+    content: '';  /* Empty label for actions */
   }
   
   .btn-group {
     margin-left: auto;
+  }
+  
+  /* Make buttons full width on mobile for easier tapping */
+  .streamer-table .btn-sm {
+    padding: var(--spacing-2) var(--spacing-4);
+    min-width: 60px;
+    font-size: 0.875rem;
+  }
+}
+
+/* Extra small screens: Additional optimizations */
+@include m.respond-below('xs') {  // < 480px
+  .streamer-table tr {
+    margin-bottom: var(--spacing-3, 12px);
+  }
+  
+  .streamer-table td {
+    padding-left: 100px;  /* Slightly less padding */
+  }
+  
+  .streamer-table td:before {
+    width: 85px;
+    font-size: 0.8rem;
   }
 }
 </style>

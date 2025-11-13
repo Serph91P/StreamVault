@@ -152,7 +152,10 @@ defineExpose({
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .toast-container {
   position: fixed;
   top: 20px;
@@ -169,7 +172,7 @@ defineExpose({
   gap: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   cursor: pointer;
   pointer-events: auto;
@@ -246,7 +249,7 @@ defineExpose({
   color: currentColor;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.7;
   transition: opacity 0.2s ease;
   font-size: 12px;
@@ -286,7 +289,7 @@ defineExpose({
 }
 
 /* Mobile responsive */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .toast-container {
     top: 10px;
     right: 10px;
@@ -322,7 +325,7 @@ defineExpose({
 }
 
 /* Small mobile screens */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .toast-container {
     top: 8px;
     right: 8px;

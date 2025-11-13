@@ -1,0 +1,1457 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// ============================================================================
+// TYPOGRAPHY UTILITIES
+// ============================================================================
+
+// Font Size Classes
+.text-xs { font-size: v.$text-xs; }
+.text-sm { font-size: v.$text-sm; }
+.text-base { font-size: v.$text-base; }
+.text-lg { font-size: v.$text-lg; }
+.text-xl { font-size: v.$text-xl; }
+.text-2xl { font-size: v.$text-2xl; }
+.text-3xl { font-size: v.$text-3xl; }
+.text-4xl { font-size: v.$text-4xl; }
+.text-5xl { font-size: v.$text-5xl; }
+
+// Font Weight Classes
+.font-light { font-weight: v.$font-light; }
+.font-normal { font-weight: v.$font-normal; }
+.font-medium { font-weight: v.$font-medium; }
+.font-semibold { font-weight: v.$font-semibold; }
+.font-bold { font-weight: v.$font-bold; }
+
+// Line Height Classes
+.leading-none { line-height: v.$leading-none; }
+.leading-tight { line-height: v.$leading-tight; }
+.leading-snug { line-height: v.$leading-snug; }
+.leading-normal { line-height: v.$leading-normal; }
+.leading-relaxed { line-height: v.$leading-relaxed; }
+.leading-loose { line-height: v.$leading-loose; }
+
+// Letter Spacing Classes
+.tracking-tighter { letter-spacing: v.$tracking-tighter; }
+.tracking-tight { letter-spacing: v.$tracking-tight; }
+.tracking-normal { letter-spacing: v.$tracking-normal; }
+.tracking-wide { letter-spacing: v.$tracking-wide; }
+.tracking-wider { letter-spacing: v.$tracking-wider; }
+.tracking-widest { letter-spacing: v.$tracking-widest; }
+
+// Font Family Classes
+.font-sans { font-family: v.$font-sans; }
+.font-mono { font-family: v.$font-mono; }
+
+// Text Color Classes
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-accent { color: var(--accent-color); }
+.text-success { color: var(--success-color); }
+.text-danger { color: var(--danger-color); }
+.text-warning { color: var(--warning-color); }
+.text-info { color: var(--info-color); }
+
+// Gradient Text (Glassmorphism / Premium Look)
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+
+  // Ensure text is readable if browser doesn't support background-clip
+  @supports not (background-clip: text) {
+    color: var(--primary-color);
+  }
+}
+
+.text-gradient-primary {
+  background: linear-gradient(135deg, v.$primary-400, v.$primary-600);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-accent {
+  background: linear-gradient(135deg, v.$accent-400, v.$accent-600);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-rainbow {
+  background: linear-gradient(135deg, v.$primary-500, v.$accent-500, v.$info-500);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+// ============================================================================
+// SPACING UTILITIES (Padding & Margin)
+// ============================================================================
+
+// Padding
+.p-0 { padding: v.$spacing-0; }
+.p-1 { padding: v.$spacing-1; }
+.p-2 { padding: v.$spacing-2; }
+.p-3 { padding: v.$spacing-3; }
+.p-4 { padding: v.$spacing-4; }
+.p-5 { padding: v.$spacing-5; }
+.p-6 { padding: v.$spacing-6; }
+.p-8 { padding: v.$spacing-8; }
+.p-10 { padding: v.$spacing-10; }
+.p-12 { padding: v.$spacing-12; }
+
+// Padding X (left + right)
+.px-0 { padding-left: v.$spacing-0; padding-right: v.$spacing-0; }
+.px-1 { padding-left: v.$spacing-1; padding-right: v.$spacing-1; }
+.px-2 { padding-left: v.$spacing-2; padding-right: v.$spacing-2; }
+.px-3 { padding-left: v.$spacing-3; padding-right: v.$spacing-3; }
+.px-4 { padding-left: v.$spacing-4; padding-right: v.$spacing-4; }
+.px-6 { padding-left: v.$spacing-6; padding-right: v.$spacing-6; }
+.px-8 { padding-left: v.$spacing-8; padding-right: v.$spacing-8; }
+
+// Padding Y (top + bottom)
+.py-0 { padding-top: v.$spacing-0; padding-bottom: v.$spacing-0; }
+.py-1 { padding-top: v.$spacing-1; padding-bottom: v.$spacing-1; }
+.py-2 { padding-top: v.$spacing-2; padding-bottom: v.$spacing-2; }
+.py-3 { padding-top: v.$spacing-3; padding-bottom: v.$spacing-3; }
+.py-4 { padding-top: v.$spacing-4; padding-bottom: v.$spacing-4; }
+.py-6 { padding-top: v.$spacing-6; padding-bottom: v.$spacing-6; }
+.py-8 { padding-top: v.$spacing-8; padding-bottom: v.$spacing-8; }
+
+// Margin
+.m-0 { margin: v.$spacing-0; }
+.m-1 { margin: v.$spacing-1; }
+.m-2 { margin: v.$spacing-2; }
+.m-3 { margin: v.$spacing-3; }
+.m-4 { margin: v.$spacing-4; }
+.m-5 { margin: v.$spacing-5; }
+.m-6 { margin: v.$spacing-6; }
+.m-8 { margin: v.$spacing-8; }
+.m-10 { margin: v.$spacing-10; }
+.m-12 { margin: v.$spacing-12; }
+
+// Margin X (left + right)
+.mx-auto { margin-left: auto; margin-right: auto; }
+.mx-0 { margin-left: v.$spacing-0; margin-right: v.$spacing-0; }
+.mx-1 { margin-left: v.$spacing-1; margin-right: v.$spacing-1; }
+.mx-2 { margin-left: v.$spacing-2; margin-right: v.$spacing-2; }
+.mx-3 { margin-left: v.$spacing-3; margin-right: v.$spacing-3; }
+.mx-4 { margin-left: v.$spacing-4; margin-right: v.$spacing-4; }
+
+// Margin Y (top + bottom)
+.my-0 { margin-top: v.$spacing-0; margin-bottom: v.$spacing-0; }
+.my-1 { margin-top: v.$spacing-1; margin-bottom: v.$spacing-1; }
+.my-2 { margin-top: v.$spacing-2; margin-bottom: v.$spacing-2; }
+.my-3 { margin-top: v.$spacing-3; margin-bottom: v.$spacing-3; }
+.my-4 { margin-top: v.$spacing-4; margin-bottom: v.$spacing-4; }
+.my-6 { margin-top: v.$spacing-6; margin-bottom: v.$spacing-6; }
+.my-8 { margin-top: v.$spacing-8; margin-bottom: v.$spacing-8; }
+
+// Margin Bottom (commonly used)
+.mb-0 { margin-bottom: v.$spacing-0; }
+.mb-1 { margin-bottom: v.$spacing-1; }
+.mb-2 { margin-bottom: v.$spacing-2; }
+.mb-3 { margin-bottom: v.$spacing-3; }
+.mb-4 { margin-bottom: v.$spacing-4; }
+.mb-6 { margin-bottom: v.$spacing-6; }
+.mb-8 { margin-bottom: v.$spacing-8; }
+
+// Margin Top
+.mt-0 { margin-top: v.$spacing-0; }
+.mt-1 { margin-top: v.$spacing-1; }
+.mt-2 { margin-top: v.$spacing-2; }
+.mt-3 { margin-top: v.$spacing-3; }
+.mt-4 { margin-top: v.$spacing-4; }
+.mt-6 { margin-top: v.$spacing-6; }
+.mt-8 { margin-top: v.$spacing-8; }
+
+// ============================================================================
+// SHADOW UTILITIES
+// ============================================================================
+
+.shadow-none { box-shadow: v.$shadow-none; }
+.shadow-xs { box-shadow: v.$shadow-xs; }
+.shadow-sm { box-shadow: v.$shadow-sm; }
+.shadow-md { box-shadow: v.$shadow-md; }
+.shadow-lg { box-shadow: v.$shadow-lg; }
+.shadow-xl { box-shadow: v.$shadow-xl; }
+.shadow-2xl { box-shadow: v.$shadow-2xl; }
+.shadow-inner { box-shadow: v.$shadow-inner; }
+
+// Focus Shadows
+.shadow-primary-focus { box-shadow: v.$shadow-primary; }
+.shadow-accent-focus { box-shadow: v.$shadow-accent; }
+.shadow-danger-focus { box-shadow: v.$shadow-danger; }
+.shadow-success-focus { box-shadow: v.$shadow-success; }
+
+// ============================================================================
+// BORDER RADIUS UTILITIES
+// ============================================================================
+
+.rounded-none { border-radius: v.$border-radius-none; }
+.rounded-sm { border-radius: v.$border-radius-sm; }
+.rounded { border-radius: v.$border-radius-md; }  /* Default to medium */
+.rounded-md { border-radius: v.$border-radius-md; }
+.rounded-lg { border-radius: v.$border-radius-lg; }
+.rounded-xl { border-radius: v.$border-radius-xl; }
+.rounded-2xl { border-radius: v.$border-radius-2xl; }
+.rounded-3xl { border-radius: v.$border-radius-3xl; }
+.rounded-full { border-radius: v.$border-radius-full; }
+.rounded-full { border-radius: v.$border-radius-full; }
+
+// ============================================================================
+// DISPLAY & FLEXBOX UTILITIES
+// ============================================================================
+
+.flex { display: flex; }
+.inline-flex { display: inline-flex; }
+.grid { display: grid; }
+.inline-grid { display: inline-grid; }
+.block { display: block; }
+.inline-block { display: inline-block; }
+.inline { display: inline; }
+.hidden { display: none; }
+
+// Flex Direction
+.flex-row { flex-direction: row; }
+.flex-row-reverse { flex-direction: row-reverse; }
+.flex-col { flex-direction: column; }
+.flex-col-reverse { flex-direction: column-reverse; }
+
+// Flex Wrap
+.flex-wrap { flex-wrap: wrap; }
+.flex-wrap-reverse { flex-wrap: wrap-reverse; }
+.flex-nowrap { flex-wrap: nowrap; }
+
+// Justify Content
+.justify-start { justify-content: flex-start; }
+.justify-end { justify-content: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-around { justify-content: space-around; }
+.justify-evenly { justify-content: space-evenly; }
+
+// Align Items
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.items-center { align-items: center; }
+.items-baseline { align-items: baseline; }
+.items-stretch { align-items: stretch; }
+
+// Gap
+.gap-1 { gap: v.$spacing-1; }
+.gap-2 { gap: v.$spacing-2; }
+.gap-3 { gap: v.$spacing-3; }
+.gap-4 { gap: v.$spacing-4; }
+.gap-6 { gap: v.$spacing-6; }
+.gap-8 { gap: v.$spacing-8; }
+
+// ============================================================================
+// TRANSITION UTILITIES
+// ============================================================================
+
+.transition-none { transition: none; }
+.transition-all { transition: v.$transition-all; }
+.transition-colors { transition: v.$transition-colors; }
+.transition-opacity { transition: v.$transition-opacity; }
+.transition-shadow { transition: v.$transition-shadow; }
+.transition-transform { transition: v.$transition-transform; }
+
+// Duration
+.duration-75 { transition-duration: v.$duration-75; }
+.duration-100 { transition-duration: v.$duration-100; }
+.duration-150 { transition-duration: v.$duration-150; }
+.duration-200 { transition-duration: v.$duration-200; }
+.duration-300 { transition-duration: v.$duration-300; }
+.duration-500 { transition-duration: v.$duration-500; }
+
+// Easing
+.ease-linear { transition-timing-function: v.$ease-linear; }
+.ease-in { transition-timing-function: v.$ease-in; }
+.ease-out { transition-timing-function: v.$ease-out; }
+.ease-in-out { transition-timing-function: v.$ease-in-out; }
+
+// ============================================================================
+// WIDTH & HEIGHT UTILITIES
+// ============================================================================
+
+.w-full { width: 100%; }
+.w-auto { width: auto; }
+.h-full { height: 100%; }
+.h-auto { height: auto; }
+
+// ============================================================================
+// POSITION UTILITIES
+// ============================================================================
+
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+.sticky { position: sticky; }
+
+// ============================================================================
+// OVERFLOW UTILITIES
+// ============================================================================
+
+.overflow-auto { overflow: auto; }
+.overflow-hidden { overflow: hidden; }
+.overflow-visible { overflow: visible; }
+.overflow-scroll { overflow: scroll; }
+
+// ============================================================================
+// TEXT UTILITIES
+// ============================================================================
+
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-justify { text-align: justify; }
+
+.uppercase { text-transform: uppercase; }
+.lowercase { text-transform: lowercase; }
+.capitalize { text-transform: capitalize; }
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+// ============================================================================
+// CURSOR UTILITIES
+// ============================================================================
+
+.cursor-auto { cursor: auto; }
+.cursor-default { cursor: default; }
+.cursor-pointer { cursor: pointer; }
+.cursor-wait { cursor: wait; }
+.cursor-not-allowed { cursor: not-allowed; }
+
+// ============================================================================
+// OPACITY UTILITIES
+// ============================================================================
+
+.opacity-0 { opacity: 0; }
+.opacity-25 { opacity: 0.25; }
+.opacity-50 { opacity: 0.5; }
+.opacity-75 { opacity: 0.75; }
+.opacity-100 { opacity: 1; }
+
+// ============================================================================
+// FOCUS-VISIBLE UTILITIES (Accessibility)
+// ============================================================================
+
+// Base focus-visible (removes default outline, adds custom)
+.focus-ring {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: v.$border-radius-sm;
+  }
+}
+
+// Focus ring variants
+.focus-ring-primary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-accent:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-danger:focus-visible {
+  outline: 2px solid var(--danger-color);
+  outline-offset: 2px;
+}
+
+.focus-ring-success:focus-visible {
+  outline: 2px solid var(--success-color);
+  outline-offset: 2px;
+}
+
+// Focus ring with shadow (more prominent)
+.focus-ring-shadow:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  box-shadow: v.$shadow-focus-primary;
+}
+
+// Focus ring inset (for buttons, cards)
+.focus-ring-inset:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+// ============================================================================
+// INTERACTION STATE UTILITIES
+// ============================================================================
+
+// Hover effects
+.hover-lift {
+  transition: transform v.$duration-200 v.$ease-out,
+              box-shadow v.$duration-200 v.$ease-out;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: v.$shadow-lg;
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: v.$shadow-md;
+  }
+}
+
+.hover-scale {
+  transition: transform v.$duration-200 v.$ease-out;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.hover-brightness {
+  transition: filter v.$duration-200 v.$ease-out;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+
+  &:active {
+    filter: brightness(0.95);
+  }
+}
+
+// Touch target sizing (minimum 44x44px for accessibility)
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// ============================================================================
+// RESPONSIVE TYPOGRAPHY UTILITIES
+// ============================================================================
+
+// Headings with responsive sizing using clamp()
+.heading-1 {
+  font-size: clamp(2rem, 5vw, 3rem);      // 32px - 48px
+  line-height: v.$leading-tight;
+  font-weight: v.$font-bold;
+  letter-spacing: v.$tracking-tight;
+}
+
+.heading-2 {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);  // 24px - 36px
+  line-height: v.$leading-tight;
+  font-weight: v.$font-semibold;
+  letter-spacing: v.$tracking-tight;
+}
+
+.heading-3 {
+  font-size: clamp(1.25rem, 3vw, 1.875rem); // 20px - 30px
+  line-height: v.$leading-snug;
+  font-weight: v.$font-semibold;
+}
+
+.heading-4 {
+  font-size: clamp(1.125rem, 2.5vw, 1.5rem); // 18px - 24px
+  line-height: v.$leading-snug;
+  font-weight: v.$font-medium;
+}
+
+// Body text optimized for readability
+.body-readable {
+  font-size: v.$text-base;
+  line-height: v.$leading-relaxed;
+  letter-spacing: 0.01em;
+}
+
+.body-compact {
+  font-size: v.$text-sm;
+  line-height: v.$leading-normal;
+}
+
+// ============================================================================
+// BADGE COMPONENTS (Reusable Status/Label Badges)
+// ============================================================================
+
+// Base badge styling (small labeled pill)
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);  // 4px
+  padding: var(--spacing-1) var(--spacing-2);  // 4px 8px
+  border-radius: var(--radius-full);  // Pill shape
+  font-size: v.$text-xs;
+  font-weight: v.$font-medium;
+  line-height: 1;
+  white-space: nowrap;
+  transition: v.$transition-colors;
+}
+
+// Badge color variants
+.badge-primary {
+  background: rgba(var(--primary-color-rgb), 0.15);
+  color: var(--primary-color);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.3);
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);  // success-500
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-danger {
+  background: rgba(var(--danger-color-rgb), 0.15);
+  color: var(--danger-color);
+  border: 1px solid rgba(var(--danger-color-rgb), 0.3);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);  // warning-500
+  color: var(--warning-color);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.15);  // info-500
+  color: var(--info-color);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-neutral {
+  background: var(--background-darker);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+// Badge sizes
+.badge-sm {
+  padding: 2px var(--spacing-2);  // 2px 8px
+  font-size: 0.625rem;  // 10px
+}
+
+.badge-lg {
+  padding: var(--spacing-2) var(--spacing-3);  // 8px 12px
+  font-size: v.$text-sm;
+}
+
+// Badge with dot indicator (e.g., "LIVE" badge)
+.badge-dot::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+// Status badges (larger, more prominent)
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);  // 8px
+  padding: var(--spacing-2) var(--spacing-3);  // 8px 12px
+  border-radius: var(--radius);  // 8px
+  font-size: v.$text-sm;
+  font-weight: v.$font-semibold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+// Status badge variants
+.status-live {
+  background: rgba(var(--danger-color-rgb), 0.15);
+  color: var(--danger-color);
+  border: 1px solid rgba(var(--danger-color-rgb), 0.3);
+}
+
+.status-recording {
+  background: rgba(var(--danger-color-rgb), 0.2);
+  color: var(--danger-color);
+  border: 1px solid var(--danger-color);
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+.status-offline {
+  background: var(--background-darker);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.status-processing {
+  background: rgba(var(--warning-color-rgb), 0.15);
+  color: var(--warning-color);
+  border: 1px solid rgba(var(--warning-color-rgb), 0.3);
+}
+
+.status-completed {
+  background: rgba(16, 185, 129, 0.15);  // success-500
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+// Border variants for status cards
+.status-border-live {
+  border-left: 4px solid var(--danger-color);
+}
+
+.status-border-recording {
+  border-left: 4px solid var(--danger-color);
+  animation: pulse-border-recording 2s ease-in-out infinite;
+}
+
+.status-border-offline {
+  border-left: 4px solid var(--border-color);
+}
+
+.status-border-success {
+  border-left: 4px solid var(--success-color);
+}
+
+.status-border-warning {
+  border-left: 4px solid var(--warning-color);
+}
+
+// ============================================================================
+// BANNER/ALERT COMPONENTS
+// ============================================================================
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);  // 12px
+  padding: var(--spacing-4);  // 16px
+  border-radius: var(--radius-lg);  // 12px
+  font-size: v.$text-sm;
+  line-height: v.$leading-relaxed;
+  border: 1px solid transparent;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+// Alert variants
+.alert-info {
+  background: rgba(59, 130, 246, 0.1);  // info-500
+  color: var(--info-color);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);  // success-500
+  color: var(--success-color);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.alert-warning {
+  background: rgba(245, 158, 11, 0.1);  // warning-500
+  color: var(--warning-color);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.alert-danger {
+  background: rgba(var(--danger-color-rgb), 0.1);
+  color: var(--danger-color);
+  border-color: rgba(var(--danger-color-rgb), 0.3);
+}
+
+// Banner (full-width alert)
+.banner {
+  padding: var(--spacing-4) var(--spacing-6);  // 16px 24px
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+// ============================================================================
+// LOADING STATES & SKELETONS
+// ============================================================================
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--background-card) 0%,
+    var(--background-darker) 50%,
+    var(--background-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: var(--spacing-2);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-heading {
+  height: 2em;
+  width: 60%;
+  margin-bottom: var(--spacing-3);
+}
+
+.skeleton-button {
+  height: 40px;
+  width: 120px;
+  border-radius: var(--radius);
+}
+
+.skeleton-card {
+  height: 200px;
+  border-radius: var(--radius-lg);
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+}
+
+// ============================================================================
+// MODAL/OVERLAY PATTERNS
+// ============================================================================
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-4);
+}
+
+.modal-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);  // 16px
+  box-shadow: v.$shadow-2xl;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  padding: var(--spacing-6);  // 24px
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: v.$text-xl;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  padding: var(--spacing-2);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: v.$transition-colors;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.modal-body {
+  padding: var(--spacing-6);  // 24px
+}
+
+.modal-footer {
+  padding: var(--spacing-6);  // 24px
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+}
+
+// ============================================================================
+// BUTTON GROUPS
+// ============================================================================
+
+.btn-group {
+  display: inline-flex;
+  border-radius: var(--radius);
+  overflow: hidden;
+  
+  button {
+    border-radius: 0;
+    border-right: 1px solid rgba(var(--border-color-rgb), 0.5);
+
+    &:first-child {
+      border-top-left-radius: var(--radius);
+      border-bottom-left-radius: var(--radius);
+    }
+
+    &:last-child {
+      border-top-right-radius: var(--radius);
+      border-bottom-right-radius: var(--radius);
+      border-right: none;
+    }
+
+    &.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+  }
+}
+
+// ============================================================================
+// CARD PATTERNS (Beyond _mixins.scss)
+// ============================================================================
+
+// Glassmorphism card (high blur, semi-transparent)
+.glass-card {
+  background: rgba(var(--background-card-rgb), 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--border-color-rgb), 0.3);
+  border-radius: var(--radius-xl);  // 16px
+  padding: var(--spacing-6);  // 24px
+  box-shadow: v.$shadow-lg;
+  transition: v.$transition-all;
+
+  &:hover {
+    background: rgba(var(--background-card-rgb), 0.7);
+    box-shadow: v.$shadow-xl;
+    transform: translateY(-2px);
+  }
+}
+
+// Simple bordered card (no glassmorphism)
+.card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);  // 12px
+  padding: var(--spacing-6);  // 24px
+  box-shadow: v.$shadow-sm;
+  transition: v.$transition-all;
+}
+
+.card-elevated {
+  box-shadow: v.$shadow-md;
+
+  &:hover {
+    box-shadow: v.$shadow-lg;
+  }
+}
+
+.card-interactive {
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: v.$shadow-lg;
+    border-color: rgba(var(--primary-color-rgb), 0.5);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// ============================================================================
+// DIVIDER / SEPARATOR
+// ============================================================================
+
+.divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--spacing-4) 0;  // 16px vertical
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 100%;
+  background: var(--border-color);
+  margin: 0 var(--spacing-4);  // 16px horizontal
+}
+
+.divider-text {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin: var(--spacing-6) 0;  // 24px vertical
+  text-transform: uppercase;
+  font-size: v.$text-xs;
+  font-weight: v.$font-semibold;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
+}
+
+// ============================================================================
+// ANIMATIONS (Global Keyframes)
+// ============================================================================
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--danger-color);
+    opacity: 1;
+  }
+  50% {
+    border-color: rgba(var(--danger-color-rgb), 0.5);
+    opacity: 0.7;
+  }
+}
+
+@keyframes pulse-border-recording {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--danger-color-rgb), 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(var(--danger-color-rgb), 0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Animation utility classes
+.animate-fade-in {
+  animation: fade-in v.$duration-300 v.$ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up v.$duration-400 v.$ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down v.$duration-400 v.$ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right v.$duration-300 v.$ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left v.$duration-300 v.$ease-out;
+}
+
+.animate-shake {
+  animation: shake v.$duration-500 v.$ease-in-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+// ============================================================================
+// FORM SYSTEM - Consistent Form Patterns
+// ============================================================================
+
+// Form Group (wrapper for label + input + error/help)
+.form-group {
+  margin-bottom: var(--spacing-5);  // 20px
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.form-group-compact {
+  margin-bottom: var(--spacing-3);  // 12px (less spacing)
+}
+
+// Form Labels
+.form-label {
+  display: block;
+  margin-bottom: var(--spacing-2);  // 8px
+  font-size: v.$text-sm;
+  font-weight: v.$font-medium;
+  color: var(--text-primary);
+  line-height: v.$leading-snug;
+
+  // Required indicator
+  &.required::after {
+    content: ' *';
+    color: var(--danger-color);
+  }
+}
+
+.form-label-inline {
+  display: inline-block;
+  margin-right: var(--spacing-2);
+  margin-bottom: 0;
+}
+
+// Form Controls (already styled in main.scss, these are additional variants)
+.form-control {
+  // Base styles applied via global input styles in main.scss
+  display: block;
+  width: 100%;
+}
+
+.form-control-sm {
+  padding: var(--spacing-2) var(--spacing-3);  // 8px 12px
+  font-size: v.$text-sm;
+  min-height: 36px;
+}
+
+.form-control-lg {
+  padding: var(--spacing-4) var(--spacing-5);  // 16px 20px
+  font-size: v.$text-lg;
+  min-height: 52px;
+}
+
+// Form Control States
+.form-control-error,
+.form-control.error,
+input.error,
+select.error,
+textarea.error {
+  border-color: var(--danger-color);
+  
+  &:focus {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 3px rgba(var(--danger-color-rgb), 0.1);
+  }
+}
+
+.form-control-success,
+.form-control.success,
+input.success,
+select.success,
+textarea.success {
+  border-color: var(--success-color);
+  
+  &:focus {
+    border-color: var(--success-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);  // success-500
+  }
+}
+
+// Form Text (Help text, error messages)
+.form-text {
+  display: block;
+  margin-top: var(--spacing-2);  // 8px
+  font-size: v.$text-sm;
+  line-height: v.$leading-normal;
+}
+
+.form-help {
+  @extend .form-text;
+  color: var(--text-secondary);
+}
+
+.form-error {
+  @extend .form-text;
+  color: var(--danger-color);
+  font-weight: v.$font-medium;
+  
+  // Icon
+  &::before {
+    content: '⚠ ';
+    display: inline-block;
+    margin-right: 4px;
+  }
+}
+
+.form-success {
+  @extend .form-text;
+  color: var(--success-color);
+  font-weight: v.$font-medium;
+  
+  // Icon
+  &::before {
+    content: '✓ ';
+    display: inline-block;
+    margin-right: 4px;
+  }
+}
+
+// Input Group (Input with addon/icon)
+.input-group {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+
+  // Remove border-radius from connected elements
+  > * {
+    &:not(:first-child) {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+
+    &:not(:last-child) {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+  }
+
+  // Input takes remaining space
+  input,
+  select,
+  textarea {
+    flex: 1;
+    min-width: 0;  // Allow flex shrink
+  }
+}
+
+// Input Group Addon (prefix/suffix text or button)
+.input-group-addon {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-3) var(--spacing-4);  // 12px 16px
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: v.$text-sm;
+  font-weight: v.$font-medium;
+  white-space: nowrap;
+
+  &:first-child {
+    border-right: none;
+  }
+
+  &:last-child {
+    border-left: none;
+  }
+}
+
+.input-group-icon {
+  @extend .input-group-addon;
+  padding: var(--spacing-3);  // 12px (square for icon)
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--text-secondary);
+  }
+}
+
+// Checkbox & Radio Groups
+.checkbox-group,
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);  // 12px
+}
+
+.checkbox-group-inline,
+.radio-group-inline {
+  flex-direction: row;
+  gap: var(--spacing-4);  // 16px
+  flex-wrap: wrap;
+}
+
+// Checkbox/Radio Label (with input)
+.checkbox-label,
+.radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);  // 8px
+  cursor: pointer;
+  font-size: v.$text-sm;
+  color: var(--text-primary);
+  user-select: none;
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+  }
+
+  &:hover {
+    color: var(--primary-color);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+
+    input {
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Form Row (horizontal layout for multiple fields)
+.form-row {
+  display: flex;
+  gap: var(--spacing-4);  // 16px
+  flex-wrap: wrap;
+
+  .form-group {
+    flex: 1;
+    min-width: 200px;
+  }
+}
+
+// Form Section (group related fields with heading)
+.form-section {
+  margin-bottom: var(--spacing-8);  // 32px
+  padding-bottom: var(--spacing-6);  // 24px
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+}
+
+.form-section-title {
+  font-size: v.$text-lg;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-4);  // 16px
+}
+
+.form-section-description {
+  font-size: v.$text-sm;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-5);  // 20px
+  line-height: v.$leading-relaxed;
+}
+
+// Form Actions (buttons at bottom)
+.form-actions {
+  display: flex;
+  gap: var(--spacing-3);  // 12px
+  justify-content: flex-end;
+  margin-top: var(--spacing-6);  // 24px
+  padding-top: var(--spacing-6);  // 24px
+  border-top: 1px solid var(--border-color);
+
+  &.centered {
+    justify-content: center;
+  }
+
+  &.start {
+    justify-content: flex-start;
+  }
+}
+
+// Responsive Forms (stack on mobile)
+@include m.respond-below('sm') {  // < 640px
+  .form-row {
+    flex-direction: column;
+    
+    .form-group {
+      min-width: 100%;
+    }
+  }
+
+  .form-actions {
+    flex-direction: column;
+
+    button {
+      width: 100%;
+    }
+  }
+
+  .checkbox-group-inline,
+  .radio-group-inline {
+    flex-direction: column;
+  }
+}
+
+// Form Validation States (for entire form)
+.form-validated {
+  .form-control:valid {
+    border-color: var(--success-color);
+  }
+
+  .form-control:invalid {
+    border-color: var(--danger-color);
+  }
+}
+
+// Disabled Form (entire form disabled state)
+.form-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}
+
+// Search Input (with clear button)
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+
+  input {
+    padding-right: 40px;  // Space for clear button
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-colors);
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--background-darker);
+    }
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+}
+

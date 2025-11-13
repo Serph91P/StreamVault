@@ -6,6 +6,13 @@ export interface NotificationSettings {
   notify_offline_global: boolean
   notify_update_global: boolean
   notify_favorite_category_global?: boolean
+  // System notification settings (Migration 028)
+  notify_recording_started?: boolean
+  notify_recording_failed?: boolean
+  notify_recording_completed?: boolean
+  // Codec preferences (Migration 024) - H.265/AV1 Support
+  supported_codecs?: string
+  prefer_higher_quality?: boolean
 }
 
 export interface StreamerNotificationSettings {
@@ -37,4 +44,7 @@ export interface GlobalSettings {
   http_proxy?: string;
   https_proxy?: string;
   apprise_docs_url: string;
+  // Codec preferences (Migration 024) - H.265/AV1 Support
+  supported_codecs?: string;
+  prefer_higher_quality?: boolean;
 }

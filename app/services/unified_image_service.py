@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Any, Set
 from app.services.images import (
     ImageDownloadService,
     ProfileImageService,
+    BannerImageService,
     CategoryImageService,
     StreamArtworkService
 )
@@ -31,6 +32,7 @@ class UnifiedImageService:
         # Initialize the refactored services
         self.download_service = ImageDownloadService()
         self.profile_service = ProfileImageService(self.download_service)
+        self.banner_service = BannerImageService(self.download_service)
         self.category_service = CategoryImageService(self.download_service)
         self.artwork_service = StreamArtworkService(self.download_service)
         
@@ -181,25 +183,51 @@ class UnifiedImageService:
         """Bulk download stream artwork"""
         return await self.artwork_service.bulk_download_artwork(artwork_data)
 
+    # Banner Image Methods (delegate to BannerImageService)
+    
+    async def download_banner_image(self, streamer_id: int, offline_image_url: str) -> Optional[str]:
+        """Download and cache a streamer's banner image"""
+        return await self.banner_service.download_banner_image(streamer_id, offline_image_url)
+
+    def get_cached_banner_image(self, streamer_id: int) -> Optional[str]:
+        """Get cached banner image path"""
+        return self.banner_service.get_cached_banner_image(streamer_id)
+
+    def get_banner_image_url(self, streamer_id: int, original_url: Optional[str] = None) -> Optional[str]:
+        """Get banner image URL (cached or original)"""
+        return self.banner_service.get_banner_image_url(streamer_id, original_url)
+
+    async def update_streamer_banner_image(self, streamer_id: int, offline_image_url: str) -> bool:
+        """Update a streamer's banner image"""
+        return await self.banner_service.update_streamer_banner_image(streamer_id, offline_image_url)
+
+    async def sync_all_banner_images(self) -> Dict[str, int]:
+        """Sync all banner images"""
+        return await self.banner_service.sync_all_banner_images()
+
     # Statistics and Maintenance Methods
     
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get comprehensive cache statistics"""
         profile_stats = self.profile_service.get_profile_cache_stats()
+        banner_stats = self.banner_service.get_banner_cache_stats()
         category_stats = self.category_service.get_category_cache_stats()
         artwork_stats = self.artwork_service.get_artwork_cache_stats()
         
         return {
             "profiles": profile_stats,
+            "banners": banner_stats,
             "categories": category_stats,
             "artwork": artwork_stats,
             "total_cached": (
                 profile_stats.get("cached_profiles", 0) +
+                banner_stats.get("cached_banners", 0) +
                 category_stats.get("cached_categories", 0) +
                 artwork_stats.get("cached_artworks", 0)
             ),
             "total_failed": (
                 profile_stats.get("failed_downloads", 0) +
+                banner_stats.get("failed_downloads", 0) +
                 category_stats.get("failed_downloads", 0) +
                 artwork_stats.get("failed_downloads", 0)
             )
@@ -208,14 +236,16 @@ class UnifiedImageService:
     async def cleanup_unused_images(self) -> Dict[str, int]:
         """Clean up unused images from all services"""
         profile_cleaned = await self.profile_service.cleanup_unused_profile_images()
+        banner_cleaned = await self.banner_service.cleanup_unused_banner_images()
         category_cleaned = await self.category_service.cleanup_unused_category_images()
         artwork_cleaned = await self.artwork_service.cleanup_unused_artwork()
         
         return {
             "profiles_cleaned": profile_cleaned,
+            "banners_cleaned": banner_cleaned,
             "categories_cleaned": category_cleaned,
             "artwork_cleaned": artwork_cleaned,
-            "total_cleaned": profile_cleaned + category_cleaned + artwork_cleaned
+            "total_cleaned": profile_cleaned + banner_cleaned + category_cleaned + artwork_cleaned
         }
 
     async def cleanup_old_artwork(self, days_old: int = 30) -> int:
@@ -227,11 +257,13 @@ class UnifiedImageService:
     async def bulk_download_from_db(self) -> Dict[str, Dict[str, int]]:
         """Legacy method - bulk download all images from database"""
         profile_stats = await self.sync_all_profile_images()
+        banner_stats = await self.sync_all_banner_images()
         category_stats = await self.sync_all_category_images()
         artwork_stats = await self.sync_stream_artwork()
         
         return {
             "profiles": profile_stats,
+            "banners": banner_stats,
             "categories": category_stats,
             "artwork": artwork_stats
         }

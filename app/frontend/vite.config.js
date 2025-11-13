@@ -1,13 +1,12 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import vueDevTools from 'vite-plugin-vue-devtools';
 import { VitePWA } from 'vite-plugin-pwa';
+
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [
         vue(),
-        vueDevTools(),
         VitePWA({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'maskable-icon-*.png', 'android-icon-*.png'],
@@ -84,7 +83,9 @@ export default defineConfig({
         // Default minification is esbuild, which is faster for development
         minify: true,
         // Force empty output directory to prevent build errors
-        emptyOutDir: true
+        emptyOutDir: true,
+        // More robust output directory handling
+        outDir: 'dist'
     },
     // Development optimization
     server: {

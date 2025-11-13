@@ -242,7 +242,10 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .streamer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -584,7 +587,7 @@ onMounted(() => {
 }
 
 /* Responsive adjustments */
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .streamer-grid {
     grid-template-columns: 1fr;
     gap: 16px;

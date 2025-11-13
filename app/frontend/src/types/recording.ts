@@ -6,6 +6,9 @@ export interface RecordingSettings {
   use_chapters: boolean;
   use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
   cleanup_policy?: CleanupPolicy; // New property for cleanup policy
+  // H.265/AV1 Support (Migration 024)
+  supported_codecs?: string; // Supported video codecs (h264, h265, av1, combinations)
+  prefer_higher_quality?: boolean; // Prefer higher quality codec if available
 }
 
 export interface StreamerRecordingSettings {

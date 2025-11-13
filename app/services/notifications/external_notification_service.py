@@ -105,49 +105,35 @@ class ExternalNotificationService:
                 # Get service-specific URL configuration
                 twitch_url = f"https://twitch.tv/{streamer_name}"
                 
-                # Get cached profile image path using unified image service
-                cached_profile_image = unified_image_service.get_cached_profile_image(streamer.id)
-                
-                # For notifications, prefer HTTP URLs for external services like Apprise
-                # But first check if we have a local cached image to convert to HTTP URL
+                # CRITICAL: Always use original Twitch HTTP URL for notifications
+                # External services (Ntfy, Discord, etc.) cannot access local file paths
                 profile_image_url = ""
                 
-                # Priority 1: If details has HTTP URL, use it
-                if details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
-                    profile_image_url = details["profile_image_url"]
-                    logger.debug(f"Using profile URL from details: {profile_image_url}")
+                # Priority 1: Use original Twitch URL (always HTTP, always works)
+                if streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
+                    profile_image_url = streamer.original_profile_image_url
+                    logger.debug(f"Using original Twitch profile URL: {profile_image_url}")
                 
-                # Priority 2: If streamer has HTTP URL, use it  
+                # Priority 2: If details has HTTP URL (from EventSub notification)
+                elif details.get("profile_image_url") and details["profile_image_url"].startswith('http'):
+                    profile_image_url = details["profile_image_url"]
+                    logger.debug(f"Using profile URL from EventSub details: {profile_image_url}")
+                
+                # Priority 3: Current streamer profile URL (if HTTP)
                 elif streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
                     profile_image_url = streamer.profile_image_url
-                    logger.debug(f"Using profile URL from streamer: {profile_image_url}")
+                    logger.debug(f"Using current profile URL: {profile_image_url}")
                 
-                # Priority 3: If we have a local cached path, convert to BASE_URL
-                elif streamer.profile_image_url and streamer.profile_image_url.startswith('/recordings/.media/profiles/'):
-                    # Convert local path to public URL using BASE_URL from settings
-                    base_url = settings.notification_url or settings.BASE_URL
-                    if base_url:
-                        # Remove /recordings from the path and make it publicly accessible
-                        public_path = streamer.profile_image_url.replace('/recordings', '')
-                        profile_image_url = f"{base_url.rstrip('/')}{public_path}"
-                        logger.debug(f"Converted local cache to public URL: {profile_image_url}")
-                
-                # Priority 4: Fallback to original URL if available
-                elif streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
-                    profile_image_url = streamer.original_profile_image_url
-                    logger.debug(f"Using original profile URL as fallback: {profile_image_url}")
-                
-                # If no suitable URL found, leave empty
+                # If no suitable URL found, leave empty (notification will use service default icon)
                 if not profile_image_url:
-                    logger.debug(f"No suitable profile image URL found for streamer {streamer_name}, notifications will have no avatar")
+                    logger.warning(f"No HTTP profile image URL found for {streamer_name}, notification will use default icon")
                 
                 notification_url = self._get_service_specific_url(
                     base_url=settings.notification_url,
                     twitch_url=twitch_url,
-                    profile_image=profile_image_url,
+                    profile_image=profile_image_url,  # FIXED: Now always HTTP URL
                     streamer_name=streamer_name,
-                    event_type=event_type,
-                    original_image_url=details.get("profile_image_url")
+                    event_type=event_type
                 )
 
                 # Create new Apprise instance
@@ -216,9 +202,13 @@ class ExternalNotificationService:
             return False
 
     def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, 
-                                 streamer_name: str, event_type: str, 
-                                 original_image_url: Optional[str] = None) -> str:
-        """Configure service-specific parameters based on the notification service."""
+                                 streamer_name: str, event_type: str) -> str:
+        """
+        Configure service-specific parameters based on the notification service.
+        
+        IMPORTANT: profile_image must be an HTTP URL accessible by external services.
+        Local file paths (/recordings/.media/...) will NOT work.
+        """
 
         logger.debug(f"Configuring service-specific URL for {base_url}")
     
@@ -243,13 +233,12 @@ class ExternalNotificationService:
             else:
                 params.append("tags=notification")
         
-            # Bevorzuge die Original-URL für Benachrichtigungen
-            if original_image_url and original_image_url.startswith('http'):
-                params.append(f"avatar_url={original_image_url}")
-                logger.debug(f"Using original Twitch profile URL: {original_image_url}")
-            elif profile_image and profile_image.startswith('http'):
-                params.append(f"avatar_url={profile_image}")
-                logger.debug(f"Using profile image URL: {profile_image}")
+            # CRITICAL FIX: Add avatar_url for ALL event types if profile_image is available
+            if profile_image and profile_image.startswith('http'):
+                params.append(f"icon={profile_image}")  # FIXED: Use icon parameter for ntfy
+                logger.debug(f"Added profile image to notification: {profile_image}")
+            else:
+                logger.debug(f"No valid HTTP profile image, notification will use default icon")
         
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated ntfy URL: {final_url}")
@@ -307,3 +296,105 @@ class ExternalNotificationService:
         # Default case - return original URL if service not specifically handled
         logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
         return base_url
+    
+    async def send_recording_notification(self, streamer_name: str, event_type: str, 
+                                         details: dict = None) -> bool:
+        """
+        Send notification for recording events (started/failed/completed)
+        
+        Args:
+            streamer_name: Name of the streamer
+            event_type: 'recording_started', 'recording_failed', 'recording_completed'
+            details: Additional info (error_message, duration, file_size, quality, etc.)
+        
+        Returns:
+            True if notification sent successfully
+        """
+        try:
+            # Check if this specific event type is enabled
+            from app.database import SessionLocal
+            from app.models import GlobalSettings, Streamer
+            
+            with SessionLocal() as db:
+                settings = db.query(GlobalSettings).first()
+                if not settings:
+                    logger.debug("No global settings found")
+                    return False
+                
+                # Check if notifications are globally enabled
+                if not settings.notifications_enabled:
+                    logger.debug("Notifications globally disabled")
+                    return False
+                
+                if not settings.notification_url:
+                    logger.debug("No notification URL configured")
+                    return False
+                
+                # Check event-specific toggle
+                if event_type == "recording_started" and not settings.notify_recording_started:
+                    logger.debug("Recording started notifications disabled")
+                    return False
+                elif event_type == "recording_failed" and not settings.notify_recording_failed:
+                    logger.debug("Recording failed notifications disabled")
+                    return False
+                elif event_type == "recording_completed" and not settings.notify_recording_completed:
+                    logger.debug("Recording completed notifications disabled")
+                    return False
+                
+                # Get streamer for profile image
+                streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                if not streamer:
+                    logger.debug(f"Streamer {streamer_name} not found")
+                    return False
+                
+                # Get profile image URL (HTTP only)
+                profile_image_url = ""
+                if streamer.original_profile_image_url and streamer.original_profile_image_url.startswith('http'):
+                    profile_image_url = streamer.original_profile_image_url
+                elif details and details.get("profile_image_url", "").startswith('http'):
+                    profile_image_url = details["profile_image_url"]
+                
+                twitch_url = f"https://twitch.tv/{streamer_name}"
+                
+                # Get service-specific URL
+                notification_url = self._get_service_specific_url(
+                    base_url=settings.notification_url,
+                    twitch_url=twitch_url,
+                    profile_image=profile_image_url,
+                    streamer_name=streamer_name,
+                    event_type=event_type
+                )
+                
+                # Create Apprise instance
+                from apprise import Apprise, NotifyFormat
+                apprise = Apprise()
+                if not apprise.add(notification_url):
+                    logger.error(f"Failed to add notification URL: {notification_url}")
+                    return False
+                
+                # Format message
+                title, message = self.formatter.format_recording_notification(
+                    streamer_name=streamer_name,
+                    event_type=event_type,
+                    details=details or {}
+                )
+                
+                # Send notification
+                logger.debug(f"Sending recording notification: {event_type} for {streamer_name}")
+                result = await apprise.async_notify(
+                    title=title,
+                    body=message,
+                    body_format=NotifyFormat.TEXT
+                )
+                
+                if result:
+                    logger.info(f"✅ Recording notification sent: {event_type} - {streamer_name}")
+                else:
+                    logger.error(f"❌ Failed to send recording notification: {event_type}")
+                
+                return result
+        
+        except Exception as e:
+            logger.error(f"Error sending recording notification: {e}", exc_info=True)
+            return False
+

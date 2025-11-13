@@ -12,14 +12,13 @@ interface ApiClientOptions {
 }
 
 class ApiClient {
-  private baseURL: string
-
   constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || ''
+    // All API calls use relative paths (/api/...)
+    // BASE_URL is configured via docker-compose environment variables
   }
 
   async request(endpoint: string, options: RequestConfig = {}): Promise<any> {
-    const url = `${this.baseURL}${endpoint}`
+    const url = endpoint // Use endpoint directly (relative path)
 
     const config: RequestConfig = {
       headers: {
@@ -347,7 +346,7 @@ export const authApi = {
 
   // Get callback URL
   getCallbackUrl: () => 
-    apiClient.get('/api/auth/callback-url'),
+    apiClient.get('/api/twitch/callback-url'),  // FIXED: Changed from /api/auth to /api/twitch
 }
 
 // Images API endpoints

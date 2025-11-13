@@ -1,673 +1,953 @@
 <template>
-    <div class="videos-view">
-        <div class="view-header">
-            <h1>📹 Videos</h1>
-            <p>Browse and watch all recorded streams</p>
-        </div>
+  <div class="videos-view">
+    <!-- Header with Actions -->
+    <div class="view-header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <svg class="icon-title">
+            <use href="#icon-video" />
+          </svg>
+          Videos
+        </h1>
+        <p class="page-subtitle">Browse and manage all recorded streams</p>
+      </div>
 
-        <!-- Filter und Suche -->
-        <div class="filters">
-            <div class="search-box">
-                <input v-model="searchQuery" type="text" placeholder="Search videos..." class="search-input">
-                <button @click="searchVideos" class="search-btn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <path d="m21 21-4.35-4.35"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="filter-buttons">
-                <button v-for="filter in filters" :key="filter.value" @click="activeFilter = filter.value"
-                    :class="['filter-btn', { active: activeFilter === filter.value }]">
-                    {{ filter.label }}
-                </button>
-            </div>
-
-            <div class="category-filter" v-if="availableCategories.length > 1">
-                <h4>Filter by Category:</h4>
-                <div class="category-buttons">
-                    <button v-for="category in availableCategories" :key="category.value"
-                        @click="activeCategoryFilter = category.value"
-                        :class="['category-btn', { active: activeCategoryFilter === category.value }]">
-                        {{ category.label }}
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading State -->
-        <div v-if="loading" class="loading-container">
-            <div class="loading-spinner"></div>
-            <p>Loading videos...</p>
-        </div>
-
-        <!-- Error State -->
-        <div v-else-if="error" class="error-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="15" y1="9" x2="9" y2="15"></line>
-                <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            <h3>Error loading videos</h3>
-            <p>{{ error }}</p>
-            <button @click="loadVideos" class="retry-btn">Try Again</button>
-        </div>
-
-        <!-- Videos Grid -->
-        <div v-else-if="filteredVideos.length > 0" class="videos-grid">
-            <div v-for="video in filteredVideos" :key="video.id" class="video-card" @click="openVideoModal(video)">
-                <div class="video-thumbnail">
-                    <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="video.title"
-                        class="thumbnail-image" @error="handleThumbnailError">
-                    <div v-else class="thumbnail-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                        </svg>
-                    </div>
-
-                    <div class="video-duration" v-if="video.duration">
-                        {{ formatDuration(video.duration) }}
-                    </div>
-
-                    <div class="video-overlay">
-                        <svg class="play-icon" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                    </div>
-                </div>
-
-                <div class="video-info">
-                    <h3 class="video-title">{{ video.title }}</h3>
-                    <p class="video-streamer">{{ video.streamer_name }}</p>
-                    <p v-if="video.category_name" class="video-category">🎮 {{ video.category_name }}</p>
-                    <div class="video-meta">
-                        <span class="video-date">{{ formatDate(video.created_at) }}</span>
-                        <span class="video-size" v-if="video.file_size">{{ formatFileSize(video.file_size) }}</span>
-                    </div>
-                </div>
-            </div>
-        </div> <!-- Empty State -->
-        <div v-else-if="!loading && !error" class="empty-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-            </svg>
-            <h3>No videos found</h3>
-            <p v-if="searchQuery">No videos match your search for "{{ searchQuery }}"</p>
-            <p v-else>No videos have been recorded yet.</p>
-        </div>
-
-        <!-- Video Modal -->
-        <VideoModal v-if="selectedVideo" :video="selectedVideo" @close="closeVideoModal" />
+      <div class="header-actions">
+        <button
+          v-if="selectedVideos.length > 0"
+          @click="handleBatchDelete"
+          class="btn-action btn-danger"
+          v-ripple
+        >
+          <svg class="icon">
+            <use href="#icon-trash" />
+          </svg>
+          Delete ({{ selectedVideos.length }})
+        </button>
+        <button
+          @click="toggleSelectMode"
+          class="btn-action"
+          :class="selectMode ? 'btn-primary' : 'btn-secondary'"
+          v-ripple
+        >
+          <svg class="icon">
+            <use href="#icon-check-square" />
+          </svg>
+          {{ selectMode ? 'Cancel' : 'Select' }}
+        </button>
+      </div>
     </div>
+
+    <!-- Search and Filters -->
+    <div class="controls-bar">
+      <!-- Search -->
+      <div class="search-box">
+        <svg class="search-icon">
+          <use href="#icon-search" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search videos by title or streamer..."
+          class="search-input"
+        />
+        <button
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="clear-btn"
+        >
+          <svg class="icon">
+            <use href="#icon-x" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- View Toggle -->
+      <div class="view-toggle">
+        <button
+          @click="viewMode = 'grid'"
+          :class="{ active: viewMode === 'grid' }"
+          class="toggle-btn"
+          v-ripple
+        >
+          <svg class="icon">
+            <use href="#icon-grid" />
+          </svg>
+        </button>
+        <button
+          @click="viewMode = 'list'"
+          :class="{ active: viewMode === 'list' }"
+          class="toggle-btn"
+          v-ripple
+        >
+          <svg class="icon">
+            <use href="#icon-list" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Filters Button -->
+      <button @click="showFilters = !showFilters" class="filters-btn" v-ripple>
+        <svg class="icon">
+          <use href="#icon-filter" />
+        </svg>
+        Filters
+        <span v-if="activeFiltersCount > 0" class="filter-badge">
+          {{ activeFiltersCount }}
+        </span>
+      </button>
+
+      <!-- Sort Dropdown -->
+      <select v-model="sortBy" class="sort-select">
+        <option value="newest">Newest First</option>
+        <option value="oldest">Oldest First</option>
+        <option value="duration-desc">Longest Duration</option>
+        <option value="duration-asc">Shortest Duration</option>
+        <option value="size-desc">Largest Size</option>
+        <option value="size-asc">Smallest Size</option>
+        <option value="title">Title A-Z</option>
+      </select>
+    </div>
+
+    <!-- Filter Panel -->
+    <Transition name="slide-down">
+      <div v-if="showFilters" class="filter-panel">
+        <!-- Streamer Filter -->
+        <div class="filter-group">
+          <label class="filter-label">Streamer</label>
+          <select v-model="filterStreamer" class="filter-select">
+            <option value="">All Streamers</option>
+            <option v-for="streamer in availableStreamers" :key="streamer" :value="streamer">
+              {{ streamer }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Date Filter -->
+        <div class="filter-group">
+          <label class="filter-label">Date</label>
+          <select v-model="filterDate" class="filter-select">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+
+        <!-- Duration Filter -->
+        <div class="filter-group">
+          <label class="filter-label">Duration</label>
+          <select v-model="filterDuration" class="filter-select">
+            <option value="">Any Duration</option>
+            <option value="short">Short (< 1h)</option>
+            <option value="medium">Medium (1-3h)</option>
+            <option value="long">Long (> 3h)</option>
+          </select>
+        </div>
+
+        <!-- Clear Filters -->
+        <button @click="clearFilters" class="clear-filters-btn" v-ripple>
+          <svg class="icon">
+            <use href="#icon-x" />
+          </svg>
+          Clear All
+        </button>
+      </div>
+    </Transition>
+
+    <!-- Results Count -->
+    <div class="results-info">
+      <span v-if="!isLoading">
+        {{ filteredAndSortedVideos.length }} {{ filteredAndSortedVideos.length === 1 ? 'video' : 'videos' }}
+      </span>
+      <span v-if="selectedVideos.length > 0" class="selected-count">
+        {{ selectedVideos.length }} selected
+      </span>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="isLoading" class="videos-container" :class="`view-${viewMode}`">
+      <LoadingSkeleton
+        v-for="i in 12"
+        :key="i"
+        :type="viewMode === 'grid' ? 'video' : 'list-item'"
+      />
+    </div>
+
+    <!-- Empty State -->
+    <EmptyState
+      v-else-if="filteredAndSortedVideos.length === 0"
+      :title="searchQuery ? 'No Results Found' : 'No Videos Yet'"
+      :description="searchQuery ? `No videos match '${searchQuery}'` : 'Start recording streamers to see their VODs here.'"
+      icon="video"
+      action-label="Clear Search"
+      v-if="searchQuery"
+      @action="searchQuery = ''"
+    />
+
+    <!-- Videos Grid/List -->
+    <div v-else class="videos-container" :class="`view-${viewMode}`">
+      <div
+        v-for="video in filteredAndSortedVideos"
+        :key="video.id"
+        class="video-wrapper"
+        :class="{ selected: isSelected(video.id) }"
+      >
+        <!-- Checkbox for Select Mode -->
+        <div v-if="selectMode" class="select-checkbox" @click.stop="toggleSelection(video.id)">
+          <input
+            type="checkbox"
+            :checked="isSelected(video.id)"
+            @change="toggleSelection(video.id)"
+          />
+        </div>
+
+        <VideoCard
+          :video="video"
+          :view-mode="viewMode"
+          @click="selectMode ? toggleSelection(video.id) : playVideo(video)"
+        />
+      </div>
+    </div>
+  </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import VideoModal from '@/components/VideoModal.vue'
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { videoApi } from '@/services/api'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import VideoCard from '@/components/cards/VideoCard.vue'
 
-const loading = ref(true)
+const router = useRouter()
+
+// State
+const isLoading = ref(true)
+const videos = ref<any[]>([])
 const searchQuery = ref('')
-const activeFilter = ref('all')
-const activeCategoryFilter = ref('all')
-const selectedVideo = ref(null)
-const videos = ref([])
-const error = ref(null)
+const viewMode = ref<'grid' | 'list'>('grid')
+const sortBy = ref('newest')
+const showFilters = ref(false)
 
-const filters = [
-    { label: 'All', value: 'all' },
-    { label: 'Today', value: 'today' },
-    { label: 'This Week', value: 'week' },
-    { label: 'This Month', value: 'month' }
-]
+// Filters
+const filterStreamer = ref('')
+const filterDate = ref('all')
+const filterDuration = ref('')
 
-// Get unique categories from videos
-const availableCategories = computed(() => {
-    const categories = videos.value
-        .map(video => video.category_name)
-        .filter(category => category && category.trim() !== '')
-        .filter((category, index, array) => array.indexOf(category) === index)
-        .sort()
+// Selection
+const selectMode = ref(false)
+const selectedVideos = ref<number[]>([])
 
-    return [
-        { label: 'All Categories', value: 'all' },
-        ...categories.map(category => ({ label: category, value: category }))
-    ]
+// Available filter options
+const availableStreamers = computed(() => {
+  const streamers = videos.value
+    .map(v => v.streamer_name)
+    .filter((name, index, arr) => name && arr.indexOf(name) === index)
+    .sort()
+  return streamers
 })
 
-const filteredVideos = computed(() => {
-    let filtered = videos.value
-
-    // Filter by search query
-    if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        filtered = filtered.filter(video =>
-            (video.title || '').toLowerCase().includes(query) ||
-            (video.streamer_name || '').toLowerCase().includes(query)
-        )
-    }
-
-    // Filter by category
-    if (activeCategoryFilter.value !== 'all') {
-        filtered = filtered.filter(video =>
-            video.category_name === activeCategoryFilter.value
-        )
-    }
-
-    // Filter by date
-    if (activeFilter.value !== 'all') {
-        const now = new Date()
-        const filterDate = new Date()
-
-        switch (activeFilter.value) {
-            case 'today':
-                filterDate.setHours(0, 0, 0, 0)
-                break
-            case 'week':
-                filterDate.setDate(now.getDate() - 7)
-                break
-            case 'month':
-                filterDate.setMonth(now.getMonth() - 1)
-                break
-        }
-
-        filtered = filtered.filter(video => {
-            if (!video.created_at) return false
-            try {
-                const videoDate = new Date(video.created_at)
-                return videoDate >= filterDate
-            } catch (e) {
-                console.warn('Invalid date format:', video.created_at)
-                return false
-            }
-        })
-    }
-
-    // Sort by date (newest first)
-    const result = filtered.sort((a, b) => {
-        try {
-            const dateA = new Date(a.created_at || 0)
-            const dateB = new Date(b.created_at || 0)
-            return dateB - dateA
-        } catch (e) {
-            return 0
-        }
-    })
-
-    return result
+// Active filters count
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (filterStreamer.value) count++
+  if (filterDate.value !== 'all') count++
+  if (filterDuration.value) count++
+  return count
 })
 
-const loadVideos = async () => {
-    try {
-        loading.value = true
-        error.value = null
-        const response = await videoApi.getAll()
-        // API returns array directly, not wrapped in data
-        videos.value = Array.isArray(response) ? response : (response.data || [])
-        console.log('Loaded videos:', videos.value)
-    } catch (err) {
-        console.error('Error loading videos:', err)
-        error.value = err.response?.data?.detail || err.message || 'Failed to load videos'
-        videos.value = []
-    } finally {
-        loading.value = false
-    }
-}
+// Filtered and sorted videos
+const filteredAndSortedVideos = computed(() => {
+  let filtered = [...videos.value]
 
-const searchVideos = () => {
-    // Trigger reactivity by updating computed
-    // The computed property will automatically filter
-}
+  // Search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(v =>
+      v.title?.toLowerCase().includes(query) ||
+      v.streamer_name?.toLowerCase().includes(query)
+    )
+  }
 
-const openVideoModal = (video) => {
-    selectedVideo.value = video
-}
+  // Streamer filter
+  if (filterStreamer.value) {
+    filtered = filtered.filter(v => v.streamer_name === filterStreamer.value)
+  }
 
-const closeVideoModal = () => {
-    selectedVideo.value = null
-}
-
-const handleThumbnailError = (event) => {
-    event.target.style.display = 'none'
-}
-
-const formatDate = (dateString) => {
-    const date = new Date(dateString)
+  // Date filter
+  if (filterDate.value !== 'all') {
     const now = new Date()
-    const diffInHours = (now - date) / (1000 * 60 * 60)
+    const filterTime = new Date()
 
-    if (diffInHours < 24) {
-        return `${Math.floor(diffInHours)} hours ago`
-    } else if (diffInHours < 24 * 7) {
-        return `${Math.floor(diffInHours / 24)} days ago`
-    } else {
-        return date.toLocaleDateString('en-US', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        })
+    switch (filterDate.value) {
+      case 'today':
+        filterTime.setHours(0, 0, 0, 0)
+        break
+      case 'week':
+        filterTime.setDate(now.getDate() - 7)
+        break
+      case 'month':
+        filterTime.setMonth(now.getMonth() - 1)
+        break
     }
+
+    filtered = filtered.filter(v => {
+      const date = new Date(v.stream_date || v.created_at)
+      return date >= filterTime
+    })
+  }
+
+  // Duration filter
+  if (filterDuration.value) {
+    filtered = filtered.filter(v => {
+      const duration = v.duration || 0
+      switch (filterDuration.value) {
+        case 'short':
+          return duration < 3600
+        case 'medium':
+          return duration >= 3600 && duration <= 10800
+        case 'long':
+          return duration > 10800
+        default:
+          return true
+      }
+    })
+  }
+
+  // Sorting
+  const sorted = [...filtered]
+  switch (sortBy.value) {
+    case 'newest':
+      sorted.sort((a, b) => {
+        const dateA = new Date(a.stream_date || a.created_at).getTime()
+        const dateB = new Date(b.stream_date || b.created_at).getTime()
+        return dateB - dateA
+      })
+      break
+    case 'oldest':
+      sorted.sort((a, b) => {
+        const dateA = new Date(a.stream_date || a.created_at).getTime()
+        const dateB = new Date(b.stream_date || b.created_at).getTime()
+        return dateA - dateB
+      })
+      break
+    case 'duration-desc':
+      sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0))
+      break
+    case 'duration-asc':
+      sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
+      break
+    case 'size-desc':
+      sorted.sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
+      break
+    case 'size-asc':
+      sorted.sort((a, b) => (a.file_size || 0) - (b.file_size || 0))
+      break
+    case 'title':
+      sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+      break
+  }
+
+  return sorted
+})
+
+// Fetch videos
+async function fetchVideos() {
+  isLoading.value = true
+  try {
+    const response = await videoApi.getAll()
+    videos.value = Array.isArray(response) ? response : (response.data || [])
+  } catch (error) {
+    console.error('Failed to fetch videos:', error)
+    videos.value = []
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const formatDuration = (seconds) => {
-    if (!seconds) return ''
-
-    // Round to whole seconds to avoid decimal display
-    const totalSeconds = Math.round(seconds)
-    const hours = Math.floor(totalSeconds / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const secs = totalSeconds % 60
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    } else {
-        return `${minutes}:${secs.toString().padStart(2, '0')}`
+// Actions
+function playVideo(video: any) {
+  // Navigate to video player with correct route parameters
+  // Route expects: /streamer/:streamerId/stream/:streamId/watch
+  router.push({
+    name: 'VideoPlayer',
+    params: {
+      streamerId: video.streamer_id,
+      streamId: video.id  // video.id is actually the stream_id
+    },
+    query: {
+      title: video.title || `Stream ${video.id}`,
+      streamerName: video.streamer_name
     }
+  })
 }
 
-const formatFileSize = (bytes) => {
-    if (!bytes) return ''
-
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) {
+    selectedVideos.value = []
+  }
 }
 
+function isSelected(id: number) {
+  return selectedVideos.value.includes(id)
+}
+
+function toggleSelection(id: number) {
+  const index = selectedVideos.value.indexOf(id)
+  if (index > -1) {
+    selectedVideos.value.splice(index, 1)
+  } else {
+    selectedVideos.value.push(id)
+  }
+}
+
+function handleBatchDelete() {
+  console.log('Batch delete:', selectedVideos.value)
+  // TODO: Implement batch delete
+}
+
+function clearFilters() {
+  filterStreamer.value = ''
+  filterDate.value = 'all'
+  filterDuration.value = ''
+}
+
+// Watch for filter changes to auto-close panel
+watch([filterStreamer, filterDate, filterDuration], () => {
+  if (activeFiltersCount.value > 0) {
+    // Keep panel open while actively filtering
+  }
+})
+
+// Initialize
 onMounted(() => {
-    loadVideos()
+  fetchVideos()
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+
 .videos-view {
-    padding: 20px;
-    max-width: 1400px;
-    margin: 0 auto;
+  padding: var(--spacing-6) var(--spacing-4);
+  max-width: 1600px;
+  margin: 0 auto;
+  min-height: 100vh;
 }
 
+// Header
 .view-header {
-    text-align: center;
-    margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-6);
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
 }
 
-.view-header h1 {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
-    color: var(--text-primary);
+.header-content {
+  flex: 1;
+  min-width: 250px;
 }
 
-.view-header p {
-    color: var(--text-secondary);
-    font-size: 1.1rem;
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--text-3xl);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-2) 0;
+
+  .icon-title {
+    width: 32px;
+    height: 32px;
+    stroke: var(--primary-color);
+    fill: none;
+  }
 }
 
-.filters {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    margin-bottom: 30px;
-    padding: 20px;
+.page-subtitle {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  border: none;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &.btn-primary {
+    background: var(--primary-color);
+    color: white;
+
+    &:hover {
+      background: var(--primary-600);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  &.btn-secondary {
     background: var(--background-card);
-    border-radius: 12px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+
+    &:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+  }
+
+  &.btn-danger {
+    background: var(--danger-color);
+    color: white;
+
+    &:hover {
+      background: var(--danger-600);
+      box-shadow: var(--shadow-md);
+    }
+  }
+}
+
+// Controls Bar
+.controls-bar {
+  display: flex;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .search-box {
-    display: flex;
-    gap: 10px;
-    max-width: 400px;
-    margin: 0 auto;
-}
+  position: relative;
+  flex: 1;
+  min-width: 280px;
 
-.search-input {
-    flex: 1;
-    padding: 12px 16px;
-    border: 2px solid var(--border-color);
-    border-radius: 25px;
-    font-size: 16px;
-    outline: none;
-    transition: border-color 0.3s;
-}
+  .search-icon {
+    position: absolute;
+    left: var(--spacing-3);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-secondary);
+    fill: none;
+    pointer-events: none;
+  }
 
-.search-input:focus {
-    border-color: var(--primary-color);
-}
-
-.search-btn {
-    padding: 12px 16px;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.search-btn:hover {
-    background: var(--primary-color-dark);
-}
-
-.filter-buttons {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.filter-btn {
-    padding: 8px 20px;
-    border: 2px solid var(--border-color);
-    background: transparent;
-    color: var(--text-primary);
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.filter-btn:hover,
-.filter-btn.active {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.category-filter {
-    margin-top: 15px;
-}
-
-.category-filter h4 {
-    margin: 0 0 10px 0;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.category-buttons {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.category-btn {
-    padding: 6px 16px;
-    border: 2px solid var(--border-color);
-    background: transparent;
-    color: var(--text-primary);
-    border-radius: 15px;
-    cursor: pointer;
-    transition: all 0.3s;
-    font-size: 0.85rem;
-}
-
-.category-btn:hover,
-.category-btn.active {
-    background: var(--success-color);
-    color: white;
-    border-color: var(--success-color);
-}
-
-.loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--border-color);
-    border-top: 4px solid var(--primary-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 20px;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-.videos-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
-}
-
-.video-card {
+  .search-input {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    overflow: hidden;
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    transition: all v.$duration-200 v.$ease-out;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
+    }
+
+    &::placeholder {
+      color: var(--text-tertiary);
+    }
+  }
+
+  .clear-btn {
+    position: absolute;
+    right: var(--spacing-2);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    position: relative;
+    transition: all v.$duration-200 v.$ease-out;
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: var(--text-secondary);
+      fill: none;
+    }
+
+    &:hover {
+      background: rgba(var(--danger-500-rgb), 0.1);
+
+      .icon {
+        stroke: var(--danger-color);
+      }
+    }
+  }
 }
 
-.video-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+.view-toggle {
+  display: flex;
+  gap: var(--spacing-1);
+  background: var(--background-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-1);
+  border: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+  padding: var(--spacing-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all v.$duration-200 v.$ease-out;
+
+  .icon {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-secondary);
+    fill: none;
+  }
+
+  &.active {
+    background: var(--primary-color);
+
+    .icon {
+      stroke: white;
+    }
+  }
+
+  &:hover:not(.active) {
+    background: rgba(var(--primary-500-rgb), 0.1);
+  }
+}
+
+.filters-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &:hover {
     border-color: var(--primary-color);
-}
-
-.video-card:nth-child(odd) {
-    background: var(--background-card);
-}
-
-.video-card:nth-child(even) {
-    background: var(--bg-tertiary);
-}
-
-.video-thumbnail {
-    position: relative;
-    width: 100%;
-    height: 180px;
-    overflow: hidden;
-}
-
-.thumbnail-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.thumbnail-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--background-darker) 0%, var(--background-dark) 100%);
-    color: var(--text-secondary);
-    border: 2px dashed var(--border-color);
-}
-
-.video-duration {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.video-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.video-card:hover .video-overlay {
-    opacity: 1;
-}
-
-.play-icon {
-    color: white;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-}
-
-.video-info {
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.02);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.video-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.video-streamer {
     color: var(--primary-color);
-    font-weight: 500;
-    margin-bottom: 8px;
-}
+  }
 
-.video-category {
-    color: var(--success-color);
-    font-size: 0.85rem;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.video-meta {
-    display: flex;
-    justify-content: space-between;
+  .filter-badge {
+    display: inline-flex;
     align-items: center;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-
-.empty-state {
-    text-align: center;
-    padding: 80px 20px;
-    color: var(--text-secondary);
-}
-
-.empty-state svg {
-    margin-bottom: 20px;
-    opacity: 0.5;
-}
-
-.empty-state h3 {
-    font-size: 1.5rem;
-    margin-bottom: 10px;
-    color: var(--text-primary);
-}
-
-.error-state {
-    text-align: center;
-    padding: 80px 20px;
-    color: var(--text-secondary);
-}
-
-.error-state svg {
-    margin-bottom: 20px;
-    color: var(--danger-color);
-}
-
-.error-state h3 {
-    font-size: 1.5rem;
-    margin-bottom: 10px;
-    color: var(--text-primary);
-}
-
-.retry-btn {
-    padding: 10px 20px;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 var(--spacing-1);
     background: var(--primary-color);
     color: white;
-    border: none;
-    border-radius: 8px;
+    font-size: var(--text-xs);
+    font-weight: v.$font-bold;
+    border-radius: var(--radius-full);
+  }
+}
+
+.sort-select {
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  &:hover {
+    border-color: var(--primary-color);
+  }
+
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+// Filter Panel
+.filter-panel {
+  display: flex;
+  gap: var(--spacing-4);
+  padding: var(--spacing-5);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--spacing-5);
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  flex: 1;
+  min-width: 180px;
+}
+
+.filter-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-2);
+}
+
+.filter-select {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  &:hover {
+    border-color: var(--primary-color);
+  }
+
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+.clear-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  align-self: flex-end;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &:hover {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+  }
+}
+
+// Results Info
+.results-info {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: center;
+  margin-bottom: var(--spacing-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+
+  .selected-count {
+    padding: var(--spacing-1) var(--spacing-2);
+    background: rgba(var(--primary-500-rgb), 0.1);
+    color: var(--primary-color);
+    border-radius: var(--radius-md);
+    font-weight: v.$font-semibold;
+  }
+}
+
+// Videos Container
+.videos-container {
+  &.view-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-5);
+  }
+
+  &.view-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+}
+
+.video-wrapper {
+  position: relative;
+  transition: all v.$duration-200 v.$ease-out;
+
+  &.selected {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+    border-radius: var(--radius-xl);
+  }
+}
+
+.select-checkbox {
+  position: absolute;
+  top: var(--spacing-3);
+  left: var(--spacing-3);
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
     cursor: pointer;
-    margin-top: 15px;
-    transition: background-color 0.3s;
+  }
 }
 
-.retry-btn:hover {
-    background: var(--primary-color-dark);
+// Transitions
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all v.$duration-300 v.$ease-out;
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .videos-view {
-        padding: 15px;
-    }
-
-    .view-header h1 {
-        font-size: 2rem;
-    }
-
-    .filters {
-        padding: 15px;
-    }
-
-    .search-box {
-        max-width: 100%;
-    }
-
-    .videos-grid {
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 15px;
-    }
-
-    .video-thumbnail {
-        height: 160px;
-    }
-
-    .filter-buttons {
-        justify-content: flex-start;
-        overflow-x: auto;
-        padding-bottom: 5px;
-    }
-
-    .filter-btn {
-        flex-shrink: 0;
-    }
-
-    .category-buttons {
-        justify-content: flex-start;
-        overflow-x: auto;
-        padding-bottom: 5px;
-    }
-
-    .category-btn {
-        flex-shrink: 0;
-        font-size: 0.8rem;
-        padding: 5px 12px;
-    }
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
-/* NOTE: This component now uses global design tokens from _variables.scss
-   Local CSS variable definitions were removed to prevent conflicts with the design system.
-   All colors are now managed centrally through the design token system. */
+// Responsive - Use SCSS mixins for breakpoints
+@include m.respond-below('lg') {  // < 1024px
+  .controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+}
+
+@include m.respond-below('sm') {  // < 640px
+  .videos-view {
+    padding: var(--spacing-4) var(--spacing-3);
+  }
+
+  .page-title {
+    font-size: var(--text-2xl);
+  }
+
+  .header-actions {
+    width: 100%;
+
+    .btn-action {
+      flex: 1;
+      justify-content: center;
+      min-height: 44px;  // Touch-friendly
+    }
+  }
+  
+  // Filter and sort controls
+  .filters-btn,
+  .sort-select {
+    min-height: 44px;  // Touch-friendly
+    font-size: var(--text-base);  // Larger for readability
+  }
+  
+  .filter-panel {
+    padding: var(--spacing-4);
+    gap: var(--spacing-3);
+  }
+  
+  .filter-select {
+    min-height: 44px;  // Touch-friendly
+    font-size: 16px;  // Prevent iOS zoom
+  }
+  
+  .clear-filters-btn {
+    width: 100%;  // Full width on mobile
+    min-height: 44px;
+    justify-content: center;
+  }
+  
+  // Search and view controls
+  .search-box {
+    order: -1;  // Move search to top on mobile
+    width: 100%;
+    margin-bottom: var(--spacing-3);
+  }
+  
+  .view-toggle,
+  .filters-btn,
+  .sort-select {
+    flex: 1;  // Equal width buttons
+  }
+  
+  .filter-panel {
+    flex-direction: column;  // Stack vertically on mobile
+  }
+  
+  .filter-group {
+    width: 100%;
+    
+    label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+    
+    select {
+      width: 100%;
+    }
+  }
+
+  .videos-container.view-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

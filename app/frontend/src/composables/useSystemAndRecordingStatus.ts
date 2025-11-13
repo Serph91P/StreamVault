@@ -106,7 +106,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/system${cacheParam}`)
+      const response = await fetch(`/api/status/system${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -130,7 +132,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/active-recordings${cacheParam}`)
+      const response = await fetch(`/api/status/active-recordings${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -154,7 +158,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streamers${cacheParam}`)
+      const response = await fetch(`/api/status/streamers${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -178,7 +184,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streams${cacheParam}`)
+      const response = await fetch(`/api/status/streams${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -202,7 +210,9 @@ export function useSystemAndRecordingStatus() {
       error.value = null
       
       const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/notifications${cacheParam}`)
+      const response = await fetch(`/api/status/notifications${cacheParam}`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -452,24 +462,32 @@ export function useSystemAndRecordingStatus() {
     }
   })
   
-  // Periodic refresh interval (fallback when WebSocket updates aren't working)
+  // Periodic refresh interval (DISABLED - WebSocket provides all updates)
   let refreshInterval: NodeJS.Timeout | null = null
   
   const startPeriodicRefresh = (intervalMs = 30000) => {
+    // CRITICAL FIX: Disable polling - WebSocket handles all real-time updates
+    // This prevents unnecessary API traffic when WebSocket is working
+    logDebug('useSystemAndRecordingStatus', 'Periodic polling DISABLED - using WebSocket-only updates')
+    
+    // Only use as emergency fallback when WebSocket is completely dead
     if (refreshInterval) {
       clearInterval(refreshInterval)
     }
     
+    // Check every 60 seconds if WebSocket is dead for >2 minutes
     refreshInterval = setInterval(() => {
-      // Only refresh if WebSocket is disconnected or no recent updates
       const timeSinceLastUpdate = lastUpdate.value ? 
         Date.now() - lastUpdate.value.getTime() : 
         Infinity
       
-      if (!isOnline.value || timeSinceLastUpdate > TIMEOUT_THRESHOLD_MS) {
-        fetchAllStatus(true) // Use cache for periodic refresh
+      // EMERGENCY FALLBACK: Only fetch if WebSocket has been dead for 2+ minutes
+      const EMERGENCY_THRESHOLD_MS = 120000 // 2 minutes
+      if (!isOnline.value && timeSinceLastUpdate > EMERGENCY_THRESHOLD_MS) {
+        logError('useSystemAndRecordingStatus', `EMERGENCY FALLBACK: WebSocket dead for ${Math.floor(timeSinceLastUpdate / 1000)}s - using REST API`)
+        fetchAllStatus(false) // Force refresh without cache
       }
-    }, intervalMs)
+    }, 60000) // Check every 60 seconds (reduced from 30s)
   }
   
   const stopPeriodicRefresh = () => {

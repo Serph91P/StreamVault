@@ -16,7 +16,9 @@ export function useNotificationSettings(): NotificationSettingsComposable {
 
   const fetchSettings = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/settings')
+      const response = await fetch('/api/settings', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       settings.value = await response.json()
     } catch (error) {
@@ -27,6 +29,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
     const response = await fetch('/api/settings', {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSettings)
     })
@@ -41,7 +44,9 @@ export function useNotificationSettings(): NotificationSettingsComposable {
 
   const getStreamerSettings = async () => {
     try {
-      const response = await fetch('/api/settings/streamer')
+      const response = await fetch('/api/settings/streamer', {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const data = await response.json()
       streamerSettings.value = data
@@ -55,6 +60,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   const updateStreamerSettings = async (streamerId: number, settings: Partial<StreamerNotificationSettings>): Promise<StreamerNotificationSettings> => {
     const response = await fetch(`/api/settings/streamer/${streamerId}`, {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     })

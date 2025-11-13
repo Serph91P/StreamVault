@@ -88,12 +88,8 @@ export function useAuth() {
     
     clearAuth()
     
-    // For PWA: Force redirect
-    const isStandalone = (window.navigator as any).standalone || 
-                        window.matchMedia('(display-mode: standalone)').matches
-    if (isStandalone) {
-      window.location.href = '/auth/login'
-    }
+    // Force redirect to login for ALL scenarios
+    window.location.href = '/auth/login'
   }
   
   const clearAuth = () => {

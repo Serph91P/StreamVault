@@ -108,6 +108,30 @@
                 When enabled, chapter titles will use the game/category name instead of the stream title.
               </div>
             </div>
+
+            <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
+            <h4 class="section-title" style="margin-top: 2rem;">🎨 Advanced Codec Settings</h4>
+            <div class="form-group">
+              <label>Supported Codecs:</label>
+              <select v-model="data.supported_codecs" class="form-control">
+                <option value="h264">📺 H.264 Only - 1080p60 max, highest compatibility</option>
+                <option value="h265">🎬 H.265/HEVC Only - 1440p60, modern hardware required</option>
+                <option value="av1">🚀 AV1 Only - Experimental, newest hardware required</option>
+                <option value="h264,h265">⭐ H.264 + H.265 (RECOMMENDED) - Best balance, auto-fallback</option>
+                <option value="h264,h265,av1">🔮 All Codecs (Future-proof) - Maximum quality</option>
+              </select>
+              <div class="help-text">
+                Configure video codec support for higher quality recordings (up to 1440p60). 
+                <strong>Requires Streamlink 8.0.0+</strong>
+                <br><br><strong>ℹ️ Important Notes:</strong>
+                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                  <li>Higher quality streams depend on <strong>broadcaster settings</strong> (not all streamers support H.265/AV1)</li>
+                  <li>Most channels still stream in H.264 only</li>
+                  <li>H.265/AV1 decode requires modern hardware (2020+) and compatible players</li>
+                  <li>If broadcaster doesn't support selected codec, Streamlink will auto-fallback to available codec</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -162,26 +186,27 @@
                 </div>
               </div>
 
-              <div class="proxy-examples">
+              <div class="proxy-info-card">
                 <h5>📋 Proxy URL Examples:</h5>
-                <ul>
+                <ul class="proxy-examples-list">
                   <li><code>http://proxy.example.com:8080</code> - Basic proxy</li>
                   <li><code>http://username:password@proxy.example.com:8080</code> - Authenticated proxy</li>
                   <li><code>https://secure-proxy.example.com:8080</code> - HTTPS proxy</li>
                   <li><code>socks5://127.0.0.1:1080</code> - SOCKS5 proxy (if supported)</li>
                 </ul>
-              </div>
+                
                 <div class="proxy-tips">
-                <h6>💡 Tips:</h6>
-                <ul>
-                  <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
-                  <li>Test your proxy configuration before enabling recording</li>
-                  <li>Some regions have fewer or no Twitch advertisements</li>
-                  <li>Ensure your proxy provider allows video streaming traffic</li>
-                  <li>Leave fields empty to disable proxy for that protocol</li>
-                  <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
-                  <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
-                </ul>
+                  <h6>💡 Tips:</h6>
+                  <ul>
+                    <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
+                    <li>Test your proxy configuration before enabling recording</li>
+                    <li>Some regions have fewer or no Twitch advertisements</li>
+                    <li>Ensure your proxy provider allows video streaming traffic</li>
+                    <li>Leave fields empty to disable proxy for that protocol</li>
+                    <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
+                    <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -267,17 +292,17 @@
             </thead>
             <tbody>
               <tr v-for="streamer in streamerSettings" :key="streamer.streamer_id">
-                <td class="streamer-info">
+                <td class="streamer-info" data-label="">
                   <div class="streamer-avatar" v-if="streamer.profile_image_url">
                     <img :src="streamer.profile_image_url" :alt="streamer.username || ''" />
                   </div>
                   <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
                 </td>
-                <td>
+                <td data-label="Record">
                   <input type="checkbox" v-model="streamer.enabled"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
-                <td>
+                <td data-label="Quality">
                   <select v-model="streamer.quality"
                     @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
                     class="form-control form-control-sm">
@@ -287,12 +312,12 @@
                     </option>
                   </select>
                 </td>
-                <td>
+                <td data-label="Custom Filename">
                   <input type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
-                <td>
+                <td data-label="Actions">
                   <div class="streamer-actions">
                     <button 
                       v-if="isActiveRecording(streamer.streamer_id)" 
@@ -342,6 +367,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
+import { useToast } from '@/composables/useToast';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import type { GlobalSettings } from '@/types/settings';
@@ -368,6 +394,7 @@ const tabs = [
 ];
 
 const { isLoading, error } = useRecordingSettings();
+const toast = useToast();
 
 // Filename presets from API
 const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsError } = useFilenamePresets();
@@ -472,7 +499,7 @@ const saveProxySettings = async () => {
     
   } catch (error) {
     console.error('Failed to save proxy settings:', error);
-    alert('Failed to save proxy settings. Please try again.');
+    toast.error('Failed to save proxy settings. Please try again.');
   }
 };
 
@@ -495,7 +522,10 @@ const data = ref<RecordingSettings>({
   filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
   default_quality: props.settings?.default_quality ?? 'best',
   use_chapters: props.settings?.use_chapters ?? true,
-  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false
+  use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false,
+  // Codec preferences (Migration 024) - H.265/AV1 Support
+  supported_codecs: props.settings?.supported_codecs || 'h264,h265',
+  prefer_higher_quality: props.settings?.prefer_higher_quality !== false
 });
 
 const updateFilenameTemplate = () => {
@@ -604,7 +634,10 @@ const saveSettings = async () => {
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
       use_chapters: data.value.use_chapters,
-      use_category_as_chapter_title: data.value.use_category_as_chapter_title
+      use_category_as_chapter_title: data.value.use_category_as_chapter_title,
+      // Codec preferences (Migration 024)
+      supported_codecs: data.value.supported_codecs,
+      prefer_higher_quality: data.value.prefer_higher_quality
     });
     
     // Save proxy settings separately
@@ -612,7 +645,7 @@ const saveSettings = async () => {
     
   } catch (error) {
     console.error('Failed to save settings:', error);
-    alert('Failed to save settings. Please try again.');
+    toast.error('Failed to save settings. Please try again.');
   } finally {
     isSaving.value = false;
   }
@@ -680,7 +713,10 @@ const handleStreamerPolicySaved = (policy: any) => {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
@@ -692,7 +728,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .tab-button {
   background: none;
   border: none;
-  padding: 12px 20px;
+  padding: var(--spacing-3) var(--spacing-6);
   cursor: pointer;
   color: var(--text-secondary);
   font-weight: 500;
@@ -733,7 +769,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .streamer-settings {
   margin-bottom: 30px;
   background-color: var(--background-darker, #1f1f23);
-  padding: 20px;
+  padding: var(--spacing-6);
   border-radius: var(--border-radius, 8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
@@ -752,7 +788,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 /* Ensure form controls are properly styled */
 .form-control {
   width: 100%;
-  padding: 10px;
+  padding: var(--spacing-3);
   border: 1px solid var(--border-color);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #f1f1f3);
@@ -792,7 +828,7 @@ select.form-control {
 select.form-control option {
   background-color: var(--background-darker, #18181b);
   color: var(--text-primary, #f1f1f3);
-  padding: 8px;
+  padding: var(--spacing-2);
 }
 
 .help-text {
@@ -839,52 +875,109 @@ select.form-control option {
   border: 1px solid var(--border-color, #303034);
 }
 
-/* Card-basierte Layout für kleine Bildschirme */
-@media (max-width: 767px) {
-  .streamer-table table {
-    border-collapse: separate;
-    border-spacing: 0;
+/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
+@include m.respond-below('md') {  // < 767px
+  .streamer-table table,
+  .streamer-table thead,
+  .streamer-table tbody,
+  .streamer-table th,
+  .streamer-table td,
+  .streamer-table tr {
+    display: block;
   }
   
-  .streamer-table thead {
-    display: none; /* Header auf Mobilgeräten ausblenden */
+  /* Hide table header */
+  .streamer-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
   }
   
-  .streamer-table tbody tr {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    margin-bottom: 16px;
-    padding: 12px;
-    background-color: rgba(0, 0, 0, 0.2);
+  /* Style each row as a card */
+  .streamer-table tr {
+    margin-bottom: var(--spacing-4, 16px);
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid var(--border-color, #333);
+    background: var(--background-card, #2a2a2e);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
+  /* Style table cells as rows */
   .streamer-table td {
-    display: flex;
-    padding: 8px 0;
-    border: none;
     position: relative;
+    padding: 12px 12px 12px 150px;  /* More space for longer labels */
+    min-height: 44px;  /* Touch-friendly */
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color-subtle);
   }
   
-  .streamer-table td:not(:last-child) {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .streamer-table td::before {
+  /* Add labels before each cell */
+  .streamer-table td:before {
     content: attr(data-label);
-    width: 40%;
-    font-weight: bold;
-    margin-right: 12px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 12px;
+    width: 125px;  /* Wider for "Custom Filename" label */
+    font-weight: 600;
+    color: var(--text-secondary, #adadb8);
+    font-size: 0.85rem;
   }
   
-  .streamer-table td:first-child {
-    padding-top: 0;
+  /* Streamer info cell styling */
+  .streamer-table td.streamer-info {
+    padding: 12px;
+    font-weight: 600;
+    background: var(--background-darker, #1f1f23);
+    gap: 12px;
   }
-    .streamer-table .form-control-sm {
+  
+  .streamer-table td.streamer-info:before {
+    display: none;  /* No label for streamer name */
+  }
+  
+  /* Make checkboxes easier to tap */
+  input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+    cursor: pointer;
+  }
+  
+  /* Select dropdowns - Full width on mobile */
+  .streamer-table select.form-control,
+  .streamer-table select.form-control-sm {
     width: 100%;
+    max-width: 100%;
+    padding: var(--spacing-3);
+    font-size: 16px;  /* Prevent iOS zoom */
     background-color: var(--background-dark, #18181b);
     color: var(--text-primary, #f1f1f3);
+  }
+  
+  /* Text inputs - Full width on mobile */
+  .streamer-table input[type="text"].form-control,
+  .streamer-table input[type="text"].form-control-sm {
+    width: 100%;
+    max-width: 100%;
+    padding: var(--spacing-3);
+    font-size: 16px;  /* Prevent iOS zoom */
+    background-color: var(--background-dark, #18181b);
+    color: var(--text-primary, #f1f1f3);
+  }
+  
+  /* Action buttons - Stack vertically on mobile */
+  .streamer-table .streamer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .streamer-table .streamer-actions .btn {
+    width: 100%;
+    min-height: 44px;  /* Touch-friendly */
   }
 }
 
@@ -904,7 +997,7 @@ select.form-control option {
   gap: 8px;
 }
 
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .form-actions {
     flex-direction: column;
   }
@@ -1029,7 +1122,7 @@ select.form-control option {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0;
+  margin: var(--spacing-3) 0;
   max-width: 100%;
 }
 
@@ -1039,7 +1132,7 @@ select.form-control option {
   color: var(--text-primary, #f1f1f3);
   border: 1px solid var(--border-color, #404040);
   border-radius: var(--border-radius, 8px);
-  padding: 6px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-family: 'Courier New', 'Monaco', monospace;
   font-size: 0.85em;
   font-weight: 500;
@@ -1191,7 +1284,7 @@ select.form-control option {
 
 .form-control-sm {
   width: 100%;
-  padding: 8px;
+  padding: var(--spacing-2);
   border: 1px solid var(--border-color);
   background-color: var(--background-dark, #18181b);
   color: var(--text-primary, #f1f1f3);
@@ -1279,7 +1372,7 @@ select.form-control-sm option {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: var(--spacing-6);
 }
 
 .modal-content {
@@ -1297,7 +1390,7 @@ select.form-control-sm option {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: var(--spacing-6);
   border-bottom: 1px solid var(--border-color, #303034);
 }
 
@@ -1328,7 +1421,7 @@ select.form-control-sm option {
 }
 
 .modal-body {
-  padding: 20px;
+  padding: var(--spacing-6);
 }
 
 /* Settings sections for better visual organization */
@@ -1372,27 +1465,51 @@ select.form-control-sm option {
   /* Use status-border-info class from global styles instead */
 }
 
-.proxy-examples {
+.proxy-info-card {
   margin-top: var(--spacing-lg, 1.5rem);
-  padding: var(--spacing-md, 1rem);
-  background-color: var(--background-dark, #18181b);
-  border-radius: var(--border-radius, 6px);
-  border: 1px solid var(--border-color, #303034);
+  padding: var(--spacing-lg, 1.5rem);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 8px);
 }
 
-.proxy-examples h5 {
+.proxy-info-card h5 {
   margin-bottom: var(--spacing-md, 1rem);
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
   font-size: 1rem;
   font-weight: 600;
 }
 
-.proxy-examples h6 {
+.proxy-info-card h6 {
   margin-top: var(--spacing-lg, 1.5rem);
   margin-bottom: var(--spacing-sm, 0.5rem);
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.proxy-examples-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.proxy-examples-list li {
+  margin-bottom: var(--spacing-sm, 0.5rem);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.proxy-examples-list code {
+  background: var(--background-darker);
+  color: var(--primary-color);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  display: inline-block;
+  word-break: break-all;
 }
 
 .example-list {
@@ -1430,22 +1547,25 @@ select.form-control-sm option {
 
 .proxy-tips {
   margin-top: var(--spacing-md, 1rem);
+  padding-top: var(--spacing-md, 1rem);
+  border-top: 1px solid var(--border-color);
 }
 
 .proxy-tips ul {
   margin: var(--spacing-sm, 0.5rem) 0;
   padding-left: var(--spacing-lg, 1.5rem);
+  list-style: disc;
 }
 
 .proxy-tips li {
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   font-size: 0.85rem;
-  line-height: 1.4;
+  line-height: 1.6;
   margin-bottom: var(--spacing-xs, 0.25rem);
 }
 
 /* Mobile responsiveness */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   /* Tab Navigation - Mobile Optimized */
   .tab-navigation {
     display: flex;
@@ -1585,12 +1705,29 @@ select.form-control-sm option {
     padding: 12px;
   }
   
-  .proxy-examples {
-    padding: 12px;
+  .proxy-info-card {
+    padding: var(--spacing-md, 1rem);
+  }
+  
+  .proxy-info-card h5 {
+    font-size: 0.95rem;
+  }
+  
+  .proxy-info-card h6 {
+    font-size: 0.85rem;
+  }
+  
+  .proxy-examples-list code {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+  }
+  
+  .proxy-tips li {
+    font-size: 0.8rem;
   }
   
   .example-item {
-    padding: 8px;
+    padding: var(--spacing-2);
     margin-bottom: 8px;
   }
   
@@ -1632,7 +1769,7 @@ select.form-control-sm option {
 }
 
 /* Extra small screens (phones in portrait) */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .modal-content {
     width: 100vw;
     max-width: 100vw;
@@ -1649,11 +1786,11 @@ select.form-control-sm option {
   }
   
   .settings-form {
-    padding: 8px;
+    padding: var(--spacing-2);
   }
   
   .settings-section {
-    padding: 8px;
+    padding: var(--spacing-2);
     margin-bottom: 16px;
   }
   
@@ -1662,12 +1799,26 @@ select.form-control-sm option {
   }
   
   .form-control {
-    padding: 10px;
+    padding: var(--spacing-3);
   }
   
   .variable-tag {
     font-size: 0.75em;
     padding: 4px 8px;
+  }
+  
+  /* Extra small screen table optimizations */
+  .streamer-table tr {
+    margin-bottom: var(--spacing-3, 12px);
+  }
+  
+  .streamer-table td {
+    padding-left: 130px;
+  }
+  
+  .streamer-table td:before {
+    width: 115px;
+    font-size: 0.8rem;
   }
 }
 </style>

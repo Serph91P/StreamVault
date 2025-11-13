@@ -96,7 +96,7 @@ function formatType(type) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .subscription-manager {
   max-width: 1000px;
   margin: 0 auto;

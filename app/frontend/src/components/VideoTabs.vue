@@ -325,7 +325,10 @@ watch(() => props.videos, (newVideos) => {
 }, { immediate: true })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .video-tabs-container {
   width: 100%;
   height: 100%;
@@ -388,7 +391,7 @@ watch(() => props.videos, (newVideos) => {
   color: white;
   font-size: 0.75rem;
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   min-width: 20px;
   text-align: center;
   font-weight: 600;
@@ -579,7 +582,7 @@ watch(() => props.videos, (newVideos) => {
   background: rgba(0,0,0,0.8);
   color: white;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 500;
   font-family: monospace;
@@ -728,7 +731,7 @@ watch(() => props.videos, (newVideos) => {
 }
 
 /* Mobile Responsive */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .tab-panel {
     padding: 16px;
   }
@@ -772,7 +775,7 @@ watch(() => props.videos, (newVideos) => {
 }
 
 /* Small mobile screens */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .tab-panel {
     padding: 12px;
   }

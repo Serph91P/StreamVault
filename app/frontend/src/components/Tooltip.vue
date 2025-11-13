@@ -23,7 +23,7 @@ defineProps<{
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .tooltip-container {
   position: relative;
   display: inline-block;
@@ -35,7 +35,7 @@ defineProps<{
   align-items: center;
   justify-content: center;
   background-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  color: var(--text-on-primary);
   border-radius: 50%;
   font-size: 12px;
   font-weight: bold;
@@ -63,9 +63,9 @@ defineProps<{
 .tooltip-content {
   position: absolute;
   background-color: rgba(31, 31, 35, 0.95);
-  color: #f1f1f3;
+  color: var(--text-primary);
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   z-index: 1000;
   width: max-content;

@@ -324,7 +324,10 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 /* Twitch Import Form Styling */
 .twitch-import-container {
   background-color: var(--background-card, #1f1f23);
@@ -475,7 +478,7 @@ code {
   gap: var(--spacing-sm, 0.5rem);
 }
 
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .filter-container {
     flex-direction: column;
   }

@@ -52,6 +52,13 @@ async def get_settings():
             notify_offline_global=settings.notify_offline_global,
             notify_update_global=settings.notify_update_global,
             notify_favorite_category_global=settings.notify_favorite_category_global,
+            # System notification settings (Migration 028)
+            notify_recording_started=settings.notify_recording_started if hasattr(settings, 'notify_recording_started') else False,
+            notify_recording_failed=settings.notify_recording_failed if hasattr(settings, 'notify_recording_failed') else True,
+            notify_recording_completed=settings.notify_recording_completed if hasattr(settings, 'notify_recording_completed') else False,
+            # Codec preferences (Migration 024)
+            supported_codecs=settings.supported_codecs if hasattr(settings, 'supported_codecs') else "h264,h265",
+            prefer_higher_quality=settings.prefer_higher_quality if hasattr(settings, 'prefer_higher_quality') else True,
             http_proxy=settings.http_proxy,
             https_proxy=settings.https_proxy,
             apprise_docs_url="https://github.com/caronc/apprise/wiki"
@@ -278,6 +285,15 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
             settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
+            # System notification settings (Migration 028)
+            settings.notify_recording_started = settings_data.notify_recording_started
+            settings.notify_recording_failed = settings_data.notify_recording_failed
+            settings.notify_recording_completed = settings_data.notify_recording_completed
+            # Codec preferences (Migration 024)
+            if hasattr(settings_data, 'supported_codecs'):
+                settings.supported_codecs = settings_data.supported_codecs or "h264,h265"
+            if hasattr(settings_data, 'prefer_higher_quality'):
+                settings.prefer_higher_quality = settings_data.prefer_higher_quality
             settings.http_proxy = settings_data.http_proxy or ""
             settings.https_proxy = settings_data.https_proxy or ""
             

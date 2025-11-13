@@ -1,50 +1,377 @@
 <template>
+  <!-- SVG Icon Sprite (loaded inline for reliability) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true">
+    <defs>
+      <!-- Home Icon -->
+      <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </symbol>
+      
+      <!-- Users Icon -->
+      <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </symbol>
+      
+      <!-- Video Icon -->
+      <symbol id="icon-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </symbol>
+      
+      <!-- Radio Icon (Live) -->
+      <symbol id="icon-radio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>
+      </symbol>
+      
+      <!-- Settings Icon -->
+      <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </symbol>
+      
+      <!-- Chevron Left -->
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </symbol>
+      
+      <!-- Chevron Right -->
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </symbol>
+      
+      <!-- Bell Icon -->
+      <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </symbol>
+      
+      <!-- Briefcase Icon -->
+      <symbol id="icon-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+      </symbol>
+      
+      <!-- Sun Icon -->
+      <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </symbol>
+      
+      <!-- Moon Icon -->
+      <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </symbol>
+      
+      <!-- Circle Icon (Recording Indicator) -->
+      <symbol id="icon-circle" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="12" r="10"/>
+      </symbol>
+      
+      <!-- Film Icon (Videos) -->
+      <symbol id="icon-film" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+        <line x1="7" y1="2" x2="7" y2="22"/>
+        <line x1="17" y1="2" x2="17" y2="22"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <line x1="2" y1="7" x2="7" y2="7"/>
+        <line x1="2" y1="17" x2="7" y2="17"/>
+        <line x1="17" y1="17" x2="22" y2="17"/>
+        <line x1="17" y1="7" x2="22" y2="7"/>
+      </symbol>
+      
+      <!-- Arrow Right -->
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <polyline points="12 5 19 12 12 19"/>
+      </symbol>
+      
+      <!-- Video Off -->
+      <symbol id="icon-video-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </symbol>
+      
+      <!-- Plus -->
+      <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </symbol>
+      
+      <!-- Trash -->
+      <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        <line x1="10" y1="11" x2="10" y2="17"/>
+        <line x1="14" y1="11" x2="14" y2="17"/>
+      </symbol>
+      
+      <!-- Refresh -->
+      <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </symbol>
+      
+      <!-- Edit -->
+      <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </symbol>
+      
+      <!-- Check -->
+      <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </symbol>
+      
+      <!-- X (Close) -->
+      <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </symbol>
+      
+      <!-- Download -->
+      <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </symbol>
+      
+      <!-- Gamepad -->
+      <symbol id="icon-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="6" y1="12" x2="10" y2="12"/>
+        <line x1="8" y1="10" x2="8" y2="14"/>
+        <line x1="15" y1="13" x2="15.01" y2="13"/>
+        <line x1="18" y1="11" x2="18.01" y2="11"/>
+        <rect x="2" y="6" width="20" height="12" rx="2"/>
+      </symbol>
+      
+      <!-- Menu (Hamburger) -->
+      <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </symbol>
+      
+      <!-- Log Out -->
+      <symbol id="icon-log-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </symbol>
+      
+      <!-- Clock -->
+      <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </symbol>
+      
+      <!-- More Vertical (3 dots menu) -->
+      <symbol id="icon-more-vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1"/>
+        <circle cx="12" cy="5" r="1"/>
+        <circle cx="12" cy="19" r="1"/>
+      </symbol>
+      
+      <!-- Play -->
+      <symbol id="icon-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </symbol>
+      
+      <!-- Eye (View) -->
+            <!-- Eye (View) -->
+      <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </symbol>
+      
+      <!-- User (Single User) -->
+      <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </symbol>
+      
+      <!-- Lock (Password) -->
+      <symbol id="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </symbol>
+      
+      <!-- Info (Information) -->
+      <symbol id="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </symbol>
+      
+      <!-- Refresh CW (Clockwise Circular Arrow) -->
+      <symbol id="icon-refresh-cw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </symbol>
+      
+      <!-- Search (Magnifying Glass) -->
+      <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </symbol>
+      
+      <!-- Grid (Grid Layout) -->
+      <symbol id="icon-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+      </symbol>
+      
+      <!-- List (List Layout) -->
+      <symbol id="icon-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/>
+        <line x1="8" y1="12" x2="21" y2="12"/>
+        <line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/>
+        <line x1="3" y1="12" x2="3.01" y2="12"/>
+        <line x1="3" y1="18" x2="3.01" y2="18"/>
+      </symbol>
+      
+      <!-- User (Single User) -->
+      <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </symbol>
+      
+      <!-- Lock (Password/Security) -->
+      <symbol id="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </symbol>
+      
+      <!-- Alert Circle (Error/Warning) -->
+      <symbol id="icon-alert-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </symbol>
+      
+      <!-- Log In (Enter/Sign In) -->
+      <symbol id="icon-log-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+        <polyline points="10 17 15 12 10 7"/>
+        <line x1="15" y1="12" x2="3" y2="12"/>
+      </symbol>
+      
+      <!-- Filter (Funnel) -->
+      <symbol id="icon-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <div class="app">
-    <!-- Desktop and tablet header -->
-    <header class="app-header">
-      <div class="header-content">
-        <h1 class="app-logo">StreamVault</h1>
-        <nav class="main-nav">
-          <router-link to="/" class="nav-link">Home</router-link>
-          <router-link to="/streamers" class="nav-link">Streamers</router-link>
-          <router-link to="/videos" class="nav-link">Videos</router-link>
-          <router-link to="/add-streamer" class="nav-link">Add Streamer</router-link>
-          <router-link to="/subscriptions" class="nav-link">Subscriptions</router-link>
-          <router-link to="/settings" class="nav-link">Settings</router-link>
-          <!-- Background Queue Monitor -->
-          <BackgroundQueueMonitor />
+    <!-- Show header and navigation ONLY on authenticated pages -->
+    <template v-if="!isAuthPage">
+      <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
+      <header class="app-header">
+        <div class="header-content">
+          <!-- Mobile: Hamburger Menu Button (< 768px) -->
+          <button 
+            @click="toggleMobileMenu" 
+            class="hamburger-btn"
+            aria-label="Open menu"
+          >
+            <svg class="hamburger-icon">
+              <use href="#icon-menu" />
+            </svg>
+          </button>
           
-          <div class="nav-actions">
-            <div class="notification-bell-container">
-              <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-                <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                </svg>
-                <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          <router-link to="/" class="app-logo">StreamVault</router-link>
+          
+          <div class="header-right">
+            <!-- Background Queue Monitor (always visible) -->
+            <BackgroundQueueMonitor />
+            
+            <!-- Desktop: Full nav actions (≥ 768px) -->
+            <div class="nav-actions desktop-only">
+              <div class="notification-bell-container">
+                <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
+                  <svg class="bell-icon">
+                    <use href="#icon-bell" />
+                  </svg>
+                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+                </button>
+              </div>
+              <!-- Theme Toggle -->
+              <ThemeToggle />
+              <button @click="logout" class="logout-btn">
+                Logout
               </button>
             </div>
-            <button @click="logout" class="logout-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-              </svg>
-              Logout
-            </button>
           </div>
-        </nav>
+        </div>
+      </header>
+      
+      <!-- Mobile Menu Overlay -->
+      <Teleport to="body">
+        <div 
+          v-if="showMobileMenu" 
+          class="mobile-menu-overlay"
+          @click.self="closeMobileMenu"
+        >
+          <div class="mobile-menu">
+            <button @click="closeMobileMenu" class="mobile-menu-close" aria-label="Close menu">
+              <svg class="close-icon">
+                <use href="#icon-x" />
+              </svg>
+            </button>
+            
+            <nav class="mobile-menu-nav">
+              <div class="notification-bell-container">
+                <button @click="handleMobileNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
+                  <svg class="bell-icon">
+                    <use href="#icon-bell" />
+                  </svg>
+                  <span class="nav-label">Notifications</span>
+                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+                </button>
+              </div>
+              
+              <div class="mobile-theme-toggle">
+                <ThemeToggle />
+              </div>
+              
+              <button @click="handleMobileLogout" class="mobile-logout-btn">
+                <svg class="logout-icon">
+                  <use href="#icon-log-out" />
+                </svg>
+                <span>Logout</span>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </Teleport>    
+      <!-- Notification overlay -->
+      <div v-if="showNotifications" class="notification-overlay">
+        <NotificationFeed 
+          @notifications-read="markAsRead" 
+          @close-panel="closeNotificationPanel"
+          @clear-all="clearAllNotifications"
+        />
       </div>
-    </header>    <!-- Notification overlay -->
-    <div v-if="showNotifications" class="notification-overlay">
-      <NotificationFeed 
-        @notifications-read="markAsRead" 
-        @close-panel="closeNotificationPanel"
-        @clear-all="clearAllNotifications"
-      />
-    </div>
+    </template>
     
-    <!-- Toast notifications -->
+    <!-- Toast notifications (always visible) -->
     <ToastNotification 
       v-for="toast in activeToasts" 
       :key="toast.id"
@@ -55,68 +382,24 @@
       @dismiss="removeToast"
     />
     
-    <div class="main-content">
+    <!-- Navigation Wrapper with Bottom Nav + Sidebar (only on authenticated pages) -->
+    <NavigationWrapper v-if="!isAuthPage">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
-    </div>
+    </NavigationWrapper>
     
-    <!-- Mobile navigation for better mobile experience -->
-    <div class="mobile-nav-bottom">
-      <router-link to="/" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-        <span>Home</span>
-      </router-link>
-      <router-link to="/streamers" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6"></path>
-          <path d="M2 12h20"></path>
-        </svg>
-        <span>Streamers</span>
-      </router-link>
-      <router-link to="/videos" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="23 7 16 12 23 17 23 7"></polygon>
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-        </svg>
-        <span>Videos</span>
-      </router-link>
-      <router-link to="/add-streamer" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="16"></line>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
-        </svg>
-        <span>Add</span>
-      </router-link>
-      <router-link to="/subscriptions" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-        <span>Subs</span>
-      </router-link>
-      <router-link to="/settings" class="mobile-nav-item">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-        <span>Settings</span>
-      </router-link>
-      <button @click="toggleNotifications" class="mobile-nav-item mobile-notification-btn">
-        <svg class="mobile-nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-        <span>Alerts</span>
-        <span v-if="unreadCount > 0" class="mobile-notification-indicator"></span>
-      </button>
-    </div>
+    <!-- Auth pages without navigation -->
+    <router-view v-else v-slot="{ Component }">
+      <transition name="page" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+    
+    <!-- Toast Notification System (CRITICAL: Always visible) -->
+    <ToastContainer />
     
     <!-- PWA Install Prompt -->
     <PWAInstallPrompt />
@@ -128,11 +411,59 @@ import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
+import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, watch, provide } from 'vue'
+import { ref, onMounted, watch, provide, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
+import { useTheme } from '@/composables/useTheme'
+import { useToast } from '@/composables/useToast'
+
+// Initialize theme
+const { initializeTheme } = useTheme()
+initializeTheme()
+
+// Initialize toast system
+const toast = useToast()
+
+// Check if current route is an auth page
+const route = useRoute()
+const isAuthPage = computed(() => {
+  const authPaths = ['/auth/login', '/auth/setup', '/welcome']
+  return authPaths.includes(route.path)
+})
+
+// Mobile menu state
+const showMobileMenu = ref(false)
+
+const toggleMobileMenu = () => {
+  showMobileMenu.value = !showMobileMenu.value
+  // Prevent body scroll when menu is open
+  if (showMobileMenu.value) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+}
+
+const closeMobileMenu = () => {
+  showMobileMenu.value = false
+  document.body.style.overflow = ''
+}
+
+const handleMobileNotifications = () => {
+  closeMobileMenu()
+  toggleNotifications()
+}
+
+const handleMobileLogout = () => {
+  closeMobileMenu()
+  logout()
+}
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
@@ -203,6 +534,20 @@ function processToastNotification(message) {
     if (toastMessage) {
       addToast(toastMessage, type, duration, data)
     }
+  }
+  
+  // CRITICAL: Listen for recording_failed WebSocket events
+  if (message.type === 'recording_failed') {
+    const streamer_name = message.data?.streamer_name || 'Unknown'
+    const error_message = message.data?.error_message || 'Unknown error'
+    
+    toast.error(`Recording failed: ${streamer_name} - ${error_message}`, 5000)
+    
+    console.error('🚨 Recording failed:', {
+      streamer: streamer_name,
+      error: error_message,
+      data: message.data
+    })
   }
 }
 
@@ -477,13 +822,290 @@ watch(messages, (newMessages) => {
 }, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
+/* Modern Header Styles (Phase 1 Enhanced) */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 64px;
+  z-index: 1100;
+
+  /* Glassmorphism effect */
+  background: rgba(var(--background-card-rgb), 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+  /* Smooth theme transitions */
+  transition: background-color 300ms var(--vue-ease-out),
+              border-color 300ms var(--vue-ease-out);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 var(--spacing-6, 1.5rem);
+  gap: var(--spacing-4, 1rem);
+}
+
+.app-logo {
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--primary-color);
+  text-decoration: none;
+  line-height: 1;
+
+  /* Smooth transition */
+  transition: color var(--duration-200, 200ms) var(--vue-ease-out);
+
+  &:hover {
+    color: var(--accent-color);
+  }
+
+  /* Focus-visible for keyboard navigation */
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+    border-radius: var(--radius-sm, 4px);
+  }
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
+  height: 100%;
+}
+
 /* Navigation actions styles */
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-left: auto;
+  gap: var(--spacing-3, 0.75rem);
+  height: 100%;
+}
+
+/* Mobile: Hide hamburger button on desktop */
+.hamburger-btn {
+  display: none; /* Hidden by default (desktop) */
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 200ms ease-out;
+  
+  .hamburger-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  &:hover {
+    background: var(--background-hover);
+    border-radius: var(--radius-md);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Show hamburger on mobile */
+@include m.respond-below('md') {  // < 767px
+  .hamburger-btn {
+    display: flex;
+  }
+}
+
+/* Desktop: Hide nav actions on mobile */
+.desktop-only {
+  display: flex; /* Shown by default */
+}
+
+@include m.respond-below('md') {  // < 767px
+  .desktop-only {
+    display: none; /* Hidden on mobile */
+  }
+}
+
+/* Mobile Menu Overlay */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 200ms ease-out;
+}
+
+@media (min-width: 768px) {
+  .mobile-menu-overlay {
+    display: none; /* Never show on desktop */
+  }
+}
+
+.mobile-menu {
+  width: 280px;
+  height: 100%;
+  background: var(--background-card);
+  box-shadow: var(--shadow-xl);
+  animation: slideInRight 300ms ease-out;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--border-color);
+}
+
+.mobile-menu-close {
+  align-self: flex-end;
+  width: 44px;
+  height: 44px;
+  margin: var(--spacing-4);
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease-out;
+  
+  .close-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  &:hover {
+    background: var(--background-hover);
+    border-radius: var(--radius-md);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.mobile-menu-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  
+  .notification-bell-container {
+    width: 100%;
+    
+    .notification-bell {
+      width: 100%;
+      justify-content: flex-start;
+      gap: var(--spacing-3);
+      padding: var(--spacing-3) var(--spacing-4);
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      transition: all 200ms ease-out;
+      
+      .nav-label {
+        flex: 1;
+        text-align: left;
+        font-size: var(--text-base);
+        font-weight: var(--font-medium);
+      }
+      
+      &:hover {
+        background: var(--background-hover);
+        border-color: var(--primary-500);
+      }
+      
+      &.has-unread {
+        border-color: var(--danger-500);
+      }
+    }
+  }
+  
+  .mobile-theme-toggle {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: transparent;
+    
+    :deep(.theme-toggle) {
+      width: 100%;
+    }
+  }
+}
+
+.mobile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  min-height: 44px;
+  margin-top: auto; /* Push to bottom */
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--danger-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all 200ms ease-out;
+  
+  .logout-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  &:hover {
+    background: var(--danger-600);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .notification-bell-container {
@@ -493,44 +1115,91 @@ watch(messages, (newMessages) => {
 .logout-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: none;
+  justify-content: center;
+  gap: var(--spacing-2, 0.5rem);
+  min-height: 44px;
+  padding: var(--spacing-2, 0.5rem) var(--spacing-4, 1rem);
+
+  /* Colors */
+  background: var(--danger-color);
+  color: white;
   border: none;
-  color: var(--text-primary);
+  border-radius: var(--radius-lg, 12px);
+
+  /* Typography */
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--font-medium, 500);
+  line-height: 1;
+
+  /* Interaction */
   cursor: pointer;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-}
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
 
-.logout-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--primary-color);
-}
+  &:hover {
+    background: var(--danger-600, #dc2626);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
 
-.logout-btn svg {
-  width: 16px;
-  height: 16px;
+  &:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--danger-color);
+    outline-offset: 2px;
+  }
 }
 
 .notification-bell {
   position: relative;
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Touch-friendly sizing */
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  padding: var(--spacing-2, 8px);
+
+  /* Style */
+  background: transparent;
   border: none;
-  cursor: pointer;
-  padding: 8px;
   border-radius: 50%;
   color: var(--text-primary);
-  transition: all 0.2s ease;
-}
 
-.notification-bell:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  /* Interaction */
+  cursor: pointer;
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
+
+  .bell-icon {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+    transition: transform var(--duration-200, 200ms) var(--vue-ease-out);
+  }
+
+  &:hover {
+    background-color: rgba(var(--primary-500-rgb), 0.1);
+    color: var(--primary-color);
+
+    .bell-icon {
+      transform: scale(1.1);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
 .notification-bell.has-unread .bell-icon {
-  color: var(--primary-color);
+  color: var(--primary-500);
   animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
   transform-origin: top center;
 }
@@ -549,57 +1218,20 @@ watch(messages, (newMessages) => {
 
 .notification-count {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  background-color: var(--danger-color);
+  top: 4px;
+  right: 4px;
+  background-color: var(--danger-500);
   color: white;
   border-radius: 50%;
-  width: 18px;
+  min-width: 18px;
   height: 18px;
+  padding: 0 4px;
   font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-}
-
-.mobile-notification-btn {
-  position: relative;
-}
-
-.mobile-notification-btn {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px;
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-  transition: all 0.2s ease;
-}
-
-.mobile-notification-btn:hover {
-  color: var(--text-primary);
-}
-
-.mobile-notification-btn .mobile-nav-icon {
-  margin-bottom: 4px;
-  transition: transform 0.2s ease, stroke 0.2s ease;
-  stroke: currentColor;
-}
-
-.mobile-notification-indicator {
-  position: absolute;
-  top: 2px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  background-color: var(--danger-color);
-  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Notification overlay positioning */
@@ -613,7 +1245,7 @@ watch(messages, (newMessages) => {
 }
 
 /* Mobile specific notification overlay */
-@media (max-width: 767px) {
+@include m.respond-below('md') {  // < 767px
   .notification-overlay {
     top: 20px;
     right: 10px;
@@ -621,12 +1253,13 @@ watch(messages, (newMessages) => {
     width: auto;
     max-width: none;
   }
-}
-
-/* Ensure mobile navigation doesn't display on larger screens */
-@media (min-width: 768px) {
-  .mobile-nav-bottom {
-    display: none;
+  
+  .header-content {
+    padding: 0 1rem;
+  }
+  
+  .app-logo {
+    font-size: 1.25rem;
   }
 }
 </style>

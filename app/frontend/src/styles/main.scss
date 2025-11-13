@@ -3,9 +3,12 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 @forward 'variables';
+@use 'glass';  // Phase 3: Glassmorphism system
+@use 'animations';
 @use 'layout';
 @use 'components';
 @use 'views';
+@use 'utilities';  // NEW: Design system utilities
 
 // Import FontAwesome
 @import '@fortawesome/fontawesome-free/css/all.css';
@@ -26,6 +29,25 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  
+  // Smooth theme transition for all color properties
+  transition: 
+    background-color 300ms var(--vue-ease-out),
+    color 300ms var(--vue-ease-out),
+    border-color 300ms var(--vue-ease-out);
+}
+
+// Light mode color scheme
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+// Apply smooth transitions to all elements during theme change
+* {
+  transition: 
+    background-color 300ms var(--vue-ease-out),
+    color 300ms var(--vue-ease-out),
+    border-color 300ms var(--vue-ease-out);
 }
 
 /* Core fixes mit besserer Mobiloptimierung */
@@ -37,8 +59,8 @@ html, body {
 }
 
 body {
-  background: v.$background-dark;
-  color: v.$text-primary;
+  background: var(--background-dark);  /* CRITICAL: Use CSS custom property for theme switching */
+  color: var(--text-primary);          /* CRITICAL: Use CSS custom property for theme switching */
   min-height: 100vh;
   line-height: 1.6;
   display: flex;
@@ -67,14 +89,297 @@ h3 { font-size: map.get(v.$font-scale, 'lg'); }
 h4 { font-size: map.get(v.$font-scale, 'base'); }
 h5, h6 { font-size: map.get(v.$font-scale, 'sm'); }
 
+// Form Elements - iOS Zoom Prevention & Consistent Styling
+// CRITICAL: Font-size >= 16px prevents iOS Safari from zooming on focus
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  // Base styles
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: v.$border-radius;
+  padding: v.$spacing-sm v.$spacing-md;
+  transition: border-color v.$transition-fast, box-shadow v.$transition-fast;
+  width: 100%;
+  
+  // iOS zoom prevention on mobile (font-size must be >= 16px)
+  // See: https://webkit.org/blog/3810/stop-emails-from-zooming-on-mobile-safari/
+  @include m.respond-below('md') {  // < 768px (mobile/tablet)
+    font-size: 16px !important;  // CRITICAL: Prevents iOS zoom on focus
+  }
+  
+  // Desktop: Use design system font size
+  @include m.respond-to('md') {  // >= 768px (desktop)
+    font-size: map.get(v.$font-scale, 'base');
+  }
+  
+  // Interaction states
+  &:hover {
+    border-color: var(--primary-color);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--background-darker);
+  }
+  
+  &::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+}
+
+// Buttons - Touch Targets & Consistent Styling
+button:not(.unstyled),
+.btn {
+  font-family: inherit;
+  font-weight: 500;  // Medium weight
+  border-radius: v.$border-radius-lg;
+  cursor: pointer;
+  transition: all v.$transition-fast;
+  border: none;
+  
+  // Touch targets on mobile (Apple HIG: 44x44px minimum)
+  @include m.respond-below('md') {  // < 768px
+    min-height: 44px;
+    padding: v.$spacing-sm v.$spacing-md;
+  }
+  
+  // Desktop
+  @include m.respond-to('md') {  // >= 768px
+    min-height: 36px;
+    padding: calc(v.$spacing-sm - 2px) v.$spacing-md;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  &:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: v.$shadow-md;
+  }
+  
+  &:not(:disabled):active {
+    transform: translateY(0);
+  }
+}
+
+// ============================================================================
+// BUTTON VARIANTS - Global Design System
+// ============================================================================
+
+// Primary button (teal)
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+  border: 1px solid var(--primary-color);
+
+  &:not(:disabled):hover {
+    background: var(--primary-color-dark);
+    border-color: var(--primary-color-dark);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+// Secondary button (neutral)
+.btn-secondary {
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+
+  &:not(:disabled):hover {
+    background: var(--background-card);
+    border-color: var(--primary-color);
+  }
+}
+
+// Accent button (purple)
+.btn-accent {
+  background: var(--accent-color);
+  color: white;
+  border: 1px solid var(--accent-color);
+
+  &:not(:disabled):hover {
+    background: #7c3aed;  // accent-600
+    border-color: #7c3aed;
+  }
+}
+
+// Danger button (red)
+.btn-danger {
+  background: var(--danger-color);
+  color: white;
+  border: 1px solid var(--danger-color);
+
+  &:not(:disabled):hover {
+    background: #dc2626;  // danger-600
+    border-color: #dc2626;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--danger-color);
+    outline-offset: 2px;
+  }
+}
+
+// Success button (green)
+.btn-success {
+  background: var(--success-color);
+  color: white;
+  border: 1px solid var(--success-color);
+
+  &:not(:disabled):hover {
+    background: #059669;  // success-600
+    border-color: #059669;
+  }
+}
+
+// Warning button (orange/yellow)
+.btn-warning {
+  background: var(--warning-color);
+  color: #212529;  // Dark text for contrast
+  border: 1px solid var(--warning-color);
+
+  &:not(:disabled):hover {
+    background: #d97706;  // warning-600
+    border-color: #d97706;
+    color: white;
+  }
+}
+
+// Info button (blue)
+.btn-info {
+  background: var(--info-color);
+  color: white;
+  border: 1px solid var(--info-color);
+
+  &:not(:disabled):hover {
+    background: #2563eb;  // info-600
+    border-color: #2563eb;
+  }
+}
+
+// Ghost/Outline buttons (transparent with border)
+.btn-ghost,
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+
+  &:not(:disabled):hover {
+    background: var(--background-card);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+}
+
+.btn-outline-primary {
+  background: transparent;
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+
+  &:not(:disabled):hover {
+    background: var(--primary-color);
+    color: white;
+  }
+}
+
+.btn-outline-danger {
+  background: transparent;
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+
+  &:not(:disabled):hover {
+    background: var(--danger-color);
+    color: white;
+  }
+}
+
+// Text buttons (no background, no border)
+.btn-text {
+  background: transparent;
+  border: none;
+  color: var(--primary-color);
+  padding: v.$spacing-sm;
+
+  &:not(:disabled):hover {
+    background: rgba(var(--primary-color-rgb), 0.1);
+    transform: none;  // No lift effect
+    box-shadow: none;
+  }
+}
+
+// Icon-only buttons (square, centered icon)
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: v.$spacing-sm;
+  min-width: 40px;
+  
+  @include m.respond-below('md') {
+    min-width: 44px;  // Touch target
+    min-height: 44px;
+  }
+}
+
+// Button sizes
+.btn-sm {
+  padding: v.$spacing-xs v.$spacing-sm;
+  font-size: v.$text-sm;
+  min-height: 32px;
+  
+  @include m.respond-below('md') {
+    min-height: 40px;  // Still touch-friendly
+  }
+}
+
+.btn-lg {
+  padding: v.$spacing-md v.$spacing-lg;
+  font-size: v.$text-lg;
+  min-height: 48px;
+  
+  @include m.respond-below('md') {
+    min-height: 52px;
+  }
+}
+
+// Button with icon + text
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: v.$spacing-2;  // 8px between icon and text
+}
+
+// Full-width button (for mobile forms)
+.btn-block {
+  width: 100%;
+  display: block;
+}
+
 // Link-Styling
 a {
-  color: v.$primary-color;
+  color: var(--primary-color);  /* Use CSS variable for theme switching */
   text-decoration: none;
   transition: color v.$transition-fast;
   
   &:hover {
-    color: v.$primary-color-light; 
+    color: var(--primary-600);  /* Use CSS variable for theme switching */
   }
 }
 
@@ -127,15 +432,16 @@ img {
 }
 
 ::-webkit-scrollbar-track {
-  background: v.$background-darker;
+  background: var(--background-darker);  /* Use CSS variable for theme switching */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: v.$border-color;
+  background: var(--border-color);  /* Use CSS variable for theme switching */
   border-radius: 4px;
   
   &:hover {
-    background: color.adjust(v.$border-color, $lightness: 10%);
+    background: var(--border-color);  /* Use CSS variable */
+    opacity: 0.8;
   }
 }
 
@@ -178,4 +484,15 @@ img {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+// Animation Toggle - Disable all animations when user preference is set
+.no-animations,
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

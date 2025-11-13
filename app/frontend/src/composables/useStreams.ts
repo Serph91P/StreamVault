@@ -19,7 +19,9 @@ export function useStreams() {
     error.value = null
     
     try {
-      const response = await fetch(`/api/streamers/${streamerId}/streams`)
+      const response = await fetch(`/api/streamers/${streamerId}/streams`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       
       if (!response.ok) {
         const errorData = await response.json()

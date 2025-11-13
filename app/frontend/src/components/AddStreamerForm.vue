@@ -217,7 +217,9 @@ const validateUsername = async () => {
   streamerInfo.value = null
 
   try {
-    const response = await fetch(`/api/streamers/validate/${username.value.trim().toLowerCase()}`)
+    const response = await fetch(`/api/streamers/validate/${username.value.trim().toLowerCase()}`, {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
     
     if (response.ok && data.valid) {
@@ -258,6 +260,7 @@ const addStreamer = async () => {
     
     const response = await fetch(`/api/streamers/${cleanUsername}`, {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Content-Type': 'application/json'
       },
@@ -301,7 +304,10 @@ const addStreamer = async () => {
 const emit = defineEmits(['streamer-added'])
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .input-group {
   display: flex;
   flex-wrap: wrap;
@@ -507,7 +513,7 @@ const emit = defineEmits(['streamer-added'])
 }
 
 /* Responsive Anpassungen */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .notification-options,
   .recording-options {
     grid-template-columns: 1fr;

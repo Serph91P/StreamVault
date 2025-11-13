@@ -122,6 +122,18 @@ class StreamerService:
                 user_data['profile_image_url']
             )
             
+            # Cache banner image (if available)
+            cached_banner_path = None
+            if user_data.get('offline_image_url'):
+                try:
+                    cached_banner_path = await self.image_service.download_banner_image(
+                        int(user_data['id']),
+                        user_data['offline_image_url']
+                    )
+                    logger.debug(f"Cached banner image for {username}: {cached_banner_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache banner image for {username}: {e}")
+            
             # Check if streamer is currently live
             stream_info = None
             try:
@@ -138,6 +150,7 @@ class StreamerService:
                 user_data=user_data,
                 display_name=display_name,
                 cached_image_path=cached_image_path or user_data['profile_image_url'],
+                cached_banner_path=cached_banner_path,  # NEW: Pass cached banner
                 stream_info=stream_info
             )
             

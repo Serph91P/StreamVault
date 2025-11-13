@@ -1,0 +1,452 @@
+// ============================================================================
+// ANIMATION LIBRARY
+// Keyframes and animation utilities for micro-interactions
+// ============================================================================
+
+@use 'variables' as v;
+
+// ============================================================================
+// SKELETON LOADING ANIMATIONS
+// ============================================================================
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--background-card) 0%,
+    var(--background-darker) 50%,
+    var(--background-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+// ============================================================================
+// FADE ANIMATIONS
+// ============================================================================
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.fade-in {
+  animation: fade-in v.$duration-300 v.$ease-out;
+}
+
+.fade-out {
+  animation: fade-out v.$duration-300 v.$ease-out;
+}
+
+// ============================================================================
+// SLIDE ANIMATIONS
+// ============================================================================
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-down {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in-up {
+  animation: slide-in-up v.$duration-300 v.$ease-out;
+}
+
+.slide-in-down {
+  animation: slide-in-down v.$duration-300 v.$ease-out;
+}
+
+.slide-in-left {
+  animation: slide-in-left v.$duration-300 v.$ease-out;
+}
+
+.slide-in-right {
+  animation: slide-in-right v.$duration-300 v.$ease-out;
+}
+
+// ============================================================================
+// SCALE ANIMATIONS
+// ============================================================================
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-out {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.scale-in {
+  animation: scale-in v.$duration-300 v.$ease-out;
+}
+
+.scale-out {
+  animation: scale-out v.$duration-300 v.$ease-out;
+}
+
+// ============================================================================
+// BOUNCE ANIMATIONS
+// ============================================================================
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bounce {
+  animation: bounce v.$duration-500 v.$ease-bounce;
+}
+
+.bounce-in {
+  animation: bounce-in v.$duration-500 v.$ease-bounce;
+}
+
+// ============================================================================
+// SPIN/ROTATE ANIMATIONS
+// ============================================================================
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.spin {
+  animation: spin v.$duration-1000 linear infinite;
+}
+
+.spin-reverse {
+  animation: spin-reverse v.$duration-1000 linear infinite;
+}
+
+// ============================================================================
+// PULSE ANIMATIONS
+// ============================================================================
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.pulse {
+  animation: pulse v.$duration-1000 v.$ease-in-out infinite;
+}
+
+.pulse-scale {
+  animation: pulse-scale v.$duration-1000 v.$ease-in-out infinite;
+}
+
+// ============================================================================
+// SHAKE ANIMATION
+// ============================================================================
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: shake v.$duration-500 v.$ease-in-out;
+}
+
+// ============================================================================
+// RIPPLE EFFECT (for buttons)
+// ============================================================================
+
+@keyframes ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple-effect {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    pointer-events: none;
+  }
+
+  &:active::after {
+    animation: ripple v.$duration-500 v.$ease-out;
+  }
+}
+
+// ============================================================================
+// STAGGER ANIMATION (for lists)
+// ============================================================================
+
+@for $i from 1 through 20 {
+  .stagger-#{$i} {
+    animation-delay: #{$i * 50}ms;
+  }
+}
+
+// ============================================================================
+// SUCCESS/ERROR ANIMATIONS
+// ============================================================================
+
+@keyframes success-checkmark {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes error-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-10px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(10px);
+  }
+}
+
+.success-checkmark {
+  stroke-dasharray: 100;
+  animation: success-checkmark v.$duration-500 v.$ease-out forwards;
+}
+
+.error-shake {
+  animation: error-shake v.$duration-500 v.$ease-in-out;
+}
+
+// ============================================================================
+// CONFETTI ANIMATION
+// ============================================================================
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.confetti {
+  animation: confetti-fall 3s v.$ease-in-out forwards;
+}
+
+// ============================================================================
+// LOADING DOTS
+// ============================================================================
+
+@keyframes loading-dots {
+  0%, 20% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.loading-dots {
+  span {
+    animation: loading-dots 1.4s infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+  }
+}
+
+// ============================================================================
+// PAGE TRANSITION UTILITIES
+// ============================================================================
+
+// Fade transition (default)
+.page-enter-active,
+.page-leave-active {
+  transition: opacity v.$duration-300 v.$ease-out;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+// Slide transition
+.slide-page-enter-active,
+.slide-page-leave-active {
+  transition: all v.$duration-300 v.$ease-out;
+}
+
+.slide-page-enter-from {
+  transform: translateX(20px);
+  opacity: 0;
+}
+
+.slide-page-leave-to {
+  transform: translateX(-20px);
+  opacity: 0;
+}
+
+// Scale transition
+.scale-page-enter-active,
+.scale-page-leave-active {
+  transition: all v.$duration-300 v.$ease-out;
+}
+
+.scale-page-enter-from,
+.scale-page-leave-to {
+  transform: scale(0.95);
+  opacity: 0;
+}

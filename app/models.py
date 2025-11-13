@@ -23,10 +23,15 @@ class Recording(Base):
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
     start_time = Column(DateTime(timezone=True), nullable=False, index=True)
     end_time = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error"
+    status = Column(String, nullable=False, index=True)  # "recording", "completed", "error", "failed"
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Error tracking (Migration 027)
+    error_message = Column(String, nullable=True)  # Detailed error message for debugging
+    failure_reason = Column(String, nullable=True)  # Short failure reason (proxy_error, streamlink_crash, etc.)
+    failure_timestamp = Column(DateTime(timezone=True), nullable=True)  # When the failure occurred
     
     # Relationship to Stream
     stream = relationship("Stream", backref="recordings")
@@ -45,9 +50,18 @@ class Streamer(Base):
     last_updated = Column(DateTime(timezone=True))
     profile_image_url = Column(String)
     original_profile_image_url = Column(String)
+    offline_image_url = Column(String)  # Twitch banner image (cached)
+    original_offline_image_url = Column(String)  # Twitch banner (original URL)
     is_favorite = Column(Boolean, default=False, index=True)
     auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Last stream information (shown when offline)
+    last_stream_title = Column(String, nullable=True)
+    last_stream_category_name = Column(String, nullable=True)
+    last_stream_viewer_count = Column(Integer, nullable=True)
+    last_stream_ended_at = Column(DateTime(timezone=True), nullable=True)
+    
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
     
     @property
@@ -59,6 +73,36 @@ class Streamer(Base):
             stacklevel=2
         )
         return self.username
+    
+    @property
+    def is_recording(self) -> bool:
+        """
+        Check if this streamer currently has an active recording.
+        Returns True if there's an active recording (status='recording') for any of this streamer's streams.
+        
+        This property dynamically queries the Recording table to ensure real-time accuracy.
+        """
+        from sqlalchemy.orm import object_session
+        
+        session = object_session(self)
+        if not session:
+            return False
+        
+        # Check if there's any active recording for this streamer's streams
+        active_recording = session.query(Recording).join(Stream).filter(
+            Stream.streamer_id == self.id,
+            Recording.status == 'recording'
+        ).first()
+        
+        return active_recording is not None
+    
+    @property
+    def recording_enabled(self) -> bool:
+        """
+        Alias for auto_record field for backward compatibility.
+        Returns True if automatic recording is enabled for this streamer.
+        """
+        return self.auto_record
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (
@@ -181,6 +225,15 @@ class GlobalSettings(Base):
     notify_favorite_category_global: bool = Column(Boolean, default=True)
     http_proxy: Optional[str] = Column(String)
     https_proxy: Optional[str] = Column(String)
+    
+    # System notification settings (Migration 028)
+    notify_recording_started: bool = Column(Boolean, default=False)  # OFF: Every stream triggers recording, too noisy
+    notify_recording_failed: bool = Column(Boolean, default=True)    # ON: Critical issue, user needs to know
+    notify_recording_completed: bool = Column(Boolean, default=False)  # OFF: Most recordings complete normally, noisy
+    
+    # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
+    supported_codecs: str = Column(String, default="h264,h265")  # Default: H.264 with H.265 fallback (best compatibility/quality)
+    prefer_higher_quality: bool = Column(Boolean, default=True)  # Auto-select highest available quality with h265/av1
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"

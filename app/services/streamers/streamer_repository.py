@@ -103,7 +103,8 @@ class StreamerRepository:
         return self.db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
 
     def create_streamer(self, user_data: Dict[str, Any], display_name: str = None, 
-                       cached_image_path: str = None, stream_info: Dict[str, Any] = None) -> Streamer:
+                       cached_image_path: str = None, cached_banner_path: str = None, 
+                       stream_info: Dict[str, Any] = None) -> Streamer:
         """Create a new streamer with all related settings"""
         try:
             # Use display_name for better user experience, but store original for API calls
@@ -125,6 +126,8 @@ class StreamerRepository:
                 username=streamer_name,
                 profile_image_url=cached_image_path or user_data['profile_image_url'],
                 original_profile_image_url=user_data['profile_image_url'],
+                offline_image_url=cached_banner_path or user_data.get('offline_image_url'),  # NEW: Banner support
+                original_offline_image_url=user_data.get('offline_image_url'),  # NEW: Original Twitch banner URL
                 is_live=is_live,
                 title=current_title,
                 category_name=current_category,

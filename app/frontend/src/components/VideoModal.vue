@@ -426,7 +426,10 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .video-modal-overlay {
   position: fixed;
   top: 0;
@@ -768,7 +771,7 @@ onBeforeUnmount(() => {
 }
 
 /* Mobile Responsive */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .video-modal-overlay {
     padding: 8px;
   }
@@ -833,7 +836,7 @@ onBeforeUnmount(() => {
 }
 
 /* Small mobile screens */
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 480px
   .video-modal-overlay {
     padding: 0;
   }
@@ -881,7 +884,7 @@ onBeforeUnmount(() => {
 }
 
 /* Landscape mobile */
-@media (max-width: 768px) and (orientation: landscape) {
+@media (max-width: 767px) and (orientation: landscape) {  // Cannot use mixins for orientation queries
   .video-details {
     display: none;
   }

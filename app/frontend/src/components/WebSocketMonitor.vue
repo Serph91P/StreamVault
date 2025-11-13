@@ -94,9 +94,9 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .websocket-monitor {
-  padding: 20px;
+  padding: var(--spacing-6);
   max-width: 800px;
 }
 
@@ -104,79 +104,79 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-6);
 }
 
 .monitor-header h3 {
   margin: 0;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .refresh-btn {
-  padding: 8px 16px;
-  background: #4CAF50;
-  color: white;
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--success-color);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: #45a049;
+  background: var(--success-color-dark);
 }
 
 .refresh-btn:disabled {
-  background: #ccc;
+  background: var(--text-muted);
   cursor: not-allowed;
 }
 
 .error {
-  padding: 12px;
-  background: #ffebee;
-  border: 1px solid #f44336;
-  border-radius: 4px;
-  color: #c62828;
-  margin-bottom: 20px;
+  padding: var(--spacing-3);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--danger-color);
+  border-radius: var(--radius-sm);
+  color: var(--danger-color);
+  margin-bottom: var(--spacing-6);
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-7);
 }
 
 .stat-card {
-  background: #f5f5f5;
-  padding: 20px;
-  border-radius: 8px;
+  background: var(--background-card);
+  padding: var(--spacing-6);
+  border-radius: var(--radius-md);
   text-align: center;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
 }
 
 .stat-number {
   font-size: 2em;
   font-weight: bold;
-  color: #2196F3;
-  margin-bottom: 8px;
+  color: var(--info-color);
+  margin-bottom: var(--spacing-2);
 }
 
 .stat-label {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9em;
 }
 
 .clients-section h4 {
-  margin-bottom: 16px;
-  color: #333;
+  margin-bottom: var(--spacing-4);
+  color: var(--text-primary);
 }
 
 .client-card {
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  margin-bottom: 12px;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-3);
   overflow: hidden;
 }
 
@@ -184,40 +184,40 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--background-darker);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .client-ip {
   font-weight: bold;
-  color: #495057;
+  color: var(--text-primary);
 }
 
 .connection-count {
-  padding: 4px 8px;
-  border-radius: 12px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
   font-size: 0.85em;
-  background: #e9ecef;
-  color: #6c757d;
+  background: var(--background-darker);
+  color: var(--text-secondary);
 }
 
 .connection-count.multiple {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeaa7;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning-color);
+  border: 1px solid var(--warning-color);
 }
 
 .connections-list {
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .connection-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #f1f3f4;
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .connection-item:last-child {
@@ -227,29 +227,29 @@ onMounted(() => {
 .connection-id {
   font-family: monospace;
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .connection-state {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
   font-size: 0.8em;
   text-transform: uppercase;
   font-weight: bold;
 }
 
 .connection-state.connected {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success-color);
 }
 
 .connection-state.disconnected {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger-color);
 }
 
 .connection-state.connecting {
-  background: #fff3cd;
-  color: #856404;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning-color);
 }
 </style>

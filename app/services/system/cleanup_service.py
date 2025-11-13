@@ -117,9 +117,17 @@ class CleanupService:
             #   3. Recording was moved/renamed outside of StreamVault
             # This ensures complete cleanup of old stream history, not just files.
             # If you want to preserve stream history without files, use preserve_favorites.
+            
+            # SAFETY: Filter out streams that are too recent to prevent race conditions
+            # Don't delete streams that ended less than 5 minutes ago to avoid deleting
+            # files that are still being processed (remux, metadata generation, etc.)
+            from datetime import datetime, timezone, timedelta
+            safety_threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
+            
             streams_query = db.query(Stream).filter(
                 Stream.streamer_id == streamer_id,
-                Stream.ended_at.isnot(None)  # Only completed recordings (not currently recording)
+                Stream.ended_at.isnot(None),  # Only completed recordings (not currently recording)
+                Stream.ended_at < safety_threshold  # Only streams that ended more than 5 minutes ago
             )
             
             # Log which policy is being applied for debugging
@@ -552,6 +560,15 @@ class CleanupService:
                             logger.info(f"Deleted segment directory: {dir_path}")
                         except Exception as e:
                             logger.error(f"Failed to delete directory {dir_path}: {e}")
+                
+                # Delete associated recordings BEFORE deleting the stream
+                # This prevents IntegrityError: null value in column "stream_id" violates not-null constraint
+                # Even though we have ondelete="CASCADE", SQLAlchemy's cascade behavior requires explicit deletion
+                from app.models import Recording
+                associated_recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
+                for recording in associated_recordings:
+                    db.delete(recording)
+                    logger.debug(f"Deleted recording {recording.id} for stream {stream.id}")
                 
                 # Delete metadata record from database
                 if metadata:

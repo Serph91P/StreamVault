@@ -171,13 +171,16 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
+/* Responsive - Use SCSS mixins for breakpoints */
+
 .category-timeline {
-  background: #1f1f23;
-  border-radius: 12px;
-  padding: 20px;
-  margin: 16px 0;
-  border: 1px solid #333;
+  background: var(--background-card);
+  border-radius: var(--radius-3);
+  padding: var(--spacing-5);
+  margin: var(--spacing-4) 0;
+  border: 1px solid var(--border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   overflow: visible; /* Allow tooltips to extend outside component */
   position: relative; /* Needed for tooltip positioning */
@@ -187,30 +190,30 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #333;
+  margin-bottom: var(--spacing-5);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .timeline-header h4 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 1.1rem;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .timeline-header h4 i {
-  color: #9146FF;
+  color: var(--twitch-purple);
 }
 
 .category-count {
-  background: #9146FF;
+  background: var(--twitch-purple);
   color: white;
-  padding: 4px 12px;
-  border-radius: 16px;
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
   font-size: 0.8rem;
   font-weight: 500;
 }
@@ -220,31 +223,31 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
-  padding: 8px;
+  margin-bottom: var(--spacing-2_5);
+  padding: var(--spacing-2);
   background: rgba(25, 25, 30, 0.5);
-  border-radius: 8px;
+  border-radius: var(--radius-2);
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #ddd;
+  gap: var(--spacing-2);
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 
 .legend-marker {
   width: 20px;
   height: 20px;
-  background: #9146FF;
+  background: var(--twitch-purple);
   border-radius: 50%;
 }
 
 .legend-note {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.75rem;
   display: flex;
   align-items: center;
@@ -252,14 +255,14 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 .legend-note i {
-  color: #9146FF;
+  color: var(--twitch-purple);
 }
 
 /* Horizontal Timeline */
 .horizontal-timeline {
   position: relative;
   height: 80px;
-  margin: 20px 0;
+  margin: var(--spacing-5) 0;
   overflow: visible; /* Allow tooltips to extend outside timeline */
   width: 100%;
   padding-top: 50px; /* Extra space for tooltips above */
@@ -271,8 +274,8 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   left: 5%;
   right: 5%;
   height: 2px;
-  background: linear-gradient(90deg, #9146FF, #6441A5);
-  border-radius: 2px;
+  background: linear-gradient(90deg, var(--twitch-purple), var(--twitch-purple-dark));
+  border-radius: var(--radius-sm);
 }
 
 .timeline-item {
@@ -290,18 +293,18 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 .marker-content {
   width: 40px;
   height: 40px;
-  background: #9146FF;
+  background: var(--twitch-purple);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(145, 70, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(var(--twitch-purple-rgb), 0.4);
   transition: all 0.3s ease;
 }
 
 .timeline-item:hover .marker-content {
   transform: scale(1.1);
-  box-shadow: 0 4px 16px rgba(145, 70, 255, 0.6);
+  box-shadow: 0 4px 16px rgba(var(--twitch-purple-rgb), 0.6);
 }
 
 .category-icon-wrapper {
@@ -322,9 +325,9 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   left: 50%;
   transform: translateX(-50%);
   background: rgba(24, 24, 27, 0.98);
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-2);
+  padding: var(--spacing-3);
   min-width: 180px;
   opacity: 0;
   visibility: hidden;
@@ -342,7 +345,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   left: 50%;
   transform: translateX(-50%);
   border: 8px solid transparent;
-  border-top-color: #444;
+  border-top-color: var(--border-color);
   z-index: 99998;
 }
 
@@ -353,78 +356,78 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 .tooltip-header {
-  color: #9146FF;
+  color: var(--twitch-purple);
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .tooltip-time {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.85rem;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .tooltip-title {
-  color: #fff;
+  color: var(--text-primary);
   font-size: 0.9rem;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .tooltip-duration {
-  color: #9146FF;
+  color: var(--twitch-purple);
   font-size: 0.8rem;
   font-weight: 500;
 }
 
 /* Category List Header */
 .category-list-header {
-  margin: 24px 0 12px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #333;
+  margin: var(--spacing-6) 0 var(--spacing-3) 0;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .category-list-header h5 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .category-list-header h5 i {
-  color: #9146FF;
+  color: var(--twitch-purple);
 }
 
 /* Compact Category List */
 .category-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 20px;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-5);
 }
 
 .category-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #18181b;
-  border-radius: 8px;
-  border: 1px solid #333;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-darker);
+  border-radius: var(--radius-2);
+  border: 1px solid var(--border-color);
   transition: all 0.2s ease;
 }
 
 .category-item:hover {
-  background: #1a1a1e;
-  border-color: #9146FF;
+  background: var(--background-dark);
+  border-color: var(--twitch-purple);
 }
 
 .category-marker {
   width: 32px;
   height: 32px;
-  background: #9146FF;
+  background: var(--twitch-purple);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -443,14 +446,14 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 .category-name {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 500;
   font-size: 0.9rem;
   margin-bottom: 2px;
 }
 
 .category-time {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   display: flex;
   align-items: center;
@@ -458,14 +461,14 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 .category-time i {
-  color: #6441A5;
+  color: var(--twitch-purple-dark);
 }
 
 .category-duration {
-  color: #9146FF;
+  color: var(--twitch-purple);
   font-size: 0.8rem;
   font-weight: 500;
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -473,11 +476,11 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 
 /* No data state */
 .no-category-history {
-  background: #1f1f23;
-  border-radius: 12px;
-  padding: 40px 20px;
-  margin: 16px 0;
-  border: 1px solid #333;
+  background: var(--background-card);
+  border-radius: var(--radius-3);
+  padding: var(--spacing-10) var(--spacing-5);
+  margin: var(--spacing-4) 0;
+  border: 1px solid var(--border-color);
   text-align: center;
 }
 
@@ -485,13 +488,13 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: #888;
+  gap: var(--spacing-3);
+  color: var(--text-secondary);
 }
 
 .no-data-content i {
   font-size: 2rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .no-data-content p {
@@ -500,18 +503,18 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
 }
 
 .help-text {
-  margin-top: 8px !important;
+  margin-top: var(--spacing-2) !important;
   font-size: 0.8rem !important;
-  color: #666;
+  color: var(--text-secondary);
   font-style: italic;
   max-width: 80%;
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
+@include m.respond-below('md') {  // < 768px
   .horizontal-timeline {
     overflow: hidden; /* Keep consistent, no scrolling */
-    padding-bottom: 10px;
+    padding-bottom: var(--spacing-2_5);
   }
   
   .timeline-tooltip {
@@ -520,11 +523,11 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   }
   
   .category-list {
-    gap: 6px;
+    gap: var(--spacing-1_5);
   }
   
   .category-item {
-    padding: 6px 10px;
+    padding: var(--spacing-1_5) var(--spacing-2_5);
   }
   
   .category-name {

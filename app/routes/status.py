@@ -21,6 +21,55 @@ from sqlalchemy import text
 router = APIRouter(prefix="/status", tags=["status"])
 logger = logging.getLogger("streamvault")
 
+@router.get("/recordings-active")
+async def check_recordings_active() -> Dict[str, Any]:
+    """
+    Check if any recordings are currently active.
+    
+    This endpoint is designed for CI/CD and update systems to determine
+    if it's safe to perform maintenance/updates.
+    
+    Returns:
+        {
+            "has_active_recordings": bool,
+            "active_count": int,
+            "safe_to_update": bool,
+            "active_streamers": List[str],  # List of streamer names with active recordings
+            "timestamp": str
+        }
+    """
+    try:
+        with SessionLocal() as db:
+            # Get active recordings with streamer info
+            active_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
+                Recording.status == "recording"
+            ).options(
+                joinedload(Recording.stream).joinedload(Stream.streamer)
+            ).all()
+            
+            active_count = len(active_recordings)
+            active_streamers = []
+            
+            for recording in active_recordings:
+                try:
+                    if recording.stream and recording.stream.streamer:
+                        active_streamers.append(recording.stream.streamer.username)
+                except Exception as e:
+                    logger.warning(f"Error processing recording {recording.id}: {e}")
+            
+            return {
+                "has_active_recordings": active_count > 0,
+                "active_count": active_count,
+                "safe_to_update": active_count == 0,  # Safe when no recordings active
+                "active_streamers": active_streamers,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": "No active recordings - safe to update" if active_count == 0 else f"{active_count} recording(s) in progress - wait before updating"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error checking active recordings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to check active recordings status")
+
 @router.get("/system")
 async def get_system_status() -> Dict[str, Any]:
     """Get comprehensive system status"""

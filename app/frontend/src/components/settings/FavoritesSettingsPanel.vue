@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
+import { useToast } from '@/composables/useToast';
 import { IMAGE_LOADING } from '@/config/constants';
 
 interface Category {
@@ -130,6 +131,7 @@ const imageErrors = ref<Set<string>>(new Set());
 
 // Use category images composable
 const { getCategoryImage, preloadCategoryImages, refreshImages, clearCache } = useCategoryImages();
+const toast = useToast();
 
 // Computed properties
 const filteredCategories = computed(() => {
@@ -158,7 +160,9 @@ const fetchCategories = async () => {
   error.value = null;
   
   try {
-    const response = await fetch('/api/categories');
+    const response = await fetch('/api/categories', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    });
     
     if (!response.ok) {
       // Check for specific HTTP error codes
@@ -241,6 +245,7 @@ const toggleFavorite = async (category: Category) => {
     
     const response = await fetch(endpoint, {
       method,
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Content-Type': 'application/json'
       },
@@ -253,9 +258,17 @@ const toggleFavorite = async (category: Category) => {
     
     // Update the local state
     category.is_favorite = !category.is_favorite;
+    
+    // Show success toast
+    toast.success(
+      category.is_favorite 
+        ? `Added "${category.name}" to favorites` 
+        : `Removed "${category.name}" from favorites`
+    );
   } catch (err: any) {
     error.value = err.message;
     console.error('Error toggling favorite status:', err);
+    toast.error('Failed to update favorite status');
   }
 };
 
@@ -289,11 +302,13 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/mixins' as m;
 .filter-container {
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
   border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   margin-bottom: 24px;
   overflow: hidden;
 }
@@ -301,8 +316,8 @@ onMounted(() => {
 .filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
 }
 
 .search-box {
@@ -312,12 +327,13 @@ onMounted(() => {
 
 .filter-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   flex-wrap: wrap;
 }
 
-/* Responsive Anpassungen */
-@media (max-width: 640px) {
+/* Responsive Anpassungen - Use SCSS mixins for breakpoints */
+
+@include m.respond-below('sm') {  // < 640px
   .filter-row {
     flex-direction: column;
   }
@@ -328,12 +344,12 @@ onMounted(() => {
   
   .filter-buttons {
     justify-content: space-between;
-    margin-top: 8px;
+    margin-top: var(--spacing-2);
   }
   
   .filter-buttons .btn {
     flex: 1;
-    padding: 10px 8px;
+    padding: var(--spacing-3) var(--spacing-2);
   }
   
   .button-text {
@@ -362,11 +378,13 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: var(--spacing-9);
   text-align: center;
   color: var(--text-secondary);
   background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   min-height: 200px;
 }
 
@@ -377,7 +395,7 @@ onMounted(() => {
   border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-4);
 }
 
 @keyframes spin {
@@ -387,9 +405,9 @@ onMounted(() => {
 .error-message {
   background-color: rgba(239, 68, 68, 0.1);
   color: var(--danger-color);
-  padding: 16px;
+  padding: var(--spacing-4);
   border-radius: var(--border-radius, 8px);
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-4);
 }
 
 /* Card transition animations */
@@ -417,13 +435,13 @@ onMounted(() => {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
   gap: 20px;
-  padding: 8px;
+  padding: var(--spacing-2);
   width: 100%;
   min-height: 200px; /* Debug: ensure container has height */
 }
 
 /* Small screens: 1 card per row */
-@media (max-width: 640px) {
+@include m.respond-below('sm') {  // < 640px
   .category-cards {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -431,7 +449,7 @@ onMounted(() => {
 }
 
 /* Medium screens: 2-3 cards per row */
-@media (min-width: 641px) and (max-width: 1023px) {
+@include m.respond-to('sm') {  // >= 640px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 20px;
@@ -439,7 +457,7 @@ onMounted(() => {
 }
 
 /* Large screens: 3-4 cards per row */
-@media (min-width: 1024px) and (max-width: 1439px) {
+@include m.respond-to('lg') {  // >= 1024px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 24px;
@@ -447,7 +465,7 @@ onMounted(() => {
 }
 
 /* Extra large screens: 4+ cards per row */
-@media (min-width: 1440px) {
+@include m.respond-to('xl') {  // >= 1200px
   .category-cards {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 24px;
@@ -551,7 +569,7 @@ onMounted(() => {
 }
 
 .category-content {
-  padding: 8px;
+  padding: var(--spacing-2);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -574,7 +592,7 @@ onMounted(() => {
 .category-meta {
   font-size: 0.8rem;
   color: var(--text-secondary);
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
 }
 
 .category-actions {
@@ -582,7 +600,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--border-color, #2d2d35);
 }
 
@@ -594,8 +612,8 @@ onMounted(() => {
 .btn-icon {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: 0.8rem;
   background-color: transparent;
   color: var(--text-secondary);
@@ -624,7 +642,7 @@ onMounted(() => {
   transform: scale(1.2);
 }
 
-@media (max-width: 480px) {
+@include m.respond-below('xs') {  // < 375px
   .button-label {
     display: none;
   }
@@ -638,10 +656,10 @@ onMounted(() => {
 .form-control {
   width: 100%;
   box-sizing: border-box;
-  background: var(--background-dark);
+  background: var(--background-darker);  /* Better contrast in both themes */
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius, 8px);
   font-size: 0.95rem;
   transition: all 0.2s ease;
@@ -651,5 +669,9 @@ onMounted(() => {
   border-color: var(--primary-color);
   outline: none;
   box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
+}
+
+.form-control::placeholder {
+  color: var(--text-tertiary);  /* Subtle placeholder text */
 }
 </style>

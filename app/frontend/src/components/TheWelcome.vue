@@ -8,7 +8,7 @@
 <script setup lang="ts">
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .welcome {
   text-align: center;
   margin-bottom: var(--spacing-xl);

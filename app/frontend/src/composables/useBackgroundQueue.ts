@@ -95,7 +95,8 @@ export function useBackgroundQueue() {
   const cancelStreamTasks = async (streamId: number) => {
     try {
       const response = await fetch(`/api/background-queue/cancel-stream/${streamId}`, {
-        method: 'POST'
+        method: 'POST',
+        credentials: 'include' // CRITICAL: Required to send session cookie
       })
       if (response.ok) {
         logDebug('useBackgroundQueue', 'Stream tasks cancelled - waiting for WebSocket update')
