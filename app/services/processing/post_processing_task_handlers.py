@@ -19,7 +19,7 @@ from app.services.media.thumbnail_service import ThumbnailService
 from app.services.communication.websocket_manager import websocket_manager
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
-from app.config.constants import CACHE_CONFIG
+from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -948,7 +948,7 @@ class PostProcessingTaskHandlers:
             self._broadcast_debounce[rec_id] = snapshot
             async def delayed_send(recording_id: int):
                 # small delay to coalesce rapid updates
-                await asyncio.sleep(0.15)
+                await asyncio.sleep(ASYNC_DELAYS.POST_PROCESSING_DELAY)
                 snap = self._broadcast_debounce.get(recording_id)
                 if snap:
                     try:

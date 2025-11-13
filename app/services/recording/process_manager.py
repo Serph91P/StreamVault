@@ -30,6 +30,7 @@ from app.utils.streamlink_utils import get_streamlink_command, get_proxy_setting
 from app.services.recording.exceptions import ProcessError, StreamUnavailableError
 from app.models import Stream
 from app.utils import async_file
+from app.config.constants import ASYNC_DELAYS, TIMEOUTS
 
 logger = logging.getLogger("streamvault")
 
@@ -285,7 +286,7 @@ class ProcessManager:
             )
             
             # Add immediate check to see if process started successfully
-            await asyncio.sleep(0.1)  # Give process time to start
+            await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
             if process.returncode is not None:
                 # Process already ended, capture output
                 stdout, stderr = await process.communicate()
@@ -437,7 +438,7 @@ class ProcessManager:
                         logger.debug(f"Sent SIGTERM to stream {stream.id} process")
                         
                         # Wait a bit for graceful termination
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(ASYNC_DELAYS.RECORDING_ERROR_RECOVERY)
                         
                         # Poll again to check termination status
                         current_process.poll()
