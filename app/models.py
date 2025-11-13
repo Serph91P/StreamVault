@@ -542,15 +542,16 @@ class ProxySettings(Base):
         return {
             'id': self.id,
             'proxy_url': self.masked_url if mask_password else self.proxy_url,
+            'masked_url': self.masked_url,  # Always include masked URL for display
             'priority': self.priority,
             'enabled': self.enabled,
-            'last_health_check': self.last_health_check.isoformat() if self.last_health_check else None,
+            'last_check': self.last_health_check.isoformat() if self.last_health_check else None,  # Changed key name
             'health_status': self.health_status,
+            'response_time_ms': self.average_response_time_ms,  # Changed key name
             'consecutive_failures': self.consecutive_failures,
-            'average_response_time_ms': self.average_response_time_ms,
-            'total_recordings': self.total_recordings,
-            'failed_recordings': self.failed_recordings,
-            'success_rate': self.success_rate,
+            'last_error': None,  # TODO: Add last_error column to model if needed
+            'total_requests': self.total_recordings,  # Renamed for clarity
+            'successful_requests': self.total_recordings - self.failed_recordings,  # Calculated field
+            'failed_requests': self.failed_recordings,  # Renamed for clarity
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
