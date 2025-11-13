@@ -1,0 +1,180 @@
+# GitHub Copilot Coding Agent - Development Environment Setup
+#
+# This file configures the ephemeral development environment used by GitHub Copilot
+# when working on tasks. By pre-installing dependencies, Copilot can build, test, and
+# validate changes more quickly and reliably.
+#
+# Documentation: https://docs.github.com/en/copilot/customizing-copilot/customizing-the-development-environment-for-github-copilot-coding-agent
+#
+# Environment: GitHub Actions (Ubuntu latest)
+# Execution: Runs before Copilot starts working on a task
+# Timeout: 15 minutes
+
+name: Copilot Environment Setup
+on: workflow_dispatch
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ============================================
+      # System Dependencies
+      # ============================================
+      
+      - name: Update package list
+        run: sudo apt-get update
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get install -y \
+            ffmpeg \
+            streamlink \
+            postgresql-client \
+            git \
+            curl \
+            build-essential
+      
+      # ============================================
+      # Python Environment (Backend)
+      # ============================================
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Verify Python environment
+        run: |
+          python --version
+          pip list
+          python -c "import fastapi; print(f'FastAPI: {fastapi.__version__}')"
+          python -c "import sqlalchemy; print(f'SQLAlchemy: {sqlalchemy.__version__}')"
+      
+      # ============================================
+      # Node.js Environment (Frontend)
+      # ============================================
+      
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+      
+      - name: Install frontend dependencies
+        working-directory: app/frontend
+        run: npm ci
+      
+      - name: Verify Node.js environment
+        working-directory: app/frontend
+        run: |
+          node --version
+          npm --version
+          npm list --depth=0
+      
+      # ============================================
+      # Database Setup (PostgreSQL)
+      # ============================================
+      
+      - name: Start PostgreSQL service
+        run: |
+          sudo systemctl start postgresql
+          sudo systemctl status postgresql
+      
+      - name: Create test database
+        run: |
+          sudo -u postgres psql -c "CREATE DATABASE streamvault_test;"
+          sudo -u postgres psql -c "CREATE USER streamvault WITH PASSWORD 'test_password';"
+          sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE streamvault_test TO streamvault;"
+      
+      - name: Verify database connection
+        env:
+          DATABASE_URL: postgresql://streamvault:test_password@localhost/streamvault_test
+        run: |
+          python -c "from sqlalchemy import create_engine; engine = create_engine('$DATABASE_URL'); conn = engine.connect(); print('Database connection successful')"
+      
+      # ============================================
+      # Project-Specific Setup
+      # ============================================
+      
+      - name: Create required directories
+        run: |
+          mkdir -p recordings
+          mkdir -p logs
+          mkdir -p app/data
+          chmod 755 recordings logs app/data
+      
+      - name: Set up environment variables
+        run: |
+          cat > .env << EOF
+          ENVIRONMENT=test
+          DATABASE_URL=postgresql://streamvault:test_password@localhost/streamvault_test
+          SECRET_KEY=test-secret-key-for-copilot-agent
+          TWITCH_CLIENT_ID=test-client-id
+          TWITCH_CLIENT_SECRET=test-client-secret
+          RECORDING_DIRECTORY=/tmp/recordings
+          LOG_LEVEL=INFO
+          EOF
+      
+      # ============================================
+      # Build and Test
+      # ============================================
+      
+      - name: Build frontend
+        working-directory: app/frontend
+        run: |
+          npm run build
+          ls -la dist/
+      
+      - name: Run Python tests (if exist)
+        run: |
+          if [ -d "tests" ]; then
+            python -m pytest tests/ -v || true
+          else
+            echo "No tests directory found, skipping tests"
+          fi
+      
+      - name: Verify backend imports
+        run: |
+          python -c "from app.models import *; print('✅ All models imported successfully')"
+          python -c "from app.main import app; print('✅ FastAPI app loaded successfully')"
+      
+      # ============================================
+      # Linting and Type Checking
+      # ============================================
+      
+      - name: Run Python linting (if configured)
+        run: |
+          pip list | grep -q ruff && ruff check . || echo "Ruff not installed, skipping"
+          pip list | grep -q mypy && mypy app/ || echo "mypy not installed, skipping"
+      
+      - name: Run frontend type checking
+        working-directory: app/frontend
+        run: |
+          npm run type-check || echo "Type checking failed, continuing..."
+      
+      # ============================================
+      # Summary
+      # ============================================
+      
+      - name: Environment setup summary
+        run: |
+          echo "✅ Copilot development environment ready!"
+          echo ""
+          echo "Python version: $(python --version)"
+          echo "Node.js version: $(node --version)"
+          echo "PostgreSQL status: $(sudo systemctl is-active postgresql)"
+          echo "Frontend build: $(test -d app/frontend/dist && echo 'Success' || echo 'Failed')"
+          echo ""
+          echo "Next steps:"
+          echo "1. Copilot will now explore the codebase"
+          echo "2. Make changes according to task requirements"
+          echo "3. Run tests to verify changes"
+          echo "4. Create pull request with changes"
