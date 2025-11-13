@@ -13,7 +13,6 @@
         controls
         preload="metadata"
         class="video-element"
-        :class="{ 'fullscreen': isFullscreen }"
       >
         <!-- WebVTT chapters track -->
         <track 
@@ -85,13 +84,6 @@
           class="control-btn"
         >
           ⏭️ Next
-        </button>
-        
-        <button 
-          @click="toggleFullscreen"
-          class="control-btn"
-        >
-          {{ isFullscreen ? '🪟' : '⛶' }} {{ isFullscreen ? 'Exit' : 'Fullscreen' }}
         </button>
       </div>
 
@@ -193,7 +185,6 @@ const currentTime = ref(0)
 const videoDuration = ref(0)
 const showChapterUI = ref(false)
 const chapters = ref<Chapter[]>([])
-const isFullscreen = ref(false)
 
 // Category images composable
 const { getCategoryImage } = useCategoryImages()
@@ -256,17 +247,6 @@ const onVideoError = () => {
 const retryLoad = () => {
   if (videoElement.value) {
     videoElement.value.load()
-  }
-}
-
-// Fullscreen handling
-const toggleFullscreen = () => {
-  if (!videoWrapper.value) return
-  
-  if (!document.fullscreenElement) {
-    videoWrapper.value.requestFullscreen()
-  } else {
-    document.exitFullscreen()
   }
 }
 
@@ -486,30 +466,16 @@ const onKeyDown = (event: KeyboardEvent) => {
         toggleChapterUI()
       }
       break
-    case 'f':
-    case 'F':
-      if (!event.ctrlKey && !event.metaKey) {
-        event.preventDefault()
-        toggleFullscreen()
-      }
-      break
   }
-}
-
-// Fullscreen change handler
-const onFullscreenChange = () => {
-  isFullscreen.value = !!document.fullscreenElement
 }
 
 onMounted(() => {
   loadChapters()
   document.addEventListener('keydown', onKeyDown)
-  document.addEventListener('fullscreenchange', onFullscreenChange)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
 })
 
 // Watch for changes in chapters prop
@@ -559,10 +525,6 @@ watch(() => props.chapters, (newChapters) => {
   height: auto;
   max-height: 70vh;
   display: block;
-}
-
-.video-element.fullscreen {
-  max-height: 100vh;
 }
 
 /* Chapter Progress Bar */
