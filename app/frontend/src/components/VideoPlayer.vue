@@ -190,7 +190,7 @@
           :key="index"
           class="chapter-item"
           :class="{ 'active': currentChapterIndex === index }"
-          :ref="el => { if (el) chapterItemRefs[index] = el }"
+          :ref="el => { if (el) chapterItemRefs[index] = el as HTMLElement }"
           @click="seekToChapter(chapter.startTime)"
         >
           <div class="chapter-thumbnail" v-if="chapter.thumbnail">
@@ -1120,7 +1120,10 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-item {
   // Use reusable list-item-interactive mixin from design system
   @include m.list-item-interactive;
-  border-left: 3px solid transparent;  /* Default border for active state */
+  
+  & {  // ✅ Wrap declaration to avoid mixed-decls warning
+    border-left: 3px solid transparent;  /* Default border for active state */
+  }
 }
 
 .chapter-item.active {
@@ -1128,7 +1131,9 @@ watch(() => props.chapters, (newChapters) => {
   @include m.list-item-active(3px, 4px);
   @include m.list-item-active-indicator('▶', 20px, 25px);
   
-  color: white;
+  & {  // ✅ Wrap declaration to avoid mixed-decls warning
+    color: white;
+  }
 }
 
 .chapter-item.active .chapter-time,
