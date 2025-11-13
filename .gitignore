@@ -103,3 +103,5 @@ Thumbs.db
 *.iws
 CLAUDE.md
 AGENT.md
+/scripts
+/docs/github_issues
