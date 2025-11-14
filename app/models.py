@@ -191,6 +191,23 @@ class NotificationSettings(Base):
     notify_favorite_category = Column(Boolean, default=True)
     streamer = relationship("Streamer", back_populates="notification_settings")
 
+
+class NotificationState(Base):
+    """Tracks notification read/clear state per user"""
+    __tablename__ = "notification_state"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    last_read_timestamp = Column(DateTime(timezone=True), nullable=True)  # Last time user marked notifications as read
+    last_cleared_timestamp = Column(DateTime(timezone=True), nullable=True)  # Last time user cleared all notifications
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationship to user
+    user = relationship("User", backref="notification_state")
+
+
 class Category(Base):
     __tablename__ = "categories"
     __table_args__ = {'extend_existing': True}
