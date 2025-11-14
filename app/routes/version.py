@@ -9,7 +9,6 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 from app.database import get_db
-from app.dependencies import require_auth
 from app.version import get_version_info, VERSION, BRANCH, REPOSITORY
 
 router = APIRouter(prefix="/version", tags=["version"])
@@ -22,7 +21,7 @@ _update_check_cache = {
 }
 
 @router.get("")
-async def get_version(db: Session = Depends(get_db), _=Depends(require_auth)):
+async def get_version(db: Session = Depends(get_db)):
     """
     Get current StreamVault version information.
     
