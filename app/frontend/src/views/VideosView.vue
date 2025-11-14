@@ -735,7 +735,7 @@ onMounted(() => {
   padding: var(--spacing-5);
   background: var(--background-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--spacing-5);
   flex-wrap: wrap;
 }
@@ -892,12 +892,22 @@ onMounted(() => {
 .slide-down-enter-active,
 .slide-down-leave-active {
   transition: all v.$duration-300 v.$ease-out;
+  overflow: hidden;
 }
 
 .slide-down-enter-from,
 .slide-down-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  max-height: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  opacity: 1;
+  max-height: 500px;
 }
 
 // Responsive - Use SCSS mixins for breakpoints

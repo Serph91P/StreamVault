@@ -505,7 +505,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  border-top: 1px solid var(--border-color);
   padding-top: var(--spacing-4);
 }
 

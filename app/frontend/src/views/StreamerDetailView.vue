@@ -2,8 +2,8 @@
   <div class="streamer-detail-view">
     <!-- Back Button -->
     <router-link to="/streamers" class="back-button" v-ripple>
-      <svg class="icon">
-        <use href="#icon-arrow-left" />
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
       </svg>
       Back
     </router-link>
@@ -110,12 +110,14 @@
 
           <!-- Sort Dropdown -->
           <div class="view-controls">
-            <select v-model="sortBy" class="sort-select">
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="duration-desc">Longest Duration</option>
-              <option value="duration-asc">Shortest Duration</option>
-            </select>
+            <button class="filter-button" @click="() => {}" v-ripple>
+              <select v-model="sortBy" class="sort-select">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="duration-desc">Longest Duration</option>
+                <option value="duration-asc">Shortest Duration</option>
+              </select>
+            </button>
           </div>
         </div>
 
@@ -754,34 +756,38 @@ onMounted(async () => {
   &.btn-primary {
     background: var(--primary-color);
     color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
     &:hover:not(:disabled) {
       background: var(--primary-600);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
   }
 
   &.btn-danger {
     background: var(--danger-color);
     color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
     &:hover:not(:disabled) {
       background: var(--danger-600);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
   }
 
   &.btn-secondary {
-    background: var(--background-card);
-    color: var(--text-primary); /* ✅ Theme-aware text color */
-    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
     &:hover:not(:disabled) {
-      background: var(--background-hover);
+      background: rgba(255, 255, 255, 1);
       border-color: var(--primary-color);
       transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
   }
 }

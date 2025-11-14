@@ -196,21 +196,29 @@
             <thead>
               <tr>
                 <th>Streamer</th>
-                <th>
+                <th title="Enable/disable recording for this streamer">
                   Record
-                  <div class="th-tooltip">Enable/disable recording for this streamer</div>
+                  <svg class="info-icon">
+                    <use href="#icon-info" />
+                  </svg>
                 </th>
-                <th>
+                <th title="Select recording quality (defaults to global setting if empty)">
                   Quality
-                  <div class="th-tooltip">Select recording quality (defaults to global setting if empty)</div>
+                  <svg class="info-icon">
+                    <use href="#icon-info" />
+                  </svg>
                 </th>
-                <th>
+                <th title="Optional custom filename template for this streamer">
                   Custom Filename
-                  <div class="th-tooltip">Optional custom filename template for this streamer</div>
+                  <svg class="info-icon">
+                    <use href="#icon-info" />
+                  </svg>
                 </th>
-                <th>
+                <th title="Test, stop, or clean up recordings">
                   Actions
-                  <div class="th-tooltip">Test, stop, or clean up recordings</div>
+                  <svg class="info-icon">
+                    <use href="#icon-info" />
+                  </svg>
                 </th>
               </tr>
             </thead>
@@ -796,13 +804,22 @@ select.form-control option {
   }
 }
 
-/* Verbesserte Tooltips, die nicht den Fluss stören */
-.th-tooltip {
-  position: relative;
+/* Info icons for table headers with native tooltips */
+.info-icon {
   display: inline-block;
+  width: 14px;
+  height: 14px;
   margin-left: 4px;
-  color: var(--text-secondary, #ccc);
-  font-size: 0.75rem;
+  stroke: var(--text-secondary);
+  fill: none;
+  vertical-align: middle;
+  opacity: 0.6;
+  cursor: help;
+  
+  &:hover {
+    opacity: 1;
+    stroke: var(--primary-color);
+  }
 }
 
 /* Aktionsbuttons besser anpassen */

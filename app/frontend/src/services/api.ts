@@ -256,6 +256,21 @@ export const systemApi = {
     apiClient.get('/api/status/notifications'),
 }
 
+// Notification API endpoints
+export const notificationApi = {
+  // Get notification state (last read/cleared timestamps)
+  getState: () => 
+    apiClient.get('/api/notifications/state'),
+  
+  // Mark notifications as read
+  markRead: (timestamp?: string) =>
+    apiClient.post('/api/notifications/mark-read', { timestamp }),
+  
+  // Clear all notifications
+  clear: () =>
+    apiClient.post('/api/notifications/clear', {})
+}
+
 // Settings API endpoints
 export const settingsApi = {
   // Get global settings

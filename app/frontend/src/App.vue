@@ -678,8 +678,15 @@ function markAsRead() {
   localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
 }
 
-function clearAllNotifications() {
-  // Clear the notifications from localStorage (redundant but safe)
+async function clearAllNotifications() {
+  try {
+    // Clear on backend (sets last_cleared_timestamp)
+    await notificationApi.clear()
+  } catch (error) {
+    console.error('Failed to clear notifications on backend:', error)
+  }
+  
+  // Clear the notifications from localStorage
   localStorage.removeItem('streamvault_notifications')
   // Mark as read
   markAsRead()
@@ -737,8 +744,24 @@ function updateUnreadCountFromStorage() {
   }
 }
 
-// Update unread count from localStorage on mount
-onMounted(() => {
+// Load notification state from backend on mount
+onMounted(async () => {
+  // Load backend notification state (last read/cleared timestamps)
+  try {
+    const backendState = await notificationApi.getState()
+    if (backendState.last_cleared_timestamp) {
+      // Use backend cleared timestamp if more recent than localStorage
+      const backendCleared = new Date(backendState.last_cleared_timestamp).getTime()
+      const localCleared = parseInt(lastReadTimestamp.value) || 0
+      if (backendCleared > localCleared) {
+        lastReadTimestamp.value = backendCleared.toString()
+        localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load notification state from backend:', error)
+  }
+  
   updateUnreadCountFromStorage()
   
   // Set initial message count

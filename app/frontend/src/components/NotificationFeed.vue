@@ -105,6 +105,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
+import { notificationApi } from '@/services/api'
 
 const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all'])
 
@@ -370,7 +371,7 @@ const removeNotification = (id: string): void => {
 }
 
 // Clear all notifications
-const clearAllNotifications = (event?: Event): void => {
+const clearAllNotifications = async (event?: Event): Promise<void> => {
   // Prevent any default behavior or propagation
   if (event) {
     event.preventDefault()
@@ -378,17 +379,21 @@ const clearAllNotifications = (event?: Event): void => {
     event.stopImmediatePropagation()
   }
   
+  try {
+    // Clear on backend (sets last_cleared_timestamp in DB)
+    await notificationApi.clear()
+    console.log('✅ NotificationFeed: Backend cleared successfully')
+  } catch (error) {
+    console.error('❌ NotificationFeed: Failed to clear on backend:', error)
+  }
+  
   // Clear notifications directly
   notifications.value = []
   
-  // Clear localStorage immediately and confirm
+  // Clear localStorage immediately
   try {
     localStorage.removeItem('streamvault_notifications')
-    const check = localStorage.getItem('streamvault_notifications')
-    
-    // Set empty array to be extra sure
     localStorage.setItem('streamvault_notifications', JSON.stringify([]))
-    const checkAgain = localStorage.getItem('streamvault_notifications')
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing localStorage:', error)
   }
@@ -502,11 +507,37 @@ watch(() => messages.value.length, (newLength: number) => {
 }, { immediate: false }) // Don't process immediately to avoid double processing
 
 // On mount
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 NotificationFeed: Component mounted')
+  
+  // Load backend notification state (last_cleared_timestamp)
+  let lastClearedTimestamp: number | null = null
+  try {
+    const backendState = await notificationApi.getState()
+    if (backendState.last_cleared_timestamp) {
+      lastClearedTimestamp = new Date(backendState.last_cleared_timestamp).getTime()
+      console.log('🚀 NotificationFeed: Backend last cleared:', new Date(lastClearedTimestamp).toISOString())
+    }
+  } catch (error) {
+    console.error('❌ NotificationFeed: Failed to load backend state:', error)
+  }
   
   // Load existing notifications from localStorage FIRST
   loadNotifications()
+  
+  // Filter out notifications that were cleared on backend
+  if (lastClearedTimestamp) {
+    const beforeFilter = notifications.value.length
+    notifications.value = notifications.value.filter(n => {
+      const notifTime = new Date(n.timestamp).getTime()
+      return notifTime > lastClearedTimestamp!
+    })
+    const afterFilter = notifications.value.length
+    if (beforeFilter !== afterFilter) {
+      console.log(`🚀 NotificationFeed: Filtered ${beforeFilter - afterFilter} cleared notifications`)
+      saveNotifications() // Update localStorage
+    }
+  }
   
   // Set the initial message count to current messages length
   previousMessageCount.value = messages.value.length
@@ -550,13 +581,15 @@ onUnmounted(() => {
   max-width: 400px;
   max-height: 800px;
   overflow-y: auto;
-  background-color: var(--background-darker, #18181b);
-  border-radius: var(--border-radius, 8px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   width: 100%;
-  border: 1px solid var(--border-color, #2f2f35);
 }
 
 @keyframes slideIn {
@@ -727,21 +760,23 @@ onUnmounted(() => {
 
 .notification-item {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color, #2f2f35);
+  margin: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb), 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: flex-start;
   animation: slideIn 0.3s ease;
-}
-
-.notification-item:last-child {
-  border-bottom: none;
+  transition: all var(--duration-200) var(--ease-out);
 }
 
 .notification-item:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--background-darker-rgb), 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
 
 .notification-indicator {
@@ -749,7 +784,8 @@ onUnmounted(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 2px;
+  opacity: 0.5;
 }
 
 .notification-indicator.online {

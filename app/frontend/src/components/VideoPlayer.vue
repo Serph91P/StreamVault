@@ -86,6 +86,49 @@
           </div>
           
           <div class="controls-right">
+            <!-- Chapter Navigation (when chapters exist) -->
+            <template v-if="chapters.length > 0">
+              <!-- Previous Chapter Button -->
+              <button 
+                @click="previousChapter" 
+                :disabled="currentChapterIndex <= 0"
+                class="control-button chapter-nav-button"
+                :aria-label="'Previous Chapter'"
+                :title="`Previous: ${chapters[currentChapterIndex - 1]?.title || 'None'}`"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                  <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                </svg>
+              </button>
+              
+              <!-- Chapters Button (Toggle List) -->
+              <button 
+                @click="toggleChapterUI" 
+                class="control-button chapters-button"
+                :class="{ 'active': showChapterUI }"
+                :aria-label="'Chapters'"
+                :title="`${chapters.length} Chapters${currentChapter ? ': ' + currentChapter.title : ''}`"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                  <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+                </svg>
+                <span class="chapter-count">{{ chapters.length }}</span>
+              </button>
+              
+              <!-- Next Chapter Button -->
+              <button 
+                @click="nextChapter" 
+                :disabled="currentChapterIndex >= chapters.length - 1"
+                class="control-button chapter-nav-button"
+                :aria-label="'Next Chapter'"
+                :title="`Next: ${chapters[currentChapterIndex + 1]?.title || 'None'}`"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                </svg>
+              </button>
+            </template>
+            
             <!-- Fullscreen Button -->
             <button 
               @click="toggleFullscreen" 
@@ -130,95 +173,65 @@
         <div class="error-message">{{ error }}</div>
         <button @click="retryLoad" class="retry-btn">🔄 Retry</button>
       </div>
-    </div>
-
-    <!-- Video Controls Extension -->
-    <div class="video-controls-extension">
-      <!-- Chapter Controls -->
-      <div class="chapter-controls">
-        <button 
-          v-if="chapters.length > 0"
-          @click="toggleChapterUI" 
-          class="control-btn"
-          :class="{ 'active': showChapterUI }"
-        >
-          📋 Chapters ({{ chapters.length }})
-        </button>
-        
-        <button 
-          v-if="chapters.length > 0"
-          @click="previousChapter" 
-          :disabled="currentChapterIndex <= 0"
-          class="control-btn"
-        >
-          ⏮️ Previous
-        </button>
-        
-        <button 
-          v-if="chapters.length > 0"
-          @click="nextChapter" 
-          :disabled="currentChapterIndex >= chapters.length - 1"
-          class="control-btn"
-        >
-          ⏭️ Next
-        </button>
-      </div>
-
-      <!-- Current Chapter Info -->
-      <div class="current-chapter-info" v-if="currentChapter">
-        <div class="current-chapter-title">{{ currentChapter.title }}</div>
-        <div class="current-chapter-progress">
-          {{ formatTime(currentTime - currentChapter.startTime) }} / {{ formatDuration(currentChapter.duration) }}
+      
+      <!-- Chapter List Panel (Overlay inside video) -->
+      <div 
+        v-if="showChapterUI && chapters.length > 0" 
+        class="chapter-list-panel"
+        ref="chapterListPanel"
+        @scroll="handleChapterListScroll"
+      >
+        <div class="chapter-list-header">
+          <h3>📋 Chapters</h3>
+          <button @click="toggleChapterUI" class="close-btn">×</button>
+        </div>
+        <div class="chapter-list" ref="chapterList">
+          <div 
+            v-for="(chapter, index) in chapters" 
+            :key="index"
+            class="chapter-item"
+            :class="{ 'active': currentChapterIndex === index }"
+            :ref="el => { if (el) chapterItemRefs[index] = el as HTMLElement }"
+            @click="seekToChapter(chapter.startTime)"
+          >
+            <div class="chapter-thumbnail" v-if="chapter.thumbnail">
+              <img :src="chapter.thumbnail" :alt="chapter.title" />
+            </div>
+            <div class="chapter-icon" v-else-if="chapter.gameIcon">
+              <img 
+                v-if="!chapter.gameIcon.startsWith('icon:')"
+                :src="chapter.gameIcon" 
+                :alt="chapter.title" 
+              />
+              <i 
+                v-else 
+                :class="chapter.gameIcon.replace('icon:', '')"
+                class="category-icon"
+              ></i>
+            </div>
+            <div class="chapter-placeholder" v-else>
+              🎬
+            </div>
+            
+            <div class="chapter-info">
+              <div class="chapter-title">{{ chapter.title }}</div>
+              <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
+              <div class="chapter-duration" v-if="chapter.duration">
+                {{ formatDuration(chapter.duration) }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Chapter List (Mobile-friendly) -->
-    <div 
-      v-if="showChapterUI && chapters.length > 0" 
-      class="chapter-list-panel"
-      ref="chapterListPanel"
-      @scroll="handleChapterListScroll"
-    >
-      <div class="chapter-list-header">
-        <h3>📋 Chapters</h3>
-        <button @click="toggleChapterUI" class="close-btn">×</button>
-      </div>
-      <div class="chapter-list" ref="chapterList">
-        <div 
-          v-for="(chapter, index) in chapters" 
-          :key="index"
-          class="chapter-item"
-          :class="{ 'active': currentChapterIndex === index }"
-          :ref="el => { if (el) chapterItemRefs[index] = el as HTMLElement }"
-          @click="seekToChapter(chapter.startTime)"
-        >
-          <div class="chapter-thumbnail" v-if="chapter.thumbnail">
-            <img :src="chapter.thumbnail" :alt="chapter.title" />
-          </div>
-          <div class="chapter-icon" v-else-if="chapter.gameIcon">
-            <img 
-              v-if="!chapter.gameIcon.startsWith('icon:')"
-              :src="chapter.gameIcon" 
-              :alt="chapter.title" 
-            />
-            <i 
-              v-else 
-              :class="chapter.gameIcon.replace('icon:', '')"
-              class="category-icon"
-            ></i>
-          </div>
-          <div class="chapter-placeholder" v-else>
-            🎬
-          </div>
-          
-          <div class="chapter-info">
-            <div class="chapter-title">{{ chapter.title }}</div>
-            <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
-            <div class="chapter-duration" v-if="chapter.duration">
-              {{ formatDuration(chapter.duration) }}
-            </div>
-          </div>
+    <!-- Video Controls Extension (below video) -->
+    <div class="video-controls-extension" v-if="currentChapter">
+      <!-- Current Chapter Info -->
+      <div class="current-chapter-info">
+        <div class="current-chapter-title">{{ currentChapter.title }}</div>
+        <div class="current-chapter-progress">
+          {{ formatTime(currentTime - currentChapter.startTime) }} / {{ formatDuration(currentChapter.duration) }}
         </div>
       </div>
     </div>
@@ -938,72 +951,16 @@ watch(() => props.chapters, (newChapters) => {
   box-shadow: var(--shadow-lg);
 }
 
-/* Video Controls Extension - Glassmorphism Style */
+/* Video Controls Extension - Current Chapter Info Display */
 .video-controls-extension {
   background: rgba(var(--background-card-rgb), 0.95);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  padding: var(--spacing-4);  /* 16px */
+  padding: var(--spacing-3) var(--spacing-4);  /* 12px 16px */
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;  /* Right-aligned */
   align-items: center;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  gap: var(--spacing-4);  /* 16px */
-}
-
-.chapter-controls {
-  display: flex;
-  gap: var(--spacing-2);  /* 8px */
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.control-btn {
-  /* Glassmorphism button design */
-  background: rgba(var(--background-darker-rgb), 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-  padding: var(--spacing-2) var(--spacing-4);  /* 8px 16px */
-  border-radius: var(--radius-lg);  /* 12px */
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);  /* 8px */
-  transition: var(--transition-all);
-  font-size: var(--text-sm);  /* 14px */
-  font-weight: var(--font-medium);  /* 500 */
-  white-space: nowrap;
-  line-height: var(--leading-normal);
-  min-height: 44px;  /* Touch target - PWA requirement */
-  box-shadow: var(--shadow-sm);
-}
-
-.control-btn:hover:not(:disabled) {
-  background: rgba(var(--background-darker-rgb), 0.9);
-  border-color: rgba(var(--primary-color-rgb), 0.5);
-  color: var(--primary-color);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md), 0 0 20px rgba(var(--primary-color-rgb), 0.2);
-}
-
-.control-btn:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-  box-shadow: var(--shadow-focus-primary);
-}
-
-.control-btn.active {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
-  border-color: var(--primary-color);
-  color: white;
-  box-shadow: var(--shadow-primary), 0 0 20px rgba(var(--primary-color-rgb), 0.4);
-}
-
-.control-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .current-chapter-info {
@@ -1020,6 +977,10 @@ watch(() => props.chapters, (newChapters) => {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: var(--leading-tight);
+  
+  @include m.respond-below('md') {  // < 768px (mobile)
+    font-size: var(--text-base);  /* 16px on mobile */
+  }
 }
 
 .current-chapter-progress {
@@ -1027,19 +988,48 @@ watch(() => props.chapters, (newChapters) => {
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-weight: var(--font-medium);  /* 500 */
+  
+  @include m.respond-below('md') {  // < 768px (mobile)
+    font-size: var(--text-sm);  /* 14px on mobile */
+  }
 }
 
-/* Chapter List Panel */
+/* Chapter List Panel - Overlay positioned inside video */
 .chapter-list-panel {
   /* Glassmorphism panel design */
-  background: rgba(var(--background-card-rgb), 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
-  max-height: 400px;
+  background: rgba(var(--background-card-rgb), 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg);  /* 12px */
+  box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
+  max-height: 500px;
   overflow-y: auto;
-  position: relative;  /* For scroll indicators */
+  position: absolute;  /* Position inside video wrapper */
+  bottom: 80px;  /* Above video controls */
+  right: var(--spacing-4);  /* 16px from right edge */
+  width: 400px;  /* Fixed width for desktop */
+  max-width: calc(100% - 32px);  /* Responsive on mobile */
+  z-index: 20;  /* Above controls overlay */
+  animation: slideInRight var(--duration-300) var(--ease-out);
+  
+  @include m.respond-below('md') {  // < 768px (mobile)
+    width: calc(100% - 32px);  /* Full width on mobile with padding */
+    bottom: 100px;  /* More space on mobile */
+    right: var(--spacing-4);
+    max-height: 400px;  /* Smaller on mobile */
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Custom scrollbar for chapter list with glass effect */
@@ -1395,6 +1385,52 @@ watch(() => props.chapters, (newChapters) => {
 .play-pause-button:hover {
   background: linear-gradient(135deg, var(--primary-color-light), var(--primary-color));
   box-shadow: var(--shadow-lg), 0 0 20px rgba(var(--primary-color-rgb), 0.4);
+}
+
+/* Chapter Navigation Buttons */
+.chapter-nav-button {
+  /* Same size as standard controls */
+  opacity: 0.9;
+}
+
+.chapter-nav-button:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.chapter-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Chapters List Toggle Button */
+.chapters-button {
+  position: relative;
+  gap: var(--spacing-1);  /* 4px between icon and count */
+  padding: 0 var(--spacing-2);  /* Horizontal padding for count */
+  width: auto;  /* Auto width to fit content */
+  min-width: 48px;  /* Minimum touch target */
+  
+  @include m.respond-below('md') {  // < 768px (mobile)
+    min-width: 56px;
+  }
+}
+
+.chapters-button.active {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-md), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
+}
+
+.chapters-button .chapter-count {
+  font-size: var(--text-xs);  /* 12px */
+  font-weight: var(--font-bold);  /* 700 */
+  margin-left: 2px;
+  
+  @include m.respond-below('md') {  // < 768px (mobile)
+    font-size: var(--text-sm);  /* 14px on mobile */
+  }
 }
 
 /* Control Icons */

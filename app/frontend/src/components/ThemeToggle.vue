@@ -45,11 +45,11 @@ const { isDark, toggleTheme } = useTheme()
   height: 44px;
   padding: 0;
   background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius, 8px);
+  border: none;
+  border-radius: 50%;
   color: var(--text-primary);
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
   
   // Touch-friendly size (44x44px minimum)
   min-width: 44px;
@@ -58,25 +58,23 @@ const { isDark, toggleTheme } = useTheme()
   .icon {
     width: 20px;
     height: 20px;
-    transition: transform var(--transition-base);
+    transition: transform var(--duration-200, 200ms) var(--vue-ease-out);
   }
   
   &:hover {
-    background: var(--background-card);
-    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.1);
     color: var(--primary-color);
-    transform: translateY(-1px);
     
     .icon {
-      transform: rotate(15deg) scale(1.1);
+      transform: scale(1.1);
     }
   }
   
   &:active {
-    transform: translateY(0);
+    transform: scale(0.95);
     
     .icon {
-      transform: rotate(0deg) scale(0.95);
+      transform: scale(0.95);
     }
   }
   

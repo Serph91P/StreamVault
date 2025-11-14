@@ -154,6 +154,9 @@ const handleAction = () => {
   :deep(.glass-card-content) {
     padding: var(--spacing-5); // 20px
   }
+  
+  // Remove any border-top that might be inherited
+  border-top: none !important;
 }
 
 .status-card-content {
@@ -187,22 +190,22 @@ const handleAction = () => {
   }
 
   &.status-success {
-    background: rgba(16, 185, 129, 0.2);
+    background: rgba(var(--success-500-rgb), 0.2);
     color: var(--success-color);
   }
 
   &.status-danger {
-    background: rgba(239, 68, 68, 0.2);
+    background: rgba(var(--danger-500-rgb), 0.2);
     color: var(--danger-color);
   }
 
   &.status-warning {
-    background: rgba(245, 158, 11, 0.2);
+    background: rgba(var(--warning-500-rgb), 0.2);
     color: var(--warning-color);
   }
 
   &.status-info {
-    background: rgba(59, 130, 246, 0.2);
+    background: rgba(var(--info-500-rgb), 0.2);
     color: var(--info-color);
   }
 }

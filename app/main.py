@@ -15,6 +15,7 @@ from app.routes import background_queue
 from app.routes import streams
 from app.routes import status
 from app.routes import health
+from app.routes import notifications  # Notification tracking API
 from app.services.system.development_test_runner import run_development_tests
 from app.config.constants import TIMEOUTS, ASYNC_DELAYS
 import logging
@@ -826,6 +827,7 @@ app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
 app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
+app.include_router(notifications.router)  # Notification tracking API
 
 # Proxy management routes (Multi-Proxy System)
 from app.routes import proxy as proxy_router
