@@ -50,11 +50,16 @@ async def get_orphaned_recordings_stats(
         recovery_service = await get_orphaned_recovery_service()
         stats = await recovery_service.get_orphaned_statistics(max_age_hours=max_age_hours)
         
+        # Ensure by_streamer is always a dict (compatibility wrapper may return None)
+        by_streamer = stats.get("by_streamer")
+        if by_streamer is None or not isinstance(by_streamer, dict):
+            by_streamer = {}
+        
         return PostProcessingStatsResponse(
             orphaned_recordings=stats.get("total_orphaned", 0),
             orphaned_segments=stats.get("total_orphaned_segments", 0),
             total_size_gb=stats.get("total_size_gb", 0.0),
-            by_streamer=stats.get("by_streamer", {})
+            by_streamer=by_streamer
         )
         
     except Exception as e:

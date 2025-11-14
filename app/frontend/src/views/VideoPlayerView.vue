@@ -1,25 +1,5 @@
 <template>
-  <div class="video-player-view">
-    <!-- Player Header -->
-    <div class="player-header">
-      <button @click="goBack" class="btn-back" v-ripple>
-        <svg class="icon">
-          <use href="#icon-arrow-left" />
-        </svg>
-        <span>Back</span>
-      </button>
-
-      <div class="stream-info">
-        <h1 class="stream-title">{{ streamTitle }}</h1>
-        <p v-if="streamerName" class="streamer-name">
-          <svg class="icon">
-            <use href="#icon-user" />
-          </svg>
-          <span>{{ streamerName }}</span>
-        </p>
-      </div>
-    </div>
-
+  <div class="video-player-view fade-in">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
@@ -50,18 +30,79 @@
       />
     </div>
 
-    <!-- Video Player -->
-    <div v-else class="player-wrapper">
-      <VideoPlayer
-        :video-src="chapterData.video_url"
-        :chapters="chapterData.chapters"
-        :stream-title="chapterData.stream_title"
-        :stream-id="parseInt(streamId)"
-        class="video-player-container"
-        @chapter-change="onChapterChange"
-        @video-ready="onVideoReady"
-        @time-update="onTimeUpdate"
-      />
+    <!-- Video Player - Main Content -->
+    <div v-else class="player-content">
+      <!-- Back Button - Floating overlay for mobile -->
+      <button @click="goBack" class="btn-back-floating" v-ripple>
+        <svg class="icon">
+          <use href="#icon-arrow-left" />
+        </svg>
+        <span class="back-text">Back</span>
+      </button>
+
+      <!-- Video Player Container -->
+      <div class="player-container">
+        <VideoPlayer
+          :video-src="chapterData.video_url"
+          :chapters="chapterData.chapters"
+          :stream-title="chapterData.stream_title"
+          :stream-id="parseInt(streamId)"
+          @chapter-change="onChapterChange"
+          @video-ready="onVideoReady"
+          @time-update="onTimeUpdate"
+        />
+      </div>
+
+      <!-- Video Metadata - Glassmorphism Card below player -->
+      <div class="metadata-container">
+        <GlassCard :padding="true">
+          <div class="metadata-content">
+            <!-- Title & Streamer Info -->
+            <div class="title-section">
+              <h1 class="video-title">{{ streamTitle }}</h1>
+              <div v-if="streamerName" class="streamer-badge">
+                <svg class="icon-streamer">
+                  <use href="#icon-user" />
+                </svg>
+                <span class="streamer-name">{{ streamerName }}</span>
+              </div>
+            </div>
+
+            <!-- Video Stats Grid -->
+            <div v-if="chapterData" class="stats-grid">
+              <div class="stat-card">
+                <svg class="stat-icon">
+                  <use href="#icon-clock" />
+                </svg>
+                <div class="stat-info">
+                  <span class="stat-label">Duration</span>
+                  <span class="stat-value">{{ formatDuration(chapterData.duration) }}</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <svg class="stat-icon">
+                  <use href="#icon-list" />
+                </svg>
+                <div class="stat-info">
+                  <span class="stat-label">Chapters</span>
+                  <span class="stat-value">{{ chapterData.chapters?.length || 0 }}</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <svg class="stat-icon">
+                  <use href="#icon-film" />
+                </svg>
+                <div class="stat-info">
+                  <span class="stat-label">Stream ID</span>
+                  <span class="stat-value">#{{ streamId }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
     </div>
   </div>
 </template>
@@ -72,6 +113,7 @@ import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
 import { videoApi } from '@/services/api'
 
 interface ChapterData {
@@ -115,19 +157,19 @@ const loadChapterData = async () => {
     // Create chapter data structure compatible with the video player
     chapterData.value = {
       chapters: chapters.map((chapter: any) => ({
-        start_time: chapter.start_time.toString(),
+        start_time: chapter.start_time,
         title: chapter.title,
         type: 'chapter'
       })),
       stream_id: parseInt(streamId.value),
       stream_title: streamTitle.value,
-      duration: chapters.length > 0 ? chapters[chapters.length - 1].end_time : 0,
-      video_url: videoApi.getVideoStreamUrl(parseInt(streamId.value)),
-      video_file: `stream_${streamId.value}.mp4`,
+      duration: 0, // Will be set by video player
+      video_url: `/api/videos/${streamId.value}/stream`,
+      video_file: '',
       metadata: {
         has_vtt: false,
         has_srt: false,
-        has_ffmpeg: true
+        has_ffmpeg: false
       }
     }
   } catch (err: any) {
@@ -153,10 +195,26 @@ const onChapterChange = (chapter: any, index: number) => {
 
 const onVideoReady = (duration: number) => {
   console.log('Video ready, duration:', duration)
+  if (chapterData.value) {
+    chapterData.value.duration = duration
+  }
 }
 
 const onTimeUpdate = (currentTime: number) => {
   // Update progress or other time-based features
+}
+
+const formatDuration = (seconds: number | undefined): string => {
+  if (!seconds) return 'Unknown'
+  
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = Math.floor(seconds % 60)
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`
+  }
+  return `${minutes}m ${secs}s`
 }
 
 onMounted(() => {
@@ -165,261 +223,346 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
+
+// ============================================================================
+// BASE LAYOUT
+// ============================================================================
+
 .video-player-view {
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
   background: var(--background-primary);
+  padding: var(--spacing-4);
+  
+  @include m.respond-below('md') {  // < 768px - Mobile/Tablet
+    padding: 0;  // Full-width player on mobile
+  }
+}
+
+// Fade-in animation (existing from old version)
+.fade-in {
   animation: fadeIn 0.3s ease-out;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-// Header
-.player-header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-6);
-  background: var(--background-card);
-  border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  backdrop-filter: blur(10px);
-  background: rgba(var(--background-card-rgb), 0.95);
-}
+// ============================================================================
+// LOADING & ERROR STATES
+// ============================================================================
 
-.btn-back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-
-  .icon {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
-  }
-
-  &:hover {
-    background: var(--background-tertiary);
-    color: var(--text-primary);
-    border-color: var(--color-primary);
-    transform: translateY(-1px);
-  }
-}
-
-.stream-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.stream-title {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.streamer-name {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: var(--spacing-1) 0 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  .icon {
-    width: 14px;
-    height: 14px;
-    fill: currentColor;
-    flex-shrink: 0;
-  }
-}
-
-// Content States
 .content-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1;
+  min-height: 60vh;
   padding: var(--spacing-8);
-  min-height: 400px;
-  animation: fadeIn 0.4s ease-out;
+  
+  @include m.respond-below('md') {
+    padding: var(--spacing-6) var(--spacing-4);
+    min-height: 50vh;
+  }
 }
 
 .state-text {
   margin-top: var(--spacing-4);
   color: var(--text-secondary);
-  font-size: var(--font-size-base);
+  font-size: var(--text-base);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-// Player Wrapper
-.player-wrapper {
-  flex: 1;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// ============================================================================
+// PLAYER CONTENT LAYOUT
+// ============================================================================
+
+.player-content {
+  position: relative;
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  background: var(--background-secondary);
-  padding: var(--spacing-4);
+  gap: var(--spacing-6);
   
-  // Mobile: Remove padding for full-width video
-  @include m.respond-below('md') {  // < 768px
-    padding: 0;
+  @include m.respond-below('md') {
+    gap: var(--spacing-4);
   }
 }
 
-.video-player-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+// ============================================================================
+// FLOATING BACK BUTTON - Modern glassmorphism overlay
+// ============================================================================
+
+.btn-back-floating {
+  position: fixed;
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  z-index: 100;
   
-  // Desktop: Add padding around video
-  @include m.respond-to('md') {  // >= 768px
-    padding: var(--spacing-6);
+  // Glassmorphism effect
+  background: rgba(var(--background-card-rgb), 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--border-color-rgb), 0.3);
+  border-radius: var(--radius-lg);
+  
+  // Layout
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  
+  // Typography
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  
+  // Animation
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
   }
-}
-
-@include m.respond-below('md') {  // < 768px
-  .player-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-3);
-    padding: var(--spacing-3) var(--spacing-4);
-  }
-
-  .btn-back {
-    align-self: flex-start;
-    min-height: 44px;  // Touch-friendly
-    padding: var(--spacing-3) var(--spacing-4);
-    
-    .icon {
-      width: 18px;
-      height: 18px;
+  
+  .back-text {
+    @include m.respond-below('sm') {  // < 640px - Hide text on small mobile
+      display: none;
     }
   }
-
-  .stream-info {
-    width: 100%;
+  
+  &:hover {
+    background: rgba(var(--background-card-rgb), 0.95);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(var(--primary-500-rgb), 0.3);
   }
-
-  .stream-title {
-    font-size: var(--font-size-base);
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    line-height: 1.4;
+  
+  &:active {
+    transform: translateY(0);
   }
-
-  .streamer-name {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-  }
-
-  .content-state {
-    padding: var(--spacing-6) var(--spacing-4);
-    min-height: 300px;
+  
+  // Mobile: Larger touch target
+  @include m.respond-below('md') {
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--spacing-3);
   }
 }
 
-@include m.respond-below('sm') {  // < 640px
-  .video-player-view {
-    padding: var(--spacing-3);
+// ============================================================================
+// VIDEO PLAYER CONTAINER
+// ============================================================================
+
+.player-container {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: v.$shadow-2xl;
+  
+  // Remove border-radius on mobile for full-width
+  @include m.respond-below('md') {
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+// ============================================================================
+// METADATA SECTION - Glassmorphism Card
+// ============================================================================
+
+.metadata-container {
+  padding: 0 var(--spacing-2);
+  
+  @include m.respond-below('md') {
+    padding: 0 var(--spacing-4);
+  }
+}
+
+.metadata-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  
+  @include m.respond-below('md') {
+    gap: var(--spacing-4);
+  }
+}
+
+// ============================================================================
+// TITLE SECTION
+// ============================================================================
+
+.title-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.video-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  line-height: v.$leading-tight;
+  
+  @include m.respond-below('md') {
+    font-size: var(--text-xl);
   }
   
-  .player-header {
-    padding: var(--spacing-3);
+  @include m.respond-below('sm') {
+    font-size: var(--text-lg);
   }
+}
 
-  .btn-back {
-    min-height: 44px;  // Touch-friendly
-    padding: var(--spacing-3) var(--spacing-4);
+.streamer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  
+  // Glassmorphism badge
+  background: rgba(var(--primary-500-rgb), 0.1);
+  border: 1px solid rgba(var(--primary-500-rgb), 0.3);
+  border-radius: var(--radius-pill);
+  padding: var(--spacing-2) var(--spacing-3);
+  
+  width: fit-content;
+  
+  .icon-streamer {
+    width: 16px;
+    height: 16px;
+    stroke: var(--primary-color);
+    fill: none;
+  }
+  
+  .streamer-name {
     font-size: var(--text-sm);
+    font-weight: v.$font-medium;
+    color: var(--primary-color);
   }
+}
 
-  .stream-title {
+// ============================================================================
+// STATS GRID - Modern card layout
+// ============================================================================
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-4);
+  
+  @include m.respond-below('sm') {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-3);
+  }
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  
+  // Subtle inner glassmorphism
+  background: rgba(var(--background-darker-rgb), 0.3);
+  border: 1px solid rgba(var(--border-color-rgb), 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+  
+  transition: all v.$duration-200 v.$ease-out;
+  
+  &:hover {
+    background: rgba(var(--background-darker-rgb), 0.5);
+    border-color: rgba(var(--primary-500-rgb), 0.3);
+    transform: translateY(-2px);
+  }
+  
+  .stat-icon {
+    width: 24px;
+    height: 24px;
+    stroke: var(--primary-color);
+    fill: none;
+    flex-shrink: 0;
+  }
+  
+  .stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+  }
+  
+  .stat-label {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: v.$font-medium;
+  }
+  
+  .stat-value {
     font-size: var(--text-base);
-  }
-
-  .streamer-name {
-    font-size: var(--text-sm);
-  }
-
-  .content-state {
-    padding: var(--spacing-4) var(--spacing-3);
-    min-height: 250px;
+    color: var(--text-primary);
+    font-weight: v.$font-semibold;
   }
 }
 
-@include m.respond-below('xs') {  // < 375px (very small phones)
-  .player-header {
-    padding: var(--spacing-2) var(--spacing-3);
-  }
+// ============================================================================
+// MOBILE OPTIMIZATIONS
+// ============================================================================
 
-  .stream-title {
-    font-size: var(--font-size-sm);
-  }
-
-  .streamer-name {
-    font-size: var(--font-size-xs);
-  }
-
-  .content-state {
-    padding: var(--spacing-4) var(--spacing-3);
-  }
-}
-
-// Landscape mobile optimization (Cannot use mixins for orientation queries)
-@media (max-width: 767px) and (orientation: landscape) {
-  .player-header {
-    flex-direction: row;
-    align-items: center;
-    padding: var(--spacing-2) var(--spacing-4);
+@include m.respond-below('sm') {
+  .video-player-view {
+    padding: 0;
   }
   
-  .btn-back {
-    min-height: 40px;  // Slightly smaller in landscape
+  .player-content {
+    gap: var(--spacing-4);
   }
-
-  .stream-title {
-    font-size: var(--font-size-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  
+  .metadata-container {
+    padding: 0 var(--spacing-3);
   }
-
-  .streamer-name {
-    font-size: var(--font-size-xs);
+  
+  .btn-back-floating {
+    top: var(--spacing-2);
+    left: var(--spacing-2);
+    
+    // Only show icon on very small screens
+    .back-text {
+      display: none;
+    }
   }
+}
 
-  .content-state {
-    min-height: 200px;
-    padding: var(--spacing-4);
+// ============================================================================
+// LANDSCAPE MOBILE - Immersive video mode
+// ============================================================================
+
+@media (max-width: 767px) and (orientation: landscape) {
+  .btn-back-floating {
+    top: var(--spacing-2);
+    left: var(--spacing-2);
+    padding: var(--spacing-2);
+    min-height: 40px;
+    min-width: 40px;
+    
+    .back-text {
+      display: none;
+    }
+  }
+  
+  .metadata-container {
+    display: none;  // Hide metadata in landscape for immersive playback
   }
 }
 </style>

@@ -273,8 +273,11 @@ async def check_streamer_live_status(
 ):
     """Check if a specific streamer is currently live via Twitch API"""
     try:
-        # Get streamer from database
-        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        # Get streamer from database (exclude test data)
+        streamer = db.query(Streamer).filter(
+            Streamer.id == streamer_id,
+            (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+        ).first()
         if not streamer:
             raise HTTPException(status_code=404, detail="Streamer not found")
         
@@ -437,8 +440,11 @@ async def delete_streamer(
 @router.get("/streamer/{streamer_id}")
 async def get_streamer(streamer_id: str, streamer_service: StreamerService = Depends(get_streamer_service), db: Session = Depends(get_db)):
     """Get detailed information about a specific streamer"""
-    # Get streamer from database first
-    streamer = db.query(Streamer).filter(Streamer.id == int(streamer_id)).first()
+    # Get streamer from database first (exclude test data)
+    streamer = db.query(Streamer).filter(
+        Streamer.id == int(streamer_id),
+        (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+    ).first()
     if not streamer:
         raise HTTPException(status_code=404, detail="Streamer not found")
     
@@ -515,8 +521,11 @@ async def get_streams_by_streamer_id(
 ):
     """Get all streams for a streamer by their ID with category history"""
     try:
-        # Überprüfen, ob der Streamer existiert
-        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        # Überprüfen, ob der Streamer existiert (exclude test data)
+        streamer = db.query(Streamer).filter(
+            Streamer.id == streamer_id,
+            (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+        ).first()
         if not streamer:
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
         

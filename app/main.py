@@ -851,6 +851,10 @@ app.include_router(admin_router.router)
 from app.routes import migration as migration_router
 app.include_router(migration_router.router)
 
+# Version routes
+from app.routes import version as version_router
+app.include_router(version_router.router, prefix="/api")
+
 # Explicit SPA routes - these must come after API routes but before static files
 @app.get("/streamers")
 @app.get("/videos") 

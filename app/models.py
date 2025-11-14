@@ -56,6 +56,9 @@ class Streamer(Base):
     auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # Test data flag - for automated tests (not shown in frontend)
+    is_test_data = Column(Boolean, default=False, nullable=False, index=True)
+    
     # Last stream information (shown when offline)
     last_stream_title = Column(String, nullable=True)
     last_stream_category_name = Column(String, nullable=True)

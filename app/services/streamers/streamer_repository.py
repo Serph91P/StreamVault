@@ -22,9 +22,12 @@ class StreamerRepository:
         self.db = db
 
     def get_all_streamers(self) -> List[StreamerResponse]:
-        """Get all streamers with their current status"""
+        """Get all streamers with their current status (excludes test data)"""
         try:
-            streamers = self.db.query(Streamer).all()
+            # CRITICAL: Filter out test data to prevent appearing in frontend
+            streamers = self.db.query(Streamer).filter(
+                (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+            ).all()
             result = []
             
             for streamer in streamers:
@@ -87,8 +90,10 @@ class StreamerRepository:
             return []
 
     def get_all_streamers_raw(self) -> List[Streamer]:
-        """Get all streamers as raw Streamer objects (for debugging)"""
-        return self.db.query(Streamer).order_by(Streamer.username).all()
+        """Get all streamers as raw Streamer objects (excludes test data)"""
+        return self.db.query(Streamer).filter(
+            (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+        ).order_by(Streamer.username).all()
 
     def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         """Get streamer by username (case insensitive)"""
