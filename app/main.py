@@ -14,6 +14,7 @@ from app.routes import api_images
 from app.routes import background_queue
 from app.routes import streams
 from app.routes import status
+from app.routes import health
 from app.services.system.development_test_runner import run_development_tests
 from app.config.constants import TIMEOUTS, ASYNC_DELAYS
 import logging
@@ -810,6 +811,7 @@ async def eventsub_callback(request: Request):
         return Response(status_code=500)
 
 # API routes first
+app.include_router(health.router)  # Health check endpoints (no auth required)
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
