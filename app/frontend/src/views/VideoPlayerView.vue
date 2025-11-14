@@ -32,13 +32,25 @@
 
     <!-- Video Player - Main Content -->
     <div v-else class="player-content">
-      <!-- Back Button - Floating overlay for mobile -->
-      <button @click="goBack" class="btn-back-floating" v-ripple>
-        <svg class="icon">
-          <use href="#icon-arrow-left" />
-        </svg>
-        <span class="back-text">Back</span>
-      </button>
+      <!-- Header: Title + Streamer + Back Button -->
+      <div class="player-header">
+        <button @click="goBack" class="btn btn-secondary btn-icon-text" v-ripple>
+          <svg class="icon">
+            <use href="#icon-arrow-left" />
+          </svg>
+          <span>Back</span>
+        </button>
+
+        <div class="title-section">
+          <h1 class="video-title">{{ streamTitle }}</h1>
+          <div v-if="streamerName" class="streamer-badge">
+            <svg class="icon-streamer">
+              <use href="#icon-user" />
+            </svg>
+            <span class="streamer-name">{{ streamerName }}</span>
+          </div>
+        </div>
+      </div>
 
       <!-- Video Player Container -->
       <div class="player-container">
@@ -52,57 +64,6 @@
           @time-update="onTimeUpdate"
         />
       </div>
-
-      <!-- Video Metadata - Glassmorphism Card below player -->
-      <div class="metadata-container">
-        <GlassCard :padding="true">
-          <div class="metadata-content">
-            <!-- Title & Streamer Info -->
-            <div class="title-section">
-              <h1 class="video-title">{{ streamTitle }}</h1>
-              <div v-if="streamerName" class="streamer-badge">
-                <svg class="icon-streamer">
-                  <use href="#icon-user" />
-                </svg>
-                <span class="streamer-name">{{ streamerName }}</span>
-              </div>
-            </div>
-
-            <!-- Video Stats Grid -->
-            <div v-if="chapterData" class="stats-grid">
-              <div class="stat-card">
-                <svg class="stat-icon">
-                  <use href="#icon-clock" />
-                </svg>
-                <div class="stat-info">
-                  <span class="stat-label">Duration</span>
-                  <span class="stat-value">{{ formatDuration(chapterData.duration) }}</span>
-                </div>
-              </div>
-
-              <div class="stat-card">
-                <svg class="stat-icon">
-                  <use href="#icon-list" />
-                </svg>
-                <div class="stat-info">
-                  <span class="stat-label">Chapters</span>
-                  <span class="stat-value">{{ chapterData.chapters?.length || 0 }}</span>
-                </div>
-              </div>
-
-              <div class="stat-card">
-                <svg class="stat-icon">
-                  <use href="#icon-film" />
-                </svg>
-                <div class="stat-info">
-                  <span class="stat-label">Stream ID</span>
-                  <span class="stat-value">#{{ streamId }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
     </div>
   </div>
 </template>
@@ -113,7 +74,6 @@ import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
 import { videoApi } from '@/services/api'
 
 interface ChapterData {
@@ -204,19 +164,6 @@ const onTimeUpdate = (currentTime: number) => {
   // Update progress or other time-based features
 }
 
-const formatDuration = (seconds: number | undefined): string => {
-  if (!seconds) return 'Unknown'
-  
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${secs}s`
-  }
-  return `${minutes}m ${secs}s`
-}
-
 onMounted(() => {
   loadChapterData()
 })
@@ -233,14 +180,13 @@ onMounted(() => {
 .video-player-view {
   min-height: 100vh;
   background: var(--background-primary);
-  padding: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
   
-  @include m.respond-below('md') {  // < 768px - Mobile/Tablet
-    padding: 0;  // Full-width player on mobile
+  @include m.respond-below('md') {
+    padding: var(--spacing-4) 0;
   }
 }
 
-// Fade-in animation (existing from old version)
 .fade-in {
   animation: fadeIn 0.3s ease-out;
 }
@@ -285,129 +231,45 @@ onMounted(() => {
 // ============================================================================
 
 .player-content {
-  position: relative;
   max-width: 1400px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
-  
-  @include m.respond-below('md') {
-    gap: var(--spacing-4);
-  }
+  gap: var(--spacing-4);
 }
 
 // ============================================================================
-// FLOATING BACK BUTTON - Modern glassmorphism overlay
+// HEADER - Title, Streamer, Back Button
 // ============================================================================
 
-.btn-back-floating {
-  position: fixed;
-  top: var(--spacing-4);
-  left: var(--spacing-4);
-  z-index: 100;
-  
-  // Glassmorphism effect
-  background: rgba(var(--background-card-rgb), 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(var(--border-color-rgb), 0.3);
-  border-radius: var(--radius-lg);
-  
-  // Layout
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  
-  // Typography
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  
-  // Animation
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  
-  .icon {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-  
-  .back-text {
-    @include m.respond-below('sm') {  // < 640px - Hide text on small mobile
-      display: none;
-    }
-  }
-  
-  &:hover {
-    background: rgba(var(--background-card-rgb), 0.95);
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(var(--primary-500-rgb), 0.3);
-  }
-  
-  &:active {
-    transform: translateY(0);
-  }
-  
-  // Mobile: Larger touch target
-  @include m.respond-below('md') {
-    min-height: 44px;
-    min-width: 44px;
-    padding: var(--spacing-3);
-  }
-}
-
-// ============================================================================
-// VIDEO PLAYER CONTAINER
-// ============================================================================
-
-.player-container {
-  width: 100%;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  box-shadow: v.$shadow-2xl;
-  
-  // Remove border-radius on mobile for full-width
-  @include m.respond-below('md') {
-    border-radius: 0;
-    box-shadow: none;
-  }
-}
-
-// ============================================================================
-// METADATA SECTION - Glassmorphism Card
-// ============================================================================
-
-.metadata-container {
+.player-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
   padding: 0 var(--spacing-2);
   
   @include m.respond-below('md') {
+    flex-direction: column;
+    gap: var(--spacing-3);
     padding: 0 var(--spacing-4);
   }
 }
 
-.metadata-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-6);
+.btn-icon-text {
+  flex-shrink: 0;
   
-  @include m.respond-below('md') {
-    gap: var(--spacing-4);
+  .icon {
+    width: 18px;
+    height: 18px;
   }
 }
 
-// ============================================================================
-// TITLE SECTION
-// ============================================================================
-
 .title-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: var(--spacing-2);
+  min-width: 0;
 }
 
 .video-title {
@@ -431,7 +293,6 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-2);
   
-  // Glassmorphism badge
   background: rgba(var(--primary-500-rgb), 0.1);
   border: 1px solid rgba(var(--primary-500-rgb), 0.3);
   border-radius: var(--radius-pill);
@@ -440,8 +301,8 @@ onMounted(() => {
   width: fit-content;
   
   .icon-streamer {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     stroke: var(--primary-color);
     fill: none;
   }
@@ -454,65 +315,18 @@ onMounted(() => {
 }
 
 // ============================================================================
-// STATS GRID - Modern card layout
+// VIDEO PLAYER CONTAINER
 // ============================================================================
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--spacing-4);
+.player-container {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: v.$shadow-2xl;
   
-  @include m.respond-below('sm') {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-3);
-  }
-}
-
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  
-  // Subtle inner glassmorphism
-  background: rgba(var(--background-darker-rgb), 0.3);
-  border: 1px solid rgba(var(--border-color-rgb), 0.2);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-3);
-  
-  transition: all v.$duration-200 v.$ease-out;
-  
-  &:hover {
-    background: rgba(var(--background-darker-rgb), 0.5);
-    border-color: rgba(var(--primary-500-rgb), 0.3);
-    transform: translateY(-2px);
-  }
-  
-  .stat-icon {
-    width: 24px;
-    height: 24px;
-    stroke: var(--primary-color);
-    fill: none;
-    flex-shrink: 0;
-  }
-  
-  .stat-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-1);
-  }
-  
-  .stat-label {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: v.$font-medium;
-  }
-  
-  .stat-value {
-    font-size: var(--text-base);
-    color: var(--text-primary);
-    font-weight: v.$font-semibold;
+  @include m.respond-below('md') {
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
@@ -522,25 +336,15 @@ onMounted(() => {
 
 @include m.respond-below('sm') {
   .video-player-view {
-    padding: 0;
+    padding: var(--spacing-3) 0;
   }
   
   .player-content {
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
   }
   
-  .metadata-container {
+  .player-header {
     padding: 0 var(--spacing-3);
-  }
-  
-  .btn-back-floating {
-    top: var(--spacing-2);
-    left: var(--spacing-2);
-    
-    // Only show icon on very small screens
-    .back-text {
-      display: none;
-    }
   }
 }
 
@@ -549,20 +353,12 @@ onMounted(() => {
 // ============================================================================
 
 @media (max-width: 767px) and (orientation: landscape) {
-  .btn-back-floating {
-    top: var(--spacing-2);
-    left: var(--spacing-2);
-    padding: var(--spacing-2);
-    min-height: 40px;
-    min-width: 40px;
-    
-    .back-text {
-      display: none;
-    }
+  .player-header {
+    display: none;  // Hide header in landscape for immersive playback
   }
   
-  .metadata-container {
-    display: none;  // Hide metadata in landscape for immersive playback
+  .player-content {
+    gap: 0;
   }
 }
 </style>
