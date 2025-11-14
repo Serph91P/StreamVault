@@ -134,82 +134,7 @@
           </div>
         </div>
 
-        <!-- Network Tab -->
-        <div v-if="activeTab === 'network'" class="tab-panel">
-          <div class="settings-section status-border status-border-info">
-            <h4 class="section-title">🌐 Network & Proxy Settings</h4>
-            <p class="section-description">
-              Configure proxy settings for Streamlink to route traffic through different locations. 
-              This can help reduce ads if using a proxy in a region with fewer advertisements.
-            </p>
-              <div class="form-group">
-              <label>
-                <input type="checkbox" v-model="proxySettings.enabled" />
-                Enable Proxy Settings
-              </label>
-              <div class="help-text">
-                When enabled, Streamlink will use the configured proxy servers for all connections.
-                <br><strong>⚠️ Note:</strong> Proxy usage may occasionally cause audio synchronization issues due to network latency. 
-                StreamVault includes optimizations to minimize these issues, but you may need to test different proxy servers for best results.
-              </div>
-            </div>
-
-            <div v-if="proxySettings.enabled" class="proxy-configuration">
-              <div class="form-group">
-                <label>HTTP Proxy:</label>
-                <input v-model="proxySettings.http_proxy" 
-                       placeholder="http://proxy.example.com:8080" 
-                       class="form-control" 
-                       :class="{ 'error': httpProxyError }" />
-                <div v-if="httpProxyError" class="error-text">
-                  {{ httpProxyError }}
-                </div>
-                <div class="help-text">
-                  HTTP proxy server for non-encrypted connections.
-                  <br><strong>Format:</strong> <code>http://[username:password@]host:port</code>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>HTTPS Proxy:</label>
-                <input v-model="proxySettings.https_proxy" 
-                       placeholder="https://proxy.example.com:8080" 
-                       class="form-control" 
-                       :class="{ 'error': httpsProxyError }" />
-                <div v-if="httpsProxyError" class="error-text">
-                  {{ httpsProxyError }}
-                </div>
-                <div class="help-text">
-                  HTTPS proxy server for encrypted connections (recommended for Twitch).
-                  <br><strong>Format:</strong> <code>https://[username:password@]host:port</code>
-                </div>
-              </div>
-
-              <div class="proxy-info-card">
-                <h5>📋 Proxy URL Examples:</h5>
-                <ul class="proxy-examples-list">
-                  <li><code>http://proxy.example.com:8080</code> - Basic proxy</li>
-                  <li><code>http://username:password@proxy.example.com:8080</code> - Authenticated proxy</li>
-                  <li><code>https://secure-proxy.example.com:8080</code> - HTTPS proxy</li>
-                  <li><code>socks5://127.0.0.1:1080</code> - SOCKS5 proxy (if supported)</li>
-                </ul>
-                
-                <div class="proxy-tips">
-                  <h6>💡 Tips:</h6>
-                  <ul>
-                    <li>Use HTTPS proxy for better security and compatibility with Twitch</li>
-                    <li>Test your proxy configuration before enabling recording</li>
-                    <li>Some regions have fewer or no Twitch advertisements</li>
-                    <li>Ensure your proxy provider allows video streaming traffic</li>
-                    <li>Leave fields empty to disable proxy for that protocol</li>
-                    <li><strong>Audio Sync:</strong> If you experience audio/video sync issues, try a different proxy server or disable proxy temporarily</li>
-                    <li><strong>Performance:</strong> StreamVault automatically optimizes settings for proxy usage, but some latency is expected</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>        <!-- Storage Tab -->
+        <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
           <div class="settings-section status-border status-border-primary">
             <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
@@ -388,7 +313,6 @@ const emits = defineEmits<{
 const activeTab = ref('recording');
 const tabs = [
   { id: 'recording', label: 'Recording', icon: '📹' },
-  { id: 'network', label: 'Network', icon: '🌐' },
   { id: 'storage', label: 'Storage', icon: '🗂️' }
 ];
 
@@ -401,111 +325,6 @@ const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsErro
 // State for streamer cleanup policy dialog
 const showStreamerPolicyDialog = ref(false);
 const selectedStreamer = ref<StreamerRecordingSettings | null>(null);
-
-// Proxy settings state
-const proxySettings = ref({
-  enabled: false,
-  http_proxy: '',
-  https_proxy: ''
-});
-
-// Computed properties for real-time validation
-const httpProxyError = computed(() => {
-  if (!proxySettings.value.enabled || !proxySettings.value.http_proxy.trim()) {
-    return '';
-  }
-  if (!validateProxyUrl(proxySettings.value.http_proxy)) {
-    return 'HTTP proxy URL must start with "http://" or "https://"';
-  }
-  return '';
-});
-
-const httpsProxyError = computed(() => {
-  if (!proxySettings.value.enabled || !proxySettings.value.https_proxy.trim()) {
-    return '';
-  }
-  if (!validateProxyUrl(proxySettings.value.https_proxy)) {
-    return 'HTTPS proxy URL must start with "http://" or "https://"';
-  }
-  return '';
-});
-
-// Check if proxy settings have validation errors
-const hasProxyErrors = computed(() => {
-  return httpProxyError.value !== '' || httpsProxyError.value !== '';
-});
-
-// Load proxy settings from GlobalSettings API
-const loadProxySettings = async () => {
-  try {
-    const response = await fetch('/api/settings');
-    if (response.ok) {
-      const globalSettings: GlobalSettings = await response.json();
-      proxySettings.value = {
-        enabled: !!(globalSettings.http_proxy || globalSettings.https_proxy),
-        http_proxy: globalSettings.http_proxy || '',
-        https_proxy: globalSettings.https_proxy || ''
-      };
-    }
-  } catch (error) {
-    console.error('Failed to load proxy settings:', error);
-  }
-};
-
-// Validate proxy URL format
-const validateProxyUrl = (url: string): boolean => {
-  if (!url || !url.trim()) {
-    return true; // Empty URLs are valid (no proxy)
-  }
-  
-  const trimmedUrl = url.trim();
-  return trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://');
-};
-
-// Save proxy settings to GlobalSettings API
-const saveProxySettings = async () => {
-  try {
-    // Check for validation errors before attempting to save
-    if (hasProxyErrors.value) {
-      // Don't save if there are validation errors - the errors are already shown in the UI
-      return;
-    }
-    
-    const response = await fetch('/api/settings');
-    if (!response.ok) throw new Error('Failed to load current settings');
-    
-    const globalSettings: GlobalSettings = await response.json();
-    
-    // Update proxy fields
-    const updatedSettings = {
-      ...globalSettings,
-      http_proxy: proxySettings.value.enabled ? proxySettings.value.http_proxy : '',
-      https_proxy: proxySettings.value.enabled ? proxySettings.value.https_proxy : ''
-    };
-    
-    const saveResponse = await fetch('/api/settings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatedSettings),
-    });
-    
-    if (!saveResponse.ok) {
-      throw new Error('Failed to save proxy settings');
-    }
-    
-    
-  } catch (error) {
-    console.error('Failed to save proxy settings:', error);
-    toast.error('Failed to save proxy settings. Please try again.');
-  }
-};
-
-// Load proxy settings on component mount
-onMounted(() => {
-  loadProxySettings();
-});
 
 // Function to detect preset from template
 const detectPresetFromTemplate = (template: string): string => {
@@ -638,9 +457,6 @@ const saveSettings = async () => {
       supported_codecs: data.value.supported_codecs,
       prefer_higher_quality: data.value.prefer_higher_quality
     });
-    
-    // Save proxy settings separately
-    await saveProxySettings();
     
   } catch (error) {
     console.error('Failed to save settings:', error);

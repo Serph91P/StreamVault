@@ -145,7 +145,7 @@
                 :disabled="testingProxyId === proxy.id"
               >
                 <svg class="icon">
-                  <use href="#icon-activity" />
+                  <use href="#icon-refresh" />
                 </svg>
                 {{ testingProxyId === proxy.id ? 'Testing...' : 'Test Now' }}
               </button>
@@ -154,9 +154,6 @@
                 @click="showPriorityDialog(proxy)"
                 class="btn btn-sm btn-secondary"
               >
-                <svg class="icon">
-                  <use href="#icon-arrow-up" />
-                </svg>
                 Priority
               </button>
 
@@ -180,7 +177,7 @@
           <h3>System Configuration</h3>
           <button @click="handleSaveConfig" class="btn btn-primary" :disabled="isSavingConfig">
             <svg class="icon">
-              <use href="#icon-save" />
+              <use href="#icon-check" />
             </svg>
             {{ isSavingConfig ? 'Saving...' : 'Save Config' }}
           </button>
@@ -447,8 +444,10 @@ const proxyUrlError = computed(() => {
   const url = newProxy.value.proxy_url.trim()
   if (!url) return ''
 
-  // Check format
-  if (!url.match(/^(http|https|socks5):\/\/.+:\d+$/)) {
+  // Check format: protocol://[user:pass@]host:port
+  // Allow optional auth: username:password@
+  // Then require host:port at the end
+  if (!url.match(/^(http|https|socks5):\/\/(.+@)?[^:]+:\d+$/)) {
     return 'Invalid format. Use: protocol://[user:pass@]host:port'
   }
 
