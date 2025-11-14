@@ -22,6 +22,8 @@ RUN apk update && apk upgrade && \
     bash \
     # Media processing
     ffmpeg \
+    fontconfig \
+    ttf-dejavu \
     # Build dependencies for Python packages
     gcc \
     g++ \
