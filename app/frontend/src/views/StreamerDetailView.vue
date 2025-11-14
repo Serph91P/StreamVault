@@ -84,22 +84,22 @@
       <!-- Stats Section -->
       <div class="stats-section">
         <StatusCard
-          :value="videoCount"
-          label="Total VODs"
+          :value="streamCount"
+          label="Total Streams"
           icon="film"
           type="primary"
+        />
+        <StatusCard
+          :value="recordedStreamsCount"
+          label="Recorded"
+          icon="check-circle"
+          type="success"
         />
         <StatusCard
           :value="averageDuration"
           label="Avg Duration"
           icon="clock"
           type="info"
-        />
-        <StatusCard
-          :value="totalSize"
-          label="Total Size"
-          icon="database"
-          type="success"
         />
       </div>
 
@@ -108,71 +108,47 @@
         <div class="history-header">
           <h2 class="section-title">Stream History</h2>
 
-          <!-- View Toggle -->
+          <!-- Sort Dropdown -->
           <div class="view-controls">
-            <div class="view-toggle">
-              <button
-                @click="viewMode = 'grid'"
-                :class="{ active: viewMode === 'grid' }"
-                class="toggle-btn"
-                v-ripple
-              >
-                <svg class="icon">
-                  <use href="#icon-grid" />
-                </svg>
-              </button>
-              <button
-                @click="viewMode = 'list'"
-                :class="{ active: viewMode === 'list' }"
-                class="toggle-btn"
-                v-ripple
-              >
-                <svg class="icon">
-                  <use href="#icon-list" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Sort Dropdown -->
             <select v-model="sortBy" class="sort-select">
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="duration-desc">Longest Duration</option>
               <option value="duration-asc">Shortest Duration</option>
-              <option value="size-desc">Largest Size</option>
-              <option value="size-asc">Smallest Size</option>
             </select>
           </div>
         </div>
 
-        <!-- Videos Loading -->
-        <div v-if="isLoadingVideos" class="videos-container" :class="`view-${viewMode}`">
+        <!-- Streams Loading -->
+        <div v-if="isLoadingStreams" class="streams-container">
           <LoadingSkeleton
             v-for="i in 6"
             :key="i"
-            :type="viewMode === 'grid' ? 'video' : 'list-item'"
+            type="list-item"
           />
         </div>
 
-        <!-- Videos Empty State -->
+        <!-- Streams Empty State -->
         <EmptyState
-          v-else-if="sortedVideos.length === 0"
-          title="No Recordings Yet"
-          description="Start recording this streamer to see their VODs here."
+          v-else-if="sortedStreams.length === 0"
+          title="No Streams Yet"
+          description="Start recording this streamer to see their streams here."
           icon="video"
           action-label="Record Now"
           action-icon="video"
           @action="forceStartRecording(Number(streamerId))"
         />
 
-        <!-- Videos Grid/List -->
-        <div v-else class="videos-container" :class="`view-${viewMode}`">
-          <VideoCard
-            v-for="video in sortedVideos"
-            :key="video.id"
-            :video="video"
-            :view-mode="viewMode"
-            @click="playVideo(video)"
+        <!-- Streams List -->
+        <div v-else class="streams-container">
+          <StreamCard
+            v-for="stream in sortedStreams"
+            :key="stream.id"
+            :stream="stream"
+            @watch-live="handleWatchLive"
+            @force-record="handleForceRecord"
+            @watch="handleWatchRecording"
+            @delete="handleDeleteStream"
           />
         </div>
       </div>
@@ -302,12 +278,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { streamersApi, videoApi } from '@/services/api'
+import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
-import VideoCard from '@/components/cards/VideoCard.vue'
+import StreamCard from '@/components/cards/StreamCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -317,14 +293,13 @@ const streamerId = computed(() => route.params.id as string)
 
 // Loading states
 const isLoading = ref(true)
-const isLoadingVideos = ref(true)
+const isLoadingStreams = ref(true)
 
 // Data
 const streamer = ref<any>(null)
-const videos = ref<any[]>([])
+const streams = ref<any[]>([])
 
 // View controls
-const viewMode = ref<'grid' | 'list'>('grid')
 const sortBy = ref('newest')
 
 // Delete flow
@@ -390,16 +365,23 @@ const bannerStyle = computed(() => {
 })
 
 // Stats computed
-const videoCount = computed(() => videos.value.length)
+const streamCount = computed(() => streams.value.length)
+
+const recordedStreamsCount = computed(() => {
+  return streams.value.filter(s => s.recording_path).length
+})
 
 const averageDuration = computed(() => {
-  if (videos.value.length === 0) return '0m'
+  if (streams.value.length === 0) return '0m'
 
-  const totalSeconds = videos.value.reduce((sum, v) => {
-    return sum + (v.duration || 0)
+  const totalSeconds = streams.value.reduce((sum, s) => {
+    if (!s.started_at) return sum
+    const start = new Date(s.started_at).getTime()
+    const end = s.ended_at ? new Date(s.ended_at).getTime() : new Date().getTime()
+    return sum + Math.floor((end - start) / 1000)
   }, 0)
 
-  const avgSeconds = totalSeconds / videos.value.length
+  const avgSeconds = totalSeconds / streams.value.length
   const hours = Math.floor(avgSeconds / 3600)
   const minutes = Math.floor((avgSeconds % 3600) / 60)
 
@@ -407,43 +389,35 @@ const averageDuration = computed(() => {
   return `${minutes}m`
 })
 
-const totalSize = computed(() => {
-  const totalBytes = videos.value.reduce((sum, v) => {
-    return sum + (v.file_size || 0)
-  }, 0)
-
-  const gb = totalBytes / (1024 * 1024 * 1024)
-  if (gb >= 1) return `${gb.toFixed(2)} GB`
-
-  const mb = totalBytes / (1024 * 1024)
-  return `${mb.toFixed(0)} MB`
-})
-
-// Sorted videos
-const sortedVideos = computed(() => {
-  const sorted = [...videos.value]
+// Sorted streams
+const sortedStreams = computed(() => {
+  const sorted = [...streams.value]
 
   switch (sortBy.value) {
     case 'newest':
       return sorted.sort((a, b) => {
-        const dateA = new Date(a.stream_date || a.created_at).getTime()
-        const dateB = new Date(b.stream_date || b.created_at).getTime()
+        const dateA = new Date(a.started_at || 0).getTime()
+        const dateB = new Date(b.started_at || 0).getTime()
         return dateB - dateA
       })
     case 'oldest':
       return sorted.sort((a, b) => {
-        const dateA = new Date(a.stream_date || a.created_at).getTime()
-        const dateB = new Date(b.stream_date || b.created_at).getTime()
+        const dateA = new Date(a.started_at || 0).getTime()
+        const dateB = new Date(b.started_at || 0).getTime()
         return dateA - dateB
       })
     case 'duration-desc':
-      return sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0))
+      return sorted.sort((a, b) => {
+        const aDur = a.ended_at ? new Date(a.ended_at).getTime() - new Date(a.started_at).getTime() : 0
+        const bDur = b.ended_at ? new Date(b.ended_at).getTime() - new Date(b.started_at).getTime() : 0
+        return bDur - aDur
+      })
     case 'duration-asc':
-      return sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
-    case 'size-desc':
-      return sorted.sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
-    case 'size-asc':
-      return sorted.sort((a, b) => (a.file_size || 0) - (b.file_size || 0))
+      return sorted.sort((a, b) => {
+        const aDur = a.ended_at ? new Date(a.ended_at).getTime() - new Date(a.started_at).getTime() : 0
+        const bDur = b.ended_at ? new Date(b.ended_at).getTime() - new Date(b.started_at).getTime() : 0
+        return aDur - bDur
+      })
     default:
       return sorted
   }
@@ -470,30 +444,30 @@ async function fetchStreamer() {
   }
 }
 
-// Fetch videos
-async function fetchVideos() {
-  isLoadingVideos.value = true
+// Fetch streams
+async function fetchStreams() {
+  isLoadingStreams.value = true
   try {
-    console.log('[StreamerDetailView] Fetching videos for streamer:', streamerId.value)
-    const response = await videoApi.getByStreamerId(Number(streamerId.value))
-    console.log('[StreamerDetailView] Videos response:', response)
+    console.log('[StreamerDetailView] Fetching streams for streamer:', streamerId.value)
+    const response = await streamersApi.getStreams(Number(streamerId.value))
+    console.log('[StreamerDetailView] Streams response:', response)
     
-    videos.value = response || []
-    console.log('[StreamerDetailView] Loaded videos count:', videos.value.length)
+    streams.value = response?.streams || []
+    console.log('[StreamerDetailView] Loaded streams count:', streams.value.length)
     
-    if (videos.value.length > 0) {
-      console.log('[StreamerDetailView] Sample video:', videos.value[0])
+    if (streams.value.length > 0) {
+      console.log('[StreamerDetailView] Sample stream:', streams.value[0])
     }
   } catch (error: any) {
-    console.error('[StreamerDetailView] Failed to fetch videos:', error)
+    console.error('[StreamerDetailView] Failed to fetch streams:', error)
     console.error('[StreamerDetailView] Error details:', {
       message: error.message,
       status: error.response?.status,
       data: error.response?.data
     })
-    videos.value = []
+    streams.value = []
   } finally {
-    isLoadingVideos.value = false
+    isLoadingStreams.value = false
   }
 }
 
@@ -517,15 +491,50 @@ async function deleteAll() {
   }
 }
 
-function playVideo(video: any) {
-  router.push(`/videos/${video.id}`)
+function handleWatchLive(stream: any) {
+  if (!streamer.value) return
+  window.open(`https://twitch.tv/${streamer.value.username}`, '_blank', 'noopener,noreferrer')
+}
+
+function handleForceRecord(stream: any) {
+  forceStartRecording(Number(streamerId.value))
+}
+
+async function handleWatchRecording(stream: any) {
+  if (!stream.recording_path) {
+    console.warn('[StreamerDetailView] No recording path for stream:', stream.id)
+    return
+  }
+  
+  try {
+    // Check if recording exists via API
+    const response = await fetch(`/api/stream/${stream.id}/has-recording`, {
+      credentials: 'include'
+    })
+    const data = await response.json()
+    
+    if (data.has_recording) {
+      // Navigate to video player (we'll use stream ID as video ID for now)
+      // TODO: Backend should return recording.id from the endpoint
+      router.push(`/videos/${stream.id}`)
+    } else {
+      console.warn('[StreamerDetailView] Recording not found on disk for stream:', stream.id)
+    }
+  } catch (error) {
+    console.error('[StreamerDetailView] Failed to check recording:', error)
+  }
+}
+
+function handleDeleteStream(stream: any) {
+  // TODO: Implement stream deletion
+  console.log('[StreamerDetailView] Delete stream:', stream.id)
 }
 
 // Initialize
 onMounted(async () => {
   await Promise.all([
     fetchStreamer(),
-    fetchVideos()
+    fetchStreams()
   ])
 })
 </script>
@@ -813,43 +822,6 @@ onMounted(async () => {
   align-items: center;
 }
 
-.view-toggle {
-  display: flex;
-  gap: var(--spacing-1);
-  background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
-  border: 1px solid var(--border-color);
-}
-
-.toggle-btn {
-  padding: var(--spacing-2);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  border-radius: var(--radius-md);
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 20px;
-    height: 20px;
-    stroke: var(--text-secondary);
-    fill: none;
-  }
-
-  &.active {
-    background: var(--primary-color);
-
-    .icon {
-      stroke: white;
-    }
-  }
-
-  &:hover:not(.active) {
-    background: rgba(var(--primary-500-rgb), 0.1);
-  }
-}
-
 .sort-select {
   padding: var(--spacing-2) var(--spacing-4);
   background: var(--background-card);
@@ -871,19 +843,11 @@ onMounted(async () => {
   }
 }
 
-// Videos Container
-.videos-container {
-  &.view-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: var(--spacing-5);
-  }
-
-  &.view-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-4);
-  }
+// Streams Container
+.streams-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
 }
 
 // Modal
