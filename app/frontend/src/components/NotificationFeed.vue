@@ -105,6 +105,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
+import { notificationApi } from '@/services/api'
 
 const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all'])
 
@@ -370,7 +371,7 @@ const removeNotification = (id: string): void => {
 }
 
 // Clear all notifications
-const clearAllNotifications = (event?: Event): void => {
+const clearAllNotifications = async (event?: Event): Promise<void> => {
   // Prevent any default behavior or propagation
   if (event) {
     event.preventDefault()
@@ -378,17 +379,21 @@ const clearAllNotifications = (event?: Event): void => {
     event.stopImmediatePropagation()
   }
   
+  try {
+    // Clear on backend (sets last_cleared_timestamp in DB)
+    await notificationApi.clear()
+    console.log('✅ NotificationFeed: Backend cleared successfully')
+  } catch (error) {
+    console.error('❌ NotificationFeed: Failed to clear on backend:', error)
+  }
+  
   // Clear notifications directly
   notifications.value = []
   
-  // Clear localStorage immediately and confirm
+  // Clear localStorage immediately
   try {
     localStorage.removeItem('streamvault_notifications')
-    const check = localStorage.getItem('streamvault_notifications')
-    
-    // Set empty array to be extra sure
     localStorage.setItem('streamvault_notifications', JSON.stringify([]))
-    const checkAgain = localStorage.getItem('streamvault_notifications')
   } catch (error) {
     console.error('❌ NotificationFeed: Error clearing localStorage:', error)
   }
@@ -502,11 +507,37 @@ watch(() => messages.value.length, (newLength: number) => {
 }, { immediate: false }) // Don't process immediately to avoid double processing
 
 // On mount
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 NotificationFeed: Component mounted')
+  
+  // Load backend notification state (last_cleared_timestamp)
+  let lastClearedTimestamp: number | null = null
+  try {
+    const backendState = await notificationApi.getState()
+    if (backendState.last_cleared_timestamp) {
+      lastClearedTimestamp = new Date(backendState.last_cleared_timestamp).getTime()
+      console.log('🚀 NotificationFeed: Backend last cleared:', new Date(lastClearedTimestamp).toISOString())
+    }
+  } catch (error) {
+    console.error('❌ NotificationFeed: Failed to load backend state:', error)
+  }
   
   // Load existing notifications from localStorage FIRST
   loadNotifications()
+  
+  // Filter out notifications that were cleared on backend
+  if (lastClearedTimestamp) {
+    const beforeFilter = notifications.value.length
+    notifications.value = notifications.value.filter(n => {
+      const notifTime = new Date(n.timestamp).getTime()
+      return notifTime > lastClearedTimestamp!
+    })
+    const afterFilter = notifications.value.length
+    if (beforeFilter !== afterFilter) {
+      console.log(`🚀 NotificationFeed: Filtered ${beforeFilter - afterFilter} cleared notifications`)
+      saveNotifications() // Update localStorage
+    }
+  }
   
   // Set the initial message count to current messages length
   previousMessageCount.value = messages.value.length
