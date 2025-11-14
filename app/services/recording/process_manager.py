@@ -30,6 +30,7 @@ from app.utils.streamlink_utils import get_streamlink_command, get_proxy_setting
 from app.services.recording.exceptions import ProcessError, StreamUnavailableError
 from app.models import Stream
 from app.utils import async_file
+from app.config.constants import ASYNC_DELAYS, TIMEOUTS
 
 logger = logging.getLogger("streamvault")
 
@@ -168,12 +169,54 @@ class ProcessManager:
             # Debug logging to track potential mismatches
             logger.info(f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}")
             
-            # Get proxy settings and codec preferences from database
-            proxy_settings = get_proxy_settings_from_db()
+            # ===== MULTI-PROXY SYSTEM: Get best available proxy =====
+            # CRITICAL: This prevents recording failures when proxies go down
+            # Uses health checks and automatic failover to select best proxy
+            proxy_settings = None
+            
+            from app.database import SessionLocal
+            from app.models import RecordingSettings
+            
+            with SessionLocal() as db:
+                recording_settings = db.query(RecordingSettings).first()
+                
+                # Check if proxy system is enabled
+                if recording_settings and hasattr(recording_settings, 'enable_proxy') and recording_settings.enable_proxy:
+                    from app.services.proxy.proxy_health_service import proxy_health_service
+                    
+                    # Get best available proxy from health service
+                    best_proxy_url = await proxy_health_service.get_best_proxy()
+                    
+                    if best_proxy_url:
+                        # Use selected proxy
+                        proxy_settings = {
+                            'http': best_proxy_url,
+                            'https': best_proxy_url
+                        }
+                        logger.info(f"✅ Using proxy for recording: {best_proxy_url[:50]}...")
+                    else:
+                        # No healthy proxies available
+                        fallback_enabled = (
+                            hasattr(recording_settings, 'fallback_to_direct_connection') 
+                            and recording_settings.fallback_to_direct_connection
+                        )
+                        
+                        if fallback_enabled:
+                            logger.warning(f"⚠️ No healthy proxies available - using direct connection (fallback enabled)")
+                            proxy_settings = None  # Direct connection
+                        else:
+                            error_msg = f"Cannot start recording for {streamer_name}: No healthy proxies available and fallback disabled"
+                            logger.error(f"🔴 {error_msg}")
+                            raise ProcessError(
+                                "No healthy proxies available. Please check proxy settings or enable fallback to direct connection."
+                            )
+                else:
+                    # Proxy system disabled - use direct connection
+                    logger.info(f"ℹ️ Proxy system disabled - using direct connection")
+                    proxy_settings = None
             
             # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
             supported_codecs = None
-            from app.database import SessionLocal
             from app.models import GlobalSettings
             with SessionLocal() as db:
                 global_settings = db.query(GlobalSettings).first()
@@ -181,26 +224,9 @@ class ProcessManager:
                     supported_codecs = global_settings.supported_codecs
                     logger.debug(f"🎨 Using codec preference from database: {supported_codecs}")
             
-            # CRITICAL: Check proxy connectivity before starting recording
-            # This prevents silent failures when proxy is down
-            if proxy_settings and any(proxy_settings.values()):
-                from app.utils.streamlink_utils import check_proxy_connectivity
-                
-                is_reachable, proxy_error = check_proxy_connectivity(proxy_settings)
-                if not is_reachable:
-                    error_msg = f"Cannot start recording for {streamer_name}: Proxy connection failed - {proxy_error}"
-                    logger.error(f"🔴 PROXY_DOWN: {error_msg}")
-                    
-                    # Log to structured logging service
-                    if self.logging_service:
-                        streamlink_log_path = self.logging_service.get_streamlink_log_path(streamer_name)
-                        self.logging_service.log_streamlink_error(
-                            streamer_name=streamer_name,
-                            error_message=f"Proxy connectivity check failed: {proxy_error}",
-                            log_path=streamlink_log_path
-                        )
-                    
-                    raise ProcessError(f"Proxy connection failed: {proxy_error}. Please check proxy settings or network connectivity.")
+            # NOTE: Proxy connectivity is now handled by ProxyHealthService
+            # The health check system continuously monitors proxy status and only
+            # returns healthy proxies. No need for manual connectivity check here.
             
             logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
             
@@ -260,7 +286,7 @@ class ProcessManager:
             )
             
             # Add immediate check to see if process started successfully
-            await asyncio.sleep(0.1)  # Give process time to start
+            await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
             if process.returncode is not None:
                 # Process already ended, capture output
                 stdout, stderr = await process.communicate()
@@ -412,7 +438,7 @@ class ProcessManager:
                         logger.debug(f"Sent SIGTERM to stream {stream.id} process")
                         
                         # Wait a bit for graceful termination
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(ASYNC_DELAYS.RECORDING_ERROR_RECOVERY)
                         
                         # Poll again to check termination status
                         current_process.poll()

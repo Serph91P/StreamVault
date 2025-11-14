@@ -247,7 +247,7 @@ When you find a magic number in component code:
 </template>
 
 <script setup lang="ts">
-import GlassCard from '@/components/common/GlassCard.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
 </script>
 ```
 
@@ -377,7 +377,7 @@ transition: all 0.3s ease;  // Medium animations (expand, collapse)
 </template>
 
 <script setup lang="ts">
-import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 </script>
 ```
 
@@ -420,7 +420,7 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
 </template>
 
 <script setup lang="ts">
-import EmptyState from '@/components/common/EmptyState.vue'
+import EmptyState from '@/components/EmptyState.vue'
 </script>
 ```
 
@@ -1344,9 +1344,9 @@ rg "font-size:\s*\d+px" app/frontend/src --type scss --files-with-matches | wc -
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import GlassCard from '@/components/common/GlassCard.vue'
-import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const loading = ref(true)
 const items = ref([])
@@ -2378,23 +2378,40 @@ If you checked all 5 items above and found nothing → Then write component-spec
 
 ### Component Import Quick Reference
 
+**CRITICAL:** Always verify correct folder before importing!
+
 ```typescript
-// Layout & Containers
-import GlassCard from '@/components/common/GlassCard.vue'
+// Cards (in cards/ subfolder)
+import GlassCard from '@/components/cards/GlassCard.vue'
+import StreamerCard from '@/components/cards/StreamerCard.vue'
+import VideoCard from '@/components/cards/VideoCard.vue'
+import StatusCard from '@/components/cards/StatusCard.vue'
+
+// Common Components (in root components/ folder)
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
+
+// Navigation (in navigation/ subfolder)
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
-
-// Cards
-import StreamerCard from '@/components/StreamerCard.vue'
-import VideoCard from '@/components/VideoCard.vue'
-import StatusCard from '@/components/StatusCard.vue'
-
-// States
-import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-
-// Navigation
 import SidebarNav from '@/components/navigation/SidebarNav.vue'
 import BottomNav from '@/components/navigation/BottomNav.vue'
+
+// Settings (in settings/ subfolder)
+import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
+import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
+import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
+```
+
+**Component Folder Structure:**
+```
+app/frontend/src/components/
+├── cards/              ← Card components (GlassCard, StreamerCard, VideoCard, StatusCard)
+├── navigation/         ← Navigation components (SidebarNav, BottomNav, NavigationWrapper)
+├── settings/           ← Settings panels (Recording, Notification, Proxy)
+├── admin/              ← Admin-specific components
+├── icons/              ← Icon components
+└── *.vue              ← Root components (LoadingSkeleton, EmptyState, ToastContainer)
 ```
 
 ---
@@ -2415,6 +2432,163 @@ border-radius: v.$border-radius;   // NOT 8px
   padding: v.$spacing-sm;
 }
 ```
+
+---
+
+## Component Import Best Practices (CRITICAL)
+
+### ⚠️ ALWAYS Verify File Location Before Importing
+
+**Problem:** Build failures from wrong import paths (e.g., Issue #15 - GlassCard import)
+
+**Root Cause:**
+- Components moved during refactoring
+- Imports not updated
+- Build succeeds locally (cached) but fails in CI
+
+**MANDATORY Workflow:**
+
+**Step 1: Verify Component Exists**
+```bash
+# Before importing, CHECK file location:
+ls app/frontend/src/components/cards/GlassCard.vue
+ls app/frontend/src/components/LoadingSkeleton.vue
+ls app/frontend/src/components/navigation/SidebarNav.vue
+```
+
+**Step 2: Use Correct Path Alias**
+```typescript
+// ✅ CORRECT: Use @ alias (tsconfig.json path mapping)
+import GlassCard from '@/components/cards/GlassCard.vue'
+
+// ❌ WRONG: Relative paths are fragile
+import GlassCard from '../cards/GlassCard.vue'
+import GlassCard from '../../components/cards/GlassCard.vue'
+```
+
+**Step 3: Verify Folder Structure**
+```
+components/
+├── cards/          ← GlassCard, StreamerCard, VideoCard, StatusCard
+├── navigation/     ← SidebarNav, BottomNav, NavigationWrapper
+├── settings/       ← RecordingSettingsPanel, NotificationSettingsPanel, ProxySettingsPanel
+├── admin/          ← Admin components
+├── icons/          ← Icon components
+└── *.vue          ← Root components (LoadingSkeleton, EmptyState, ToastContainer)
+```
+
+**Step 4: Use IDE Autocomplete**
+```typescript
+// Type import and let IDE suggest path:
+import GlassCard from '@/components/  // ← Ctrl+Space shows available folders
+```
+
+### Common Import Errors
+
+**❌ ERROR: Importing from wrong subfolder**
+```typescript
+// WRONG: GlassCard is in cards/, not common/
+import GlassCard from '@/components/common/GlassCard.vue'  // ❌ File not found!
+
+// CORRECT:
+import GlassCard from '@/components/cards/GlassCard.vue'   // ✅
+```
+
+**❌ ERROR: Importing root component from subfolder**
+```typescript
+// WRONG: LoadingSkeleton is in root components/, not common/
+import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'  // ❌
+
+// CORRECT:
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'  // ✅
+```
+
+**❌ ERROR: Using relative path**
+```typescript
+// WRONG: Relative paths break when file moves
+import GlassCard from '../cards/GlassCard.vue'  // ❌ Fragile
+
+// CORRECT: Path alias is robust
+import GlassCard from '@/components/cards/GlassCard.vue'  // ✅
+```
+
+### Import Verification Checklist
+
+**Before committing new component imports:**
+- [ ] Verified file exists with `ls` or File Explorer
+- [ ] Used `@/` path alias (not relative paths)
+- [ ] Correct subfolder (`cards/`, `navigation/`, `settings/`, or root)
+- [ ] IDE shows no red squiggles on import
+- [ ] `npm run type-check` passes
+- [ ] `npm run build` succeeds
+- [ ] No console errors in dev server
+
+### When Moving Components
+
+**If you move a component to different folder:**
+
+**Step 1: Search for all imports**
+```bash
+# Find all imports of the component
+grep -r "import.*GlassCard" app/frontend/src/
+```
+
+**Step 2: Update all import paths**
+```bash
+# Check how many files need updating
+grep -r "from '@/components/common/GlassCard.vue'" app/frontend/src/
+
+# Update each file
+```
+
+**Step 3: Verify build**
+```bash
+cd app/frontend
+npm run type-check  # Must pass
+npm run build       # Must succeed
+```
+
+**Step 4: Test in browser**
+- Start dev server: `npm run dev`
+- Navigate to affected pages
+- Check console: No import errors
+- Verify components render
+
+### IDE Configuration
+
+**Ensure tsconfig.json has path aliases:**
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]  // Enables @/components/... imports
+    }
+  }
+}
+```
+
+**VSCode Benefits:**
+- Ctrl+Click on import → Jumps to file
+- Autocomplete suggests available components
+- Red squiggle if file not found
+- Rename refactoring updates imports
+
+### Production Build Prevention
+
+**Always test build before pushing:**
+```bash
+# MANDATORY before commit:
+cd app/frontend
+npm run build
+
+# If build fails → Fix imports BEFORE committing
+# CI/CD will catch import errors, but fix locally first
+```
+
+**CI/CD Protection:**
+- GitHub Actions runs `npm run build`
+- Fails if any import path wrong
+- Blocks merge until fixed
 
 ---
 

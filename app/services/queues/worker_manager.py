@@ -10,6 +10,7 @@ import logging
 import traceback
 from typing import Dict, List, Callable, Optional
 from .task_progress_tracker import QueueTask, TaskStatus, TaskProgressTracker
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -132,7 +133,7 @@ class WorkerManager:
                 break
             except Exception as e:
                 logger.error(f"Worker {worker_name} unexpected error: {e}")
-                await asyncio.sleep(1)  # Brief pause before continuing
+                await asyncio.sleep(ASYNC_DELAYS.WORKER_SHUTDOWN_PAUSE)
                 
         logger.info(f"Worker {worker_name} stopped")
 

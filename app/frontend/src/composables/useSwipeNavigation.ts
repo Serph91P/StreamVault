@@ -7,6 +7,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useSwipe } from '@vueuse/core'
 import { useNavigation } from './useNavigation'
+import { UI } from '@/config/constants'
 
 export function useSwipeNavigation() {
   const { navigateNext, navigatePrevious, isMobile } = useNavigation()
@@ -50,7 +51,7 @@ export function useSwipeNavigation() {
   }
 
   onMounted(() => {
-    setTimeout(initSwipe, 100)
+    setTimeout(initSwipe, UI.SWIPE_INIT_DELAY_MS)
   })
 
   return {

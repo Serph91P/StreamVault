@@ -1455,3 +1455,31 @@ textarea.success {
   }
 }
 
+// ============================================================================
+// LIST ITEM UTILITIES - Interactive Lists (Reusable for Chapter Lists, Settings, etc.)
+// ============================================================================
+
+// Standard interactive list item (chapters, settings items, etc.)
+.list-item {
+  @include m.list-item-interactive;
+}
+
+// Active/selected list item
+.list-item-active {
+  @include m.list-item-active;
+}
+
+// List item with thumbnail (16:9 ratio)
+.list-item-thumbnail {
+  @include m.list-item-thumbnail(80px, 96px);
+}
+
+// List item thumbnail variations
+.list-item-thumbnail-sm {
+  @include m.list-item-thumbnail(60px, 72px);
+}
+
+.list-item-thumbnail-lg {
+  @include m.list-item-thumbnail(120px, 144px);
+}
+

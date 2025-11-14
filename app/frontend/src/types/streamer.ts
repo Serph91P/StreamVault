@@ -17,6 +17,12 @@ export interface Streamer {
   record_public?: boolean;
   record_subscribers?: boolean;
   quality?: string;
+  
+  // Last stream info (shown when offline) - Migration 023
+  last_stream_title?: string;
+  last_stream_category_name?: string;
+  last_stream_viewer_count?: number;
+  last_stream_ended_at?: string;  // ISO 8601 datetime
 }
 
 export interface StreamerApiResponse {

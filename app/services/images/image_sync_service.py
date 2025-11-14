@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Streamer, Category, Stream
 from app.services.unified_image_service import unified_image_service
+from app.config.constants import ASYNC_DELAYS, TIMEOUTS
 
 logger = logging.getLogger("streamvault")
 
@@ -44,11 +45,11 @@ class ImageSyncService:
         while self._running:
             try:
                 # Wait for sync request with timeout to check _running periodically
-                sync_request = await asyncio.wait_for(self._sync_queue.get(), timeout=5.0)
+                sync_request = await asyncio.wait_for(self._sync_queue.get(), timeout=TIMEOUTS.IMAGE_SYNC_QUEUE_TIMEOUT)
                 await self._process_sync_request(sync_request)
                 
                 # Add delay between requests to avoid rate limiting
-                await asyncio.sleep(0.5)  # 500ms delay between requests
+                await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_REQUEST_DELAY)
                 
                 # Mark task as done
                 self._sync_queue.task_done()
@@ -59,7 +60,7 @@ class ImageSyncService:
                 break
             except Exception as e:
                 logger.error(f"Error in image sync worker: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_WORKER_ERROR_WAIT)
         logger.info("Image sync background worker stopped")
     
     async def _process_sync_request(self, sync_request: dict):
@@ -241,7 +242,7 @@ class ImageSyncService:
         """Perform initial sync after a short delay (non-blocking startup)"""
         try:
             # Wait longer to allow startup to complete
-            await asyncio.sleep(30)
+            await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_INTERVAL)
             
             logger.info("Starting delayed initial image sync for all existing entities...")
             

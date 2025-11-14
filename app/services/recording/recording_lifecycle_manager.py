@@ -600,7 +600,7 @@ class RecordingLifecycleManager:
             logger.info(f"🎬 POST_PROCESSING_ASYNC_START: recording_id={recording_id}")
             
             # Add a small delay to ensure the stream offline handler completes first
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
             
             # Call the synchronous post-processing method
             await self._trigger_post_processing(recording_id)

@@ -10,10 +10,11 @@
     <!-- Thumbnail -->
     <div class="video-thumbnail">
       <img
-        v-if="video.thumbnail_url"
+        v-if="video.thumbnail_url && !thumbnailError"
         :src="video.thumbnail_url"
         :alt="video.title"
         loading="lazy"
+        @error="handleThumbnailError"
       />
       <div v-else class="thumbnail-placeholder">
         <svg class="icon-video">
@@ -67,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import GlassCard from './GlassCard.vue'
 
@@ -94,6 +95,13 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+
+// Thumbnail error handling
+const thumbnailError = ref(false)
+
+const handleThumbnailError = () => {
+  thumbnailError.value = true
+}
 
 const formattedDuration = computed(() => {
   if (!props.video.duration) return ''

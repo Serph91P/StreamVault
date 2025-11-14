@@ -1,4 +1,6 @@
 // PWA Debug Helper für mobile Browser
+import { UI } from '@/config/constants'
+
 export function debugPWA() {
   console.group('🔍 PWA Debug Information')
   
@@ -83,5 +85,5 @@ export function debugPWA() {
 // Auto-debug on mobile
 if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
   console.log('📱 Mobile device detected - running PWA debug...')
-  setTimeout(debugPWA, 1000)
+  setTimeout(debugPWA, UI.PWA_DEBUG_DELAY_MS)
 }

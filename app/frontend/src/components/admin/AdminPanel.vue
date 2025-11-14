@@ -590,7 +590,9 @@ const runQuickHealthCheck = async () => {
 const loadSystemInfo = async () => {
   systemInfoLoading.value = true
   try {
-    const response = await fetch('/api/admin/system/info')
+    const response = await fetch('/api/admin/system/info', {
+      credentials: 'include'
+    })
     systemInfo.value = await response.json()
   } catch (error) {
     console.error('Failed to load system info:', error)
@@ -605,6 +607,7 @@ const runAllTests = async () => {
     const response = await fetch('/api/admin/tests/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({})
     })
     testResults.value = await response.json()
@@ -617,7 +620,9 @@ const runAllTests = async () => {
 
 const loadAvailableTests = async () => {
   try {
-    const response = await fetch('/api/admin/tests/available')
+    const response = await fetch('/api/admin/tests/available', {
+      credentials: 'include'
+    })
     availableTests.value = await response.json()
     showAvailableTests.value = !showAvailableTests.value
   } catch (error) {
@@ -630,7 +635,8 @@ const cleanupTempFiles = async () => {
   try {
     const response = await fetch('/api/admin/maintenance/cleanup-temp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
     })
     cleanupResult.value = await response.json()
   } catch (error) {

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session as DBSession
 from app.models import Session
 from app.database import SessionLocal
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -65,7 +66,7 @@ class SessionCleanupService:
                 break
             except Exception as e:
                 logger.error(f"Session cleanup worker error: {e}")
-                await asyncio.sleep(300)  # Wait 5 minutes on error
+                await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_ERROR_WAIT)
                 
         logger.info("Session cleanup worker stopped")
         

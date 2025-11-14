@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Stream, StreamMetadata, Recording, StreamEvent, ActiveRecordingState
 from app.services.background_queue_service import background_queue_service
+from app.utils.security import validate_path_security
 import logging
 from pathlib import Path
 
@@ -50,7 +51,13 @@ async def delete_stream(
             ]:
                 path = getattr(metadata, attr, None)
                 if path:
-                    files_to_delete.append(path)
+                    # SECURITY: Validate path before adding to deletion list
+                    try:
+                        validated_path = validate_path_security(path, "delete")
+                        files_to_delete.append(validated_path)
+                    except HTTPException as e:
+                        logger.warning(f"🚨 SECURITY: Skipping invalid metadata path {path}: {e.detail}")
+                        continue
                     
             # Delete metadata record (foreign key constraint)
             db.delete(metadata)
@@ -59,54 +66,91 @@ async def delete_stream(
         recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
         for recording in recordings:
             if recording.path:
-                files_to_delete.append(recording.path)
-                
-                # Also check for related files (.ts, .mp4, segment directories)
-                file_path_obj = Path(recording.path)
-                
-                # Check for .ts version if we have .mp4
-                if file_path_obj.suffix == '.mp4':
-                    ts_version = file_path_obj.with_suffix('.ts')
-                    if ts_version.exists():
-                        files_to_delete.append(str(ts_version))
-                
-                # Check for .mp4 version if we have .ts
-                elif file_path_obj.suffix == '.ts':
-                    mp4_version = file_path_obj.with_suffix('.mp4')
-                    if mp4_version.exists():
-                        files_to_delete.append(str(mp4_version))
-                
-                # Check for segment directories
-                segments_dir = file_path_obj.parent / f"{file_path_obj.stem}_segments"
-                if segments_dir.exists() and segments_dir.is_dir():
-                    files_to_delete.append(str(segments_dir))
+                # SECURITY: Validate recording path before deletion
+                try:
+                    validated_path = validate_path_security(recording.path, "delete")
+                    files_to_delete.append(validated_path)
+                    
+                    # Also check for related files (.ts, .mp4, segment directories)
+                    file_path_obj = Path(validated_path)
+                    
+                    # Check for .ts version if we have .mp4
+                    if file_path_obj.suffix == '.mp4':
+                        ts_version = file_path_obj.with_suffix('.ts')
+                        if ts_version.exists():
+                            try:
+                                validated_ts = validate_path_security(str(ts_version), "delete")
+                                files_to_delete.append(validated_ts)
+                            except HTTPException:
+                                pass
+                    
+                    # Check for .mp4 version if we have .ts
+                    elif file_path_obj.suffix == '.ts':
+                        mp4_version = file_path_obj.with_suffix('.mp4')
+                        if mp4_version.exists():
+                            try:
+                                validated_mp4 = validate_path_security(str(mp4_version), "delete")
+                                files_to_delete.append(validated_mp4)
+                            except HTTPException:
+                                pass
+                    
+                    # Check for segment directories
+                    segments_dir = file_path_obj.parent / f"{file_path_obj.stem}_segments"
+                    if segments_dir.exists() and segments_dir.is_dir():
+                        try:
+                            validated_segments = validate_path_security(str(segments_dir), "access")
+                            files_to_delete.append(validated_segments)
+                        except HTTPException:
+                            pass
+                            
+                except HTTPException as e:
+                    logger.warning(f"🚨 SECURITY: Skipping invalid recording path {recording.path}: {e.detail}")
+                    continue
             
             # Delete recording record
             db.delete(recording)
         
         # Also check the stream's recording_path
         if stream.recording_path:
-            files_to_delete.append(stream.recording_path)
-            
-            # Check for related files for the stream's recording_path too
-            stream_file = Path(stream.recording_path)
-            
-            # Check for .ts version if we have .mp4
-            if stream_file.suffix == '.mp4':
-                ts_version = stream_file.with_suffix('.ts')
-                if ts_version.exists():
-                    files_to_delete.append(str(ts_version))
-            
-            # Check for .mp4 version if we have .ts
-            elif stream_file.suffix == '.ts':
-                mp4_version = stream_file.with_suffix('.mp4')
-                if mp4_version.exists():
-                    files_to_delete.append(str(mp4_version))
-            
-            # Check for segment directories
-            segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
-            if segments_dir.exists() and segments_dir.is_dir():
-                files_to_delete.append(str(segments_dir))
+            # SECURITY: Validate stream recording path before deletion
+            try:
+                validated_stream_path = validate_path_security(stream.recording_path, "delete")
+                files_to_delete.append(validated_stream_path)
+                
+                # Check for related files for the stream's recording_path too
+                stream_file = Path(validated_stream_path)
+                
+                # Check for .ts version if we have .mp4
+                if stream_file.suffix == '.mp4':
+                    ts_version = stream_file.with_suffix('.ts')
+                    if ts_version.exists():
+                        try:
+                            validated_ts = validate_path_security(str(ts_version), "delete")
+                            files_to_delete.append(validated_ts)
+                        except HTTPException:
+                            pass
+                
+                # Check for .mp4 version if we have .ts
+                elif stream_file.suffix == '.ts':
+                    mp4_version = stream_file.with_suffix('.mp4')
+                    if mp4_version.exists():
+                        try:
+                            validated_mp4 = validate_path_security(str(mp4_version), "delete")
+                            files_to_delete.append(validated_mp4)
+                        except HTTPException:
+                            pass
+                
+                # Check for segment directories
+                segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
+                if segments_dir.exists() and segments_dir.is_dir():
+                    try:
+                        validated_segments = validate_path_security(str(segments_dir), "access")
+                        files_to_delete.append(validated_segments)
+                    except HTTPException:
+                        pass
+                        
+            except HTTPException as e:
+                logger.warning(f"🚨 SECURITY: Skipping invalid stream recording path {stream.recording_path}: {e.detail}")
         
         # Delete all stream events for this stream
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()

@@ -1,3 +1,13 @@
+---
+# Custom Agent Directory Metadata
+# This file is recognized by GitHub Copilot as an agent profile directory
+# 
+# Documentation: https://docs.github.com/en/copilot/using-github-copilot/creating-custom-agents
+repository: StreamVault
+agent_count: 8
+last_updated: 2025-11-13
+---
+
 # StreamVault Custom Agents
 
 This directory contains specialized GitHub Copilot custom agents for different development tasks in StreamVault.

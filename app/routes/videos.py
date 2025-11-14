@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal, get_db
 from app.models import RecordingSettings, Stream, Streamer, Recording, StreamMetadata
 from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
+from app.utils.security import validate_path_security, validate_file_type, ALLOWED_VIDEO_EXTENSIONS
 from app.utils.streamer_cache import get_valid_streamers
 from app.utils.token_store import store_share_token, validate_share_token, cleanup_expired_tokens
 from app.services.core.auth_service import AuthService
@@ -208,6 +209,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                     if stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
                     
+                    # Get thumbnail URL with null fallback
+                    thumbnail_url = get_video_thumbnail_url(stream.id, str(recording_path))
+                    
                     video_info = {
                         "id": stream.id,
                         "title": stream.title or f"Stream {stream.id}",
@@ -221,7 +225,8 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path))
+                        "thumbnail_url": thumbnail_url,  # Always included (null if not found)
+                        "has_thumbnail": thumbnail_url is not None  # Explicit flag for frontend
                     }
                     videos.append(video_info)
                     logger.debug(f"Added video from stream: {stream.title} by {streamer.username}")
@@ -279,6 +284,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                     elif stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
                     
+                    # Get thumbnail with null fallback
+                    thumbnail_url = get_video_thumbnail_url(stream.id, str(final_path))
+                    
                     video_info = {
                         "id": stream.id,
                         "title": stream.title or f"Stream {stream.id}",
@@ -292,7 +300,8 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(final_path))
+                        "thumbnail_url": thumbnail_url,  # Always included (null if not found)
+                        "has_thumbnail": thumbnail_url is not None  # Explicit flag for frontend
                     }
                     videos.append(video_info)
                     added_stream_ids.add(stream.id)
@@ -431,26 +440,54 @@ async def generate_share_token(stream_id: int, request: Request, db: Session = D
 
 @router.get("/videos/{stream_id}/thumbnail")
 async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Serve video thumbnail image"""
+    """Serve video thumbnail image - returns 404 if not found (graceful degradation)"""
     try:
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
         if not session_token:
+            logger.warning(f"🔴 THUMBNAIL_NO_SESSION: stream_id={stream_id}")
             raise HTTPException(status_code=401, detail="Authentication required")
         
         # Validate session
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
+            logger.warning(f"🔴 THUMBNAIL_INVALID_SESSION: stream_id={stream_id}")
             raise HTTPException(status_code=401, detail="Invalid session")
         
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream or not stream.recording_path:
-            raise HTTPException(status_code=404, detail="Stream or recording not found")
+        if not stream:
+            logger.warning(f"🔴 THUMBNAIL_STREAM_NOT_FOUND: stream_id={stream_id}")
+            raise HTTPException(status_code=404, detail="Stream not found")
         
-        recording_path = Path(stream.recording_path)
-        base_filename = recording_path.stem
-        video_dir = recording_path.parent
+        # Check if stream has recording_path
+        if not stream.recording_path or not stream.recording_path.strip():
+            logger.warning(f"🟡 THUMBNAIL_NO_RECORDING_PATH: stream_id={stream_id}, title={stream.title}")
+            raise HTTPException(status_code=404, detail="No recording path set")
+        
+        # SECURITY: Validate recording path first
+        try:
+            validated_recording_path = validate_path_security(stream.recording_path, "read")
+        except HTTPException as e:
+            logger.warning(f"🔴 THUMBNAIL_PATH_VALIDATION_FAILED: stream_id={stream_id}, path={stream.recording_path}, error={e.detail}")
+            raise HTTPException(status_code=404, detail="Invalid recording path")
+        
+        recording_path = Path(validated_recording_path)
+        
+        # Check if recording file/directory exists
+        if not recording_path.exists():
+            logger.warning(f"🟡 THUMBNAIL_RECORDING_NOT_FOUND: stream_id={stream_id}, path={recording_path}")
+            raise HTTPException(status_code=404, detail="Recording file not found")
+        
+        # Handle segmented recordings (directory with _segments suffix)
+        if recording_path.is_dir():
+            # For segmented recordings, look in the directory
+            base_filename = recording_path.name.replace('_segments', '')
+            video_dir = recording_path
+        else:
+            # For regular files
+            base_filename = recording_path.stem
+            video_dir = recording_path.parent
         
         # Priority order for thumbnail files (use the correct one, not the black one)
         thumbnail_candidates = [
@@ -461,10 +498,18 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
         thumbnail_path = None
         for candidate in thumbnail_candidates:
             if candidate.exists() and candidate.is_file():
-                thumbnail_path = candidate
-                break
+                # SECURITY: Validate thumbnail path
+                try:
+                    validated_thumbnail = validate_path_security(str(candidate), "read")
+                    thumbnail_path = Path(validated_thumbnail)
+                    logger.info(f"✅ THUMBNAIL_FOUND: stream_id={stream_id}, path={thumbnail_path}")
+                    break
+                except HTTPException as e:
+                    logger.warning(f"🟡 THUMBNAIL_PATH_REJECTED: stream_id={stream_id}, candidate={candidate}, error={e.detail}")
+                    continue
         
         if not thumbnail_path:
+            logger.info(f"🟡 THUMBNAIL_NOT_FOUND: stream_id={stream_id}, recording_path={recording_path}, searched={[str(c) for c in thumbnail_candidates]}")
             raise HTTPException(status_code=404, detail="Thumbnail not found")
         
         # Return the thumbnail file
@@ -474,10 +519,16 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
             filename=f"thumbnail_{stream_id}.jpg"
         )
         
-    except HTTPException:
+    except HTTPException as e:
+        # Re-raise HTTP exceptions (404, 400, etc.) with proper logging
+        logger.warning(f"🟡 THUMBNAIL_HTTP_ERROR: stream_id={stream_id}, status={e.status_code}, detail={e.detail}")
         raise
+    except FileNotFoundError as e:
+        # File disappeared between validation and read
+        logger.warning(f"🟡 THUMBNAIL_FILE_DISAPPEARED: stream_id={stream_id}, error={str(e)}")
+        raise HTTPException(status_code=404, detail="Thumbnail file not found")
     except Exception as e:
-        logger.error(f"Error serving thumbnail for stream {stream_id}: {e}")
+        logger.error(f"🔴 THUMBNAIL_UNEXPECTED_ERROR: stream_id={stream_id}, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/videos/public/{stream_id}")
@@ -500,7 +551,14 @@ async def stream_video_public(stream_id: int, token: str = Query(...), request: 
             logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
         
-        file_path = Path(stream.recording_path)
+        # SECURITY: Validate path and file type
+        validated_path = validate_path_security(stream.recording_path, "read")
+        try:
+            validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        except ValueError as e:
+            logger.error(f"Invalid file type: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
+        file_path = Path(validated_path)
         
         # Verify file exists
         if not file_path.exists() or not file_path.is_file():
@@ -620,30 +678,62 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             logger.error(f"Session validation error: {e}")
             raise HTTPException(status_code=401, detail="Session validation error")
         
-        # Get stream from database
+        # Get stream from database with detailed logging
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
-        if not stream or not stream.recording_path:
-            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
+        if not stream:
+            logger.error(f"🔴 STREAM_NOT_FOUND: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
+        
+        logger.info(f"✅ STREAM_FOUND: id={stream.id}, title={stream.title}, recording_path={stream.recording_path}")
+        
+        if not stream.recording_path:
+            logger.error(f"🔴 NO_RECORDING_PATH: stream_id={stream_id}, title={stream.title}, started_at={stream.started_at}, ended_at={stream.ended_at}")
+            raise HTTPException(status_code=404, detail="Video file path not configured")
         
         logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
         
-        file_path = Path(stream.recording_path)
+        # SECURITY: Validate path and file type
+        try:
+            validated_path = validate_path_security(stream.recording_path, "read")
+        except HTTPException as e:
+            logger.error(f"Path validation failed for stream {stream_id}: {e.detail}")
+            raise HTTPException(status_code=403, detail="Invalid file path")
+        
+        try:
+            validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
+        except ValueError as e:
+            logger.error(f"Invalid file type for stream {stream_id}: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
+        file_path = Path(validated_path)
+        
+        # Handle both regular files and segmented recordings
+        # For segmented recordings (24h+ streams), recording_path points to a directory with segments
+        is_segmented = file_path.is_dir() and file_path.name.endswith('_segments')
+        
+        if is_segmented:
+            # For segmented recordings, stream the first segment or concatenated file
+            # TODO: Implement proper segment streaming or concatenation
+            logger.error(f"Segmented recording streaming not yet fully supported: {file_path}")
+            raise HTTPException(status_code=501, detail="Segmented recordings require special handling")
         
         # Verify file exists
-        if not file_path.exists() or not file_path.is_file():
-            logger.error(f"Video file not found: {stream.recording_path}")
-            raise HTTPException(status_code=404, detail="Video file not found")
+        if not file_path.exists():
+            logger.error(f"Video file does not exist: {stream.recording_path}")
+            raise HTTPException(status_code=404, detail="Video file not found on server")
         
-        logger.info(f"Video file exists: {file_path}")
+        if not file_path.is_file():
+            logger.error(f"Path exists but is not a file: {stream.recording_path}")
+            raise HTTPException(status_code=500, detail="Invalid video file")
+        
+        logger.info(f"Video file verified: {file_path}")
         
         # Get file info
         try:
             file_size = file_path.stat().st_size
             logger.info(f"File size: {file_size} bytes")
         except OSError as e:
-            logger.error(f"Error accessing file: {e}")
-            raise HTTPException(status_code=500, detail="Error accessing file")
+            logger.error(f"Error accessing file stats: {e}")
+            raise HTTPException(status_code=500, detail="Cannot access video file")
         
         # Get MIME type
         mime_type, _ = mimetypes.guess_type(str(file_path))
@@ -1066,6 +1156,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                     if stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
                     
+                    # Get thumbnail with null fallback
+                    thumbnail_url = get_video_thumbnail_url(stream.id, str(recording_path))
+                    
                     video_info = {
                         "id": stream.id,
                         "title": stream.title or f"Stream {stream.id}",
@@ -1079,8 +1172,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
-                        "thumbnail_url": get_video_thumbnail_url(stream.id, str(recording_path)),
-                        "is_segmented": is_segmented_dir  # NEW: Flag for active recordings
+                        "thumbnail_url": thumbnail_url,  # Always included (null if not found)
+                        "has_thumbnail": thumbnail_url is not None,  # Explicit flag for frontend
+                        "is_segmented": is_segmented_dir  # Flag for active recordings
                     }
                     videos.append(video_info)
                 else:

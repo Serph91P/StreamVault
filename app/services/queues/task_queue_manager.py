@@ -439,7 +439,7 @@ class TaskQueueManager:
                         logger.debug(f"Dependency worker enqueued ready task {dep_task.id}")
                 
                 # Brief pause before checking again - faster for multiple streams
-                await asyncio.sleep(0.1)  # Reduced from 0.5s to 0.1s for better concurrency
+                await asyncio.sleep(ASYNC_DELAYS.TASK_QUEUE_POLL_REDUCED)
                 
             except asyncio.CancelledError:
                 logger.info("Dependency worker cancelled")

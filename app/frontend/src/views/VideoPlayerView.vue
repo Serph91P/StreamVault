@@ -285,12 +285,23 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: var(--background-secondary);
+  padding: var(--spacing-4);
+  
+  // Mobile: Remove padding for full-width video
+  @include m.respond-below('md') {  // < 768px
+    padding: 0;
+  }
 }
 
 .video-player-container {
   flex: 1;
   display: flex;
   flex-direction: column;
+  
+  // Desktop: Add padding around video
+  @include m.respond-to('md') {  // >= 768px
+    padding: var(--spacing-6);
+  }
 }
 
 @include m.respond-below('md') {  // < 768px

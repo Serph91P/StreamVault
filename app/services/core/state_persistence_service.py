@@ -21,6 +21,7 @@ from sqlalchemy import and_
 from app.database import SessionLocal
 from app.models import ActiveRecordingState, Stream, Recording
 from app.utils.structured_logging import log_with_context
+from app.config.constants import ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
@@ -320,7 +321,7 @@ class StatePersistenceService:
                     
                 except Exception as e:
                     logger.error(f"Error in state persistence heartbeat loop: {e}", exc_info=True)
-                    await asyncio.sleep(5)  # Wait before retrying
+                    await asyncio.sleep(ASYNC_DELAYS.NORMAL_RETRY_DELAY)
                     
         except asyncio.CancelledError:
             logger.info("State persistence heartbeat loop cancelled")

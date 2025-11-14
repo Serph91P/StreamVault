@@ -52,6 +52,7 @@ class StreamVaultTestService:
         await self._test_system_dependencies()
         await self._test_database_connection()
         await self._test_file_permissions()
+        await self._test_disk_space()
         
         # Core functionality tests
         await self._test_streamlink_functionality()
@@ -60,13 +61,18 @@ class StreamVaultTestService:
         await self._test_metadata_generation()
         await self._test_media_server_structure()
         
+        # API Endpoint tests
+        await self._test_api_videos_endpoint()
+        await self._test_api_streamers_endpoint()
+        await self._test_api_auth_endpoint()
+        
         # Communication tests
         await self._test_push_notifications()
         await self._test_websocket_functionality()
         
-        # Performance tests
-        await self._test_disk_space()
-        # REMOVED: await self._test_proxy_connection()
+        # Background processing tests
+        await self._test_background_queue()
+        await self._test_post_processing_pipeline()
         
         # Generate summary
         total_tests = len(self.test_results)
@@ -624,7 +630,7 @@ class StreamVaultTestService:
     async def _test_disk_space(self):
         """Test available disk space"""
         try:
-            recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
+            recording_dir = Path(settings.get_settings().RECORDING_DIRECTORY)
             stat = os.statvfs(recording_dir)
             
             # Calculate space in GB
@@ -705,6 +711,183 @@ class StreamVaultTestService:
         except (AttributeError, Exception) as e:
             logger.debug(f"Could not cleanup metadata service: {e}")
             pass
+
+    # ============================================================================
+    # NEW API ENDPOINT TESTS
+    # ============================================================================
+    
+    async def _test_api_videos_endpoint(self):
+        """Test /api/videos endpoint functionality"""
+        try:
+            from fastapi.testclient import TestClient
+            from app.main import app
+            
+            client = TestClient(app)
+            response = client.get("/api/videos")
+            
+            if response.status_code == 200:
+                data = response.json()
+                videos = data.get("videos", [])
+                self.test_results.append(TestResult(
+                    "api_videos_endpoint",
+                    True,
+                    f"Videos API working - {len(videos)} videos found",
+                    {"video_count": len(videos), "status_code": 200}
+                ))
+            elif response.status_code == 401:
+                # Auth required is also a valid response
+                self.test_results.append(TestResult(
+                    "api_videos_endpoint",
+                    True,
+                    "Videos API requires authentication (expected)",
+                    {"status_code": 401}
+                ))
+            else:
+                self.test_results.append(TestResult(
+                    "api_videos_endpoint",
+                    False,
+                    f"Videos API returned unexpected status: {response.status_code}",
+                    {"status_code": response.status_code, "body": response.text[:200]}
+                ))
+                
+        except Exception as e:
+            self.test_results.append(TestResult(
+                "api_videos_endpoint",
+                False,
+                f"Videos API test error: {str(e)}"
+            ))
+    
+    async def _test_api_streamers_endpoint(self):
+        """Test /api/streamers endpoint functionality"""
+        try:
+            from fastapi.testclient import TestClient
+            from app.main import app
+            
+            client = TestClient(app)
+            response = client.get("/api/streamers")
+            
+            if response.status_code == 200:
+                streamers = response.json()
+                self.test_results.append(TestResult(
+                    "api_streamers_endpoint",
+                    True,
+                    f"Streamers API working - {len(streamers)} streamers found",
+                    {"streamer_count": len(streamers), "status_code": 200}
+                ))
+            elif response.status_code == 401:
+                # Auth required is also valid
+                self.test_results.append(TestResult(
+                    "api_streamers_endpoint",
+                    True,
+                    "Streamers API requires authentication (expected)",
+                    {"status_code": 401}
+                ))
+            else:
+                self.test_results.append(TestResult(
+                    "api_streamers_endpoint",
+                    False,
+                    f"Streamers API returned unexpected status: {response.status_code}",
+                    {"status_code": response.status_code}
+                ))
+                
+        except Exception as e:
+            self.test_results.append(TestResult(
+                "api_streamers_endpoint",
+                False,
+                f"Streamers API test error: {str(e)}"
+            ))
+    
+    async def _test_api_auth_endpoint(self):
+        """Test authentication endpoints"""
+        try:
+            from fastapi.testclient import TestClient
+            from app.main import app
+            
+            client = TestClient(app)
+            
+            # Test auth check endpoint
+            response = client.get("/api/auth/check")
+            
+            # Should return 401 (not authenticated) or 200 (authenticated)
+            if response.status_code in [200, 401]:
+                is_authenticated = response.status_code == 200
+                self.test_results.append(TestResult(
+                    "api_auth_endpoint",
+                    True,
+                    f"Auth API working - {'authenticated' if is_authenticated else 'not authenticated'}",
+                    {"status_code": response.status_code, "authenticated": is_authenticated}
+                ))
+            else:
+                self.test_results.append(TestResult(
+                    "api_auth_endpoint",
+                    False,
+                    f"Auth API returned unexpected status: {response.status_code}",
+                    {"status_code": response.status_code}
+                ))
+                
+        except Exception as e:
+            self.test_results.append(TestResult(
+                "api_auth_endpoint",
+                False,
+                f"Auth API test error: {str(e)}"
+            ))
+    
+    async def _test_background_queue(self):
+        """Test background queue system"""
+        try:
+            from app.services.processing.background_queue_service import background_queue
+            
+            # Get queue stats
+            stats = background_queue.get_queue_stats()
+            
+            # Queue is healthy if it exists and responds
+            total_tasks = stats.get("total_active_tasks", 0)
+            external_tasks = stats.get("total_external_tasks", 0)
+            
+            self.test_results.append(TestResult(
+                "background_queue",
+                True,
+                f"Background queue operational - {total_tasks} active tasks, {external_tasks} external",
+                {
+                    "active_tasks": total_tasks,
+                    "external_tasks": external_tasks,
+                    "stats": stats
+                }
+            ))
+            
+        except Exception as e:
+            self.test_results.append(TestResult(
+                "background_queue",
+                False,
+                f"Background queue test error: {str(e)}"
+            ))
+    
+    async def _test_post_processing_pipeline(self):
+        """Test post-processing pipeline components"""
+        try:
+            # Check if post-processing services are importable
+            from app.services.processing.recording_task_factory import RecordingTaskFactory
+            from app.services.media.metadata_service import MetadataService
+            
+            # Check metadata service
+            metadata_service = MetadataService()
+            
+            self.test_results.append(TestResult(
+                "post_processing_pipeline",
+                True,
+                "Post-processing pipeline components available",
+                {
+                    "task_factory": "available",
+                    "metadata_service": "available"
+                }
+            ))
+            
+        except Exception as e:
+            self.test_results.append(TestResult(
+                "post_processing_pipeline",
+                False,
+                f"Post-processing pipeline test error: {str(e)}"
+            ))
 
 # Global test service instance
 test_service = StreamVaultTestService()

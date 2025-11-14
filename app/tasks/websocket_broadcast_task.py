@@ -13,6 +13,7 @@ from app.models import Recording, Stream
 from sqlalchemy import and_
 from sqlalchemy.orm import joinedload
 from datetime import datetime
+from app.config.constants import ASYNC_DELAYS
 
 # Configuration constants
 CLEANUP_INTERVAL_CYCLES = 30  # Number of 10-second cycles before running cleanup (5 minutes)
@@ -80,11 +81,11 @@ class WebSocketBroadcastTask:
                     cleanup_counter += 1
                     
                     # Wait 10 seconds before next cycle (only counters change)
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(ASYNC_DELAYS.WEBSOCKET_BROADCAST_ERROR_LONG)
                     
                 except Exception as e:
                     logger.error(f"Error in WebSocket broadcast loop: {e}")
-                    await asyncio.sleep(5)  # Shorter wait on error
+                    await asyncio.sleep(ASYNC_DELAYS.WEBSOCKET_BROADCAST_ERROR_SHORT)
                     
         except asyncio.CancelledError:
             logger.info("WebSocket broadcast loop cancelled")

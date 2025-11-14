@@ -270,8 +270,14 @@ async def cleanup_temp_files() -> Dict[str, Any]:
     try:
         from pathlib import Path
         import glob
+        from app.utils.security import validate_path_security
+        from app.config.settings import get_settings
         
-        recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
+        settings = get_settings()
+        # SECURITY: Validate recording directory path
+        recording_dir_str = validate_path_security(settings.RECORDING_DIRECTORY, "access")
+        recording_dir = Path(recording_dir_str)
+        
         cleanup_stats = {
             "files_removed": 0,
             "space_freed_mb": 0,
@@ -293,10 +299,14 @@ async def cleanup_temp_files() -> Dict[str, Any]:
                 for file_path in recording_dir.glob(pattern):
                     if file_path.is_file():
                         try:
+                            # SECURITY: Validate each file path before deletion
+                            validated_file = validate_path_security(str(file_path), "delete")
                             file_size = file_path.stat().st_size
-                            file_path.unlink()
+                            Path(validated_file).unlink()
                             cleanup_stats["files_removed"] += 1
                             cleanup_stats["space_freed_mb"] += file_size / (1024 * 1024)
+                        except HTTPException as e:
+                            cleanup_stats["errors"].append(f"Security: Skipped {file_path}: {e.detail}")
                         except Exception as e:
                             cleanup_stats["errors"].append(f"Failed to remove {file_path}: {str(e)}")
             except Exception as e:

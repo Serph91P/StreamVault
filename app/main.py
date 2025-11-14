@@ -14,6 +14,7 @@ from app.routes import api_images
 from app.routes import background_queue
 from app.routes import streams
 from app.routes import status
+from app.routes import health
 from app.services.system.development_test_runner import run_development_tests
 from app.config.constants import TIMEOUTS, ASYNC_DELAYS
 import logging
@@ -219,6 +220,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error starting WebSocket broadcast task: {e}", exc_info=True)
         
+        # Start Proxy Health Check Service
+        try:
+            from app.services.proxy.proxy_health_service import proxy_health_service
+            await proxy_health_service.start()
+            logger.info("✅ Proxy health check service started")
+        except Exception as e:
+            logger.error(f"❌ Error starting proxy health check service: {e}", exc_info=True)
+        
         # Run development tests if in debug mode
         try:
             test_success = await run_development_tests()
@@ -263,6 +272,15 @@ async def lifespan(app: FastAPI):
         logger.info("✅ WebSocket broadcast task stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error stopping WebSocket broadcast task: {e}")
+    
+    # Stop Proxy Health Check Service
+    try:
+        logger.info("🔄 Stopping proxy health check service...")
+        from app.services.proxy.proxy_health_service import proxy_health_service
+        await proxy_health_service.stop()
+        logger.info("✅ Proxy health check service stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error stopping proxy health check service: {e}")
     
     # Ensure background services initialization finished
     if background_services_task:
@@ -793,6 +811,7 @@ async def eventsub_callback(request: Request):
         return Response(status_code=500)
 
 # API routes first
+app.include_router(health.router)  # Health check endpoints (no auth required)
 app.include_router(streamers.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
@@ -807,6 +826,10 @@ app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
 app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
+
+# Proxy management routes (Multi-Proxy System)
+from app.routes import proxy as proxy_router
+app.include_router(proxy_router.router)
 
 # Unified recovery routes (replaces old orphaned + failed recovery)
 from app.api import unified_recovery_endpoints

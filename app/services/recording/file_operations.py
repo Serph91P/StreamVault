@@ -16,6 +16,7 @@ from app.models import Stream, StreamMetadata
 from app.database import SessionLocal
 from app.services.media.metadata_service import MetadataService
 from app.utils.file_utils import cleanup_temporary_files
+from app.config.constants import ASYNC_DELAYS
 # FFmpeg utilities now handled by background queue system
 
 logger = logging.getLogger("streamvault")
@@ -55,7 +56,7 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
                 
                 if not active_ffmpeg_processes:
                     # No FFmpeg processes working on our files, check if MP4 is stable
-                    await asyncio.sleep(5)  # Wait a bit
+                    await asyncio.sleep(ASYNC_DELAYS.RECORDING_ERROR_RECOVERY)  # Wait a bit
                     
                     if os.path.exists(mp4_path):
                         new_mp4_size = os.path.getsize(mp4_path)
