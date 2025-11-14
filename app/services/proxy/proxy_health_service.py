@@ -287,10 +287,11 @@ class ProxyHealthService:
             }
         
         except httpx.ProxyError as e:
+            logger.error(f"Proxy error during proxy health check: {e}", exc_info=True)
             return {
                 'status': 'failed',
                 'response_time_ms': None,
-                'error': f'Proxy error: {str(e)[:100]}'
+                'error': 'A proxy error occurred while checking proxy health.'
             }
         
         except Exception as e:
@@ -298,7 +299,7 @@ class ProxyHealthService:
             return {
                 'status': 'failed',
                 'response_time_ms': None,
-                'error': f'Exception: {str(e)[:100]}'
+                'error': 'An unexpected error occurred while checking proxy health.'
             }
     
     async def check_proxy_health_manual(self, proxy_id: int) -> Dict[str, Any]:
