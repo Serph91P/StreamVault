@@ -322,20 +322,20 @@ const formatTime = (timestamp?: string) => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   height: 36px;
   min-width: auto;
 }
 
 .queue-status-indicator:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: rgba(var(--primary-500-rgb), 0.1);
+  border-color: var(--primary-500);
+  color: var(--primary-color);
 }
 
 .status-icon {
