@@ -74,6 +74,9 @@ class StreamVaultTestService:
         await self._test_background_queue()
         await self._test_post_processing_pipeline()
         
+        # Integration tests (end-to-end)
+        await self._test_full_recording_pipeline()
+        
         # Generate summary
         total_tests = len(self.test_results)
         passed_tests = sum(1 for result in self.test_results if result.success)
@@ -888,6 +891,292 @@ class StreamVaultTestService:
                 False,
                 f"Post-processing pipeline test error: {str(e)}"
             ))
+    
+    async def _generate_test_stream_segments(self, output_dir: Path, duration: int = 10) -> List[Path]:
+        """
+        Generate fake TS segments to simulate Streamlink recording output.
+        This creates realistic test data without needing an actual Twitch stream.
+        
+        Args:
+            output_dir: Directory to store test segments
+            duration: Total duration in seconds (default: 10s)
+            
+        Returns:
+            List of generated segment file paths
+        """
+        try:
+            segments = []
+            segment_duration = 2  # 2 seconds per segment
+            num_segments = duration // segment_duration
+            
+            for i in range(num_segments):
+                segment_path = output_dir / f"test_stream_segment_{i:04d}.ts"
+                
+                # Generate a test video segment using FFmpeg
+                # Creates a 2-second video with a color pattern and timestamp
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-f", "lavfi",
+                    "-i", f"color=c=blue:s=1920x1080:d={segment_duration}",
+                    "-f", "lavfi",
+                    "-i", f"sine=frequency=1000:duration={segment_duration}",
+                    "-vf", f"drawtext=text='Test Segment {i+1}':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2",
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-f", "mpegts",
+                    str(segment_path)
+                ]
+                
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=30
+                )
+                
+                if result.returncode != 0:
+                    raise Exception(f"FFmpeg segment generation failed: {result.stderr.decode()}")
+                
+                segments.append(segment_path)
+                logger.info(f"Generated test segment: {segment_path.name}")
+            
+            return segments
+            
+        except Exception as e:
+            logger.error(f"Failed to generate test segments: {e}")
+            raise
+    
+    async def _test_full_recording_pipeline(self):
+        """
+        End-to-end integration test: Simulate complete recording workflow.
+        Tests: Segment generation → Concatenation → MP4 conversion → Metadata → Thumbnails
+        
+        This test creates a temporary test streamer in the database, simulates a recording,
+        processes it through the full pipeline, and cleans up all test data.
+        """
+        test_streamer = None
+        test_stream = None
+        test_recording = None
+        test_dir = None
+        
+        try:
+            from app.models import Streamer, Stream, Recording
+            from sqlalchemy import text
+            
+            # Create test directory
+            test_dir = Path(tempfile.mkdtemp(prefix="streamvault_test_"))
+            segments_dir = test_dir / "segments"
+            segments_dir.mkdir(exist_ok=True)
+            
+            # Step 1: Generate mock stream segments
+            logger.info("Generating mock stream segments...")
+            segments = await self._generate_test_stream_segments(segments_dir, duration=10)
+            
+            if not segments or len(segments) == 0:
+                raise Exception("No test segments generated")
+            
+            # Step 2: Create test streamer in database (marked as test data)
+            with SessionLocal() as db:
+                test_streamer = Streamer(
+                    twitch_id="test_integration_12345",
+                    username="test_integration_streamer",
+                    is_live=False,
+                    is_test_data=True,  # CRITICAL: Mark as test data
+                    auto_record=False,
+                    created_at=datetime.now()
+                )
+                db.add(test_streamer)
+                db.commit()
+                db.refresh(test_streamer)
+                logger.info(f"Created test streamer (ID: {test_streamer.id})")
+                
+                # Step 3: Create test stream
+                test_stream = Stream(
+                    streamer_id=test_streamer.id,
+                    start_time=datetime.now(),
+                    status="live",
+                    episode_number=999,  # Obvious test number
+                    created_at=datetime.now()
+                )
+                db.add(test_stream)
+                db.commit()
+                db.refresh(test_stream)
+                logger.info(f"Created test stream (ID: {test_stream.id})")
+                
+                # Step 4: Create test recording
+                test_recording = Recording(
+                    stream_id=test_stream.id,
+                    start_time=datetime.now(),
+                    status="recording",
+                    created_at=datetime.now()
+                )
+                db.add(test_recording)
+                db.commit()
+                db.refresh(test_recording)
+                logger.info(f"Created test recording (ID: {test_recording.id})")
+            
+            # Step 5: Concatenate segments into single MP4
+            logger.info("Concatenating segments...")
+            output_mp4 = test_dir / "test_stream.mp4"
+            concat_list = test_dir / "concat_list.txt"
+            
+            with open(concat_list, "w") as f:
+                for segment in segments:
+                    f.write(f"file '{segment}'\n")
+            
+            concat_cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_list),
+                "-c", "copy",
+                str(output_mp4)
+            ]
+            
+            result = subprocess.run(
+                concat_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Concatenation failed: {result.stderr.decode()}")
+            
+            if not output_mp4.exists():
+                raise Exception("MP4 file not created after concatenation")
+            
+            # Step 6: Generate metadata
+            logger.info("Generating metadata...")
+            metadata_path = test_dir / "metadata.json"
+            metadata = {
+                "streamer": test_streamer.username,
+                "title": "Integration Test Recording",
+                "duration": 10,
+                "created_at": datetime.now().isoformat()
+            }
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+            
+            # Step 7: Generate thumbnail
+            logger.info("Generating thumbnail...")
+            thumbnail_path = test_dir / "thumbnail.jpg"
+            thumb_cmd = [
+                "ffmpeg", "-y",
+                "-i", str(output_mp4),
+                "-ss", "00:00:05",
+                "-vframes", "1",
+                "-vf", "scale=320:-1",
+                str(thumbnail_path)
+            ]
+            
+            result = subprocess.run(
+                thumb_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Thumbnail generation failed: {result.stderr.decode()}")
+            
+            # Step 8: Validate all artifacts exist
+            artifacts = {
+                "mp4_file": output_mp4.exists(),
+                "metadata_file": metadata_path.exists(),
+                "thumbnail_file": thumbnail_path.exists(),
+                "segment_count": len(segments)
+            }
+            
+            all_artifacts_valid = all([
+                artifacts["mp4_file"],
+                artifacts["metadata_file"],
+                artifacts["thumbnail_file"],
+                artifacts["segment_count"] > 0
+            ])
+            
+            # Step 9: Update recording status
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == test_recording.id).first()
+                if recording:
+                    recording.status = "completed"
+                    recording.end_time = datetime.now()
+                    recording.path = str(output_mp4)
+                    db.commit()
+            
+            if all_artifacts_valid:
+                self.test_results.append(TestResult(
+                    "full_recording_pipeline",
+                    True,
+                    f"Complete recording pipeline validated successfully",
+                    {
+                        "artifacts": artifacts,
+                        "test_dir": str(test_dir),
+                        "mp4_size_bytes": output_mp4.stat().st_size,
+                        "segments_processed": len(segments)
+                    }
+                ))
+            else:
+                self.test_results.append(TestResult(
+                    "full_recording_pipeline",
+                    False,
+                    "Some artifacts missing after processing",
+                    {"artifacts": artifacts}
+                ))
+            
+        except Exception as e:
+            logger.error(f"Full recording pipeline test failed: {e}")
+            self.test_results.append(TestResult(
+                "full_recording_pipeline",
+                False,
+                f"Pipeline test error: {str(e)}"
+            ))
+        
+        finally:
+            # CRITICAL: Cleanup test data from database
+            await self._cleanup_test_data(test_streamer, test_stream, test_recording)
+            
+            # Cleanup filesystem
+            if test_dir and test_dir.exists():
+                try:
+                    import shutil
+                    shutil.rmtree(test_dir)
+                    logger.info(f"Cleaned up test directory: {test_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup test directory: {e}")
+    
+    async def _cleanup_test_data(self, test_streamer=None, test_stream=None, test_recording=None):
+        """
+        Clean up test data from database.
+        Removes test streamer, streams, and recordings to prevent them appearing in frontend.
+        """
+        try:
+            with SessionLocal() as db:
+                # Delete in correct order (respect foreign keys)
+                if test_recording:
+                    db.query(Recording).filter(Recording.id == test_recording.id).delete()
+                    logger.info(f"Deleted test recording (ID: {test_recording.id})")
+                
+                if test_stream:
+                    db.query(Stream).filter(Stream.id == test_stream.id).delete()
+                    logger.info(f"Deleted test stream (ID: {test_stream.id})")
+                
+                if test_streamer:
+                    db.query(Streamer).filter(Streamer.id == test_streamer.id).delete()
+                    logger.info(f"Deleted test streamer (ID: {test_streamer.id})")
+                
+                # Also cleanup any orphaned test data (safety net)
+                deleted_orphaned = db.query(Streamer).filter(
+                    Streamer.is_test_data == True
+                ).delete()
+                
+                if deleted_orphaned > 0:
+                    logger.info(f"Cleaned up {deleted_orphaned} orphaned test streamers")
+                
+                db.commit()
+                
+        except Exception as e:
+            logger.error(f"Failed to cleanup test data: {e}")
 
 # Global test service instance
 test_service = StreamVaultTestService()
