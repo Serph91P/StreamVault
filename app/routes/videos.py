@@ -519,8 +519,14 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
             filename=f"thumbnail_{stream_id}.jpg"
         )
         
-    except HTTPException:
+    except HTTPException as e:
+        # Re-raise HTTP exceptions (404, 400, etc.) with proper logging
+        logger.warning(f"🟡 THUMBNAIL_HTTP_ERROR: stream_id={stream_id}, status={e.status_code}, detail={e.detail}")
         raise
+    except FileNotFoundError as e:
+        # File disappeared between validation and read
+        logger.warning(f"🟡 THUMBNAIL_FILE_DISAPPEARED: stream_id={stream_id}, error={str(e)}")
+        raise HTTPException(status_code=404, detail="Thumbnail file not found")
     except Exception as e:
         logger.error(f"🔴 THUMBNAIL_UNEXPECTED_ERROR: stream_id={stream_id}, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

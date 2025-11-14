@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     HTTP_PROXY: Optional[str] = None
     HTTPS_PROXY: Optional[str] = None
     
+    # Recording directory (Docker default: /recordings)
+    RECORDING_DIRECTORY: str = "/recordings"
+    
     # Artwork and metadata directory (within recordings directory)
     ARTWORK_BASE_PATH: str = "/recordings/.artwork"
     
