@@ -240,7 +240,10 @@ async def cleanup_zombie_recordings():
         from app.services.streamer_service import StreamerService
         from app.services.recording.recording_service import RecordingService
         from app.services.communication.websocket_manager import websocket_manager
-        from app.events.handler_registry import event_handler_registry
+        from app.events.handler_registry import EventHandlerRegistry
+        
+        # Initialize event registry
+        event_handler_registry = EventHandlerRegistry()
         from datetime import datetime, timezone
         from sqlalchemy.orm import joinedload
         

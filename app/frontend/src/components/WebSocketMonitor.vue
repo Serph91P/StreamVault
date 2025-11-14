@@ -36,7 +36,7 @@
           <div class="connections-list">
             <div v-for="conn in client.connections" :key="conn.connection_id" class="connection-item">
               <span class="connection-id">ID: {{ conn.connection_id }}</span>
-              <span class="connection-state" :class="conn.state.toLowerCase()">{{ conn.state }}</span>
+              <span class="connection-state" :class="conn.state?.toLowerCase() || 'unknown'">{{ conn.state || 'Unknown' }}</span>
             </div>
           </div>
         </div>

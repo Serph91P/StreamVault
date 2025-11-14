@@ -968,7 +968,10 @@ class StreamVaultTestService:
             segments_dir = test_dir / "segments"
             segments_dir.mkdir(exist_ok=True)
             
-            # Step 1: Generate mock stream segments
+            # Step 1: Ensure segments directory exists
+            segments_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Step 2: Generate mock stream segments
             logger.info("Generating mock stream segments...")
             segments = await self._generate_test_stream_segments(segments_dir, duration=10)
             

@@ -151,8 +151,9 @@ class RecordingStateManager:
                     if isinstance(v, (str, int, float, bool, type(None)))
                 }
             
-            await state_persistence_service.save_state('active_recordings', persistence_data)
-            logger.debug("Saved active recordings state to persistence")
+            # Note: save_state method removed - persistence now happens via ActiveRecordingState table
+            # Each recording is saved individually via save_active_recording
+            logger.debug("State persistence handled via ActiveRecordingState table")
             
         except Exception as e:
             logger.error(f"Failed to save state to persistence: {e}")
