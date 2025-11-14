@@ -1,6 +1,18 @@
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
 FROM python:3.14-alpine AS base
 
+# Build arguments for version tracking (passed from docker-build.yml)
+ARG VERSION=dev
+ARG BRANCH=unknown
+ARG BUILD_DATE
+ARG COMMIT_SHA=unknown
+
+# Expose build args as environment variables for runtime access
+ENV STREAMVAULT_VERSION=${VERSION}
+ENV STREAMVAULT_BRANCH=${BRANCH}
+ENV STREAMVAULT_BUILD_DATE=${BUILD_DATE}
+ENV STREAMVAULT_COMMIT_SHA=${COMMIT_SHA}
+
 # Install system dependencies with security updates in a single layer
 # Grouped by purpose for better readability and caching
 RUN apk update && apk upgrade && \

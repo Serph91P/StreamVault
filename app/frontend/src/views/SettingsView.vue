@@ -287,22 +287,52 @@
                   </svg>
                 </div>
                 <h3 class="about-title">StreamVault</h3>
-                <p class="about-version">Version 1.0.0</p>
+                
+                <!-- Version Info -->
+                <div v-if="versionInfo" class="version-info">
+                  <p class="about-version">
+                    {{ versionInfo.version }}
+                    <span v-if="versionInfo.branch" class="version-branch">{{ versionInfo.branch }}</span>
+                  </p>
+                  <p v-if="versionInfo.build_date" class="build-date">
+                    Built: {{ formatBuildDate(versionInfo.build_date) }}
+                  </p>
+                  
+                  <!-- Update Check -->
+                  <div v-if="versionInfo.update_available" class="update-notice">
+                    <span class="update-icon">🎉</span>
+                    <span class="update-text">
+                      Update available: <strong>{{ versionInfo.latest_version }}</strong>
+                    </span>
+                    <a v-if="versionInfo.latest_version_url" 
+                       :href="versionInfo.latest_version_url" 
+                       target="_blank" 
+                       class="btn btn-sm btn-primary">
+                      View Release
+                    </a>
+                  </div>
+                  <div v-else-if="!versionInfo.update_check_error" class="up-to-date">
+                    <span class="check-icon">✅</span>
+                    <span>You're running the latest version</span>
+                  </div>
+                </div>
+                <p v-else class="about-version">Loading version...</p>
+                
                 <p class="about-description">
                   Automated stream recording and management system for Twitch content creators.
                 </p>
                 <div class="about-links">
-                  <a href="https://github.com/yourusername/streamvault" target="_blank" class="about-link">
+                  <a href="https://github.com/Serph91P/StreamVault" target="_blank" class="about-link">
                     <svg class="icon">
-                      <use href="#icon-github" />
+                      <use href="#icon-home" />
                     </svg>
                     GitHub
                   </a>
-                  <a href="#" class="about-link">
+                  <a href="https://github.com/Serph91P/StreamVault/releases" target="_blank" class="about-link">
                     <svg class="icon">
-                      <use href="#icon-book" />
+                      <use href="#icon-download" />
                     </svg>
-                    Documentation
+                    Releases
                   </a>
                 </div>
               </div>
@@ -388,6 +418,9 @@ const activeSection = ref('notifications')
 const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 
+// Version information
+const versionInfo = ref<any>(null)
+
 // Theme management - use global theme composable
 const { theme, setTheme } = useTheme()
 
@@ -452,10 +485,44 @@ async function loadAllSettings() {
     } catch (error) {
       console.error('Failed to load recording settings:', error)
     }
+    
+    // Load version information
+    await loadVersionInfo()
   } catch (error) {
     console.error('Failed to load settings:', error)
   } finally {
     isLoading.value = false
+  }
+}
+
+// Load version information
+async function loadVersionInfo() {
+  try {
+    const response = await fetch('/api/version', {
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      versionInfo.value = await response.json()
+    }
+  } catch (error) {
+    console.error('Failed to load version info:', error)
+  }
+}
+
+// Format build date
+function formatBuildDate(isoDate: string): string {
+  try {
+    const date = new Date(isoDate)
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return isoDate
   }
 }
 
@@ -1017,7 +1084,64 @@ onMounted(() => {
 .about-version {
   font-size: var(--text-sm);
   color: var(--text-tertiary);
-  margin: 0 0 var(--spacing-4) 0;
+  margin: 0 0 var(--spacing-2) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+.version-branch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: v.$font-medium;
+  background: var(--primary-color);
+  color: white;
+}
+
+.build-date {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin: 0 0 var(--spacing-3) 0;
+}
+
+.update-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: rgba(var(--success-color-rgb), 0.1);
+  border: 1px solid var(--success-color);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-3) 0;
+  
+  .update-icon {
+    font-size: var(--text-2xl);
+  }
+  
+  .update-text {
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+  }
+}
+
+.up-to-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  font-size: var(--text-sm);
+  color: var(--success-color);
+  margin: var(--spacing-3) 0;
+  
+  .check-icon {
+    font-size: var(--text-lg);
+  }
 }
 
 .about-description {
