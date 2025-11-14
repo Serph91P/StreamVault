@@ -154,6 +154,9 @@ const handleAction = () => {
   :deep(.glass-card-content) {
     padding: var(--spacing-5); // 20px
   }
+  
+  // Remove any border-top that might be inherited
+  border-top: none !important;
 }
 
 .status-card-content {

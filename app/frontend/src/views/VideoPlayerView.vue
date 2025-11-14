@@ -34,9 +34,9 @@
     <div v-else class="player-content">
       <!-- Header: Title + Streamer + Back Button -->
       <div class="player-header">
-        <button @click="goBack" class="btn btn-secondary btn-icon-text" v-ripple>
-          <svg class="icon">
-            <use href="#icon-arrow-left" />
+        <button @click="goBack" class="back-button" v-ripple>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           <span>Back</span>
         </button>

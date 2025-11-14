@@ -550,13 +550,15 @@ onUnmounted(() => {
   max-width: 400px;
   max-height: 800px;
   overflow-y: auto;
-  background-color: var(--background-darker, #18181b);
-  border-radius: var(--border-radius, 8px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  background: rgba(var(--background-card-rgb), 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   width: 100%;
-  border: 1px solid var(--border-color, #2f2f35);
 }
 
 @keyframes slideIn {
@@ -727,21 +729,23 @@ onUnmounted(() => {
 
 .notification-item {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color, #2f2f35);
+  margin: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb), 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: flex-start;
   animation: slideIn 0.3s ease;
-}
-
-.notification-item:last-child {
-  border-bottom: none;
+  transition: all var(--duration-200) var(--ease-out);
 }
 
 .notification-item:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--background-darker-rgb), 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
 
 .notification-indicator {
@@ -749,7 +753,8 @@ onUnmounted(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 2px;
+  opacity: 0.5;
 }
 
 .notification-indicator.online {

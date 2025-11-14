@@ -2,16 +2,13 @@
   <div class="background-queue-monitor">
     <!-- Queue Status Indicator -->
     <div class="queue-status-indicator" @click="togglePanel">
-      <div class="status-icon" :class="statusIconClass">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 2a6 6 0 100 12A6 6 0 008 2zM2 8a6 6 0 1112 0A6 6 0 012 8z"/>
-          <path d="M8 4a.5.5 0 01.5.5v3h3a.5.5 0 010 1h-3v3a.5.5 0 01-1 0v-3h-3a.5.5 0 010-1h3v-3A.5.5 0 018 4z"/>
-        </svg>
-      </div>
+      <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
       
       <div class="queue-info">
         <span class="queue-label">Jobs</span>
-  <span class="queue-count">{{ combinedActiveTasks.length }}</span>
+        <span class="queue-count">{{ combinedActiveTasks.length }}</span>
       </div>
       
       <!-- Progress Bar -->
@@ -320,12 +317,12 @@ const formatTime = (timestamp?: string) => {
 .queue-status-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--spacing-2);  /* 8px */
+  padding: var(--spacing-2) var(--spacing-3);  /* 8px 12px */
   background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--border-radius, 8px);
+  border-radius: var(--radius-full);  /* Circular like other header buttons */
   cursor: pointer;
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
+  transition: all var(--duration-200) var(--ease-out);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   height: 36px;
@@ -334,50 +331,35 @@ const formatTime = (timestamp?: string) => {
 
 .queue-status-indicator:hover {
   background: rgba(var(--primary-500-rgb), 0.1);
-  border-color: var(--primary-500);
-  color: var(--primary-color);
+  border-color: rgba(var(--primary-500-rgb), 0.3);
 }
 
-.status-icon {
+/* Plus Icon (replaces old status-icon) */
+.plus-icon {
   width: 16px;
   height: 16px;
-  transition: all 0.3s ease;
+  color: var(--text-primary);  /* Same white as bell/moon icons */
   flex-shrink: 0;
-}
-
-.status-icon.status-idle {
-  color: var(--text-secondary);
-}
-
-.status-icon.status-active {
-  color: var(--info-color);
-  animation: pulse 2s infinite;
-}
-
-.status-icon.status-error {
-  color: var(--danger-color);
 }
 
 .queue-info {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-1);  /* 4px - tighter gap */
   flex: 1;
 }
 
 .queue-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: var(--text-sm);  /* 14px - same as count */
+  color: var(--text-primary);  /* Same white as count */
+  font-weight: var(--font-medium);  /* 500 */
 }
 
 .queue-count {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: var(--text-sm);  /* 14px - same size as label */
+  font-weight: var(--font-bold);  /* 700 */
+  color: var(--text-primary);  /* White like bell/moon */
 }
 
 .progress-bar {
