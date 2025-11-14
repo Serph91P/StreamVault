@@ -67,7 +67,7 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   actionVariant: 'primary',
   variant: 'default',
-  showDecoration: true
+  showDecoration: false
 })
 
 const emit = defineEmits<{
