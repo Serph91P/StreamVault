@@ -39,7 +39,6 @@ class RecordingService:
         # Legacy state properties
         self.active_recordings = self.orchestrator.state_manager.active_recordings
         self.recording_tasks = self.orchestrator.state_manager.recording_tasks
-        self.max_concurrent_recordings = self.orchestrator.state_manager.max_concurrent_recordings
         # Hardcoded Docker path - always /recordings in container
         self.recordings_directory = "/recordings"
         
