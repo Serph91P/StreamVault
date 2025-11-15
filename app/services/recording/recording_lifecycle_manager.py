@@ -85,17 +85,6 @@ class RecordingLifecycleManager:
                 logger.warning("🎬 SHUTDOWN_BLOCK: Cannot start recording during shutdown")
                 return None
             
-            # Check capacity
-            if not self.state_manager.can_start_new_recording():
-                # Provide richer capacity info for diagnostics
-                try:
-                    active = self.state_manager.get_active_recording_count()
-                    limit = self.state_manager.max_concurrent_recordings
-                    logger.warning(f"🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity ({active}/{limit})")
-                except Exception:
-                    logger.warning("🎬 CAPACITY_BLOCK: Cannot start recording: at maximum capacity")
-                return None
-            
             # DUPLICATE PREVENTION: Check if streamer already has an active recording
             # Note: This check allows 24h segment logic to work because segments use stop_recording() + start_recording()
             # The old recording is removed from active_recordings before the new segment starts

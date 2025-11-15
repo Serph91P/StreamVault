@@ -24,11 +24,6 @@ class RecordingStateManager:
         # Active recordings tracking
         self.active_recordings: Dict[int, Dict[str, Any]] = {}
         self.recording_tasks: Dict[int, asyncio.Task] = {}
-        
-        # Configuration
-        self.max_concurrent_recordings = (
-            config_manager.get_max_concurrent_recordings() if config_manager else 3
-        )
 
     def add_active_recording(self, recording_id: int, recording_data: Dict[str, Any]) -> None:
         """Add recording to active tracking"""
@@ -63,14 +58,6 @@ class RecordingStateManager:
     def get_active_recording_count(self) -> int:
         """Get count of active recordings"""
         return len(self.active_recordings)
-
-    def is_at_max_capacity(self) -> bool:
-        """Check if at maximum concurrent recordings"""
-        return self.get_active_recording_count() >= self.max_concurrent_recordings
-
-    def can_start_new_recording(self) -> bool:
-        """Check if new recording can be started"""
-        return not self.is_at_max_capacity()
 
     # Task management
     
@@ -266,10 +253,7 @@ class RecordingStateManager:
         
         return {
             'active_recordings': active_count,
-            'active_tasks': task_count,
-            'max_concurrent': self.max_concurrent_recordings,
-            'capacity_used': f"{active_count}/{self.max_concurrent_recordings}",
-            'can_start_new': self.can_start_new_recording()
+            'active_tasks': task_count
         }
 
     def clear_all_state(self) -> None:
