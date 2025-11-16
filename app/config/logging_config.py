@@ -64,20 +64,34 @@ def setup_logging():
     app_logs_dir.mkdir(parents=True, exist_ok=True)
     
     # Daily rotating file handler instead of simple file handler
-    rotating_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=app_logs_dir / 'streamvault.log',
-        when='midnight',
-        interval=1,
-        backupCount=30,  # Keep 30 days of logs
-        encoding='utf-8',
-        utc=True
-    )
-    rotating_handler.setFormatter(formatter)
+    # CRITICAL: Convert Path to string - TimedRotatingFileHandler expects string!
+    log_file_path = str(app_logs_dir / 'streamvault.log')
     
-    # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
-    rotating_handler.suffix = '%Y-%m-%d'
-    
-    logger.addHandler(rotating_handler)
+    try:
+        rotating_handler = logging.handlers.TimedRotatingFileHandler(
+            filename=log_file_path,
+            when='midnight',
+            interval=1,
+            backupCount=30,  # Keep 30 days of logs
+            encoding='utf-8',
+            utc=True
+        )
+        rotating_handler.setFormatter(formatter)
+        
+        # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
+        rotating_handler.suffix = '%Y-%m-%d'
+        
+        logger.addHandler(rotating_handler)
+        
+        # Verify handler was added successfully
+        logger.info(f"📝 TimedRotatingFileHandler configured for: {log_file_path}")
+        
+    except Exception as e:
+        # If handler creation fails, log to console only
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        logger.error(f"❌ Failed to create TimedRotatingFileHandler for {log_file_path}: {e}")
+        logger.error("Logs will only be written to Docker stdout, not to file!")
 
     # Initialize the structured logging service
     try:
