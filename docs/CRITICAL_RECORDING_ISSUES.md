@@ -28,39 +28,33 @@
 
 **Problem:** Dhalucard streams in H.265/1440p but recordings are H.264/1080p
 
-**Expected:** Record streams in their native codec and resolution
-**Actual:** Downgraded to H.264/1080p
-
-**Investigation Needed:**
-1. Check streamlink command arguments in logs
-2. Verify `--twitch-supported-codecs h264,h265` is working
-3. Check if Twitch provides H.265 stream URLs
-4. Verify streamlink version supports H.265
-
-**Log Files:**
-- `logs/streamlink_20251115_100208.log` (Dhalucard recording)
-- `logs/streamlink_20251115_122547.log` (CohhCarnage recording)
-
-**Streamlink Command Used:**
-```bash
-streamlink twitch.tv/Dhalucard best -o <output_path> \
-  --hls-live-edge 99999 \
-  --stream-timeout 200 \
-  --stream-segment-timeout 200 \
-  --stream-segment-threads 5 \
-  --ffmpeg-fout mpegts \
-  --twitch-disable-ads \
-  --retry-streams 10 \
-  --retry-max 5 \
-  --loglevel debug \
-  --twitch-supported-codecs h264,h265
+**Root Cause Found (Log Analysis):**
+Streamlink log shows Twitch only offers limited qualities:
+```
+[2025-11-15 10:02:10][cli][info] Available streams: audio_only, 360p30 (worst), 480p30, 720p60, 1080p60 (best)
 ```
 
-**Possible Causes:**
-1. Twitch not offering H.265 streams to StreamVault's user agent
-2. Streamlink selecting 1080p60 instead of 1440p60
-3. `--twitch-supported-codecs` not functioning as expected
-4. Regional restrictions on H.265 streams
+**Issue:** Despite `--twitch-supported-codecs h264,h265` being set, Twitch API does NOT return:
+- 1440p quality option
+- H.265/HEVC codec streams
+
+**Why This Happens:**
+1. Twitch may require Turbo/subscriber access for higher qualities
+2. Geographic restrictions on H.265 streams
+3. Streamlink user agent not recognized as supporting H.265
+4. Twitch partners may have different stream availability
+
+**Possible Solutions:**
+1. Add Twitch OAuth authentication for authenticated requests
+2. Try different Streamlink user agent strings
+3. Check if Twitch even offers 1440p to third-party apps
+4. Investigate if Dhalucard actually streams 1440p (might be 1080p source)
+
+**Next Steps:**
+- Test with authenticated Twitch session
+- Check Twitch API documentation for quality tiers
+- Verify streamer's actual output resolution
+- Consider adding quality verification to UI
 
 ---
 
@@ -68,31 +62,49 @@ streamlink twitch.tv/Dhalucard best -o <output_path> \
 
 **Problem:** Not all logs are being written to `/app/logs/` directory
 
-**Expected Logs:**
-- `app/logs/streamvault.log` (general app log)
-- `app/logs/ffmpeg/<streamer>/` (FFmpeg operations)
-- `app/logs/streamlink/<streamer>/` (Streamlink recordings)
+**Current State (Docker Container `/app/logs/`):**
+```bash
+/app/logs/
+├── app/          # EMPTY - no logs written
+├── ffmpeg/       # Only CohhCarnage - missing Dhalucard, maxim
+│   └── cohhcarnage/
+└── streamlink/   # CORRECT - all streamers present
+    ├── cohhcarnage/
+    ├── dhalucard/
+    └── maxim/
+```
 
-**What's Missing:**
-- `app/` directory completely empty (no new writes)
-- `ffmpeg/` has only CohhCarnage (missing other streamers)
-- General FFmpeg log missing
-- `streamlink/` missing some streamer directories
-- General streamlink log missing
+**Root Cause Analysis:**
 
-**Files Found:**
-- `logs/streamvault.log` (10MB - working)
-- `logs/metadata_embed_20251115_181046_2025-11-15.log` (working)
-- `logs/metadata_embed_20251115_181753_2025-11-15.log` (working)
-- `logs/streamlink_20251115_100208.log` (working)
-- `logs/streamlink_20251115_122547.log` (working)
-- `logs/streamlink_20251115_124104.log` (working)
+1. **App Logs Empty:**
+   - `get_streamer_log_dir()` creates subdirectories for each streamer
+   - If directory creation fails, falls back to `base_dir` BUT doesn't create the file
+   - `log_recording_activity_to_file()` tries to write to non-existent paths
+   - Error logging indicates failure but doesn't prevent silent failures
 
-**Investigation Needed:**
-1. Check logging configuration in `app/config/`
-2. Verify directory permissions for `/app/logs/`
-3. Check if logger is initialized correctly
-4. Verify all recording operations use correct log paths
+2. **FFmpeg Logs Incomplete:**
+   - Only CohhCarnage has FFmpeg logs (metadata_embed operations)
+   - Dhalucard and maxim recordings don't trigger FFmpeg operations
+   - Possible causes:
+     * Segments not being merged yet
+     * Post-processing not triggered
+     * Different recording state for different streamers
+
+3. **Streamlink Logs Working:**
+   - All streamers have proper log directories
+   - Proves directory creation works for streamlink
+   - Shows recording is active for all streamers
+
+**Fix Applied:**
+- Changed `get_streamer_log_dir()` logging from `DEBUG` to `INFO` level
+- Added explicit warning when falling back to base directory
+- Better error visibility for directory creation failures
+
+**Still Needed:**
+- Verify why FFmpeg logs only created for one streamer
+- Check if app log writes are failing silently
+- Add directory creation validation at startup
+- Implement health check for log directory writability
 
 ---
 
