@@ -290,6 +290,13 @@ class StreamerRecordingSettings(Base):
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
     use_global_cleanup_policy = Column(Boolean, default=True)  # Use global cleanup policy or streamer-specific
     
+    # Per-streamer codec preferences (Migration 031)
+    # NULL = use global default from GlobalSettings.supported_codecs
+    # "h264" = force H.264 only (no OAuth required)
+    # "h265,h264" = prefer H.265, fallback to H.264 (requires OAuth for H.265)
+    # "av1,h265,h264" = prefer AV1, then H.265, then H.264 (requires OAuth)
+    supported_codecs = Column(String, nullable=True)
+    
     streamer = relationship("Streamer", back_populates="recording_settings")
 
 Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")

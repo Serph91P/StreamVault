@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     HTTP_PROXY: Optional[str] = None
     HTTPS_PROXY: Optional[str] = None
     
+    # Twitch OAuth token for authenticated API access (enables H.265/1440p streams)
+    # Get from: document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
+    TWITCH_OAUTH_TOKEN: Optional[str] = None
+    
     # Recording directory (Docker default: /recordings)
     RECORDING_DIRECTORY: str = "/recordings"
     

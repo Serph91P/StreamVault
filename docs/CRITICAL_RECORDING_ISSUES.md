@@ -24,7 +24,7 @@
 
 ---
 
-## 🔴 CRITICAL: H.265/1440p Streams Not Recording in Native Quality
+## 🔴 FIXED: H.265/1440p Streams Not Recording in Native Quality
 
 **Problem:** Dhalucard streams in H.265/1440p but recordings are H.264/1080p
 
@@ -39,22 +39,69 @@ Streamlink log shows Twitch only offers limited qualities:
 - H.265/HEVC codec streams
 
 **Why This Happens:**
-1. Twitch may require Turbo/subscriber access for higher qualities
-2. Geographic restrictions on H.265 streams
-3. Streamlink user agent not recognized as supporting H.265
-4. Twitch partners may have different stream availability
+According to [Twitch Documentation](https://help.twitch.tv/s/article/2k-streaming):
+> **You are not logged in**: Higher resolution playback is currently limited to logged-in viewers. Logged-out viewers can still watch content in 1080p.
 
-**Possible Solutions:**
-1. Add Twitch OAuth authentication for authenticated requests
-2. Try different Streamlink user agent strings
-3. Check if Twitch even offers 1440p to third-party apps
-4. Investigate if Dhalucard actually streams 1440p (might be 1080p source)
+Streamlink runs **unauthenticated by default** → Twitch treats it like a logged-out viewer → **1080p max**!
 
-**Next Steps:**
-- Test with authenticated Twitch session
-- Check Twitch API documentation for quality tiers
-- Verify streamer's actual output resolution
-- Consider adding quality verification to UI
+**Proof (From Twitch Web Player):**
+```
+Download Resolution: 2560x1440
+Codecs: hev1.1.2.L150.90 (H.265/HEVC)
+Protocol: HLS
+```
+
+Dhalucard **DOES** stream 1440p H.265, but only for authenticated users!
+
+**Fix (Commit: pending):**
+- Added `TWITCH_OAUTH_TOKEN` environment variable in `settings.py`
+- Modified `get_streamlink_command()` to accept `oauth_token` parameter
+- Added `--twitch-api-header "Authorization=OAuth <token>"` to streamlink command
+- Updated `process_manager.py` to pass OAuth token from settings
+- Created streamlink config file at `/app/config/streamlink/config.twitch`
+- Updated README with OAuth token setup guide
+
+**How to Enable:**
+1. Open Twitch.tv in browser and login
+2. Press F12 → Console
+3. Run: `document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]`
+4. Copy token and add to `.env`: `TWITCH_OAUTH_TOKEN=your_token_here`
+5. Restart container
+
+**Without OAuth**: Limited to 1080p60 H.264  
+**With OAuth**: Access to 1440p60 H.265/HEVC ✅
+
+**Documentation:** See `docs/TWITCH_OAUTH_H265_SETUP.md` for complete setup guide
+
+**Files Changed:**
+- `app/config/settings.py` - Added TWITCH_OAUTH_TOKEN
+- `app/utils/streamlink_utils.py` - Added --config parameter, per-streamer codec override
+- `app/services/recording/process_manager.py` - Per-streamer codec priority
+- `app/services/system/streamlink_config_service.py` - Auto-generate config from DB
+- `app/routes/settings.py` - Quality/codec endpoints, config regeneration trigger
+- `app/models.py` - Added StreamerRecordingSettings.supported_codecs
+- `app/schemas/recording.py` - Added supported_codecs to schema
+- `migrations/031_add_per_streamer_codecs.py` - Migration for per-streamer codecs
+- `docker/docker-compose.yml` - Added env var and config volume
+- `config/streamlink/.gitkeep` - Config directory README
+- `README.md` - OAuth setup instructions
+
+**How It Works:**
+1. **Global Config** (`/app/config/streamlink/config.twitch`):
+   - OAuth Token (from environment)
+   - Default Codecs (from GlobalSettings)
+   - Proxy Settings (from GlobalSettings)
+   - Static Options (timeouts, retries, etc.)
+
+2. **Per-Streamer Overrides** (CLI parameters):
+   - Quality (from StreamerRecordingSettings.quality)
+   - Codecs (from StreamerRecordingSettings.supported_codecs or global fallback)
+   - Proxy (from health check - best available)
+
+3. **Config Regeneration Triggers**:
+   - Application startup
+   - User changes proxy settings
+   - User changes global codec preferences
 
 ---
 
@@ -76,35 +123,37 @@ Streamlink log shows Twitch only offers limited qualities:
 
 **Root Cause Analysis:**
 
-1. **App Logs Empty:**
-   - `get_streamer_log_dir()` creates subdirectories for each streamer
-   - If directory creation fails, falls back to `base_dir` BUT doesn't create the file
-   - `log_recording_activity_to_file()` tries to write to non-existent paths
-   - Error logging indicates failure but doesn't prevent silent failures
+1. **App Logs Created at Midnight Rotation:**
+   - `TimedRotatingFileHandler` with `when='midnight'` doesn't create file until first rotation event
+   - Path object was passed to handler instead of string (compatibility issue)
+   - Fixed by converting to `str(app_logs_dir / 'streamvault.log')`
+   - Added try/except to catch handler creation errors and log them
 
-2. **FFmpeg Logs Incomplete:**
-   - Only CohhCarnage has FFmpeg logs (metadata_embed operations)
-   - Dhalucard and maxim recordings don't trigger FFmpeg operations
-   - Possible causes:
-     * Segments not being merged yet
-     * Post-processing not triggered
-     * Different recording state for different streamers
+2. **FFmpeg Output Cluttering App Logs:**
+   - `log_ffmpeg_output()` wrote full FFmpeg stdout/stderr to app logs via `ffmpeg_logger.info()`
+   - App logs became cluttered with FFmpeg progress bars and verbose output
+   - Fixed to only write summary to app logs (concise INFO/ERROR messages)
+   - Full FFmpeg output ONLY in per-streamer files: `/app/logs/ffmpeg/{streamer_name}/`
 
-3. **Streamlink Logs Working:**
+3. **FFmpeg Logs Only for Post-Processing:**
+   - FFmpeg logs created during metadata_embed, ts_to_mp4, thumbnail extraction
+   - NOT created during live recording (only Streamlink runs)
+   - Expected behavior - FFmpeg only used for post-processing operations
+
+4. **Streamlink Logs Working:**
    - All streamers have proper log directories
-   - Proves directory creation works for streamlink
+   - Proves directory creation works correctly
    - Shows recording is active for all streamers
 
-**Fix Applied:**
-- Changed `get_streamer_log_dir()` logging from `DEBUG` to `INFO` level
-- Added explicit warning when falling back to base directory
-- Better error visibility for directory creation failures
+**Fix Applied (Commit: pending):**
+- `app/config/logging_config.py`: Convert Path to string, add try/except for handler creation
+- `app/services/system/logging_service.py`: Separate FFmpeg output from app logs (DEBUG only)
+- FFmpeg stdout/stderr now ONLY written to per-streamer files
+- App logs get concise summary: `✅ operation completed for streamer - logs: /path/`
 
-**Still Needed:**
-- Verify why FFmpeg logs only created for one streamer
-- Check if app log writes are failing silently
-- Add directory creation validation at startup
-- Implement health check for log directory writability
+**Files Changed:**
+- `app/config/logging_config.py` - Fix TimedRotatingFileHandler path, add error handling
+- `app/services/system/logging_service.py` - Remove FFmpeg output from app logs
 
 ---
 

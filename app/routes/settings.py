@@ -302,7 +302,110 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             notification_service = NotificationService()
             notification_service._initialize_apprise()
             
+            # Regenerate Streamlink config if proxy or codec settings changed
+            try:
+                from app.services.system.streamlink_config_service import streamlink_config_service
+                
+                # Check if settings that affect Streamlink were changed
+                proxy_changed = (
+                    settings_update.http_proxy != settings.http_proxy or
+                    settings_update.https_proxy != settings.https_proxy
+                )
+                codec_changed = hasattr(settings_update, 'supported_codecs') and settings_update.supported_codecs != settings.supported_codecs
+                
+                if proxy_changed or codec_changed:
+                    logger.info("🔄 Proxy or codec settings changed - regenerating Streamlink config...")
+                    config_updated = streamlink_config_service.regenerate_config()
+                    
+                    if config_updated:
+                        logger.info("✅ Streamlink config updated with new settings")
+                    else:
+                        logger.warning("⚠️ Failed to update Streamlink config - recordings may use old settings")
+            except Exception as config_error:
+                logger.error(f"❌ Error regenerating Streamlink config: {config_error}")
+                # Don't fail the whole settings update if config regeneration fails
+            
             return GlobalSettingsSchema.model_validate(settings)
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/quality-options")
+async def get_quality_options():
+    """
+    Get available quality options based on OAuth token configuration.
+    
+    Returns quality options with enabled/disabled status based on whether
+    TWITCH_OAUTH_TOKEN is configured. 1440p requires OAuth authentication.
+    """
+    try:
+        from app.config.settings import settings
+        from app.services.system.streamlink_config_service import streamlink_config_service
+        
+        # Check if OAuth token is configured
+        has_oauth = bool(settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip())
+        
+        # Get quality options with availability info
+        qualities = streamlink_config_service.get_available_qualities(has_oauth)
+        
+        return {
+            "qualities": qualities,
+            "oauth_configured": has_oauth,
+            "message": "H.265/1440p available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access"
+        }
+    except Exception as e:
+        logger.error(f"Error getting quality options: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/codec-options")
+async def get_codec_options():
+    """
+    Get available codec options with OAuth authentication requirements.
+    
+    Returns codec options with enabled/disabled status based on OAuth token.
+    H.265/HEVC and AV1 require OAuth authentication on Twitch.
+    """
+    try:
+        from app.config.settings import settings
+        
+        # Check if OAuth token is configured
+        has_oauth = bool(settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip())
+        
+        codecs = [
+            {
+                "value": "av1,h265,h264",
+                "label": "All Codecs (AV1 > H.265 > H.264)",
+                "description": "Best quality - tries AV1 first, falls back to H.265, then H.264",
+                "enabled": has_oauth,
+                "requires_oauth": True,
+                "tooltip": "Requires OAuth authentication for AV1/H.265 access" if not has_oauth else "Highest quality available"
+            },
+            {
+                "value": "h265,h264",
+                "label": "H.265 + H.264",
+                "description": "Good quality - tries H.265/HEVC first, falls back to H.264",
+                "enabled": has_oauth,
+                "requires_oauth": True,
+                "tooltip": "Requires OAuth authentication for H.265 access" if not has_oauth else "Better quality than H.264 only"
+            },
+            {
+                "value": "h264",
+                "label": "H.264 Only (No Auth Required)",
+                "description": "Standard quality - works without OAuth token",
+                "enabled": True,
+                "requires_oauth": False,
+                "tooltip": "Available to all users (no authentication needed)"
+            }
+        ]
+        
+        return {
+            "codecs": codecs,
+            "oauth_configured": has_oauth,
+            "message": "H.265/AV1 codecs available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/AV1 codecs",
+            "note": "Codec availability depends on streamer's broadcast settings and Twitch's transcoding"
+        }
+    except Exception as e:
+        logger.error(f"Error getting codec options: {e}")
         raise HTTPException(status_code=500, detail=str(e))

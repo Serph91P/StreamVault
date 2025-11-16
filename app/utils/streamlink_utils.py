@@ -188,7 +188,8 @@ def get_streamlink_command(
     proxy_settings: Optional[Dict[str, str]] = None,
     force_mode: bool = False,
     log_path: Optional[str] = None,
-    supported_codecs: Optional[str] = None
+    supported_codecs: Optional[str] = None,
+    oauth_token: Optional[str] = None
 ) -> List[str]:
     """
     Generate a Streamlink command for recording a stream.
@@ -204,6 +205,7 @@ def get_streamlink_command(
         force_mode: Use more aggressive settings for difficult connections
         log_path: Custom path for streamlink logs (if None, will use default location)
         supported_codecs: Comma-separated list of codecs (e.g. "h264,h265") - Streamlink 8.0.0+
+        oauth_token: Twitch OAuth token for authenticated access (enables H.265/1440p)
         
     Returns:
         List of command arguments for streamlink
@@ -218,34 +220,38 @@ def get_streamlink_command(
     if not log_path:
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
-    # Core streamlink command with enhanced stability parameters
-    # Basierend auf den lsdvr-Einstellungen für maximale Stabilität und Ad-Blocking
+    # Core streamlink command
+    # Note: Most options are in /app/config/streamlink/config.twitch (auto-generated)
+    # We MUST specify --config to load our custom config location
     cmd = [
         "streamlink",
+        "--config", "/app/config/streamlink/config.twitch",
         f"twitch.tv/{streamer_name}",
         quality,
         "-o", ts_output_path,
-        "--hls-live-edge", "99999",
-        "--stream-timeout", "200",
-        "--stream-segment-timeout", "200",
-        "--stream-segment-threads", "5",
-        "--ffmpeg-fout", "mpegts",
-        "--twitch-disable-ads",  # Ad-Blocking immer aktiviert, unabhängig vom Proxy
-        "--retry-streams", "10",
-        "--retry-max", "5",
-        "--loglevel", "debug",
         "--logfile", log_path,
-        "--logformat", "[{asctime}][{name}][{levelname}] {message}",
-        "--logdateformat", "%Y-%m-%d %H:%M:%S",
     ]
     
-    # Add codec support (Streamlink 8.0.0+)
-    # Enables H.265/AV1 for higher quality streams (up to 1440p60)
+    # Note: These settings are now in config.twitch (auto-generated from settings):
+    # - --twitch-supported-codecs (codec preferences from database)
+    # - --twitch-disable-ads (ad blocking)
+    # - --twitch-api-header (OAuth token from environment)
+    # - --http-proxy / --https-proxy (proxy settings from database)
+    # - --hls-live-edge, --stream-timeout, etc. (stability settings)
+    # - --loglevel, --logformat (logging config)
+    
+    # Only add codec support if explicitly requested (overrides config.twitch)
     if supported_codecs and supported_codecs.strip():
         cmd.extend(["--twitch-supported-codecs", supported_codecs.strip()])
-        logger.debug(f"🎨 Using codec preference: {supported_codecs}")
+        logger.debug(f"🎨 Overriding codec preference: {supported_codecs}")
     
-    # Add proxy settings if provided
+    # Only add OAuth token if explicitly requested (overrides config.twitch)
+    # This allows per-recording OAuth control if needed
+    if oauth_token and oauth_token.strip():
+        cmd.extend(["--twitch-api-header", f"Authorization=OAuth {oauth_token.strip()}"])
+        logger.debug(f"🔑 Using per-recording OAuth token (overrides config)")
+    
+    # Add proxy settings if provided (overrides config.twitch)
     if proxy_settings:
         cmd = _add_proxy_settings(cmd, proxy_settings, force_mode)
     
