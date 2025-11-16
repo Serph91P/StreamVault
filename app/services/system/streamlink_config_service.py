@@ -22,12 +22,18 @@ class StreamlinkConfigService:
         self.config_dir = Path("/app/config/streamlink")
         self.twitch_config_path = self.config_dir / "config.twitch"
         
-        # Ensure config directory exists
-        try:
-            self.config_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure config directory exists (must be writable volume mount in Docker)
+        if not self.config_dir.exists():
+            try:
+                self.config_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"📁 Created streamlink config directory: {self.config_dir}")
+            except PermissionError:
+                logger.warning(f"⚠️ No permission to create {self.config_dir} - volume mount may be missing")
+                logger.warning("   Config generation will be skipped. Check docker-compose.yml volume mounts.")
+            except Exception as e:
+                logger.error(f"❌ Failed to create streamlink config directory: {e}")
+        else:
             logger.debug(f"📂 Streamlink config directory: {self.config_dir}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create streamlink config directory: {e}")
     
     def generate_twitch_config(
         self,
@@ -130,6 +136,12 @@ class StreamlinkConfigService:
             # Write config file
             config_content = "\n".join(config_lines)
             
+            # Skip if directory doesn't exist (permission issue during init)
+            if not self.config_dir.exists():
+                logger.warning("⚠️ Config directory doesn't exist - skipping config file write")
+                logger.warning("   Using command-line arguments only")
+                return False
+            
             with open(self.twitch_config_path, 'w', encoding='utf-8') as f:
                 f.write(config_content)
             
@@ -138,7 +150,11 @@ class StreamlinkConfigService:
             
             return True
             
-        except (OSError, PermissionError) as e:
+        except PermissionError as e:
+            logger.warning(f"⚠️ No permission to write {self.twitch_config_path}")
+            logger.warning("   Check docker-compose.yml volume mount (should NOT be :ro)")
+            return False
+        except (OSError, IOError) as e:
             logger.error(f"❌ Failed to write streamlink config: {e}")
             logger.error(f"   Config path: {self.twitch_config_path}")
             return False
