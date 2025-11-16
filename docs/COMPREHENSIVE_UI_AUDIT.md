@@ -20,6 +20,11 @@
 - [ ] **Stream ID visible to user** (why does user need this?)
 - [ ] **Select button far top right missing SVG icon**
 - [ ] **Filter button animation inconsistent** (smooth open, no animation on close)
+- [ ] **Chapter durations display incorrectly** (all show "1m" instead of actual duration)
+  - Expected: Chapter 1: 0:00:00-1:33:32, Chapter 2: 1:33:32-1:33:38, Chapter 3: 1:33:38-END
+  - Actual: All chapters show "1m" duration displayed sequentially
+  - Works: Next Chapter button jumps to correct timestamps
+  - Issue: Frontend duration calculation or API data parsing
 
 ### Header (Global)
 - [ ] **Jobs button "+" not aligned** with text "Jobs"
