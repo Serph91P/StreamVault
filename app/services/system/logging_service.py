@@ -124,10 +124,15 @@ class LoggingService:
         
         try:
             streamer_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"✅ Streamer directory ensured: {streamer_dir}")
+            logger.info(f"✅ Streamer directory created: {streamer_dir}")
             return streamer_dir
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create streamer directory {streamer_dir}: {e}")
+            # CRITICAL: Try to use base directory as fallback instead of failing silently
+            logger.warning(f"⚠️ Falling back to base directory: {base_dir}")
+            return base_dir
+        except Exception as e:
+            logger.error(f"❌ Unexpected error creating streamer directory {streamer_dir}: {e}")
             return base_dir
     
     def _test_write_permissions(self, log_dir: Path) -> bool:
