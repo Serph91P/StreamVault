@@ -71,9 +71,6 @@ class StreamlinkConfigService:
                 "# Codec preferences (enables H.265/AV1 for better quality)",
                 f"twitch-supported-codecs={supported_codecs}",
                 "",
-                "# Ad blocking (always enabled)",
-                "twitch-disable-ads=true",
-                "",
             ]
             
             # Add OAuth authentication if token is provided
