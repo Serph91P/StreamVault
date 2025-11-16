@@ -48,12 +48,14 @@ class RecordingLifecycleManager:
     SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.ts', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm']
     
     def __init__(self, config_manager=None, process_manager=None,
-                 database_service=None, websocket_service=None, state_manager=None):
+                 database_service=None, websocket_service=None, state_manager=None,
+                 recording_logger=None):
         self.config_manager = config_manager
         self.process_manager = process_manager
         self.database_service = database_service
         self.websocket_service = websocket_service
         self.state_manager = state_manager
+        self.recording_logger = recording_logger
 
         # Shutdown management
         self._shutdown_event = asyncio.Event()
@@ -125,6 +127,20 @@ class RecordingLifecycleManager:
             }
             self.state_manager.add_active_recording(recording_id, recording_data)
             
+            # Get streamer name for logging
+            streamer = await self.database_service.get_streamer_by_id(streamer_id)
+            streamer_name = streamer.name if streamer else f"streamer_{streamer_id}"
+            quality = kwargs.get('quality', 'best')
+            
+            # Log recording start to dedicated file
+            if hasattr(self, 'recording_logger'):
+                self.recording_logger.log_recording_start(
+                    streamer_id=streamer_id,
+                    streamer_name=streamer_name,
+                    quality=quality,
+                    output_path=file_path
+                )
+            
             # Start recording process
             success = await self._start_recording_process(recording_id, file_path, streamer_id)
             
@@ -164,6 +180,31 @@ class RecordingLifecycleManager:
             
             # Stop the recording process
             success = await self._stop_recording_process(recording_id)
+            
+            # Log recording stop to dedicated file
+            if hasattr(self, 'recording_logger'):
+                try:
+                    # Get recording info for logging
+                    recording = await self.database_service.get_recording_by_id(recording_id)
+                    if recording:
+                        streamer = await self.database_service.get_streamer_by_id(recording_data['streamer_id'])
+                        streamer_name = streamer.name if streamer else f"streamer_{recording_data['streamer_id']}"
+                        
+                        # Calculate duration if possible
+                        duration = 0
+                        if hasattr(recording, 'created_at') and recording.created_at:
+                            from datetime import datetime, timezone
+                            duration = int((datetime.now(timezone.utc) - recording.created_at).total_seconds())
+                        
+                        self.recording_logger.log_recording_stop(
+                            streamer_id=recording_data['streamer_id'],
+                            streamer_name=streamer_name,
+                            duration=duration,
+                            output_path=recording_data['file_path'],
+                            reason=reason
+                        )
+                except Exception as log_error:
+                    logger.debug(f"Could not log recording stop: {log_error}")
             
             # Update status regardless of process stop success
             await self.database_service.update_recording_status(
