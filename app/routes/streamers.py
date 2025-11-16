@@ -10,7 +10,7 @@ from app.dependencies import get_streamer_service, get_event_registry
 from app.database import SessionLocal, get_db
 from app.models import Stream, Streamer, NotificationSettings, StreamerRecordingSettings, StreamMetadata, StreamEvent, Recording, ActiveRecordingState
 from app.schemas.streams import StreamList, StreamResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import logging
 import asyncio
 import os

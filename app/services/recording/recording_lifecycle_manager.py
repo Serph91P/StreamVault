@@ -129,7 +129,7 @@ class RecordingLifecycleManager:
             
             # Get streamer name for logging
             streamer = await self.database_service.get_streamer_by_id(streamer_id)
-            streamer_name = streamer.name if streamer else f"streamer_{streamer_id}"
+            streamer_name = streamer.username if streamer else f"streamer_{streamer_id}"
             quality = kwargs.get('quality', 'best')
             
             # Log recording start to dedicated file
@@ -188,7 +188,7 @@ class RecordingLifecycleManager:
                     recording = await self.database_service.get_recording_by_id(recording_id)
                     if recording:
                         streamer = await self.database_service.get_streamer_by_id(recording_data['streamer_id'])
-                        streamer_name = streamer.name if streamer else f"streamer_{recording_data['streamer_id']}"
+                        streamer_name = streamer.username if streamer else f"streamer_{recording_data['streamer_id']}"
                         
                         # Calculate duration if possible
                         duration = 0
