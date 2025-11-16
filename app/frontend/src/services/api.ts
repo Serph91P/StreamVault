@@ -166,8 +166,8 @@ export const streamersApi = {
     apiClient.post(`/api/streamers/${username}`),
 
   // Delete a streamer
-  delete: (streamerId: number) => 
-    apiClient.delete(`/api/streamers/${streamerId}`),
+  delete: (streamerId: number, deleteRecordings: boolean = false) => 
+    apiClient.delete(`/api/streamers/${streamerId}?delete_recordings=${deleteRecordings}`),
 
   // Validate streamer username
   validate: (username: string) => 

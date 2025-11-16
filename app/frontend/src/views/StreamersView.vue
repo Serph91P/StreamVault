@@ -385,12 +385,32 @@ function handleWatch(streamer: any) {
 // Handle delete streamer action
 async function handleDelete(streamer: any) {
   const displayName = streamer.display_name || streamer.username || 'this streamer'
-  if (!confirm(`Delete ${displayName}? This will also delete all their recordings.`)) {
+  
+  // First confirmation: Delete streamer?
+  if (!confirm(`Delete streamer "${displayName}"?\n\nThis will remove the streamer from your database and unsubscribe from EventSub notifications.`)) {
     return
   }
 
+  // Second confirmation: Delete recordings too?
+  const deleteRecordings = confirm(
+    `Do you want to delete ALL recordings for "${displayName}" as well?\n\n` +
+    `⚠️ WARNING: This cannot be undone!\n\n` +
+    `• Click OK to DELETE all recording files\n` +
+    `• Click Cancel to KEEP recording files (only remove streamer from database)`
+  )
+
   try {
-    await streamersApi.delete(streamer.id)
+    // Call API with delete_recordings parameter
+    await streamersApi.delete(streamer.id, deleteRecordings)
+    
+    // Show success message with details
+    if (deleteRecordings) {
+      alert(`✅ Streamer "${displayName}" deleted successfully!\nAll recording files were removed.`)
+    } else {
+      alert(`✅ Streamer "${displayName}" deleted successfully!\nRecording files were kept on disk.`)
+    }
+    
+    // Remove from UI
     streamers.value = streamers.value.filter(s => s.id !== streamer.id)
   } catch (error) {
     console.error('Failed to delete streamer:', error)

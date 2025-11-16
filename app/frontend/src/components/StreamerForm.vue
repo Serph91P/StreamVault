@@ -190,9 +190,22 @@ const submitForm = async () => {
 }
 
 const confirmDelete = () => {
-  if (confirm(`Are you sure you want to delete ${formData.display_name || formData.username}? This will also remove all recording settings and stream history for this streamer.`)) {
-    emit('delete', formData.username)
+  const displayName = formData.display_name || formData.username
+  
+  // First confirmation: Delete streamer?
+  if (!confirm(`Delete streamer "${displayName}"?\n\nThis will remove the streamer from your database and unsubscribe from EventSub notifications.`)) {
+    return
   }
+
+  // Second confirmation: Delete recordings too?
+  const deleteRecordings = confirm(
+    `Do you want to delete ALL recordings for "${displayName}" as well?\n\n` +
+    `⚠️ WARNING: This cannot be undone!\n\n` +
+    `• Click OK to DELETE all recording files\n` +
+    `• Click Cancel to KEEP recording files (only remove streamer from database)`
+  )
+  
+  emit('delete', formData.username, deleteRecordings)
 }
 </script>
 

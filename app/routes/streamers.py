@@ -394,20 +394,66 @@ async def add_streamer(
 @router.delete("/{streamer_id}")
 async def delete_streamer(
     streamer_id: int,
+    delete_recordings: bool = False,
     streamer_service: StreamerService = Depends(get_streamer_service),
-    event_registry: EventHandlerRegistry = Depends(get_event_registry)
+    event_registry: EventHandlerRegistry = Depends(get_event_registry),
+    db: Session = Depends(get_db)
 ):
-    """Delete a streamer"""
+    """
+    Delete a streamer
+    
+    Args:
+        streamer_id: ID of the streamer to delete
+        delete_recordings: If True, also delete all recording files. If False, only delete database entries.
+    """
     try:
         # Get streamer info before deletion
-        db = SessionLocal()
-        try:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            if not streamer:
-                raise HTTPException(status_code=404, detail="Streamer not found")
-            twitch_id = streamer.twitch_id
-        finally:
-            db.close()
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        twitch_id = streamer.twitch_id
+        streamer_username = streamer.username
+        
+        # If user wants to delete recordings too, collect and delete files first
+        deleted_files_count = 0
+        if delete_recordings:
+            try:
+                # Get all streams for this streamer
+                streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
+                
+                files_to_delete = []
+                for stream in streams:
+                    if stream.recording_path:
+                        recording_path = Path(stream.recording_path)
+                        
+                        # Main recording file (.ts or .mp4)
+                        if recording_path.exists():
+                            files_to_delete.append(recording_path)
+                        
+                        # Companion files (.nfo, -thumb.jpg, etc.)
+                        if recording_path.exists():
+                            parent_dir = recording_path.parent
+                            stem = recording_path.stem
+                            
+                            # NFO metadata file
+                            nfo_path = parent_dir / f"{stem}.nfo"
+                            if nfo_path.exists():
+                                files_to_delete.append(nfo_path)
+                            
+                            # Thumbnail
+                            thumb_path = parent_dir / f"{stem}-thumb.jpg"
+                            if thumb_path.exists():
+                                files_to_delete.append(thumb_path)
+                
+                # Delete all collected files
+                deleted_files, deleted_count = await delete_files_async(files_to_delete)
+                deleted_files_count = deleted_count
+                logger.info(f"Deleted {deleted_count} recording files for streamer {streamer_username}")
+                
+            except Exception as e:
+                logger.error(f"Error deleting recording files for streamer {streamer_id}: {e}", exc_info=True)
+                # Continue with deletion even if file deletion fails
         
         # Delete EventSub subscriptions
         try:
@@ -420,13 +466,22 @@ async def delete_streamer(
         except Exception as e:
             logger.error(f"Error deleting subscriptions for streamer: {e}")
         
-        # Delete streamer from database
+        # Delete streamer from database (this cascades to streams, recordings, etc.)
         deleted = await streamer_service.delete_streamer(streamer_id)
         
         if not deleted:
             raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        # Build response message
+        message = f"Streamer '{streamer_username}' deleted successfully"
+        if delete_recordings and deleted_files_count > 0:
+            message += f" ({deleted_files_count} recording files deleted)"
+        elif delete_recordings:
+            message += " (no recording files found)"
+        else:
+            message += " (recording files kept)"
             
-        return {"success": True, "message": "Streamer deleted successfully"}
+        return {"success": True, "message": message, "deleted_files": deleted_files_count}
         
     except HTTPException:
         raise
