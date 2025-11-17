@@ -28,9 +28,10 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
 
 import httpx
+import aiohttp
 
 from app.config.constants import ASYNC_DELAYS
-
+from app.config.settings import settings
 from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
 from app.config.constants import TIMEOUTS
@@ -50,7 +51,8 @@ class ProxyHealthService:
         self._running = False
         self._lock = asyncio.Lock()
         
-        # Test endpoint - Twitch API (fast, reliable, no auth needed for connectivity test)
+        # Test endpoint - Twitch API streams endpoint (requires auth, most realistic test)
+        # This tests the actual endpoint used for recording, ensuring proxy works for Streamlink
         self.test_endpoint = "https://api.twitch.tv/helix/streams"
         
         logger.info("🔧 ProxyHealthService initialized")
@@ -225,7 +227,10 @@ class ProxyHealthService:
     
     async def _check_proxy_health(self, proxy_url: str) -> Dict[str, Any]:
         """
-        Check health of a single proxy by testing connectivity.
+        Check health of a single proxy by testing connectivity with Twitch API.
+        
+        Uses authenticated Twitch API request to test the actual endpoint used for recordings.
+        This ensures the proxy works for Streamlink, not just general web traffic.
         
         Args:
             proxy_url: Full proxy URL (http://user:pass@host:port)
@@ -238,60 +243,139 @@ class ProxyHealthService:
                 'error': str or None
             }
         """
-        timeout = httpx.Timeout(10.0, connect=5.0)  # 10s total, 5s connect
+        # Get Twitch access token first
+        try:
+            # Use app credentials to get access token (same as in recordings)
+            async with aiohttp.ClientSession() as token_session:
+                async with token_session.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    params={
+                        "client_id": settings.TWITCH_APP_ID,
+                        "client_secret": settings.TWITCH_APP_SECRET,
+                        "grant_type": "client_credentials"
+                    }
+                ) as token_response:
+                    if token_response.status != 200:
+                        logger.error(f"Failed to get Twitch access token for proxy health check: {token_response.status}")
+                        return {
+                            'status': 'failed',
+                            'response_time_ms': None,
+                            'error': 'Failed to get Twitch access token'
+                        }
+                    
+                    token_data = await token_response.json()
+                    access_token = token_data.get("access_token")
+                    
+                    if not access_token:
+                        return {
+                            'status': 'failed',
+                            'response_time_ms': None,
+                            'error': 'No access token received'
+                        }
+        
+        except Exception as e:
+            logger.error(f"Error getting access token for proxy check: {e}")
+            return {
+                'status': 'failed',
+                'response_time_ms': None,
+                'error': f'Token error: {str(e)[:50]}'
+            }
+        
+        # Now test the proxy with authenticated Twitch API request
+        timeout = aiohttp.ClientTimeout(total=10.0, connect=5.0)
         
         try:
             start_time = asyncio.get_event_loop().time()
             
-            async with httpx.AsyncClient(
-                proxies={
-                    'http://': proxy_url,
-                    'https://': proxy_url,
-                },
-                timeout=timeout,
-                follow_redirects=True
+            # Create proxy connector for aiohttp
+            connector = aiohttp.TCPConnector()
+            
+            async with aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout
             ) as client:
-                # Test with Twitch API endpoint
-                response = await client.get(self.test_endpoint)
-                
-                end_time = asyncio.get_event_loop().time()
-                response_time_ms = int((end_time - start_time) * 1000)
-                
-                # Categorize status based on HTTP status code
-                if response.status_code == 200:
-                    return {
-                        'status': 'healthy',
-                        'response_time_ms': response_time_ms,
-                        'error': None
-                    }
-                elif 400 <= response.status_code < 500:
-                    # 4xx = proxy works but request invalid (degraded)
-                    return {
-                        'status': 'degraded',
-                        'response_time_ms': response_time_ms,
-                        'error': f'HTTP {response.status_code}'
-                    }
-                else:
-                    # 5xx = proxy or upstream error (failed)
-                    return {
-                        'status': 'failed',
-                        'response_time_ms': response_time_ms,
-                        'error': f'HTTP {response.status_code}'
-                    }
+                # Test with Twitch API streams endpoint (authenticated)
+                async with client.get(
+                    self.test_endpoint,
+                    headers={
+                        "Client-ID": settings.TWITCH_APP_ID,
+                        "Authorization": f"Bearer {access_token}"
+                    },
+                    proxy=proxy_url,  # Use proxy for this request
+                    allow_redirects=True
+                ) as response:
+                    end_time = asyncio.get_event_loop().time()
+                    response_time_ms = int((end_time - start_time) * 1000)
+                    
+                    # Categorize status based on HTTP status code and response time
+                    if response.status == 200:
+                        # Healthy if fast response
+                        if response_time_ms < 2000:  # < 2s
+                            return {
+                                'status': 'healthy',
+                                'response_time_ms': response_time_ms,
+                                'error': None
+                            }
+                        else:
+                            # Slow but working
+                            return {
+                                'status': 'degraded',
+                                'response_time_ms': response_time_ms,
+                                'error': f'Slow response ({response_time_ms}ms)'
+                            }
+                    elif response.status in (301, 302, 303, 307, 308):
+                        # Redirects are OK (proxy works)
+                        return {
+                            'status': 'healthy',
+                            'response_time_ms': response_time_ms,
+                            'error': None
+                        }
+                    elif 400 <= response.status < 500:
+                        # 4xx = proxy works but might have auth issues
+                        # Check if it's specifically auth (401/403) which might be token issue
+                        if response.status in (401, 403):
+                            error_text = await response.text()
+                            logger.warning(f"Proxy health check got {response.status}: {error_text[:100]}")
+                            return {
+                                'status': 'degraded',
+                                'response_time_ms': response_time_ms,
+                                'error': f'Auth issue (HTTP {response.status})'
+                            }
+                        else:
+                            return {
+                                'status': 'degraded',
+                                'response_time_ms': response_time_ms,
+                                'error': f'HTTP {response.status}'
+                            }
+                    else:
+                        # 5xx = proxy or upstream error (failed)
+                        return {
+                            'status': 'failed',
+                            'response_time_ms': response_time_ms,
+                            'error': f'HTTP {response.status}'
+                        }
         
-        except httpx.TimeoutException:
+        except asyncio.TimeoutError:
             return {
                 'status': 'failed',
                 'response_time_ms': None,
                 'error': 'Timeout after 10 seconds'
             }
         
-        except httpx.ProxyError as e:
-            logger.error(f"Proxy error during proxy health check: {e}", exc_info=True)
+        except aiohttp.ClientProxyConnectionError as e:
+            logger.error(f"Proxy connection error during health check: {e}")
             return {
                 'status': 'failed',
                 'response_time_ms': None,
-                'error': 'A proxy error occurred while checking proxy health.'
+                'error': f'Proxy connection failed: {str(e)[:100]}'
+            }
+        
+        except aiohttp.ClientError as e:
+            logger.error(f"Client error during proxy health check: {e}")
+            return {
+                'status': 'failed',
+                'response_time_ms': None,
+                'error': f'Connection error: {str(e)[:100]}'
             }
         
         except Exception as e:
@@ -299,7 +383,7 @@ class ProxyHealthService:
             return {
                 'status': 'failed',
                 'response_time_ms': None,
-                'error': 'An unexpected error occurred while checking proxy health.'
+                'error': f'Unexpected error: {str(e)[:100]}'
             }
     
     async def check_proxy_health_manual(self, proxy_id: int) -> Dict[str, Any]:
