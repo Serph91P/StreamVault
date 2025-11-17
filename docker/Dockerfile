@@ -124,10 +124,12 @@ RUN mkdir -p \
     /recordings \
     /app/logs/streamlink \
     /app/logs/ffmpeg \
-    /app/logs/app && \
+    /app/logs/app \
+    /app/config/streamlink && \
     chown -R appuser:appuser /app /recordings && \
     chmod 775 /recordings && \
-    chmod -R 775 /app/logs
+    chmod -R 775 /app/logs && \
+    chmod -R 775 /app/config
 
 # Switch to non-root user for security
 USER appuser

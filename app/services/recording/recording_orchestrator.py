@@ -102,7 +102,8 @@ class RecordingOrchestrator:
             process_manager=self.process_manager,
             database_service=self.database_service,
             websocket_service=self.websocket_service,
-            state_manager=self.state_manager
+            state_manager=self.state_manager,
+            recording_logger=self.recording_logger
         )
         
         # Initialize logging service

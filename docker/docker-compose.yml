@@ -32,7 +32,8 @@ services:
     volumes:
       - app_data:/app/data
       - ./recordings:/recordings
-      - ./logs:/app/logs
+      - app_logs:/app/logs
+      - ./config/streamlink:/app/config/streamlink
     
     ports:
       - "7000:7000"    
@@ -48,6 +49,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - TZ=${TZ:-Europe/Berlin}
       - ENVIRONMENT=production
+      - TWITCH_OAUTH_TOKEN=${TWITCH_OAUTH_TOKEN:-}
     
     restart: unless-stopped
     
@@ -100,6 +102,7 @@ services:
 volumes:
   db_data:
   app_data:
+  app_logs:
 
 networks:
   streamvault_network:

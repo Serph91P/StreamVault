@@ -573,6 +573,36 @@ class EventHandlerRegistry:
                         "status": "failed",
                         "error": f"Status code: {response.status}"
                     }
+    
+    async def unsubscribe_from_events(self, twitch_id: str):
+        """Unsubscribe from all EventSub events for a specific streamer"""
+        try:
+            # Get all subscriptions
+            subscriptions = await self.list_subscriptions()
+            
+            if not subscriptions or 'data' not in subscriptions:
+                logger.warning(f"No subscriptions found to unsubscribe from for twitch_id: {twitch_id}")
+                return
+            
+            # Find and delete subscriptions for this broadcaster
+            deleted_count = 0
+            for sub in subscriptions['data']:
+                if sub.get('condition', {}).get('broadcaster_user_id') == twitch_id:
+                    try:
+                        await self.delete_subscription(sub['id'])
+                        deleted_count += 1
+                        logger.info(f"Deleted subscription {sub['id']} ({sub.get('type')}) for {twitch_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete subscription {sub['id']}: {e}")
+            
+            if deleted_count > 0:
+                logger.info(f"Unsubscribed from {deleted_count} events for twitch_id: {twitch_id}")
+            else:
+                logger.warning(f"No subscriptions found for twitch_id: {twitch_id}")
+                
+        except Exception as e:
+            logger.error(f"Error unsubscribing from events for {twitch_id}: {e}", exc_info=True)
+            raise
                     
     async def delete_all_subscriptions(self):
         subs = await self.list_subscriptions()

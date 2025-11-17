@@ -46,6 +46,7 @@ class StreamerRecordingSettingsSchema(BaseModel):
     max_streams: Optional[int] = None
     cleanup_policy: Optional[CleanupPolicySchema] = None
     use_global_cleanup_policy: bool = True  # Use global cleanup policy or streamer-specific
+    supported_codecs: Optional[str] = None  # Per-streamer codec preference (NULL = use global)
 
     class Config:
         from_attributes = True

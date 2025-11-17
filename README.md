@@ -81,6 +81,7 @@ Edit `.env`:
 ```env
 TWITCH_APP_ID=your_twitch_client_id
 TWITCH_APP_SECRET=your_twitch_client_secret
+TWITCH_OAUTH_TOKEN=                     # Optional: Enables H.265/1440p (see below)
 BASE_URL=https://your-domain.com        # Public URL (HTTPS!)
 EVENTSUB_SECRET=choose_random_string    # Used to verify EventSub payloads
 POSTGRES_USER=streamvault
@@ -89,6 +90,28 @@ POSTGRES_DB=streamvault
 ```
 
 Optionally add proxy variables (HTTP_PROXY / HTTPS_PROXY) or adjust time zone (TZ). VAPID keys for push are auto‑generated if not provided.
+
+#### Enable H.265/1440p Streams (Optional)
+
+Twitch restricts higher quality streams (1440p, H.265/HEVC) to **authenticated users only**. Without authentication, StreamVault is limited to 1080p H.264.
+
+To enable H.265/1440p:
+
+1. **Open Twitch.tv** in your browser and login
+2. **Press F12** to open Developer Tools
+3. **Go to Console tab**
+4. **Run this command**:
+   ```javascript
+   document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
+   ```
+5. **Copy the 30-character token** (without quotes)
+6. **Add to `.env`**:
+   ```env
+   TWITCH_OAUTH_TOKEN=abcdefghijklmnopqrstuvwxyz0123
+   ```
+
+**Without OAuth token**: Limited to 1080p60 H.264  
+**With OAuth token**: Access to 1440p60 H.265/HEVC (better quality, smaller files)
 
 ### 3. Create Twitch Application
 
@@ -286,6 +309,7 @@ Recommended (run manually as needed): flake8, black, isort, mypy, bandit, safety
 |----------|-------------|---------|----------|
 | `TWITCH_APP_ID` | Twitch application client ID | - | Yes |
 | `TWITCH_APP_SECRET` | Twitch application client secret | - | Yes |
+| `TWITCH_OAUTH_TOKEN` | Twitch auth token for H.265/1440p (see setup guide) | - | No (1080p only) |
 | `BASE_URL` | Application base URL (must be HTTPS with valid certificate) | - | Yes |
 | `EVENTSUB_SECRET` | Secret for Twitch EventSub webhook validation | (Random if omitted) | No |
 | `POSTGRES_USER` | PostgreSQL username | `streamvault` | Yes |

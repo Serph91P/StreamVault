@@ -124,10 +124,15 @@ class LoggingService:
         
         try:
             streamer_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"✅ Streamer directory ensured: {streamer_dir}")
+            logger.info(f"✅ Streamer directory created: {streamer_dir}")
             return streamer_dir
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create streamer directory {streamer_dir}: {e}")
+            # CRITICAL: Try to use base directory as fallback instead of failing silently
+            logger.warning(f"⚠️ Falling back to base directory: {base_dir}")
+            return base_dir
+        except Exception as e:
+            logger.error(f"❌ Unexpected error creating streamer directory {streamer_dir}: {e}")
             return base_dir
     
     def _test_write_permissions(self, log_dir: Path) -> bool:
@@ -422,10 +427,14 @@ class LoggingService:
         return log_path
     
     def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, streamer_name: str):
-        """Log FFmpeg process output with mandatory streamer name"""
+        """Log FFmpeg process output to per-streamer files only (not app logs)
+        
+        FFmpeg stdout/stderr is written ONLY to /app/logs/ffmpeg/{streamer_name}/
+        App logs only get a summary at DEBUG level to avoid cluttering main logs.
+        """
         prefix = f"[{operation}_{streamer_name}]"
         
-        # Also write to per-streamer log file
+        # Write to per-streamer log file (PRIMARY destination for FFmpeg output)
         log_path = self.get_ffmpeg_log_path(operation, streamer_name)
         
         try:
@@ -435,15 +444,24 @@ class LoggingService:
                 if stdout:
                     stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
                     f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n")
-                    self.ffmpeg_logger.info(f"{prefix} STDOUT:\n{stdout_text}")
+                    # Only log summary to app logs at DEBUG level
+                    self.ffmpeg_logger.debug(f"{prefix} STDOUT written to {log_path} ({len(stdout_text)} chars)")
                 
                 if stderr:
                     stderr_text = stderr.decode("utf-8", errors="ignore") if isinstance(stderr, bytes) else stderr
                     f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n")
+                    # Only log summary to app logs at DEBUG level (or ERROR if failed)
                     if exit_code == 0:
-                        self.ffmpeg_logger.info(f"{prefix} STDERR:\n{stderr_text}")
+                        self.ffmpeg_logger.debug(f"{prefix} STDERR written to {log_path} ({len(stderr_text)} chars)")
                     else:
-                        self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
+                        self.ffmpeg_logger.error(f"{prefix} Failed with exit code {exit_code} - see {log_path}")
+                        
+            # Log success summary to app logs (INFO level, concise)
+            if exit_code == 0:
+                logger.info(f"✅ {operation} completed for {streamer_name} - logs: {log_path}")
+            else:
+                logger.error(f"❌ {operation} failed for {streamer_name} (exit {exit_code}) - logs: {log_path}")
+                
         except (OSError, PermissionError) as e:
             logger.error(f"Could not write to per-streamer log file {log_path}: {e}")
             # Force re-test permissions on failure for more accurate diagnostics
@@ -452,18 +470,6 @@ class LoggingService:
                 logger.error(f"❌ Confirmed: No write permissions for {log_dir}")
         except Exception as e:
             logger.error(f"Unexpected error writing to per-streamer log file {log_path}: {e}")
-            
-        # Still log to main system log
-        if stdout:
-            stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
-            self.ffmpeg_logger.info(f"{prefix} STDOUT:\n{stdout_text}")
-        
-        if stderr:
-            stderr_text = stderr.decode("utf-8", errors="ignore") if isinstance(stderr, bytes) else stderr
-            if exit_code == 0:
-                self.ffmpeg_logger.info(f"{prefix} STDERR:\n{stderr_text}")
-            else:
-                self.ffmpeg_logger.error(f"{prefix} STDERR (exit {exit_code}):\n{stderr_text}")
     
     def cleanup_old_logs(self):
         """Clean up old log files based on retention settings.

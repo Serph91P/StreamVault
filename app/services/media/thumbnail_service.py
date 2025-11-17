@@ -289,7 +289,7 @@ class ThumbnailService:
                             # Use the logging service to create per-streamer logs
                             from app.services.system.logging_service import logging_service
                             if logging_service:
-                                streamer_log_path = logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer.name)
+                                streamer_log_path = logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer.username)
                                 logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
                             
                             process = await asyncio.create_subprocess_exec(
@@ -302,7 +302,7 @@ class ThumbnailService:
                             
                             # Log the FFmpeg output using the logging service
                             if logging_service:
-                                logging_service.log_ffmpeg_output("thumbnail_extract", stdout, stderr, process.returncode, streamer.name)
+                                logging_service.log_ffmpeg_output("thumbnail_extract", stdout, stderr, process.returncode, streamer.username)
                             
                             if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
                                 # Aktualisiere Metadaten

@@ -216,13 +216,25 @@ class ProcessManager:
                     proxy_settings = None
             
             # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
+            # Priority: Streamer-specific > Global default
             supported_codecs = None
-            from app.models import GlobalSettings
+            from app.models import GlobalSettings, StreamerRecordingSettings
             with SessionLocal() as db:
-                global_settings = db.query(GlobalSettings).first()
-                if global_settings and hasattr(global_settings, 'supported_codecs'):
-                    supported_codecs = global_settings.supported_codecs
-                    logger.debug(f"🎨 Using codec preference from database: {supported_codecs}")
+                # Try to get per-streamer codec preference first
+                streamer_settings = db.query(StreamerRecordingSettings).filter(
+                    StreamerRecordingSettings.streamer_id == stream.streamer_id
+                ).first()
+                
+                if streamer_settings and streamer_settings.supported_codecs:
+                    # Per-streamer override
+                    supported_codecs = streamer_settings.supported_codecs
+                    logger.info(f"🎨 Using per-streamer codec preference for {streamer_name}: {supported_codecs}")
+                else:
+                    # Fallback to global default
+                    global_settings = db.query(GlobalSettings).first()
+                    if global_settings and hasattr(global_settings, 'supported_codecs'):
+                        supported_codecs = global_settings.supported_codecs
+                        logger.debug(f"🎨 Using global codec preference: {supported_codecs}")
             
             # NOTE: Proxy connectivity is now handled by ProxyHealthService
             # The health check system continuously monitors proxy status and only
@@ -231,12 +243,14 @@ class ProcessManager:
             logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
             
             # Generate streamlink command for this segment
+            # Note: Global settings (OAuth, default proxy/codecs) are in config.twitch
+            # CLI parameters here override config for per-streamer customization
             cmd = get_streamlink_command(
                 streamer_name=streamer_name,
                 quality=quality,
                 output_path=segment_path,
-                proxy_settings=proxy_settings,
-                supported_codecs=supported_codecs
+                proxy_settings=proxy_settings,  # Per-recording proxy override (from health check)
+                supported_codecs=supported_codecs  # Per-streamer codec preference (overrides global)
             )
             
             logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")

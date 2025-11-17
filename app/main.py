@@ -92,6 +92,20 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Image migration failed: {e}")
             logger.warning("⚠️ Continuing startup without image migration")
         
+        # Generate Streamlink configuration from settings
+        logger.info("🔧 Generating Streamlink configuration...")
+        from app.services.system.streamlink_config_service import streamlink_config_service
+        
+        try:
+            config_success = streamlink_config_service.update_config_from_settings()
+            if config_success:
+                logger.info("✅ Streamlink configuration generated successfully")
+            else:
+                logger.warning("⚠️ Failed to generate Streamlink config - using command-line args only")
+        except Exception as e:
+            logger.error(f"❌ Streamlink config generation failed: {e}")
+            logger.warning("⚠️ Continuing without config file - using command-line args")
+        
         # Image refresh check for missing images
         logger.info("🔄 Checking for missing images...")
         from app.services.images.image_refresh_service import image_refresh_service

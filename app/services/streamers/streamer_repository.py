@@ -247,7 +247,12 @@ class StreamerRepository:
             except Exception as e:
                 logger.warning(f"Could not delete recording settings: {e}")
             
-            # Delete the streamer (cascade will handle other related records)
+            # Delete streams (CASCADE should handle related records like stream_events, recordings, etc.)
+            # But we do it manually to avoid relying on database-level CASCADE that might not be set up
+            from app.models import Stream
+            self.db.query(Stream).filter(Stream.streamer_id == streamer_id).delete()
+            
+            # Delete the streamer
             self.db.delete(streamer)
             self.db.commit()
             

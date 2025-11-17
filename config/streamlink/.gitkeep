@@ -1,0 +1,18 @@
+# Streamlink Configuration Directory
+
+This directory contains auto-generated Streamlink configuration files.
+
+**DO NOT edit files here manually** - they are regenerated on application startup from settings.
+
+## Auto-Generated Files
+
+- `config.twitch` - Twitch plugin configuration (OAuth, codecs, proxy, etc.)
+
+## Configuration Source
+
+All settings come from:
+- Environment variables (`.env` or docker-compose.yml)
+- Database settings (GlobalSettings table)
+- Application defaults
+
+See `app/services/system/streamlink_config_service.py` for generation logic.
