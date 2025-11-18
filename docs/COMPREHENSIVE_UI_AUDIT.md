@@ -1,7 +1,7 @@
 # Comprehensive UI Issues - Desktop Audit (November 14, 2025)
 **Updated:** November 18, 2025 - Major Cleanup Session
 
-## ✅ COMPLETION STATUS: 58/74 Issues Resolved (78%)
+## ✅ COMPLETION STATUS: 60/74 Issues Resolved (81%)
 
 ### 🎉 Major Achievements
 - ✅ All critical blocking issues fixed (Session 10)
@@ -116,7 +116,7 @@
 - [ ] **Save button at top of card** instead of bottom (UX issue - read before save)
 
 ### SettingsView - Favorite Games
-- [ ] **Title missing SVG icon**
+- [x] **Title missing SVG icon** ✅ FIXED - Star icon now present
 - ✅ Otherwise looks good
 
 ### SettingsView - Appearance
@@ -135,7 +135,7 @@
 - [x] **Question: Is this tab needed?** ✅ ANSWERED - NO, removed
 
 ### SettingsView - PWA
-- [ ] **Missing SVG icons**
+- [x] **Missing SVG icons** ✅ FIXED - Smartphone icon now present in header
 - ✅ Otherwise generally good
 
 ### SettingsView - About
