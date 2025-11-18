@@ -1,7 +1,7 @@
 # Comprehensive UI Issues - Desktop Audit (November 14, 2025)
 **Updated:** November 18, 2025 - Major Cleanup Session
 
-## ✅ COMPLETION STATUS: 57/74 Issues Resolved (77%)
+## ✅ COMPLETION STATUS: 58/74 Issues Resolved (78%)
 
 ### 🎉 Major Achievements
 - ✅ All critical blocking issues fixed (Session 10)
@@ -52,11 +52,10 @@
 - [x] **Stream ID visible to user** ✅ FIXED - No longer visible
 - [ ] **Select button far top right missing SVG icon**
 - [ ] **Filter button animation inconsistent** (smooth open, no animation on close)
-- [ ] **Chapter durations display incorrectly** (all show "1m" instead of actual duration)
+- [x] **Chapter durations display incorrectly** ✅ FIXED - Duration calculated from next chapter start time
   - Expected: Chapter 1: 0:00:00-1:33:32, Chapter 2: 1:33:32-1:33:38, Chapter 3: 1:33:38-END
-  - Actual: All chapters show "1m" duration displayed sequentially
-  - Works: Next Chapter button jumps to correct timestamps
-  - Issue: Frontend duration calculation or API data parsing
+  - Fixed: Duration = next.startTime - current.startTime (last chapter uses video duration)
+  - Files: app/frontend/src/components/VideoPlayer.vue (convertApiChaptersToInternal)
 
 ### Header (Global)
 ⚠️ **NOTE:** Header component integrated in App.vue
