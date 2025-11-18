@@ -699,10 +699,12 @@ const formatTime = (timestamp?: string) => {
   }
   
   .queue-panel {
-    width: 95vw;
+    width: calc(100vw - var(--spacing-4));  /* FIXED: Full width minus padding */
     max-width: 400px;
-    right: 50%;
-    transform: translateX(50%);
+    left: var(--spacing-2);  /* FIXED: Align to left with padding */
+    right: var(--spacing-2);  /* FIXED: Align to right with padding */
+    transform: none;  /* FIXED: Remove centering transform */
+    margin: 0 auto;  /* FIXED: Center with auto margins */
   }
   
   .stats-section {
