@@ -179,7 +179,8 @@ class ProxyHealthService:
                             proxy.consecutive_failures += 1
                             logger.warning(
                                 f"⚠️ Proxy health check failed: {proxy.masked_url} - "
-                                f"Failures: {proxy.consecutive_failures}/{await self._get_max_failures()}"
+                                f"Failures: {proxy.consecutive_failures}/{await self._get_max_failures()} - "
+                                f"Error: {health_result.get('error', 'Unknown')}"
                             )
                         else:
                             # Reset counter on success
@@ -423,14 +424,18 @@ class ProxyHealthService:
             # Broadcast status update
             await self._broadcast_proxy_status(proxy, auto_disabled=False)
             
-            logger.info(f"🔧 Manual health check: {proxy.masked_url} - {health_result['status']}")
+            logger.info(
+                f"🔧 Manual health check: {proxy.masked_url} - {health_result['status']}" +
+                (f" - Error: {health_result.get('error')}" if health_result.get('error') else "")
+            )
             
             return {
                 'proxy_id': proxy.id,
                 'health_status': proxy.health_status,
                 'response_time_ms': proxy.average_response_time_ms,
                 'consecutive_failures': proxy.consecutive_failures,
-                'enabled': proxy.enabled
+                'enabled': proxy.enabled,
+                'error': health_result.get('error')  # Include error in response
             }
     
     async def get_best_proxy(self) -> Optional[str]:
