@@ -206,10 +206,12 @@ async def unified_recovery_scan():
         
         # Enqueue recovery task instead of running synchronously
         # This prevents blocking the frontend during FFmpeg concatenation
+        from app.services.background_queue_service import TaskPriority
         task_id = await queue_service.enqueue_task(
             task_type="unified_recovery",
-            task_data={"max_age_hours": 72, "dry_run": False},
-            priority=5  # Low priority - not urgent
+            payload={"max_age_hours": 72, "dry_run": False},
+            priority=TaskPriority.LOW,
+            max_retries=1
         )
         
         if task_id:
