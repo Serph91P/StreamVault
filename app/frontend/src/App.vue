@@ -449,6 +449,7 @@ import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
+import { notificationApi } from '@/services/api'
 
 // Initialize theme
 const { initializeTheme } = useTheme()

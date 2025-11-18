@@ -200,7 +200,9 @@ async function fetchCallbackUrl() {
   try {
     const response = await authApi.getCallbackUrl()
     const data = response.data
-    callbackUrl.value = data.url
+    if (data && data.url) {
+      callbackUrl.value = data.url
+    }
   } catch (err) {
     console.error('Failed to fetch callback URL:', err)
     // We don't set an error as this is not critical
