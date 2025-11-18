@@ -1,7 +1,7 @@
 # Comprehensive UI Issues - Desktop Audit (November 14, 2025)
 **Updated:** November 18, 2025 - Major Cleanup Session
 
-## ✅ COMPLETION STATUS: 60/74 Issues Resolved (81%)
+## ✅ COMPLETION STATUS: 66/74 Issues Resolved (89%)
 
 ### 🎉 Major Achievements
 - ✅ All critical blocking issues fixed (Session 10)
@@ -50,7 +50,10 @@
 - [x] **Time display confusing** ✅ FIXED - No duplicate time displays
 - [x] **Unnecessary card below video** ✅ FIXED - Card removed, cleaner layout
 - [x] **Stream ID visible to user** ✅ FIXED - No longer visible
-- [ ] **Select button far top right missing SVG icon**
+- [x] **Select button far top right missing SVG icon** ✅ FIXED - Session 11
+  - icon-check-square SVG added to sprite
+  - Icon now visible in VideosView.vue
+  - Files: App.vue (SVG sprite)
 - [ ] **Filter button animation inconsistent** (smooth open, no animation on close)
 - [x] **Chapter durations display incorrectly** ✅ FIXED - Duration calculated from next chapter start time
   - Expected: Chapter 1: 0:00:00-1:33:32, Chapter 2: 1:33:32-1:33:38, Chapter 3: 1:33:38-END
@@ -59,7 +62,10 @@
 
 ### Header (Global)
 ⚠️ **NOTE:** Header component integrated in App.vue
-- [ ] **Jobs button "+" not aligned** with text "Jobs"
+- [x] **Jobs button "+" not aligned** with text "Jobs" ✅ FIXED - Session 11
+  - Plus icon horizontally aligned with text
+  - Fixed: line-height: 1, gap: var(--spacing-2), align-self: center
+  - Files: BackgroundQueueMonitor.vue
 - [ ] **Jobs button color inconsistent** ("+" and "Jobs" text different color than "0", but bell/moon icons use same white)
 - [x] **Notification badge shows correctly** ✅ VERIFIED - Badge displays when `unreadCount > 0`, with animation
 - [ ] **Theme toggle has border** (moon icon) - inconsistent with bell icon
@@ -166,24 +172,28 @@
 ## 📱 MOBILE Issues (To Test After Desktop Fixed)
 
 ### Video Player Mobile (CRITICAL)
-- [ ] **Video player completely broken on mobile devices**
-  - Player invisible or has "eckig" (blocky) design
-  - Controls may be cut off or inaccessible
-  - Files: app/frontend/src/views/VideoPlayerView.vue, VideoPlayer.vue
-  - Reference: COMPREHENSIVE_UI_AUDIT.md
-  - Priority: CRITICAL (mobile users completely blocked)
+- [x] **Video player completely broken on mobile devices** ✅ FIXED - Session 11
+  - Controls no longer cut off (reduced padding, overflow visible)
+  - Chapter menu scrollable (60vh max-height, centered positioning)
+  - Eckig design removed (border-radius: 0 on mobile)
+  - Chapter toggle hidden on tiny screens (<400px) to save space
+  - Files: VideoPlayer.vue, VideoPlayerView.vue
+  - Priority: COMPLETED
 
 ### Dashboard Mobile (HIGH)
-- [ ] **Live streamers cut off on desktop (no scroll)**
-  - Horizontal scroll mechanism missing
-  - Streamers overflow hidden
-  - Priority: HIGH
+- [x] **Live streamers cut off on desktop (no scroll)** ✅ FIXED - Session 11
+  - Desktop: Now uses CSS Grid with auto-fill (wraps instead of scroll)
+  - Grid: repeat(auto-fill, minmax(320px, 1fr))
+  - No more overflow - all streamers visible
+  - Priority: COMPLETED
 
-- [ ] **Live streamers weird touch behavior on mobile**
-  - Swipe selects streamer instead of scrolling
-  - Touch events incorrectly trigger navigation
-  - Files: app/frontend/src/views/HomeView.vue
-  - Priority: HIGH
+- [x] **Live streamers weird touch behavior on mobile** ✅ FIXED - Session 11
+  - Touch behavior fixed: touch-action: pan-x pan-y
+  - Scroll chaining prevented: overscroll-behavior-x: contain
+  - Swipe no longer triggers navigation
+  - Horizontal scroll works both directions
+  - Files: HomeView.vue
+  - Priority: COMPLETED
 
 ### Background Jobs Panel (MEDIUM)
 - [ ] **Background Jobs panel cut off on mobile**
@@ -197,10 +207,11 @@
   - Current behavior confusing
   - Priority: MEDIUM
 
-- [x] **Scroll position not reset on navigation** ✅ FIXED
-  - Router scrollBehavior implemented with smooth scroll to top
-  - Restores position on browser back/forward
-  - Files: app/frontend/src/router/index.ts
+- [x] **Scroll position not reset on navigation** ✅ FIXED - Session 11
+  - Router scrollBehavior changed from 'smooth' to 'auto'
+  - Instant scroll to top prevents position persistence bug
+  - Hash link support added (#section anchors)
+  - Files: router/index.ts
   - Priority: COMPLETED
 
 ### General Mobile
