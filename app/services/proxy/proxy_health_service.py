@@ -504,7 +504,7 @@ class ProxyHealthService:
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             
-            await websocket_manager.broadcast(message)
+            await websocket_manager.send_notification(message)
             
         except Exception as e:
             logger.error(f"Error broadcasting proxy status: {e}", exc_info=True)
