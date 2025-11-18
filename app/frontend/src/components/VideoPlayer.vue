@@ -810,8 +810,9 @@ watch(() => props.chapters, (newChapters) => {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border: none;
-    border-radius: 0;
+    border-radius: 0;  // Eckig auf mobile
     box-shadow: none;
+    overflow: visible;  // CRITICAL: Allow chapter menu and controls to overflow
   }
 }
 
@@ -1042,9 +1043,11 @@ watch(() => props.chapters, (newChapters) => {
   
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: 100px;  /* More space on mobile */
+    bottom: 120px;  /* More space above controls */
     right: var(--spacing-4);
-    max-height: 400px;  /* Smaller on mobile */
+    left: var(--spacing-4);  /* Center horizontally */
+    max-height: 60vh;  /* Responsive height - prevent cut-off */
+    max-width: none;  /* Override desktop constraint */
   }
 }
 
@@ -1504,12 +1507,27 @@ watch(() => props.chapters, (newChapters) => {
 /* Mobile Optimizations */
 @include m.respond-below('md') {  // < 768px
   .video-controls-overlay {
-    padding: var(--spacing-3);  /* 12px */
+    padding: var(--spacing-2) var(--spacing-3);  /* Reduce vertical padding to prevent overflow */
+    padding-bottom: var(--spacing-3);  /* Keep some space at bottom */
   }
   
   .progress-container {
     /* Extended vertical tap area for easier scrubbing */
-    padding: var(--spacing-4) 0;  /* 16px vertical */
+    padding: var(--spacing-3) 0;  /* Reduce from 16px to 12px vertical */
+    margin-bottom: var(--spacing-2);  /* Reduce spacing */
+  }
+  
+  /* Ensure controls don't overflow */
+  .controls-bottom {
+    flex-wrap: nowrap;  /* Prevent wrapping */
+    overflow-x: visible;  /* Allow horizontal visibility */
+  }
+  
+  /* Hide chapter toggle button on very small screens to save space */
+  @media (max-width: 400px) {
+    .chapter-toggle-button {
+      display: none;  /* Hide on tiny screens - users can see chapters in extension */
+    }
   }
 }
 

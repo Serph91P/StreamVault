@@ -325,8 +325,9 @@ onMounted(() => {
   box-shadow: v.$shadow-2xl;
   
   @include m.respond-below('md') {
-    border-radius: 0;
+    border-radius: 0;  // Mobile: eckig statt abgerundet
     box-shadow: none;
+    overflow: visible;  // CRITICAL: Allow controls to be visible
   }
 }
 
