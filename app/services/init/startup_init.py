@@ -116,18 +116,21 @@ async def initialize_background_services():
         # Verify queue is responsive before proceeding
         queue_ready = await verify_queue_readiness()
         if not queue_ready:
-            logger.warning("⚠️ Background queue not ready - skipping unified recovery for now")
+            logger.warning("⚠️ Background queue not ready - skipping recovery for now")
             # Don't run recovery immediately, let it run later via API
         else:
             logger.info("✅ Background queue verified ready - proceeding with recovery")
-            # UNIFIED RECOVERY: Only run after queue is fully ready
+            
+            # CRITICAL: Recover active recordings FIRST (resume live streams)
+            # This prevents unified recovery from processing recordings that are still live
+            await recover_active_recordings()
+            
+            # UNIFIED RECOVERY: Only run AFTER active recordings are resumed
+            # This ensures we only post-process recordings that are actually offline
             await unified_recovery_scan()
         
         # Initialize image sync service for automatic image downloads
         await initialize_image_sync_service()
-        
-        # Recover active recordings from persistence
-        await recover_active_recordings()
         
         # Start session cleanup service for production auth reliability
         await start_session_cleanup_service()
