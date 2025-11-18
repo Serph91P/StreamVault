@@ -492,12 +492,22 @@ const loadChapters = async () => {
       const response = await fetch(`/api/streams/${props.streamId}/chapters`)
       if (response.ok) {
         const chaptersData = await response.json()
-        const converted = chaptersData.map((ch: any) => ({
-          title: ch.category_name || ch.title || 'Stream Segment',
-          startTime: ch.start_time || 0,
-          duration: ch.duration || 60,
-          gameIcon: getCategoryImage(ch.category_name)
-        }))
+        const converted = chaptersData.map((ch: any, index: number, arr: any[]) => {
+          // Calculate duration from API data or compute from next chapter
+          let duration = ch.duration || 60
+          if (!ch.duration && index < arr.length - 1) {
+            // Calculate from next chapter's start time
+            const nextStartTime = arr[index + 1].start_time || (ch.start_time + 60)
+            duration = nextStartTime - ch.start_time
+          }
+          
+          return {
+            title: ch.category_name || ch.title || 'Stream Segment',
+            startTime: ch.start_time || 0,
+            duration: duration,
+            gameIcon: getCategoryImage(ch.category_name)
+          }
+        })
         
         // Deduplicate by startTime and title
         chapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
@@ -531,7 +541,7 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
   const converted = apiChapters.map((chapter, index) => ({
     title: chapter.title || `Chapter ${index + 1}`,
     startTime: parseTimeStringToSeconds(chapter.start_time),
-    duration: 60, // Default duration, can be calculated between chapters
+    duration: 60, // Temporary, will be calculated below
     gameIcon: undefined
   }))
   
@@ -542,7 +552,24 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
     )
   )
   
-  return unique
+  // Calculate actual duration between chapters
+  const withDuration = unique.map((chapter, index) => {
+    if (index < unique.length - 1) {
+      // Duration = next chapter start time - current chapter start time
+      chapter.duration = unique[index + 1].startTime - chapter.startTime
+    } else {
+      // Last chapter: use video duration if available, otherwise default to 60s
+      const videoDuration = videoRef.value?.duration
+      if (videoDuration && !isNaN(videoDuration)) {
+        chapter.duration = videoDuration - chapter.startTime
+      } else {
+        chapter.duration = 60 // Fallback
+      }
+    }
+    return chapter
+  })
+  
+  return withDuration
 }
 
 // Parse time string to seconds
