@@ -285,6 +285,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
+import { useRecordingSettings } from '@/composables/useRecordingSettings'
+import { useToast } from '@/composables/useToast'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
@@ -292,6 +294,7 @@ import StreamCard from '@/components/cards/StreamCard.vue'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 
 // URL params
 const streamerId = computed(() => route.params.id as string)
@@ -314,6 +317,9 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
+// Recording settings composable - use existing backend integration!
+const { updateStreamerSettings } = useRecordingSettings()
+
 // Settings modal
 const showSettings = ref(false)
 const savingSettings = ref(false)
@@ -326,7 +332,16 @@ const streamerSettings = ref({
 })
 
 const openSettings = () => {
-  // Load current settings (TODO: fetch from API when backend is ready)
+  // Load current settings from streamer data
+  if (streamer.value) {
+    streamerSettings.value = {
+      quality: streamer.value.recording_quality || '',
+      filenameTemplate: streamer.value.custom_filename || '',
+      autoRecord: streamer.value.recording_enabled !== false,
+      notifyOnline: true,
+      notifyOffline: true
+    }
+  }
   showSettings.value = true
 }
 
@@ -338,20 +353,22 @@ const saveSettings = async () => {
   savingSettings.value = true
   
   try {
-    // TODO: Implement API endpoint when backend is ready
-    // await fetch(`/api/streamers/${streamerId.value}/settings`, {
-    //   method: 'PUT',
-    //   credentials: 'include',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(streamerSettings.value)
-    // })
+    // Use the existing recording settings composable - same backend as Settings page!
+    await updateStreamerSettings(Number(streamerId.value), {
+      enabled: streamerSettings.value.autoRecord,
+      quality: streamerSettings.value.quality || undefined,
+      custom_filename: streamerSettings.value.filenameTemplate || undefined
+    })
     
-    // Simulate API call for now
-    await new Promise(resolve => setTimeout(resolve, 500))
+    toast.success('Settings saved successfully!')
+    
+    // Reload streamer data to reflect changes
+    await fetchStreamer()
     
     closeSettings()
   } catch (error) {
     console.error('Failed to save settings:', error)
+    toast.error('Failed to save settings. Please try again.')
   } finally {
     savingSettings.value = false
   }
