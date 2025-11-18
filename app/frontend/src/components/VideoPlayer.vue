@@ -175,12 +175,13 @@
       </div>
       
       <!-- Chapter List Panel (Overlay inside video) -->
-      <div 
-        v-if="showChapterUI && chapters.length > 0" 
-        class="chapter-list-panel"
-        ref="chapterListPanel"
-        @scroll="handleChapterListScroll"
-      >
+      <transition name="slide-panel">
+        <div 
+          v-if="showChapterUI && chapters.length > 0" 
+          class="chapter-list-panel"
+          ref="chapterListPanel"
+          @scroll="handleChapterListScroll"
+        >
         <div class="chapter-list-header">
           <h3>📋 Chapters</h3>
           <button @click="toggleChapterUI" class="close-btn">×</button>
@@ -223,6 +224,7 @@
           </div>
         </div>
       </div>
+      </transition>
     </div>
 
     <!-- Video Controls Extension (below video) -->
@@ -1039,7 +1041,7 @@ watch(() => props.chapters, (newChapters) => {
   width: 400px;  /* Fixed width for desktop */
   max-width: calc(100% - 32px);  /* Responsive on mobile */
   z-index: 20;  /* Above controls overlay */
-  animation: slideInRight var(--duration-300) var(--ease-out);
+  /* Animation now handled by Vue transition (see .slide-panel-* classes) */
   
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
@@ -1051,6 +1053,33 @@ watch(() => props.chapters, (newChapters) => {
   }
 }
 
+/* Vue Transition for Chapter Panel */
+.slide-panel-enter-active,
+.slide-panel-leave-active {
+  transition: all var(--duration-300) var(--ease-out);
+}
+
+.slide-panel-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.slide-panel-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-panel-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-panel-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+/* Legacy animation (kept for backwards compatibility) */
 @keyframes slideInRight {
   from {
     opacity: 0;
