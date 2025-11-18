@@ -471,6 +471,9 @@ section {
 
 .live-card,
 .live-card-skeleton {
+  // Animation FIRST (before nested rules to avoid SASS deprecation warning)
+  animation: fade-in v.$duration-300 v.$ease-out;
+  
   // DESKTOP: Full width in grid
   @include m.respond-to('md') {  // >= 768px
     width: 100%;  // Take full grid cell
@@ -482,8 +485,6 @@ section {
     flex: 0 0 320px;
     max-width: 320px;
   }
-  
-  animation: fade-in v.$duration-300 v.$ease-out;
 
   @for $i from 1 through 10 {
     &:nth-child(#{$i}) {
