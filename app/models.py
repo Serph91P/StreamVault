@@ -257,6 +257,10 @@ class GlobalSettings(Base):
     
     # Proxy encryption key (Migration 032) - Persists Fernet key for proxy credential encryption
     proxy_encryption_key: Optional[str] = Column(String, nullable=True)  # Auto-generated on first use, persists across restarts
+    
+    # Twitch OAuth Token Refresh (Migration 033) - Automatic token refresh without manual intervention
+    twitch_refresh_token: Optional[str] = Column(Text, nullable=True)  # Long-lived refresh token (encrypted)
+    twitch_token_expires_at: Optional[datetime] = Column(DateTime, nullable=True)  # When current access token expires
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"

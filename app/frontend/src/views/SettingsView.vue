@@ -64,6 +64,23 @@
 
       <!-- Settings Content -->
       <main class="settings-content">
+        <!-- Twitch Connection Settings -->
+        <div v-if="activeSection === 'twitch'" class="settings-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg class="section-icon">
+                <use href="#icon-link" />
+              </svg>
+              Twitch Connection
+            </h2>
+            <p class="section-description">
+              Connect your Twitch account for enhanced recording quality and features
+            </p>
+          </div>
+
+          <TwitchConnectionPanel />
+        </div>
+
         <!-- Notifications Settings -->
         <div v-if="activeSection === 'notifications'" class="settings-section">
           <div class="section-header">
@@ -256,11 +273,18 @@ import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel
 import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import PWAPanel from '@/components/settings/PWAPanel.vue'
+import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
 // Settings sections
 const sections = [
+  {
+    id: 'twitch',
+    label: 'Twitch Connection',
+    description: 'OAuth & quality settings',
+    icon: 'link'
+  },
   {
     id: 'notifications',
     label: 'Notifications',
@@ -300,7 +324,7 @@ const sections = [
 ]
 
 // State
-const activeSection = ref('notifications')
+const activeSection = ref('twitch')  // Start with Twitch connection (most important)
 const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 

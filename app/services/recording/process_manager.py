@@ -218,8 +218,26 @@ class ProcessManager:
             # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
             # Priority: Streamer-specific > Global default
             supported_codecs = None
+            oauth_token = None  # Will be set to fresh token if available
+            
             from app.models import GlobalSettings, StreamerRecordingSettings
+            from app.services.system.twitch_token_service import TwitchTokenService
+            
             with SessionLocal() as db:
+                # === STEP 1: Get fresh OAuth token (auto-refresh if needed) ===
+                try:
+                    token_service = TwitchTokenService(db)
+                    oauth_token = await token_service.get_valid_access_token()
+                    
+                    if oauth_token:
+                        logger.info(f"🔑 Using auto-refreshed OAuth token for {streamer_name}")
+                    else:
+                        logger.debug(f"ℹ️ No OAuth token available - H.265/1440p quality unavailable")
+                except Exception as e:
+                    logger.warning(f"Failed to get OAuth token: {e}")
+                    oauth_token = None
+                
+                # === STEP 2: Get codec preferences ===
                 # Try to get per-streamer codec preference first
                 streamer_settings = db.query(StreamerRecordingSettings).filter(
                     StreamerRecordingSettings.streamer_id == stream.streamer_id
@@ -250,7 +268,8 @@ class ProcessManager:
                 quality=quality,
                 output_path=segment_path,
                 proxy_settings=proxy_settings,  # Per-recording proxy override (from health check)
-                supported_codecs=supported_codecs  # Per-streamer codec preference (overrides global)
+                supported_codecs=supported_codecs,  # Per-streamer codec preference (overrides global)
+                oauth_token=oauth_token  # Auto-refreshed OAuth token (overrides config)
             )
             
             logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")

@@ -31,7 +31,8 @@ class TwitchOAuthService:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "user:read:follows",
+            "scope": "user:read:follows",  # Required for reading followed channels
+            "force_verify": "true",  # Force re-authentication to ensure fresh refresh_token
         }
         
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"

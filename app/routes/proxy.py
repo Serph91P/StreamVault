@@ -19,8 +19,9 @@ from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
 from app.dependencies import get_current_user
 from app.services.proxy.proxy_health_service import proxy_health_service
+from app.utils.proxy_url_helper import encode_proxy_url  # URL encoder for special chars in passwords
 
-logger = logging.getLogger('streamvault')
+logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/proxy", tags=["proxy"])
 
@@ -119,9 +120,15 @@ async def add_proxy(
         Success message with proxy_id
     """
     with SessionLocal() as db:
-        # Check for duplicate proxy URL
+        # URL-encode credentials in proxy URL (fixes passwords with special chars like _)
+        encoded_proxy_url = encode_proxy_url(request.proxy_url)
+        
+        logger.debug(f"Encoding proxy URL: {request.proxy_url[:30]}... → {encoded_proxy_url[:30]}...")
+        
+        # Check for duplicate proxy URL (check both raw and encoded)
         existing = db.query(ProxySettings).filter(
-            ProxySettings.proxy_url == request.proxy_url
+            (ProxySettings.proxy_url == request.proxy_url) |
+            (ProxySettings.proxy_url == encoded_proxy_url)
         ).first()
         
         if existing:
@@ -130,9 +137,9 @@ async def add_proxy(
                 detail=f"Proxy URL already exists with ID {existing.id}"
             )
         
-        # Create new proxy
+        # Create new proxy with encoded URL
         new_proxy = ProxySettings(
-            proxy_url=request.proxy_url,
+            proxy_url=encoded_proxy_url,  # Store encoded URL
             priority=request.priority,
             enabled=True,
             health_status='unknown',
