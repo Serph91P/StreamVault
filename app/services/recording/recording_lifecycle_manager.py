@@ -1075,7 +1075,7 @@ class RecordingLifecycleManager:
             logger.error(f"Error cleaning up failed recording {recording_id}: {e}")
 
     async def _get_or_create_stream(self, streamer_id: int, stream_info: Dict[str, Any]):
-        """Get existing stream or create new one"""
+        """Get existing stream or create new one with StreamEvents (like EventSub does)"""
         try:
             # Check if stream already exists
             existing_stream = await self.database_service.get_stream_by_twitch_stream_id(
@@ -1091,12 +1091,54 @@ class RecordingLifecycleManager:
                 'title': stream_info.get('title', 'Unknown Stream'),
                 'category_name': stream_info.get('game_name', 'Unknown'),
                 'language': stream_info.get('language', 'en'),
-                'started_at': datetime.now(),
+                'started_at': datetime.now(timezone.utc),
                 'is_live': True,
                 'twitch_stream_id': stream_info.get('id', 'Unknown')  # Use consistent field name
             }
             
-            return await self.database_service.create_stream(stream_data)
+            stream = await self.database_service.create_stream(stream_data)
+            
+            if stream:
+                # CRITICAL FIX: Create StreamEvents (like EventSub does in handler_registry.py)
+                # This ensures category timeline shows in UI for force-started recordings
+                try:
+                    self.database_service._ensure_db_session()
+                    
+                    started_at = stream.started_at or datetime.now(timezone.utc)
+                    
+                    # Create stream.online event
+                    initial_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        title=stream.title,
+                        category_name=stream.category_name,
+                        language=stream.language,
+                        timestamp=started_at
+                    )
+                    self.database_service.db.add(initial_event)
+                    
+                    # Create initial channel.update event (for category timeline)
+                    if stream.category_name:
+                        pre_stream_event = StreamEvent(
+                            stream_id=stream.id,
+                            event_type="channel.update",
+                            title=stream.title,
+                            category_name=stream.category_name,
+                            language=stream.language,
+                            timestamp=started_at - timedelta(seconds=1)
+                        )
+                        self.database_service.db.add(pre_stream_event)
+                        logger.debug(f"Added initial StreamEvents for force-started stream {stream.id}")
+                    
+                    self.database_service.db.commit()
+                    
+                except Exception as event_error:
+                    logger.error(f"Failed to create StreamEvents for stream {stream.id}: {event_error}")
+                    # Don't fail the whole stream creation if events fail
+                    if self.database_service.db:
+                        self.database_service.db.rollback()
+            
+            return stream
             
         except Exception as e:
             logger.error(f"Failed to get or create stream: {e}")

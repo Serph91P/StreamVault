@@ -191,30 +191,34 @@ async def verify_queue_readiness() -> bool:
         return False
 
 async def unified_recovery_scan():
-    """Unified recovery scan replacing multiple overlapping services"""
+    """Unified recovery scan - enqueued to background queue to prevent frontend blocking"""
     try:
-        logger.info("🔄 Starting unified recovery scan...")
+        logger.info("🔄 Scheduling unified recovery scan in background queue...")
         
-        from app.services.recording.unified_recovery_service import get_unified_recovery_service
+        from app.services.init.background_queue_init import get_background_queue_service
         
-        # Get the unified recovery service
-        recovery_service = await get_unified_recovery_service()
+        # Get background queue service
+        queue_service = get_background_queue_service()
         
-        # Run comprehensive recovery scan
-        stats = await recovery_service.comprehensive_recovery_scan(
-            max_age_hours=72,  # Process recordings from last 3 days
-            dry_run=False
+        if not queue_service or not queue_service.is_running:
+            logger.warning("⚠️ Background queue not running - skipping unified recovery")
+            return
+        
+        # Enqueue recovery task instead of running synchronously
+        # This prevents blocking the frontend during FFmpeg concatenation
+        task_id = await queue_service.enqueue_task(
+            task_type="unified_recovery",
+            task_data={"max_age_hours": 72, "dry_run": False},
+            priority=5  # Low priority - not urgent
         )
         
-        logger.info(f"🔄 Unified recovery completed: "
-                   f"orphaned_segments={stats.orphaned_segments}, "
-                   f"failed_post_processing={stats.failed_post_processing}, "
-                   f"recovered={stats.recovered_recordings}, "
-                   f"triggered_pp={stats.triggered_post_processing}, "
-                   f"size={stats.total_size_gb:.1f}GB")
+        if task_id:
+            logger.info(f"✅ Unified recovery enqueued (task_id={task_id}) - will run in background")
+        else:
+            logger.warning("⚠️ Failed to enqueue unified recovery - will retry later")
         
     except Exception as e:
-        logger.error(f"❌ Unified recovery scan failed: {e}", exc_info=True)
+        logger.error(f"❌ Failed to schedule unified recovery: {e}", exc_info=True)
         # Don't raise - this is not critical for startup
 
 
