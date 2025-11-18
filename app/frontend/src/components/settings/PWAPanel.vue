@@ -1,7 +1,12 @@
 <template>
   <div class="pwa-panel">
     <div class="section-header">
-      <h3>PWA & Notifications</h3>
+      <h3>
+        <svg class="icon-title" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <use href="#icon-smartphone" />
+        </svg>
+        PWA & Notifications
+      </h3>
       <p>Configure Progressive Web App features and push notifications</p>
     </div>
 

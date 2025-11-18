@@ -1,6 +1,11 @@
 <template>
   <div>
-    <h3>Favorite Categories</h3>
+    <h3>
+      <svg class="icon-title" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+        <use href="#icon-star" />
+      </svg>
+      Favorite Categories
+    </h3>
     
     <!-- Filter und Suche - Verbessert für Mobile -->
     <div class="filter-container">
