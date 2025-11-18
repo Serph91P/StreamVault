@@ -22,8 +22,16 @@ const router = createRouter({
     if (savedPosition) {
       return savedPosition
     }
-    // Always scroll to top for new navigation
-    return { top: 0, behavior: 'smooth' }
+    // Hash link (e.g., #section) - scroll to element
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      }
+    }
+    // Always scroll to top for new navigation (CRITICAL FIX)
+    // Use immediate scroll to prevent position persistence bug
+    return { top: 0, left: 0, behavior: 'auto' }
   },
   routes: [
     {

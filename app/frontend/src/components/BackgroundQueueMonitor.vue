@@ -340,13 +340,14 @@ const formatTime = (timestamp?: string) => {
   height: 16px;
   color: var(--text-primary);  /* Same white as bell/moon icons */
   flex-shrink: 0;
+  align-self: center;  /* Vertically center with text */
 }
 
 .queue-info {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: var(--spacing-1);  /* 4px - tighter gap */
+  align-items: center;  /* CRITICAL: Vertical alignment */
+  gap: var(--spacing-2);  /* 8px - same as outer gap for consistency */
   flex: 1;
 }
 
@@ -354,12 +355,14 @@ const formatTime = (timestamp?: string) => {
   font-size: var(--text-sm);  /* 14px - same as count */
   color: var(--text-primary);  /* Same white as count */
   font-weight: var(--font-medium);  /* 500 */
+  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
 }
 
 .queue-count {
   font-size: var(--text-sm);  /* 14px - same size as label */
   font-weight: var(--font-bold);  /* 700 */
   color: var(--text-primary);  /* White like bell/moon */
+  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
 }
 
 .progress-bar {
