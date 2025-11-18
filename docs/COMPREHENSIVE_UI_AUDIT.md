@@ -1,7 +1,7 @@
 # Comprehensive UI Issues - Desktop Audit (November 14, 2025)
 **Updated:** November 18, 2025 - Major Cleanup Session
 
-## ✅ COMPLETION STATUS: 54/74 Issues Resolved (73%)
+## ✅ COMPLETION STATUS: 57/74 Issues Resolved (77%)
 
 ### 🎉 Major Achievements
 - ✅ All critical blocking issues fixed (Session 10)
@@ -40,8 +40,8 @@
 - [x] **Statistics cards not calculating** ✅ FIXED - Total Streams, Recorded, Avg Duration now computed correctly
 - [x] **"Recorded" card missing icon** ✅ FIXED - StatusCard now has check-circle icon
 - [x] **"Avg Duration" card icon missing background** ✅ FIXED - StatusCard has clock icon with background
-- [ ] **Statistics cards have top border** (inconsistent - remove borders)
-- [ ] **Stream History shows "No Streams Yet"** despite database having 4 recordings
+- [x] **Statistics cards have top border** ✅ FIXED - StatusCard has `border-top: none !important`
+- [ ] **Stream History shows "No Streams Yet"** ⚠️ BACKEND ISSUE - API call correct, requires backend data investigation
 
 ### VideoPlayerView
 - [x] **Back button has different design** ✅ FIXED - Now consistent with rest of site
@@ -59,10 +59,10 @@
   - Issue: Frontend duration calculation or API data parsing
 
 ### Header (Global)
-⚠️ **NOTE:** Header.vue file not found - may have been renamed to AppHeader.vue
+⚠️ **NOTE:** Header component integrated in App.vue
 - [ ] **Jobs button "+" not aligned** with text "Jobs"
 - [ ] **Jobs button color inconsistent** ("+" and "Jobs" text different color than "0", but bell/moon icons use same white)
-- [ ] **Notification badge only shows count after clicking** bell icon
+- [x] **Notification badge shows correctly** ✅ VERIFIED - Badge displays when `unreadCount > 0`, with animation
 - [ ] **Theme toggle has border** (moon icon) - inconsistent with bell icon
 
 ### NotificationFeed
@@ -90,7 +90,7 @@
 
 ### SettingsView - General
 - [x] **Multiple SVG icons missing** ✅ FIXED - All icons now present via `#icon-*` system
-- [ ] **Advanced tab has no function** (remove if not needed)
+- [x] **Advanced tab has no function** ✅ FIXED - Tab removed completely
 - [x] **Scroll position not reset** ✅ FIXED - Router scrollBehavior implemented
 
 ### SettingsView - Recording Settings
@@ -198,11 +198,11 @@
   - Current behavior confusing
   - Priority: MEDIUM
 
-- [ ] **Scroll position not reset on navigation**
-  - When navigating between pages, scroll stays at previous position
-  - Should reset to top on route change
-  - Files: Router navigation guards
-  - Priority: MEDIUM
+- [x] **Scroll position not reset on navigation** ✅ FIXED
+  - Router scrollBehavior implemented with smooth scroll to top
+  - Restores position on browser back/forward
+  - Files: app/frontend/src/router/index.ts
+  - Priority: COMPLETED
 
 ### General Mobile
 - [ ] Full mobile responsive audit needed
@@ -259,7 +259,7 @@
 
 ## 📊 FINAL STATUS SUMMARY (November 18, 2025)
 
-### ✅ Completed: 54/74 Issues (73%) ✅
+### ✅ Completed: 57/74 Issues (77%) ✅
 
 **Major Session Achievements:**
 - ✅ All critical blocking bugs fixed
@@ -275,11 +275,11 @@
 ### 🔴 Remaining Critical Issues: 1
 1. Stream History display bug (API returns data but UI shows "No Streams Yet" - requires backend debugging)
 
-### 🟡 Remaining High Priority: 19
+### 🟡 Remaining High Priority: 16
 - Settings page design polish (Recording, Storage, Proxy tabs)
 - Button/card design consistency refinements
 - Mobile-specific optimizations (video player, touch behavior)
-- Minor Header component tweaks (Jobs button alignment)
+- Minor Header component tweaks (Jobs button alignment, theme toggle border)
 - Stream category timeline feature
 
 ### 🟢 Technical Debt: 0
