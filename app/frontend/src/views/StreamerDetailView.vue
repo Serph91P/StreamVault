@@ -110,14 +110,17 @@
 
           <!-- Sort Dropdown -->
           <div class="view-controls">
-            <button class="filter-button" @click="() => {}" v-ripple>
+            <div class="select-wrapper">
+              <svg class="select-icon">
+                <use href="#icon-filter" />
+              </svg>
               <select v-model="sortBy" class="sort-select">
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
                 <option value="duration-desc">Longest Duration</option>
                 <option value="duration-asc">Shortest Duration</option>
               </select>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -828,8 +831,27 @@ onMounted(async () => {
   align-items: center;
 }
 
+.select-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.select-icon {
+  position: absolute;
+  left: var(--spacing-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-secondary);
+  fill: none;
+  pointer-events: none;  /* Let clicks pass through to select */
+  z-index: 1;
+}
+
 .sort-select {
   padding: var(--spacing-2) var(--spacing-4);
+  padding-left: var(--spacing-10);  /* Make room for icon */
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -838,9 +860,14 @@ onMounted(async () => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  min-width: 160px;  /* Prevent layout shift */
 
   &:hover {
     border-color: var(--primary-color);
+
+    ~ .select-icon {
+      stroke: var(--primary-color);
+    }
   }
 
   &:focus {

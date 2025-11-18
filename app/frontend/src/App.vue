@@ -997,7 +997,7 @@ watch(messages, (newMessages) => {
   backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;  /* Changed from flex-end - menu now appears on LEFT */
   animation: fadeIn 200ms ease-out;
 }
 
@@ -1012,11 +1012,11 @@ watch(messages, (newMessages) => {
   height: 100%;
   background: var(--background-card);
   box-shadow: var(--shadow-xl);
-  animation: slideInRight 300ms ease-out;
+  animation: slideInLeft 300ms ease-out;  /* Changed from slideInRight */
   display: flex;
   flex-direction: column;
   backdrop-filter: blur(20px);
-  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);  /* Changed from border-left */
 }
 
 .mobile-menu-close {
@@ -1146,6 +1146,15 @@ watch(messages, (newMessages) => {
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
   }
   to {
     transform: translateX(0);
