@@ -131,8 +131,14 @@ const handleLogin = async () => {
       // Force a full page reload to ensure all composables reinitialize with auth
       window.location.href = '/'
     } else {
-      const data = await response.json()
-      error.value = data.detail || 'Invalid username or password'
+      // FIXED: Add error handling for JSON parsing
+      try {
+        const data = await response.json()
+        error.value = data.detail || 'Invalid username or password'
+      } catch (jsonError) {
+        error.value = 'Invalid username or password'
+        console.error('Failed to parse login error response:', jsonError)
+      }
     }
   } catch (e) {
     error.value = 'Connection failed. Please check your network and try again.'
@@ -321,7 +327,10 @@ const handleLogin = async () => {
 
 .form-input {
   width: 100%;
-  padding: var(--spacing-4) var(--spacing-4) var(--spacing-4) var(--spacing-12);
+  /* FIXED: Proper padding to prevent icon overlap
+   * Left: spacing-4 (icon left) + 20px (icon width) + spacing-3 (gap) = ~52px
+   */
+  padding: var(--spacing-4) var(--spacing-4) var(--spacing-4) 52px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);

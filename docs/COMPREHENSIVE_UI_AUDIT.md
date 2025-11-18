@@ -1,8 +1,32 @@
 # Comprehensive UI Issues - Desktop Audit (November 14, 2025)
+**Updated:** November 16, 2025 - Session 10 Testing
 
 ## 🔴 CRITICAL Issues (Fix First)
 
+### ✅ FIXED - Session 10 (November 18, 2025)
+- [x] **JSON Parse Errors (Dev Console)** - Added error handling in router guard
+- [x] **Setup page infinite reload loop** - Fixed by router guard error handling
+- [x] **Setup redirects to /login instead of /welcome** - Fixed redirect path
+- [x] **Auth Setup page design completely broken** - Added missing SVG icons, fixed input padding
+- [x] **Notification profile images show Apprise logo** - Changed ntfy parameter from 'icon=' to 'attach='
+
 ### StreamerDetailView
+- [ ] **Stream category timeline missing**
+  - Expected: "14:32 - ARC Raiders, 15:45 - L4D2" with timestamps
+  - Should use stream_events table for category changes
+  - Files: app/frontend/src/views/StreamerDetailView.vue, GET chapters endpoint
+  - Priority: HIGH (metadata visibility)
+
+- [ ] **More button and expand-btn overlap**
+  - Buttons positioned on top of each other
+  - Dropdown menu floats instead of anchoring to button
+  - Priority: MEDIUM
+
+- [ ] **Filter SVG icon missing again**
+  - Icon was removed in previous fix
+  - Gray background on filter should be removed
+  - Priority: MEDIUM
+
 - [ ] **Back button missing SVG icon** (arrow left)
 - [ ] **Filter button missing SVG icon** (funnel/filter icon)
 - [ ] **Statistics cards not calculating** (Total Streams, Recorded, Avg Duration show 0)
@@ -39,6 +63,14 @@
 - [ ] **Clear All doesn't persist** - notifications reappear with "Just now" timestamp when reopening
 
 ## 🟡 HIGH Priority Issues
+
+### Dashboard
+- [ ] **"Live Now" count positioned far right**
+  - Count "3" should be next to "Live Now" headline on desktop
+  - Mobile layout is already correct
+  - Files: app/frontend/src/views/HomeView.vue
+  - Fix: Adjust flexbox/grid layout
+  - Priority: MEDIUM (visual polish)
 
 ### Search Component
 - [ ] **Search input missing SVG icon** (magnifying glass before placeholder text)
@@ -124,7 +156,46 @@
 - [ ] **Icon backgrounds inconsistent** (some have circular bg, some don't)
 
 ## 📱 MOBILE Issues (To Test After Desktop Fixed)
-- [ ] **Deferred until desktop issues resolved**
+
+### Video Player Mobile (CRITICAL)
+- [ ] **Video player completely broken on mobile devices**
+  - Player invisible or has "eckig" (blocky) design
+  - Controls may be cut off or inaccessible
+  - Files: app/frontend/src/views/VideoPlayerView.vue, VideoPlayer.vue
+  - Reference: COMPREHENSIVE_UI_AUDIT.md
+  - Priority: CRITICAL (mobile users completely blocked)
+
+### Dashboard Mobile (HIGH)
+- [ ] **Live streamers cut off on desktop (no scroll)**
+  - Horizontal scroll mechanism missing
+  - Streamers overflow hidden
+  - Priority: HIGH
+
+- [ ] **Live streamers weird touch behavior on mobile**
+  - Swipe selects streamer instead of scrolling
+  - Touch events incorrectly trigger navigation
+  - Files: app/frontend/src/views/HomeView.vue
+  - Priority: HIGH
+
+### Background Jobs Panel (MEDIUM)
+- [ ] **Background Jobs panel cut off on mobile**
+  - Panel disappears to the right
+  - Text cut off at bottom
+  - Priority: MEDIUM
+
+### Navigation (MEDIUM)
+- [ ] **Hamburger menu opens on right when button is on left**
+  - Menu should slide from left (same side as button)
+  - Current behavior confusing
+  - Priority: MEDIUM
+
+- [ ] **Scroll position not reset on navigation**
+  - When navigating between pages, scroll stays at previous position
+  - Should reset to top on route change
+  - Files: Router navigation guards
+  - Priority: MEDIUM
+
+### General Mobile
 - [ ] Full mobile responsive audit needed
 - [ ] Touch target sizes
 - [ ] Mobile navigation

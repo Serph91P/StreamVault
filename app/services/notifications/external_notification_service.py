@@ -233,10 +233,12 @@ class ExternalNotificationService:
             else:
                 params.append("tags=notification")
         
-            # CRITICAL FIX: Add avatar_url for ALL event types if profile_image is available
+            # CRITICAL FIX: Use 'attach' for profile images (not 'icon')
+            # ntfy 'icon' parameter is for small status icons
+            # ntfy 'attach' parameter displays full images like profile pictures
             if profile_image and profile_image.startswith('http'):
-                params.append(f"icon={profile_image}")  # FIXED: Use icon parameter for ntfy
-                logger.debug(f"Added profile image to notification: {profile_image}")
+                params.append(f"attach={profile_image}")  # FIXED: Changed from icon= to attach=
+                logger.debug(f"Added profile image to notification (attach): {profile_image}")
             else:
                 logger.debug(f"No valid HTTP profile image, notification will use default icon")
         

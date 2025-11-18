@@ -108,7 +108,14 @@ router.beforeEach(async (to, from, next) => {
       },
     });
 
-    const data = await response.json();
+    // FIXED: Add error handling for invalid JSON responses
+    let data;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      console.error('Failed to parse setup response as JSON:', jsonError);
+      return next('/auth/setup');
+    }
 
     if (data.setup_required) {
       if (to.path !== '/auth/setup') {
@@ -116,8 +123,9 @@ router.beforeEach(async (to, from, next) => {
       }
       return next();
     } else {
+      // FIXED: After setup, redirect to /welcome instead of /
       if (to.path === '/auth/setup') {
-        return next('/');
+        return next('/welcome');
       }
 
       const authResponse = await fetch('/auth/check', {

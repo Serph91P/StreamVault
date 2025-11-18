@@ -3,13 +3,15 @@
     <!-- Live Now Section -->
     <section class="live-section">
       <div class="section-header">
-        <h2 class="section-title">
-          <span class="live-indicator"></span>
-          Live Now
-        </h2>
-        <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="section-count">
-          {{ liveStreamers.length }}
-        </span>
+        <div class="section-title-group">
+          <h2 class="section-title">
+            <span class="live-indicator"></span>
+            Live Now
+          </h2>
+          <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="section-count">
+            {{ liveStreamers.length }}
+          </span>
+        </div>
       </div>
 
       <!-- Loading State -->
@@ -334,6 +336,16 @@ section {
   justify-content: space-between;
   margin-bottom: var(--spacing-5);
   padding: 0 var(--spacing-2);
+
+  // On desktop: group title and count together
+  @include m.respond-above('sm') {  // > 640px (desktop)
+    .section-title {
+      // Create flexbox to group title elements and count
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-3);
+    }
+  }
 }
 
 .section-title {
@@ -360,6 +372,11 @@ section {
   background: rgba(var(--danger-500-rgb), 0.1);
   padding: var(--spacing-1) var(--spacing-3);
   border-radius: var(--radius-full);
+
+  // On desktop: position next to title (not far right)
+  @include m.respond-above('sm') {  // > 640px (desktop)
+    margin-left: 0;  // No auto-margin, stays with title
+  }
 }
 
 // Live Indicator
@@ -423,15 +440,34 @@ section {
   padding-left: var(--spacing-4);
   padding-right: var(--spacing-4);
 
-  // Hide scrollbar but keep functionality
-  scrollbar-width: none;
+  // Custom scrollbar styling (visible on desktop)
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) var(--background-darker);
+
   &::-webkit-scrollbar {
-    display: none;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--background-darker);
+    border-radius: var(--radius-full);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: var(--radius-full);
+    
+    &:hover {
+      background: var(--primary-600);
+    }
   }
 
   // Smooth scroll behavior
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+
+  // Prevent touch gestures from triggering navigation on mobile
+  touch-action: pan-x;  /* Only allow horizontal panning */
 }
 
 .live-card,
