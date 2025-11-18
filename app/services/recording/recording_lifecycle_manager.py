@@ -273,6 +273,60 @@ class RecordingLifecycleManager:
                 logger.error("Failed to create stream record")
                 return None
             
+            # CRITICAL FIX: Create StreamEvents for force-started recordings
+            # Even if stream already exists, we need initial events for category timeline
+            try:
+                self.database_service._ensure_db_session()
+                
+                # Check if stream.online event already exists
+                from app.models import StreamEvent
+                existing_online_event = (
+                    self.database_service.db.query(StreamEvent)
+                    .filter(StreamEvent.stream_id == stream.id)
+                    .filter(StreamEvent.event_type == "stream.online")
+                    .first()
+                )
+                
+                if not existing_online_event:
+                    started_at = stream.started_at or datetime.now(timezone.utc)
+                    
+                    # Create stream.online event
+                    initial_event = StreamEvent(
+                        stream_id=stream.id,
+                        event_type="stream.online",
+                        title=stream.title or stream_info.get('title'),
+                        category_name=stream.category_name or stream_info.get('game_name'),
+                        language=stream.language or stream_info.get('language', 'en'),
+                        timestamp=started_at
+                    )
+                    self.database_service.db.add(initial_event)
+                    
+                    # Create initial channel.update event (for category timeline)
+                    if stream.category_name or stream_info.get('game_name'):
+                        pre_stream_event = StreamEvent(
+                            stream_id=stream.id,
+                            event_type="channel.update",
+                            title=stream.title or stream_info.get('title'),
+                            category_name=stream.category_name or stream_info.get('game_name'),
+                            language=stream.language or stream_info.get('language', 'en'),
+                            timestamp=started_at - timedelta(seconds=1)
+                        )
+                        self.database_service.db.add(pre_stream_event)
+                    
+                    self.database_service.db.commit()
+                    logger.info(f"Created initial StreamEvents for force-started stream {stream.id}")
+                else:
+                    logger.debug(f"StreamEvents already exist for stream {stream.id}, skipping creation")
+                    
+            except Exception as event_error:
+                logger.error(f"Failed to create StreamEvents for stream {stream.id}: {event_error}")
+                # Don't fail recording if event creation fails
+                if self.database_service.db:
+                    try:
+                        self.database_service.db.rollback()
+                    except:
+                        pass
+            
             # Start the recording
             recording_id = await self.start_recording(
                 stream_id=stream.id,
