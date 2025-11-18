@@ -336,16 +336,6 @@ section {
   justify-content: space-between;
   margin-bottom: var(--spacing-5);
   padding: 0 var(--spacing-2);
-
-  // On desktop: group title and count together
-  @include m.respond-above('sm') {  // > 640px (desktop)
-    .section-title {
-      // Create flexbox to group title elements and count
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-3);
-    }
-  }
 }
 
 .section-title {
@@ -372,11 +362,6 @@ section {
   background: rgba(var(--danger-500-rgb), 0.1);
   padding: var(--spacing-1) var(--spacing-3);
   border-radius: var(--radius-full);
-
-  // On desktop: position next to title (not far right)
-  @include m.respond-above('sm') {  // > 640px (desktop)
-    margin-left: 0;  // No auto-margin, stays with title
-  }
 }
 
 // Live Indicator

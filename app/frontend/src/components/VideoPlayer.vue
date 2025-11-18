@@ -559,7 +559,7 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
       chapter.duration = unique[index + 1].startTime - chapter.startTime
     } else {
       // Last chapter: use video duration if available, otherwise default to 60s
-      const videoDuration = videoRef.value?.duration
+      const videoDuration = videoElement.value?.duration
       if (videoDuration && !isNaN(videoDuration)) {
         chapter.duration = videoDuration - chapter.startTime
       } else {
