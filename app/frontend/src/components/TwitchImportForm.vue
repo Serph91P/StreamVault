@@ -236,8 +236,7 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const response = await authApi.getAuthUrl()
-    const data = response.data
+    const data = await authApi.getAuthUrl()
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -251,8 +250,7 @@ async function loadFollowedChannels(token: string): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
     
-    const response = await authApi.getFollowedChannels()
-    const data = response.data
+    const data = await authApi.getFollowedChannels()
     
     channels.value = data.channels || []
   } catch (err: any) {
