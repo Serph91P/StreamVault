@@ -73,22 +73,20 @@ class StreamlinkConfigService:
                 "",
             ]
             
-            # Add OAuth authentication if token is provided
+            # OAuth token is ALWAYS passed via CLI (--twitch-api-header)
+            # Do NOT add it to config file to avoid duplicate headers
+            config_lines.extend([
+                "# Twitch OAuth Authentication",
+                "# Token is passed via CLI argument (--twitch-api-header) per recording",
+                "# This ensures we always use the freshest auto-refreshed token",
+                "# DO NOT add twitch-api-header here - it causes duplicate headers!",
+                "",
+            ])
+            
             if oauth_token and oauth_token.strip():
-                config_lines.extend([
-                    "# Twitch OAuth Authentication (enables H.265/1440p streams)",
-                    "# Without this, Twitch limits quality to 1080p60 H.264",
-                    f"twitch-api-header=Authorization=OAuth {oauth_token.strip()}",
-                    "",
-                ])
-                logger.info("🔑 Twitch OAuth token configured in streamlink config")
+                logger.info("🔑 OAuth token available - will be passed via CLI per recording")
             else:
-                config_lines.extend([
-                    "# Twitch OAuth Authentication (NOT CONFIGURED)",
-                    "# Set TWITCH_OAUTH_TOKEN in .env to enable H.265/1440p",
-                    "# twitch-api-header=Authorization=OAuth YOUR_TOKEN_HERE",
-                    "",
-                ])
+                logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
                 logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
             
             # Add proxy settings if configured
