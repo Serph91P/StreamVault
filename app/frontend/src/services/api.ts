@@ -345,19 +345,19 @@ export const backgroundQueueApi = {
 export const authApi = {
   // Get Twitch auth URL
   getAuthUrl: () => 
-    apiClient.get('/api/auth/auth-url'),
+    apiClient.get('/api/twitch/auth-url'),
 
   // Handle auth callback
   handleCallback: (code: string, state: string) => 
-    apiClient.get(`/api/auth/callback?code=${code}&state=${state}`),
+    apiClient.get(`/api/twitch/callback?code=${code}&state=${state}`),
 
   // Get followed channels
   getFollowedChannels: () => 
-    apiClient.get('/api/auth/followed-channels'),
+    apiClient.get('/api/twitch/followed-channels'),
 
   // Import streamers from followed channels
   importStreamers: (streamerIds: number[]) => 
-    apiClient.post('/api/auth/import-streamers', { streamer_ids: streamerIds }),
+    apiClient.post('/api/twitch/import-streamers', { streamer_ids: streamerIds }),
 
   // Get callback URL
   getCallbackUrl: () => 
