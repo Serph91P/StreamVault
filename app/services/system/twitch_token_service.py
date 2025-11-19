@@ -47,7 +47,7 @@ class TwitchTokenService:
     def __init__(self, db: Session):
         self.db = db
         self.settings = get_settings()
-        self.encryption = ProxyEncryption(db)
+        self.encryption = ProxyEncryption()
     
     async def get_valid_access_token(self) -> Optional[str]:
         """
