@@ -159,13 +159,13 @@ class StreamlinkConfigService:
             logger.error(f"❌ Unexpected error generating streamlink config: {e}")
             return False
     
-    def update_config_from_settings(self, db_session=None) -> bool:
+    async def update_config_from_settings(self, db_session=None) -> bool:
         """
         Update Streamlink config based on current application settings.
         
         Pulls settings from:
-        1. Environment variables (TWITCH_OAUTH_TOKEN)
-        2. Database (GlobalSettings: proxy, codecs)
+        1. Database (GlobalSettings: OAuth token via TwitchTokenService, proxy, codecs)
+        2. Environment variables (fallback for TWITCH_OAUTH_TOKEN)
         
         This is called at:
         - Application startup
@@ -182,9 +182,7 @@ class StreamlinkConfigService:
             from app.config.settings import settings
             from app.database import SessionLocal
             from app.models import GlobalSettings
-            
-            # Get OAuth token from environment (never stored in database!)
-            oauth_token = settings.TWITCH_OAUTH_TOKEN
+            from app.services.system.twitch_token_service import TwitchTokenService
             
             # Get proxy and codec settings from database
             close_session = False
@@ -194,6 +192,10 @@ class StreamlinkConfigService:
             
             try:
                 global_settings = db_session.query(GlobalSettings).first()
+                
+                # === Get OAuth token from TwitchTokenService (handles refresh) ===
+                token_service = TwitchTokenService(db_session)
+                oauth_token = await token_service.get_valid_access_token()
                 
                 if global_settings:
                     http_proxy = global_settings.http_proxy
@@ -222,19 +224,20 @@ class StreamlinkConfigService:
             logger.error(f"❌ Failed to update streamlink config from settings: {e}")
             return False
     
-    def regenerate_config(self) -> bool:
+    async def regenerate_config(self) -> bool:
         """
         Force regeneration of Streamlink config from current settings.
         
         Called when user updates settings that affect Streamlink:
         - Proxy settings changed
         - Codec preferences changed
+        - OAuth token refreshed
         
         Returns:
             True if config was successfully regenerated
         """
         logger.info("🔄 Regenerating Streamlink config from updated settings...")
-        success = self.update_config_from_settings()
+        success = await self.update_config_from_settings()
         
         if success:
             logger.info("✅ Streamlink config regenerated successfully")

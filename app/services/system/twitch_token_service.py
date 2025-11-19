@@ -23,6 +23,7 @@ Security:
 """
 
 import logging
+import asyncio
 import aiohttp
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -43,6 +44,9 @@ class TwitchTokenService:
     
     # Token expiration buffer (refresh 1 hour before expiration)
     EXPIRATION_BUFFER_SECONDS = 3600
+    
+    # Global lock for token refresh (prevents duplicate refreshes)
+    _refresh_lock = asyncio.Lock()
     
     def __init__(self, db: Session):
         self.db = db
@@ -72,13 +76,20 @@ class TwitchTokenService:
                     logger.debug("Using existing valid access token from database")
                     return self.settings.TWITCH_OAUTH_TOKEN
                 
-                # Token expired → Refresh it
-                logger.info("Access token expired, refreshing...")
-                new_access_token = await self._refresh_access_token(global_settings)
-                if new_access_token:
-                    return new_access_token
-                
-                logger.warning("Token refresh failed, falling back to environment variable")
+                # Token expired → Refresh it (with lock to prevent duplicate refreshes)
+                async with self._refresh_lock:
+                    # Double-check: Another task may have refreshed while we waited
+                    self.db.refresh(global_settings)  # Reload from database
+                    if self._is_token_valid(global_settings):
+                        logger.debug("Token was refreshed by another task, using it")
+                        return self.settings.TWITCH_OAUTH_TOKEN
+                    
+                    logger.info("Access token expired, refreshing...")
+                    new_access_token = await self._refresh_access_token(global_settings)
+                    if new_access_token:
+                        return new_access_token
+                    
+                    logger.warning("Token refresh failed, falling back to environment variable")
             
             # === PRIORITY 2: Fallback to environment variable ===
             if self.settings.TWITCH_OAUTH_TOKEN:
@@ -139,8 +150,8 @@ class TwitchTokenService:
             
             # === STEP 1: Request new access token from Twitch ===
             payload = {
-                "client_id": self.settings.TWITCH_CLIENT_ID,
-                "client_secret": self.settings.TWITCH_CLIENT_SECRET,
+                "client_id": self.settings.TWITCH_APP_ID,
+                "client_secret": self.settings.TWITCH_APP_SECRET,
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token
             }
@@ -181,6 +192,19 @@ class TwitchTokenService:
             self.db.commit()
             
             logger.info(f"✅ Access token refreshed successfully (expires at {expires_at})")
+            
+            # === STEP 5: Regenerate Streamlink config with new token ===
+            try:
+                from app.services.system.streamlink_config_service import streamlink_config_service
+                config_updated = await streamlink_config_service.regenerate_config()
+                if config_updated:
+                    logger.info("🔄 Streamlink config updated with refreshed token")
+                else:
+                    logger.warning("⚠️ Failed to update Streamlink config after token refresh")
+            except Exception as config_error:
+                logger.error(f"❌ Error updating Streamlink config after token refresh: {config_error}")
+                # Don't fail token refresh if config update fails
+            
             return new_access_token
             
         except Exception as e:
@@ -231,6 +255,19 @@ class TwitchTokenService:
             
             logger.info(f"✅ OAuth tokens stored successfully (expires at {expires_at})")
             logger.info("🎯 Automatic token refresh enabled!")
+            
+            # === Update Streamlink config with new token ===
+            try:
+                from app.services.system.streamlink_config_service import streamlink_config_service
+                config_updated = await streamlink_config_service.regenerate_config()
+                if config_updated:
+                    logger.info("🔄 Streamlink config generated with new OAuth token")
+                else:
+                    logger.warning("⚠️ Failed to generate Streamlink config with new token")
+            except Exception as config_error:
+                logger.error(f"❌ Error generating Streamlink config after OAuth setup: {config_error}")
+                # Don't fail OAuth setup if config generation fails
+            
             return True
             
         except Exception as e:

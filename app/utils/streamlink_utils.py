@@ -197,6 +197,12 @@ def get_streamlink_command(
     This creates a robust Streamlink command following the approach used in lsdvr (TypeScript),
     with all parameters tuned for maximum stability and quality.
     
+    OAuth Token Handling:
+    - Config file (/app/config/streamlink/config.twitch) contains baseline token
+    - Per-recording token (oauth_token parameter) ALWAYS overrides config
+    - TwitchTokenService auto-refreshes token before EVERY recording start
+    - This prevents race conditions where stream starts with expired token
+    
     Args:
         streamer_name: The streamer's username
         quality: Quality setting for the stream (e.g. "best", "720p")
@@ -205,7 +211,9 @@ def get_streamlink_command(
         force_mode: Use more aggressive settings for difficult connections
         log_path: Custom path for streamlink logs (if None, will use default location)
         supported_codecs: Comma-separated list of codecs (e.g. "h264,h265") - Streamlink 8.0.0+
-        oauth_token: Twitch OAuth token for authenticated access (enables H.265/1440p)
+        oauth_token: Twitch OAuth token (auto-refreshed by TwitchTokenService).
+                    If provided, overrides config.twitch token.
+                    Enables: H.265/AV1 codecs, 1440p quality, ad-free (Turbo)
         
     Returns:
         List of command arguments for streamlink
@@ -235,7 +243,7 @@ def get_streamlink_command(
     # Note: These settings are now in config.twitch (auto-generated from settings):
     # - --twitch-supported-codecs (codec preferences from database)
     # - --twitch-disable-ads (ad blocking)
-    # - --twitch-api-header (OAuth token from environment)
+    # - --twitch-api-header (OAuth token - auto-refreshed before recording)
     # - --http-proxy / --https-proxy (proxy settings from database)
     # - --hls-live-edge, --stream-timeout, etc. (stability settings)
     # - --loglevel, --logformat (logging config)
@@ -245,11 +253,15 @@ def get_streamlink_command(
         cmd.extend(["--twitch-supported-codecs", supported_codecs.strip()])
         logger.debug(f"🎨 Overriding codec preference: {supported_codecs}")
     
-    # Only add OAuth token if explicitly requested (overrides config.twitch)
-    # This allows per-recording OAuth control if needed
+    # CRITICAL: Always use per-recording OAuth token if provided
+    # This ensures the token is fresh (TwitchTokenService auto-refreshes before each recording)
+    # Per-recording tokens override config.twitch to prevent using stale tokens
     if oauth_token and oauth_token.strip():
         cmd.extend(["--twitch-api-header", f"Authorization=OAuth {oauth_token.strip()}"])
-        logger.debug(f"🔑 Using per-recording OAuth token (overrides config)")
+        logger.debug(f"🔑 Using auto-refreshed OAuth token (overrides config.twitch)")
+        logger.debug(f"   Token enables: H.265/AV1 codecs, 1440p quality, ad-free streams (Turbo)")
+    else:
+        logger.warning(f"⚠️ No OAuth token provided - limited to 1080p H.264, ads may appear")
     
     # Add proxy settings if provided (overrides config.twitch)
     if proxy_settings:
