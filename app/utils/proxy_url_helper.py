@@ -121,7 +121,6 @@ def decode_proxy_url_for_display(proxy_url: str) -> str:
 if __name__ == "__main__":
     # Test cases
     test_urls = [
-        "http://mebert:eden11_Gigs@88.151.195.245:8134",
         "http://user:pass@host:8080",
         "http://user:already%5Fencoded@host:8080",
         "http://user:p@ss:word@host:8080",  # Multiple colons
