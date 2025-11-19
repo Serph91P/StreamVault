@@ -125,6 +125,7 @@ const connectionStatus = ref<ConnectionStatus>({
 })
 
 const isLoading = ref(false)
+const callbackUrl = ref('')
 
 const statusClass = computed(() => ({
   'status-connected': connectionStatus.value.connected && connectionStatus.value.valid,
@@ -148,8 +149,33 @@ const statusDescription = computed(() => {
   return 'Your account is connected and tokens are valid'
 })
 
-onMounted(() => {
-  fetchConnectionStatus()
+onMounted(async () => {
+  await fetchConnectionStatus()
+  
+  // Fetch callback URL for display
+  try {
+    const response = await fetch('/api/twitch/callback-url', {
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      callbackUrl.value = data.url || ''
+    }
+  } catch (error) {
+    console.error('Failed to fetch callback URL:', error)
+  }
+  
+  // Check if returning from OAuth success
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.get('auth_success') === 'true') {
+    toast.success('Twitch account connected successfully!')
+    // Clean up URL
+    window.history.replaceState({}, '', '/settings')
+  } else if (urlParams.get('error') === 'auth_failed') {
+    toast.error('Failed to connect Twitch account. Please try again.')
+    window.history.replaceState({}, '', '/settings')
+  }
 })
 
 async function fetchConnectionStatus() {
@@ -170,7 +196,8 @@ async function connectTwitch() {
   try {
     isLoading.value = true
     
-    const response = await fetch('/api/twitch/auth-url', {
+    // Pass /settings as state parameter so backend knows where to redirect
+    const response = await fetch('/api/twitch/auth-url?state=/settings', {
       credentials: 'include'
     })
     
@@ -179,9 +206,7 @@ async function connectTwitch() {
     const data = await response.json()
     
     if (data.auth_url) {
-      // Save current page to return after OAuth
-      sessionStorage.setItem('oauth_return_url', '/settings')
-      // Redirect to Twitch OAuth
+      // Redirect to Twitch OAuth (state parameter tells backend to return to /settings)
       window.location.href = data.auth_url
     }
   } catch (error) {

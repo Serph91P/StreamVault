@@ -25,8 +25,12 @@ class TwitchOAuthService:
         self.client_secret = settings.TWITCH_APP_SECRET
         self.redirect_uri = f"{settings.BASE_URL}/api/twitch/callback"
         
-    def get_auth_url(self) -> str:
-        """Generate Twitch OAuth URL for user authentication"""
+    def get_auth_url(self, state: Optional[str] = None) -> str:
+        """Generate Twitch OAuth URL for user authentication
+        
+        Args:
+            state: Optional state parameter (e.g., return URL like '/settings' or '/add-streamer')
+        """
         params = {
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
@@ -34,6 +38,9 @@ class TwitchOAuthService:
             "scope": "user:read:follows",  # Required for reading followed channels
             "force_verify": "true",  # Force re-authentication to ensure fresh refresh_token
         }
+        
+        if state:
+            params["state"] = state
         
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
         

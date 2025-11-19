@@ -20,26 +20,38 @@ def get_twitch_oauth_service(
 
 @router.get("/auth-url")
 async def get_twitch_auth_url(
+    state: str = Query(None, description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')"),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
 ):
-    """Get Twitch OAuth authorization URL"""
-    auth_url = oauth_service.get_auth_url()
+    """Get Twitch OAuth authorization URL
+    
+    Args:
+        state: Optional return URL to redirect to after OAuth completes
+    """
+    auth_url = oauth_service.get_auth_url(state=state)
     return {"auth_url": auth_url}
 
 @router.get("/callback")
 async def twitch_callback(
     code: str = Query(...),
+    state: str = Query(None, description="Return URL passed from OAuth initiation"),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
     response: Response = None
 ):
-    """Handle Twitch OAuth callback"""
+    """Handle Twitch OAuth callback
+    
+    Args:
+        code: Authorization code from Twitch
+        state: Return URL (e.g., '/settings' or '/add-streamer')
+    """
     # Exchange code for access token
     token_data = await oauth_service.exchange_code(code)
     
     if not token_data or "access_token" not in token_data:
         logger.error("Failed to get access token from Twitch")
-        # Redirect to error page
-        return RedirectResponse(url="/add-streamer?error=auth_failed")
+        # Redirect to error page with state-aware return URL
+        error_url = state if state else "/add-streamer"
+        return RedirectResponse(url=f"{error_url}?error=auth_failed")
     
     # Store refresh token in database for automatic token refresh
     access_token = token_data["access_token"]
@@ -67,15 +79,17 @@ async def twitch_callback(
             except Exception as e:
                 logger.error(f"Error storing OAuth tokens: {e}")
     
-    # Redirect back to appropriate page (settings or add-streamer)
-    # The frontend sets 'oauth_return_url' in sessionStorage before redirecting
-    return_url = "/add-streamer"  # Default fallback
-    
-    # Try to redirect to settings if that's where user came from
-    # (This is a simple approach - in production you'd want to use state parameter)
-    redirect_url = f"{return_url}?token={access_token}&auth_success=true"
-    
-    return RedirectResponse(url=redirect_url)
+    # Determine return URL based on state parameter or default
+    if state == "/settings":
+        # For settings page: Just redirect back without token in URL (stored in DB)
+        logger.info("✅ Twitch OAuth completed - redirecting to /settings")
+        return RedirectResponse(url="/settings?auth_success=true")
+    else:
+        # For add-streamer page: Include token in URL for importing followed channels
+        return_url = state if state else "/add-streamer"
+        logger.info(f"✅ Twitch OAuth completed - redirecting to {return_url}")
+        redirect_url = f"{return_url}?token={access_token}&auth_success=true"
+        return RedirectResponse(url=redirect_url)
 
 @router.get("/followed-channels")
 async def get_followed_channels(
