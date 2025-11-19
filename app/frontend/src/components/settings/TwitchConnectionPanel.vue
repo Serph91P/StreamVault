@@ -116,7 +116,7 @@ interface ConnectionStatus {
   expires_at: string | null
 }
 
-const { showToast } = useToast()
+const toast = useToast()
 
 const connectionStatus = ref<ConnectionStatus>({
   connected: false,
@@ -186,11 +186,7 @@ async function connectTwitch() {
     }
   } catch (error) {
     console.error('Failed to start Twitch OAuth:', error)
-    showToast({
-      type: 'error',
-      title: 'Connection Failed',
-      message: 'Could not connect to Twitch. Please try again.'
-    })
+    toast.error('Could not connect to Twitch. Please try again.')
   } finally {
     isLoading.value = false
   }
@@ -220,19 +216,11 @@ async function disconnectTwitch() {
         expires_at: null
       }
       
-      showToast({
-        type: 'success',
-        title: 'Disconnected',
-        message: 'Your Twitch account has been disconnected'
-      })
+      toast.success('Your Twitch account has been disconnected')
     }
   } catch (error) {
     console.error('Failed to disconnect Twitch:', error)
-    showToast({
-      type: 'error',
-      title: 'Disconnection Failed',
-      message: 'Could not disconnect from Twitch. Please try again.'
-    })
+    toast.error('Could not disconnect from Twitch. Please try again.')
   } finally {
     isLoading.value = false
   }
@@ -243,11 +231,7 @@ async function refreshStatus() {
   await fetchConnectionStatus()
   isLoading.value = false
   
-  showToast({
-    type: 'info',
-    title: 'Status Refreshed',
-    message: 'Connection status has been updated'
-  })
+  toast.info('Connection status has been updated')
 }
 
 function formatExpiration(expiresAt: string): string {
