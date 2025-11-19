@@ -147,7 +147,13 @@ async def get_connection_status():
             is_valid = False
             if has_refresh_token and global_settings.twitch_token_expires_at:
                 from datetime import datetime, timezone
-                is_valid = datetime.now(timezone.utc) < global_settings.twitch_token_expires_at
+                # Make both datetimes timezone-aware for comparison
+                now_utc = datetime.now(timezone.utc)
+                expires_at = global_settings.twitch_token_expires_at
+                if expires_at.tzinfo is None:
+                    # If stored as naive, assume it's UTC
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                is_valid = now_utc < expires_at
             
             return {
                 "connected": has_refresh_token,
