@@ -261,6 +261,7 @@ class GlobalSettings(Base):
     # Twitch OAuth Token Refresh (Migration 033) - Automatic token refresh without manual intervention
     twitch_refresh_token: Optional[str] = Column(Text, nullable=True)  # Long-lived refresh token (encrypted)
     twitch_token_expires_at: Optional[datetime] = Column(DateTime, nullable=True)  # When current access token expires
+    twitch_access_token: Optional[str] = Column(Text, nullable=True)  # Current access token (encrypted, Migration 034)
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"

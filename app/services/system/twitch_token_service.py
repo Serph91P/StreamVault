@@ -74,6 +74,10 @@ class TwitchTokenService:
                 # Check if access token is still valid
                 if self._is_token_valid(global_settings):
                     logger.debug("Using existing valid access token from database")
+                    # Decrypt and return access token from database
+                    if global_settings.twitch_access_token:
+                        return self.encryption.decrypt(global_settings.twitch_access_token)
+                    # Fallback to environment variable (backward compatibility)
                     return self.settings.TWITCH_OAUTH_TOKEN
                 
                 # Token expired → Refresh it (with lock to prevent duplicate refreshes)
@@ -178,11 +182,13 @@ class TwitchTokenService:
             expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             
             # === STEP 4: Update database ===
-            # Update environment variable (used by recording service)
-            self.settings.TWITCH_OAUTH_TOKEN = new_access_token
-            
-            # Update database
+            # Store access token in database (encrypted)
+            encrypted_access_token = self.encryption.encrypt(new_access_token)
+            global_settings.twitch_access_token = encrypted_access_token
             global_settings.twitch_token_expires_at = expires_at
+            
+            # Update environment variable for backward compatibility
+            self.settings.TWITCH_OAUTH_TOKEN = new_access_token
             
             # Update refresh token if Twitch rotated it
             if new_refresh_token and new_refresh_token != refresh_token:
@@ -241,14 +247,16 @@ class TwitchTokenService:
             # Calculate expiration timestamp
             expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             
-            # Encrypt refresh token
+            # Encrypt tokens
             encrypted_refresh_token = self.encryption.encrypt(refresh_token)
+            encrypted_access_token = self.encryption.encrypt(access_token)
             
             # Store in database
             global_settings.twitch_refresh_token = encrypted_refresh_token
+            global_settings.twitch_access_token = encrypted_access_token
             global_settings.twitch_token_expires_at = expires_at
             
-            # Update environment variable (for immediate use)
+            # Update environment variable for backward compatibility
             self.settings.TWITCH_OAUTH_TOKEN = access_token
             
             self.db.commit()
@@ -314,6 +322,7 @@ class TwitchTokenService:
             
             if global_settings:
                 global_settings.twitch_refresh_token = None
+                global_settings.twitch_access_token = None
                 global_settings.twitch_token_expires_at = None
                 self.db.commit()
                 
