@@ -41,6 +41,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      # Twitch App credentials for EventSub webhooks (stream online/offline notifications)
       - TWITCH_APP_ID=${TWITCH_APP_ID}
       - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
       - BASE_URL=${BASE_URL}
