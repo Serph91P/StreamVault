@@ -51,12 +51,12 @@ onMounted(() => {
   
   // Desktop with expanded sidebar
   &.with-sidebar {
-    margin-left: 240px;
+    margin-left: 272px; // 260px sidebar + 12px toggle overhang
   }
   
   // Desktop with collapsed sidebar
   &.with-sidebar-collapsed {
-    margin-left: 64px;
+    margin-left: 96px; // 84px sidebar + 12px toggle overhang
   }
   
   // Mobile with bottom navigation
