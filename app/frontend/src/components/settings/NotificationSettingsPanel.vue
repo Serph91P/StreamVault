@@ -407,267 +407,105 @@ const testWebSocketNotification = async () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
 
-.settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-7, 28px);
+// ============================================================================
+// NOTIFICATION SETTINGS PANEL - Unified Design
+// Most styles inherited from global _settings-panels.scss
+// ============================================================================
+
+// ============================================================================
+// NOTIFICATION TYPE CARDS
+// ============================================================================
+
+.notification-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: v.$spacing-4;
+  margin-bottom: v.$spacing-6;
+  
+  @include m.respond-below('sm') {
+    grid-template-columns: 1fr;
+  }
 }
 
-.settings-form,
-.streamer-notifications {
-  margin-bottom: 0;
-  background: transparent;
-  padding: 0;
-}
-
-.form-group {
-  margin-bottom: var(--spacing-lg, 20px);
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: var(--spacing-sm, 8px);
-  font-weight: 500;
-}
-
-.checkbox-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm, 8px);
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: flex-start;
-  font-weight: normal;
-  text-align: left;
-}
-
-.checkbox-group input[type="checkbox"] {
-  margin-right: var(--spacing-sm, 8px);
-  margin-top: 4px;
-}
-
-.section-description {
-  color: var(--text-secondary, #adadb8);
-  font-size: 0.875rem;
-  margin-bottom: var(--spacing-md, 12px);
-  line-height: 1.5;
-}
-
-.label-hint {
-  color: var(--text-secondary, #adadb8);
-  font-size: 0.8rem;
-  font-style: italic;
-  margin-left: var(--spacing-xs, 4px);
-}
-
-.label-recommended {
-  color: var(--warning-color, #f59e0b);
-  font-weight: 500;
-}
-
-.input-with-tooltip {
-  position: relative;
-}
-
-.form-control {
-  width: 100%;
-  padding: var(--spacing-3);
-  border: 1px solid var(--border-color, #333);
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #fff);
-  border-radius: var(--border-radius, 4px);
-}
-
-.form-control.is-invalid {
-  border-color: var(--danger-color, #ef4444);
-}
-
-.invalid-feedback {
-  color: var(--danger-color, #ef4444);
-  font-size: 0.875rem;
-  margin-top: var(--spacing-xs, 4px);
-}
-
-.tooltip-wrapper {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  z-index: 1000;
-  margin-top: var(--spacing-sm, 8px);
-}
-
-.tooltip {
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-secondary, #adadb8);
-  padding: var(--spacing-md, 12px);
-  border-radius: var(--border-radius, 4px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.tooltip-link {
-  color: var(--primary-color, #42b883);
-  text-decoration: underline;
-}
-
-.form-actions {
-  display: flex;
-  gap: var(--spacing-sm, 10px);
-  margin-top: var(--spacing-lg, 20px);
-}
-
-.streamer-notifications {
-  margin-top: var(--spacing-xl, 30px);
-}
-
-.table-controls {
-  display: flex;
-  gap: var(--spacing-sm, 10px);
-  margin-bottom: var(--spacing-md, 15px);
-}
-
-/* Avatar placeholder for missing images */
-.avatar-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-color);
-  color: white;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-@include m.respond-below('md') {  // < 768px
-  /* Form Controls - iOS Zoom Prevention & Touch Targets */
-  .form-control {
-    padding: 12px;
-    font-size: 16px !important; /* Prevent iOS zoom */
-    min-height: 48px;
-    border-radius: var(--border-radius, 8px);
+.notification-type-card {
+  padding: v.$spacing-4;
+  background: var(--background-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: v.$transition-all;
+  cursor: pointer;
+  
+  &:hover {
+    border-color: var(--primary-color);
+    background: var(--background-hover);
   }
   
-  input[type="text"],
-  input[type="email"],
-  input[type="url"],
-  textarea {
-    font-size: 16px !important; /* Prevent iOS zoom */
-    min-height: 48px;
+  &.active {
+    border-color: var(--primary-color);
+    background: var(--primary-bg);
   }
   
-  /* Form Actions - Stack Vertically on Mobile */
+  .type-icon {
+    font-size: v.$text-2xl;
+    margin-bottom: v.$spacing-2;
+  }
+  
+  .type-title {
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin-bottom: v.$spacing-1;
+  }
+  
+  .type-description {
+    font-size: v.$text-sm;
+    color: var(--text-secondary);
+  }
+}
+
+// ============================================================================
+// TEST NOTIFICATION BUTTON
+// ============================================================================
+
+.test-notification-section {
+  margin-top: v.$spacing-6;
+  padding: v.$spacing-4;
+  background: var(--info-bg-color);
+  border: 1px solid var(--info-border-color);
+  border-radius: var(--radius-md);
+  
+  .test-result {
+    margin-top: v.$spacing-3;
+    padding: v.$spacing-3;
+    border-radius: var(--radius-sm);
+    
+    &.success {
+      background: var(--success-bg-color);
+      border: 1px solid var(--success-border-color);
+      color: var(--success-color);
+    }
+    
+    &.error {
+      background: var(--danger-bg-color);
+      border: 1px solid var(--danger-border-color);
+      color: var(--danger-color);
+    }
+  }
+}
+
+// ============================================================================
+// RESPONSIVE
+// ============================================================================
+
+@include m.respond-below('md') {
   .form-actions {
     flex-direction: column;
-    gap: 12px;
-  }
-  
-  .form-actions .btn {
-    width: 100%;
-    min-height: 48px; /* Touch-friendly */
-    font-size: 16px;
-    padding: 12px 16px;
-  }
-  
-  /* Checkbox groups - Better touch targets */
-  .checkbox-group input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    margin-right: 12px;
-  }
-  
-  .checkbox-group label {
-    padding: 8px 0;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-  
-  /* Table Controls - Stack Vertically */
-  .table-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  
-  .table-controls button {
-    margin-right: 0;
-    width: 100%;
-    min-height: 48px;
-    font-size: 16px;
-  }
-  
-  .streamer-table {
-    border-radius: 0;
-  }
-  
-  /* Fix alignment in table cells */
-  .streamer-table td, .streamer-table th {
-    padding: var(--spacing-2) var(--spacing-2);
-  }
-  
-  /* Fix the streamer info height */
-  .streamer-info {
-    gap: 6px;
-  }
-  
-  .streamer-name {
-    font-size: 0.9rem;
-  }
-  
-  /* Make checkboxes easier to tap on mobile */
-  input[type="checkbox"] {
-    min-width: 20px;  /* Increased from 18px for better touch targets */
-    min-height: 20px;
-    cursor: pointer;
-  }
-}
-
-/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
-@include m.respond-below('md') {  // < 767px
-  .streamer-table table,
-  .streamer-table thead,
-  .streamer-table tbody,
-  .streamer-table th,
-  .streamer-table td,
-  .streamer-table tr {
-    display: block;
-  }
-  
-  /* Hide table header */
-  .streamer-table thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
-  }
-  
-  /* Style each row as a card */
-  .streamer-table tr {
-    margin-bottom: var(--spacing-4, 16px);
-    border-radius: var(--border-radius, 8px);
-    border: 1px solid var(--border-color, #333);
-    background: var(--background-card, #2a2a2e);
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-  
-  /* Table Controls - Stack Vertically on Mobile */
-  .table-controls {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .table-controls button {
-    width: 100%;
-    min-height: 48px;
-    font-size: 16px;
+    
+    .btn {
+      width: 100%;
+    }
   }
 }
 </style>
