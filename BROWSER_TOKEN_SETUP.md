@@ -20,7 +20,7 @@ Only **browser authentication tokens** grant full access to these features.
    ```javascript
    document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
    ```
-5. Copy the 30-character token (example: `ll6j3ayvdkglcz2eo5bkf895up1ach`)
+5. Copy the 30-character token (example: `abc123xyz456def789ghi012jkl345`)
 
 ### Step 2: Set Token in Docker Compose
 
