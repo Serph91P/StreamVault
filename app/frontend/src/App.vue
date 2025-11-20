@@ -1,7 +1,8 @@
 <template>
-  <!-- SVG Icon Sprite (loaded inline for reliability) -->
-  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true">
-    <defs>
+  <!-- SVG Icon Sprite (loaded inline for reliability) - Teleported to body to avoid scoped CSS issues -->
+  <Teleport to="body">
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true" id="svg-sprite">
+      <defs>
       <!-- Home Icon -->
       <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -336,8 +337,16 @@
         <line x1="12" y1="9" x2="12" y2="13"/>
         <line x1="12" y1="17" x2="12.01" y2="17"/>
       </symbol>
+      
+      <!-- RSS (Subscriptions/Feed) -->
+      <symbol id="icon-rss" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11a9 9 0 0 1 9 9"/>
+        <path d="M4 4a16 16 0 0 1 16 16"/>
+        <circle cx="5" cy="19" r="1"/>
+      </symbol>
     </defs>
-  </svg>
+    </svg>
+  </Teleport>
 
   <div class="app">
     <!-- Show header and navigation ONLY on authenticated pages -->
@@ -356,7 +365,7 @@
             </svg>
           </button>
           
-          <router-link to="/" class="app-logo">StreamVault</router-link>
+          <span class="app-logo" aria-label="StreamVault">StreamVault</span>
           
           <div class="header-right">
             <!-- Background Queue Monitor (always visible) -->
@@ -906,7 +915,7 @@ watch(messages, (newMessages) => {
 }, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 @use '@/styles/mixins' as m;
 /* Responsive - Use SCSS mixins for breakpoints */
 
@@ -920,11 +929,12 @@ watch(messages, (newMessages) => {
   height: 64px;
   z-index: 1100;
 
-  /* Glassmorphism effect */
-  background: rgba(var(--background-card-rgb), 0.85);
-  backdrop-filter: blur(24px) saturate(180%);
+  /* Solid header (no glass shimmer) */
+  background: var(--background-card);
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   /* Smooth theme transitions */
   transition: background-color 300ms var(--vue-ease-out),
@@ -949,14 +959,12 @@ watch(messages, (newMessages) => {
   text-decoration: none;
   line-height: 1;
 
-  /* Smooth transition */
-  transition: color var(--duration-200, 200ms) var(--vue-ease-out);
+  transition: opacity var(--duration-200, 200ms) var(--vue-ease-out);
 
   &:hover {
-    color: var(--accent-color);
+    opacity: 0.8;
   }
 
-  /* Focus-visible for keyboard navigation */
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 4px;
