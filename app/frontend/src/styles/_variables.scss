@@ -306,10 +306,15 @@ $duration-400: 400ms;  // Missing in original list
 :root {
   // Brand Colors
   --primary-color: #{$primary-500};
+  --color-primary: #{$primary-500};         // Alias for compatibility
   --primary-color-light: #{$primary-400};
   --primary-color-dark: #{$primary-600};
   --accent-color: #{$accent-500};
   --secondary-color: #{$accent-500};
+  
+  // Gradients
+  --gradient-primary: linear-gradient(135deg, #{$primary-500} 0%, #{$primary-600} 100%);
+  --primary-bg: #{rgba($primary-500, 0.1)};  // Primary color background
   
   // Semantic Colors
   --danger-color: #{$danger-500};
@@ -332,6 +337,9 @@ $duration-400: 400ms;  // Missing in original list
   --background-dark: #{$slate-900};
   --background-darker: #{$slate-950};
   --background-card: #{$slate-800};
+  --background-primary: #{$slate-950};      // Darkest background
+  --background-secondary: #{$slate-800};    // Card background
+  --background-tertiary: #{$slate-700};     // Lighter background
   
   // Dark Mode Text
   --text-primary: #{$slate-50};
@@ -351,6 +359,15 @@ $duration-400: 400ms;  // Missing in original list
   --font-sans: #{$font-sans};
   --font-mono: #{$font-mono};
   
+  // Font Sizes
+  --font-size-xs: #{$text-xs};
+  --font-size-sm: #{$text-sm};
+  --font-size-base: #{$text-base};
+  --font-size-lg: #{$text-lg};
+  --font-size-xl: #{$text-xl};
+  --font-size-2xl: #{$text-2xl};
+  --font-size-3xl: #{$text-3xl};
+  
   --text-xs: #{$text-xs};
   --text-sm: #{$text-sm};
   --text-base: #{$text-base};
@@ -360,6 +377,13 @@ $duration-400: 400ms;  // Missing in original list
   --text-3xl: #{$text-3xl};
   --text-4xl: #{$text-4xl};
   --text-5xl: #{$text-5xl};
+  
+  // Font Weights
+  --font-weight-light: #{$font-light};
+  --font-weight-normal: #{$font-normal};
+  --font-weight-medium: #{$font-medium};
+  --font-weight-semibold: #{$font-semibold};
+  --font-weight-bold: #{$font-bold};
   
   --leading-none: #{$leading-none};
   --leading-tight: #{$leading-tight};
