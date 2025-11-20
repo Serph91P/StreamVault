@@ -10,6 +10,7 @@
 @use 'views';
 @use 'utilities';  // NEW: Design system utilities
 @use 'tables';  // NEW: Unified table system
+@use 'settings-panels';  // NEW: Unified settings panels design
 
 // Import FontAwesome
 @import '@fortawesome/fontawesome-free/css/all.css';
