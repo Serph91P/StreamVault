@@ -1,14 +1,8 @@
 <template>
   <div>
-    <h3>
-      <svg class="icon-title" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
-        <use href="#icon-star" />
-      </svg>
-      Favorite Categories
-    </h3>
     
     <!-- Filter und Suche - Verbessert für Mobile -->
-    <div class="filter-container">
+    <div class="filter-container settings-section settings-section--surface">
       <div class="filter-row">
         <div class="search-box">
           <input 
@@ -41,12 +35,12 @@
     
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
-      <div v-if="isLoading" class="loading">
+      <div v-if="isLoading" class="loading settings-section settings-section--surface">
         <div class="spinner"></div>
         <p>Loading categories...</p>
       </div>
       <template v-else>
-        <div v-if="filteredCategories.length === 0" class="no-categories">
+        <div v-if="filteredCategories.length === 0" class="no-categories settings-section settings-section--surface">
           <p v-if="showFavoritesOnly">You haven't marked any categories as favorites yet.</p>
           <p v-else-if="searchQuery">No categories found containing "{{ searchQuery }}".</p>
           <p v-else>
@@ -310,11 +304,7 @@ onMounted(() => {
 <style scoped lang="scss">
 @use '@/styles/mixins' as m;
 .filter-container {
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-6);
   overflow: hidden;
 }
 
@@ -383,13 +373,8 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-9);
   text-align: center;
   color: var(--text-secondary);
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   min-height: 200px;
 }
 
