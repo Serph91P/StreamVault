@@ -220,7 +220,8 @@ const toast = useToast()
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({
   notificationUrl: props.settings.notification_url || '',
-  notificationsEnabled: props.settings.notifications_enabled !== false,
+  // SECURITY: Only enable if URL is configured - prevents errors when no URL is set
+  notificationsEnabled: props.settings.notifications_enabled === true && !!props.settings.notification_url,
   notifyOnlineGlobal: props.settings.notify_online_global !== false,
   notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
   notifyUpdateGlobal: props.settings.notify_update_global !== false,

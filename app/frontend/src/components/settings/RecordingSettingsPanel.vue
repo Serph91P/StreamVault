@@ -15,7 +15,13 @@
           @click="activeTab = tab.id"
           :class="['tab-button', { active: activeTab === tab.id }]"
         >
-          {{ tab.icon }} {{ tab.label }}
+          <svg v-if="tab.id === 'recording'" class="tab-icon" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+          </svg>
+          <svg v-else-if="tab.id === 'storage'" class="tab-icon" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+          </svg>
+          {{ tab.label }}
         </button>
       </div>
 
@@ -24,7 +30,12 @@
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
-            <h4 class="section-title">📹 Basic Recording Settings</h4>
+            <div class="section-header">
+              <svg class="section-icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+              </svg>
+              <h4 class="section-title">Basic Recording Settings</h4>
+            </div>
             
             <div class="form-group">
               <label>
@@ -105,7 +116,12 @@
             </div>
 
             <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
-            <h4 class="section-title" style="margin-top: 2rem;">🎨 Advanced Codec Settings</h4>
+            <div class="section-header" style="margin-top: 2rem;">
+              <svg class="section-icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+              </svg>
+              <h4 class="section-title">Advanced Codec Settings</h4>
+            </div>
             <div class="form-group">
               <label>Supported Codecs:</label>
               <select v-model="data.supported_codecs" class="form-control">
@@ -131,8 +147,13 @@
 
         <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="panel-block status-border status-border-primary">
-            <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
+          <div class="panel-block">
+            <div class="section-header">
+              <svg class="section-icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+              </svg>
+              <h4 class="section-title">Storage & Cleanup Management</h4>
+            </div>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
             </p>
@@ -315,8 +336,8 @@ const emits = defineEmits<{
 // Tab management
 const activeTab = ref('recording');
 const tabs = [
-  { id: 'recording', label: 'Recording', icon: '📹' },
-  { id: 'storage', label: 'Storage', icon: '🗂️' }
+  { id: 'recording', label: 'Recording' },
+  { id: 'storage', label: 'Storage' }
 ];
 
 const { isLoading, error } = useRecordingSettings();
@@ -544,40 +565,82 @@ const handleStreamerPolicySaved = (policy: any) => {
 .panel-block {
   padding: var(--spacing-6, 24px);
   border-radius: var(--radius-xl, 32px);
-  //border: 1px solid var(--border-color);
   background: transparent;
+}
+
+/* Section Headers with Icons */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  margin-bottom: var(--spacing-5, 20px);
+}
+
+.section-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+.section-title {
+  font-size: var(--text-lg, 18px);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-description {
+  font-size: var(--text-sm, 14px);
+  color: var(--text-secondary);
+  margin: var(--spacing-2, 8px) 0 var(--spacing-4, 16px) 0;
+  line-height: 1.6;
 }
 
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
-  //border-bottom: 2px solid var(--border-color);
-  margin-bottom: 24px;
-  gap: 4px;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: var(--spacing-8, 32px);
+  gap: var(--spacing-2, 8px);
 }
 
 .tab-button {
-  background: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  background: transparent;
   border: none;
-  padding: var(--spacing-3) var(--spacing-6);
+  padding: var(--spacing-4) var(--spacing-6);
   cursor: pointer;
   color: var(--text-secondary);
-  font-weight: 500;
-  border-radius: var(--border-radius, 8px) var(--border-radius, 8px) 0 0;
+  font-weight: 600;
+  font-size: var(--text-base, 16px);
+  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
   transition: all 0.2s ease;
   border-bottom: 3px solid transparent;
-  font-size: 14px;
+  position: relative;
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
 }
 
-.tab-button:hover {
-  background-color: var(--background-dark);
+.tab-button:hover:not(.active) {
+  background-color: rgba(var(--primary-color-rgb), 0.05);
   color: var(--text-primary);
 }
 
 .tab-button.active {
-  background-color: var(--background-darker);
+  background-color: rgba(var(--primary-color-rgb), 0.1);
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
+  
+  .tab-icon {
+    color: var(--primary-color);
+  }
 }
 
 .tab-content {
