@@ -1,5 +1,4 @@
 @use 'sass:map';
-@use 'sass:color';
 @use 'variables' as v;
 
 // Base layout structure with improved responsiveness
@@ -16,24 +15,20 @@
 // Vue-inspired header with subtle gradient
 .header,
 .app-header {
-  background: linear-gradient(
-    to bottom,
-    v.$background-darker,
-    color.adjust(v.$background-darker, $lightness: -2%)
-  );
+  background: var(--background-card);
   position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: map.get(v.$z-layers, 'overlay');
-  box-shadow: v.$shadow-md;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   padding: v.$spacing-sm v.$spacing-md;
   width: 100%;
   box-sizing: border-box;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: all v.$transition-base;
-  border-bottom: 1px solid rgba(v.$border-color, 0.5);
+  border-bottom: 1px solid var(--border-color);
   min-height: 60px;
   display: flex;
   align-items: center;
