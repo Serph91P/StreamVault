@@ -327,11 +327,22 @@ const formatTime = (timestamp?: string) => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   height: 36px;
   min-width: auto;
+  
+  // Light mode: Visible border
+  [data-theme="light"] & {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.15);  // Visible border in light mode
+  }
 }
 
 .queue-status-indicator:hover {
   background: rgba(var(--primary-500-rgb), 0.1);
   border-color: rgba(var(--primary-500-rgb), 0.3);
+  
+  [data-theme="light"] & {
+    background: rgba(var(--primary-500-rgb), 0.15);
+    border-color: rgba(var(--primary-500-rgb), 0.5);
+  }
 }
 
 /* Plus Icon (replaces old status-icon) */
@@ -439,6 +450,12 @@ const formatTime = (timestamp?: string) => {
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  [data-theme="light"] & {
+    border-bottom-color: var(--border-color);
+  }
 }
 
 .stat-item {
@@ -450,11 +467,20 @@ const formatTime = (timestamp?: string) => {
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
+  
+  [data-theme="light"] & {
+    background: var(--background-darker);
+    border-color: var(--border-color);
+  }
 }
 
 .stat-item:hover {
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
+  
+  [data-theme="light"] & {
+    background: var(--background-card);
+  }
 }
 
 .stat-label {
@@ -478,6 +504,12 @@ const formatTime = (timestamp?: string) => {
 .active-tasks-section,
 .recent-tasks-section {
   margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  [data-theme="light"] & {
+    border-bottom-color: var(--border-color);
+  }
 }
 
 .active-tasks-section h4,

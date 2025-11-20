@@ -195,6 +195,18 @@ button:not(.unstyled),
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
+  
+  // Light mode: Ensure readable text
+  [data-theme="light"] & {
+    color: white;  // Always white text on teal button
+    background: v.$primary-600;  // Slightly darker for better contrast
+    border-color: v.$primary-600;
+    
+    &:not(:disabled):hover {
+      background: v.$primary-700;
+      border-color: v.$primary-700;
+    }
+  }
 }
 
 // Secondary button (neutral)
@@ -206,6 +218,19 @@ button:not(.unstyled),
   &:not(:disabled):hover {
     background: var(--background-card);
     border-color: var(--primary-color);
+  }
+  
+  // Light mode: Better contrast
+  [data-theme="light"] & {
+    background: v.$slate-200;
+    color: v.$slate-900;
+    border-color: v.$slate-300;
+    
+    &:not(:disabled):hover {
+      background: v.$slate-300;
+      border-color: v.$primary-500;
+      color: v.$primary-700;
+    }
   }
 }
 
@@ -236,6 +261,18 @@ button:not(.unstyled),
     outline: 2px solid var(--danger-color);
     outline-offset: 2px;
   }
+  
+  // Light mode: Ensure white text on red
+  [data-theme="light"] & {
+    color: white;  // Always white text on red button
+    background: v.$danger-600;
+    border-color: v.$danger-600;
+    
+    &:not(:disabled):hover {
+      background: v.$danger-700;
+      border-color: v.$danger-700;
+    }
+  }
 }
 
 // Success button (green)
@@ -247,6 +284,18 @@ button:not(.unstyled),
   &:not(:disabled):hover {
     background: #059669;  // success-600
     border-color: #059669;
+  }
+  
+  // Light mode: Ensure white text on green
+  [data-theme="light"] & {
+    color: white;
+    background: v.$success-600;
+    border-color: v.$success-600;
+    
+    &:not(:disabled):hover {
+      background: v.$success-700;
+      border-color: v.$success-700;
+    }
   }
 }
 

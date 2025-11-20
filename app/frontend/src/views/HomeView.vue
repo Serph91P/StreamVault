@@ -3,15 +3,15 @@
     <!-- Live Now Section -->
     <section class="live-section">
       <div class="section-header">
-        <div class="section-title-group">
-          <h2 class="section-title">
+        <h2 class="section-title">
+          <span class="live-indicator-wrapper">
             <span class="live-indicator"></span>
-            Live Now
-          </h2>
-          <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="section-count">
-            {{ liveStreamers.length }}
+            <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="live-count">
+              {{ liveStreamers.length }}
+            </span>
           </span>
-        </div>
+          Live Now
+        </h2>
       </div>
 
       <!-- Loading State -->
@@ -355,23 +355,32 @@ section {
   fill: none;
 }
 
-.section-count {
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  color: var(--danger-color);
-  background: rgba(var(--danger-500-rgb), 0.1);
-  padding: var(--spacing-1) var(--spacing-3);
-  border-radius: var(--radius-full);
+// Live Indicator Wrapper (contains indicator + count)
+.live-indicator-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-// Live Indicator
 .live-indicator {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 20px;  // Larger to accommodate count
+  height: 20px;
   background: var(--danger-color);
   border-radius: 50%;
   animation: pulse-live 2s ease-in-out infinite;
+  position: relative;
+}
+
+.live-count {
+  position: absolute;
+  font-size: 10px;
+  font-weight: v.$font-bold;
+  color: white;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes pulse-live {
