@@ -386,8 +386,9 @@ onMounted(loadSubscriptions)
   }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    filter: grayscale(0.3);
   }
 
   &.btn-primary {
@@ -397,6 +398,12 @@ onMounted(loadSubscriptions)
     &:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: var(--shadow-lg);
+    }
+
+    &:disabled {
+      background: var(--background-secondary);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-color);
     }
   }
 
@@ -409,6 +416,12 @@ onMounted(loadSubscriptions)
       background: var(--background-tertiary);
       border-color: var(--color-primary);
     }
+
+    &:disabled {
+      background: var(--background-tertiary);
+      color: var(--text-tertiary);
+      border-color: var(--border-color);
+    }
   }
 
   &.btn-danger {
@@ -419,6 +432,12 @@ onMounted(loadSubscriptions)
       background: var(--color-error-hover);
       transform: translateY(-2px);
       box-shadow: var(--shadow-lg);
+    }
+
+    &:disabled {
+      background: var(--background-secondary);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-color);
     }
   }
 }
