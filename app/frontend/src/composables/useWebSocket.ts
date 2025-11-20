@@ -26,6 +26,13 @@ class WebSocketManager {
   private constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     this.wsUrl = `${wsProtocol}//${window.location.host}/ws`
+    
+    // 🎭 MOCK MODE: Check if using mock data
+    const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+    if (USE_MOCK_DATA) {
+      console.log('🎭 Mock mode: WebSocket connections disabled')
+    }
+    
     logDebug('WebSocketManager', `Singleton created with URL: ${this.wsUrl}`)
   }
 
@@ -41,6 +48,13 @@ class WebSocketManager {
 
   public subscribe(callback: () => void) {
     this.subscribers.add(callback)
+    
+    // 🎭 MOCK MODE: Skip WebSocket connection in mock mode
+    const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+    if (USE_MOCK_DATA) {
+      console.log('🎭 Mock mode: Skipping WebSocket connection')
+      return
+    }
     
     // Auto-connect when first subscriber joins
     if (this.subscribers.size === 1) {
