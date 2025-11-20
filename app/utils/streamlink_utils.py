@@ -66,9 +66,9 @@ def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) ->
     test_cmd = ["streamlink", "--json", "twitch.tv/test"]
     
     if "http" in proxy_settings and proxy_settings["http"].strip():
-        test_cmd.extend(["--http-proxy", proxy_settings["http"].strip()])
+        test_cmd.append(f"--http-proxy={proxy_settings['http'].strip()}")
     if "https" in proxy_settings and proxy_settings["https"].strip():
-        test_cmd.extend(["--https-proxy", proxy_settings["https"].strip()])
+        test_cmd.append(f"--https-proxy={proxy_settings['https'].strip()}")
     
     try:
         # Use a short timeout to fail fast if proxy is down
@@ -144,9 +144,9 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
     # Add proxy settings if provided
     if proxy_settings:
         if "http" in proxy_settings and proxy_settings["http"].strip():
-            cmd.extend(["--http-proxy", proxy_settings["http"].strip()])
+            cmd.append(f"--http-proxy={proxy_settings['http'].strip()}")
         if "https" in proxy_settings and proxy_settings["https"].strip():
-            cmd.extend(["--https-proxy", proxy_settings["https"].strip()])
+            cmd.append(f"--https-proxy={proxy_settings['https'].strip()}")
     
     try:
         logger.debug(f"Running stream info command: {' '.join(cmd)}")
@@ -250,14 +250,18 @@ def get_streamlink_command(
     
     # Only add codec support if explicitly requested (overrides config.twitch)
     if supported_codecs and supported_codecs.strip():
-        cmd.extend(["--twitch-supported-codecs", supported_codecs.strip()])
+        # Use single argument with = for consistency (though codecs have no spaces)
+        cmd.append(f"--twitch-supported-codecs={supported_codecs.strip()}")
         logger.debug(f"🎨 Overriding codec preference: {supported_codecs}")
     
     # CRITICAL: Always use per-recording OAuth token if provided
     # This ensures the token is fresh (TwitchTokenService auto-refreshes before each recording)
     # Per-recording tokens override config.twitch to prevent using stale tokens
     if oauth_token and oauth_token.strip():
-        cmd.extend(["--twitch-api-header", f"Authorization=OAuth {oauth_token.strip()}"])
+        # Use single argument with = to prevent Streamlink from parsing it as multiple args
+        # CORRECT:   --twitch-api-header=Authorization=OAuth token
+        # INCORRECT: --twitch-api-header Authorization=OAuth token (creates tuple)
+        cmd.append(f"--twitch-api-header=Authorization=OAuth {oauth_token.strip()}")
         logger.debug(f"🔑 Using auto-refreshed OAuth token (overrides config.twitch)")
         logger.debug(f"   Token enables: H.265/AV1 codecs, 1440p quality, ad-free streams (Turbo)")
     else:
@@ -291,7 +295,7 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
             
-        cmd.extend(["--http-proxy", proxy_url])
+        cmd.append(f"--http-proxy={proxy_url}")
         logger.debug(f"Using HTTP proxy: {proxy_url}")
         
         # Add proxy-specific optimizations for better audio sync
@@ -316,7 +320,7 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
             
-        cmd.extend(["--https-proxy", proxy_url])
+        cmd.append(f"--https-proxy={proxy_url}")
         logger.debug(f"Using HTTPS proxy: {proxy_url}")
         
         # Add proxy-specific optimizations for HTTPS connections too
