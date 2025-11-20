@@ -584,9 +584,7 @@
   .settings-panel,
   .filter-container {
     margin-bottom: v.$spacing-lg;
-    background-color: rgba(v.$background-darker, 0.5);
     border-radius: v.$border-radius;
-    border: 1px solid v.$border-color;
     
     // Angepasste Mobildarstellung
     @media (max-width: map.get(v.$breakpoints, 'md') - 1px) {
@@ -717,7 +715,7 @@
       padding: v.$spacing-lg;
       text-align: center;
       color: v.$text-secondary;
-      background: rgba(v.$background-darker, 0.5);
+      // Remove background - EmptyState component handles its own styling
       border-radius: v.$border-radius;
       margin: v.$spacing-md 0;
     }
@@ -818,7 +816,7 @@
     padding: v.$spacing-xl;
     color: v.$text-secondary;
     font-size: map.get(v.$font-scale, 'base');
-    background: rgba(v.$background-darker, 0.5);
+    // Remove background - EmptyState component handles its own styling
     border-radius: v.$border-radius;
     margin: v.$spacing-lg 0;
 
