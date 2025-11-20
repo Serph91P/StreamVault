@@ -44,11 +44,11 @@ docker compose restart app
 
 ## Benefits of Browser Token
 
-✅ **H.265/HEVC codec** - 60% smaller files, same quality  
-✅ **AV1 codec support** - Even better compression  
-✅ **1440p60 quality** - If stream supports it  
-✅ **Ad-free recordings** - With Twitch Turbo subscription  
-✅ **Automatic token refresh** - Backend handles token management
+- **H.265/HEVC codec** - 60% smaller files, same quality  
+- **AV1 codec support** - Even better compression  
+- **1440p60 quality** - If stream supports it  
+- **Ad-free recordings** - With Twitch Turbo subscription  
+- **Automatic token refresh** - Backend handles token management
 
 ## How It Works Technically
 
@@ -128,9 +128,9 @@ Using access token from environment variable (TWITCH_OAUTH_TOKEN)
 
 You can also use the built-in OAuth flow in **Settings → Twitch Connection**, but:
 
-- ❌ **OAuth tokens don't work for H.265/1440p** (Twitch API limitation)
-- ❌ **Requires Twitch app credentials** (`TWITCH_APP_ID`, `TWITCH_APP_SECRET`)
-- ❌ **Needs public callback URL** (for EventSub notifications)
+- **OAuth tokens don't work for H.265/1440p** (Twitch API limitation)
+- **Requires Twitch app credentials** (`TWITCH_APP_ID`, `TWITCH_APP_SECRET`)
+- **Needs public callback URL** (for EventSub notifications)
 
 **Use browser token instead** for full quality support.
 

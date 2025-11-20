@@ -1,6 +1,6 @@
-# StreamVault 📹
+# StreamVault
 
-Self‑hosted autonomous livestream recorder & media library builder for Twitch (extensible to other platforms). StreamVault watches configured channels, records streams with Streamlink, performs post‑processing, generates rich metadata/artwork, and serves everything through a modern FastAPI + Vue 3 (PWA) interface.
+Self-hosted autonomous livestream recorder and media library builder for Twitch. StreamVault watches configured channels, records streams with Streamlink, performs post-processing, generates rich metadata and artwork, and serves everything through a modern FastAPI + Vue 3 PWA interface.
 
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-latest-green.svg)](https://fastapi.tiangolo.com)
@@ -10,129 +10,181 @@ Self‑hosted autonomous livestream recorder & media library builder for Twitch 
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 [![GitHub release](https://img.shields.io/github/v/release/Serph91P/StreamVault?include_prereleases)](https://github.com/Serph91P/StreamVault/releases)
 
-## ✨ Key Features
+## Key Features
 
-### Recording & Capture
-* Auto detection & start when a streamer goes live (Twitch EventSub)
-* Streamlink based capture with quality selection & very long stream segmentation (24h+ safe rollover)
-* Robust proxy support (HTTP / HTTPS) with latency + audio sync mitigation
-* Graceful recovery: startup recovery scans and failed task requeue logic
+### Recording and Capture
+- Automatic detection and recording when streamers go live via Twitch EventSub webhooks
+- Streamlink-based capture with quality selection and multi-hour stream segmentation (24h+ safe rollover)
+- Robust HTTP/HTTPS proxy support with automatic audio synchronization and latency mitigation
+- Graceful recovery with startup recovery scans and failed task requeue logic
+- H.265/HEVC and AV1 codec support with browser token authentication
+- 1440p60 recording quality support for compatible streams
+- Configurable recording quality per streamer (best, 1080p, 720p, etc.)
+- Manual recording start/stop control via web interface or API
 
-### Streamer & Policy Management
-* Per‑streamer recording rules, quality, cleanup policies, templates
-* Bulk enable/disable & status dashboard
-* Automatic category tracking (used for chapters & metadata enrichment)
+### Streamer and Policy Management
+- Per-streamer recording rules, quality settings, and cleanup policies
+- Customizable filename templates with variables (streamer, date, time, category, title)
+- Bulk enable/disable streamer recording
+- Status dashboard showing live status and recording state
+- Automatic category tracking for chapters and metadata enrichment
+- Import followed channels directly from your Twitch account
 
-### Web UI / PWA
-* Responsive Vue 3 interface installable as PWA
-* Real‑time WebSocket updates (recording state, queue progress)
-* Background queue monitor & admin health test suite
-* Session cookie fixes (2025) ensure stable login + PWA notifications
+### Web UI and PWA
+- Responsive Vue 3 interface installable as Progressive Web App (PWA)
+- Real-time WebSocket updates for recording state and queue progress
+- Touch-optimized video player with custom controls
+- Dark and light theme support with automatic system detection
+- Background queue monitor showing active post-processing tasks
+- Admin health check system for testing all components
+- Session-based authentication with secure cookie handling
 
-### Post‑Processing & Metadata
-* Dependency‑driven async task queue (chapters, remux, validation, thumbnails)
-* Multi‑format chapter generation (.vtt/.xml) & automatic episode numbering
-* Artwork pipeline with centralized store + local compatibility copies
-* Safe metadata paths for Plex / Emby / Jellyfin / Kodi
+### Post-Processing and Metadata
+- Dependency-driven async task queue for post-processing operations
+- Multi-format chapter generation (VTT and XML) with automatic episode numbering
+- Thumbnail generation from video content with multiple quality options
+- Artwork pipeline with centralized storage and local compatibility copies
+- Safe metadata paths for Plex, Emby, Jellyfin, and Kodi integration
+- Automatic remuxing from TS to MP4 format with embedded metadata
+- File validation to ensure recording integrity before cleanup
 
 ### Media Server Integration
-* NFO generation with artwork (poster, banner, fanart) and chapters
-* Year‑Month season structuring (YYYYMM) & episode naming patterns
-* Intelligent relative path resolution for artwork under hidden .media directory
+- NFO file generation with complete metadata (title, description, date, categories)
+- Artwork support including poster, banner, and fanart images
+- Chapter file export in multiple formats for different media players
+- Year-Month season structuring (YYYYMM format) for automatic organization
+- Episode naming patterns compatible with media server conventions
+- Intelligent relative path resolution for artwork references
 
-### Notifications & Automation
-* Apprise integration (multi‑provider) + web push (auto VAPID key generation)
-* Configurable cleanup: age / size / count across per‑streamer or global policies
-* Secure REST API for external automation
+### Notifications and Automation
+- Apprise integration supporting 100+ notification services (Discord, Telegram, Slack, Ntfy, Email, and more)
+- Web push notifications with automatic VAPID key generation
+- Configurable event notifications:
+  - Stream online/offline/update events
+  - Recording started/failed/completed events
+  - Favorite category detection
+- Per-event notification toggles for fine-grained control
+- Test notification system to verify configuration
 
-### Reliability & Maintenance
-* Automatic database migrations at startup (idempotent)
-* Image migration & refresh services (legacy layout → new structure)
-* Log rotation & pruning
-* Graceful shutdown of recording & queue workers
+### Storage Management
+- Configurable automatic cleanup policies by age, size, or file count
+- Global and per-streamer cleanup configuration
+- Safe cleanup that only removes validated recordings
+- Storage usage tracking and monitoring
+- Temporary file cleanup after successful post-processing
 
-## 🚀 Quick Start
+### Reliability and Maintenance
+- Automatic database migrations at startup (idempotent and safe)
+- Image migration and refresh services for legacy layout updates
+- Comprehensive logging with configurable verbosity levels
+- Log rotation and pruning to prevent disk usage issues
+- Graceful shutdown of recording and queue workers
+- Process recovery on application restart
+- Health check endpoints for monitoring
+
+## Quick Start
 
 ### Prerequisites
 
-* Docker & Docker Compose
-* ~1 GB RAM (2 GB recommended) for core services
-* Adequate disk (recordings: 2–8 GB / hr @ 1080p; plan ahead)
-* Public HTTPS endpoint (reverse proxy) for Twitch EventSub (TLS mandatory)
+- Docker and Docker Compose installed
+- Minimum 1 GB RAM (2 GB recommended)
+- At least 50 GB storage (recordings require 2-8 GB per hour at 1080p)
+- Public HTTPS endpoint with valid certificate (for Twitch EventSub webhooks)
+- Twitch Developer Application (free, instructions below)
 
-Why HTTPS? Twitch requires valid, publicly reachable HTTPS for webhook verification. Use Let’s Encrypt via Traefik, Caddy, Nginx, or a Cloudflare Tunnel.
+**Why HTTPS?** Twitch requires valid, publicly reachable HTTPS for webhook verification. Use Let's Encrypt via Traefik, Caddy, Nginx, or a Cloudflare Tunnel.
 
-### 1. Obtain Compose & Env Template
+### Installation Steps
 
-Clone the repository (recommended) to get versioned updates:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Serph91P/StreamVault.git
+   cd StreamVault
+   ```
 
-```bash
-git clone https://github.com/Serph91P/StreamVault.git
-cd StreamVault
-cp .env.example .env  # if provided / else create manually
-```
+2. Copy environment template:
+   ```bash
+   cp .env.example .env
+   ```
 
-Or fetch only the Docker assets from the `docker/` directory if you prefer a slim deployment layout.
+3. Edit `.env` with your configuration (see Configuration section below)
 
-### 2. Environment Configuration
+4. Start the application:
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d
+   ```
 
-Edit `.env`:
+5. Access web interface at `https://your-domain.com` (port 7000 internally)
+
+### Creating a Twitch Application
+
+1. Visit [Twitch Developer Console](https://dev.twitch.tv/console/apps)
+2. Click "Create Application"
+3. Fill in the details:
+   - **Name**: StreamVault (or your preferred name)
+   - **OAuth Redirect URLs**: `https://your-domain.com/auth/callback`
+   - **Category**: Application Integration
+4. Copy the Client ID and generate a Client Secret
+5. Add them to your `.env` file
+
+### Environment Configuration
+
+Edit `.env` with the following required settings:
 
 ```env
+# Twitch API Configuration
 TWITCH_APP_ID=your_twitch_client_id
 TWITCH_APP_SECRET=your_twitch_client_secret
-TWITCH_OAUTH_TOKEN=                     # Optional: Enables H.265/1440p (see below)
-BASE_URL=https://your-domain.com        # Public URL (HTTPS!)
-EVENTSUB_SECRET=choose_random_string    # Used to verify EventSub payloads
+TWITCH_OAUTH_TOKEN=                    # Optional - enables H.265/1440p quality
+
+# Application URLs
+BASE_URL=https://your-domain.com       # Must be HTTPS with valid certificate
+EVENTSUB_SECRET=random_secure_string   # Random string for webhook verification
+
+# Database Configuration
 POSTGRES_USER=streamvault
-POSTGRES_PASSWORD=strong_password
+POSTGRES_PASSWORD=strong_secure_password
 POSTGRES_DB=streamvault
+
+# Optional Settings
+TZ=Europe/Berlin                       # Your timezone
+LOG_LEVEL=INFO                         # Logging verbosity (DEBUG, INFO, WARNING, ERROR)
 ```
 
-Optionally add proxy variables (HTTP_PROXY / HTTPS_PROXY) or adjust time zone (TZ). VAPID keys for push are auto‑generated if not provided.
+### Enabling H.265/1440p Quality (Optional)
 
-#### Enable H.265/1440p Streams (Optional)
-
-Twitch restricts higher quality streams (1440p, H.265/HEVC) to **authenticated users only**. Without authentication, StreamVault is limited to 1080p H.264.
+Twitch restricts higher quality streams to authenticated users. Without authentication, StreamVault is limited to 1080p H.264.
 
 To enable H.265/1440p:
 
-1. **Open Twitch.tv** in your browser and login
-2. **Press F12** to open Developer Tools
-3. **Go to Console tab**
-4. **Run this command**:
+1. Open Twitch.tv in your browser and log in
+2. Press F12 to open Developer Tools
+3. Go to Console tab
+4. Run this command:
    ```javascript
    document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
    ```
-5. **Copy the 30-character token** (without quotes)
-6. **Add to `.env`**:
+5. Copy the 30-character token (without quotes)
+6. Add to `.env`:
    ```env
    TWITCH_OAUTH_TOKEN=abcdefghijklmnopqrstuvwxyz0123
    ```
+7. Restart container: `docker compose restart app`
 
 **Without OAuth token**: Limited to 1080p60 H.264  
 **With OAuth token**: Access to 1440p60 H.265/HEVC (better quality, smaller files)
 
-### 3. Create Twitch Application
+See `BROWSER_TOKEN_SETUP.md` for detailed instructions.
 
-1. Visit [Twitch Developer Console](https://dev.twitch.tv/console/apps)
-2. Click **"Create Application"**
-3. Fill in the application details:
-   - **Name**: StreamVault (or your preferred name)
-   - **OAuth Redirect URLs**: `https://your-domain.com/auth/callback`
-   - **Category**: Application Integration
-4. Copy the **Client ID** and **Client Secret**
-5. Add them to your `.env` file
-
-### 4. Reverse Proxy (Example Nginx)
+### HTTPS Setup Example (Nginx)
 
 ```nginx
 server {
     listen 443 ssl http2;
     server_name your-domain.com;
     
-    ssl_certificate /path/to/your/certificate.crt;
-    ssl_certificate_key /path/to/your/private.key;
+    ssl_certificate /path/to/certificate.crt;
+    ssl_certificate_key /path/to/private.key;
     
     location / {
         proxy_pass http://localhost:7000;
@@ -148,31 +200,26 @@ server {
 }
 ```
 
-### 5. Launch
+## Documentation
 
-```bash
-docker compose -f docker/docker-compose.yml up -d
-docker compose -f docker/docker-compose.yml logs -f app
-```
+Comprehensive documentation is available in the `docs/` folder:
 
-Visit `https://your-domain.com` (through your proxy). Internally the app listens on port 7000.
+- **USER_GUIDE.md** - Complete user guide covering setup, configuration, and usage
+- **BROWSER_TOKEN_SETUP.md** - Detailed guide for enabling H.265/1440p quality
 
-Storage note: A 4h 1080p stream can exceed 10 GB. Configure cleanup early.
-
-## 📖 Migrations & Schema
-
-Migrations run automatically at startup (idempotent). No manual scripts are required. Logs clearly show applied / skipped migrations. If a migration partially fails the app continues (degraded) and warnings are emitted. Columns or tables that already exist are skipped silently.
-
-## ⚙️ Configuration Examples
+## Configuration
 
 ### Recording Settings
 
-StreamVault offers extensive recording configuration options:
+Configure recording behavior in the web interface under Settings > Recording:
 
-- **Output Directory**: Where recordings are stored
-- **Filename Template**: Customize file naming with variables like `{streamer}`, `{title}`, `{date}`
-- **Quality Settings**: Choose recording quality (best, worst, 1080p, 720p, etc.)
-- **Remux to MP4**: Automatically convert recordings to MP4 format
+- **Output Directory**: Where recordings are saved
+- **Filename Template**: Customize file naming with variables
+- **Quality**: Choose recording quality (best, 1080p, 720p, etc.)
+- **Auto Remux**: Automatically convert TS files to MP4
+- **Generate Chapters**: Create chapter files from stream events
+- **Create Thumbnails**: Generate video thumbnails
+- **Generate Metadata**: Create NFO files for media servers
 
 ### Cleanup Policies
 
@@ -187,109 +234,101 @@ Automatic cleanup helps manage storage:
 }
 ```
 
-### Proxy Configuration
+Configure globally or per-streamer for fine-grained control.
 
-For users requiring proxy support:
+### Notification Configuration
 
-- Configure HTTP/HTTPS proxies in settings
-- Automatic audio-sync optimizations for proxy connections
-- Enhanced buffering and retry logic for stable recordings
+StreamVault uses Apprise for notifications, supporting 100+ services:
 
-## 🌐 API Reference (Excerpt)
+**Example URLs:**
+- Discord: `discord://webhook_id/webhook_token`
+- Telegram: `tgram://bot_token/chat_id`
+- Ntfy: `ntfy://topic_name`
+- Email: `mailtos://user:password@smtp.example.com`
 
-StreamVault provides a comprehensive REST API:
+See [Apprise Documentation](https://github.com/caronc/apprise) for complete URL formats.
+
+## API Reference
+
+StreamVault provides a comprehensive REST API for automation:
 
 ```bash
 # Streamer Management
-GET /api/streamers                    # Get all streamers
-POST /api/streamers                   # Add a new streamer
-PUT /api/streamers/{streamer_id}      # Update streamer settings
+GET /api/streamers                    # List all streamers
+POST /api/streamers                   # Add new streamer
+PUT /api/streamers/{id}               # Update streamer settings
+DELETE /api/streamers/{id}            # Delete streamer
 
 # Recording Control
-POST /api/recording/start/{streamer_id}  # Start recording manually
-POST /api/recording/stop/{streamer_id}   # Stop recording
+POST /api/recording/start/{id}        # Start recording manually
+POST /api/recording/stop/{id}         # Stop recording
+GET /api/recording/status             # Get recording status
 
 # Video Management
-GET /api/videos                       # Get all videos
-GET /api/videos/stream/{streamer_name}/{filename}  # Stream a video
-DELETE /api/videos/{video_id}         # Delete a video
+GET /api/videos                       # List all videos
+GET /api/videos/stream/{streamer}/{filename}  # Stream video
+DELETE /api/videos/{id}               # Delete video
 
-# Background Queue Management
-GET /api/background-queue/stats       # Get queue statistics
-GET /api/background-queue/active-tasks  # Get active tasks
-GET /api/background-queue/stream/{stream_id}/tasks  # Get tasks for stream
-POST /api/background-queue/cancel-stream/{stream_id}  # Cancel stream tasks
+# Background Queue
+GET /api/background-queue/stats       # Queue statistics
+GET /api/background-queue/active-tasks  # Active tasks
+POST /api/background-queue/cancel-stream/{id}  # Cancel stream tasks
 
-# Admin & Testing
-GET /api/admin/test/health           # System health check
+# System Administration
+GET /api/admin/test/health            # System health check
 POST /api/admin/test/recording-workflow  # Test recording workflow
-GET /api/admin/test/logs             # Get system logs
+GET /api/admin/test/logs              # Get system logs
 ```
 
-Interactive OpenAPI docs: `https://your-domain.com/docs`
+Interactive API documentation available at: `https://your-domain.com/docs`
 
-## 🛠️ Development
+## Development
 
 ### Local Development Setup
 
-1. Backend
+**Backend:**
 ```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-2. Frontend (if developing UI separately)
+**Frontend:**
 ```bash
 cd app/frontend
 npm install
 npm run dev
 ```
 
-### Project Structure (Simplified)
+### Project Structure
 
 ```
 streamvault/
 ├── app/
-│   ├── frontend/          # Vue.js frontend application
-│   │   ├── src/           # Vue.js source code
-│   │   │   ├── components/ # Vue components including BackgroundQueueMonitor
-│   │   │   ├── composables/ # Vue composables (useBackgroundQueue, useWebSocket)
-│   │   │   └── styles/    # SCSS styles
+│   ├── frontend/          # Vue.js PWA application
+│   │   ├── src/
+│   │   │   ├── components/   # Vue components
+│   │   │   ├── composables/  # Reusable composition functions
+│   │   │   ├── views/        # Page components
+│   │   │   └── styles/       # SCSS styles
 │   │   └── dist/          # Built frontend assets
-│   ├── api/               # API endpoints
-│   │   └── background_queue_endpoints.py # Background queue API
 │   ├── routes/            # FastAPI route handlers
-│   ├── services/          # Business logic services
+│   ├── services/          # Business logic
 │   │   ├── recording/     # Recording service modules
-│   │   │   ├── config_manager.py      # Configuration management
-│   │   │   ├── process_manager.py     # Process management
-│   │   │   ├── recording_service.py   # Main recording service
-│   │   │   └── notification_manager.py # Notifications
-│   │   ├── background_queue_service.py # Background processing
-│   │   ├── task_dependency_manager.py  # Task dependency management
-│   │   ├── recording_task_factory.py   # Task chain factory
-│   │   ├── post_processing_task_handlers.py # Task handlers
-│   │   ├── metadata_service.py         # Metadata generation
-│   │   └── thumbnail_service.py        # Thumbnail generation
-│   ├── utils/             # Utility functions
-│   │   ├── ffmpeg_utils.py           # FFmpeg operations
-│   │   ├── streamlink_utils.py       # Streamlink utilities
-│   │   └── mp4box_utils.py           # MP4Box integration
+│   │   ├── background_queue_service.py  # Task queue
+│   │   ├── metadata_service.py  # Metadata generation
+│   │   └── thumbnail_service.py  # Thumbnail generation
 │   ├── models/            # Database models
 │   ├── schemas/           # Pydantic schemas
-│   └── migrations/        # Database migrations
+│   └── utils/             # Utility functions
 ├── docs/                  # Documentation
-│   ├── admin_test_system.md          # Admin system docs
-│   ├── recording_logging_integration.md # Logging docs
-│   └── mp4box_integration.md         # MP4Box docs
-├── recordings/            # Default recordings directory
-├── docker-compose.yml     # Docker configuration
+├── migrations/            # Database migrations
+├── docker/                # Docker configuration
 └── requirements.txt       # Python dependencies
 ```
 
 ### Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -299,99 +338,86 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ### Code Quality
 
-Recommended (run manually as needed): flake8, black, isort, mypy, bandit, safety. Integrate via pre‑commit or CI.
+The project uses the following tools for code quality:
+- **flake8** - Python linting
+- **black** - Code formatting
+- **isort** - Import sorting
+- **mypy** - Type checking
+- **bandit** - Security scanning
+- **safety** - Dependency vulnerability checking
 
-## 🔧 Configuration Reference
-
-### Environment Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `TWITCH_APP_ID` | Twitch application client ID | - | Yes |
-| `TWITCH_APP_SECRET` | Twitch application client secret | - | Yes |
-| `TWITCH_OAUTH_TOKEN` | Twitch auth token for H.265/1440p (see setup guide) | - | No (1080p only) |
-| `BASE_URL` | Application base URL (must be HTTPS with valid certificate) | - | Yes |
-| `EVENTSUB_SECRET` | Secret for Twitch EventSub webhook validation | (Random if omitted) | No |
-| `POSTGRES_USER` | PostgreSQL username | `streamvault` | Yes |
-| `POSTGRES_PASSWORD` | PostgreSQL password | - | Yes |
-| `POSTGRES_DB` | PostgreSQL database name | `streamvault` | Yes |
-
-Note: Push / Apprise targets are configured through the UI; VAPID keys auto‑generate on first start if absent.
-
-### Docker Compose Services
-
-- **app**: Main FastAPI application with Vue.js frontend (runs on port 7000)
-- **db**: PostgreSQL database with health checks
-
-## 📊 System Requirements
+## System Requirements
 
 ### Minimum Requirements
 - **CPU**: 2 cores
-- **RAM**: 1GB for application
-- **Storage**: 50GB+ (recordings grow quickly - 2-8GB per hour per stream)
+- **RAM**: 1GB
+- **Storage**: 50GB (recordings grow quickly - plan for 2-8GB per hour per stream)
 - **Network**: Stable internet connection
 
 ### Recommended Requirements
 - **CPU**: 4+ cores
-- **RAM**: 2GB for application
-- **Storage**: 1TB+ SSD (recordings can accumulate very quickly)
+- **RAM**: 2GB
+- **Storage**: 1TB+ SSD
 - **Network**: High-speed internet for multiple concurrent recordings
 
-> **Storage Warning**: Stream recordings can grow very large very quickly. A single 4-hour stream in 1080p can be 8-15GB. Plan your storage accordingly and consider implementing cleanup policies.
+**Storage Warning**: Stream recordings can accumulate very quickly. A single 4-hour stream in 1080p can be 8-15GB. Configure cleanup policies early to manage storage.
 
-## 🤝 Community & Support
+## Support and Community
 
 - **Issues**: [GitHub Issues](https://github.com/Serph91P/StreamVault/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Serph91P/StreamVault/discussions)
 - **Wiki**: [Project Wiki](https://github.com/Serph91P/StreamVault/wiki)
 
-## 🔄 Background Processing System
+## Background Processing System
 
-StreamVault includes a sophisticated background processing system that handles post-recording tasks efficiently:
+StreamVault includes a sophisticated background processing system for post-recording tasks:
 
-### Task Dependencies
-- **Metadata Generation**: Extracts stream information and creates NFO files
-- **Chapter Generation**: Creates chapter files from stream events
-- **MP4 Remux**: Converts TS files to MP4 with embedded metadata
-- **MP4 Validation**: Ensures file integrity before cleanup
-- **Thumbnail Generation**: Creates thumbnails from video content
-- **Intelligent Cleanup**: Safely removes temporary files after validation
+**Task Types:**
+- Metadata generation from stream information
+- Chapter file creation from stream events
+- MP4 remuxing from TS source files
+- MP4 validation before cleanup
+- Thumbnail generation from video content
+- Intelligent cleanup after successful validation
 
-### Queue Management
-- **Real-time Monitoring**: Live task progress tracking in the web interface
-- **Priority System**: Critical tasks (validation) run before optional tasks (thumbnails)
-- **Retry Logic**: Automatic retry for failed tasks with exponential backoff
-- **Dependency Resolution**: Ensures tasks execute in the correct order
-- **Graceful Shutdown**: Properly handles application restarts without data loss
+**Features:**
+- Real-time monitoring in web interface
+- Priority system (validation before optional tasks)
+- Automatic retry with exponential backoff
+- Dependency resolution for correct task ordering
+- Graceful shutdown without data loss
 
-### Media Server Integration
-- **Plex/Emby/Jellyfin**: Automatic NFO file generation with proper metadata
-- **Chapter Support**: Multiple chapter formats (.vtt, .xml) for media players
-- **Thumbnail Creation**: Multiple thumbnail formats for different media servers
-- **Season Organization**: Automatic year-month based season structure
+## Roadmap
 
-## 📋 Roadmap
+**Completed Features:**
+- Background processing system with dependency-based task queue
+- Media server integration (Plex, Emby, Jellyfin, Kodi)
+- Chapter support with automatic generation from stream events
+- Admin test system with comprehensive health checks
+- Proxy support with automatic audio sync optimization
+- H.265/1440p quality support via browser token authentication
 
-- [x] **Background Processing System**: Dependency-based task queue ✅
-- [x] **Media Server Integration**: Plex, Emby, Jellyfin, Kodi support ✅
-- [x] **Chapter Support**: Automatic chapter generation from stream events ✅
-- [x] **Admin Test System**: Comprehensive health checks and maintenance ✅
-- [ ] **Cloud Storage Integration**: S3, Google Drive, Dropbox
-- [ ] **Advanced Analytics**: Recording statistics and insights
-- [ ] **Stream Highlights**: Automatic highlight detection and extraction
+**Planned Features:**
+- Cloud storage integration (S3, Google Drive, Dropbox)
+- Advanced analytics and recording statistics
+- Stream highlight detection and extraction
+- Multi-platform support (YouTube, Kick, etc.)
+- Mobile apps for iOS and Android
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- [Streamlink](https://streamlink.github.io/) - The backbone of our recording functionality
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework for APIs
-- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework for the frontend
+StreamVault is built on top of excellent open-source projects:
+
+- [Streamlink](https://streamlink.github.io/) - Stream recording backbone
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
 - [Twitch API](https://dev.twitch.tv/docs/api/) - Stream data and webhooks
-- [FFmpeg](https://ffmpeg.org/) - Video processing and conversion
-- [MP4Box](https://gpac.wp.imt.fr/mp4box/) - Advanced MP4 metadata processing
-- [PostgreSQL](https://www.postgresql.org/) - Robust database system
-- [Docker](https://www.docker.com/) - Containerization platform
+- [FFmpeg](https://ffmpeg.org/) - Video processing
+- [MP4Box](https://gpac.wp.imt.fr/mp4box/) - MP4 metadata processing
+- [PostgreSQL](https://www.postgresql.org/) - Database system
+- [Docker](https://www.docker.com/) - Containerization
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -421,4 +447,4 @@ SOFTWARE.
 
 ---
 
-**StreamVault** – Never miss a stream again.
+**StreamVault** - Never miss a stream again.
