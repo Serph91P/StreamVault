@@ -1,27 +1,17 @@
 <template>
   <div class="pwa-panel">
-    <div class="section-header">
-      <h3>
-        <svg class="icon-title" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <use href="#icon-smartphone" />
-        </svg>
-        PWA & Notifications
-      </h3>
-      <p>Configure Progressive Web App features and push notifications</p>
-    </div>
-
     <!-- PWA Installation -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>Progressive Web App</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Installation Status</label>
           <p class="setting-description">
             {{ isInstalled ? 'StreamVault is installed as an app' : 'StreamVault can be installed as an app for better experience' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'installed': isInstalled, 'not-installed': !isInstalled }">
             {{ isInstalled ? 'Installed' : 'Not Installed' }}
           </span>
@@ -35,14 +25,14 @@
         </div>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Connection Status</label>
           <p class="setting-description">
             {{ isOnline ? 'You are currently online' : 'You are currently offline' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'online': isOnline, 'offline': !isOnline }">
             {{ isOnline ? 'Online' : 'Offline' }}
           </span>
@@ -51,31 +41,31 @@
     </div>
 
     <!-- Push Notifications -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>Push Notifications</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Browser Support</label>
           <p class="setting-description">
             {{ pushSupported ? 'Your browser supports push notifications' : 'Your browser does not support push notifications' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'supported': pushSupported, 'not-supported': !pushSupported }">
             {{ pushSupported ? 'Supported' : 'Not Supported' }}
           </span>
         </div>
       </div>
 
-      <div class="setting-item" v-if="pushSupported">
-        <div class="setting-info">
+      <div class="setting-item settings-item" v-if="pushSupported">
+        <div class="setting-info settings-item__info">
           <label>Notification Permission</label>
           <p class="setting-description">
             Allow StreamVault to send push notifications for stream events
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{
             'granted': notificationPermission === 'granted',
             'denied': notificationPermission === 'denied',
@@ -108,14 +98,14 @@
         </div>
       </div>
 
-      <div class="setting-item" v-if="notificationPermission === 'granted'">
-        <div class="setting-info">
+      <div class="setting-item settings-item" v-if="notificationPermission === 'granted'">
+        <div class="setting-info settings-item__info">
           <label>Test Notification</label>
           <p class="setting-description">
             Send a test push notification to verify everything is working
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <button 
             @click="sendTestNotification" 
             class="btn btn-secondary"
@@ -140,29 +130,29 @@
     </div>
 
     <!-- PWA Features -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>App Features</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Offline Support</label>
           <p class="setting-description">
             Basic app functionality works offline with cached content
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge supported">Enabled</span>
         </div>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Background Sync</label>
           <p class="setting-description">
             Sync data automatically when connection is restored
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge supported">Enabled</span>
         </div>
       </div>
@@ -381,30 +371,8 @@ onMounted(() => {
   max-width: 800px;
 }
 
-.section-header {
-  margin-bottom: 2rem;
-}
-
-.section-header h3 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-color);
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.section-header p {
-  margin: 0;
-  color: var(--text-muted-color);
-  font-size: 0.95rem;
-}
-
 .pwa-section {
-  background: var(--card-background);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-bottom: var(--spacing-6);
 }
 
 .pwa-section h4 {
@@ -414,19 +382,6 @@ onMounted(() => {
   font-weight: 600;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border-color);
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.setting-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
 }
 
 .setting-info {
@@ -574,7 +529,7 @@ onMounted(() => {
 /* Mobile responsive - Use SCSS mixins for breakpoints */
 
 @include m.respond-below('md') {  // < 768px
-  .setting-item {
+  .settings-item {
     flex-direction: column;
     align-items: stretch;
   }
