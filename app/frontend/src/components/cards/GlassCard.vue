@@ -17,7 +17,7 @@
     <div v-if="gradient" class="gradient-border" :style="gradientStyle" />
     
     <!-- Card Content -->
-    <div class="glass-card-content" :class="{ 'with-padding': padding }">
+    <div class="glass-card-content" :class="contentPaddingClasses">
       <slot />
     </div>
   </component>
@@ -28,6 +28,7 @@ import { computed } from 'vue'
 
 export type GlassVariant = 'subtle' | 'medium' | 'strong'
 export type HoverEffect = 'lift' | 'scale' | 'none'
+export type PaddingSize = 'sm' | 'md' | 'lg' | 'xl'
 
 interface Props {
   /** Glass intensity variant */
@@ -42,8 +43,8 @@ interface Props {
   gradient?: boolean
   /** Gradient colors [start, end] */
   gradientColors?: [string, string]
-  /** Apply default padding to content */
-  padding?: boolean
+  /** Apply default padding or specific size */
+  padding?: boolean | PaddingSize
   /** Make card clickable (cursor pointer) */
   clickable?: boolean
   /** HTML tag to render as */
@@ -69,6 +70,22 @@ const emit = defineEmits<{
 const gradientStyle = computed(() => ({
   background: `linear-gradient(135deg, ${props.gradientColors[0]}, ${props.gradientColors[1]})`
 }))
+
+const contentPaddingClasses = computed(() => {
+  if (props.padding === false) {
+    return []
+  }
+
+  if (props.padding === true) {
+    return ['with-padding']
+  }
+
+  if (typeof props.padding === 'string') {
+    return [`padding-${props.padding}`]
+  }
+
+  return ['with-padding']
+})
 
 const handleClick = (event: MouseEvent) => {
   if (props.clickable) {
@@ -120,6 +137,22 @@ const handleClick = (event: MouseEvent) => {
   
   &.with-padding {
     padding: var(--spacing-6); // 24px
+  }
+
+  &.padding-sm {
+    padding: var(--spacing-4);
+  }
+
+  &.padding-md {
+    padding: var(--spacing-5);
+  }
+
+  &.padding-lg {
+    padding: var(--spacing-7);
+  }
+
+  &.padding-xl {
+    padding: var(--spacing-8);
   }
 }
 
