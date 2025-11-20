@@ -442,4 +442,8 @@ $duration-400: 400ms;  // Missing in original list
   --background-card-rgb: 255, 255, 255;     // White for light mode
   --background-darker-rgb: 241, 245, 249;   // Slate-100
   --border-color-rgb: 203, 213, 225;        // Slate-300
+  
+  // Additional light mode colors
+  --primary-50: #f0fdfa;                    // Very light teal for hover
+  --primary-700: #0f766e;                   // Dark teal for text
 }
