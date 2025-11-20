@@ -61,9 +61,11 @@ docker compose restart app
 
 The backend uses tokens in this order:
 
-1. **Database token** (from OAuth flow, auto-refreshed)
-2. **Environment variable** (`TWITCH_OAUTH_TOKEN`) ← Browser token
+1. **Environment variable** (`TWITCH_OAUTH_TOKEN`) ← Browser token (PRIORITY - Full quality)
+2. **Database token** (from OAuth flow, auto-refreshed - LIMITED quality, used for EventSub)
 3. **None** (recordings work but limited to 1080p H.264)
+
+**Important**: Browser token always takes priority because OAuth tokens don't work for H.265/1440p.
 
 ## Verification
 

@@ -58,27 +58,42 @@ class TwitchTokenService:
         Get a valid Twitch OAuth access token.
         
         Returns either:
-        1. Existing valid token from database
-        2. Refreshed token (if expired)
-        3. Token from environment variable (fallback)
-        4. None (if no token available)
+        1. Browser token from environment variable (PRIORITY - works for H.265/1440p)
+        2. Database token from OAuth flow (FALLBACK - limited quality, used for EventSub)
+        3. None (if no token available)
+        
+        Priority Order:
+        - Environment variable (TWITCH_OAUTH_TOKEN) - Browser token with full access
+        - Database token (OAuth flow) - Limited access, but auto-refreshed
+        
+        Note: Twitch restricts third-party OAuth apps from H.265/1440p streams.
+        Only browser tokens (auth-token cookie) grant full quality access.
         
         Returns:
             Optional[str]: Valid access token or None
         """
         try:
-            # === PRIORITY 1: Check database for stored tokens ===
+            # === PRIORITY 1: Environment variable (browser token) ===
+            # Browser tokens have FULL access (H.265, AV1, 1440p, ad-free with Turbo)
+            if self.settings.TWITCH_OAUTH_TOKEN:
+                logger.debug("✅ Using browser token from environment variable (TWITCH_OAUTH_TOKEN)")
+                logger.debug("   → Full quality access: H.265/AV1 codecs, 1440p, ad-free (Turbo)")
+                return self.settings.TWITCH_OAUTH_TOKEN
+            
+            # === PRIORITY 2: Database token (OAuth flow) ===
+            # OAuth flow tokens are LIMITED (Twitch API restriction)
+            # Only used if no browser token available (for EventSub, follower lists, etc.)
             global_settings = self.db.query(GlobalSettings).first()
             
             if global_settings and global_settings.twitch_refresh_token:
                 # Check if access token is still valid
                 if self._is_token_valid(global_settings):
-                    logger.debug("Using existing valid access token from database")
+                    logger.debug("⚠️ Using OAuth token from database (limited quality)")
+                    logger.debug("   → Limited to 1080p H.264 (Twitch API restriction)")
+                    logger.debug("   → For H.265/1440p: Set TWITCH_OAUTH_TOKEN environment variable")
                     # Decrypt and return access token from database
                     if global_settings.twitch_access_token:
                         return self.encryption.decrypt(global_settings.twitch_access_token)
-                    # Fallback to environment variable (backward compatibility)
-                    return self.settings.TWITCH_OAUTH_TOKEN
                 
                 # Token expired → Refresh it (with lock to prevent duplicate refreshes)
                 async with self._refresh_lock:
@@ -86,27 +101,25 @@ class TwitchTokenService:
                     self.db.refresh(global_settings)  # Reload from database
                     if self._is_token_valid(global_settings):
                         logger.debug("Token was refreshed by another task, using it")
-                        return self.settings.TWITCH_OAUTH_TOKEN
+                        if global_settings.twitch_access_token:
+                            return self.encryption.decrypt(global_settings.twitch_access_token)
                     
                     logger.info("Access token expired, refreshing...")
                     new_access_token = await self._refresh_access_token(global_settings)
                     if new_access_token:
                         return new_access_token
                     
-                    logger.warning("Token refresh failed, falling back to environment variable")
-            
-            # === PRIORITY 2: Fallback to environment variable ===
-            if self.settings.TWITCH_OAUTH_TOKEN:
-                logger.debug("Using access token from environment variable (TWITCH_OAUTH_TOKEN)")
-                return self.settings.TWITCH_OAUTH_TOKEN
+                    logger.warning("⚠️ Token refresh failed and no environment token available")
             
             # === PRIORITY 3: No token available ===
-            logger.warning("No Twitch OAuth token available. H.265/1440p quality unavailable.")
+            logger.warning("❌ No Twitch OAuth token available. H.265/1440p quality unavailable.")
+            logger.warning("   → Set TWITCH_OAUTH_TOKEN environment variable for full quality")
+            logger.warning("   → See: Settings → Twitch Connection → Manual Token Setup")
             return None
             
         except Exception as e:
             logger.error(f"Error getting valid access token: {e}")
-            # Fallback to environment variable
+            # Last resort fallback to environment variable
             return self.settings.TWITCH_OAUTH_TOKEN
     
     def _is_token_valid(self, global_settings: GlobalSettings) -> bool:
