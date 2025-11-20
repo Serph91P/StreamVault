@@ -595,7 +595,7 @@ function formatExpiration(expiresAt: string): string {
   position: relative;
   margin-top: var(--spacing-2);
   padding: var(--spacing-3);
-  background: var(--background-tertiary);
+  background: transparent;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
