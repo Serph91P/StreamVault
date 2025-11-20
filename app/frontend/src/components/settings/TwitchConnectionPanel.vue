@@ -536,7 +536,7 @@ function formatExpiration(expiresAt: string): string {
 // Steps Container
 .steps-container {
   padding: var(--spacing-4);
-  background: var(--background-secondary);
+  background: transparent;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
 }
@@ -643,7 +643,7 @@ function formatExpiration(expiresAt: string): string {
 // Benefits Section
 .benefits-section {
   padding: var(--spacing-4);
-  background: var(--background-tertiary);
+  background: transparent;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
 }

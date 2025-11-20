@@ -15,11 +15,11 @@
           @click="activeTab = tab.id"
           :class="['tab-button', { active: activeTab === tab.id }]"
         >
-          <svg v-if="tab.id === 'recording'" class="tab-icon" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+          <svg v-if="tab.id === 'recording'" class="tab-icon">
+            <use href="#icon-video" />
           </svg>
-          <svg v-else-if="tab.id === 'storage'" class="tab-icon" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+          <svg v-else-if="tab.id === 'storage'" class="tab-icon">
+            <use href="#icon-server" />
           </svg>
           {{ tab.label }}
         </button>
@@ -31,8 +31,8 @@
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
             <div class="section-header">
-              <svg class="section-icon" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+              <svg class="section-icon">
+                <use href="#icon-video" />
               </svg>
               <h4 class="section-title">Basic Recording Settings</h4>
             </div>
@@ -117,8 +117,8 @@
 
             <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
             <div class="section-header" style="margin-top: 2rem;">
-              <svg class="section-icon" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+              <svg class="section-icon">
+                <use href="#icon-settings" />
               </svg>
               <h4 class="section-title">Advanced Codec Settings</h4>
             </div>
@@ -149,8 +149,8 @@
         <div v-if="activeTab === 'storage'" class="tab-panel">
           <div class="panel-block">
             <div class="section-header">
-              <svg class="section-icon" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+              <svg class="section-icon">
+                <use href="#icon-server" />
               </svg>
               <h4 class="section-title">Storage & Cleanup Management</h4>
             </div>
