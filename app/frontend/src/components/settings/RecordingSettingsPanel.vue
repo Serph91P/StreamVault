@@ -1,6 +1,4 @@
 <template>
-  <div>
-    <h3>Recording Settings</h3>
     
     <div v-if="isLoading" class="loading-message">
       Loading recording settings...
@@ -9,9 +7,6 @@
     <div v-else-if="error" class="error-message">
       Error loading settings: {{ error }}    
     </div>
-    
-    <!-- Global Settings -->
-    <div v-else class="settings-form">
       <!-- Tab Navigation -->
       <div class="tab-navigation">
         <button 
@@ -28,7 +23,7 @@
       <div class="tab-content">        <!-- Recording Tab -->
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
-          <div class="settings-section status-border status-border-primary">
+          <div class="panel-block">
             <h4 class="section-title">📹 Basic Recording Settings</h4>
             
             <div class="form-group">
@@ -136,7 +131,7 @@
 
         <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="settings-section status-border status-border-primary">
+          <div class="panel-block status-border status-border-primary">
             <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
@@ -155,10 +150,10 @@
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
-      </div>    </div>
+      </div>
 
     <!-- Active Recordings -->
-    <div v-if="activeRecordings.length > 0" class="active-recordings">
+    <div v-if="activeRecordings.length > 0" class="active-recordings panel-block">
       <h3>Active Recordings</h3>
       <div class="recordings-grid">
         <div v-for="recording in activeRecordings" :key="recording.streamer_id" class="recording-card">
@@ -179,7 +174,7 @@
       </div>
     </div>
     <!-- Streamer Settings -->
-    <div class="streamer-settings">
+    <div class="streamer-settings panel-block">
       <h3>Streamer Recording Settings</h3>
       
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
@@ -292,7 +287,6 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -304,6 +298,7 @@ import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import type { GlobalSettings } from '@/types/settings';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
+import GlassCard from '@/components/cards/GlassCard.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;
@@ -540,10 +535,23 @@ const handleStreamerPolicySaved = (policy: any) => {
 @use '@/styles/mixins' as m;
 /* Responsive - Use SCSS mixins for breakpoints */
 
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-7, 28px);
+}
+
+.panel-block {
+  padding: var(--spacing-6, 24px);
+  border-radius: var(--radius-xl, 32px);
+  //border: 1px solid var(--border-color);
+  background: transparent;
+}
+
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
-  border-bottom: 2px solid var(--border-color);
+  //border-bottom: 2px solid var(--border-color);
   margin-bottom: 24px;
   gap: 4px;
 }
@@ -590,12 +598,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .settings-form,
 .active-recordings,
 .streamer-settings {
-  margin-bottom: 30px;
-  background-color: var(--background-darker, #1f1f23);
-  padding: var(--spacing-6);
-  border-radius: var(--border-radius, 8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--border-color);
+  margin-bottom: 0;
 }
 
 .form-group {
@@ -1180,20 +1183,6 @@ select.form-control-sm option {
   padding: var(--spacing-6);
 }
 
-/* Settings sections for better visual organization */
-.settings-section {
-  margin-bottom: var(--spacing-xxl, 2.5rem);
-  padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #2d2d35);
-  /* Use status-border-primary class from global styles instead */
-}
-
-.settings-section:last-child {
-  margin-bottom: var(--spacing-lg, 1.5rem);
-}
-
 .section-title {
   font-size: 1.25rem;
   font-weight: 600;
@@ -1356,17 +1345,6 @@ select.form-control-sm option {
     font-size: 0.85rem;
     text-align: center;
     white-space: nowrap;
-  }
-  
-  /* Settings Form - Mobile Layout */
-  .settings-form {
-    padding: 12px;
-    margin-bottom: 16px;
-  }
-  
-  .settings-section {
-    margin-bottom: 20px;
-    padding: 12px;
   }
   
   .section-title {
@@ -1552,15 +1530,6 @@ select.form-control-sm option {
     min-width: 100px;
     font-size: 0.8rem;
     padding: 8px 10px;
-  }
-  
-  .settings-form {
-    padding: var(--spacing-2);
-  }
-  
-  .settings-section {
-    padding: var(--spacing-2);
-    margin-bottom: 16px;
   }
   
   .section-title {
