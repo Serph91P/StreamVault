@@ -46,7 +46,7 @@
     <div class="controls-bar">
       <!-- Search -->
       <div class="search-box">
-        <svg class="search-icon">
+        <svg class="icon">
           <use href="#icon-search" />
         </svg>
         <input
@@ -263,16 +263,16 @@ const filteredAndSortedStreamers = computed(() => {
   const sorted = [...filtered]
   switch (sortBy.value) {
     case 'name':
-      sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      sorted.sort((a, b) => (a.username || '').localeCompare(b.username || ''))
       break
     case 'name-desc':
-      sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''))
+      sorted.sort((a, b) => (b.username || '').localeCompare(a.username || ''))
       break
     case 'live-first':
       sorted.sort((a, b) => {
         if (a.is_live && !b.is_live) return -1
         if (!a.is_live && b.is_live) return 1
-        return (a.name || '').localeCompare(b.name || '')
+        return (a.username || '').localeCompare(b.username || '')
       })
       break
     case 'recently-added':
@@ -640,16 +640,15 @@ onUnmounted(() => {
   flex: 1;
   min-width: 280px;
 
-  .search-icon {
+  .icon {
     position: absolute;
     left: var(--spacing-3);
     top: 50%;
     transform: translateY(-50%);
     width: 20px;
     height: 20px;
-    stroke: var(--text-secondary);
-    fill: none;
     pointer-events: none;
+    z-index: 10;
   }
 
   .search-input {
