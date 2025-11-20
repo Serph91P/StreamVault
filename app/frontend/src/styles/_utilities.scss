@@ -1483,3 +1483,9 @@ textarea.success {
   @include m.list-item-thumbnail(120px, 144px);
 }
 
+// ============================================================================
+// ICON UTILITIES
+// ============================================================================
+
+// Search box icon positioning - handled in component scoped styles (VideosView, StreamersView)
+
