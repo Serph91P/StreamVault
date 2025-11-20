@@ -1,9 +1,4 @@
 <template>
-  <div>
-    <h3>Notification Settings</h3>
-    
-    <!-- Global Settings -->
-    <div class="settings-form">
       <div class="form-group">
         <label>Notification Service URL:</label>
         <div class="input-with-tooltip">
@@ -105,7 +100,6 @@
           Test WebSocket
         </button>
       </div>
-    </div>
 
     <!-- Streamer Notification Table -->
     <div class="streamer-notifications">
@@ -193,7 +187,6 @@
         </table>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -201,6 +194,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+import GlassCard from '@/components/cards/GlassCard.vue'
 
 // Props
 const props = defineProps({
@@ -416,13 +410,17 @@ const testWebSocketNotification = async () => {
 @use '@/styles/mixins' as m;
 /* Responsive - Use SCSS mixins for breakpoints */
 
-.settings-form {
-  margin-bottom: 30px;
-  background-color: var(--background-darker, #1f1f23);
-  padding: var(--spacing-6);
-  border-radius: var(--border-radius, 8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--border-color);
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-7, 28px);
+}
+
+.settings-form,
+.streamer-notifications {
+  margin-bottom: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .form-group {
@@ -525,51 +523,6 @@ const testWebSocketNotification = async () => {
   margin-top: var(--spacing-lg, 20px);
 }
 
-.btn {
-  padding: var(--spacing-2) var(--spacing-4);
-  border-radius: var(--border-radius, 6px);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.btn-primary {
-  background-color: var(--primary-color, #42b883);
-  color: white;  /* White text is correct on primary-color background */
-}
-
-.btn-secondary {
-  background-color: var(--background-card, #3a3a3a);
-  color: var(--text-primary);  /* Theme-aware text color */
-  border: 1px solid var(--border-color);
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.btn-sm {
-  padding: var(--spacing-1) var(--spacing-2);
-  font-size: 0.875rem;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: auto;
-}
-
 .streamer-notifications {
   margin-top: var(--spacing-xl, 30px);
 }
@@ -594,11 +547,6 @@ const testWebSocketNotification = async () => {
 }
 
 @include m.respond-below('md') {  // < 768px
-  /* Settings Form - Mobile Layout */
-  .settings-form {
-    padding: 12px;
-  }
-  
   /* Form Controls - iOS Zoom Prevention & Touch Targets */
   .form-control {
     padding: 12px;
@@ -658,16 +606,6 @@ const testWebSocketNotification = async () => {
   
   .streamer-table {
     border-radius: 0;
-  }
-  
-  .btn {
-    padding: var(--spacing-2) var(--spacing-3);
-    font-size: 0.9rem;
-  }
-  
-  .btn-sm {
-    padding: var(--spacing-1) var(--spacing-2);
-    font-size: 0.8rem;
   }
   
   /* Fix alignment in table cells */
