@@ -2,9 +2,9 @@
 
 This repository uses **GitHub Copilot Custom Agents** for specialized task handling. Each agent is optimized for specific types of work with tailored instructions, tool access, and domain expertise.
 
-## 📋 Available Agents
+## Available Agents
 
-### 1. 🐛 bug-fixer
+### 1. bug-fixer
 **Specialization:** Fixing bugs and crashes  
 **Profile:** `.github/agents/bug-fixer.md`  
 **Best For:**
@@ -18,7 +18,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 2. 🗄️ database-expert
+### 2. database-expert
 **Specialization:** Database migrations and schema changes  
 **Profile:** `.github/agents/database-expert.md`  
 **Best For:**
@@ -32,7 +32,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 3. 📝 docs-writer
+### 3. docs-writer
 **Specialization:** Technical documentation  
 **Profile:** `.github/agents/docs-writer.md`  
 **Best For:**
@@ -46,7 +46,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 4. ✨ feature-builder
+### 4. feature-builder
 **Specialization:** New features and enhancements  
 **Profile:** `.github/agents/feature-builder.md`  
 **Best For:**
@@ -60,7 +60,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 5. 📱 mobile-specialist
+### 5. mobile-specialist
 **Specialization:** Mobile responsiveness and PWA features  
 **Profile:** `.github/agents/mobile-specialist.md`  
 **Best For:**
@@ -74,7 +74,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 6. ♻️ refactor-specialist
+### 6. refactor-specialist
 **Specialization:** Code quality and refactoring  
 **Profile:** `.github/agents/refactor-specialist.md`  
 **Best For:**
@@ -88,7 +88,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 7. 🔒 security-auditor
+### 7. security-auditor
 **Specialization:** Security vulnerabilities and hardening  
 **Profile:** `.github/agents/security-auditor.md`  
 **Best For:**
@@ -102,7 +102,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-### 8. 🧪 test-specialist
+### 8. test-specialist
 **Specialization:** Test coverage and quality  
 **Profile:** `.github/agents/test-specialist.md`  
 **Best For:**
@@ -116,7 +116,7 @@ This repository uses **GitHub Copilot Custom Agents** for specialized task handl
 
 ---
 
-## 🎯 How to Use Custom Agents
+## How to Use Custom Agents
 
 ### 1. Assign an Issue to Copilot
 
@@ -142,7 +142,7 @@ When commenting on PRs, you can request a specific agent:
 /agent bug-fixer fix import error in app/models.py
 ```
 
-## 📊 Agent Selection Guide
+## Agent Selection Guide
 
 | Task Type | Recommended Agent | Estimated Time |
 |-----------|-------------------|----------------|
@@ -156,7 +156,7 @@ When commenting on PRs, you can request a specific agent:
 | Test coverage | `test-specialist` | 1-3 hours |
 | Documentation | `docs-writer` | 30-90 min |
 
-## 🔧 Agent Configuration
+## Agent Configuration
 
 Each agent has:
 
@@ -187,9 +187,9 @@ limitations:
 [Instructions...]
 ```
 
-## 🚀 Best Practices
+## Best Practices
 
-### ✅ DO
+### DO
 
 - Assign clear, well-scoped issues to agents
 - Include acceptance criteria in issue description
@@ -197,7 +197,7 @@ limitations:
 - Use @copilot mentions for iterations
 - Review agent changes before merging
 
-### ❌ DON'T
+### DON'T
 
 - Assign broad, multi-domain tasks to single agent
 - Give security-critical tasks without review
@@ -205,7 +205,7 @@ limitations:
 - Use agents for learning/exploratory work
 - Skip manual testing of agent changes
 
-## 📈 Agent Performance
+## Agent Performance
 
 Track agent effectiveness:
 
@@ -217,7 +217,7 @@ gh issue list --label "agent:bug-fixer"
 gh pr list --label "copilot-generated" --state merged
 ```
 
-## 🛠️ Creating New Agents
+## Creating New Agents
 
 To create a new custom agent:
 
@@ -229,7 +229,7 @@ To create a new custom agent:
 
 See `.github/agents/README.md` for detailed guide.
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [GitHub Copilot Custom Agents](https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-agents)
 - [Agent Profiles](.github/agents/README.md)
