@@ -9,7 +9,6 @@
           </svg>
           Settings
         </h1>
-        <p class="page-subtitle">Configure your StreamVault preferences and options</p>
       </div>
 
       <div class="header-actions" v-if="hasUnsavedChanges">
@@ -95,13 +94,15 @@
             </p>
           </div>
 
-          <NotificationSettingsPanel
-            :settings="notificationSettings || defaultNotificationSettings"
-            :streamer-settings="notificationStreamerSettings"
-            @update-settings="handleUpdateNotificationSettings"
-            @update-streamer-settings="handleUpdateStreamerNotificationSettings"
-            @test-notification="handleTestNotification"
-          />
+          <GlassCard padding="lg">
+            <NotificationSettingsPanel
+              :settings="notificationSettings || defaultNotificationSettings"
+              :streamer-settings="notificationStreamerSettings"
+              @update-settings="handleUpdateNotificationSettings"
+              @update-streamer-settings="handleUpdateStreamerNotificationSettings"
+              @test-notification="handleTestNotification"
+            />
+          </GlassCard>
         </div>
 
         <!-- Recording Settings -->
@@ -118,14 +119,16 @@
             </p>
           </div>
 
-          <RecordingSettingsPanel
-            :settings="recordingSettings"
-            :streamer-settings="recordingStreamerSettings"
-            :active-recordings="activeRecordings"
-            @update="handleUpdateRecordingSettings"
-            @update-streamer="handleUpdateStreamerRecordingSettings"
-            @stop-recording="handleStopRecording"
-          />
+          <GlassCard padding="lg">
+            <RecordingSettingsPanel
+              :settings="recordingSettings"
+              :streamer-settings="recordingStreamerSettings"
+              :active-recordings="activeRecordings"
+              @update="handleUpdateRecordingSettings"
+              @update-streamer="handleUpdateStreamerRecordingSettings"
+              @stop-recording="handleStopRecording"
+            />
+          </GlassCard>
         </div>
 
         <!-- Proxy Management -->
@@ -142,7 +145,9 @@
             </p>
           </div>
 
-          <ProxySettingsPanel />
+          <GlassCard padding="lg">
+            <ProxySettingsPanel />
+          </GlassCard>
         </div>
 
         <!-- Favorites Settings -->
@@ -159,7 +164,9 @@
             </p>
           </div>
 
-          <FavoritesSettingsPanel />
+          <GlassCard padding="lg">
+            <FavoritesSettingsPanel />
+          </GlassCard>
         </div>
 
         <!-- PWA Settings -->
@@ -176,7 +183,9 @@
             </p>
           </div>
 
-          <PWAPanel />
+          <GlassCard padding="lg">
+            <PWAPanel />
+          </GlassCard>
         </div>
 
         <!-- About Settings -->
