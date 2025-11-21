@@ -305,12 +305,16 @@ class LoggingService:
         # Get streamer-specific log path and create the log file
         log_path = self.get_streamlink_log_path(streamer_name)
         
+        # SECURITY: Sanitize command to prevent logging sensitive data (CWE-532)
+        from app.utils.security import sanitize_command_for_logging
+        safe_cmd = sanitize_command_for_logging(cmd)
+        
         try:
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting recording for {streamer_name}\n")
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n")
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {output_path}\n")
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n")
             
             logger.debug(f"✅ Streamlink start logged to: {log_path}")
         except Exception as e:
@@ -320,7 +324,7 @@ class LoggingService:
         self.streamlink_logger.info(f"Starting recording for {streamer_name}")
         self.streamlink_logger.info(f"Quality: {quality}")
         self.streamlink_logger.info(f"Output: {output_path}")
-        self.streamlink_logger.info(f"Command: {' '.join(cmd)}")
+        self.streamlink_logger.info(f"Command: {safe_cmd}")
         
         return log_path
     
@@ -398,8 +402,13 @@ class LoggingService:
     def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
         """Log FFmpeg command start with mandatory streamer name"""
         logger.debug(f"🎯 Logging FFmpeg start for {streamer_name}: {operation}")
+        
+        # SECURITY: Sanitize command to prevent logging sensitive data (CWE-532)
+        from app.utils.security import sanitize_command_for_logging
+        safe_cmd = sanitize_command_for_logging(cmd)
+        
         self.ffmpeg_logger.info(f"Starting {operation} operation for streamer: {streamer_name}")
-        self.ffmpeg_logger.info(f"Command: {' '.join(cmd)}")
+        self.ffmpeg_logger.info(f"Command: {safe_cmd}")
         
         # Generate a streamer-specific log filename for this operation
         log_path = self.get_ffmpeg_log_path(operation, streamer_name)
@@ -413,7 +422,7 @@ class LoggingService:
         try:
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {operation} operation for streamer: {streamer_name}\n")
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {' '.join(cmd)}\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n")
             logger.debug(f"✅ FFmpeg per-streamer log created: {log_path}")
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create per-streamer log file {log_path}: {e}")
