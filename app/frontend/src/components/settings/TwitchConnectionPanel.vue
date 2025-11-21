@@ -406,6 +406,87 @@ function formatExpiration(expiresAt: string): string {
   }
 }
 
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-3;
+  margin-bottom: v.$spacing-4;
+}
+
+.status-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  
+  &.status-connected {
+    background: rgba(var(--success-color-rgb, 46, 213, 115), 0.1);
+    color: var(--success-color);
+  }
+  
+  &.status-warning {
+    background: rgba(var(--warning-color-rgb, 255, 165, 2), 0.1);
+    color: var(--warning-color);
+  }
+  
+  &.status-disconnected {
+    background: rgba(var(--danger-color-rgb, 255, 71, 87), 0.1);
+    color: var(--danger-color);
+  }
+}
+
+.status-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.status-info {
+  flex: 1;
+}
+
+.status-title {
+  font-size: v.$text-lg;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0 0 v.$spacing-1 0;
+}
+
+.status-description {
+  font-size: v.$text-sm;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.connection-details {
+  margin-top: v.$spacing-3;
+  padding: v.$spacing-3;
+  background: rgba(var(--primary-color-rgb, 66, 184, 131), 0.05);
+  border-radius: var(--radius-md);
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: v.$text-sm;
+  
+  &:not(:last-child) {
+    margin-bottom: v.$spacing-2;
+  }
+}
+
+.detail-label {
+  color: var(--text-secondary);
+  font-weight: v.$font-medium;
+}
+
+.detail-value {
+  color: var(--text-primary);
+  font-weight: v.$font-semibold;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -418,6 +499,70 @@ function formatExpiration(expiresAt: string): string {
 // ============================================================================
 // TOKEN SETUP GUIDE
 // ============================================================================
+
+.setup-section {
+  margin-top: v.$spacing-6;
+}
+
+.setup-header {
+  display: flex;
+  align-items: flex-start;
+  gap: v.$spacing-3;
+  margin-bottom: v.$spacing-4;
+}
+
+.setup-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--success-color);
+  flex-shrink: 0;
+}
+
+.setup-title {
+  font-size: v.$text-lg;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0 0 v.$spacing-1 0;
+}
+
+.setup-subtitle {
+  font-size: v.$text-sm;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: v.$spacing-3;
+  padding: v.$spacing-4;
+  background: var(--info-bg-color);
+  border: 1px solid var(--info-border-color);
+  border-radius: var(--radius-md);
+  margin: v.$spacing-4 0;
+  
+  &.info-box-warning {
+    background: rgba(var(--warning-color-rgb, 255, 165, 2), 0.1);
+    border-color: var(--warning-color);
+  }
+  
+  &.info-box-info {
+    background: rgba(var(--info-color-rgb, 112, 161, 255), 0.1);
+    border-color: var(--info-color);
+  }
+  
+  &.info-box-success {
+    background: rgba(var(--success-color-rgb, 46, 213, 115), 0.1);
+    border-color: var(--success-color);
+  }
+}
+
+.info-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: currentColor;
+}
 
 .token-setup-guide {
   .setup-steps {
@@ -528,6 +673,7 @@ function formatExpiration(expiresAt: string): string {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   line-height: 1.6;
+}
 
 .quality-benefits {
   display: grid;
@@ -576,21 +722,26 @@ function formatExpiration(expiresAt: string): string {
   }
 }
 
-.info-box {
-  padding: v.$spacing-4;
-  background: var(--info-bg-color);
-  border: 1px solid var(--info-border-color);
-  border-radius: var(--radius-md);
-  margin: v.$spacing-4 0;
+.btn-copy {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
   
-  &.warning {
-    background: var(--warning-bg-color);
-    border-color: var(--warning-border-color);
+  &:hover {
+    background: var(--background-hover);
+    border-color: var(--primary-color);
   }
   
-  &.success {
-    background: var(--success-bg-color);
-    border-color: var(--success-border-color);
+  svg {
+    width: 16px;
+    height: 16px;
+    display: block;
   }
 }
 
