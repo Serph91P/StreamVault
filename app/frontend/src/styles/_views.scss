@@ -282,7 +282,6 @@
   .import-section {
     margin-top: v.$spacing-xl;
     padding-top: v.$spacing-lg;
-    border-top: 1px solid v.$border-color;
     animation: fadeIn 0.6s v.$vue-ease-out;
     animation-fill-mode: both;
     animation-delay: 0.2s;
