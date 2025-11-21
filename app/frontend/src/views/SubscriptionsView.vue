@@ -106,7 +106,7 @@
                   class="btn-delete"
                   v-ripple
                 >
-                  <svg class="icon">
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <use href="#icon-trash" />
                   </svg>
                 </button>
