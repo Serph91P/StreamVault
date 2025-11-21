@@ -136,23 +136,44 @@ const handleClick = (event: MouseEvent) => {
   z-index: 2;
   
   &.with-padding {
-    padding: var(--spacing-6); // 24px
+    padding: var(--spacing-6); // 24px desktop
+    
+    // Mobile: Reduce padding significantly for settings panels
+    @media (max-width: 767px) {
+      padding: var(--spacing-3); // 12px mobile
+    }
   }
 
   &.padding-sm {
     padding: var(--spacing-4);
+    
+    @media (max-width: 767px) {
+      padding: var(--spacing-2);
+    }
   }
 
   &.padding-md {
     padding: var(--spacing-5);
+    
+    @media (max-width: 767px) {
+      padding: var(--spacing-3);
+    }
   }
 
   &.padding-lg {
     padding: var(--spacing-7);
+    
+    @media (max-width: 767px) {
+      padding: var(--spacing-4);
+    }
   }
 
   &.padding-xl {
     padding: var(--spacing-8);
+    
+    @media (max-width: 767px) {
+      padding: var(--spacing-4);
+    }
   }
 }
 

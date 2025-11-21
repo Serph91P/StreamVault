@@ -43,20 +43,30 @@
   align-items: center;
   background: radial-gradient(circle at center, color.adjust(v.$background-dark, $lightness: -5%), color.adjust(v.$background-darker, $lightness: -3%));
   z-index: map.get(v.$z-layers, 'modal');
-  padding: v.$spacing-md;
+  padding: v.$spacing-sm;  // Reduced padding on mobile
   overflow-y: auto;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md;
+  }
 
   .auth-form {
     background: v.$background-card;
-    padding: v.$spacing-xl;
-    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-lg;  // Reduced from xl on mobile
+    border-radius: v.$border-radius-md;  // Less rounded on mobile
     width: 100%;
     max-width: 350px;
-    box-shadow: v.$shadow-lg;
+    box-shadow: v.$shadow-md;  // Less shadow on mobile
     border: 1px solid rgba(v.$border-color, 0.5);
     animation: formAppear 0.5s v.$vue-ease-out forwards;
     position: relative;
     overflow: hidden;
+    
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-xl;
+      border-radius: v.$border-radius-lg;
+      box-shadow: v.$shadow-lg;
+    }
 
     // Vue-style glow on hover
     &::after {

@@ -15,12 +15,24 @@
 /// @param {string} $border-opacity [0.1] - Border opacity for glass edge effect
 @mixin glass-card($blur: 20px, $opacity: 0.7, $border-opacity: 0.1) {
   background: rgba(var(--background-card-rgb), $opacity);
-  backdrop-filter: blur($blur) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, $border-opacity);
-  border-radius: var(--radius-xl);
-  box-shadow: 
-    0 8px 32px 0 rgba(0, 0, 0, 0.37),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  
+  // Mobile: Reduce blur for performance and simpler appearance
+  @media (max-width: 767px) {
+    backdrop-filter: blur(8px);  // Reduced from $blur for performance
+    border-radius: var(--radius-md);  // Less rounded on mobile
+    border: none;  // Remove border on mobile
+    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.2);  // Simpler shadow
+  }
+  
+  // Desktop: Full glass effect
+  @media (min-width: 768px) {
+    backdrop-filter: blur($blur) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, $border-opacity);
+    border-radius: var(--radius-xl);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.37),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  }
   
   // Fallback for browsers without backdrop-filter
   @supports not (backdrop-filter: blur($blur)) {

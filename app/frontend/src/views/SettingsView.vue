@@ -1121,16 +1121,32 @@ onMounted(() => {
   .settings-view {
     padding: var(--spacing-4) var(--spacing-3);
   }
+  
+  .view-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-4);
+  }
+  
+  .header-content {
+    width: 100%;
+  }
 
   .page-title {
     font-size: var(--text-2xl);
+    flex-wrap: wrap;
+  }
+  
+  .page-subtitle {
+    margin-top: var(--spacing-2);
   }
 
   .header-actions {
     width: 100%;
+    flex-direction: column;
 
     .btn-action {
-      flex: 1;
+      width: 100%;
       min-height: 44px;  // Touch-friendly
       justify-content: center;
     }
