@@ -354,5 +354,140 @@ class TestSecurityIntegration:
                 pass
 
 
+class TestURLRedirectValidation:
+    """
+    Test suite for URL redirect validation (CWE-601: Open Redirect)
+    """
+    
+    def test_allowed_relative_urls(self):
+        """Test that whitelisted relative URLs are allowed"""
+        from app.utils.security import validate_redirect_url
+        
+        allowed_urls = [
+            "/settings",
+            "/add-streamer",
+            "/streamers",
+            "/",
+            "/home"
+        ]
+        
+        for url in allowed_urls:
+            result = validate_redirect_url(url, "/")
+            assert result == url, f"URL {url} should be allowed"
+    
+    def test_allowed_urls_with_query_params(self):
+        """Test that whitelisted URLs with query parameters are allowed"""
+        from app.utils.security import validate_redirect_url
+        
+        test_cases = [
+            ("/settings?auth_success=true", "/settings?auth_success=true"),
+            ("/add-streamer?token=abc123", "/add-streamer?token=abc123"),
+            ("/streamers?filter=live", "/streamers?filter=live")
+        ]
+        
+        for url, expected in test_cases:
+            result = validate_redirect_url(url, "/")
+            assert result == expected, f"URL {url} should be allowed with query params"
+    
+    def test_absolute_urls_blocked(self):
+        """Test that absolute URLs are blocked (prevent external redirects)"""
+        from app.utils.security import validate_redirect_url
+        
+        malicious_urls = [
+            "https://evil.com",
+            "http://phishing-site.com",
+            "https://evil.com/login",
+            "http://attacker.com?redirect=/settings"
+        ]
+        
+        for url in malicious_urls:
+            result = validate_redirect_url(url, "/")
+            assert result == "/", f"Absolute URL {url} should be blocked and return default"
+    
+    def test_protocol_relative_urls_blocked(self):
+        """Test that protocol-relative URLs are blocked"""
+        from app.utils.security import validate_redirect_url
+        
+        malicious_urls = [
+            "//evil.com",
+            "//evil.com/phishing",
+            "//attacker.com?state=/settings"
+        ]
+        
+        for url in malicious_urls:
+            result = validate_redirect_url(url, "/")
+            assert result == "/", f"Protocol-relative URL {url} should be blocked"
+    
+    def test_javascript_urls_blocked(self):
+        """Test that javascript: URLs are blocked"""
+        from app.utils.security import validate_redirect_url
+        
+        malicious_urls = [
+            "javascript:alert('XSS')",
+            "javascript:void(0)",
+            "javascript://evil.com%0Aalert(1)",
+            "data:text/html,<script>alert('XSS')</script>"
+        ]
+        
+        for url in malicious_urls:
+            result = validate_redirect_url(url, "/")
+            assert result == "/", f"Malicious URL {url} should be blocked"
+    
+    def test_non_whitelisted_paths_blocked(self):
+        """Test that non-whitelisted paths are blocked"""
+        from app.utils.security import validate_redirect_url
+        
+        non_whitelisted = [
+            "/admin",
+            "/api/delete-all",
+            "/internal/debug",
+            "/secret"
+        ]
+        
+        for url in non_whitelisted:
+            result = validate_redirect_url(url, "/")
+            assert result == "/", f"Non-whitelisted path {url} should be blocked"
+    
+    def test_none_or_empty_url_returns_default(self):
+        """Test that None or empty URLs return default"""
+        from app.utils.security import validate_redirect_url
+        
+        assert validate_redirect_url(None, "/home") == "/home"
+        assert validate_redirect_url("", "/home") == "/home"
+        assert validate_redirect_url("   ", "/home") == "/home"
+    
+    def test_non_relative_urls_blocked(self):
+        """Test that URLs not starting with / are blocked"""
+        from app.utils.security import validate_redirect_url
+        
+        non_relative_urls = [
+            "settings",
+            "add-streamer",
+            "../settings",
+            "www.evil.com"
+        ]
+        
+        for url in non_relative_urls:
+            result = validate_redirect_url(url, "/")
+            assert result == "/", f"Non-relative URL {url} should be blocked"
+    
+    def test_oauth_flow_realistic_scenario(self):
+        """Test realistic OAuth flow scenarios"""
+        from app.utils.security import validate_redirect_url
+        
+        # Legitimate OAuth flows
+        assert validate_redirect_url("/settings", "/") == "/settings"
+        assert validate_redirect_url("/add-streamer", "/") == "/add-streamer"
+        
+        # Attacker trying to redirect to external site
+        assert validate_redirect_url("https://evil.com", "/add-streamer") == "/add-streamer"
+        
+        # Attacker trying protocol-relative URL
+        assert validate_redirect_url("//evil.com", "/add-streamer") == "/add-streamer"
+        
+        # Attacker trying to access admin panel
+        assert validate_redirect_url("/admin/delete-all", "/add-streamer") == "/add-streamer"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

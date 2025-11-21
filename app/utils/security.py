@@ -492,3 +492,105 @@ def sanitize_html_input(html_input: str) -> str:
         sanitized = sanitized[:10000] + "..."
         
     return sanitized
+
+
+# Whitelist of allowed redirect paths for OAuth flows
+ALLOWED_REDIRECT_PATHS = {
+    "/settings",
+    "/add-streamer",
+    "/streamers",
+    "/",
+    "/home"
+}
+
+
+def validate_redirect_url(url: str, default_url: str = "/") -> str:
+    """
+    Validate redirect URL to prevent open redirect vulnerabilities
+    
+    This function prevents URL redirection attacks (CWE-601) by ensuring
+    that redirect URLs are either relative paths within the application
+    or match a whitelist of allowed paths.
+    
+    Args:
+        url: User-provided URL (untrusted)
+        default_url: Default URL to use if validation fails
+        
+    Returns:
+        str: Validated URL (guaranteed to be safe)
+        
+    Example:
+        >>> validate_redirect_url("/settings", "/")
+        "/settings"
+        
+        >>> validate_redirect_url("https://evil.com", "/")
+        "/"
+        
+        >>> validate_redirect_url("//evil.com", "/")
+        "/"
+    """
+    if not url or not isinstance(url, str):
+        logger.warning(f"🚨 SECURITY: Invalid redirect URL type: {type(url)}")
+        return default_url
+    
+    url = url.strip()
+    
+    # Block absolute URLs (http://, https://, //)
+    if url.startswith("http://") or url.startswith("https://") or url.startswith("//"):
+        logger.warning(f"🚨 SECURITY: Absolute URL redirect blocked: {url}")
+        log_security_event(
+            event_type="OPEN_REDIRECT_BLOCKED",
+            details={
+                "attempted_url": url,
+                "reason": "absolute_url"
+            },
+            severity="WARNING"
+        )
+        return default_url
+    
+    # Block protocol-relative URLs and javascript: URLs
+    if "://" in url or url.startswith("javascript:") or url.startswith("data:"):
+        logger.warning(f"🚨 SECURITY: Malicious URL scheme blocked: {url}")
+        log_security_event(
+            event_type="OPEN_REDIRECT_BLOCKED",
+            details={
+                "attempted_url": url,
+                "reason": "malicious_scheme"
+            },
+            severity="CRITICAL"
+        )
+        return default_url
+    
+    # Ensure it starts with / (relative path)
+    if not url.startswith("/"):
+        logger.warning(f"🚨 SECURITY: Non-relative URL blocked: {url}")
+        log_security_event(
+            event_type="OPEN_REDIRECT_BLOCKED",
+            details={
+                "attempted_url": url,
+                "reason": "not_relative"
+            },
+            severity="WARNING"
+        )
+        return default_url
+    
+    # Extract just the path (remove query string and fragment)
+    base_path = url.split("?")[0].split("#")[0]
+    
+    # Check against whitelist
+    if base_path not in ALLOWED_REDIRECT_PATHS:
+        logger.warning(f"🚨 SECURITY: Redirect to non-whitelisted path blocked: {base_path}")
+        log_security_event(
+            event_type="OPEN_REDIRECT_BLOCKED",
+            details={
+                "attempted_url": url,
+                "base_path": base_path,
+                "reason": "not_whitelisted"
+            },
+            severity="WARNING"
+        )
+        return default_url
+    
+    # URL is safe - return it
+    logger.debug(f"🔒 SECURITY: Redirect URL validated: {url}")
+    return url
