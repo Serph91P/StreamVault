@@ -489,6 +489,76 @@ class TestURLRedirectValidation:
         assert validate_redirect_url("/admin/delete-all", "/add-streamer") == "/add-streamer"
 
 
+class TestProxyURLSanitization:
+    """
+    Test suite for proxy URL sanitization (CWE-532: Information Exposure Through Log Files)
+    """
+    
+    def test_proxy_with_credentials_redacted(self):
+        """Test that proxy credentials are redacted"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        url = "http://user:password@proxy.com:8080"
+        result = sanitize_proxy_url_for_logging(url)
+        
+        assert "user" not in result
+        assert "password" not in result
+        assert "[REDACTED]" in result
+        assert "proxy.com:8080" in result
+    
+    def test_proxy_without_credentials_unchanged(self):
+        """Test that proxy URLs without credentials are unchanged"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        url = "http://proxy.com:8080"
+        result = sanitize_proxy_url_for_logging(url)
+        
+        assert result == url
+        assert "[REDACTED]" not in result
+    
+    def test_https_proxy_with_credentials_redacted(self):
+        """Test HTTPS proxy credentials are redacted"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        url = "https://admin:secret123@secure-proxy.example.com:443"
+        result = sanitize_proxy_url_for_logging(url)
+        
+        assert "admin" not in result
+        assert "secret123" not in result
+        assert "[REDACTED]" in result
+        assert "secure-proxy.example.com:443" in result
+    
+    def test_socks_proxy_with_credentials_redacted(self):
+        """Test SOCKS proxy credentials are redacted"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        url = "socks5://user:pass@socks-proxy.com:1080"
+        result = sanitize_proxy_url_for_logging(url)
+        
+        assert "user" not in result
+        assert "pass" not in result
+        assert "[REDACTED]" in result
+        assert "socks-proxy.com:1080" in result
+    
+    def test_empty_or_invalid_proxy_url(self):
+        """Test that empty or invalid URLs are handled gracefully"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        assert "[INVALID_URL]" in sanitize_proxy_url_for_logging("")
+        assert "[INVALID_URL]" in sanitize_proxy_url_for_logging(None)
+    
+    def test_malformed_url_redacted(self):
+        """Test that malformed URLs are safely redacted"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+        
+        # Malformed URL that can't be parsed
+        url = "not-a-valid-url-format"
+        result = sanitize_proxy_url_for_logging(url)
+        
+        # Should be safe - either return as-is (no credentials) or redact
+        assert "not-a-valid-url-format" in result or "[REDACTED" in result
+
+
 class TestCommandSanitization:
     """
     Test suite for command sanitization (CWE-532: Information Exposure Through Log Files)
