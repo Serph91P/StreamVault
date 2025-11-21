@@ -579,9 +579,11 @@ class TestCommandSanitization:
         """Test a realistic streamlink command with OAuth token"""
         from app.utils.security import sanitize_command_for_logging
         
+        # Use obviously fake token to avoid triggering security scanners
+        fake_token = "fake_test_token_" + "x" * 10
         cmd = [
             "streamlink",
-            "--twitch-api-header=Authorization=OAuth a1b2c3d4e5f6g7h8i9j0",
+            f"--twitch-api-header=Authorization=OAuth {fake_token}",
             "--output=/recordings/streamer/stream.mp4",
             "--force",
             "--retry-streams=10",
@@ -593,7 +595,7 @@ class TestCommandSanitization:
         result = sanitize_command_for_logging(cmd)
         
         # Token should be redacted
-        assert "a1b2c3d4e5f6g7h8i9j0" not in result
+        assert fake_token not in result
         assert "--twitch-api-header=[REDACTED]" in result
         
         # Other args should be preserved
