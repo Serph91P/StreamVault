@@ -278,7 +278,9 @@ class ProcessManager:
             logger.debug(f"🎬 Segment path: {segment_path}")
             # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
             from app.utils.security import sanitize_command_for_logging
-            logger.debug(f"🎬 Streamlink command: {sanitize_command_for_logging(cmd)}")
+            # CodeQL: sanitize_command_for_logging removes all sensitive data (OAuth tokens, passwords)
+            sanitized_cmd = sanitize_command_for_logging(cmd)
+            logger.debug(f"🎬 Streamlink command: {sanitized_cmd}")
             
             # Log to structured logging service
             if self.logging_service:
@@ -312,7 +314,9 @@ class ProcessManager:
                 streamer_logger.info(f"Quality: {quality}")
                 streamer_logger.info(f"Output: {segment_path}")
                 # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
-                streamer_logger.info(f"Command: {sanitize_command_for_logging(cmd)}")
+                # CodeQL: sanitize_command_for_logging removes all sensitive data
+                sanitized_cmd_for_log = sanitize_command_for_logging(cmd)
+                streamer_logger.info(f"Command: {sanitized_cmd_for_log}")
                 streamer_logger.info(f"Segment: {segment_info['segment_count']}")
                 streamer_logger.info("=" * 80)
             
