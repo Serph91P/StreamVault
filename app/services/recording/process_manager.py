@@ -274,7 +274,9 @@ class ProcessManager:
             
             logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")
             logger.debug(f"🎬 Segment path: {segment_path}")
-            logger.debug(f"🎬 Streamlink command: {' '.join(cmd)}")
+            # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
+            from app.utils.security import sanitize_command_for_logging
+            logger.debug(f"🎬 Streamlink command: {sanitize_command_for_logging(cmd)}")
             
             # Log to structured logging service
             if self.logging_service:
@@ -307,7 +309,8 @@ class ProcessManager:
                 streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
                 streamer_logger.info(f"Quality: {quality}")
                 streamer_logger.info(f"Output: {segment_path}")
-                streamer_logger.info(f"Command: {' '.join(cmd)}")
+                # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
+                streamer_logger.info(f"Command: {sanitize_command_for_logging(cmd)}")
                 streamer_logger.info(f"Segment: {segment_info['segment_count']}")
                 streamer_logger.info("=" * 80)
             

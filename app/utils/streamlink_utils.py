@@ -149,7 +149,9 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
             cmd.append(f"--https-proxy={proxy_settings['https'].strip()}")
     
     try:
-        logger.debug(f"Running stream info command: {' '.join(cmd)}")
+        # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
+        from app.utils.security import sanitize_command_for_logging
+        logger.debug(f"Running stream info command: {sanitize_command_for_logging(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
         
         # Parse the JSON output

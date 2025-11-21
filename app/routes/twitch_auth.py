@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service
+from app.utils.security import validate_redirect_url
 from typing import List, Dict, Any
 import logging
 
@@ -50,8 +51,9 @@ async def twitch_callback(
     if not token_data or "access_token" not in token_data:
         logger.error("Failed to get access token from Twitch")
         # Redirect to error page with state-aware return URL
-        error_url = state if state else "/add-streamer"
-        return RedirectResponse(url=f"{error_url}?error=auth_failed")
+        # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
+        safe_error_url = validate_redirect_url(state if state else "/add-streamer", "/add-streamer")
+        return RedirectResponse(url=f"{safe_error_url}?error=auth_failed")
     
     # Store refresh token in database for automatic token refresh
     access_token = token_data["access_token"]
@@ -80,15 +82,17 @@ async def twitch_callback(
                 logger.error(f"Error storing OAuth tokens: {e}")
     
     # Determine return URL based on state parameter or default
-    if state == "/settings":
+    # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
+    safe_state = validate_redirect_url(state if state else "/settings", "/settings")
+    
+    if safe_state == "/settings":
         # For settings page: Just redirect back without token in URL (stored in DB)
         logger.info("✅ Twitch OAuth completed - redirecting to /settings")
         return RedirectResponse(url="/settings?auth_success=true")
     else:
         # For add-streamer page: Include token in URL for importing followed channels
-        return_url = state if state else "/add-streamer"
-        logger.info(f"✅ Twitch OAuth completed - redirecting to {return_url}")
-        redirect_url = f"{return_url}?token={access_token}&auth_success=true"
+        logger.info(f"✅ Twitch OAuth completed - redirecting to {safe_state}")
+        redirect_url = f"{safe_state}?token={access_token}&auth_success=true"
         return RedirectResponse(url=redirect_url)
 
 @router.get("/followed-channels")
