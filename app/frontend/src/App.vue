@@ -1,7 +1,8 @@
 <template>
-  <!-- SVG Icon Sprite (loaded inline for reliability) -->
-  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true">
-    <defs>
+  <!-- SVG Icon Sprite (loaded inline for reliability) - Teleported to body for global access -->
+  <Teleport to="body">
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true" id="svg-sprite">
+      <defs>
       <!-- Home Icon -->
       <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -276,8 +277,76 @@
       <symbol id="icon-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
       </symbol>
+      
+      <!-- Check Circle (Success/Completed) -->
+      <symbol id="icon-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </symbol>
+      
+      <!-- Check Square (Select/Multi-Select) -->
+      <symbol id="icon-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"/>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </symbol>
+      
+      <!-- Server -->
+      <symbol id="icon-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+        <line x1="6" y1="6" x2="6.01" y2="6"/>
+        <line x1="6" y1="18" x2="6.01" y2="18"/>
+      </symbol>
+      
+      <!-- Link (External Link/Connection) -->
+      <symbol id="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+      </symbol>
+      
+      <!-- Star (Favorite) -->
+      <symbol id="icon-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </symbol>
+      
+      <!-- Smartphone (Mobile/Phone) -->
+      <symbol id="icon-smartphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+      </symbol>
+      
+      <!-- Repeat (Circular Arrows/Refresh All) -->
+      <symbol id="icon-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17 1 21 5 17 9"/>
+        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+        <polyline points="7 23 3 19 7 15"/>
+        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </symbol>
+      
+      <!-- Trash-2 (Delete with Lid) -->
+      <symbol id="icon-trash-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        <line x1="10" y1="11" x2="10" y2="17"/>
+        <line x1="14" y1="11" x2="14" y2="17"/>
+      </symbol>
+      
+      <!-- Alert Triangle (Warning) -->
+      <symbol id="icon-alert-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </symbol>
+      
+      <!-- RSS (Subscriptions/Feed) -->
+      <symbol id="icon-rss" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11a9 9 0 0 1 9 9"/>
+        <path d="M4 4a16 16 0 0 1 16 16"/>
+        <circle cx="5" cy="19" r="1"/>
+      </symbol>
     </defs>
-  </svg>
+    </svg>
+  </Teleport>
 
   <div class="app">
     <!-- Show header and navigation ONLY on authenticated pages -->
@@ -296,7 +365,7 @@
             </svg>
           </button>
           
-          <router-link to="/" class="app-logo">StreamVault</router-link>
+          <span class="app-logo" aria-label="StreamVault">StreamVault</span>
           
           <div class="header-right">
             <!-- Background Queue Monitor (always visible) -->
@@ -422,6 +491,7 @@ import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
+import { notificationApi } from '@/services/api'
 
 // Initialize theme
 const { initializeTheme } = useTheme()
@@ -845,7 +915,7 @@ watch(messages, (newMessages) => {
 }, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 @use '@/styles/mixins' as m;
 /* Responsive - Use SCSS mixins for breakpoints */
 
@@ -859,11 +929,12 @@ watch(messages, (newMessages) => {
   height: 64px;
   z-index: 1100;
 
-  /* Glassmorphism effect */
-  background: rgba(var(--background-card-rgb), 0.85);
-  backdrop-filter: blur(24px) saturate(180%);
+  /* Solid header (no glass shimmer) */
+  background: var(--background-card);
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   /* Smooth theme transitions */
   transition: background-color 300ms var(--vue-ease-out),
@@ -888,14 +959,12 @@ watch(messages, (newMessages) => {
   text-decoration: none;
   line-height: 1;
 
-  /* Smooth transition */
-  transition: color var(--duration-200, 200ms) var(--vue-ease-out);
+  transition: opacity var(--duration-200, 200ms) var(--vue-ease-out);
 
   &:hover {
-    color: var(--accent-color);
+    opacity: 0.8;
   }
 
-  /* Focus-visible for keyboard navigation */
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 4px;
@@ -976,7 +1045,7 @@ watch(messages, (newMessages) => {
   backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;  /* Changed from flex-end - menu now appears on LEFT */
   animation: fadeIn 200ms ease-out;
 }
 
@@ -991,11 +1060,11 @@ watch(messages, (newMessages) => {
   height: 100%;
   background: var(--background-card);
   box-shadow: var(--shadow-xl);
-  animation: slideInRight 300ms ease-out;
+  animation: slideInLeft 300ms ease-out;  /* Changed from slideInRight */
   display: flex;
   flex-direction: column;
   backdrop-filter: blur(20px);
-  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);  /* Changed from border-left */
 }
 
 .mobile-menu-close {
@@ -1125,6 +1194,15 @@ watch(messages, (newMessages) => {
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
   }
   to {
     transform: translateX(0);

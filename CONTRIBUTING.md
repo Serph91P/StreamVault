@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to StreamVault! This document provides guidelines and information for contributors.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
@@ -13,11 +13,11 @@ Thank you for your interest in contributing to StreamVault! This document provid
 - [Testing](#testing)
 - [Documentation](#documentation)
 
-## 🤝 Code of Conduct
+## Code of Conduct
 
 By participating in this project, you agree to maintain a respectful and inclusive environment for everyone. Please be kind, considerate, and constructive in all interactions.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -35,7 +35,7 @@ git clone https://github.com/yourusername/StreamVault.git
 cd StreamVault
 ```
 
-## 🛠️ Development Setup
+## Development Setup
 
 ### Backend Setup
 
@@ -88,7 +88,7 @@ npm install
 npm run dev
 ```
 
-## 🔄 Making Changes
+## Making Changes
 
 ### Branch Naming
 
@@ -115,7 +115,7 @@ Examples:
 - `docs(readme): update installation instructions`
 - `refactor(frontend): simplify video player component`
 
-## 📤 Submitting Changes
+## Submitting Changes
 
 ### Pull Request Process
 
@@ -149,7 +149,7 @@ git push origin feature/your-feature-name
 - **Screenshots**: Include screenshots for UI changes
 - **Testing**: Describe how you tested your changes
 
-## 🎨 Code Style
+## Code Style
 
 ### Python (Backend)
 
@@ -189,7 +189,7 @@ npm run lint
 - **Type hints**: Use type hints in Python code
 - **Documentation**: Update documentation for new features
 
-## 🧪 Testing
+## Testing
 
 ### Backend Tests
 
@@ -226,7 +226,7 @@ docker-compose -f docker-compose.test.yml up -d
 pytest tests/integration/
 ```
 
-## 📚 Documentation
+## Documentation
 
 ### API Documentation
 
@@ -246,7 +246,7 @@ pytest tests/integration/
 - Include parameter descriptions and return types
 - Provide usage examples for complex functions
 
-## 🐛 Reporting Issues
+## Reporting Issues
 
 ### Bug Reports
 
@@ -266,7 +266,7 @@ Include the following information:
 - **Alternatives**: Any alternative solutions considered?
 - **Additional context**: Any other relevant information
 
-## 🏷️ Labels
+## Labels
 
 We use the following labels for issues and PRs:
 
@@ -278,7 +278,7 @@ We use the following labels for issues and PRs:
 - `question`: Further information is requested
 - `wontfix`: This will not be worked on
 
-## 🎯 Areas for Contribution
+## Areas for Contribution
 
 We welcome contributions in these areas:
 
@@ -300,7 +300,7 @@ We welcome contributions in these areas:
 - **Monitoring**: Add health checks and metrics
 - **Security**: Security audits and improvements
 
-## 📞 Getting Help
+## Getting Help
 
 If you need help contributing:
 
@@ -309,11 +309,11 @@ If you need help contributing:
 3. **Create a new issue** with the `question` label
 4. **Join discussions** in GitHub Discussions
 
-## 🙏 Recognition
+## Recognition
 
 Contributors will be recognized in:
 - `README.md` contributors section
 - Release notes for significant contributions
 - GitHub contributors page
 
-Thank you for contributing to StreamVault! 🎉
+Thank you for contributing to StreamVault!

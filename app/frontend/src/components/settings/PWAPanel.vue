@@ -1,22 +1,17 @@
 <template>
   <div class="pwa-panel">
-    <div class="section-header">
-      <h3>PWA & Notifications</h3>
-      <p>Configure Progressive Web App features and push notifications</p>
-    </div>
-
     <!-- PWA Installation -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>Progressive Web App</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Installation Status</label>
           <p class="setting-description">
             {{ isInstalled ? 'StreamVault is installed as an app' : 'StreamVault can be installed as an app for better experience' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'installed': isInstalled, 'not-installed': !isInstalled }">
             {{ isInstalled ? 'Installed' : 'Not Installed' }}
           </span>
@@ -30,14 +25,14 @@
         </div>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Connection Status</label>
           <p class="setting-description">
             {{ isOnline ? 'You are currently online' : 'You are currently offline' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'online': isOnline, 'offline': !isOnline }">
             {{ isOnline ? 'Online' : 'Offline' }}
           </span>
@@ -46,31 +41,31 @@
     </div>
 
     <!-- Push Notifications -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>Push Notifications</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Browser Support</label>
           <p class="setting-description">
             {{ pushSupported ? 'Your browser supports push notifications' : 'Your browser does not support push notifications' }}
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{ 'supported': pushSupported, 'not-supported': !pushSupported }">
             {{ pushSupported ? 'Supported' : 'Not Supported' }}
           </span>
         </div>
       </div>
 
-      <div class="setting-item" v-if="pushSupported">
-        <div class="setting-info">
+      <div class="setting-item settings-item" v-if="pushSupported">
+        <div class="setting-info settings-item__info">
           <label>Notification Permission</label>
           <p class="setting-description">
             Allow StreamVault to send push notifications for stream events
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge" :class="{
             'granted': notificationPermission === 'granted',
             'denied': notificationPermission === 'denied',
@@ -103,14 +98,14 @@
         </div>
       </div>
 
-      <div class="setting-item" v-if="notificationPermission === 'granted'">
-        <div class="setting-info">
+      <div class="setting-item settings-item" v-if="notificationPermission === 'granted'">
+        <div class="setting-info settings-item__info">
           <label>Test Notification</label>
           <p class="setting-description">
             Send a test push notification to verify everything is working
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <button 
             @click="sendTestNotification" 
             class="btn btn-secondary"
@@ -135,29 +130,29 @@
     </div>
 
     <!-- PWA Features -->
-    <div class="pwa-section">
+    <div class="pwa-section settings-section settings-section--surface">
       <h4>App Features</h4>
       
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Offline Support</label>
           <p class="setting-description">
             Basic app functionality works offline with cached content
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge supported">Enabled</span>
         </div>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
+      <div class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
           <label>Background Sync</label>
           <p class="setting-description">
             Sync data automatically when connection is restored
           </p>
         </div>
-        <div class="setting-control">
+        <div class="setting-control settings-item__actions">
           <span class="status-badge supported">Enabled</span>
         </div>
       </div>
@@ -371,221 +366,184 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-.pwa-panel {
-  max-width: 800px;
+
+// ============================================================================
+// PWA PANEL - Unified Design
+// Most styles inherited from global _settings-panels.scss
+// ============================================================================
+
+// ============================================================================
+// PWA STATUS CARDS
+// ============================================================================
+
+.pwa-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: v.$spacing-4;
+  margin-bottom: v.$spacing-6;
+  
+  @include m.respond-below('sm') {
+    grid-template-columns: 1fr;
+  }
 }
 
-.section-header {
-  margin-bottom: 2rem;
+.status-card {
+  padding: v.$spacing-4;
+  background: var(--background-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  
+  &.installed {
+    border-color: var(--success-color);
+    background: var(--success-bg-color);
+  }
+  
+  &.not-installed {
+    border-color: var(--warning-color);
+    background: var(--warning-bg-color);
+  }
+  
+  .status-icon {
+    font-size: v.$text-3xl;
+    margin-bottom: v.$spacing-2;
+  }
+  
+  .status-title {
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin-bottom: v.$spacing-1;
+  }
+  
+  .status-description {
+    font-size: v.$text-sm;
+    color: var(--text-secondary);
+  }
 }
 
-.section-header h3 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-color);
-  font-size: 1.5rem;
-  font-weight: 600;
+// ============================================================================
+// INSTALL INSTRUCTIONS
+// ============================================================================
+
+.install-instructions {
+  .platform-tabs {
+    display: flex;
+    gap: v.$spacing-2;
+    margin-bottom: v.$spacing-4;
+    border-bottom: 2px solid var(--border-color);
+    
+    @include m.respond-below('sm') {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .platform-tab {
+      padding: v.$spacing-3 v.$spacing-4;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: v.$transition-all;
+      white-space: nowrap;
+      
+      &:hover {
+        color: var(--text-primary);
+        background: var(--background-hover);
+      }
+      
+      &.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+        font-weight: v.$font-semibold;
+      }
+    }
+  }
+  
+  .instruction-steps {
+    list-style: none;
+    counter-reset: step-counter;
+    padding: 0;
+    
+    li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: v.$spacing-10;
+      margin-bottom: v.$spacing-4;
+      
+      &:before {
+        content: counter(step-counter);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 32px;
+        height: 32px;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: v.$font-bold;
+        font-size: v.$text-sm;
+      }
+      
+      strong {
+        color: var(--text-primary);
+        display: block;
+        margin-bottom: v.$spacing-1;
+      }
+      
+      span {
+        color: var(--text-secondary);
+        font-size: v.$text-sm;
+      }
+    }
+  }
 }
 
-.section-header p {
-  margin: 0;
-  color: var(--text-muted-color);
-  font-size: 0.95rem;
+// ============================================================================
+// FEATURES LIST
+// ============================================================================
+
+.pwa-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: v.$spacing-3;
+  margin-top: v.$spacing-6;
+  
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-2;
+    padding: v.$spacing-3;
+    background: var(--background-hover);
+    border-radius: var(--radius-sm);
+    
+    .feature-icon {
+      font-size: v.$text-xl;
+      color: var(--primary-color);
+    }
+    
+    .feature-text {
+      font-size: v.$text-sm;
+      color: var(--text-primary);
+    }
+  }
 }
 
-.pwa-section {
-  background: var(--card-background);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
+// ============================================================================
+// RESPONSIVE
+// ============================================================================
 
-.pwa-section h4 {
-  margin: 0 0 1.5rem 0;
-  color: var(--text-color);
-  font-size: 1.25rem;
-  font-weight: 600;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.setting-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.setting-info {
-  flex: 1;
-  margin-right: 1rem;
-}
-
-.setting-info label {
-  display: block;
-  font-weight: 600;
-  color: var(--text-color);
-  margin-bottom: 0.25rem;
-}
-
-.setting-description {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-muted-color);
-  line-height: 1.4;
-}
-
-.setting-control {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-shrink: 0;
-}
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-badge.installed,
-.status-badge.granted,
-.status-badge.online,
-.status-badge.supported {
-  background: var(--success-color, #28a745);
-  color: white;
-}
-
-.status-badge.not-installed,
-.status-badge.denied,
-.status-badge.offline,
-.status-badge.not-supported {
-  background: var(--danger-color, #dc3545);
-  color: white;
-}
-
-.status-badge.default {
-  background: var(--warning-color, #ffc107);
-  color: var(--dark-color, #212529);
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: var(--radius-lg, 8px);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 40px;  /* Touch-friendly */
-}
-
-.btn .icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.btn-spacing {
-  margin-left: 0.5rem;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn.btn-primary {
-  background: var(--primary-color, #6f42c1);
-  color: white;
-}
-
-.btn.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover-color, #5a2d91);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(111, 66, 193, 0.3);
-}
-
-.btn.btn-secondary {
-  background: var(--background-card, #3a3a3a);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-
-.btn.btn-secondary:hover:not(:disabled) {
-  background: var(--background-darker, #2a2a2a);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.install-btn {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-}
-
-.status-message {
-  margin-top: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.status-message.success {
-  background: var(--success-bg-color, #d4edda);
-  color: var(--success-text-color, #155724);
-  border: 1px solid var(--success-border-color, #c3e6cb);
-}
-
-.status-message.error {
-  background: var(--danger-bg-color, #f8d7da);
-  color: var(--danger-text-color, #721c24);
-  border: 1px solid var(--danger-border-color, #f5c6cb);
-}
-
-.status-message.info {
-  background: var(--info-bg-color, #d1ecf1);
-  color: var(--info-text-color, #0c5460);
-  border: 1px solid var(--info-border-color, #bee5eb);
-}
-
-/* Mobile responsive - Use SCSS mixins for breakpoints */
-
-@include m.respond-below('md') {  // < 768px
-  .setting-item {
+@include m.respond-below('md') {
+  .form-actions {
     flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .setting-info {
-    margin-right: 0;
-    margin-bottom: 1rem;
-  }
-  
-  .setting-control {
-    justify-content: space-between;
-  }
-  
-  .btn {
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
+    
+    .btn {
+      width: 100%;
+    }
   }
 }
 </style>

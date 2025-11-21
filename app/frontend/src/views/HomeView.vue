@@ -4,12 +4,14 @@
     <section class="live-section">
       <div class="section-header">
         <h2 class="section-title">
-          <span class="live-indicator"></span>
+          <span class="live-indicator-wrapper">
+            <span class="live-indicator"></span>
+            <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="live-count">
+              {{ liveStreamers.length }}
+            </span>
+          </span>
           Live Now
         </h2>
-        <span v-if="!isLoadingStreamers && liveStreamers.length > 0" class="section-count">
-          {{ liveStreamers.length }}
-        </span>
       </div>
 
       <!-- Loading State -->
@@ -353,23 +355,32 @@ section {
   fill: none;
 }
 
-.section-count {
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  color: var(--danger-color);
-  background: rgba(var(--danger-500-rgb), 0.1);
-  padding: var(--spacing-1) var(--spacing-3);
-  border-radius: var(--radius-full);
+// Live Indicator Wrapper (contains indicator + count)
+.live-indicator-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-// Live Indicator
 .live-indicator {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 20px;  // Larger to accommodate count
+  height: 20px;
   background: var(--danger-color);
   border-radius: 50%;
   animation: pulse-live 2s ease-in-out infinite;
+  position: relative;
+}
+
+.live-count {
+  position: absolute;
+  font-size: 10px;
+  font-weight: v.$font-bold;
+  color: white;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes pulse-live {
@@ -414,31 +425,75 @@ section {
 
 // Horizontal Scroll (Live Streamers)
 .horizontal-scroll {
-  display: flex;
-  gap: var(--spacing-4);
-  overflow-x: auto;
-  overflow-y: visible;  /* CRITICAL: Allow dropdown to overflow vertically */
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-6);  /* FIXED: Increased bottom padding for shadow */
-  margin: 0 calc(var(--spacing-4) * -1);
-  padding-left: var(--spacing-4);
-  padding-right: var(--spacing-4);
-
-  // Hide scrollbar but keep functionality
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
+  // DESKTOP: Grid layout with wrapping (no scroll)
+  @include m.respond-to('md') {  // >= 768px
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--spacing-4);
+    overflow: visible;  // No scroll on desktop
+    padding: var(--spacing-2);
+    margin: 0;
   }
+  
+  // MOBILE: Horizontal scroll
+  @include m.respond-below('md') {  // < 768px
+    display: flex;
+    gap: var(--spacing-4);
+    overflow-x: auto;
+    overflow-y: visible;  /* CRITICAL: Allow dropdown to overflow vertically */
+    padding: var(--spacing-2) var(--spacing-2) var(--spacing-6);  /* FIXED: Increased bottom padding for shadow */
+    margin: 0 calc(var(--spacing-4) * -1);
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+    
+    // Smooth scroll behavior
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    
+    // FIX: Prevent weird touch behavior - only horizontal scroll
+    touch-action: pan-x pan-y;  /* Allow both horizontal and vertical panning */
+    overscroll-behavior-x: contain;  /* Prevent scroll chaining */
+    
+    // Custom scrollbar styling (visible on mobile)
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--background-darker);
 
-  // Smooth scroll behavior
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: var(--background-darker);
+      border-radius: var(--radius-full);
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--primary-color);
+      border-radius: var(--radius-full);
+      
+      &:hover {
+        background: var(--primary-600);
+      }
+    }
+  }
 }
 
 .live-card,
 .live-card-skeleton {
-  flex: 0 0 320px;
-  max-width: 320px;
+  // Animation FIRST (before nested rules to avoid SASS deprecation warning)
   animation: fade-in v.$duration-300 v.$ease-out;
+  
+  // DESKTOP: Full width in grid
+  @include m.respond-to('md') {  // >= 768px
+    width: 100%;  // Take full grid cell
+    max-width: none;
+  }
+  
+  // MOBILE: Fixed width for horizontal scroll
+  @include m.respond-below('md') {  // < 768px
+    flex: 0 0 320px;
+    max-width: 320px;
+  }
 
   @for $i from 1 through 10 {
     &:nth-child(#{$i}) {
@@ -513,16 +568,16 @@ section {
     font-size: var(--text-lg);
   }
 
-  // Center live cards on mobile
+  // Center live cards on mobile and reduce size
   .horizontal-scroll {
-    justify-content: center;
-    padding-left: var(--spacing-2);
-    padding-right: var(--spacing-2);
+    justify-content: flex-start;  // Start from left for natural scroll
+    padding-left: var(--spacing-4);  // Keep padding
+    padding-right: var(--spacing-4);
   }
 
   .live-card,
   .live-card-skeleton {
-    flex: 0 0 280px;
+    flex: 0 0 280px;  // Slightly smaller on mobile
     max-width: 280px;
   }
 

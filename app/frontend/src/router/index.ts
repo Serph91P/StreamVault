@@ -22,8 +22,16 @@ const router = createRouter({
     if (savedPosition) {
       return savedPosition
     }
-    // Always scroll to top for new navigation
-    return { top: 0, behavior: 'smooth' }
+    // Hash link (e.g., #section) - scroll to element
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      }
+    }
+    // Always scroll to top for new navigation (CRITICAL FIX)
+    // Use immediate scroll to prevent position persistence bug
+    return { top: 0, left: 0, behavior: 'auto' }
   },
   routes: [
     {
@@ -45,6 +53,12 @@ const router = createRouter({
       path: '/videos',
       name: 'videos',
       component: VideosView,
+    },
+    {
+      path: '/videos/:id',
+      name: 'video-player',
+      component: () => import('../views/VideoPlayerView.vue'),
+      props: true
     },
     {
       path: '/subscriptions',
@@ -91,6 +105,17 @@ const router = createRouter({
 
 // Show WelcomeView only if not seen yet
 router.beforeEach(async (to, from, next) => {
+  // 🎭 MOCK MODE: Bypass auth checks in development
+  const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+  if (USE_MOCK_DATA) {
+    console.log('🎭 Mock mode: Skipping auth checks, allowing all routes');
+    // Mark welcome as seen to avoid redirect loop
+    if (!localStorage.getItem('welcome_seen')) {
+      localStorage.setItem('welcome_seen', 'true');
+    }
+    return next();
+  }
+
   // Show WelcomeView only if not seen yet and not coming from setup
   if (to.path === '/' && !localStorage.getItem('welcome_seen')) {
     return next('/welcome');
@@ -108,7 +133,14 @@ router.beforeEach(async (to, from, next) => {
       },
     });
 
-    const data = await response.json();
+    // FIXED: Add error handling for invalid JSON responses
+    let data;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      console.error('Failed to parse setup response as JSON:', jsonError);
+      return next('/auth/setup');
+    }
 
     if (data.setup_required) {
       if (to.path !== '/auth/setup') {
@@ -116,8 +148,9 @@ router.beforeEach(async (to, from, next) => {
       }
       return next();
     } else {
+      // FIXED: After setup, redirect to /welcome instead of /
       if (to.path === '/auth/setup') {
-        return next('/');
+        return next('/welcome');
       }
 
       const authResponse = await fetch('/auth/check', {

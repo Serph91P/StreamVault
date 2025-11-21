@@ -85,7 +85,13 @@ class BackgroundQueueManager:
             handle_segment_concatenation
         )
         
-        logger.info("✅ All 8 task handlers registered successfully")
+        # Register unified recovery handler (runs recovery scan in background)
+        self.queue_service.register_task_handler(
+            'unified_recovery',
+            self.task_handlers.handle_unified_recovery
+        )
+        
+        logger.info("✅ All 9 task handlers registered successfully")
         
         # Start the queue service if not already running
         if not self.queue_service.is_running:

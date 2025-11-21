@@ -7,10 +7,11 @@ Uses Fernet symmetric encryption from cryptography library.
 SECURITY: Proxy URLs contain sensitive credentials (username, password).
 These MUST be encrypted in database to prevent exposure in case of database compromise.
 
-Encryption Key:
-- Stored in environment variable PROXY_ENCRYPTION_KEY
-- Generated once at first use and must be backed up
-- If key is lost, existing proxies cannot be decrypted
+Migration 032: Encryption key now stored in GlobalSettings.proxy_encryption_key
+- BEFORE: PROXY_ENCRYPTION_KEY environment variable (manual setup required)
+- AFTER: Auto-generated and stored in database (transparent, persistent)
+- Key persists across container restarts
+- No manual user intervention needed
 """
 
 import os
@@ -26,6 +27,8 @@ class ProxyEncryption:
     Handles encryption/decryption of proxy credentials.
     
     Uses Fernet symmetric encryption (AES-128 CBC with HMAC).
+    
+    Migration 032: Key management changed from environment variable to database.
     """
     
     def __init__(self):
@@ -33,28 +36,67 @@ class ProxyEncryption:
         self._initialize_cipher()
     
     def _initialize_cipher(self):
-        """Initialize Fernet cipher with encryption key from environment"""
-        encryption_key = os.getenv('PROXY_ENCRYPTION_KEY')
+        """
+        Initialize Fernet cipher with encryption key from database.
         
-        if not encryption_key:
-            logger.warning("⚠️ PROXY_ENCRYPTION_KEY not set! Generating new key...")
-            logger.warning("⚠️ IMPORTANT: Backup this key! If lost, proxies cannot be decrypted.")
-            
-            # Generate new key
-            new_key = Fernet.generate_key()
-            encryption_key = new_key.decode('utf-8')
-            
-            logger.warning("=" * 80)
-            logger.warning("🔑 PROXY ENCRYPTION KEY (BACKUP THIS!):")
-            logger.warning(f"   {encryption_key}")
-            logger.warning("")
-            logger.warning("Add to your .env file:")
-            logger.warning(f"   PROXY_ENCRYPTION_KEY={encryption_key}")
-            logger.warning("=" * 80)
+        Migration 032: Changed from environment variable to database storage.
+        
+        Flow:
+        1. Try to read encryption key from GlobalSettings.proxy_encryption_key
+        2. If not exists: Generate new Fernet key and save to database
+        3. Initialize Fernet cipher
+        
+        Security: Key never logged to console or exposed in error messages.
+        """
+        from app.database import SessionLocal
+        from app.models import GlobalSettings
+        
+        encryption_key = None
+        
+        try:
+            with SessionLocal() as db:
+                settings = db.query(GlobalSettings).first()
+                
+                if settings and settings.proxy_encryption_key:
+                    encryption_key = settings.proxy_encryption_key
+                    logger.info("🔐 Loaded proxy encryption key from database")
+                else:
+                    # Generate new key and save to database
+                    logger.info("🔑 Generating new proxy encryption key...")
+                    new_key = Fernet.generate_key()
+                    encryption_key = new_key.decode('utf-8')
+                    
+                    # Save to database
+                    if not settings:
+                        settings = GlobalSettings(
+                            notifications_enabled=True,
+                            proxy_encryption_key=encryption_key
+                        )
+                        db.add(settings)
+                    else:
+                        settings.proxy_encryption_key = encryption_key
+                    
+                    db.commit()
+                    logger.info("✅ Proxy encryption key generated and saved to database")
+                    logger.info("💡 Encryption key persists across container restarts")
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to load/save encryption key from database: {e}")
+            # Fallback to environment variable for backward compatibility
+            encryption_key = os.getenv("PROXY_ENCRYPTION_KEY")
+            if encryption_key:
+                logger.warning("⚠️ Using PROXY_ENCRYPTION_KEY from environment (deprecated)")
+                logger.warning("   Migration 032 should have moved this to database")
+            else:
+                # Last resort: Generate ephemeral key (will cause data loss on restart)
+                logger.error("❌ CRITICAL: No encryption key in database or environment!")
+                logger.error("   Generating ephemeral key - proxies will be lost on restart")
+                new_key = Fernet.generate_key()
+                encryption_key = new_key.decode('utf-8')
         
         try:
             self._cipher = Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
-            logger.info("✅ Proxy encryption initialized")
+            logger.debug("🔐 Proxy encryption initialized")
         except Exception as e:
             logger.error(f"❌ Failed to initialize proxy encryption: {e}")
             raise

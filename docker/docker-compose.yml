@@ -41,6 +41,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      # Twitch App credentials for EventSub webhooks (stream online/offline notifications)
       - TWITCH_APP_ID=${TWITCH_APP_ID}
       - TWITCH_APP_SECRET=${TWITCH_APP_SECRET}
       - BASE_URL=${BASE_URL}
@@ -49,6 +50,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - TZ=${TZ:-Europe/Berlin}
       - ENVIRONMENT=production
+      # Browser token for H.265/1440p quality (see Settings → Twitch Connection)
+      # Extract from browser: document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
       - TWITCH_OAUTH_TOKEN=${TWITCH_OAUTH_TOKEN:-}
     
     restart: unless-stopped

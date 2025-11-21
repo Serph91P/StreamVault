@@ -21,6 +21,28 @@
         <p class="section-description">Follow these steps to set up your stream recording system</p>
 
         <div class="features-grid">
+          <!-- Step 0: Connect Twitch (NEW!) -->
+          <GlassCard class="feature-card feature-card-highlight" :hover="true">
+            <div class="feature-number">0</div>
+            <div class="feature-icon-wrapper feature-icon-twitch">
+              <svg class="feature-icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M11.64 5.93H13.07V10.21H11.64M15.57 5.93H17V10.21H15.57M7 2L3.43 5.57V18.43H7.71V22L11.29 18.43H14.14L20.57 12V2M19.14 11.29L16.29 14.14H13.43L10.93 16.64V14.14H7.71V3.43H19.14Z"/>
+              </svg>
+            </div>
+            <h3 class="feature-title">Connect Twitch Account</h3>
+            <p class="feature-description">
+              Link your Twitch account for better quality (H.265/1440p) and ad-free recordings with Turbo
+            </p>
+            <button @click="startTwitchOAuth" class="feature-link feature-link-primary" v-ripple>
+              <svg class="link-icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M11.64 5.93H13.07V10.21H11.64M15.57 5.93H17V10.21H15.57M7 2L3.43 5.57V18.43H7.71V22L11.29 18.43H14.14L20.57 12V2M19.14 11.29L16.29 14.14H13.43L10.93 16.64V14.14H7.71V3.43H19.14Z"/>
+              </svg>
+              <span v-if="!twitchConnected">Connect with Twitch</span>
+              <span v-else>✓ Connected</span>
+            </button>
+            <p v-if="!twitchConnected" class="feature-hint">Optional, but recommended for best quality</p>
+          </GlassCard>
+
           <!-- Step 1 -->
           <GlassCard class="feature-card" :hover="true">
             <div class="feature-number">1</div>
@@ -118,10 +140,45 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import GlassCard from '@/components/cards/GlassCard.vue'
 
 const router = useRouter()
+const twitchConnected = ref(false)
+
+onMounted(async () => {
+  // Check if Twitch is already connected
+  try {
+    const response = await fetch('/api/twitch/connection-status', {
+      credentials: 'include'
+    })
+    if (response.ok) {
+      const data = await response.json()
+      twitchConnected.value = data.connected || false
+    }
+  } catch (error) {
+    console.error('Failed to check Twitch connection status:', error)
+  }
+})
+
+async function startTwitchOAuth() {
+  try {
+    const response = await fetch('/api/twitch/auth-url', {
+      credentials: 'include'
+    })
+    const data = await response.json()
+    
+    if (data.auth_url) {
+      // Save current page to return after OAuth
+      sessionStorage.setItem('oauth_return_url', '/welcome')
+      // Redirect to Twitch OAuth
+      window.location.href = data.auth_url
+    }
+  } catch (error) {
+    console.error('Failed to start Twitch OAuth:', error)
+  }
+}
 
 function continueToHome() {
   localStorage.setItem('welcome_seen', '1')
@@ -275,9 +332,43 @@ function continueToHome() {
   overflow: visible;
   animation: scaleIn 0.6s ease-out both;
 
-  &:nth-child(1) { animation-delay: 0.3s; }
-  &:nth-child(2) { animation-delay: 0.4s; }
-  &:nth-child(3) { animation-delay: 0.5s; }
+  &:nth-child(1) { animation-delay: 0.2s; }
+  &:nth-child(2) { animation-delay: 0.3s; }
+  &:nth-child(3) { animation-delay: 0.4s; }
+  &:nth-child(4) { animation-delay: 0.5s; }
+}
+
+.feature-card-highlight {
+  border: 2px solid rgba(var(--color-primary-rgb), 0.3);
+  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.03) 0%, rgba(var(--color-accent-rgb), 0.03) 100%);
+}
+
+.feature-icon-twitch {
+  background: linear-gradient(135deg, rgba(145, 70, 255, 0.15) 0%, rgba(100, 65, 165, 0.15) 100%);
+
+  .feature-icon {
+    fill: #9146FF; // Twitch purple
+  }
+}
+
+.feature-link-primary {
+  background: var(--gradient-primary);
+  color: white;
+  border-color: transparent;
+
+  &:hover {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+.feature-hint {
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  text-align: center;
 }
 
 @keyframes scaleIn {

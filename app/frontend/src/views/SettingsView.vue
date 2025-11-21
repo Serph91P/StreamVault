@@ -9,7 +9,6 @@
           </svg>
           Settings
         </h1>
-        <p class="page-subtitle">Configure your StreamVault preferences and options</p>
       </div>
 
       <div class="header-actions" v-if="hasUnsavedChanges">
@@ -64,6 +63,23 @@
 
       <!-- Settings Content -->
       <main class="settings-content">
+        <!-- Twitch Connection Settings -->
+        <div v-if="activeSection === 'twitch'" class="settings-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg class="section-icon">
+                <use href="#icon-link" />
+              </svg>
+              Twitch Connection
+            </h2>
+            <p class="section-description">
+              Connect your Twitch account for enhanced recording quality and features
+            </p>
+          </div>
+
+          <TwitchConnectionPanel />
+        </div>
+
         <!-- Notifications Settings -->
         <div v-if="activeSection === 'notifications'" class="settings-section">
           <div class="section-header">
@@ -78,13 +94,15 @@
             </p>
           </div>
 
-          <NotificationSettingsPanel
-            :settings="notificationSettings || defaultNotificationSettings"
-            :streamer-settings="notificationStreamerSettings"
-            @update-settings="handleUpdateNotificationSettings"
-            @update-streamer-settings="handleUpdateStreamerNotificationSettings"
-            @test-notification="handleTestNotification"
-          />
+          <GlassCard padding="lg">
+            <NotificationSettingsPanel
+              :settings="notificationSettings || defaultNotificationSettings"
+              :streamer-settings="notificationStreamerSettings"
+              @update-settings="handleUpdateNotificationSettings"
+              @update-streamer-settings="handleUpdateStreamerNotificationSettings"
+              @test-notification="handleTestNotification"
+            />
+          </GlassCard>
         </div>
 
         <!-- Recording Settings -->
@@ -101,14 +119,16 @@
             </p>
           </div>
 
-          <RecordingSettingsPanel
-            :settings="recordingSettings"
-            :streamer-settings="recordingStreamerSettings"
-            :active-recordings="activeRecordings"
-            @update="handleUpdateRecordingSettings"
-            @update-streamer="handleUpdateStreamerRecordingSettings"
-            @stop-recording="handleStopRecording"
-          />
+          <GlassCard padding="lg">
+            <RecordingSettingsPanel
+              :settings="recordingSettings"
+              :streamer-settings="recordingStreamerSettings"
+              :active-recordings="activeRecordings"
+              @update="handleUpdateRecordingSettings"
+              @update-streamer="handleUpdateStreamerRecordingSettings"
+              @stop-recording="handleStopRecording"
+            />
+          </GlassCard>
         </div>
 
         <!-- Proxy Management -->
@@ -125,7 +145,9 @@
             </p>
           </div>
 
-          <ProxySettingsPanel />
+          <GlassCard padding="lg">
+            <ProxySettingsPanel />
+          </GlassCard>
         </div>
 
         <!-- Favorites Settings -->
@@ -142,51 +164,8 @@
             </p>
           </div>
 
-          <FavoritesSettingsPanel />
-        </div>
-
-        <!-- Appearance Settings -->
-        <div v-if="activeSection === 'appearance'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-palette" />
-              </svg>
-              Appearance
-            </h2>
-            <p class="section-description">
-              Customize the look and feel of your application
-            </p>
-          </div>
-
-          <GlassCard>
-            <div class="card-content">
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Theme</label>
-                  <p class="setting-description">Choose your preferred color scheme</p>
-                </div>
-                <div class="setting-control">
-                  <select v-model="theme" class="select-input">
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Animations</label>
-                  <p class="setting-description">Enable or disable interface animations</p>
-                </div>
-                <div class="setting-control">
-                  <label class="toggle-switch">
-                    <input type="checkbox" v-model="animationsEnabled" />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-            </div>
+          <GlassCard padding="lg">
+            <FavoritesSettingsPanel />
           </GlassCard>
         </div>
 
@@ -204,63 +183,8 @@
             </p>
           </div>
 
-          <PWAPanel />
-        </div>
-
-        <!-- Advanced Settings -->
-        <div v-if="activeSection === 'advanced'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-sliders" />
-              </svg>
-              Advanced
-            </h2>
-            <p class="section-description">
-              Advanced configuration and maintenance options
-            </p>
-          </div>
-
-          <GlassCard>
-            <div class="card-content">
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Debug Mode</label>
-                  <p class="setting-description">Enable detailed logging and debugging</p>
-                </div>
-                <div class="setting-control">
-                  <label class="toggle-switch">
-                    <input type="checkbox" v-model="debugMode" />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Enable Animations</label>
-                  <p class="setting-description">Show animated transitions, hover effects, and recording pulse</p>
-                </div>
-                <div class="setting-control">
-                  <label class="toggle-switch">
-                    <input type="checkbox" v-model="animationsEnabled" @change="toggleAnimations" />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Clear Cache</label>
-                  <p class="setting-description">Remove cached data and reload application</p>
-                </div>
-                <div class="setting-control">
-                  <button @click="clearCache" class="btn-outline btn-danger" v-ripple>
-                    Clear All Cache
-                  </button>
-                </div>
-              </div>
-            </div>
+          <GlassCard padding="lg">
+            <PWAPanel />
           </GlassCard>
         </div>
 
@@ -358,11 +282,18 @@ import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel
 import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import PWAPanel from '@/components/settings/PWAPanel.vue'
+import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
 // Settings sections
 const sections = [
+  {
+    id: 'twitch',
+    label: 'Twitch Connection',
+    description: 'OAuth & quality settings',
+    icon: 'link'
+  },
   {
     id: 'notifications',
     label: 'Notifications',
@@ -388,22 +319,10 @@ const sections = [
     icon: 'star'
   },
   {
-    id: 'appearance',
-    label: 'Appearance',
-    description: 'Theme & visuals',
-    icon: 'palette'
-  },
-  {
     id: 'pwa',
     label: 'PWA & Mobile',
     description: 'Mobile app settings',
     icon: 'smartphone'
-  },
-  {
-    id: 'advanced',
-    label: 'Advanced',
-    description: 'Technical settings',
-    icon: 'sliders'
   },
   {
     id: 'about',
@@ -414,7 +333,7 @@ const sections = [
 ]
 
 // State
-const activeSection = ref('notifications')
+const activeSection = ref('twitch')  // Start with Twitch connection (most important)
 const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 
@@ -426,12 +345,6 @@ const { theme, setTheme } = useTheme()
 
 // Toast notifications
 const toast = useToast()
-
-// Appearance settings
-const animationsEnabled = ref(true)
-
-// Advanced settings
-const debugMode = ref(false)
 
 // Notification settings composable
 const {
@@ -629,28 +542,6 @@ async function handleStopRecording(recordingId: number) {
   }
 }
 
-// Advanced actions
-function clearCache() {
-  if (confirm('This will clear all cached data and reload the application. Continue?')) {
-    toast.info('Clearing cache...')
-    localStorage.clear()
-    sessionStorage.clear()
-    window.location.reload()
-  }
-}
-
-function toggleAnimations() {
-  // Save to localStorage
-  localStorage.setItem('animationsEnabled', animationsEnabled.value.toString())
-  
-  // Apply or remove 'no-animations' class from document
-  if (animationsEnabled.value) {
-    document.documentElement.classList.remove('no-animations')
-  } else {
-    document.documentElement.classList.add('no-animations')
-  }
-}
-
 function saveAllChanges() {
   hasUnsavedChanges.value = false
   // Save logic handled by individual panels
@@ -664,17 +555,6 @@ function resetChanges() {
 // Initialize
 onMounted(() => {
   loadAllSettings()
-  
-  // Load animation preference from localStorage
-  const savedAnimationsEnabled = localStorage.getItem('animationsEnabled')
-  if (savedAnimationsEnabled !== null) {
-    animationsEnabled.value = savedAnimationsEnabled === 'true'
-  }
-  
-  // Apply animation state on mount
-  if (!animationsEnabled.value) {
-    document.documentElement.classList.add('no-animations')
-  }
 })
 </script>
 

@@ -315,7 +315,7 @@ async def update_settings(settings_data: GlobalSettingsSchema):
                 
                 if proxy_changed or codec_changed:
                     logger.info("🔄 Proxy or codec settings changed - regenerating Streamlink config...")
-                    config_updated = streamlink_config_service.regenerate_config()
+                    config_updated = await streamlink_config_service.regenerate_config()
                     
                     if config_updated:
                         logger.info("✅ Streamlink config updated with new settings")

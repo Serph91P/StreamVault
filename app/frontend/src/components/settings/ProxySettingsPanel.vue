@@ -612,481 +612,314 @@ async function handleSaveConfig() {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 
-.proxy-settings-panel {
+// ============================================================================
+// PROXY SETTINGS PANEL - Unified Design
+// Most styles inherited from global _settings-panels.scss
+// ============================================================================
+
+// ============================================================================
+// PROXY LIST
+// ============================================================================
+
+.proxy-list {
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-lg;
+  gap: v.$spacing-3;
+  margin-bottom: v.$spacing-6;
 }
 
-/* Status Card */
-.status-card {
-  padding: v.$spacing-lg;
-
-  &.status-healthy {
-    border-left: 4px solid v.$success-color;
-  }
-
-  &.status-degraded {
-    border-left: 4px solid v.$warning-color;
-  }
-
-  &.status-critical,
-  &.status-fallback {
-    border-left: 4px solid v.$danger-color;
-  }
-
-  &.status-disabled {
-    border-left: 4px solid v.$secondary-color;
-  }
-}
-
-.status-header {
+.proxy-item {
   display: flex;
   align-items: center;
-  gap: v.$spacing-md;
-  margin-bottom: v.$spacing-lg;
-}
-
-.status-icon {
-  font-size: 2.5rem;
-}
-
-.status-title {
-  font-size: v.$text-xl;
-  font-weight: v.$font-bold;
-  margin-bottom: v.$spacing-xs;
-  color: v.$text-primary;
-}
-
-.status-message {
-  color: v.$text-secondary;
-  font-size: v.$text-base;
-}
-
-.status-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: v.$spacing-md;
-  padding-top: v.$spacing-md;
-  border-top: 1px solid v.$border-color;
-}
-
-.stat-item {
-  text-align: center;
-  padding: v.$spacing-sm;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: v.$border-radius;
-
-  &.stat-healthy {
-    border-left: 3px solid v.$success-color;
+  gap: v.$spacing-3;
+  padding: v.$spacing-4;
+  background: var(--background-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: v.$transition-all;
+  
+  &:hover {
+    border-color: var(--primary-color);
+    background: var(--background-hover);
   }
-
-  &.stat-degraded {
-    border-left: 3px solid v.$warning-color;
+  
+  &.active {
+    border-color: var(--primary-color);
+    background: var(--primary-bg);
   }
-
-  &.stat-failed {
-    border-left: 3px solid v.$danger-color;
+  
+  &.unhealthy {
+    border-color: var(--danger-color);
+    opacity: 0.7;
   }
-}
-
-.stat-label {
-  display: block;
-  font-size: v.$text-sm;
-  color: v.$text-secondary;
-  margin-bottom: v.$spacing-xs;
-}
-
-.stat-value {
-  display: block;
-  font-size: v.$text-2xl;
-  font-weight: v.$font-bold;
-  color: v.$text-primary;
-}
-
-/* Proxy List Card */
-.proxy-list-card {
-  padding: v.$spacing-lg;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: v.$spacing-lg;
-
-  h3 {
-    font-size: v.$text-xl;
-    font-weight: v.$font-bold;
-    color: v.$text-primary;
-  }
-}
-
-.proxy-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: v.$spacing-md;
-
+  
   @include m.respond-below('md') {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
   }
-}
-
-/* Proxy Card */
-.proxy-card {
-  padding: v.$spacing-md;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid v.$border-color;
-  border-radius: v.$border-radius-lg;
-  transition: all 0.2s ease;
-
-  &.proxy-status-healthy {
-    border-left: 4px solid v.$success-color;
-  }
-
-  &.proxy-status-degraded {
-    border-left: 4px solid v.$warning-color;
-  }
-
-  &.proxy-status-failed {
-    border-left: 4px solid v.$danger-color;
-  }
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.3);
-  }
-}
-
-.proxy-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: v.$spacing-md;
-}
-
-.proxy-info {
-  flex: 1;
-}
-
-.proxy-url {
-  font-family: 'Courier New', monospace;
-  font-size: v.$text-base;
-  font-weight: v.$font-medium;
-  color: v.$text-primary;
-  margin-bottom: v.$spacing-sm;
-  word-break: break-all;
-}
-
-.proxy-meta {
-  display: flex;
-  align-items: center;
-  gap: v.$spacing-sm;
-  flex-wrap: wrap;
-}
-
-.proxy-priority {
-  font-size: v.$text-sm;
-  color: v.$text-secondary;
-}
-
-/* Toggle Switch */
-.proxy-toggle {
-  margin-left: v.$spacing-md;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-
-  input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-
-    &:checked + .slider {
-      background-color: v.$success-color;
-    }
-
-    &:checked + .slider:before {
-      transform: translateX(24px);
-    }
-  }
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: v.$border-color;
-  transition: 0.3s;
-  border-radius: 24px;
-
-  &:before {
-    position: absolute;
-    content: '';
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: 0.3s;
+  
+  .proxy-status {
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
+    flex-shrink: 0;
+    
+    &.healthy {
+      background: var(--success-color);
+      box-shadow: 0 0 8px var(--success-color);
+    }
+    
+    &.unhealthy {
+      background: var(--danger-color);
+      box-shadow: 0 0 8px var(--danger-color);
+    }
+    
+    &.unknown {
+      background: var(--text-secondary);
+    }
   }
-}
-
-/* Proxy Stats */
-.proxy-stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: v.$spacing-sm;
-  margin-bottom: v.$spacing-md;
-  padding: v.$spacing-sm;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: v.$border-radius;
-
-  @include m.respond-below('sm') {
-    grid-template-columns: 1fr;
+  
+  .proxy-info {
+    flex: 1;
+    min-width: 0;
+    
+    .proxy-url {
+      font-weight: v.$font-medium;
+      color: var(--text-primary);
+      word-break: break-all;
+      margin-bottom: v.$spacing-1;
+    }
+    
+    .proxy-meta {
+      font-size: v.$text-sm;
+      color: var(--text-secondary);
+      display: flex;
+      gap: v.$spacing-3;
+      flex-wrap: wrap;
+      
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: v.$spacing-1;
+        
+        .meta-icon {
+          font-size: v.$text-xs;
+        }
+      }
+    }
   }
-}
-
-.stat {
-  display: flex;
-  justify-content: space-between;
-  font-size: v.$text-sm;
-
-  .stat-label {
-    color: v.$text-secondary;
-  }
-
-  .stat-value {
-    color: v.$text-primary;
-    font-weight: v.$font-medium;
-  }
-}
-
-.proxy-error {
-  padding: v.$spacing-sm;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: v.$border-radius;
-  font-size: v.$text-sm;
-  color: v.$danger-color;
-  margin-bottom: v.$spacing-md;
-  word-break: break-all;
-}
-
-.proxy-actions {
-  display: flex;
-  gap: v.$spacing-sm;
-  flex-wrap: wrap;
-}
-
-/* Config Card */
-.config-card {
-  padding: v.$spacing-lg;
-}
-
-.config-form {
-  display: flex;
-  flex-direction: column;
-  gap: v.$spacing-lg;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: v.$spacing-sm;
-}
-
-.form-label {
-  font-weight: v.$font-medium;
-  color: v.$text-primary;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: v.$spacing-sm;
-  cursor: pointer;
-  font-weight: v.$font-medium;
-  color: v.$text-primary;
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-}
-
-.form-control {
-  width: 100%;
-  padding: v.$spacing-sm v.$spacing-md;
-  background: v.$background-dark;
-  border: 1px solid v.$border-color;
-  border-radius: v.$border-radius;
-  color: v.$text-primary;
-  font-size: v.$text-base;
-
-  &.error {
-    border-color: v.$danger-color;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: v.$primary-color;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.help-text {
-  font-size: v.$text-sm;
-  color: v.$text-secondary;
-}
-
-.error-text {
-  font-size: v.$text-sm;
-  color: v.$danger-color;
-  font-weight: v.$font-medium;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: v.$spacing-lg;
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-
-  &.modal-sm {
-    max-width: 400px;
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: v.$spacing-lg;
-  border-bottom: 1px solid v.$border-color;
-
-  h3 {
-    font-size: v.$text-xl;
-    font-weight: v.$font-bold;
-    color: v.$text-primary;
-  }
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: v.$text-secondary;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: v.$text-primary;
-  }
-}
-
-.modal-body {
-  padding: v.$spacing-lg;
-}
-
-.modal-actions {
-  display: flex;
-  gap: v.$spacing-sm;
-  justify-content: flex-end;
-  margin-top: v.$spacing-lg;
-
-  @include m.respond-below('sm') {
-    flex-direction: column-reverse;
-
-    button {
+  
+  .proxy-actions {
+    display: flex;
+    gap: v.$spacing-2;
+    flex-shrink: 0;
+    
+    @include m.respond-below('md') {
       width: 100%;
+      justify-content: space-between;
     }
   }
 }
+
+// ============================================================================
+// ADD PROXY SECTION
+// ============================================================================
+
+.add-proxy-section {
+  padding: v.$spacing-4;
+  background: var(--background-hover);
+  border-radius: var(--radius-md);
+  margin-bottom: v.$spacing-6;
+  
+  .add-proxy-form {
+    display: flex;
+    gap: v.$spacing-3;
+    align-items: flex-end;
+    
+    @include m.respond-below('md') {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .form-group {
+      flex: 1;
+    }
+  }
+}
+
+// ============================================================================
+// PROXY EXAMPLES
+// ============================================================================
 
 .proxy-examples {
-  margin-top: v.$spacing-lg;
-  padding: v.$spacing-md;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: v.$border-radius;
-
-  h4 {
-    font-size: v.$text-base;
-    font-weight: v.$font-medium;
-    color: v.$text-primary;
-    margin-bottom: v.$spacing-sm;
+  padding: v.$spacing-4;
+  background: var(--info-bg-color);
+  border: 1px solid var(--info-border-color);
+  border-radius: var(--radius-md);
+  
+  .examples-title {
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin-bottom: v.$spacing-3;
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-2;
   }
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  li {
-    margin-bottom: v.$spacing-xs;
-    font-size: v.$text-sm;
-    color: v.$text-secondary;
-  }
-
-  code {
-    background: v.$background-darker;
-    color: v.$primary-color;
-    padding: 2px 6px;
-    border-radius: v.$border-radius-sm;
-    font-family: 'Courier New', monospace;
-    font-size: v.$text-sm;
+  
+  .example-list {
+    display: flex;
+    flex-direction: column;
+    gap: v.$spacing-2;
+    
+    .example-item {
+      padding: v.$spacing-3;
+      background: var(--background-card);
+      border-radius: var(--radius-sm);
+      
+      .example-title {
+        font-weight: v.$font-medium;
+        color: var(--text-primary);
+        margin-bottom: v.$spacing-1;
+        font-size: v.$text-sm;
+      }
+      
+      code {
+        display: block;
+        background: var(--background-darker);
+        padding: v.$spacing-2;
+        border-radius: var(--radius-sm);
+        font-family: var(--font-mono);
+        font-size: v.$text-xs;
+        color: var(--primary-color);
+        word-break: break-all;
+      }
+    }
   }
 }
 
-/* Responsive */
-@include m.respond-below('md') {
-  .status-stats {
-    grid-template-columns: repeat(2, 1fr);
+// ============================================================================
+// PROXY TIPS
+// ============================================================================
+
+.proxy-tips {
+  margin-top: v.$spacing-6;
+  padding: v.$spacing-4;
+  background: var(--warning-bg-color);
+  border: 1px solid var(--warning-border-color);
+  border-radius: var(--radius-md);
+  
+  .tips-title {
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin-bottom: v.$spacing-3;
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-2;
   }
+  
+  .tips-list {
+    list-style: none;
+    padding: 0;
+    
+    li {
+      position: relative;
+      padding-left: v.$spacing-6;
+      margin-bottom: v.$spacing-2;
+      font-size: v.$text-sm;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      
+      &:before {
+        content: "•";
+        position: absolute;
+        left: v.$spacing-3;
+        color: var(--warning-color);
+        font-size: v.$text-lg;
+        font-weight: v.$font-bold;
+      }
+    }
+  }
+}
 
-  .card-header {
+// ============================================================================
+// HEALTH CHECK SECTION
+// ============================================================================
+
+.health-check-section {
+  margin-top: v.$spacing-6;
+  
+  .health-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: v.$spacing-3;
+    margin-bottom: v.$spacing-4;
+    
+    .stat-card {
+      padding: v.$spacing-3;
+      background: var(--background-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      text-align: center;
+      
+      .stat-value {
+        font-size: v.$text-2xl;
+        font-weight: v.$font-bold;
+        color: var(--text-primary);
+        margin-bottom: v.$spacing-1;
+      }
+      
+      .stat-label {
+        font-size: v.$text-sm;
+        color: var(--text-secondary);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// EMPTY STATE
+// ============================================================================
+
+.empty-proxies {
+  text-align: center;
+  padding: v.$spacing-8 v.$spacing-4;
+  
+  .empty-icon {
+    font-size: 4rem;
+    color: var(--text-secondary);
+    margin-bottom: v.$spacing-4;
+    opacity: 0.5;
+  }
+  
+  .empty-title {
+    font-size: v.$text-xl;
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin-bottom: v.$spacing-2;
+  }
+  
+  .empty-description {
+    color: var(--text-secondary);
+    font-size: v.$text-base;
+  }
+}
+
+// ============================================================================
+// RESPONSIVE
+// ============================================================================
+
+@include m.respond-below('md') {
+  .form-actions {
     flex-direction: column;
-    gap: v.$spacing-md;
-    align-items: stretch;
-
-    button {
+    
+    .btn {
       width: 100%;
+    }
+  }
+  
+  .proxy-actions {
+    .btn {
+      flex: 1;
     }
   }
 }

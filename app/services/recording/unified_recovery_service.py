@@ -283,7 +283,14 @@ class UnifiedRecoveryService:
         return failed
     
     async def _process_orphaned_recording(self, recording_info: Dict[str, Any]) -> bool:
-        """Process a single orphaned recording by concatenating segments"""
+        """Process a single orphaned recording intelligently
+        
+        CRITICAL LOGIC:
+        - If streamer LIVE: Resume recording (new segment) → Post-processing happens when stream ends naturally
+        - If streamer OFFLINE: Only then concatenate existing segments and trigger post-processing
+        
+        This prevents premature post-processing while stream is still active!
+        """
         try:
             segments_dir = recording_info['segments_dir']
             expected_ts_path = recording_info['expected_ts_path']
@@ -292,6 +299,28 @@ class UnifiedRecoveryService:
             
             logger.info(f"🔄 PROCESSING_ORPHANED: recording_id={recording_id}, streamer={streamer_name}")
             
+            # STEP 1: Check if streamer is still live
+            is_still_live = await self._check_if_streamer_still_live(recording_id)
+            
+            if is_still_live:
+                # Streamer is LIVE - resume recording, let normal workflow handle post-processing
+                logger.info(f"📡 Streamer {streamer_name} is still LIVE - resuming recording")
+                logger.info(f"📌 Existing segments will be merged when stream ends (normal workflow)")
+                
+                success = await self._resume_live_recording(recording_id, segments_dir, streamer_name)
+                if success:
+                    logger.info(f"✅ Recording resumed - segments will be handled by ProcessManager")
+                    # DO NOT trigger post-processing here - it happens when recording stops!
+                    return True
+                else:
+                    logger.warning(f"⚠️ Failed to resume recording for {streamer_name}")
+                    logger.info(f"📌 Segments remain on disk - will retry on next recovery scan")
+                    return False
+            
+            # STEP 2: Streamer is OFFLINE - post-process orphaned segments NOW
+            logger.info(f"🛑 Streamer {streamer_name} is OFFLINE - starting post-processing for orphaned segments")
+            logger.info(f"📦 This will concatenate {len(list(segments_dir.glob('*.ts')))} segments in background")
+            
             # Log to dedicated file
             logging_service.log_post_processing_activity(
                 "CONCATENATION_START",
@@ -299,7 +328,8 @@ class UnifiedRecoveryService:
                 f"Starting concatenation for orphaned recording {recording_id}: {segments_dir.name}"
             )
             
-            # Use shared utility for segment concatenation
+            # Use async FFmpeg concatenation (non-blocking)
+            # This runs in background and doesn't block frontend startup
             result = await self._concatenate_segments_util(segments_dir, expected_ts_path)
             
             if result and result.exists():
@@ -580,27 +610,113 @@ class UnifiedRecoveryService:
             
             logger.info(f"Running concatenation: {' '.join(cmd)}")
             
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=3600  # 1 hour timeout
+            # CRITICAL: Use async subprocess to prevent blocking the event loop
+            # This prevents frontend from being blocked during startup recovery
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            
+            try:
+                # Wait for completion with 1 hour timeout
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=3600
+                )
+            except asyncio.TimeoutError:
+                logger.error("❌ FFmpeg concatenation timeout (1 hour)")
+                process.kill()
+                await process.wait()
+                return None
             
             # Clean up concat file
             if concat_file.exists():
                 concat_file.unlink()
             
-            if result.returncode == 0 and output_path.exists():
+            if process.returncode == 0 and output_path.exists():
                 logger.info(f"✅ Concatenation successful: {output_path}")
                 return output_path
             else:
-                logger.error(f"❌ FFmpeg concatenation failed: {result.stderr}")
+                logger.error(f"❌ FFmpeg concatenation failed: {stderr.decode() if stderr else 'Unknown error'}")
                 return None
                 
         except Exception as e:
             logger.error(f"❌ Error in segment concatenation: {e}")
             return None
+    
+    async def _check_if_streamer_still_live(self, recording_id: int) -> bool:
+        """Check if the streamer for this recording is still live on Twitch"""
+        try:
+            with SessionLocal() as db:
+                recording = db.query(Recording).options(
+                    joinedload(Recording.stream).joinedload(Stream.streamer)
+                ).filter(Recording.id == recording_id).first()
+                
+                if not recording or not recording.stream or not recording.stream.streamer:
+                    return False
+                
+                streamer = recording.stream.streamer
+                
+                # Check Twitch API for live status
+                from app.services.streamer_service import StreamerService
+                from app.services.communication.websocket_manager import websocket_manager
+                from app.events.handler_registry import EventHandlerRegistry
+                from app.config.settings import settings
+                
+                event_handler_registry = EventHandlerRegistry(
+                    connection_manager=websocket_manager,
+                    settings=settings
+                )
+                
+                streamer_service = StreamerService(db, websocket_manager, event_handler_registry)
+                is_live = await streamer_service.check_streamer_live_status(streamer.twitch_id)
+                
+                logger.info(f"📡 Live status check for {streamer.username}: {'LIVE' if is_live else 'OFFLINE'}")
+                return is_live
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking live status for recording {recording_id}: {e}")
+            return False  # Assume offline on error
+    
+    async def _resume_live_recording(self, recording_id: int, segments_dir: Path, streamer_name: str) -> bool:
+        """Resume a live recording that was interrupted"""
+        try:
+            # Get recording service to resume recording
+            from app.services.recording.recording_service import RecordingService
+            
+            recording_service = RecordingService()
+            
+            # Resume the recording (this will create a new segment in the same directory)
+            logger.info(f"🔄 Attempting to resume live recording for {streamer_name} (recording_id={recording_id})")
+            
+            # Get stream_id from recording
+            with SessionLocal() as db:
+                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                if not recording:
+                    logger.error(f"❌ Recording {recording_id} not found")
+                    return False
+                
+                stream_id = recording.stream_id
+            
+            # Start recording - this will automatically handle segment continuation
+            success = await recording_service.start_recording(stream_id)
+            
+            if success:
+                logger.info(f"✅ Successfully resumed recording for {streamer_name}")
+                logging_service.log_post_processing_activity(
+                    "RECORDING_RESUMED",
+                    streamer_name,
+                    f"Resumed live recording {recording_id} that was interrupted during restart"
+                )
+                return True
+            else:
+                logger.error(f"❌ Failed to resume recording for {streamer_name}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error resuming recording: {e}")
+            return False
     
     async def _get_active_recording_paths(self) -> set:
         """Get paths of currently active recordings to avoid processing them"""

@@ -1,9 +1,8 @@
 <template>
   <div>
-    <h3>Favorite Categories</h3>
     
     <!-- Filter und Suche - Verbessert für Mobile -->
-    <div class="filter-container">
+    <div class="filter-container settings-section settings-section--surface">
       <div class="filter-row">
         <div class="search-box">
           <input 
@@ -36,12 +35,12 @@
     
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
-      <div v-if="isLoading" class="loading">
+      <div v-if="isLoading" class="loading settings-section settings-section--surface">
         <div class="spinner"></div>
         <p>Loading categories...</p>
       </div>
       <template v-else>
-        <div v-if="filteredCategories.length === 0" class="no-categories">
+        <div v-if="filteredCategories.length === 0" class="no-categories settings-section settings-section--surface">
           <p v-if="showFavoritesOnly">You haven't marked any categories as favorites yet.</p>
           <p v-else-if="searchQuery">No categories found containing "{{ searchQuery }}".</p>
           <p v-else>
@@ -303,122 +302,292 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
+
+// ============================================================================
+// FAVORITES SETTINGS PANEL - Game Categories with Twitch Box Art
+// ============================================================================
+
+// ============================================================================
+// FILTER SECTION
+// ============================================================================
+
 .filter-container {
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  margin-bottom: 24px;
-  overflow: hidden;
+  margin-bottom: v.$spacing-4;
 }
 
 .filter-row {
   display: flex;
+  gap: v.$spacing-3;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--spacing-2);
-  padding: var(--spacing-4);
+  
+  @include m.respond-below('sm') {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .search-box {
   flex: 1;
   min-width: 200px;
+  
+  @include m.respond-below('sm') {
+    width: 100%;
+  }
 }
 
 .filter-buttons {
   display: flex;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-}
-
-/* Responsive Anpassungen - Use SCSS mixins for breakpoints */
-
-@include m.respond-below('sm') {  // < 640px
-  .filter-row {
-    flex-direction: column;
-  }
+  gap: v.$spacing-2;
   
-  .search-box, .filter-buttons {
+  @include m.respond-below('sm') {
     width: 100%;
-  }
-  
-  .filter-buttons {
-    justify-content: space-between;
-    margin-top: var(--spacing-2);
-  }
-  
-  .filter-buttons .btn {
-    flex: 1;
-    padding: var(--spacing-3) var(--spacing-2);
-  }
-  
-  .button-text {
-    display: none; /* Nur Icons auf Mobilgeräten */
-  }
-  
-  .button-icon {
-    margin-right: 0;
-    font-size: 1.2rem;
+    
+    .btn {
+      flex: 1;
+    }
   }
 }
 
-@media (min-width: 641px) {
-  .button-icon {
-    margin-right: 6px;
-  }
+.button-icon {
+  margin-right: v.$spacing-2;
 }
+
+// ============================================================================
+// CATEGORIES GRID - Twitch Box Art Format (285x380 aspect ratio)
+// ============================================================================
 
 .categories-grid {
+  margin-top: v.$spacing-4;
+}
+
+.category-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));  // Optimal size for card proportions
+  gap: v.$spacing-4;  // Consistent spacing
+  width: 100%;  // Force full width
+  
+  @include m.respond-below('lg') {  // < 1024px
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: v.$spacing-3;
+  }
+  
+  @include m.respond-below('md') {  // < 768px (tablet)
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: v.$spacing-3;
+  }
+  
+  @include m.respond-below('sm') {  // < 640px (mobile)
+    grid-template-columns: repeat(2, 1fr);  // Always 2 columns on mobile
+    gap: v.$spacing-2;
+  }
+}
+
+.category-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all v.$duration-200 v.$ease-out;
+  display: flex;
+  flex-direction: column;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    border-color: var(--primary-color);
+    
+    [data-theme="light"] & {
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  &.is-favorite {
+    border-color: var(--warning-color);
+    border-width: 2px;
+  }
+}
+
+// ============================================================================
+// CATEGORY IMAGE - Twitch Box Art (3:4 aspect ratio)
+// ============================================================================
+
+.category-image-wrapper {
+  position: relative;
   width: 100%;
+  aspect-ratio: 3 / 4; // Twitch box art ratio (285x380)
+  background: var(--background-darker);
+  overflow: hidden;
+}
+
+.category-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 
-.loading, .no-categories {
+.category-image-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-9);
-  text-align: center;
-  color: var(--text-secondary);
-  background-color: var(--background-darker);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  min-height: 200px;
+  background: linear-gradient(135deg, var(--background-darker) 0%, var(--background-card) 100%);
+  
+  .category-icon {
+    font-size: 3rem;
+    color: var(--text-secondary);
+    opacity: 0.5;
+  }
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(66, 184, 131, 0.1);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: var(--spacing-4);
+// ============================================================================
+// CATEGORY CONTENT - Title, Meta, Actions
+// ============================================================================
+
+.category-content {
+  padding: v.$spacing-3;
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-2;
+  flex: 1;
+}
+
+.category-name {
+  font-size: v.$text-sm;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+  
+  // Clamp to 2 lines
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 2.6em; // Reserve space for 2 lines
+}
+
+.category-meta {
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-1;
+  font-size: v.$text-xs;
+  color: var(--text-secondary);
+}
+
+.category-date {
+  display: block;
+}
+
+// ============================================================================
+// CATEGORY ACTIONS - Stats + Favorite Button
+// ============================================================================
+
+.category-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: v.$spacing-2;
+  border-top: 1px solid var(--border-color);
+}
+
+.category-stats {
+  font-size: v.$text-xs;
+  color: var(--text-secondary);
+  font-weight: v.$font-medium;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: v.$spacing-1;
+  padding: v.$spacing-1 v.$spacing-2;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: v.$text-xs;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  
+  &:hover {
+    background: var(--background-hover);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+    transform: scale(1.05);
+  }
+  
+  &.is-favorite {
+    background: rgba(255, 165, 0, 0.1);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+    
+    &:hover {
+      background: rgba(255, 165, 0, 0.2);
+    }
+  }
+  
+  .star-icon {
+    flex-shrink: 0;
+  }
+  
+  .button-label {
+    @include m.respond-below('sm') {
+      display: none; // Hide text on mobile, keep icon only
+    }
+  }
+}
+
+// ============================================================================
+// LOADING & EMPTY STATES
+// ============================================================================
+
+.loading,
+.no-categories {
+  text-align: center;
+  padding: v.$spacing-8 v.$spacing-4;
+  
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto v.$spacing-4;
+  }
+  
+  p {
+    color: var(--text-secondary);
+    font-size: v.$text-base;
+    line-height: 1.6;
+  }
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.error-message {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--danger-color);
-  padding: var(--spacing-4);
-  border-radius: var(--border-radius, 8px);
-  margin-bottom: var(--spacing-4);
-}
+// ============================================================================
+// TRANSITION ANIMATIONS
+// ============================================================================
 
-/* Card transition animations */
 .category-cards-enter-active,
 .category-cards-leave-active {
-  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all v.$duration-300 v.$ease-out;
 }
 
 .category-cards-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: scale(0.9);
 }
 
 .category-cards-leave-to {
@@ -427,251 +596,20 @@ onMounted(() => {
 }
 
 .category-cards-move {
-  transition: transform 0.5s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: transform v.$duration-300 v.$ease-out;
 }
 
-/* Category grid with improved responsiveness - matched to StreamerList */
-.category-cards {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-  gap: 20px;
-  padding: var(--spacing-2);
-  width: 100%;
-  min-height: 200px; /* Debug: ensure container has height */
-}
+// ============================================================================
+// RESPONSIVE
+// ============================================================================
 
-/* Small screens: 1 card per row */
-@include m.respond-below('sm') {  // < 640px
-  .category-cards {
-    grid-template-columns: 1fr;
-    gap: 16px;
+@include m.respond-below('md') {
+  .form-actions {
+    flex-direction: column;
+    
+    .btn {
+      width: 100%;
+    }
   }
-}
-
-/* Medium screens: 2-3 cards per row */
-@include m.respond-to('sm') {  // >= 640px
-  .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px;
-  }
-}
-
-/* Large screens: 3-4 cards per row */
-@include m.respond-to('lg') {  // >= 1024px
-  .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 24px;
-  }
-}
-
-/* Extra large screens: 4+ cards per row */
-@include m.respond-to('xl') {  // >= 1200px
-  .category-cards {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 24px;
-  }
-}
-
-.category-card {
-  background-color: var(--background-card, #1f1f23);
-  border-radius: var(--border-radius, 8px);
-  overflow: hidden;
-  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-color, #2d2d35);
-  margin-bottom: 0;
-  box-shadow: none;
-}
-
-.category-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  border-color: rgba(66, 184, 131, 0.5);
-}
-
-.category-card.is-favorite {
-  border-color: rgba(255, 215, 0, 0.5);
-  box-shadow: none;
-}
-
-.category-card.is-favorite:hover {
-  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.15);
-}
-
-/* Left border indicator with more subtle styling */
-.category-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background-color: transparent;
-  transition: background-color 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
-}
-
-.category-card:hover::before {
-  background-color: var(--primary-color, #42b883);
-}
-
-.category-card.is-favorite::before {
-  background-color: var(--highlight-color, #FFD700);
-  animation: subtle-pulse 2s infinite;
-}
-
-@keyframes subtle-pulse {
-  0% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.7;
-  }
-}
-
-.category-image-wrapper {
-  width: 100%;
-  aspect-ratio: 3/4;
-  background-color: var(--background-darker);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.category-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.category-image-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--background-darker);
-  color: var(--text-secondary);
-}
-
-.category-icon {
-  font-size: 2rem;
-  color: var(--info-color);
-  opacity: 0.7;
-}
-
-.category-image-placeholder .category-icon {
-  font-size: 2.5rem;
-}
-
-.category-content {
-  padding: var(--spacing-2);
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.category-name {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary, #efeff1);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.category-meta {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin: var(--spacing-1) 0;
-}
-
-.category-actions {
-  margin-top: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: var(--spacing-2);
-  border-top: 1px solid var(--border-color, #2d2d35);
-}
-
-.category-stats {
-  font-size: 0.75rem;
-  color: var(--text-secondary, #9e9e9e);
-}
-
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  font-size: 0.8rem;
-  background-color: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-sm, 4px);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-icon:hover {
-  background-color: var(--background-darker);
-  color: var(--text-primary);
-  transform: translateY(-1px);
-}
-
-.btn-icon.is-favorite {
-  color: var(--warning-color);
-  border-color: rgba(255, 215, 0, 0.5);
-}
-
-.star-icon {
-  transition: transform 0.2s ease;
-}
-
-.btn-icon:hover .star-icon {
-  transform: scale(1.2);
-}
-
-@include m.respond-below('xs') {  // < 375px
-  .button-label {
-    display: none;
-  }
-}
-
-/* Button overrides removed - using global .btn-* classes from design system */
-.btn {
-  border-radius: var(--border-radius-sm, 4px);
-}
-
-.form-control {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--background-darker);  /* Better contrast in both themes */
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--border-radius, 8px);
-  font-size: 0.95rem;
-  transition: all 0.2s ease;
-}
-
-.form-control:focus {
-  border-color: var(--primary-color);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
-}
-
-.form-control::placeholder {
-  color: var(--text-tertiary);  /* Subtle placeholder text */
 }
 </style>

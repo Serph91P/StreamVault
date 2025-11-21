@@ -14,17 +14,18 @@ export interface NavigationTab {
   route: string
   label: string
   icon: string
+  description?: string
   badge?: number | null
   requiresAuth?: boolean
 }
 
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [
-  { route: '/', label: 'Home', icon: 'home', badge: null },
-  { route: '/streamers', label: 'Streamers', icon: 'users', badge: null },
-  { route: '/videos', label: 'Videos', icon: 'video', badge: null },
-  { route: '/subscriptions', label: 'Subs', icon: 'bell', badge: null },
-  { route: '/settings', label: 'Settings', icon: 'settings', badge: null }
+  { route: '/', label: 'Home', icon: 'home', description: 'Dashboard overview', badge: null },
+  { route: '/streamers', label: 'Streamers', icon: 'users', description: 'Manage creators', badge: null },
+  { route: '/videos', label: 'Videos', icon: 'video', description: 'Recorded sessions', badge: null },
+  { route: '/subscriptions', label: 'Subs', icon: 'bell', description: 'Alerts & favorites', badge: null },
+  { route: '/settings', label: 'Settings', icon: 'settings', description: 'App preferences', badge: null }
 ]
 
 export function useNavigation() {

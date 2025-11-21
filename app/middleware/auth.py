@@ -31,6 +31,8 @@ class AuthMiddleware:
             "/auth/logout",
             "/auth/keepalive",
             "/eventsub",
+            "/api/twitch/callback",  # Twitch OAuth callback - must be public for Twitch redirect
+            "/api/twitch/auth-url",  # Twitch OAuth URL generation - public for initial auth flow
             "/static/",
             "/assets/",
             "/registerSW.js",

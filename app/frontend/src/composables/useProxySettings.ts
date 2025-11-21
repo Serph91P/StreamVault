@@ -241,6 +241,13 @@ export function useProxySettings() {
 
   // WebSocket connection for real-time updates
   function connectWebSocket() {
+    // 🎭 MOCK MODE: Skip WebSocket in mock mode
+    const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+    if (USE_MOCK_DATA) {
+      console.log('🎭 Mock mode: Skipping Proxy WebSocket connection')
+      return
+    }
+    
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws`
 

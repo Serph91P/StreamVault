@@ -327,11 +327,22 @@ const formatTime = (timestamp?: string) => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   height: 36px;
   min-width: auto;
+  
+  // Light mode: Visible border
+  [data-theme="light"] & {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.15);  // Visible border in light mode
+  }
 }
 
 .queue-status-indicator:hover {
   background: rgba(var(--primary-500-rgb), 0.1);
   border-color: rgba(var(--primary-500-rgb), 0.3);
+  
+  [data-theme="light"] & {
+    background: rgba(var(--primary-500-rgb), 0.15);
+    border-color: rgba(var(--primary-500-rgb), 0.5);
+  }
 }
 
 /* Plus Icon (replaces old status-icon) */
@@ -340,13 +351,14 @@ const formatTime = (timestamp?: string) => {
   height: 16px;
   color: var(--text-primary);  /* Same white as bell/moon icons */
   flex-shrink: 0;
+  align-self: center;  /* Vertically center with text */
 }
 
 .queue-info {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: var(--spacing-1);  /* 4px - tighter gap */
+  align-items: center;  /* CRITICAL: Vertical alignment */
+  gap: var(--spacing-2);  /* 8px - same as outer gap for consistency */
   flex: 1;
 }
 
@@ -354,12 +366,14 @@ const formatTime = (timestamp?: string) => {
   font-size: var(--text-sm);  /* 14px - same as count */
   color: var(--text-primary);  /* Same white as count */
   font-weight: var(--font-medium);  /* 500 */
+  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
 }
 
 .queue-count {
   font-size: var(--text-sm);  /* 14px - same size as label */
   font-weight: var(--font-bold);  /* 700 */
   color: var(--text-primary);  /* White like bell/moon */
+  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
 }
 
 .progress-bar {
@@ -436,6 +450,12 @@ const formatTime = (timestamp?: string) => {
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  [data-theme="light"] & {
+    border-bottom-color: var(--border-color);
+  }
 }
 
 .stat-item {
@@ -447,11 +467,20 @@ const formatTime = (timestamp?: string) => {
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
+  
+  [data-theme="light"] & {
+    background: var(--background-darker);
+    border-color: var(--border-color);
+  }
 }
 
 .stat-item:hover {
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
+  
+  [data-theme="light"] & {
+    background: var(--background-card);
+  }
 }
 
 .stat-label {
@@ -475,6 +504,12 @@ const formatTime = (timestamp?: string) => {
 .active-tasks-section,
 .recent-tasks-section {
   margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  [data-theme="light"] & {
+    border-bottom-color: var(--border-color);
+  }
 }
 
 .active-tasks-section h4,
@@ -699,10 +734,12 @@ const formatTime = (timestamp?: string) => {
   }
   
   .queue-panel {
-    width: 95vw;
+    width: calc(100vw - var(--spacing-4));  /* FIXED: Full width minus padding */
     max-width: 400px;
-    right: 50%;
-    transform: translateX(50%);
+    left: var(--spacing-2);  /* FIXED: Align to left with padding */
+    right: var(--spacing-2);  /* FIXED: Align to right with padding */
+    transform: none;  /* FIXED: Remove centering transform */
+    margin: 0 auto;  /* FIXED: Center with auto margins */
   }
   
   .stats-section {

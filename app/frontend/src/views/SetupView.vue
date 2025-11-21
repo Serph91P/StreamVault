@@ -252,12 +252,19 @@ const handleSetup = async () => {
     })
 
     if (response.ok) {
-      const data = await response.json()
-      // Success - redirect to login
-      router.push('/login')
+      // FIXED: Redirect to welcome page after setup instead of login
+      // Set welcome as seen so it doesn't show again
+      localStorage.setItem('welcome_seen', 'true')
+      router.push('/welcome')
     } else {
-      const errorResponse = await response.json().catch(() => ({ detail: 'Unknown error' }))
-      error.value = errorResponse.detail || 'Setup failed. Please try again.'
+      // FIXED: Better error handling for JSON parsing
+      try {
+        const errorResponse = await response.json()
+        error.value = errorResponse.detail || 'Setup failed. Please try again.'
+      } catch (jsonError) {
+        error.value = 'Setup failed. Please try again.'
+        console.error('Failed to parse error response:', jsonError)
+      }
     }
   } catch (e) {
     error.value = 'Connection failed. Please check your network and try again.'
@@ -437,7 +444,11 @@ const handleSetup = async () => {
 
 .form-input {
   width: 100%;
-  padding: var(--spacing-4) var(--spacing-12);
+  /* FIXED: Proper padding to prevent icon overlap
+   * Left: spacing-4 (icon left) + 20px (icon width) + spacing-3 (gap) = ~52px
+   * Right: spacing-12 for validation icon space
+   */
+  padding: var(--spacing-4) var(--spacing-12) var(--spacing-4) 52px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);

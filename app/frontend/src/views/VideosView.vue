@@ -42,7 +42,7 @@
     <div class="controls-bar">
       <!-- Search -->
       <div class="search-box">
-        <svg class="search-icon">
+        <svg class="icon">
           <use href="#icon-search" />
         </svg>
         <input
@@ -532,8 +532,14 @@ onMounted(() => {
     border: 1px solid var(--border-color);
 
     &:hover {
+      background: rgba(var(--primary-500-rgb), 0.1);
       border-color: var(--primary-color);
       color: var(--primary-color);
+      
+      [data-theme="light"] & {
+        background: var(--primary-50, #e0f2f1);
+        color: var(--primary-700, #0f766e);
+      }
     }
   }
 
@@ -562,16 +568,15 @@ onMounted(() => {
   flex: 1;
   min-width: 280px;
 
-  .search-icon {
+  .icon {
     position: absolute;
     left: var(--spacing-3);
     top: 50%;
     transform: translateY(-50%);
     width: 20px;
     height: 20px;
-    stroke: var(--text-secondary);
-    fill: none;
     pointer-events: none;
+    z-index: 10;
   }
 
   .search-input {

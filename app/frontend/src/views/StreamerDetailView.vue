@@ -1,12 +1,12 @@
 <template>
   <div class="streamer-detail-view">
     <!-- Back Button -->
-    <router-link to="/streamers" class="back-button" v-ripple>
+    <button @click="goBackToStreamers" class="back-button" v-ripple>
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7" />
       </svg>
       Back
-    </router-link>
+    </button>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
@@ -110,14 +110,17 @@
 
           <!-- Sort Dropdown -->
           <div class="view-controls">
-            <button class="filter-button" @click="() => {}" v-ripple>
+            <div class="select-wrapper">
+              <svg class="select-icon">
+                <use href="#icon-filter" />
+              </svg>
               <select v-model="sortBy" class="sort-select">
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
                 <option value="duration-desc">Longest Duration</option>
                 <option value="duration-asc">Shortest Duration</option>
               </select>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -278,20 +281,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
+import { useRecordingSettings } from '@/composables/useRecordingSettings'
+import { useToast } from '@/composables/useToast'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
 
+// Router & URL params
 const route = useRoute()
 const router = useRouter()
-
-// URL params
 const streamerId = computed(() => route.params.id as string)
+const toast = useToast()
+
+// Navigation
+const goBackToStreamers = () => {
+  router.push('/streamers')
+}
 
 // Loading states
 const isLoading = ref(true)
@@ -311,6 +321,9 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
+// Recording settings composable - use existing backend integration!
+const { updateStreamerSettings } = useRecordingSettings()
+
 // Settings modal
 const showSettings = ref(false)
 const savingSettings = ref(false)
@@ -323,7 +336,16 @@ const streamerSettings = ref({
 })
 
 const openSettings = () => {
-  // Load current settings (TODO: fetch from API when backend is ready)
+  // Load current settings from streamer data
+  if (streamer.value) {
+    streamerSettings.value = {
+      quality: streamer.value.recording_quality || '',
+      filenameTemplate: streamer.value.custom_filename || '',
+      autoRecord: streamer.value.recording_enabled !== false,
+      notifyOnline: true,
+      notifyOffline: true
+    }
+  }
   showSettings.value = true
 }
 
@@ -335,20 +357,22 @@ const saveSettings = async () => {
   savingSettings.value = true
   
   try {
-    // TODO: Implement API endpoint when backend is ready
-    // await fetch(`/api/streamers/${streamerId.value}/settings`, {
-    //   method: 'PUT',
-    //   credentials: 'include',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(streamerSettings.value)
-    // })
+    // Use the existing recording settings composable - same backend as Settings page!
+    await updateStreamerSettings(Number(streamerId.value), {
+      enabled: streamerSettings.value.autoRecord,
+      quality: streamerSettings.value.quality || undefined,
+      custom_filename: streamerSettings.value.filenameTemplate || undefined
+    })
     
-    // Simulate API call for now
-    await new Promise(resolve => setTimeout(resolve, 500))
+    toast.success('Settings saved successfully!')
+    
+    // Reload streamer data to reflect changes
+    await fetchStreamer()
     
     closeSettings()
   } catch (error) {
     console.error('Failed to save settings:', error)
+    toast.error('Failed to save settings. Please try again.')
   } finally {
     savingSettings.value = false
   }
@@ -828,8 +852,27 @@ onMounted(async () => {
   align-items: center;
 }
 
+.select-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.select-icon {
+  position: absolute;
+  left: var(--spacing-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-secondary);
+  fill: none;
+  pointer-events: none;  /* Let clicks pass through to select */
+  z-index: 1;
+}
+
 .sort-select {
   padding: var(--spacing-2) var(--spacing-4);
+  padding-left: var(--spacing-10);  /* Make room for icon */
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -838,9 +881,14 @@ onMounted(async () => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  min-width: 160px;  /* Prevent layout shift */
 
   &:hover {
     border-color: var(--primary-color);
+
+    ~ .select-icon {
+      stroke: var(--primary-color);
+    }
   }
 
   &:focus {

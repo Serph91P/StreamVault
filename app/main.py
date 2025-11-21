@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
         from app.services.system.streamlink_config_service import streamlink_config_service
         
         try:
-            config_success = streamlink_config_service.update_config_from_settings()
+            config_success = await streamlink_config_service.update_config_from_settings()
             if config_success:
                 logger.info("✅ Streamlink configuration generated successfully")
             else:

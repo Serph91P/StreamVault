@@ -816,6 +816,51 @@ class PostProcessingTaskHandlers:
             if os.path.exists(ts_path):
                 os.remove(ts_path)
     
+    async def handle_unified_recovery(self, payload, progress_callback=None):
+        """Handle unified recovery scan task - runs in background to prevent frontend blocking"""
+        max_age_hours = payload.get('max_age_hours', 72)
+        dry_run = payload.get('dry_run', False)
+        
+        log_with_context(
+            logger, 'info',
+            f"Starting unified recovery scan (max_age={max_age_hours}h, dry_run={dry_run})",
+            task_id=payload.get('task_id'),
+            operation='unified_recovery_start'
+        )
+        
+        try:
+            from app.services.recording.unified_recovery_service import get_unified_recovery_service
+            
+            # Get the unified recovery service
+            recovery_service = await get_unified_recovery_service()
+            
+            # Run comprehensive recovery scan
+            stats = await recovery_service.comprehensive_recovery_scan(
+                max_age_hours=max_age_hours,
+                dry_run=dry_run
+            )
+            
+            log_with_context(
+                logger, 'info',
+                f"Unified recovery completed: orphaned={stats.orphaned_segments}, "
+                f"failed_pp={stats.failed_post_processing}, recovered={stats.recovered_recordings}, "
+                f"triggered_pp={stats.triggered_post_processing}, size={stats.total_size_gb:.1f}GB",
+                task_id=payload.get('task_id'),
+                operation='unified_recovery_complete',
+                stats=vars(stats)
+            )
+            
+        except Exception as e:
+            log_with_context(
+                logger, 'error',
+                f"Unified recovery scan failed: {e}",
+                task_id=payload.get('task_id'),
+                error=str(e),
+                operation='unified_recovery_error'
+            )
+            # Don't raise - recovery failures shouldn't crash the background queue
+            logger.exception("Full error details:")
+    
     async def cleanup(self):
         """Clean up services"""
         await self.metadata_service.close()

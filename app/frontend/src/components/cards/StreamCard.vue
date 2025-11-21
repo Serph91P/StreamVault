@@ -235,7 +235,10 @@ const hasRecording = computed(() => !!props.stream.recording_path)
 // Filter category change events
 const categoryEvents = computed(() => {
   if (!props.stream.events) return []
-  return props.stream.events.filter(e => e.event_type === 'category_change')
+  // Backend sends 'channel.update' for category changes
+  return props.stream.events.filter(e => 
+    e.event_type === 'channel.update' || e.event_type === 'category_change'
+  )
 })
 
 // Dropdown positioning

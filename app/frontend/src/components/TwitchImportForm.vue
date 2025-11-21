@@ -200,7 +200,9 @@ async function fetchCallbackUrl() {
   try {
     const response = await authApi.getCallbackUrl()
     const data = response.data
-    callbackUrl.value = data.url
+    if (data && data.url) {
+      callbackUrl.value = data.url
+    }
   } catch (err) {
     console.error('Failed to fetch callback URL:', err)
     // We don't set an error as this is not critical
@@ -234,8 +236,7 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const response = await authApi.getAuthUrl()
-    const data = response.data
+    const data = await authApi.getAuthUrl()
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -249,8 +250,7 @@ async function loadFollowedChannels(token: string): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
     
-    const response = await authApi.getFollowedChannels()
-    const data = response.data
+    const data = await authApi.getFollowedChannels()
     
     channels.value = data.channels || []
   } catch (err: any) {

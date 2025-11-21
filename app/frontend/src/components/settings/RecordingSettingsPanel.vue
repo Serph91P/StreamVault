@@ -1,6 +1,4 @@
 <template>
-  <div>
-    <h3>Recording Settings</h3>
     
     <div v-if="isLoading" class="loading-message">
       Loading recording settings...
@@ -9,9 +7,6 @@
     <div v-else-if="error" class="error-message">
       Error loading settings: {{ error }}    
     </div>
-    
-    <!-- Global Settings -->
-    <div v-else class="settings-form">
       <!-- Tab Navigation -->
       <div class="tab-navigation">
         <button 
@@ -20,7 +15,13 @@
           @click="activeTab = tab.id"
           :class="['tab-button', { active: activeTab === tab.id }]"
         >
-          {{ tab.icon }} {{ tab.label }}
+          <svg v-if="tab.id === 'recording'" class="tab-icon">
+            <use href="#icon-video" />
+          </svg>
+          <svg v-else-if="tab.id === 'storage'" class="tab-icon">
+            <use href="#icon-server" />
+          </svg>
+          {{ tab.label }}
         </button>
       </div>
 
@@ -28,8 +29,13 @@
       <div class="tab-content">        <!-- Recording Tab -->
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
-          <div class="settings-section status-border status-border-primary">
-            <h4 class="section-title">📹 Basic Recording Settings</h4>
+          <div class="panel-block">
+            <div class="section-header">
+              <svg class="section-icon">
+                <use href="#icon-video" />
+              </svg>
+              <h4 class="section-title">Basic Recording Settings</h4>
+            </div>
             
             <div class="form-group">
               <label>
@@ -110,7 +116,12 @@
             </div>
 
             <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
-            <h4 class="section-title" style="margin-top: 2rem;">🎨 Advanced Codec Settings</h4>
+            <div class="section-header" style="margin-top: 2rem;">
+              <svg class="section-icon">
+                <use href="#icon-settings" />
+              </svg>
+              <h4 class="section-title">Advanced Codec Settings</h4>
+            </div>
             <div class="form-group">
               <label>Supported Codecs:</label>
               <select v-model="data.supported_codecs" class="form-control">
@@ -136,8 +147,13 @@
 
         <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="settings-section status-border status-border-primary">
-            <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
+          <div class="panel-block">
+            <div class="section-header">
+              <svg class="section-icon">
+                <use href="#icon-server" />
+              </svg>
+              <h4 class="section-title">Storage & Cleanup Management</h4>
+            </div>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
             </p>
@@ -155,10 +171,10 @@
       <div class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
-      </div>    </div>
+      </div>
 
     <!-- Active Recordings -->
-    <div v-if="activeRecordings.length > 0" class="active-recordings">
+    <div v-if="activeRecordings.length > 0" class="active-recordings panel-block">
       <h3>Active Recordings</h3>
       <div class="recordings-grid">
         <div v-for="recording in activeRecordings" :key="recording.streamer_id" class="recording-card">
@@ -179,7 +195,7 @@
       </div>
     </div>
     <!-- Streamer Settings -->
-    <div class="streamer-settings">
+    <div class="streamer-settings panel-block">
       <h3>Streamer Recording Settings</h3>
       
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
@@ -196,29 +212,57 @@
             <thead>
               <tr>
                 <th>Streamer</th>
-                <th title="Enable/disable recording for this streamer">
-                  Record
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Record
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Enable/disable recording for this streamer</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Select recording quality (defaults to global setting if empty)">
-                  Quality
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Quality
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Select recording quality (defaults to global setting if empty)</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Optional custom filename template for this streamer">
-                  Custom Filename
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Custom Filename
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Optional custom filename template for this streamer</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Test, stop, or clean up recordings">
-                  Actions
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Actions
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Test, stop, or clean up recordings</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -292,7 +336,6 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -304,6 +347,7 @@ import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import type { GlobalSettings } from '@/types/settings';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
+import GlassCard from '@/components/cards/GlassCard.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;
@@ -320,8 +364,8 @@ const emits = defineEmits<{
 // Tab management
 const activeTab = ref('recording');
 const tabs = [
-  { id: 'recording', label: 'Recording', icon: '📹' },
-  { id: 'storage', label: 'Storage', icon: '🗂️' }
+  { id: 'recording', label: 'Recording' },
+  { id: 'storage', label: 'Storage' }
 ];
 
 const { isLoading, error } = useRecordingSettings();
@@ -537,39 +581,94 @@ const handleStreamerPolicySaved = (policy: any) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-7, 28px);
+}
+
+.panel-block {
+  padding: var(--spacing-6, 24px);
+  border-radius: var(--radius-xl, 32px);
+  background: transparent;
+}
+
+/* Section Headers with Icons */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  margin-bottom: var(--spacing-5, 20px);
+}
+
+.section-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+.section-title {
+  font-size: var(--text-lg, 18px);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-description {
+  font-size: var(--text-sm, 14px);
+  color: var(--text-secondary);
+  margin: var(--spacing-2, 8px) 0 var(--spacing-4, 16px) 0;
+  line-height: 1.6;
+}
 
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
   border-bottom: 2px solid var(--border-color);
-  margin-bottom: 24px;
-  gap: 4px;
+  margin-bottom: var(--spacing-8, 32px);
+  gap: var(--spacing-2, 8px);
 }
 
 .tab-button {
-  background: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  background: transparent;
   border: none;
-  padding: var(--spacing-3) var(--spacing-6);
+  padding: var(--spacing-4) var(--spacing-6);
   cursor: pointer;
   color: var(--text-secondary);
-  font-weight: 500;
-  border-radius: var(--border-radius, 8px) var(--border-radius, 8px) 0 0;
+  font-weight: 600;
+  font-size: var(--text-base, 16px);
+  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
   transition: all 0.2s ease;
   border-bottom: 3px solid transparent;
-  font-size: 14px;
+  position: relative;
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
 }
 
-.tab-button:hover {
-  background-color: var(--background-dark);
+.tab-button:hover:not(.active) {
+  background-color: rgba(var(--primary-color-rgb), 0.05);
   color: var(--text-primary);
 }
 
 .tab-button.active {
-  background-color: var(--background-darker);
+  background-color: rgba(var(--primary-color-rgb), 0.1);
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
+  
+  .tab-icon {
+    color: var(--primary-color);
+  }
 }
 
 .tab-content {
@@ -590,12 +689,7 @@ const handleStreamerPolicySaved = (policy: any) => {
 .settings-form,
 .active-recordings,
 .streamer-settings {
-  margin-bottom: 30px;
-  background-color: var(--background-darker, #1f1f23);
-  padding: var(--spacing-6);
-  border-radius: var(--border-radius, 8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--border-color);
+  margin-bottom: 0;
 }
 
 .form-group {
@@ -625,969 +719,337 @@ const handleStreamerPolicySaved = (policy: any) => {
   background-color: rgba(239, 68, 68, 0.1);
 }
 
-/* Error text styling */
-.error-text {
-  color: var(--danger-color);
-  font-size: 0.875rem;
-  margin-top: 4px;
-  font-weight: 500;
-}
+// ============================================================================
+// CODEC SELECTION - Component specific
+// ============================================================================
 
-/* Style for select elements to make them more visible */
-select.form-control {
-  appearance: auto; /* Re-enable native appearance for better visibility */
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #f1f1f3);
-  background-image: linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
-                    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
-  background-position: calc(100% - 20px) calc(1em + 2px),
-                       calc(100% - 15px) calc(1em + 2px);
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  padding-right: 30px; /* Make room for the arrow */
-}
-
-/* Show dropdown options with better contrast */
-select.form-control option {
-  background-color: var(--background-darker, #18181b);
-  color: var(--text-primary, #f1f1f3);
-  padding: var(--spacing-2);
-}
-
-.help-text {
-  font-size: 0.85rem;
-  color: var(--text-secondary, #adadb8);
-  margin-top: var(--spacing-xs, 0.25rem);
-}
-
-.checkbox-group label {
+.codec-selection {
   display: flex;
-  align-items: flex-start;
-  font-weight: normal;
-  text-align: left;
-}
-
-.checkbox-group input[type="checkbox"] {
-  margin-right: var(--spacing-sm, 8px);
-  margin-top: 4px;
-}
-
-.loading-message, .error-message {
-  padding: var(--spacing-md, 1rem);
-  margin-bottom: var(--spacing-md, 1rem);
-  border-radius: var(--border-radius, 0.25rem);
-}
-
-.loading-message {
-  background-color: var(--background-darker, #1f1f23);
-  color: var(--text-secondary, #adadb8);
-}
-
-.error-message {
-  background-color: rgba(220, 53, 69, 0.2); 
-  color: var(--danger-color, #dc3545);
-  border: 1px solid rgba(220, 53, 69, 0.3);
-}
-
-/* Verbesserte Mobile-Ansicht für Tabellen */
-.streamer-table {
-  width: 100%;
-  overflow-x: auto;
-  background-color: var(--background-darker, #1f1f23);
-  border-radius: var(--border-radius, 6px);
-  border: 1px solid var(--border-color, #303034);
-}
-
-/* Mobile Card Layout: Transform table to cards on mobile (< 768px) */
-@include m.respond-below('md') {  // < 767px
-  .streamer-table table,
-  .streamer-table thead,
-  .streamer-table tbody,
-  .streamer-table th,
-  .streamer-table td,
-  .streamer-table tr {
-    display: block;
-  }
+  gap: v.$spacing-2;
+  flex-wrap: wrap;
   
-  /* Hide table header */
-  .streamer-table thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
-  }
-  
-  /* Style each row as a card */
-  .streamer-table tr {
-    margin-bottom: var(--spacing-4, 16px);
-    border-radius: var(--border-radius, 8px);
-    border: 1px solid var(--border-color, #333);
-    background: var(--background-card, #2a2a2e);
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-  
-  /* Style table cells as rows */
-  .streamer-table td {
-    position: relative;
-    padding: 12px 12px 12px 150px;  /* More space for longer labels */
-    min-height: 44px;  /* Touch-friendly */
+  label {
     display: flex;
     align-items: center;
-    border-bottom: 1px solid var(--border-color-subtle);
-  }
-  
-  /* Add labels before each cell */
-  .streamer-table td:before {
-    content: attr(data-label);
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: 12px;
-    width: 125px;  /* Wider for "Custom Filename" label */
-    font-weight: 600;
-    color: var(--text-secondary, #adadb8);
-    font-size: 0.85rem;
-  }
-  
-  /* Streamer info cell styling */
-  .streamer-table td.streamer-info {
-    padding: 12px;
-    font-weight: 600;
-    background: var(--background-darker, #1f1f23);
-    gap: 12px;
-  }
-  
-  .streamer-table td.streamer-info:before {
-    display: none;  /* No label for streamer name */
-  }
-  
-  /* Make checkboxes easier to tap */
-  input[type="checkbox"] {
-    min-width: 20px;
-    min-height: 20px;
+    gap: v.$spacing-2;
+    padding: v.$spacing-2 v.$spacing-3;
+    background: var(--background-card);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
     cursor: pointer;
-  }
-  
-  /* Select dropdowns - Full width on mobile */
-  .streamer-table select.form-control,
-  .streamer-table select.form-control-sm {
-    width: 100%;
-    max-width: 100%;
-    padding: var(--spacing-3);
-    font-size: 16px;  /* Prevent iOS zoom */
-    background-color: var(--background-dark, #18181b);
-    color: var(--text-primary, #f1f1f3);
-  }
-  
-  /* Text inputs - Full width on mobile */
-  .streamer-table input[type="text"].form-control,
-  .streamer-table input[type="text"].form-control-sm {
-    width: 100%;
-    max-width: 100%;
-    padding: var(--spacing-3);
-    font-size: 16px;  /* Prevent iOS zoom */
-    background-color: var(--background-dark, #18181b);
-    color: var(--text-primary, #f1f1f3);
-  }
-  
-  /* Action buttons - Stack vertically on mobile */
-  .streamer-table .streamer-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-  }
-  
-  .streamer-table .streamer-actions .btn {
-    width: 100%;
-    min-height: 44px;  /* Touch-friendly */
+    transition: v.$transition-all;
+    
+    &:hover {
+      border-color: var(--primary-color);
+      background: var(--background-hover);
+    }
+    
+    input[type="checkbox"] {
+      margin: 0;
+    }
+    
+    &:has(input:checked) {
+      border-color: var(--primary-color);
+      background: var(--primary-bg);
+      color: var(--primary-color);
+      font-weight: v.$font-medium;
+    }
   }
 }
 
-/* Info icons for table headers with native tooltips */
-.info-icon {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-left: 4px;
-  stroke: var(--text-secondary);
-  fill: none;
-  vertical-align: middle;
-  opacity: 0.6;
-  cursor: help;
+// ============================================================================
+// ACTIVE RECORDINGS SECTION
+// ============================================================================
+
+.active-recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-4;
+}
+
+.recording-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: v.$spacing-4;
+  background: var(--background-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: v.$transition-all;
   
   &:hover {
-    opacity: 1;
-    stroke: var(--primary-color);
+    border-color: var(--primary-color);
   }
-}
-
-/* Aktionsbuttons besser anpassen */
-.form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-@include m.respond-below('md') {  // < 767px
-  .form-actions {
+  
+  @include m.respond-below('md') {
     flex-direction: column;
-  }
-  
-  .form-actions button {
-    width: 100%;
-  }
-  
-  /* Table Controls - Stack Vertically on Mobile */
-  .table-controls {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .table-controls button {
-    width: 100%;
-    min-height: 48px;
-    font-size: 16px;
+    gap: v.$spacing-3;
+    align-items: flex-start;
   }
 }
 
-.form-actions {
-  display: flex;
-  gap: var(--spacing-sm, 10px);
-  margin-top: var(--spacing-lg, 20px);
-}
-
-.variables-list {
-  margin-top: var(--spacing-sm, 0.5rem);
-  font-size: 0.9rem;
-}
-
-.variables-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--spacing-sm, 0.5rem);
-  margin-top: var(--spacing-sm, 0.5rem);
-}
-
-.variable-item {
-  font-size: 0.85rem;
-}
-
-/* Variables container - Desktop and general layout */
-.variables-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: var(--spacing-3) 0;
-  max-width: 100%;
-}
-
-.variable-tag {
-  display: inline-block;
-  background-color: var(--background-dark, #2a2a2a);
-  color: var(--text-primary, #f1f1f3);
-  border: 1px solid var(--border-color, #404040);
-  border-radius: var(--border-radius, 8px);
-  padding: var(--spacing-2) var(--spacing-3);
-  font-family: 'Courier New', 'Monaco', monospace;
-  font-size: 0.85em;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: default;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.variable-tag.clickable {
-  cursor: pointer;
-  border-color: var(--primary-color, #42b883);
-  background-color: rgba(66, 184, 131, 0.1);
-}
-
-.variable-tag.clickable:hover {
-  background-color: var(--primary-color, #42b883);
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(66, 184, 131, 0.3);
-}
-
-.variable-tag.clickable:active {
-  transform: translateY(0);
-}
-
-.filename-preview {
-  margin-top: var(--spacing-sm, 0.5rem);
-  padding: var(--spacing-sm, 0.5rem);
-  background-color: var(--background-dark, #343a40);
-  border-radius: var(--border-radius, 0.25rem);
-  font-size: 0.9rem;
-  word-break: break-all;
-  color: var(--text-primary, #f8f9fa);
-  border: 1px solid var(--border-color, #495057);
-}
-
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--border-radius, 6px);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.btn-primary {
-  background-color: var(--primary-color, #42b883);
-  color: white;
-}
-
-.btn-secondary {
-  background-color: var(--background-darker, #3a3a3a);
-  color: white;
-}
-
-.btn-danger {
-  background-color: var(--danger-color, #dc3545);
-  color: white;
-}
-
-.btn-warning {
-  background-color: var(--warning-color, #ffc107);
-  color: #212529;
-}
-
-.btn-info {
-  background-color: var(--info-color, #17a2b8);
-  color: white;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.active-recordings {
-  margin-top: var(--spacing-xl, 2rem);
-}
-
-.recordings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-md, 1rem);
-  margin-top: var(--spacing-md, 1rem);
-}
-
-.recording-card {
-  border: 1px solid var(--border-color, #303034);
-  border-radius: var(--border-radius, 0.5rem);
-  padding: var(--spacing-md, 1rem);
-  background-color: var(--background-darker, #1f1f23);
-  color: var(--text-primary, #efeff1);
-}
-
-.recording-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-sm, 0.5rem);
-}
-
-.recording-indicator {
-  background-color: var(--danger-color, #dc3545);
-  color: white;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--border-radius, 0.25rem);
-  font-size: 0.8rem;
-  font-weight: bold;
-}
-
-.recording-details {
-  margin-bottom: var(--spacing-md, 1rem);
-  color: var(--text-secondary, #adadb8);
-}
-
-.output-path {
-  margin-top: var(--spacing-sm, 0.5rem);
-  font-size: 0.9rem;
-  word-break: break-all;
-  color: var(--text-secondary, #adadb8);
-}
-
-.streamer-settings {
-  margin-top: var(--spacing-xl, 2rem);
-}
-
-.table-controls {
-  display: flex;
-  gap: var(--spacing-sm, 10px);
-  margin-bottom: var(--spacing-md, 15px);
-}
-
-.no-streamers-message {
-  padding: var(--spacing-md, 1rem);
-  text-align: center;
-  color: var(--text-secondary, #999);
-}
-
-.form-control-sm {
-  width: 100%;
-  padding: var(--spacing-2);
-  border: 1px solid var(--border-color);
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #f1f1f3);
-  border-radius: var(--border-radius);
-  box-sizing: border-box;
-}
-
-/* Style for small select elements */
-select.form-control-sm {
-  appearance: auto;
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #f1f1f3);
-  background-image: linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
-                    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
-  background-position: calc(100% - 20px) calc(1em + 0px),
-                       calc(100% - 15px) calc(1em + 0px);
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  padding-right: 30px;
-}
-
-select.form-control-sm option {
-  background-color: var(--background-darker, #18181b);
-  color: var(--text-primary, #f1f1f3);
-  padding: 6px;
-}
-
-@media (min-width: 768px) {
-  .streamer-table th, 
-  .streamer-table td {
-    padding: 0.75rem;
-    font-size: 1rem;
-  }
-  
-  .streamer-avatar {
-    width: 30px;
-    height: 30px;
-  }
+.recording-info {
+  flex: 1;
   
   .streamer-name {
-    font-size: 1rem;
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    font-size: v.$text-base;
   }
   
-  .btn-action {
-    padding: 0.35rem 0.5rem;
+  .recording-meta {
+    font-size: v.$text-sm;
+    color: var(--text-secondary);
+    margin-top: v.$spacing-1;
   }
 }
 
-@media (min-width: 1200px) {
-  .streamer-table table {
-    table-layout: fixed;
-  }
-  
-  .btn-action {
-    font-size: 0.875rem;
-  }
-}
-
-@media (min-width: 1600px) {
-  .button-container {
-    flex-direction: row;
-  }
-}
-
-.streamer-actions {
+.recording-actions {
   display: flex;
-  gap: 5px;
-}
-
-.streamer-actions .btn {
-  flex: 1;
-  padding: 4px 8px;
-  font-size: 0.75rem;
-}
-
-/* Modal styles for cleanup policy dialog */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: var(--spacing-6);
-}
-
-.modal-content {
-  background-color: var(--background-darker, #1f1f23);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #303034);
-  max-width: 90vw;
-  max-height: 90vh;
-  width: 800px;
-  overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-6);
-  border-bottom: 1px solid var(--border-color, #303034);
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: var(--text-primary, #f1f1f3);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--text-secondary, #adadb8);
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background-color 0.2s ease;
-}
-
-.close-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #f1f1f3);
-}
-
-.modal-body {
-  padding: var(--spacing-6);
-}
-
-/* Settings sections for better visual organization */
-.settings-section {
-  margin-bottom: var(--spacing-xxl, 2.5rem);
-  padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #2d2d35);
-  /* Use status-border-primary class from global styles instead */
-}
-
-.settings-section:last-child {
-  margin-bottom: var(--spacing-lg, 1.5rem);
-}
-
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary, #f1f1f3);
-  margin-bottom: var(--spacing-md, 1rem);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm, 0.5rem);
-}
-
-.section-description {
-  color: var(--text-secondary, #adadb8);
-  margin-bottom: var(--spacing-lg, 1.5rem);
-  line-height: 1.6;
-  font-size: 0.95rem;
-}
-
-/* Proxy settings specific styles - removed duplicate border */
-.proxy-configuration {
-  margin-top: var(--spacing-md, 1rem);
-  padding: var(--spacing-lg, 1.5rem);
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #2d2d35);
-  /* Use status-border-info class from global styles instead */
-}
-
-.proxy-info-card {
-  margin-top: var(--spacing-lg, 1.5rem);
-  padding: var(--spacing-lg, 1.5rem);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg, 8px);
-}
-
-.proxy-info-card h5 {
-  margin-bottom: var(--spacing-md, 1rem);
-  color: var(--text-primary);
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.proxy-info-card h6 {
-  margin-top: var(--spacing-lg, 1.5rem);
-  margin-bottom: var(--spacing-sm, 0.5rem);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.proxy-examples-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.proxy-examples-list li {
-  margin-bottom: var(--spacing-sm, 0.5rem);
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.proxy-examples-list code {
-  background: var(--background-darker);
-  color: var(--primary-color);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm, 4px);
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  border: 1px solid var(--border-color);
-  display: inline-block;
-  word-break: break-all;
-}
-
-.example-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm, 0.5rem);
-}
-
-.example-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs, 0.25rem);
-  padding: var(--spacing-sm, 0.5rem);
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: var(--border-radius-sm, 4px);
-}
-
-.example-item code {
-  background-color: var(--background-darker, #1f1f23);
-  color: var(--primary-color, #42b883);
-  padding: 4px 8px;
-  border-radius: var(--border-radius-sm, 4px);
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  border: 1px solid var(--border-color, #303034);
-  display: inline-block;
-  word-break: break-all;
-}
-
-.example-item span {
-  color: var(--text-secondary, #adadb8);
-  font-size: 0.8rem;
-  font-style: italic;
-}
-
-.proxy-tips {
-  margin-top: var(--spacing-md, 1rem);
-  padding-top: var(--spacing-md, 1rem);
-  border-top: 1px solid var(--border-color);
-}
-
-.proxy-tips ul {
-  margin: var(--spacing-sm, 0.5rem) 0;
-  padding-left: var(--spacing-lg, 1.5rem);
-  list-style: disc;
-}
-
-.proxy-tips li {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.6;
-  margin-bottom: var(--spacing-xs, 0.25rem);
-}
-
-/* Mobile responsiveness */
-@include m.respond-below('md') {  // < 768px
-  /* Tab Navigation - Mobile Optimized */
-  .tab-navigation {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    gap: 8px;
-    padding: 8px 0;
-    margin-bottom: 16px;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
-  }
+  gap: v.$spacing-2;
   
-  .tab-navigation::-webkit-scrollbar {
-    height: 3px;
-  }
-  
-  .tab-navigation::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: var(--border-radius-sm, 4px);
-  }
-  
-  .tab-navigation::-webkit-scrollbar-thumb {
-    background: var(--primary-color, #9147ff);
-    border-radius: var(--border-radius-sm, 4px);
-  }
-  
-  .tab-button {
-    flex-shrink: 0;
-    min-width: 120px;
-    padding: 10px 12px;
-    font-size: 0.85rem;
-    text-align: center;
-    white-space: nowrap;
-  }
-  
-  /* Settings Form - Mobile Layout */
-  .settings-form {
-    padding: 12px;
-    margin-bottom: 16px;
-  }
-  
-  .settings-section {
-    margin-bottom: 20px;
-    padding: 12px;
-  }
-  
-  .section-title {
-    font-size: 1.1rem;
-    margin-bottom: 12px;
-  }
-  
-  /* Form Groups - Mobile Spacing */
-  .form-group {
-    margin-bottom: 16px;
-  }
-  
-  .form-control {
-    padding: 12px;
-    font-size: 16px; /* Prevent zoom on iOS */
-    border-radius: var(--border-radius, 8px);
-  }
-  
-  /* Select elements - Better mobile touch */
-  select.form-control {
-    padding: 12px 40px 12px 12px;
-    font-size: 16px;
-    min-height: 48px; /* Better touch target */
-  }
-  
-  /* Checkbox groups - Better touch targets */
-  .checkbox-group input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    margin-right: 12px;
-  }
-  
-  /* Table Controls - Stack Vertically */
-  .table-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  
-  .table-controls button {
+  @include m.respond-below('md') {
     width: 100%;
-    min-height: 48px;
-    font-size: 16px;
+    justify-content: flex-end;
   }
-  
-  /* Modal adjustments for mobile */
-  .modal-content {
-    width: 95vw;
-    max-width: 95vw;
-    max-height: 95vh;
-    border-radius: var(--border-radius-lg, 12px);
-    margin: 2.5vh auto;
-  }
-  
-  .modal-header {
-    padding: 16px;
-  }
-  
-  .modal-header h3 {
-    font-size: 1.2rem;
-  }
-  
-  .modal-body {
-    padding: 16px;
-  }
-  
-  /* Variables container - Mobile layout */
-  .variables-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 8px 0;
-  }
+}
 
-  .variable-tag {
-    display: inline-block;
-    background-color: var(--background-dark, #2a2a2a);
-    color: var(--text-primary, #f1f1f3);
-    border: 1px solid var(--border-color, #404040);
-    border-radius: var(--border-radius, 8px);
-    padding: 6px 10px;
-    font-family: 'Courier New', 'Monaco', monospace;
-    font-size: 0.8em;
-    font-weight: 500;
-    white-space: nowrap;
-    touch-action: manipulation;
-  }
+// ============================================================================
+// STREAMER SETTINGS TABLE
+// ============================================================================
 
-  .example-output {
-    display: block;
-    background-color: var(--background-darker);
-    color: var(--info-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius, 8px);
-    padding: 8px 12px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85em;
-    font-weight: 600;
-    margin: 8px 0;
-    word-break: break-all;
+.streamer-table {
+  width: 100%;
+  border-collapse: collapse;
+  
+  thead {
+    background: var(--background-hover);
+    
+    th {
+      padding: v.$spacing-3;
+      text-align: left;
+      font-weight: v.$font-semibold;
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--border-color);
+      
+      @include m.respond-below('md') {
+        display: none;
+      }
+    }
   }
   
-  /* Proxy settings - Mobile optimized */
-  .proxy-configuration {
-    padding: 12px;
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--border-color);
+      transition: v.$transition-colors;
+      
+      &:hover {
+        background: var(--background-hover);
+      }
+      
+      @include m.respond-below('md') {
+        display: block;
+        margin-bottom: v.$spacing-4;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: v.$spacing-3;
+      }
+    }
+    
+    td {
+      padding: v.$spacing-3;
+      color: var(--text-primary);
+      
+      @include m.respond-below('md') {
+        display: block;
+        text-align: right;
+        padding: v.$spacing-2 0;
+        border: none;
+        
+        &:before {
+          content: attr(data-label);
+          float: left;
+          font-weight: v.$font-semibold;
+          color: var(--text-secondary);
+        }
+      }
+    }
   }
-  
+}
+
+// ============================================================================
+// PROXY CONFIGURATION (if present in this panel)
+// ============================================================================
+
+.proxy-configuration {
   .proxy-info-card {
-    padding: var(--spacing-md, 1rem);
+    background: var(--info-bg-color);
+    border: 1px solid var(--info-border-color);
+    border-radius: var(--radius-md);
+    padding: v.$spacing-4;
+    margin-bottom: v.$spacing-4;
+    
+    h5, h6 {
+      color: var(--text-primary);
+      margin-bottom: v.$spacing-2;
+    }
+    
+    h5 {
+      font-size: v.$text-base;
+      font-weight: v.$font-semibold;
+    }
+    
+    h6 {
+      font-size: v.$text-sm;
+      font-weight: v.$font-medium;
+    }
   }
   
-  .proxy-info-card h5 {
-    font-size: 0.95rem;
-  }
-  
-  .proxy-info-card h6 {
-    font-size: 0.85rem;
-  }
-  
-  .proxy-examples-list code {
-    font-size: 0.75rem;
-    padding: 3px 6px;
-  }
-  
-  .proxy-tips li {
-    font-size: 0.8rem;
+  .proxy-examples-list,
+  .proxy-tips {
+    list-style: none;
+    padding: 0;
+    
+    li {
+      padding: v.$spacing-2 0;
+      color: var(--text-secondary);
+      font-size: v.$text-sm;
+      
+      code {
+        background: var(--background-darker);
+        padding: v.$spacing-1 v.$spacing-2;
+        border-radius: var(--radius-sm);
+        font-family: var(--font-mono);
+        font-size: v.$text-xs;
+        color: var(--primary-color);
+      }
+    }
   }
   
   .example-item {
-    padding: var(--spacing-2);
-    margin-bottom: 8px;
-  }
-  
-  .example-item code {
-    font-size: 0.75rem;
-    padding: 6px 8px;
-    word-break: break-all;
-    display: block;
-    margin: 4px 0;
-  }
-  
-  /* Help text - Better mobile readability */
-  .help-text {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    margin-top: 8px;
-  }
-  
-  /* Button improvements for mobile */
-  .btn {
-    min-height: 44px;
-    padding: 12px 16px;
-    font-size: 16px;
-    border-radius: var(--border-radius, 8px);
-    touch-action: manipulation;
-  }
-  
-  /* Save/Cancel button group */
-  .button-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 20px;
-  }
-  
-  .button-group .btn {
-    width: 100%;
+    padding: v.$spacing-3;
+    margin-bottom: v.$spacing-2;
+    background: var(--background-card);
+    border-radius: var(--radius-sm);
+    
+    code {
+      display: block;
+      word-break: break-all;
+      margin-top: v.$spacing-1;
+    }
   }
 }
 
-/* Extra small screens (phones in portrait) */
-@include m.respond-below('xs') {  // < 480px
-  .modal-content {
-    width: 100vw;
-    max-width: 100vw;
-    height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-    margin: 0;
+// ============================================================================
+// TABLE HEADER TOOLTIPS
+// ============================================================================
+
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.th-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  
+  &:hover .tooltip-wrapper {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  
+  .tooltip-wrapper {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all v.$duration-200 v.$ease-out;
+    pointer-events: none;
+    white-space: nowrap;
+    
+    .tooltip {
+      display: block;
+      padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+      background: var(--background-darker);
+      color: var(--text-primary);
+      font-size: var(--text-xs, 12px);
+      border-radius: var(--radius, 8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      font-weight: normal;
+      text-transform: none;
+      letter-spacing: normal;
+      max-width: 250px;
+      white-space: normal;
+      line-height: 1.4;
+      
+      // Light mode: Better contrast
+      [data-theme="light"] & {
+        background: var(--background-card);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-color: var(--border-color);
+      }
+      
+      // Arrow
+      &::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-bottom-color: var(--background-darker);
+        
+        [data-theme="light"] & {
+          border-bottom-color: var(--background-card);
+        }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// RESPONSIVE MOBILE OPTIMIZATIONS
+// ============================================================================
+
+@include m.respond-below('md') {
+  .tab-navigation {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    
+    &::-webkit-scrollbar {
+      height: 2px;
+    }
   }
   
   .tab-button {
     min-width: 100px;
-    font-size: 0.8rem;
-    padding: 8px 10px;
+    flex-shrink: 0;
   }
   
-  .settings-form {
-    padding: var(--spacing-2);
+  .form-actions {
+    flex-direction: column;
+    
+    .btn {
+      width: 100%;
+    }
   }
-  
-  .settings-section {
-    padding: var(--spacing-2);
-    margin-bottom: 16px;
+}
+
+@include m.respond-below('xs') {
+  .variable-tag {
+    font-size: v.$text-xs;
+    padding: v.$spacing-1 v.$spacing-2;
   }
   
   .section-title {
-    font-size: 1rem;
-  }
-  
-  .form-control {
-    padding: var(--spacing-3);
-  }
-  
-  .variable-tag {
-    font-size: 0.75em;
-    padding: 4px 8px;
-  }
-  
-  /* Extra small screen table optimizations */
-  .streamer-table tr {
-    margin-bottom: var(--spacing-3, 12px);
-  }
-  
-  .streamer-table td {
-    padding-left: 130px;
-  }
-  
-  .streamer-table td:before {
-    width: 115px;
-    font-size: 0.8rem;
+    font-size: v.$text-base;
   }
 }
 </style>

@@ -509,6 +509,11 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
         streamer.profile_image_url
     )
     
+    # Get actual recording settings (not deprecated auto_record column)
+    recording_settings = db.query(StreamerRecordingSettings).filter(
+        StreamerRecordingSettings.streamer_id == streamer.id
+    ).first()
+    
     # Return normalized format for frontend
     return {
         "id": streamer.id,
@@ -518,7 +523,9 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
         "display_name": streamer.username,  # Fallback to username
         "is_live": streamer.is_live,
         "is_recording": streamer.is_recording,  # FIXED: Use property that queries Recording table
-        "recording_enabled": streamer.recording_enabled,  # FIXED: Use property that returns auto_record
+        "recording_enabled": recording_settings.enabled if recording_settings else True,  # FIXED: Use StreamerRecordingSettings, not auto_record
+        "recording_quality": recording_settings.quality if recording_settings else None,
+        "custom_filename": recording_settings.custom_filename if recording_settings else None,
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
@@ -526,6 +533,68 @@ async def get_streamer(streamer_id: str, streamer_service: StreamerService = Dep
         "description": None,  # TODO: Store description in DB if needed
         "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None
     }
+
+@router.put("/streamer/{streamer_id}/settings")
+async def update_streamer_settings(
+    streamer_id: int,
+    settings: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """Update recording settings for a specific streamer"""
+    try:
+        # Verify streamer exists
+        streamer = db.query(Streamer).filter(
+            Streamer.id == streamer_id,
+            (Streamer.is_test_data == False) | (Streamer.is_test_data.is_(None))
+        ).first()
+        if not streamer:
+            raise HTTPException(status_code=404, detail="Streamer not found")
+        
+        # Get or create StreamerRecordingSettings
+        recording_settings = db.query(StreamerRecordingSettings).filter(
+            StreamerRecordingSettings.streamer_id == streamer_id
+        ).first()
+        
+        if not recording_settings:
+            recording_settings = StreamerRecordingSettings(
+                streamer_id=streamer_id,
+                enabled=True,
+                quality="best"
+            )
+            db.add(recording_settings)
+        
+        # Update settings from request body
+        if 'autoRecord' in settings:
+            recording_settings.enabled = settings['autoRecord']
+            logger.info(f"Updated recording enabled for {streamer.username}: {recording_settings.enabled}")
+        
+        if 'quality' in settings and settings['quality']:
+            recording_settings.quality = settings['quality']
+            logger.info(f"Updated recording quality for {streamer.username}: {recording_settings.quality}")
+        
+        if 'filenameTemplate' in settings:
+            recording_settings.custom_filename = settings['filenameTemplate'] if settings['filenameTemplate'] else None
+            logger.info(f"Updated custom filename for {streamer.username}: {recording_settings.custom_filename}")
+        
+        db.commit()
+        db.refresh(recording_settings)
+        
+        # Return updated settings
+        return {
+            "success": True,
+            "settings": {
+                "autoRecord": recording_settings.enabled,
+                "quality": recording_settings.quality,
+                "filenameTemplate": recording_settings.custom_filename
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating streamer settings: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update settings")
 
 @router.get("/subscriptions")
 async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):

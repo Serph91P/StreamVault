@@ -1,7 +1,7 @@
 <template>
   <div class="video-player-container">
     <!-- Video Element -->
-    <div class="video-wrapper" ref="videoWrapper">
+    <div class="video-wrapper" ref="videoWrapper" @mouseenter="onVideoHover" @mouseleave="onVideoLeave" @mousemove="onVideoMove">
       <video 
         ref="videoElement"
         :src="decodedVideoSrc"
@@ -12,7 +12,7 @@
         @error="onVideoError"
         @play="onPlay"
         @pause="onPause"
-        @click="toggleControls"
+        @click="togglePlayPause"
         preload="metadata"
         class="video-element"
       >
@@ -35,9 +35,24 @@
         @click.stop
         @touchstart="onControlsTouch"
       >
-        <!-- Progress Bar -->
+        <!-- Progress Bar with Chapter Markers -->
         <div class="progress-container" @click="seekVideo">
           <div class="progress-bar-track">
+            <!-- Chapter markers background -->
+            <div class="chapter-markers" v-if="chapters.length > 0">
+              <div 
+                v-for="(chapter, index) in chapters" 
+                :key="index"
+                class="chapter-marker"
+                :style="{ 
+                  left: `${(chapter.startTime / videoDuration) * 100}%`,
+                  width: `${(chapter.duration / videoDuration) * 100}%`,
+                  backgroundColor: getChapterColor(chapter.title)
+                }"
+                :title="`${chapter.title} - ${formatTime(chapter.startTime)} (${formatDuration(chapter.duration)})`"
+                @click.stop="seekToChapter(chapter.startTime)"
+              ></div>
+            </div>
             <div class="progress-bar-fill" :style="{ width: progressPercentage + '%' }"></div>
             <div class="progress-bar-thumb" :style="{ left: progressPercentage + '%' }"></div>
           </div>
@@ -146,21 +161,6 @@
         </div>
       </div>
       
-      <!-- Chapter Progress Bar -->
-      <div v-if="chapters.length > 0" class="chapter-progress-bar">
-        <div 
-          v-for="(chapter, index) in chapters" 
-          :key="index"
-          class="chapter-segment"
-          :style="{ 
-            width: `${(chapter.duration / videoDuration) * 100}%`,
-            backgroundColor: getChapterColor(chapter.title)
-          }"
-          :title="`${chapter.title} - ${formatTime(chapter.startTime)}`"
-          @click="seekToChapter(chapter.startTime)"
-        ></div>
-      </div>
-      
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-overlay">
         <div class="spinner"></div>
@@ -175,12 +175,13 @@
       </div>
       
       <!-- Chapter List Panel (Overlay inside video) -->
-      <div 
-        v-if="showChapterUI && chapters.length > 0" 
-        class="chapter-list-panel"
-        ref="chapterListPanel"
-        @scroll="handleChapterListScroll"
-      >
+      <transition name="slide-panel">
+        <div 
+          v-if="showChapterUI && chapters.length > 0" 
+          class="chapter-list-panel"
+          ref="chapterListPanel"
+          @scroll="handleChapterListScroll"
+        >
         <div class="chapter-list-header">
           <h3>📋 Chapters</h3>
           <button @click="toggleChapterUI" class="close-btn">×</button>
@@ -223,6 +224,7 @@
           </div>
         </div>
       </div>
+      </transition>
     </div>
 
     <!-- Video Controls Extension (below video) -->
@@ -389,6 +391,22 @@ const onControlsTouch = () => {
   resetControlsTimeout()
 }
 
+const onVideoHover = () => {
+  showControls.value = true
+  resetControlsTimeout()
+}
+
+const onVideoLeave = () => {
+  if (isPlaying.value) {
+    resetControlsTimeout()
+  }
+}
+
+const onVideoMove = () => {
+  showControls.value = true
+  resetControlsTimeout()
+}
+
 const resetControlsTimeout = () => {
   if (controlsTimeout.value) {
     clearTimeout(controlsTimeout.value)
@@ -425,6 +443,11 @@ const onVideoLoaded = () => {
     volume.value = videoElement.value.volume
     isMuted.value = videoElement.value.muted
     emit('video-ready', videoDuration.value)
+    
+    // Recalculate chapter durations now that we have video duration
+    if (chapters.value.length > 0) {
+      chapters.value = calculateChapterDurations([...chapters.value])
+    }
   }
 }
 
@@ -492,12 +515,22 @@ const loadChapters = async () => {
       const response = await fetch(`/api/streams/${props.streamId}/chapters`)
       if (response.ok) {
         const chaptersData = await response.json()
-        const converted = chaptersData.map((ch: any) => ({
-          title: ch.category_name || ch.title || 'Stream Segment',
-          startTime: ch.start_time || 0,
-          duration: ch.duration || 60,
-          gameIcon: getCategoryImage(ch.category_name)
-        }))
+        const converted = chaptersData.map((ch: any, index: number, arr: any[]) => {
+          // Calculate duration from API data or compute from next chapter
+          let duration = ch.duration || 60
+          if (!ch.duration && index < arr.length - 1) {
+            // Calculate from next chapter's start time
+            const nextStartTime = arr[index + 1].start_time || (ch.start_time + 60)
+            duration = nextStartTime - ch.start_time
+          }
+          
+          return {
+            title: ch.category_name || ch.title || 'Stream Segment',
+            startTime: ch.start_time || 0,
+            duration: duration,
+            gameIcon: getCategoryImage(ch.category_name)
+          }
+        })
         
         // Deduplicate by startTime and title
         chapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
@@ -531,7 +564,7 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
   const converted = apiChapters.map((chapter, index) => ({
     title: chapter.title || `Chapter ${index + 1}`,
     startTime: parseTimeStringToSeconds(chapter.start_time),
-    duration: 60, // Default duration, can be calculated between chapters
+    duration: 60, // Temporary, will be calculated below
     gameIcon: undefined
   }))
   
@@ -542,7 +575,29 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
     )
   )
   
-  return unique
+  // Calculate actual duration between chapters
+  return calculateChapterDurations(unique)
+}
+
+// Calculate chapter durations based on video metadata
+const calculateChapterDurations = (chapterList: Chapter[]): Chapter[] => {
+  const videoDur = videoElement.value?.duration || videoDuration.value
+  
+  return chapterList.map((chapter, index) => {
+    if (index < chapterList.length - 1) {
+      // Duration = next chapter start time - current chapter start time
+      chapter.duration = chapterList[index + 1].startTime - chapter.startTime
+    } else {
+      // Last chapter: calculate to end of video
+      if (videoDur && !isNaN(videoDur) && videoDur > 0) {
+        chapter.duration = videoDur - chapter.startTime
+      } else {
+        // Video not loaded yet, use placeholder
+        chapter.duration = 60
+      }
+    }
+    return chapter
+  })
 }
 
 // Parse time string to seconds
@@ -783,8 +838,9 @@ watch(() => props.chapters, (newChapters) => {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border: none;
-    border-radius: 0;
+    border-radius: 0;  // Eckig auf mobile
     box-shadow: none;
+    overflow: visible;  // CRITICAL: Allow chapter menu and controls to overflow
   }
 }
 
@@ -854,38 +910,6 @@ watch(() => props.chapters, (newChapters) => {
     width: 100%;
     max-height: 100vh;
   }
-}
-
-/* Chapter Progress Bar */
-.chapter-progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  display: flex;
-  z-index: 5;
-  /* Subtle glass effect for progress bar background */
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.chapter-segment {
-  height: 100%;
-  cursor: pointer;
-  transition: height var(--duration-200) var(--ease-out), opacity var(--duration-200);
-  opacity: 0.8;
-  /* Glass effect for chapter segments */
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  border-right: 1px solid rgba(0, 0, 0, 0.3);
-}
-
-.chapter-segment:hover {
-  height: 8px;
-  opacity: 1;
-  box-shadow: 0 0 8px currentColor;
 }
 
 /* Loading and Error States */
@@ -1011,16 +1035,45 @@ watch(() => props.chapters, (newChapters) => {
   width: 400px;  /* Fixed width for desktop */
   max-width: calc(100% - 32px);  /* Responsive on mobile */
   z-index: 20;  /* Above controls overlay */
-  animation: slideInRight var(--duration-300) var(--ease-out);
+  /* Animation now handled by Vue transition (see .slide-panel-* classes) */
   
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: 100px;  /* More space on mobile */
+    bottom: 120px;  /* More space above controls */
     right: var(--spacing-4);
-    max-height: 400px;  /* Smaller on mobile */
+    left: var(--spacing-4);  /* Center horizontally */
+    max-height: 60vh;  /* Responsive height - prevent cut-off */
+    max-width: none;  /* Override desktop constraint */
   }
 }
 
+/* Vue Transition for Chapter Panel */
+.slide-panel-enter-active,
+.slide-panel-leave-active {
+  transition: all var(--duration-300) var(--ease-out);
+}
+
+.slide-panel-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.slide-panel-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-panel-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-panel-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+/* Legacy animation (kept for backwards compatibility) */
 @keyframes slideInRight {
   from {
     opacity: 0;
@@ -1265,6 +1318,41 @@ watch(() => props.chapters, (newChapters) => {
   height: 12px;  /* Thicker on hover */
 }
 
+/* Chapter Markers - Integrated into Progress Bar */
+.chapter-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  z-index: 1;
+}
+
+.chapter-marker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: all var(--duration-200) var(--ease-out);
+  border-right: 2px solid rgba(0, 0, 0, 0.4);
+  
+  &:hover {
+    opacity: 0.8;
+    transform: scaleY(1.3);
+    z-index: 2;
+    box-shadow: 0 0 8px currentColor;
+  }
+  
+  &:active {
+    opacity: 1;
+    transform: scaleY(1.5);
+  }
+}
+
 .progress-bar-fill {
   position: absolute;
   top: 0;
@@ -1273,6 +1361,7 @@ watch(() => props.chapters, (newChapters) => {
   background: var(--primary-color);
   border-radius: var(--radius-full);
   transition: width var(--duration-150) var(--ease-out);
+  z-index: 3; /* Above chapter markers */
 }
 
 .progress-bar-thumb {
@@ -1286,6 +1375,7 @@ watch(() => props.chapters, (newChapters) => {
   box-shadow: var(--shadow-md);
   opacity: 0;
   transition: all var(--duration-200) var(--ease-out);
+  z-index: 4; /* Above fill and markers */
   
   @include m.respond-below('md') {  // < 768px (mobile)
     width: 24px;  /* Larger thumb for touch */
@@ -1477,12 +1567,27 @@ watch(() => props.chapters, (newChapters) => {
 /* Mobile Optimizations */
 @include m.respond-below('md') {  // < 768px
   .video-controls-overlay {
-    padding: var(--spacing-3);  /* 12px */
+    padding: var(--spacing-2) var(--spacing-3);  /* Reduce vertical padding to prevent overflow */
+    padding-bottom: var(--spacing-3);  /* Keep some space at bottom */
   }
   
   .progress-container {
     /* Extended vertical tap area for easier scrubbing */
-    padding: var(--spacing-4) 0;  /* 16px vertical */
+    padding: var(--spacing-3) 0;  /* Reduce from 16px to 12px vertical */
+    margin-bottom: var(--spacing-2);  /* Reduce spacing */
+  }
+  
+  /* Ensure controls don't overflow */
+  .controls-bottom {
+    flex-wrap: nowrap;  /* Prevent wrapping */
+    overflow-x: visible;  /* Allow horizontal visibility */
+  }
+  
+  /* Hide chapter toggle button on very small screens to save space */
+  @media (max-width: 400px) {
+    .chapter-toggle-button {
+      display: none;  /* Hide on tiny screens - users can see chapters in extension */
+    }
   }
 }
 

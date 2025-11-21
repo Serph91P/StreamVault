@@ -24,20 +24,29 @@
         class="sidebar-nav-item"
         :class="{ active: isActiveRoute(tab.route) }"
         active-class="active"
+        :aria-label="tab.label"
       >
         <!-- Icon -->
         <svg class="nav-icon">
           <use :href="`#icon-${tab.icon}`" />
         </svg>
-        
-        <!-- Label (only visible when expanded) -->
-        <span v-if="sidebarExpanded" class="nav-label">{{ tab.label }}</span>
-        
-        <!-- Badge -->
-        <span v-if="tab.badge && sidebarExpanded" class="nav-badge">
-          {{ tab.badge }}
-        </span>
-        
+
+        <!-- Text content (matches SettingsView sidebar) -->
+        <div v-if="sidebarExpanded" class="nav-content">
+          <span class="nav-label">{{ tab.label }}</span>
+          <span v-if="tab.description" class="nav-description">{{ tab.description }}</span>
+        </div>
+
+        <!-- Meta (badges + indicator) -->
+        <div v-if="sidebarExpanded" class="nav-meta">
+          <span v-if="tab.badge" class="nav-badge">
+            {{ tab.badge }}
+          </span>
+          <svg v-if="isActiveRoute(tab.route)" class="nav-indicator">
+            <use href="#icon-chevron-right" />
+          </svg>
+        </div>
+
         <!-- Tooltip (only visible when collapsed) -->
         <span v-if="!sidebarExpanded" class="nav-tooltip">{{ tab.label }}</span>
       </router-link>
@@ -68,10 +77,10 @@ onMounted(() => {
 
 .sidebar-nav {
   position: fixed;
-  top: 0;
+  top: var(--app-header-height, 64px);
   left: 0;
   bottom: 0;
-  width: 240px;
+  width: 260px;
   
   background: rgba(var(--background-card-rgb), 0.95);
   backdrop-filter: blur(20px);
@@ -91,12 +100,26 @@ onMounted(() => {
   @supports not (backdrop-filter: blur(20px)) {
     background: var(--background-card);
   }
+
+  &.collapsed {
+    width: 84px;
+
+    .sidebar-nav-list {
+      padding: v.$spacing-6 v.$spacing-1;
+    }
+
+    .sidebar-nav-item {
+      justify-content: center;
+      padding: v.$spacing-3;
+    }
+  }
 }
 
 .sidebar-toggle {
   position: absolute;
   top: v.$spacing-4; // 16px
-  right: -12px; // Half outside sidebar
+  right: 2px;
+  z-index: 1100;
   
   width: 24px;
   height: 24px;
@@ -150,47 +173,41 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: v.$spacing-3; // 12px
+  width: 100%;
   
-  padding: v.$spacing-3; // 12px
+  padding: v.$spacing-3;
   border-radius: v.$border-radius-lg;
   
   color: var(--text-secondary);
   text-decoration: none;
+  background: transparent;
+  cursor: pointer;
   
-  transition: all v.$duration-200 v.$ease-in-out;
+  transition: all v.$duration-200 v.$ease-out;
+  overflow: hidden;
   
   // Hover state
-  &:hover {
-    background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-500);
+  &:hover:not(.active) {
+    background: rgba(var(--primary-500-rgb), 0.05);
+    color: var(--text-primary);
   }
   
   // Active state
   &.active {
     background: var(--primary-color);
     color: white;
-    box-shadow: v.$shadow-md, inset 4px 0 0 rgba(255, 255, 255, 0.2);
+    box-shadow: v.$shadow-md;
     
     // Light mode: Use primary-600 for better contrast
     // PRIMARY-600 (#0d9488) on white bg = 4.5:1 contrast ratio (WCAG AA compliant)
     [data-theme="light"] & {
       background: var(--primary-color-dark);  // Uses CSS variable (primary-600)
       color: white;
-      box-shadow: v.$shadow-md, inset 4px 0 0 v.$primary-700;
+      box-shadow: v.$shadow-md;
     }
     
-    .nav-icon {
-      transform: scale(1.1);
-      stroke: white;  // Ensure icon is also white
-    }
-    
-    // Active + Hover: Slightly lighter background
-    &:hover {
-      background: var(--primary-400);
-      
-      [data-theme="light"] & {
-        background: var(--primary-500);
-      }
+    .nav-description {
+      color: rgba(255, 255, 255, 0.85);
     }
   }
   
@@ -207,19 +224,43 @@ onMounted(() => {
   flex-shrink: 0;
   stroke: currentColor;
   fill: none;
-  transition: transform v.$duration-200 v.$ease-in-out;
+  transition: transform v.$duration-200 v.$ease-in-out, color v.$duration-200 v.$ease-in-out;
+}
+
+.nav-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .nav-label {
-  font-size: v.$text-sm; // 14px
-  font-weight: v.$font-medium;
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.nav-badge {
+.nav-description {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-meta {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-2;
   margin-left: auto;
+}
+
+.nav-badge {
   background: var(--danger-500);
   color: white;
   min-width: 20px;
@@ -230,6 +271,14 @@ onMounted(() => {
   font-weight: v.$font-bold;
   line-height: 20px;
   text-align: center;
+}
+
+.nav-indicator {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
 }
 
 .nav-tooltip {

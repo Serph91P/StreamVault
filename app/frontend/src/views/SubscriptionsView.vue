@@ -23,8 +23,8 @@
         </button>
         <button
           @click="resubscribeAll"
-          :disabled="loadingResubscribe || !subscriptions.length"
-          class="btn-action btn-primary"
+          :disabled="loadingResubscribe"
+          class="btn-action btn-secondary"
           v-ripple
         >
           <svg v-if="!loadingResubscribe" class="icon">
@@ -39,7 +39,7 @@
           class="btn-action btn-danger"
           v-ripple
         >
-          <svg class="icon">
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <use href="#icon-trash-2" />
           </svg>
           <span>Delete All</span>
@@ -106,8 +106,8 @@
                   class="btn-delete"
                   v-ripple
                 >
-                  <svg class="icon">
-                    <use href="#icon-trash-2" />
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <use href="#icon-trash" />
                   </svg>
                 </button>
               </td>
@@ -386,8 +386,9 @@ onMounted(loadSubscriptions)
   }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    filter: grayscale(0.3);
   }
 
   &.btn-primary {
@@ -397,6 +398,12 @@ onMounted(loadSubscriptions)
     &:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: var(--shadow-lg);
+    }
+
+    &:disabled {
+      background: var(--background-secondary);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-color);
     }
   }
 
@@ -409,6 +416,12 @@ onMounted(loadSubscriptions)
       background: var(--background-tertiary);
       border-color: var(--color-primary);
     }
+
+    &:disabled {
+      background: var(--background-tertiary);
+      color: var(--text-tertiary);
+      border-color: var(--border-color);
+    }
   }
 
   &.btn-danger {
@@ -419,6 +432,12 @@ onMounted(loadSubscriptions)
       background: var(--color-error-hover);
       transform: translateY(-2px);
       box-shadow: var(--shadow-lg);
+    }
+
+    &:disabled {
+      background: var(--background-secondary);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-color);
     }
   }
 }
