@@ -17,10 +17,14 @@
   margin-bottom: var(--spacing-6, 24px);
   border-radius: var(--radius-lg, 12px);
   border: 1px solid var(--border-color);
+  background: transparent !important;  // Force transparent, no gradients
+  background-image: none !important;   // Remove any auto-generated gradients
+  background-size: auto !important;    // Reset background-size
   
   // Light mode: Add subtle background
   [data-theme="light"] & {
-    background: var(--background-card);
+    background: var(--background-card) !important;
+    background-image: none !important;
   }
 }
 

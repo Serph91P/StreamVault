@@ -365,20 +365,20 @@ onMounted(() => {
 
 .category-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: v.$spacing-4;
   
-  @include m.respond-below('lg') {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  @include m.respond-below('lg') {  // < 1024px
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
   
-  @include m.respond-below('md') {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  @include m.respond-below('md') {  // < 768px (tablet)
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: v.$spacing-3;
   }
   
-  @include m.respond-below('sm') {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  @include m.respond-below('sm') {  // < 640px (mobile)
+    grid-template-columns: repeat(2, 1fr);  // Always 2 columns on mobile
     gap: v.$spacing-2;
   }
 }
