@@ -50,13 +50,9 @@ async def twitch_callback(
     
     if not token_data or "access_token" not in token_data:
         logger.error("Failed to get access token from Twitch")
-        # Redirect to error page with state-aware return URL
-        # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
-        # CodeQL: validate_redirect_url ensures URL is from ALLOWED_REDIRECT_PATHS whitelist
-        validated_error_url = validate_redirect_url(state if state else "/add-streamer", "/add-streamer")
-        # Safe to use in redirect - validated against whitelist
-        error_redirect = f"{validated_error_url}?error=auth_failed"
-        return RedirectResponse(url=error_redirect)
+        # SECURITY: Use constant redirect URL to prevent open redirect attacks (CWE-601)
+        # Always redirect to /add-streamer on auth failure (safe, no user input)
+        return RedirectResponse(url="/add-streamer?error=auth_failed")
     
     # Store refresh token in database for automatic token refresh
     access_token = token_data["access_token"]
@@ -84,21 +80,18 @@ async def twitch_callback(
             except Exception as e:
                 logger.error(f"Error storing OAuth tokens: {e}")
     
-    # Determine return URL based on state parameter or default
-    # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
-    # CodeQL: validate_redirect_url ensures URL is from ALLOWED_REDIRECT_PATHS whitelist
-    validated_state = validate_redirect_url(state if state else "/settings", "/settings")
+    # SECURITY: Use whitelisted constant redirects to prevent open redirect attacks (CWE-601)
+    # Only allow two safe destinations: /settings or /add-streamer
     
-    if validated_state == "/settings":
-        # For settings page: Just redirect back without token in URL (stored in DB)
+    # Validate state parameter against whitelist
+    if state and state.strip() == "/add-streamer":
+        # For add-streamer page: Include token in URL for importing followed channels
+        logger.info("✅ Twitch OAuth completed - redirecting to /add-streamer")
+        return RedirectResponse(url=f"/add-streamer?token={access_token}&auth_success=true")
+    else:
+        # Default: For settings page, redirect without token in URL (stored in DB)
         logger.info("✅ Twitch OAuth completed - redirecting to /settings")
         return RedirectResponse(url="/settings?auth_success=true")
-    else:
-        # For add-streamer page: Include token in URL for importing followed channels
-        logger.info(f"✅ Twitch OAuth completed - redirecting to {validated_state}")
-        # Safe to use in redirect - validated against ALLOWED_REDIRECT_PATHS whitelist
-        success_redirect = f"{validated_state}?token={access_token}&auth_success=true"
-        return RedirectResponse(url=success_redirect)
 
 @router.get("/followed-channels")
 async def get_followed_channels(
