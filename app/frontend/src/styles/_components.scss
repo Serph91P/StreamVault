@@ -659,9 +659,14 @@ input[type="radio"] {
 .streamer-grid, 
 .stream-grid, 
 .stream-list,
-.channels-grid, 
-.categories-grid {
+.channels-grid {
   @extend .card-grid;
+}
+
+// .categories-grid removed from @extend - let child .category-cards control its own grid
+.categories-grid {
+  display: block;  // Simple container, no forced grid
+  width: 100%;
 }
 
 .channels-grid {
