@@ -380,8 +380,8 @@ onMounted(() => {
   }
   
   @include m.respond-below('sm') {  // < 640px (mobile)
-    grid-template-columns: repeat(2, 1fr);  // Always 2 columns on mobile
-    gap: v.$spacing-2;
+    grid-template-columns: 1fr;  // Single column on mobile for better visibility
+    gap: v.$spacing-3;
   }
 }
 
