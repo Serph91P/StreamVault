@@ -528,6 +528,7 @@ function formatExpiration(expiresAt: string): string {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   line-height: 1.6;
+}
 
 .quality-benefits {
   display: grid;
