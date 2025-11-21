@@ -489,5 +489,118 @@ class TestURLRedirectValidation:
         assert validate_redirect_url("/admin/delete-all", "/add-streamer") == "/add-streamer"
 
 
+class TestCommandSanitization:
+    """
+    Test suite for command sanitization (CWE-532: Information Exposure Through Log Files)
+    """
+    
+    def test_oauth_token_redacted(self):
+        """Test that OAuth tokens are redacted from commands"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        cmd = [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth abc123xyz789",
+            "https://twitch.tv/streamer",
+            "best"
+        ]
+        
+        result = sanitize_command_for_logging(cmd)
+        assert "abc123xyz789" not in result
+        assert "[REDACTED]" in result
+        assert "streamlink" in result
+        assert "best" in result
+    
+    def test_proxy_credentials_redacted(self):
+        """Test that proxy credentials are redacted"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        cmd = [
+            "streamlink",
+            "--http-proxy=http://user:pass@proxy.com:8080",
+            "--https-proxy=https://user:pass@proxy.com:8080",
+            "url",
+            "best"
+        ]
+        
+        result = sanitize_command_for_logging(cmd)
+        assert "user:pass" not in result
+        assert "[REDACTED]" in result
+        assert "streamlink" in result
+    
+    def test_multiple_sensitive_args_redacted(self):
+        """Test that multiple sensitive arguments are all redacted"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        cmd = [
+            "streamlink",
+            "--password=secret123",
+            "--token=token456",
+            "--api-key=key789",
+            "url",
+            "best"
+        ]
+        
+        result = sanitize_command_for_logging(cmd)
+        assert "secret123" not in result
+        assert "token456" not in result
+        assert "key789" not in result
+        # All should be redacted
+        assert result.count("[REDACTED]") == 3
+    
+    def test_non_sensitive_args_preserved(self):
+        """Test that non-sensitive arguments are preserved"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        cmd = [
+            "streamlink",
+            "--output=/path/to/file.mp4",
+            "--force",
+            "https://twitch.tv/streamer",
+            "best",
+            "--retry-streams=10"
+        ]
+        
+        result = sanitize_command_for_logging(cmd)
+        assert "/path/to/file.mp4" in result
+        assert "--force" in result
+        assert "best" in result
+        assert "--retry-streams=10" in result
+        assert "[REDACTED]" not in result
+    
+    def test_empty_command(self):
+        """Test that empty commands are handled gracefully"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        assert sanitize_command_for_logging([]) == ""
+        assert sanitize_command_for_logging(None) == ""
+    
+    def test_realistic_streamlink_command(self):
+        """Test a realistic streamlink command with OAuth token"""
+        from app.utils.security import sanitize_command_for_logging
+        
+        cmd = [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth a1b2c3d4e5f6g7h8i9j0",
+            "--output=/recordings/streamer/stream.mp4",
+            "--force",
+            "--retry-streams=10",
+            "--retry-open=5",
+            "https://twitch.tv/streamer",
+            "best"
+        ]
+        
+        result = sanitize_command_for_logging(cmd)
+        
+        # Token should be redacted
+        assert "a1b2c3d4e5f6g7h8i9j0" not in result
+        assert "--twitch-api-header=[REDACTED]" in result
+        
+        # Other args should be preserved
+        assert "--output=/recordings/streamer/stream.mp4" in result
+        assert "--force" in result
+        assert "best" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

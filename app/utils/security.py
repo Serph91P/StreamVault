@@ -594,3 +594,60 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
     # URL is safe - return it
     logger.debug(f"🔒 SECURITY: Redirect URL validated: {url}")
     return url
+
+
+def sanitize_command_for_logging(cmd: list) -> str:
+    """
+    Sanitize command arguments for logging to prevent sensitive data exposure
+    
+    This function prevents logging of sensitive information (CWE-532) by masking
+    OAuth tokens, API keys, and other credentials in command arguments.
+    
+    Args:
+        cmd: List of command arguments
+        
+    Returns:
+        str: Sanitized command string safe for logging
+        
+    Example:
+        >>> cmd = ["streamlink", "--twitch-api-header=Authorization=OAuth abc123", "url", "best"]
+        >>> sanitize_command_for_logging(cmd)
+        "streamlink --twitch-api-header=Authorization=OAuth [REDACTED] url best"
+    """
+    if not cmd or not isinstance(cmd, list):
+        return ""
+    
+    sanitized_parts = []
+    
+    for arg in cmd:
+        if not isinstance(arg, str):
+            arg = str(arg)
+        
+        # Patterns that indicate sensitive data
+        sensitive_patterns = [
+            ("--twitch-api-header=", "OAuth"),  # Twitch OAuth tokens
+            ("Authorization=OAuth", None),       # OAuth in headers
+            ("--http-proxy=", "://"),           # Proxy URLs with credentials
+            ("--https-proxy=", "://"),          # Proxy URLs with credentials
+            ("--password=", None),              # Generic password flags
+            ("--token=", None),                 # Generic token flags
+            ("--api-key=", None),               # API keys
+            ("--secret=", None)                 # Secrets
+        ]
+        
+        sanitized_arg = arg
+        for pattern, additional_check in sensitive_patterns:
+            if pattern in arg:
+                # Check additional condition if specified
+                if additional_check is None or additional_check in arg:
+                    # Redact the value part
+                    parts = arg.split("=", 1)
+                    if len(parts) == 2:
+                        sanitized_arg = f"{parts[0]}=[REDACTED]"
+                    else:
+                        sanitized_arg = "[REDACTED]"
+                    break
+        
+        sanitized_parts.append(sanitized_arg)
+    
+    return " ".join(sanitized_parts)
