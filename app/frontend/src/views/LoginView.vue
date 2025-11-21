@@ -30,9 +30,6 @@
           <div class="form-group">
             <label for="username" class="form-label">Username</label>
             <div class="input-wrapper">
-              <svg class="input-icon">
-                <use href="#icon-user" />
-              </svg>
               <input
                 id="username"
                 class="form-input"
@@ -43,6 +40,9 @@
                 required
                 :disabled="isLoading"
               />
+              <svg class="input-icon">
+                <use href="#icon-user" />
+              </svg>
             </div>
           </div>
 
@@ -50,9 +50,6 @@
           <div class="form-group">
             <label for="password" class="form-label">Password</label>
             <div class="input-wrapper">
-              <svg class="input-icon">
-                <use href="#icon-lock" />
-              </svg>
               <input
                 id="password"
                 class="form-input"
@@ -63,6 +60,9 @@
                 required
                 :disabled="isLoading"
               />
+              <svg class="input-icon">
+                <use href="#icon-lock" />
+              </svg>
             </div>
           </div>
 
@@ -311,13 +311,14 @@ const handleLogin = async () => {
 
 .input-wrapper {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: block;
 }
 
 .input-icon {
   position: absolute;
-  left: var(--spacing-4);
+  left: 16px; /* Fixed spacing instead of variable for precision */
+  top: 50%;
+  transform: translateY(-50%);
   width: 20px;
   height: 20px;
   fill: var(--text-tertiary);
@@ -327,10 +328,8 @@ const handleLogin = async () => {
 
 .form-input {
   width: 100%;
-  /* FIXED: Proper padding to prevent icon overlap
-   * Left: spacing-4 (icon left) + 20px (icon width) + spacing-3 (gap) = ~52px
-   */
-  padding: var(--spacing-4) var(--spacing-4) var(--spacing-4) 52px;
+  /* Left padding: 16px (icon left) + 20px (icon width) + 12px (gap) = 48px */
+  padding: 14px 16px 14px 48px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -346,10 +345,10 @@ const handleLogin = async () => {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+  }
 
-    + .input-icon {
-      fill: var(--color-primary);
-    }
+  &:focus + .input-icon {
+    fill: var(--color-primary);
   }
 
   &:disabled {

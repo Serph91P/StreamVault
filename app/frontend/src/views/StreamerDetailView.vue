@@ -1,12 +1,12 @@
 <template>
   <div class="streamer-detail-view">
     <!-- Back Button -->
-    <router-link to="/streamers" class="back-button" v-ripple>
+    <button @click="goBackToStreamers" class="back-button" v-ripple>
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7" />
       </svg>
       Back
-    </router-link>
+    </button>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
@@ -281,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
@@ -297,7 +297,14 @@ const router = useRouter()
 const toast = useToast()
 
 // URL params
+const route = useRoute()
+const router = useRouter()
 const streamerId = computed(() => route.params.id as string)
+
+// Navigation
+const goBackToStreamers = () => {
+  router.push('/streamers')
+}
 
 // Loading states
 const isLoading = ref(true)

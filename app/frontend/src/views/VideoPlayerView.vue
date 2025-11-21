@@ -242,6 +242,40 @@ onMounted(() => {
 // HEADER - Title, Streamer, Back Button
 // ============================================================================
 
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--background-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-weight: v.$font-medium;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  flex-shrink: 0;
+
+  .icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    transform: translateX(-4px);
+  }
+
+  &:active {
+    transform: translateX(-2px);
+  }
+}
+
 .player-header {
   display: flex;
   align-items: flex-start;

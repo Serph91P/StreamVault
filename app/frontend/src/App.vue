@@ -1,5 +1,5 @@
 <template>
-  <!-- SVG Icon Sprite (loaded inline for reliability) - Teleported to body to avoid scoped CSS issues -->
+  <!-- SVG Icon Sprite (loaded inline for reliability) - Teleported to body for global access -->
   <Teleport to="body">
     <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true" id="svg-sprite">
       <defs>
