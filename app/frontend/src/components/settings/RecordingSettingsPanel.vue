@@ -1022,19 +1022,37 @@ const handleStreamerPolicySaved = (policy: any) => {
   .tab-navigation {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    gap: v.$spacing-1;
+    margin-bottom: v.$spacing-4;
+    padding-bottom: v.$spacing-2;
     
     &::-webkit-scrollbar {
-      height: 2px;
+      height: 4px;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 2px;
     }
   }
   
   .tab-button {
-    min-width: 100px;
+    min-width: 140px;  // Increased to show full text
     flex-shrink: 0;
+    padding: v.$spacing-3 v.$spacing-4;
+    font-size: v.$text-sm;
+    white-space: nowrap;  // Prevent text wrapping
+    
+    .tab-icon {
+      width: 18px;
+      height: 18px;
+    }
   }
   
   .form-actions {
     flex-direction: column;
+    gap: v.$spacing-3;
     
     .btn {
       width: 100%;

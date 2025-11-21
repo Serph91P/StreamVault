@@ -15,6 +15,7 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   margin-bottom: var(--spacing-6, 24px);
+  margin-top: var(--spacing-4, 16px);  // Space from previous elements
   border-radius: var(--radius-lg, 12px);
   border: 1px solid var(--border-color);
   background: transparent !important;  // Force transparent, no gradients
@@ -162,10 +163,14 @@
     .streamer-actions,
     .actions-group {
       display: flex;
-      gap: var(--spacing-2, 8px);
+      gap: var(--spacing-3, 12px);  // More spacing between buttons
       flex-wrap: wrap;
       align-items: center;
       justify-content: flex-end;
+      
+      button {
+        min-width: 80px;  // Consistent button width
+      }
     }
   }
   
@@ -263,6 +268,12 @@
           [data-theme="light"] & {
             background: white;
           }
+        }
+        
+        // Last card: Keep visible border and margin
+        &:last-child {
+          margin-bottom: var(--spacing-4, 16px);  // Keep margin for last card
+          border: 1px solid var(--border-color);  // Keep border visible
         }
         
         // Hover state in mobile cards
