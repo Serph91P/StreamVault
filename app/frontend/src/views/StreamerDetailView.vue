@@ -292,14 +292,11 @@ import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
 
-const route = useRoute()
-const router = useRouter()
-const toast = useToast()
-
-// URL params
+// Router & URL params
 const route = useRoute()
 const router = useRouter()
 const streamerId = computed(() => route.params.id as string)
+const toast = useToast()
 
 // Navigation
 const goBackToStreamers = () => {
