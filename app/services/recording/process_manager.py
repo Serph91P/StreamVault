@@ -193,7 +193,9 @@ class ProcessManager:
                             'http': best_proxy_url,
                             'https': best_proxy_url
                         }
-                        logger.info(f"✅ Using proxy for recording: {best_proxy_url[:50]}...")
+                        # SECURITY: Sanitize proxy URL to hide credentials - CWE-532
+                        from app.utils.security import sanitize_proxy_url_for_logging
+                        logger.info(f"✅ Using proxy for recording: {sanitize_proxy_url_for_logging(best_proxy_url)}")
                     else:
                         # No healthy proxies available
                         fallback_enabled = (

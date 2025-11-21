@@ -358,11 +358,12 @@ def log_security_event(
         user_id: Associated user ID (optional)
         ip_address: Source IP address (optional)
     """
+    from datetime import timezone
     log_entry = {
         "event_type": event_type,
         "user_id": user_id,
         "ip_address": ip_address,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "severity": severity,
         **details
     }
@@ -594,6 +595,57 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
     # URL is safe - return it
     logger.debug(f"🔒 SECURITY: Redirect URL validated: {url}")
     return url
+
+
+def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
+    """
+    Sanitize proxy URL for logging to prevent credential exposure
+    
+    This function prevents logging of proxy credentials (CWE-532) by redacting
+    username and password from proxy URLs while preserving host information.
+    
+    Args:
+        proxy_url: Proxy URL that may contain credentials
+        
+    Returns:
+        str: Sanitized proxy URL safe for logging
+        
+    Example:
+        >>> sanitize_proxy_url_for_logging("http://user:pass@proxy.com:8080")
+        "http://[REDACTED]:[REDACTED]@proxy.com:8080"
+        
+        >>> sanitize_proxy_url_for_logging("http://proxy.com:8080")
+        "http://proxy.com:8080"
+    """
+    if not proxy_url or not isinstance(proxy_url, str):
+        return "[INVALID_URL]"
+    
+    try:
+        from urllib.parse import urlparse, urlunparse
+        
+        parsed = urlparse(proxy_url)
+        
+        # If credentials are present, redact them
+        if parsed.username or parsed.password:
+            # Replace credentials with [REDACTED]
+            netloc = parsed.netloc
+            if '@' in netloc:
+                # Extract host part after @
+                host_part = netloc.split('@', 1)[1]
+                # Reconstruct with redacted credentials
+                netloc = f"[REDACTED]:[REDACTED]@{host_part}"
+            
+            # Rebuild URL with redacted credentials
+            sanitized_parsed = parsed._replace(netloc=netloc)
+            return urlunparse(sanitized_parsed)
+        else:
+            # No credentials, safe to log as-is
+            return proxy_url
+            
+    except Exception as e:
+        # If parsing fails, redact the entire URL to be safe
+        logger.warning(f"Failed to parse proxy URL for sanitization: {e}")
+        return "[REDACTED_PROXY_URL]"
 
 
 def sanitize_command_for_logging(cmd: list) -> str:

@@ -101,7 +101,8 @@ async def get_followed_channels(
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
 ):
     """Get channels that the authenticated user follows"""
-    logger.debug(f"Fetching followed channels with access token: {access_token[:10]}...")
+    # SECURITY: Do not log access tokens (even partial) - CWE-532
+    logger.debug("Fetching followed channels with OAuth token")
     
     followed_channels = await oauth_service.get_user_followed_channels(access_token)
     
