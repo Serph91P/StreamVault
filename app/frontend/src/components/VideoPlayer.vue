@@ -1398,7 +1398,7 @@ watch(() => props.chapters, (newChapters) => {
   gap: var(--spacing-3);  /* 12px */
   
   @include m.respond-below('md') {  // < 768px (mobile)
-    gap: var(--spacing-4);  /* 16px - More spacing on mobile */
+    gap: var(--spacing-2);  /* Reduce gap on mobile to prevent overflow */
   }
 }
 
@@ -1409,7 +1409,7 @@ watch(() => props.chapters, (newChapters) => {
   gap: var(--spacing-2);  /* 8px */
   
   @include m.respond-below('md') {  // < 768px (mobile)
-    gap: var(--spacing-3);  /* 12px */
+    gap: var(--spacing-2);  /* Keep consistent spacing */
   }
 }
 
@@ -1567,13 +1567,13 @@ watch(() => props.chapters, (newChapters) => {
 /* Mobile Optimizations */
 @include m.respond-below('md') {  // < 768px
   .video-controls-overlay {
-    padding: var(--spacing-2) var(--spacing-3);  /* Reduce vertical padding to prevent overflow */
-    padding-bottom: var(--spacing-3);  /* Keep some space at bottom */
+    padding: var(--spacing-2);  /* Reduce all padding to prevent overflow */
+    padding-bottom: env(safe-area-inset-bottom, var(--spacing-2));  /* Account for safe area */
   }
   
   .progress-container {
     /* Extended vertical tap area for easier scrubbing */
-    padding: var(--spacing-3) 0;  /* Reduce from 16px to 12px vertical */
+    padding: var(--spacing-2) 0;  /* Reduce vertical padding */
     margin-bottom: var(--spacing-2);  /* Reduce spacing */
   }
   
@@ -1581,11 +1581,24 @@ watch(() => props.chapters, (newChapters) => {
   .controls-bottom {
     flex-wrap: nowrap;  /* Prevent wrapping */
     overflow-x: visible;  /* Allow horizontal visibility */
+    min-width: 0;  /* Allow flex items to shrink */
+  }
+  
+  .controls-left,
+  .controls-right {
+    min-width: 0;  /* Allow flex items to shrink */
+    flex-shrink: 1;  /* Allow shrinking when needed */
+  }
+  
+  /* Time display can shrink if needed */
+  .time-display {
+    flex-shrink: 2;  /* Can shrink more than buttons */
+    min-width: 0;
   }
   
   /* Hide chapter toggle button on very small screens to save space */
   @media (max-width: 400px) {
-    .chapter-toggle-button {
+    .chapters-button {
       display: none;  /* Hide on tiny screens - users can see chapters in extension */
     }
   }
