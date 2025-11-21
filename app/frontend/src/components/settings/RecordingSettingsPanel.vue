@@ -15,7 +15,13 @@
           @click="activeTab = tab.id"
           :class="['tab-button', { active: activeTab === tab.id }]"
         >
-          {{ tab.icon }} {{ tab.label }}
+          <svg v-if="tab.id === 'recording'" class="tab-icon">
+            <use href="#icon-video" />
+          </svg>
+          <svg v-else-if="tab.id === 'storage'" class="tab-icon">
+            <use href="#icon-server" />
+          </svg>
+          {{ tab.label }}
         </button>
       </div>
 
@@ -24,7 +30,12 @@
         <div v-if="activeTab === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
-            <h4 class="section-title">📹 Basic Recording Settings</h4>
+            <div class="section-header">
+              <svg class="section-icon">
+                <use href="#icon-video" />
+              </svg>
+              <h4 class="section-title">Basic Recording Settings</h4>
+            </div>
             
             <div class="form-group">
               <label>
@@ -105,7 +116,12 @@
             </div>
 
             <!-- Codec Preferences (H.265/AV1 Support - Streamlink 8.0.0+) -->
-            <h4 class="section-title" style="margin-top: 2rem;">🎨 Advanced Codec Settings</h4>
+            <div class="section-header" style="margin-top: 2rem;">
+              <svg class="section-icon">
+                <use href="#icon-settings" />
+              </svg>
+              <h4 class="section-title">Advanced Codec Settings</h4>
+            </div>
             <div class="form-group">
               <label>Supported Codecs:</label>
               <select v-model="data.supported_codecs" class="form-control">
@@ -131,8 +147,13 @@
 
         <!-- Storage Tab -->
         <div v-if="activeTab === 'storage'" class="tab-panel">
-          <div class="panel-block status-border status-border-primary">
-            <h4 class="section-title">🗂️ Storage & Cleanup Management</h4>
+          <div class="panel-block">
+            <div class="section-header">
+              <svg class="section-icon">
+                <use href="#icon-server" />
+              </svg>
+              <h4 class="section-title">Storage & Cleanup Management</h4>
+            </div>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
             </p>
@@ -315,8 +336,8 @@ const emits = defineEmits<{
 // Tab management
 const activeTab = ref('recording');
 const tabs = [
-  { id: 'recording', label: 'Recording', icon: '📹' },
-  { id: 'storage', label: 'Storage', icon: '🗂️' }
+  { id: 'recording', label: 'Recording' },
+  { id: 'storage', label: 'Storage' }
 ];
 
 const { isLoading, error } = useRecordingSettings();
@@ -535,11 +556,140 @@ const handleStreamerPolicySaved = (policy: any) => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 
-// ============================================================================
-// RECORDING SETTINGS PANEL - Unified Design
-// Most styles inherited from global _settings-panels.scss
-// Only component-specific overrides below
-// ============================================================================
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-7, 28px);
+}
+
+.panel-block {
+  padding: var(--spacing-6, 24px);
+  border-radius: var(--radius-xl, 32px);
+  background: transparent;
+}
+
+/* Section Headers with Icons */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  margin-bottom: var(--spacing-5, 20px);
+}
+
+.section-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+.section-title {
+  font-size: var(--text-lg, 18px);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-description {
+  font-size: var(--text-sm, 14px);
+  color: var(--text-secondary);
+  margin: var(--spacing-2, 8px) 0 var(--spacing-4, 16px) 0;
+  line-height: 1.6;
+}
+
+/* Tab Navigation Styles */
+.tab-navigation {
+  display: flex;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: var(--spacing-8, 32px);
+  gap: var(--spacing-2, 8px);
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  background: transparent;
+  border: none;
+  padding: var(--spacing-4) var(--spacing-6);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: var(--text-base, 16px);
+  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
+  transition: all 0.2s ease;
+  border-bottom: 3px solid transparent;
+  position: relative;
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
+
+.tab-button:hover:not(.active) {
+  background-color: rgba(var(--primary-color-rgb), 0.05);
+  color: var(--text-primary);
+}
+
+.tab-button.active {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  
+  .tab-icon {
+    color: var(--primary-color);
+  }
+}
+
+.tab-content {
+  min-height: 300px;
+}
+
+.tab-panel {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
+
+.settings-form,
+.active-recordings,
+.streamer-settings {
+  margin-bottom: 0;
+}
+
+.form-group {
+  margin-bottom: var(--spacing-lg, 20px);
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: var(--spacing-sm, 8px);
+  font-weight: 500;
+}
+
+/* Ensure form controls are properly styled */
+.form-control {
+  width: 100%;
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  background-color: var(--background-dark, #18181b);
+  color: var(--text-primary, #f1f1f3);
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
+}
+
+/* Error state for form controls */
+.form-control.error {
+  border-color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
 
 // ============================================================================
 // CODEC SELECTION - Component specific

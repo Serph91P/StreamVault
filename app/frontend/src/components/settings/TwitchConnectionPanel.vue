@@ -479,9 +479,55 @@ function formatExpiration(expiresAt: string): string {
   }
 }
 
-// ============================================================================
-// QUALITY BENEFITS
-// ============================================================================
+// Steps Container
+.steps-container {
+  padding: var(--spacing-4);
+  background: transparent;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.steps-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-4) 0;
+}
+
+.steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: white;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
 
 .quality-benefits {
   display: grid;
@@ -513,9 +559,22 @@ function formatExpiration(expiresAt: string): string {
   }
 }
 
-// ============================================================================
-// INFO BOXES
-// ============================================================================
+.code-block {
+  position: relative;
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: transparent;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+
+  code {
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+}
 
 .info-box {
   padding: v.$spacing-4;
@@ -533,18 +592,71 @@ function formatExpiration(expiresAt: string): string {
     background: var(--success-bg-color);
     border-color: var(--success-border-color);
   }
-  
-  .info-title {
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-    margin-bottom: v.$spacing-2;
-    display: flex;
-    align-items: center;
-    gap: v.$spacing-2;
-    
-    .info-icon {
-      font-size: v.$text-lg;
-    }
+}
+
+// Benefits Section
+.benefits-section {
+  padding: var(--spacing-4);
+  background: transparent;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.benefits-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-3);
+}
+
+.benefits-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.benefit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.benefit-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+// Action Buttons
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-5);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid;
+
+  .icon {
+    width: 16px;
+    height: 16px;
   }
   
   .info-content {

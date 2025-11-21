@@ -310,9 +310,7 @@ $duration-400: 400ms;  // Missing in original list
   // ===== PRIMARY BRAND COLORS =====
   --primary-50: #{$primary-50};
   --primary-color: #{$primary-500};
-  --primary-500: #{$primary-500};
-  --primary-600: #{$primary-600};
-  --primary-700: #{$primary-700};
+  --color-primary: #{$primary-500};         // Alias for compatibility
   --primary-color-light: #{$primary-400};
   --primary-color-dark: #{$primary-600};
   --primary-color-muted: #{rgba($primary-500, 0.1)};
@@ -329,10 +327,15 @@ $duration-400: 400ms;  // Missing in original list
   --accent-color-rgb: 139, 92, 246;
   --accent-500-rgb: 139, 92, 246;
   
-  // ===== SECONDARY COLORS =====
-  --secondary-color: #{$slate-600};
-  --secondary-color-hover: #{$slate-700};
-  --secondary-hover: #{$slate-700};
+  // Gradients
+  --gradient-primary: linear-gradient(135deg, #{$primary-500} 0%, #{$primary-600} 100%);
+  --primary-bg: #{rgba($primary-500, 0.1)};  // Primary color background
+  
+  // Semantic Colors
+  --danger-color: #{$danger-500};
+  --success-color: #{$success-500};
+  --warning-color: #{$warning-500};
+  --info-color: #{$info-500};
   
   // ===== SEMANTIC COLORS =====
   // Success (Green)
@@ -389,22 +392,9 @@ $duration-400: 400ms;  // Missing in original list
   --background-dark: #{$slate-900};
   --background-darker: #{$slate-950};
   --background-card: #{$slate-800};
-  --background-hover: #{$slate-700};
-  --background-primary: #{$slate-900};
-  --background-secondary: #{$slate-800};
-  --background-tertiary: #{$slate-700};
-  --bg-primary: #{$slate-900};
-  --bg-secondary: #{$slate-800};
-  --input-bg: #{$slate-800};
-  
-  // Background RGB values for rgba() usage
-  --background-card-rgb: 30, 41, 59;        // Slate-800
-  --background-darker-rgb: 2, 6, 23;        // Slate-950
-  
-  // Vue/Vite legacy background colors
-  --color-background: #{$slate-900};
-  --color-background-soft: #{$slate-800};
-  --color-background-mute: #{$slate-950};
+  --background-primary: #{$slate-950};      // Darkest background
+  --background-secondary: #{$slate-800};    // Card background
+  --background-tertiary: #{$slate-700};     // Lighter background
   
   // ===== TEXT COLORS (Dark Mode) =====
   --text-primary: #{$slate-50};
@@ -448,15 +438,6 @@ $duration-400: 400ms;  // Missing in original list
   --font-mono: #{$font-mono};
   
   // Font Sizes
-  --text-xs: #{$text-xs};           // 12px
-  --text-sm: #{$text-sm};           // 14px
-  --text-base: #{$text-base};       // 16px
-  --text-lg: #{$text-lg};           // 18px
-  --text-xl: #{$text-xl};           // 20px
-  --text-2xl: #{$text-2xl};         // 24px
-  --text-3xl: #{$text-3xl};         // 30px
-  --text-4xl: #{$text-4xl};         // 36px
-  --text-5xl: #{$text-5xl};         // 48px
   --font-size-xs: #{$text-xs};
   --font-size-sm: #{$text-sm};
   --font-size-base: #{$text-base};
@@ -464,9 +445,25 @@ $duration-400: 400ms;  // Missing in original list
   --font-size-xl: #{$text-xl};
   --font-size-2xl: #{$text-2xl};
   --font-size-3xl: #{$text-3xl};
-  --font-size-4xl: #{$text-4xl};
   
-  // Line Heights
+  --text-xs: #{$text-xs};
+  --text-sm: #{$text-sm};
+  --text-base: #{$text-base};
+  --text-lg: #{$text-lg};
+  --text-xl: #{$text-xl};
+  --text-2xl: #{$text-2xl};
+  --text-3xl: #{$text-3xl};
+  --text-4xl: #{$text-4xl};
+  --text-5xl: #{$text-5xl};
+  
+  // Font Weights
+  --font-weight-light: #{$font-light};
+  --font-weight-normal: #{$font-normal};
+  --font-weight-medium: #{$font-medium};
+  --font-weight-semibold: #{$font-semibold};
+  --font-weight-bold: #{$font-bold};
+  
+  --leading-none: #{$leading-none};
   --leading-tight: #{$leading-tight};
   --leading-snug: #{$leading-snug};
   --leading-normal: #{$leading-normal};
