@@ -274,11 +274,11 @@
   @extend .content-view;
 
   .add-streamer-container {
-    background: v.$background-card;
+    background: var(--background-card);  // Use CSS custom property for theme support
     border-radius: v.$border-radius-lg;
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
-    border: 1px solid v.$border-color;
+    border: 1px solid var(--border-color);  // Use CSS custom property for theme support
     max-width: 800px;
     margin: 0 auto;
     transition: box-shadow 0.2s v.$vue-ease;
