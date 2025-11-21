@@ -212,29 +212,57 @@
             <thead>
               <tr>
                 <th>Streamer</th>
-                <th title="Enable/disable recording for this streamer">
-                  Record
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Record
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Enable/disable recording for this streamer</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Select recording quality (defaults to global setting if empty)">
-                  Quality
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Quality
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Select recording quality (defaults to global setting if empty)</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Optional custom filename template for this streamer">
-                  Custom Filename
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Custom Filename
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Optional custom filename template for this streamer</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
-                <th title="Test, stop, or clean up recordings">
-                  Actions
-                  <svg class="info-icon">
-                    <use href="#icon-info" />
-                  </svg>
+                <th>
+                  <span class="th-content">
+                    Actions
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon">
+                        <use href="#icon-info" />
+                      </svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Test, stop, or clean up recordings</span>
+                      </span>
+                    </span>
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -908,6 +936,80 @@ const handleStreamerPolicySaved = (policy: any) => {
       display: block;
       word-break: break-all;
       margin-top: v.$spacing-1;
+    }
+  }
+}
+
+// ============================================================================
+// TABLE HEADER TOOLTIPS
+// ============================================================================
+
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.th-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  
+  &:hover .tooltip-wrapper {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  
+  .tooltip-wrapper {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all v.$duration-200 v.$ease-out;
+    pointer-events: none;
+    white-space: nowrap;
+    
+    .tooltip {
+      display: block;
+      padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+      background: var(--background-darker);
+      color: var(--text-primary);
+      font-size: var(--text-xs, 12px);
+      border-radius: var(--radius, 8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      font-weight: normal;
+      text-transform: none;
+      letter-spacing: normal;
+      max-width: 250px;
+      white-space: normal;
+      line-height: 1.4;
+      
+      // Light mode: Better contrast
+      [data-theme="light"] & {
+        background: var(--background-card);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-color: var(--border-color);
+      }
+      
+      // Arrow
+      &::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-bottom-color: var(--background-darker);
+        
+        [data-theme="light"] & {
+          border-bottom-color: var(--background-card);
+        }
+      }
     }
   }
 }

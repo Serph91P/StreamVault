@@ -42,9 +42,9 @@
   thead {
     background: rgba(0, 0, 0, 0.2);
     
-    // Light mode: Different background
+    // Light mode: Light subtle background
     [data-theme="light"] & {
-      background: var(--background-darker);
+      background: rgba(0, 0, 0, 0.03);
     }
     
     tr {
@@ -371,6 +371,36 @@
   letter-spacing: normal;
   display: block;
   white-space: normal;
+}
+
+// Info icons in table headers with tooltip
+.data-table thead th {
+  position: relative;
+  
+  .info-icon {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-left: var(--spacing-1, 4px);
+    vertical-align: middle;
+    fill: var(--text-secondary);
+    cursor: help;
+    transition: fill 150ms ease;
+    
+    // Light mode: Better visibility
+    [data-theme="light"] & {
+      fill: var(--text-primary);
+      opacity: 0.6;
+    }
+    
+    &:hover {
+      fill: var(--primary-color);
+      
+      [data-theme="light"] & {
+        opacity: 1;
+      }
+    }
+  }
 }
 
 // ============================================================================

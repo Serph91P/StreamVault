@@ -480,7 +480,7 @@ input[type="radio"] {
   }
 }
 
-// Input with tooltip - improved for mobile
+// Input with tooltip - improved for mobile (Theme-aware)
 .input-with-tooltip {
   position: relative;
   width: 100%;
@@ -491,19 +491,30 @@ input[type="radio"] {
     left: 0;
     z-index: map.get(v.$z-layers, 'overlay');
     margin-top: v.$spacing-sm;
-    background: v.$background-darker;
-    border: 1px solid v.$border-color;
+    /* Theme-aware background: Dark mode = darker, Light mode = card */
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
     border-radius: v.$border-radius;
     padding: v.$spacing-sm;
     max-width: 100%;
-    box-shadow: v.$shadow-md;
+    box-shadow: v.$shadow-lg; /* Enhanced shadow for better visibility in light mode */
+    /* Optional: Subtle backdrop blur for modern effect */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       max-width: 300px;
     }
 
+    .tooltip {
+      /* Ensure text color is theme-aware */
+      color: var(--text-primary);
+      font-size: var(--text-sm, 14px);
+      line-height: 1.6;
+    }
+
     .tooltip-link {
-      color: v.$primary-color;
+      color: var(--primary-color);
       text-decoration: none;
       cursor: pointer;
       display: inline-block;
@@ -513,8 +524,8 @@ input[type="radio"] {
 
       &:hover {
         text-decoration: none;
-        color: v.$primary-color-light;
-        background: rgba(v.$primary-color, 0.1);
+        color: var(--primary-color);
+        background: var(--primary-bg); /* Use theme variable */
       }
     }
   }

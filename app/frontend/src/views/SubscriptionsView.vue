@@ -23,8 +23,8 @@
         </button>
         <button
           @click="resubscribeAll"
-          :disabled="loadingResubscribe || !subscriptions.length"
-          class="btn-action btn-primary"
+          :disabled="loadingResubscribe"
+          class="btn-action btn-secondary"
           v-ripple
         >
           <svg v-if="!loadingResubscribe" class="icon">
@@ -107,7 +107,7 @@
                   v-ripple
                 >
                   <svg class="icon">
-                    <use href="#icon-trash-2" />
+                    <use href="#icon-trash" />
                   </svg>
                 </button>
               </td>

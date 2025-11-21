@@ -306,134 +306,295 @@ onMounted(() => {
 @use '@/styles/mixins' as m;
 
 // ============================================================================
-// FAVORITES SETTINGS PANEL - Unified Design
-// Most styles inherited from global _settings-panels.scss
+// FAVORITES SETTINGS PANEL - Game Categories with Twitch Box Art
 // ============================================================================
 
 // ============================================================================
-// FAVORITES GRID
+// FILTER SECTION
 // ============================================================================
 
-.favorites-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+.filter-container {
+  margin-bottom: v.$spacing-4;
+}
+
+.filter-row {
+  display: flex;
   gap: v.$spacing-3;
+  align-items: center;
+  flex-wrap: wrap;
   
   @include m.respond-below('sm') {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
-.favorite-item {
-  position: relative;
-  padding: v.$spacing-3;
-  background: var(--background-card);
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
-  transition: v.$transition-all;
-  cursor: pointer;
-  text-align: center;
+.search-box {
+  flex: 1;
+  min-width: 200px;
   
-  &:hover {
-    border-color: var(--primary-color);
-    background: var(--background-hover);
-    transform: translateY(-2px);
-  }
-  
-  .remove-btn {
-    position: absolute;
-    top: v.$spacing-1;
-    right: v.$spacing-1;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    background: var(--danger-color);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    opacity: 0;
-    transition: v.$transition-all;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: v.$text-xs;
-    
-    &:hover {
-      background: var(--danger-600);
-      transform: scale(1.1);
-    }
-  }
-  
-  &:hover .remove-btn {
-    opacity: 1;
-  }
-  
-  .favorite-icon {
-    font-size: v.$text-3xl;
-    margin-bottom: v.$spacing-2;
-  }
-  
-  .favorite-name {
-    font-weight: v.$font-medium;
-    color: var(--text-primary);
-    font-size: v.$text-sm;
-    word-break: break-word;
+  @include m.respond-below('sm') {
+    width: 100%;
   }
 }
 
-// ============================================================================
-// ADD FAVORITE SECTION
-// ============================================================================
-
-.add-favorite-section {
-  margin-top: v.$spacing-6;
-  padding: v.$spacing-4;
-  background: var(--background-hover);
-  border-radius: var(--radius-md);
+.filter-buttons {
+  display: flex;
+  gap: v.$spacing-2;
   
-  .add-favorite-form {
-    display: flex;
-    gap: v.$spacing-3;
-    align-items: flex-end;
+  @include m.respond-below('sm') {
+    width: 100%;
     
-    @include m.respond-below('sm') {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    
-    .form-group {
+    .btn {
       flex: 1;
     }
   }
 }
 
+.button-icon {
+  margin-right: v.$spacing-2;
+}
+
 // ============================================================================
-// EMPTY STATE
+// CATEGORIES GRID - Twitch Box Art Format (285x380 aspect ratio)
 // ============================================================================
 
-.empty-favorites {
+.categories-grid {
+  margin-top: v.$spacing-4;
+}
+
+.category-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: v.$spacing-4;
+  
+  @include m.respond-below('lg') {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+  
+  @include m.respond-below('md') {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: v.$spacing-3;
+  }
+  
+  @include m.respond-below('sm') {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: v.$spacing-2;
+  }
+}
+
+.category-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all v.$duration-200 v.$ease-out;
+  display: flex;
+  flex-direction: column;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    border-color: var(--primary-color);
+    
+    [data-theme="light"] & {
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  &.is-favorite {
+    border-color: var(--warning-color);
+    border-width: 2px;
+  }
+}
+
+// ============================================================================
+// CATEGORY IMAGE - Twitch Box Art (3:4 aspect ratio)
+// ============================================================================
+
+.category-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4; // Twitch box art ratio (285x380)
+  background: var(--background-darker);
+  overflow: hidden;
+}
+
+.category-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.category-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--background-darker) 0%, var(--background-card) 100%);
+  
+  .category-icon {
+    font-size: 3rem;
+    color: var(--text-secondary);
+    opacity: 0.5;
+  }
+}
+
+// ============================================================================
+// CATEGORY CONTENT - Title, Meta, Actions
+// ============================================================================
+
+.category-content {
+  padding: v.$spacing-3;
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-2;
+  flex: 1;
+}
+
+.category-name {
+  font-size: v.$text-sm;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+  
+  // Clamp to 2 lines
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 2.6em; // Reserve space for 2 lines
+}
+
+.category-meta {
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-1;
+  font-size: v.$text-xs;
+  color: var(--text-secondary);
+}
+
+.category-date {
+  display: block;
+}
+
+// ============================================================================
+// CATEGORY ACTIONS - Stats + Favorite Button
+// ============================================================================
+
+.category-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: v.$spacing-2;
+  border-top: 1px solid var(--border-color);
+}
+
+.category-stats {
+  font-size: v.$text-xs;
+  color: var(--text-secondary);
+  font-weight: v.$font-medium;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: v.$spacing-1;
+  padding: v.$spacing-1 v.$spacing-2;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: v.$text-xs;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  
+  &:hover {
+    background: var(--background-hover);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+    transform: scale(1.05);
+  }
+  
+  &.is-favorite {
+    background: rgba(255, 165, 0, 0.1);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+    
+    &:hover {
+      background: rgba(255, 165, 0, 0.2);
+    }
+  }
+  
+  .star-icon {
+    flex-shrink: 0;
+  }
+  
+  .button-label {
+    @include m.respond-below('sm') {
+      display: none; // Hide text on mobile, keep icon only
+    }
+  }
+}
+
+// ============================================================================
+// LOADING & EMPTY STATES
+// ============================================================================
+
+.loading,
+.no-categories {
   text-align: center;
   padding: v.$spacing-8 v.$spacing-4;
   
-  .empty-icon {
-    font-size: 4rem;
-    color: var(--text-secondary);
-    margin-bottom: v.$spacing-4;
-    opacity: 0.5;
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto v.$spacing-4;
   }
   
-  .empty-title {
-    font-size: v.$text-xl;
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-    margin-bottom: v.$spacing-2;
-  }
-  
-  .empty-description {
+  p {
     color: var(--text-secondary);
     font-size: v.$text-base;
+    line-height: 1.6;
   }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ============================================================================
+// TRANSITION ANIMATIONS
+// ============================================================================
+
+.category-cards-enter-active,
+.category-cards-leave-active {
+  transition: all v.$duration-300 v.$ease-out;
+}
+
+.category-cards-enter-from {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.category-cards-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.category-cards-move {
+  transition: transform v.$duration-300 v.$ease-out;
 }
 
 // ============================================================================
