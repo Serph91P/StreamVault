@@ -37,7 +37,9 @@
   min-width: 600px;
   border-collapse: collapse;
   table-layout: auto;
-  background: transparent;
+  background: transparent !important;       // Force transparent
+  background-image: none !important;        // Remove gradients
+  background-size: auto !important;         // Reset sizing
   
   // ============================================================================
   // TABLE HEADER

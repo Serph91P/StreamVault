@@ -190,14 +190,14 @@ const statusClass = computed(() => ({
 }))
 
 const statusTitle = computed(() => {
-  if (!connectionStatus.value.connected) return 'Not Connected'
+  if (!connectionStatus.value.connected) return 'Not Connected (Optional)'
   if (!connectionStatus.value.valid) return 'Connected (Token Expiring)'
   return 'Connected to Twitch'
 })
 
 const statusDescription = computed(() => {
   if (!connectionStatus.value.connected) {
-    return 'Connect your Twitch account for better quality and features'
+    return 'Browser token from environment is used for recordings. OAuth optional for follower sync.'
   }
   if (!connectionStatus.value.valid) {
     return 'Your token will be automatically refreshed on next recording'

@@ -365,15 +365,15 @@ onMounted(() => {
 
 .category-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));  // Smaller minmax for more columns
   gap: v.$spacing-4;
   
   @include m.respond-below('lg') {  // < 1024px
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
   
   @include m.respond-below('md') {  // < 768px (tablet)
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: v.$spacing-3;
   }
   
