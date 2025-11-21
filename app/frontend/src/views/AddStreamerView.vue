@@ -22,10 +22,10 @@
       </div>
     </div>
 
-    <!-- Content -->
-    <div class="add-streamer-container">
+    <!-- Content in Single GlassCard -->
+    <GlassCard class="content-card">
       <!-- Manual Add Section -->
-      <GlassCard class="add-section">
+      <div class="add-section">
         <div class="section-header">
           <div class="section-icon-wrapper">
             <svg class="section-icon">
@@ -41,7 +41,7 @@
         </div>
 
         <AddStreamerForm @streamer-added="handleStreamerAdded" />
-      </GlassCard>
+      </div>
 
       <!-- Divider -->
       <div class="divider">
@@ -49,7 +49,7 @@
       </div>
 
       <!-- Import Section -->
-      <GlassCard class="import-section">
+      <div class="import-section">
         <div class="section-header">
           <div class="section-icon-wrapper import">
             <svg class="section-icon">
@@ -65,7 +65,7 @@
         </div>
 
         <TwitchImportForm @streamers-imported="handleStreamersImported" />
-      </GlassCard>
+      </div>
 
       <!-- Info Banner -->
       <div class="info-banner">
@@ -78,7 +78,7 @@
           </p>
         </div>
       </div>
-    </div>
+    </GlassCard>
   </div>
 </template>
 
@@ -108,9 +108,7 @@ const handleStreamersImported = () => {
 /* Responsive - Use SCSS mixins for breakpoints */
 
 .add-streamer-view {
-  padding: var(--spacing-6) var(--spacing-6) var(--spacing-8);
-  max-width: 800px;
-  margin: 0 auto;
+  padding: var(--spacing-6);
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -126,6 +124,9 @@ const handleStreamersImported = () => {
 // Header
 .view-header {
   margin-bottom: var(--spacing-8);
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .btn-back {
@@ -185,16 +186,10 @@ const handleStreamersImported = () => {
   line-height: 1.6;
 }
 
-// Container
-.add-streamer-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-6);
-}
-
-// Sections
-.add-section,
-.import-section {
+// Main Content Card
+.content-card {
+  max-width: 1200px;
+  margin: 0 auto;
   padding: var(--spacing-8);
   animation: slideUp 0.4s ease-out;
 }
@@ -210,8 +205,10 @@ const handleStreamersImported = () => {
   }
 }
 
+// Sections
+.add-section,
 .import-section {
-  animation-delay: 0.1s;
+  margin-bottom: var(--spacing-8);
 }
 
 .section-header {
@@ -265,7 +262,7 @@ const handleStreamersImported = () => {
 .divider {
   position: relative;
   text-align: center;
-  margin: var(--spacing-4) 0;
+  margin: var(--spacing-8) 0;
 
   &::before,
   &::after {
@@ -306,7 +303,7 @@ const handleStreamersImported = () => {
   background: rgba(var(--color-primary-rgb), 0.05);
   border: 1px solid rgba(var(--color-primary-rgb), 0.2);
   border-radius: var(--radius-xl);
-  animation: fadeIn 0.4s ease-out 0.2s both;
+  margin-top: var(--spacing-8);
 }
 
 .info-icon {
@@ -329,9 +326,13 @@ const handleStreamersImported = () => {
 }
 
 // Responsive
-@include m.respond-below('sm') {  // < 640px
+@include m.respond-below('md') {  // < 768px
   .add-streamer-view {
     padding: var(--spacing-4);
+  }
+
+  .content-card {
+    padding: var(--spacing-6);
   }
 
   .page-title {
@@ -341,11 +342,6 @@ const handleStreamersImported = () => {
   .icon-title {
     width: 24px;
     height: 24px;
-  }
-
-  .add-section,
-  .import-section {
-    padding: var(--spacing-6);
   }
 
   .section-header {
