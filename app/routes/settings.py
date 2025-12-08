@@ -308,10 +308,10 @@ async def update_settings(settings_data: GlobalSettingsSchema):
                 
                 # Check if settings that affect Streamlink were changed
                 proxy_changed = (
-                    settings_update.http_proxy != settings.http_proxy or
-                    settings_update.https_proxy != settings.https_proxy
+                    settings_data.http_proxy != settings.http_proxy or
+                    settings_data.https_proxy != settings.https_proxy
                 )
-                codec_changed = hasattr(settings_update, 'supported_codecs') and settings_update.supported_codecs != settings.supported_codecs
+                codec_changed = hasattr(settings_data, 'supported_codecs') and settings_data.supported_codecs != settings.supported_codecs
                 
                 if proxy_changed or codec_changed:
                     logger.info("🔄 Proxy or codec settings changed - regenerating Streamlink config...")
