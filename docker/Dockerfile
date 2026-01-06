@@ -1,3 +1,8 @@
+# =============================================================================
+# StreamVault Multi-Stage Dockerfile
+# Optimized for security, size, and build performance
+# =============================================================================
+
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
 FROM python:3.14-alpine AS base
 
@@ -8,10 +13,10 @@ ARG BUILD_DATE
 ARG COMMIT_SHA=unknown
 
 # Expose build args as environment variables for runtime access
-ENV STREAMVAULT_VERSION=${VERSION}
-ENV STREAMVAULT_BRANCH=${BRANCH}
-ENV STREAMVAULT_BUILD_DATE=${BUILD_DATE}
-ENV STREAMVAULT_COMMIT_SHA=${COMMIT_SHA}
+ENV STREAMVAULT_VERSION=${VERSION} \
+    STREAMVAULT_BRANCH=${BRANCH} \
+    STREAMVAULT_BUILD_DATE=${BUILD_DATE} \
+    STREAMVAULT_COMMIT_SHA=${COMMIT_SHA}
 
 # Install system dependencies with security updates in a single layer
 # Grouped by purpose for better readability and caching
@@ -50,7 +55,9 @@ RUN addgroup -g 1000 appuser && \
 
 WORKDIR /app
 
-# Stage for Python dependencies (cached separately for optimal layer reuse)
+# =============================================================================
+# Stage 1: Python Dependencies (cached separately for optimal layer reuse)
+# =============================================================================
 FROM base AS python-deps
 
 # Copy only requirements.txt first for maximum cache efficiency
@@ -62,15 +69,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir streamlink==8.0.0
 
-# Stage for frontend (only rebuilt when frontend changes)
+# =============================================================================
+# Stage 2: Frontend Build (only rebuilt when frontend changes)
+# =============================================================================
 FROM base AS frontend-builder
 WORKDIR /app/frontend
 
 # Copy package files first for npm cache optimization
 COPY app/frontend/package*.json ./
 
-# Install npm dependencies with cache mounting (no global npm update needed)
-# Use npm ci for faster, reproducible installs
+# Install npm dependencies with cache mounting
 RUN --mount=type=cache,target=/root/.npm \
     if [ ! -d "../frontend/dist" ]; then \
         echo "No pre-built frontend found, installing npm dependencies..." && \
@@ -102,8 +110,15 @@ RUN if [ "$BUILD_ENV" = "production" ]; then \
         mkdir -p dist; \
     fi
 
-# Final stage - combine everything into production image
+# =============================================================================
+# Stage 3: Final Production Image
+# =============================================================================
 FROM python-deps AS final
+
+# Set production environment
+ENV NODE_ENV=production \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
@@ -115,12 +130,13 @@ COPY app/ ./app/
 COPY migrations/ ./migrations/
 
 # Copy and prepare entrypoint script (fix Windows CRLF line endings)
-COPY entrypoint.sh /app/entrypoint.sh
+COPY --chown=appuser:appuser entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/\r$//' /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
-# Create all necessary directories with correct permissions
+# Create all necessary directories with correct permissions in a single layer
 RUN mkdir -p \
+    /app/data \
     /recordings \
     /app/logs/streamlink \
     /app/logs/ffmpeg \
@@ -131,13 +147,47 @@ RUN mkdir -p \
     chmod -R 775 /app/logs && \
     chmod -R 775 /app/config
 
+# Remove build tools not needed at runtime (reduces attack surface)
+# Note: Keeping gcc/g++ because some Python packages need them for runtime extensions
+# If you don't need them, uncomment:
+# RUN apk del gcc g++ python3-dev musl-dev cmake
+
 # Switch to non-root user for security
 USER appuser
 
+# Labels for image metadata (OCI standard)
+LABEL org.opencontainers.image.title="StreamVault" \
+      org.opencontainers.image.description="Self-hosted Twitch stream recorder" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/your-repo/streamvault" \
+      org.opencontainers.image.created="${BUILD_DATE}"
+
 # Health check for container orchestration
+# Uses the /api/health/live endpoint for lightweight liveness checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:7000/health || exit 1
+    CMD curl -f http://localhost:7000/api/health/live || exit 1
 
 EXPOSE 7000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
+
+# =============================================================================
+# Stage 4: Minimal Runtime (optional - for maximum size reduction)
+# =============================================================================
+FROM python:3.14-alpine AS runtime
+
+# Install only runtime dependencies (no build tools)
+RUN apk add --no-cache \
+    curl bash ffmpeg fontconfig ttf-dejavu libpq && \
+    addgroup -g 1000 appuser && \
+    adduser -u 1000 -G appuser -s /bin/bash -D appuser
+
+# Copy Python packages from python-deps
+COPY --from=python-deps /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=python-deps /usr/local/bin /usr/local/bin
+
+# Copy application from final stage
+COPY --from=final --chown=appuser:appuser /app /app
+
+USER appuser
+WORKDIR /app
