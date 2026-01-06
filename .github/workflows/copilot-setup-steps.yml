@@ -1,0 +1,89 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # Backend setup (Python)
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Python linter
+        run: |
+          flake8 app/ --max-line-length=88 --extend-ignore=E203,W503
+
+      - name: Run pytest
+        run: |
+          pytest tests/ -v
+
+      - name: Check database migrations
+        run: |
+          python -m app.migrations_init
+
+      # Frontend setup (Node.js)
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "app/frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Update browserslist database
+        working-directory: app/frontend
+        run: npx update-browserslist-db@latest
+
+      - name: Run frontend linter
+        working-directory: app/frontend
+        run: npm run lint
+
+      - name: Run frontend type check
+        working-directory: app/frontend
+        run: npm run type-check
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: |
+          rm -rf dist/
+          npm run build
+
+      # Docker validation
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -f docker/Dockerfile -t streamvault:test .
+
+      - name: Test Docker container
+        run: |
+          docker run --rm --name streamvault-test \
+            -e DATABASE_URL="sqlite:///test.db" \
+            -e TWITCH_APP_ID="test" \
+            -e TWITCH_APP_SECRET="test" \
+            streamvault:test python -c "from app.main import app; print('Container startup successful')"
