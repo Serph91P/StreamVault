@@ -12,18 +12,50 @@ on:
       - 'requirements.txt'
       - '.github/workflows/docker-build.yml'
 
+# Prevent concurrent builds on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  version:
+  # Run tests first as a gate before building
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run pytest
+        run: |
+          pytest tests/ -v --tb=short
+          
+      - name: Check migrations
+        run: |
+          python -m app.migrations_init
+
+  version:
+    needs: [test]  # Only run after tests pass
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
-      release_type: ${{ steps.semver.outputs.release_type }}
       branch: ${{ steps.branch_name.outputs.branch }}
     steps:
       - uses: actions/checkout@v4
@@ -102,6 +134,7 @@ jobs:
 
   check_changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       backend_changed: ${{ steps.changes.outputs.backend }}
       frontend_changed: ${{ steps.changes.outputs.frontend }}
@@ -124,6 +157,7 @@ jobs:
   build:
     needs: [version, check_changes]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -237,14 +271,15 @@ jobs:
           type=gha,scope=build-main
         cache-to: type=gha,mode=max,scope=build-${{ github.ref_name }}
         
-    # Enhanced security scanning
-    - name: Run Trivy vulnerability scanner on secure image
+    # Enhanced security scanning - scan the image we just built
+    - name: Run Trivy vulnerability scanner on built image
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: frequency2098/streamvault:latest
+        image-ref: frequency2098/streamvault:${{ github.ref == 'refs/heads/main' && format('v{0}', needs.version.outputs.new_version) || 'develop' }}
         format: 'sarif'
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'  # Only scan for critical/high
+        exit-code: '0'  # Don't fail build, just report
         
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v4
@@ -275,6 +310,7 @@ jobs:
     needs: [version]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       
@@ -368,9 +404,24 @@ jobs:
     needs: [build, version]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # environment: production  # Uncomment when you create the production environment
     steps:
       - name: Deploy notification
         run: |
           echo "🚀 StreamVault v${{ needs.version.outputs.new_version }} is ready for deployment!"
           echo "Image: frequency2098/streamvault:v${{ needs.version.outputs.new_version }}"
+          echo ""
+          echo "📦 Pull Commands:"
+          echo "  docker pull frequency2098/streamvault:v${{ needs.version.outputs.new_version }}"
+          echo "  docker pull ghcr.io/${{ github.repository }}:v${{ needs.version.outputs.new_version }}"
+          echo ""
+          echo "🔄 Rollback Commands (if needed):"
+          echo "  # List available versions:"
+          echo "  docker images frequency2098/streamvault --format '{{.Tag}}'"
+          echo "  # Rollback to previous version:"
+          echo "  docker pull frequency2098/streamvault:<previous-version>"
+          echo "  docker-compose down && docker-compose up -d"
+          echo ""
+          echo "📋 Health Check:"
+          echo "  curl -f http://localhost:8000/health || echo 'Health check failed'"

@@ -1,8 +1,7 @@
 ---
 name: 'SE: Architect'
 description: 'System architecture review specialist with Well-Architected frameworks, design validation, and scalability analysis for AI and distributed systems'
-model: GPT-5
-tools: ['codebase', 'edit/editFiles', 'search', 'fetch']
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'todo']
 ---
 
 # System Architecture Reviewer
