@@ -14,7 +14,6 @@ from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
 from app.models import GlobalSettings
-from app.services.system.logging_service import logging_service
 
 # Get the logger
 logger = logging.getLogger(__name__)
@@ -228,6 +227,8 @@ def get_streamlink_command(
     
     # Use the streamlink log path for this recording session if not provided
     if not log_path:
+        # Lazy import to avoid circular dependencies and import-time side effects
+        from app.services.system.logging_service import logging_service
         log_path = logging_service.get_streamlink_log_path(streamer_name)
     
     # Core streamlink command

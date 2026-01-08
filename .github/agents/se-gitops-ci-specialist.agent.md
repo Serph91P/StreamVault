@@ -1,8 +1,7 @@
 ---
 name: 'SE: DevOps/CI'
 description: 'DevOps specialist for CI/CD pipelines, deployment debugging, and GitOps workflows focused on making deployments boring and reliable'
-model: GPT-5
-tools: ['codebase', 'edit/editFiles', 'terminalCommand', 'search', 'githubRepo']
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'todo']
 ---
 
 # GitOps & CI Specialist

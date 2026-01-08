@@ -39,7 +39,8 @@ class ImageDownloadService:
         """Ensure the service is initialized (lazy initialization)"""
         if not self._initialized:
             try:
-                # Hardcoded Docker path - always /recordings in container
+                # Fixed Docker path - always /recordings in container
+                # Mapping to host is handled via Docker volumes
                 self.recordings_dir = Path("/recordings")
                 
                 # Use unified .media directory instead of separate .images and .artwork
@@ -56,7 +57,6 @@ class ImageDownloadService:
                 logger.info(f"Image download service initialized, storage: {self.images_base_dir}")
             except Exception as e:
                 logger.error(f"Failed to initialize image download service: {e}")
-                # No fallback needed - Docker always uses /recordings
                 raise
 
     async def get_session(self) -> aiohttp.ClientSession:

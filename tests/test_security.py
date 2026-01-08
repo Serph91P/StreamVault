@@ -164,10 +164,10 @@ class TestFilenameValidation:
         assert validate_filename("my video.ts") == "my_video.ts"
     
     def test_path_traversal_in_filename(self):
-        """Test that path traversal attempts are neutralized"""
-        # ../ should be converted to safe characters
-        result = validate_filename("../evil.mp4")
-        assert ".." not in result or result == "..evil.mp4"  # Dots allowed but not as directory reference
+        """Test that path traversal attempts raise an error"""
+        # ../ should raise ValueError because sanitized result starts with '.'
+        with pytest.raises(ValueError, match="Invalid filename"):
+            validate_filename("../evil.mp4")
         
     def test_dangerous_characters_removed(self):
         """Test that dangerous characters are removed or replaced"""
@@ -310,16 +310,9 @@ class TestSecurityIntegration:
         clean_streamer = validate_streamer_name(streamer_name)
         assert clean_streamer == "teststreamer123"
         
-        # Validate filename (neutralizes path traversal)
-        clean_filename = validate_filename(filename)
-        assert ".." not in clean_filename or clean_filename.startswith(".")
-        
-        # Construct path
-        file_path = os.path.join(self.temp_dir, clean_streamer, clean_filename)
-        
-        # Final validation - should fail because file doesn't exist
-        with pytest.raises(HTTPException):
-            validate_path_security(file_path, "read")
+        # Validate filename - should raise ValueError for path traversal attempts
+        with pytest.raises(ValueError, match="Invalid filename"):
+            validate_filename(filename)
     
     def test_attack_chain_blocked(self):
         """Test that a chain of attack attempts is blocked"""

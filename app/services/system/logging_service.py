@@ -26,11 +26,16 @@ class LoggingService:
     def __init__(self, logs_base_dir: str = None, test_permissions: bool = False):
         # Determine the logs directory based on environment
         if logs_base_dir is None:
-            # Try to get from settings first
-            if _SETTINGS_AVAILABLE and settings and hasattr(settings, 'LOGS_DIR'):
+            # Priority 1: Check environment variable (for testing and custom deployments)
+            env_logs_dir = os.environ.get("LOGS_BASE_DIR") or os.environ.get("LOG_DIR")
+            if env_logs_dir:
+                logs_base_dir = env_logs_dir
+                logger.info(f"Using logs directory from environment: {logs_base_dir}")
+            # Priority 2: Try to get from settings
+            elif _SETTINGS_AVAILABLE and settings and hasattr(settings, 'LOGS_DIR'):
                 logs_base_dir = settings.LOGS_DIR
             else:
-                # Fallback logic: use local directory if it exists, otherwise use Docker path
+                # Priority 3: Fallback logic - use local directory if it exists, otherwise use Docker path
                 local_logs = "logs_local"
                 docker_logs = "/app/logs"
                 
